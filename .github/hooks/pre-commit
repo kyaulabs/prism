@@ -1,2 +1,26 @@
 #!/bin/sh
+set -e
+
+# PHP syntax check (staged files only)
+if command -v php > /dev/null 2>&1; then
+	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
+	for f in $STAGED_PHP; do php -l "$f"; done
+fi
+
+# php-cs-fixer
+if command -v php-cs-fixer > /dev/null 2>&1; then
+	php-cs-fixer fix . --dry-run --diff
+fi
+
+# Stylelint
+if command -v npx > /dev/null 2>&1 && [ -d node_modules/stylelint ]; then
+	npx stylelint "cdn/sass/**/*.scss"
+fi
+
+# ESLint
+if command -v npx > /dev/null 2>&1 && [ -d node_modules/eslint ]; then
+	npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
+fi
+
+# Secret scanning
 gitleaks detect --source . -v --no-color --max-target-megabytes 5

@@ -16,6 +16,7 @@ Keep these factors in mind when setting up repositories.
 
 * [About](#about)
 * [Install Additions (optional)](#install-additions-optional)
+  * [PHP](#php)
 * [New Repository](#new-repository)
   * [Clone this Template](#clone)
   * [Initialize Repository](#init)
@@ -58,6 +59,18 @@ Install `commitlint` and `git-cliff` globally and then generate a commitlint con
 
 ```text
 npm i -g @commitlint/config-conventional @commitlint/cli git-cliff
+```
+
+### PHP
+
+For PHP-based projects install the following:
+
+**Globally:**
+- `php-cs-fixer` — download from [cs.symfony.com](https://cs.symfony.com/)
+
+**Project devDependencies (requires npm):**
+```text
+npm install --save-dev stylelint stylelint-config-standard-scss eslint @eslint/js
 ```
 
 ## New Repository
