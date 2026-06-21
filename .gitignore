@@ -3,4 +3,4 @@
 .vs/
 
 # PHP CS Fixer
-.php-cs-fixer.dist.php
+.php-cs-fixer.cache
