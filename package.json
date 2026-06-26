@@ -1,0 +1,13 @@
+{
+	"name": "cosmos",
+	"private": true,
+	"description": "COSMOS — Private Services (frontend tooling)",
+	"devDependencies": {
+		"@eslint/js": "^9",
+		"eslint": "^9",
+		"sass": "^1",
+		"stylelint": "^16",
+		"stylelint-config-standard-scss": "^14",
+		"uglify-js": "^3"
+	}
+}

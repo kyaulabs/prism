@@ -55,9 +55,10 @@ Projects live in `/nginx/git/<project>` and are symlinked into
 `/nginx/https/<domain>` on production.
 
 # File Naming Conventions
-- All files: kebab-case (class-name.php, my-script.js, site-styles.scss)
-- Time-stamped files: append `-YYYYMMDDThhmmssZ` (report-20240722T143000Z.php)
-- No uppercase letters, no underscores in filenames
+- PHP (procedural helpers, config files, etc.): snake_case (index.php, config_loader.php)
+- PHP (class, interface, or trait): PascalCase (ClassName.php, InterfaceName.php, TraitName.php)
+- All other files: snake_case (my_script.js, site_styles.scss)
+- Time-stamped files: append `-YYYYMMDDThhmmss` (report-20240722T143000.php)
 
 # Commenting Standards
 ## RCS-style Header (REQUIRED on every file)
