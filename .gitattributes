@@ -1,0 +1,10 @@
+# Ensure consistent line endings
+* text=auto
+*.md text
+
+# Treat binary files properly
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

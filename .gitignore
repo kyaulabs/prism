@@ -1,6 +1,27 @@
-# Visual Studio cache directory
+# Cache
+.php-cs-fixer.cache
+.phpunit.cache
+
+# Code coverage
+tests/coverage/
+tests/coverage.txt
+
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+package-lock.json
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# macOS/Windows files
+.DS_Store
+desktop.ini
+Thumbs.db
+
+## Visual Studio cache directory
 */.vs/
 .vs/
-
-# PHP CS Fixer
-.php-cs-fixer.cache
