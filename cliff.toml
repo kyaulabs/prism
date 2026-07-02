@@ -75,7 +75,8 @@ link_parsers = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-  { message = "^feat|^patch", group = "🚀 Features" },
+  { message = "^feat", group = "🚀 Features" },
+  { message = "^patch", group = "🩹 Patches" },
   { message = "^fix", group = "🐛 Bug Fixes" },
   { message = "^doc", group = "📝 Documentation" },
   { message = "^perf", group = "⚡️ Performance" },
@@ -104,3 +105,12 @@ topo_order = false
 sort_commits = "oldest"
 # limit the number of commits included in the changelog.
 # limit_commits = 42
+
+[bump]
+# feat: always bumps MINOR, even pre-1.0
+features_always_bump_minor = true
+# breaking changes bump MINOR while major = 0, MAJOR once you hit 1.0+
+breaking_always_bump_major = false
+# teach git-cliff's bump calculator about your custom 'patch' type
+# (fix: already bumps PATCH by default; this makes patch: do the same)
+custom_patch_increment_regex = "^patch"

@@ -1,2 +1,6 @@
-#!/bin/sh
-commitlint --edit ${1}
+#!/usr/bin/env bash
+# $KYAULabs: commit-msg,v 1.0.1 2026/06/30 20:38:16 -0700 kyau Exp $
+
+set -euo pipefail
+
+npx commitlint --edit "${1}"

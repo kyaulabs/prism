@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# $KYAULabs: post-checkout,v 1.0.1 2026/06/30 20:38:51 -0700 kyau Exp $
+
+set -euo pipefail
+
+git submodule update --init --recursive

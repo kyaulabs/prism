@@ -1,14 +1,15 @@
 {
-	"name": "kyaulabs/cosmos",
-	"description": "COSMOS — Private Services",
+	"name": "kyaulabs/template",
+	"description": "Template — Change This Description",
 	"type": "project",
 	"require": {
 		"php": ">=8.5"
 	},
 	"require-dev": {
-		"friendsofphp/php-cs-fixer": "^3",
-		"pestphp/pest": "^3",
-		"pestphp/pest-plugin-arch": "^3"
+		"friendsofphp/php-cs-fixer": "*",
+		"pestphp/pest": "*",
+		"pestphp/pest-plugin-arch": "*",
+		"pestphp/pest-plugin-browser": "*"
 	},
 	"autoload-dev": {
 		"classmap": ["tests/"]

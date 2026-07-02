@@ -1,26 +1,59 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env bash
+# $KYAULabs: pre-commit,v 1.0.1 2026/06/30 20:40:03 -0700 kyau Exp $
 
-# PHP syntax check (staged files only)
+set -euo pipefail
+
+# ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
-	for f in $STAGED_PHP; do php -l "$f"; done
+	if [ -n "$STAGED_PHP" ]; then
+		echo "→ PHP syntax check"
+		while IFS= read -r f; do
+			php -l "$f"
+		done <<< "$STAGED_PHP"
+	fi
 fi
 
-# php-cs-fixer
+# ── php-cs-fixer (staged files only) ─────────────────────────────────────────
 if command -v php-cs-fixer > /dev/null 2>&1; then
-	php-cs-fixer fix . --dry-run --diff
+	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
+	if [ -n "$STAGED_PHP" ]; then
+		echo "→ php-cs-fixer"
+		# --path-mode=intersection expects each path as its own argument;
+		# php-cs-fixer requires an explicit --config when passed multiple paths
+		CS_CONFIG=""
+		if [ -f .php-cs-fixer.dist.php ]; then
+			CS_CONFIG=.php-cs-fixer.dist.php
+		elif [ -f .php-cs-fixer.php ]; then
+			CS_CONFIG=.php-cs-fixer.php
+		fi
+		mapfile -t PATHS <<< "$STAGED_PHP"
+		if [ -n "$CS_CONFIG" ]; then
+			php-cs-fixer fix --config="$CS_CONFIG" --dry-run --diff --path-mode=intersection "${PATHS[@]}" 2>&1
+		else
+			php-cs-fixer fix --dry-run --diff --path-mode=intersection "${PATHS[@]}" 2>&1
+		fi
+	fi
 fi
 
-# Stylelint
-if command -v npx > /dev/null 2>&1 && [ -d node_modules/stylelint ]; then
-	npx stylelint "cdn/sass/**/*.scss"
+# ── Stylelint ─────────────────────────────────────────────────────────────────
+STAGED_SCSS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
+if [ -n "$STAGED_SCSS" ] && [ -d node_modules/stylelint ]; then
+	echo "→ Stylelint"
+	npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
 fi
 
-# ESLint
-if command -v npx > /dev/null 2>&1 && [ -d node_modules/eslint ]; then
-	npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
+# ── ESLint ────────────────────────────────────────────────────────────────────
+STAGED_JS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.js$' | grep -v '\.min\.js$' || true)
+if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
+	echo "→ ESLint"
+	npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 fi
 
-# Secret scanning
-gitleaks detect --source . -v --no-color --max-target-megabytes 5
+# ── Gitleaks ──────────────────────────────────────────────────────────────────
+if command -v gitleaks > /dev/null 2>&1; then
+	echo "→ gitleaks"
+	gitleaks protect --staged --redact --no-color --max-target-megabytes 5
+fi
+
+echo "✓ pre-commit passed"

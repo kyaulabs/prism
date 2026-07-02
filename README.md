@@ -2,8 +2,12 @@
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 
-[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md) &nbsp; [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)  
-[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org) &nbsp; [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
+[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
+[![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE)
+[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)\
+[![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
+[![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 
 ## About
 
@@ -15,17 +19,17 @@ This repository is the basis for all other repositories created here at KYAU Lab
 Keep these factors in mind when setting up repositories.
 
 * [About](#about)
-* [Install Additions (optional)](#install-additions-optional)
-  * [PHP](#php)
+* [Dependencies](#dependencies)
 * [New Repository](#new-repository)
   * [Clone this Template](#clone)
   * [Initialize Repository](#init)
   * [Add License](#add-license)
   * [Add `.gitignore`](#add-gitignore)
   * [Update `README.md`](#update-readmemd)
+  * [Configuration Files](#configuration-files)
 * [Git Hooks](#git-hooks)
   * [Configuration](#configuration)
-  * [Symlinks](#symlinks)
+  * [Install Script](#install-script)
 * [Initial Commit](#initial-commit)
   * [Stage All](#stage-all)
   * [Commit](#commit)
@@ -36,6 +40,7 @@ Keep these factors in mind when setting up repositories.
   * [Branches](#branches)
   * [Webhooks](#webhooks)
 * [Issue Labels](#issue-labels)
+* [Coding Harness](#coding-harness)
 * [Conventional Commits](#conventional-commits)
   * [Type](#type)
   * [Scope](#scope)
@@ -44,34 +49,34 @@ Keep these factors in mind when setting up repositories.
   * [Footer](#footer)
   * [Examples](#examples)
 * [Changelog](#changelog)
-* [Unity Projects](#unity-projects)
-  * [Unity Activation](#unity-activation)
 * [Attribution](#attribution)
 
-## Install Additions (optional)
+## Dependencies
 
-```sh
-🚧 WARNING
-# This is only required if you do not already have commitlint and git-cliff installed.
-```
-
-Install `commitlint` and `git-cliff` globally and then generate a commitlint config file.
+Install project dependencies via Composer and npm.
 
 ```text
-npm i -g @commitlint/config-conventional @commitlint/cli git-cliff
+composer install
+npm install
 ```
 
-### PHP
+| Tool | Via | Purpose |
+| --- | --- | --- |
+| php-cs-fixer | Composer | PHP code style (PSR-12) |
+| pestphp/pest | Composer | Testing framework (TDD) |
+| pestphp/pest-plugin-arch | Composer | Architecture tests |
+| pestphp/pest-plugin-browser | Composer | Browser tests (Playwright) |
+| sass | npm | SCSS → CSS compilation |
+| uglify-js | npm | JavaScript minification |
+| eslint | npm | JavaScript linting |
+| stylelint | npm | SCSS linting |
+| @commitlint/* | npm | Commit message validation |
+| git-cliff | npm | Changelog generation |
+| playwright | npm | Browser testing |
 
-For PHP-based projects install the following:
+### Gitleaks
 
-**Globally:**
-- `php-cs-fixer` — download from [cs.symfony.com](https://cs.symfony.com/)
-
-**Project devDependencies (requires npm):**
-```text
-npm install --save-dev stylelint stylelint-config-standard-scss eslint @eslint/js
-```
+Gitleaks scans commits for secrets at pre-commit time. Install globally via your package manager or from [gitleaks/releases](https://github.com/gitleaks/gitleaks/releases).
 
 ## New Repository
 
@@ -109,9 +114,16 @@ Add a  `.gitignore` template from [@github/gitignore](https://github.com/github/
 
 Take this time to update the `README.md` with at least basic repository information and a hopeful table of contents. It is okay if most sections are blank.
 
-### Update `cliff.toml`
+### Configuration Files
 
-Be sure to modify `cliff.toml` and replace all the instances of `kyaulabs/template` with the new repository location.
+Several files reference `kyaulabs/template` and must be updated to reflect your new repository:
+
+| File | What to update |
+| --- | --- |
+| `cliff.toml` | All `github.com/kyaulabs/template` URLs → new repo location |
+| `composer.json` | `name` and `description` fields |
+| `package.json` | `name` and `description` fields |
+| `commitlint.config.js` | Remove any unused types from `type-enum` if needed |
 
 ### Add Actions
 
@@ -138,14 +150,15 @@ Generate a config for commitlint.
 echo "module.exports = { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
 ```
 
-### Symlinks
+### Install Script
 
-Copy or symlink to the hooks located inside of `.github/hooks`.
+Run the install script to symlink hooks from `.github/hooks/` into `.git/hooks/`.
 
 ```text
-chmod u+x .github/hook/*
-cp .github/hooks/* .git/hooks/
+bash .github/scripts/install-hooks.sh
 ```
+
+The script backs up any existing hooks and symlinks in the pre-commit (lint + gitleaks) and commit-msg (commitlint) hooks.
 
 ## Initial Commit
 
@@ -197,7 +210,7 @@ Under the `Features` section enable `Sponsorships` and then disable anything tha
 
 Under manage access click on `Add people`. In the search box enter and select `@kyaulabs-bot` then change the role to `Write`.
 
-<img src="https://avatars.githubusercontent.com/u/135310113?s=42&v=4" style="vertical-align:middle;margin-left:4ch" /> @kyaulabs-bot
+<img src="https://avatars.githubusercontent.com/u/135310113?s=42&v=4" style="vertical-align:middle;margin-left:4ch" alt="@kyaulabs-bot" /> @kyaulabs-bot
 
 ### Branches
 
@@ -239,48 +252,61 @@ Organization level issue labels work in conjunction with conventional commits. W
 In order to properly label something be sure to include at least one type, a single priority and it's current status. Optional labels may be added at your discretion.
 
 **T - Type:** Directly corresponds to the conventional commits [type](#type).
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Type | `feature` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Feature
-Type | `patch` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Sub-Feature
-Type | `bug` | <span style="color:#ff5050">#ff5050</span> | 🐛 Bug
-Type | `documentation` | <span style="color:#c0e6ff">#c0e6ff</span> | 📝 Documentation
-Type | `performance` | <span style="color:#41d6c3">#41d6c3</span> | ⚡️ Performance
-Type | `refactor` | <span style="color:#ffa572">#ffa572</span> | ♻️ Refactor
-Type | `style` | <span style="color:#ffa572">#ffa572</span> | 💄 Styling
-Type | `test` | <span style="color:#ffd791">#ffd791</span> | ⚗️ Testing
-Type | `ci/cd` | <span style="color:#ffd791">#ffd791</span> | 👷 CI/CD
-Type | `chore` | <span style="color:#ffd791">#ffd791</span> | 🔮 Misc
-Type | `security` | <span style="color:#ff5050">#ff5050</span> | 🔒️ Security
+
+| Group | Label | Color | Description |
+| :---: | :---: | :---: | --- |
+| Type | `feature` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Feature |
+| Type | `patch` | <span style="color:#41d6c3">#41d6c3</span> | 🩹 Patches |
+| Type | `bug` | <span style="color:#ff5050">#ff5050</span> | 🐛 Bug |
+| Type | `documentation` | <span style="color:#c0e6ff">#c0e6ff</span> | 📝 Documentation |
+| Type | `performance` | <span style="color:#41d6c3">#41d6c3</span> | ⚡️ Performance |
+| Type | `refactor` | <span style="color:#ffa572">#ffa572</span> | ♻️ Refactor |
+| Type | `style` | <span style="color:#ffa572">#ffa572</span> | 💄 Styling |
+| Type | `test` | <span style="color:#ffd791">#ffd791</span> | ⚗️ Testing |
+| Type | `ci/cd` | <span style="color:#ffd791">#ffd791</span> | 👷 CI/CD |
+| Type | `chore` | <span style="color:#ffd791">#ffd791</span> | 🔮 Misc |
+| Type | `security` | <span style="color:#ff5050">#ff5050</span> | 🔒️ Security |
 
 **P - Priority:** The urgency of the issue/task.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Priority | `critical` | <span style="color:#800000">#800000</span> | Security-related/Project-breaking
-Priority | `high` | <span style="color:#c11c00">#c11c00</span> | Foundational / Important
-Priority | `medium` | <span style="color:#f39a4d">#f39a4d</span> | Basic / Normal
-Priority | `low` | <span style="color:#8cd211">#8cd211</span> | Additional / Polish
+
+| Group | Label | Color | Description |
+| :---: | :---: | :---: | --- |
+| Priority | `critical` | <span style="color:#800000">#800000</span> | Security-related/Project-breaking |
+| Priority | `high` | <span style="color:#c11c00">#c11c00</span> | Foundational / Important |
+| Priority | `medium` | <span style="color:#f39a4d">#f39a4d</span> | Basic / Normal |
+| Priority | `low` | <span style="color:#8cd211">#8cd211</span> | Additional / Polish |
 
 **S - Status:** Current progress.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Status | `done` | <span style="color:#0e8a16">#0e8a16</span> | Complete
-Status | `in progress` | <span style="color:#fbca04">#fbca04</span> | Currently Working On
-Status | `testing` | <span style="color:#fbca04">#fbca04</span> | Testing Ideas / Methods
-Status | `under construction` | <span style="color:#fbca04">#fbca04</span> | Beginning Stages
+
+| Group | Label | Color | Description |
+| :---: | :---: | :---: | --- |
+| Status | `done` | <span style="color:#0e8a16">#0e8a16</span> | Complete |
+| Status | `in progress` | <span style="color:#fbca04">#fbca04</span> | Currently Working On |
+| Status | `testing` | <span style="color:#fbca04">#fbca04</span> | Testing Ideas / Methods |
+| Status | `under construction` | <span style="color:#fbca04">#fbca04</span> | Beginning Stages |
 
 **Optional:** Two other groups are included for convinience.
-Group | Label | Color | Description
-:----:|:-----:|:-----:|-------------
-Feedback | `brainstorming` | <span style="color:#db2780">#db2780</span> | Coming Up w/ New &lt;Type&gt;
-Feedback | `help wanted` | <span style="color:#db2780">#db2780</span> | Help Requested on &lt;Type&gt;
-Feedback | `research` | <span style="color:#db2780">#db2780</span> | &lt;Type&gt; Needs Research
-Feedback | `request for comments` | <span style="color:#db2780">#db2780</span> | External Opinions Needed on &lt;Type&gt;
-Other | `good first issue` | <span style="color:#4e3cb2">#4e3cb2</span> | Good Issue for First Time Contributor
-Other | `duplicate` | <span style="color:#cfd3d7">#cfd3d7</span> | Duplicate &lt;Type&gt;
-Other | `invalid` | <span style="color:#cfd3d7">#cfd3d7</span> | Invalid &lt;Type&gt;
-Other | `on hold` | <span style="color:#cfd3d7">#cfd3d7</span> | Currently On Hold
-Other | `won't fix` | <span style="color:#cfd3d7">#cfd3d7</span> | This Will Not Be Fixed
+
+| Group | Label | Color | Description |
+| :---: | :---: | :---: | --- |
+| Feedback | `brainstorming` | <span style="color:#db2780">#db2780</span> | Coming Up w/ New &lt;Type&gt; |
+| Feedback | `help wanted` | <span style="color:#db2780">#db2780</span> | Help Requested on &lt;Type&gt; |
+| Feedback | `research` | <span style="color:#db2780">#db2780</span> | &lt;Type&gt; Needs Research |
+| Feedback | `request for comments` | <span style="color:#db2780">#db2780</span> | External Opinions Needed on &lt;Type&gt; |
+| Other | `good first issue` | <span style="color:#4e3cb2">#4e3cb2</span> | Good Issue for First Time Contributor |
+| Other | `duplicate` | <span style="color:#cfd3d7">#cfd3d7</span> | Duplicate &lt;Type&gt; |
+| Other | `invalid` | <span style="color:#cfd3d7">#cfd3d7</span> | Invalid &lt;Type&gt; |
+| Other | `on hold` | <span style="color:#cfd3d7">#cfd3d7</span> | Currently On Hold |
+| Other | `won't fix` | <span style="color:#cfd3d7">#cfd3d7</span> | This Will Not Be Fixed |
+
+## Coding Harness
+
+This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development.
+
+* **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools
+* **`CODING_HARNESS.md`** — Full inventory of agents, skills, and built-in commands
+* **`opencode.json`** — Wires AGENTS.md + supplementary docs into the coding agent
+* **`.opencode/`** — Agents, commands, on-demand skills, and supplementary documentation
 
 ## Conventional Commits
 
@@ -417,24 +443,6 @@ git add CHANGELOG.md            # add the changelog file to the commit
 git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
 git push -u origin develop      # finally, push the commit
 ```
-
-## Unity Projects
-
-### Unity Activation
-
-Visit the repository page and navigate to `Actions`. Manually run the `Unity Activation 🔐` action and then download the artifact.
-
-Extract the zip file somewhere accessible.
-
-Visit [license.unity3d.com](https://license.unity3d.com/manual) and upload the `Unity_v20XX.X.XXXX.alf` file, receiving a license file `Unity_v20XX.X.ulf` in return.
-
-Navigate on Github to `Settings > Secrets and variables > Actions`.
-
-Create the following repository secrets:
-
-* `UNITY_LICENSE` - (Copy the contents of your license file into here)
-* `UNITY_EMAIL` - (Add the email address that you use to login to Unity)
-* `UNITY_PASSWORD` - (Add the password that you use to login to Unity)
 
 ## Attribution
 

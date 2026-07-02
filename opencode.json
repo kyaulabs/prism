@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".opencode/docs/conventions.md",
+    ".opencode/docs/build-pipeline.md"
+  ],
+  "agent": {
+    "plan": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          "test-audit": "allow",
+          "code-review": "allow",
+          "semgrep": "allow",
+          "explore": "allow",
+          "scout": "allow",
+          "docs-writer": "allow"
+        }
+      }
+    }
+  }
+}
