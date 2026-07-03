@@ -60,12 +60,13 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 
 ## Hard Boundaries
 
-- NEVER edit `cdn/css/*.min.css` or `cdn/javascript/*.min.js` — these are generated
-- NEVER commit `.env` files — use `.env.example` only
-- Do not access external APIs without explicit permission
-- Do not modify files outside the project directory
-- New dependencies must be explicitly noted
-- When glob/grep returns unexpected empty results, verify with `ls` before concluding a file does not exist
+> [!IMPORTANT]
+> - NEVER edit `cdn/css/*.min.css` or `cdn/javascript/*.min.js` — these are generated
+> - NEVER commit `.env` files — use `.env.example` only
+> - Do not access external APIs without explicit permission
+> - Do not modify files outside the project directory
+> - New dependencies must be explicitly noted
+> - When glob/grep returns unexpected empty results, verify with `ls` before concluding a file does not exist
 
 ## File Naming
 
@@ -77,10 +78,11 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 
 ## Commenting
 
-- Every file starts with an RCS-style header — see `rcs-header` skill
-- PHP classes/methods: PHPDoc (PSR-5) with params, return types, exceptions
-- No explanatory comments unless explicitly requested
-- Every file ends with a vim modeline — see `rcs-header` skill
+> [!IMPORTANT]
+> - Every file starts with an RCS-style header — see `rcs-header` skill
+> - Every file ends with a vim modeline — see `rcs-header` skill
+> - PHP classes/methods: PHPDoc (PSR-5) with params, return types, exceptions
+> - No explanatory comments unless explicitly requested
 
 ## Indentation
 
@@ -90,10 +92,12 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 
 ## Testing — MANDATORY TDD
 
-All new code follows Red → Green → Refactor. No exceptions.  
-Use the `@tdd` agent for any new feature or bug fix.  
-Use the `@test-audit` agent to review an existing test suite.  
-Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`  
+> [!IMPORTANT]
+> All new code follows Red → Green → Refactor. No exceptions.
+> Use the `@tdd` agent for any new feature or bug fix.
+> Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`
+
+Use the `@test-audit` agent to review an existing test suite.
 Pre-push gate: `/check` (php-cs-fixer + stylelint + eslint + pest --coverage).
 
 ## Engineering Pipeline
@@ -102,17 +106,18 @@ The full methodology, end to end. Follow this sequence for any non-trivial
 change. Each phase produces an artifact that the next phase consumes.
 
 ```text
-brainstorming → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** the change (grilling skill) → spec in `docs/specs/`.
-2. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
-3. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
-4. **Verify** completion (verification-before-completion skill).
-5. **Gate** with `/check` (lint + coverage 80%).
-6. **Review** with `@code-review` before push.
+2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
+3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
+4. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
+5. **Verify** completion (verification-before-completion skill).
+6. **Gate** with `/check` (lint + coverage 80%).
+7. **Review** with `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before step 3.
+For non-trivial or cross-cutting changes, insert `@architect` before step 4.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 For architectural entropy, run `/improve-architecture` on a cadence.
 
@@ -149,6 +154,7 @@ Load these on demand when the task requires them:
 | Skill | When to use |
 | --- | --- |
 | `brainstorming` | Before any creative work — features, components, behavior changes. Grilling → design → spec |
+| `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `rcs-header` | Creating or modifying any source file |

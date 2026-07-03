@@ -108,3 +108,13 @@ the task is complete until every item passes.
   than PASS.
 - This skill is the last gate before `/check` and `@code-review`. Don't
   shortcut it.
+
+## Gotchas
+
+Known failure modes that compound over time. Add entries when this skill
+causes a preventable mistake.
+
+- *Claiming "done" from memory without re-running tests* — the whole point
+  of this skill is to verify, not assume. Actually run the commands.
+- *Forgetting to grep for `[DEBUG-]` tags* — debug instrumentation from
+  `@debug` sessions survives if not explicitly cleaned up. Always grep.

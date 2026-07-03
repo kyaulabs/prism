@@ -95,3 +95,13 @@ Print a summary:
   reference it — the next agent should read it.
 - If `CONTEXT.md` was updated during this session, note it so the next agent
   knows the domain model is current.
+
+## Resuming
+
+To resume work in a new session, tell the agent:
+
+> Read `docs/handoffs/<filename>` and continue.
+
+The agent reads the handoff doc, loads the context pointers, and picks up
+the open tasks. No special command needed — the handoff doc is structured
+for direct consumption.

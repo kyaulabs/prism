@@ -9,17 +9,18 @@ file carries no per-session token cost.
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** the change (grilling skill) → spec in `docs/specs/`.
-2. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
-3. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
-4. **Verify** completion (verification-before-completion skill).
-5. **Gate** with `/check` (lint + coverage 80%).
-6. **Review** with `@code-review` before push.
+2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
+3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
+4. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
+5. **Verify** completion (verification-before-completion skill).
+6. **Gate** with `/check` (lint + coverage 80%).
+7. **Review** with `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before step 3.
+For non-trivial or cross-cutting changes, insert `@architect` before step 4.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 
 ## Where things live

@@ -304,3 +304,20 @@ flag if applicable>
   concluding the file doesn't exist.
 - If root cause is unclear after exhausting available evidence, state what
   additional information would help and stop — don't guess.
+
+## Gotchas
+
+Known failure modes that compound over time. Add entries when this agent
+causes a preventable mistake.
+
+- *Jumping to hypotheses before building a feedback loop* — the Iron Law
+  exists because reading code to build a theory before having a red-capable
+  command is the #1 debugging failure mode. No loop, no Phase 2.
+- *Single-hypothesis anchoring* — generating one plausible hypothesis and
+  testing it locks out alternatives. Always generate 3–5 ranked hypotheses
+  before testing any.
+- *Untagged debug logs surviving cleanup* — `[DEBUG-xxxx]` tags exist so
+  cleanup is a single grep. Untagged logs survive forever. Always tag.
+- *Continuing to fix symptoms after 3+ failed fixes* — this is an
+  architecture problem, not a hypothesis problem. Stop and question the
+  fundamentals.

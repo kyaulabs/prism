@@ -212,3 +212,15 @@ the `verification-before-completion` skill before moving on.
 - `verification-before-completion` skill — run after each task is green.
 - `rcs-header` skill — apply RCS header + vim modeline to every new file.
 - `domain-context` skill — use `CONTEXT.md` vocabulary in task/variable names.
+
+## Gotchas
+
+Known failure modes that compound over time. Add entries when this skill
+causes a preventable mistake.
+
+- *Placeholder creep* — "TBD", "add error handling", "similar to Task N" are
+  plan failures. Every step must contain actual content the implementer needs.
+- *Type drift between tasks* — `clearLayers()` in Task 3 becomes
+  `clearFullLayers()` in Task 7. Run the self-review type-consistency check.
+- *Tasks too large* — a task should be 2–5 minutes of work. If a task has
+  more than ~5 steps, it's probably two tasks.

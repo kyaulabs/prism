@@ -139,3 +139,23 @@ Before merging a new skill/agent/command:
   (the authoritative source).
 - If a new skill introduces a domain term, update `CONTEXT.md`.
 - Test new agents/commands by invoking them on a real task before merging.
+
+## Gotchas
+
+Known failure modes that compound over time. Add entries when this skill
+causes a preventable mistake.
+
+- *Skill description written as a summary, not a trigger* — the description
+  field is how the model decides when to load the skill. Write it as "Use
+  when <trigger>." not "This skill provides <summary>."
+- *Skill restates rules from AGENTS.md* — always reference the authoritative
+  source instead of duplicating. Duplicated rules drift out of sync.
+- *New skill not added to AGENTS.md tables* — the skill exists but the agent
+  doesn't know to load it. Always update the tables.
+
+## Mandatory: Gotchas section
+
+Every new skill MUST include a `## Gotchas` section at the end. It captures
+known failure modes specific to that skill — the highest-signal content for
+preventing repeated mistakes. Start empty if no failure modes are known yet;
+add entries as they're discovered in real use.

@@ -352,17 +352,18 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
-2. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
-3. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
-4. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
-5. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-6. **Review** — invoke `@code-review` before push.
+2. **Prototype** (if needed) — load the `prototype` skill; build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
+3. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
+4. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
+5. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
+6. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
+7. **Review** — invoke `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before step 3. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
+For non-trivial or cross-cutting changes, insert `@architect` before step 4. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
 
 ### Primary agents
 
@@ -414,7 +415,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 | Category | Skills |
 | --- | --- |
-| Engineering pipeline | `brainstorming`, `writing-plans`, `verification-before-completion` |
+| Engineering pipeline | `brainstorming`, `prototype`, `writing-plans`, `verification-before-completion` |
 | Visual language | `frontend-design`, `scss-mobile-first`, `accessibility` |
 | Frontend structure | `frontend-architecture`, `aurora-page` |
 | Defensive coding | `security-coding` |

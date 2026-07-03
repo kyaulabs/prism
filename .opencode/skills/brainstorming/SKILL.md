@@ -157,3 +157,16 @@ the spec review. Only proceed once the user approves.
   interface-design checklist.
 - `@architect` agent — for non-trivial or cross-cutting changes, suggest an
   architect review before implementation.
+
+## Gotchas
+
+Known failure modes that compound over time. Add entries when this skill
+causes a preventable mistake.
+
+- *Skipping brainstorming for "simple" changes* — simple changes are where
+  unexamined assumptions cause the most wasted work. The design can be short,
+  but it must be presented and approved.
+- *Asking multiple questions in one message* — overwhelms the user and
+  produces lower-quality answers. One question at a time, always.
+- *Jumping to implementation before spec is written* — the hard-gate exists
+  for a reason. No code until the design is approved and the spec is saved.
