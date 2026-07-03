@@ -96,6 +96,26 @@ Use the `@test-audit` agent to review an existing test suite.
 Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`  
 Pre-push gate: `/check` (php-cs-fixer + stylelint + eslint + pest --coverage).
 
+## Engineering Pipeline
+
+The full methodology, end to end. Follow this sequence for any non-trivial
+change. Each phase produces an artifact that the next phase consumes.
+
+```text
+brainstorming → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+```
+
+1. **Brainstorm** the change (grilling skill) → spec in `docs/specs/`.
+2. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
+3. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
+4. **Verify** completion (verification-before-completion skill).
+5. **Gate** with `/check` (lint + coverage 80%).
+6. **Review** with `@code-review` before push.
+
+For non-trivial or cross-cutting changes, insert `@architect` before step 3.
+For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
+For architectural entropy, run `/improve-architecture` on a cadence.
+
 ## Linting & Enforcement
 
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on failure.  
@@ -128,6 +148,9 @@ Load these on demand when the task requires them:
 
 | Skill | When to use |
 | --- | --- |
+| `brainstorming` | Before any creative work — features, components, behavior changes. Grilling → design → spec |
+| `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
+| `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `rcs-header` | Creating or modifying any source file |
 | `aurora-page` | Creating a new PHP page |
 | `scss-mobile-first` | Writing or reviewing SCSS (breakpoints, units, build) |
@@ -142,6 +165,7 @@ Load these on demand when the task requires them:
 | `conventional-commits` | Writing or reviewing commit messages |
 | `pest-browser` | Writing browser tests |
 | `audit-deps` | Scanning PHP/JS dependencies for known CVEs |
+| `writing-skills` | Authoring new skills, agents, commands, or docs in `.opencode/` |
 
 ## Agents Available
 
@@ -153,7 +177,7 @@ Load these on demand when the task requires them:
 | `@architect` | subagent | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
 | `@resolve-merge-conflicts` | subagent | Resolving in-progress git merge/rebase conflicts |
 | `@semgrep` | subagent | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
-| `@debug` | subagent | Investigating bugs — log inspection, targeted tests, root cause analysis |
+| `@debug` | subagent | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem |
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
 
 ## Commands
@@ -167,3 +191,5 @@ Load these on demand when the task requires them:
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
 | `/build-assets` | Rebuild minified CSS and JS from source |
 | `/security` | SAST scan + dependency CVE audit in one pass |
+| `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
+| `/handoff` | Compact current conversation into a handoff document for another session |
