@@ -342,18 +342,27 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 
 **Reference docs:**
 * **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools (loaded by every session)
-* **`CODING_HARNESS.md`** — Full inventory of agents, skills, commands, and the directory tree (read this for the canonical list)
+* **`CODING_HARNESS.md`** — Orientation guide: built-in features, pipeline overview, and pointers (agents load `AGENTS.md` as the authoritative source)
 * **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
 * **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
 * **`opencode.json`** — Wires instructions + agent definitions + permissions into the coding agent
 
 ### Quick-start loop
 
-A typical AI-assisted change follows three steps:
+The full engineering pipeline, end to end:
 
-1. **Plan** — press `Tab` to switch to the Plan agent; discuss the approach, explore the codebase, run `@architect` to evaluate against `CONTEXT.md` + ADRs. No files change in this phase.
-2. **Implement** — `Tab` back to Build; invoke `@tdd` for the feature or bug fix. Tests are written first (red → green → refactor); the harness enforces 80% line coverage.
-3. **Verify** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message; run `/release` to cut a signed tag and generate the changelog.
+```text
+brainstorming → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+```
+
+1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
+2. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
+3. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
+4. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
+5. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
+6. **Review** — invoke `@code-review` before push.
+
+For non-trivial or cross-cutting changes, insert `@architect` before step 3. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
 
 ### Primary agents
 
@@ -382,7 +391,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
 | `@resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
 | `@semgrep` | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
-| `@debug` | Investigating bugs — log inspection, targeted tests, root cause analysis |
+| `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 
 ### Slash commands
@@ -396,6 +405,8 @@ Press `Tab` to switch between Build and Plan during a session.
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
 | `/build-assets` | Rebuild minified CSS and JS from SCSS/JS sources |
 | `/security` | SAST scan + dependency CVE audit in one pass |
+| `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
+| `/handoff` | Compact current conversation into a handoff document for another session |
 
 ### Skills (on-demand)
 
@@ -403,12 +414,13 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 | Category | Skills |
 | --- | --- |
+| Engineering pipeline | `brainstorming`, `writing-plans`, `verification-before-completion` |
 | Visual language | `frontend-design`, `scss-mobile-first`, `accessibility` |
 | Frontend structure | `frontend-architecture`, `aurora-page` |
 | Defensive coding | `security-coding` |
 | Data | `database` |
 | Domain & architecture | `domain-context`, `adr`, `systems-design` |
-| Standards & process | `conventional-commits`, `rcs-header`, `pest-browser`, `audit-deps` |
+| Standards & process | `conventional-commits`, `rcs-header`, `pest-browser`, `audit-deps`, `writing-skills` |
 
 ### Project context — living docs
 
