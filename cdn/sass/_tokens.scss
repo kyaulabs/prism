@@ -1,0 +1,51 @@
+// $KYAULabs: _tokens.scss,v 1.0.0 2026/07/02 22:16:56 -0700 kyau Exp $
+
+// Canonical design tokens — source of truth for the visual language.
+// See the frontend-design skill for the full rules.
+
+:root {
+    // Surface
+    --surface: #e0e5ec;
+
+    // Shadows (neumorphism)
+    --shadow-light: #fff;
+    --shadow-dark: #b8bcc4;
+
+    // Text
+    --text: #2d3748;
+    --text-muted: #5a6472;
+
+    // Accents (pick one of the two; both provided as options)
+    --accent: #38bdf8;        // sky blue
+    --accent-soft: #87ceeb;
+
+    // --accent: #a78bfa;     // light purple (uncomment to switch)
+    // --accent-soft: #c4b5fd;
+    --accent-hover: #0ea5e9;
+
+    // Focus ring (accessibility — must meet 3:1)
+    --focus-ring: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --surface: #2d3340;
+        --shadow-light: #353d4d;
+        --shadow-dark: #1a1f2a;
+        --text: #e2e8f0;
+        --text-muted: #a0aec0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+// vim: ft=scss sts=2 sw=2 ts=2 et :

@@ -7,7 +7,8 @@ export default [
 		ignores: ["cdn/js/**/*.min.js"],
 		rules: {
 			"no-unused-vars": "warn",
-			"no-console": "warn"
+			"no-console": "warn",
+			"indent": ["error", "tab"],
 		}
 	}
 ];

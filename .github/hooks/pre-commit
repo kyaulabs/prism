@@ -15,23 +15,30 @@ if command -v php > /dev/null 2>&1; then
 fi
 
 # ── php-cs-fixer (staged files only) ─────────────────────────────────────────
-if command -v php-cs-fixer > /dev/null 2>&1; then
-	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
+CS_FIXER=""
+if [ -x vendor/bin/php-cs-fixer ]; then
+	CS_FIXER=vendor/bin/php-cs-fixer
+elif command -v php-cs-fixer > /dev/null 2>&1; then
+	CS_FIXER=php-cs-fixer
+fi
+if [ -n "$CS_FIXER" ]; then
+	# Only scan staged PHP files, excluding third-party directories
+	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' | grep -vE '^(vendor/|node_modules/|aurora/)' || true)
 	if [ -n "$STAGED_PHP" ]; then
 		echo "→ php-cs-fixer"
-		# --path-mode=intersection expects each path as its own argument;
-		# php-cs-fixer requires an explicit --config when passed multiple paths
 		CS_CONFIG=""
 		if [ -f .php-cs-fixer.dist.php ]; then
 			CS_CONFIG=.php-cs-fixer.dist.php
 		elif [ -f .php-cs-fixer.php ]; then
 			CS_CONFIG=.php-cs-fixer.php
 		fi
+		# --path-mode=override: scan ONLY the explicitly-passed paths,
+		# ignoring the Finder scope entirely (prevents node_modules leakage)
 		mapfile -t PATHS <<< "$STAGED_PHP"
 		if [ -n "$CS_CONFIG" ]; then
-			php-cs-fixer fix --config="$CS_CONFIG" --dry-run --diff --path-mode=intersection "${PATHS[@]}" 2>&1
+			"$CS_FIXER" fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1
 		else
-			php-cs-fixer fix --dry-run --diff --path-mode=intersection "${PATHS[@]}" 2>&1
+			"$CS_FIXER" fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1
 		fi
 	fi
 fi

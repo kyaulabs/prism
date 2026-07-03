@@ -12,6 +12,17 @@ node_modules/
 composer.lock
 package-lock.json
 
+# Environment (NEVER commit .env — see AGENTS.md hard boundaries)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Browser test artifacts (see pest-browser skill)
+tests/Browser/Screenshots/
+
 # Editor files
 *.swp
 *.swo

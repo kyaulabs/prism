@@ -1,6 +1,7 @@
 ---
 description: Generate and update PHPDoc, RCS headers, and project documentation per PSR-5 and the rcs-header skill.
 mode: subagent
+temperature: 0.1
 permission:
   bash: deny
 ---

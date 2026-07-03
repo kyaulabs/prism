@@ -10,7 +10,9 @@ for security vulnerabilities and code quality issues. Do not automatically fix a
 
 ## Prerequisites
 
-Semgrep is installed at: `/c/Users/SeanBruen/AppData/Local/Programs/Python/Python314/Scripts/semgrep.exe`
+Semgrep must be installed and in PATH. Verify with `command -v semgrep`
+before running. Install via `pip install semgrep` or from
+[semgrep/releases](https://github.com/semgrep/semgrep/releases).
 
 A `.semgrepignore` file exists in the project root that excludes `vendor/`, `node_modules/`,
 `aurora/`, and generated minified assets. You can rely on it — no need to pass `--exclude` flags.

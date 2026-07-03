@@ -1,6 +1,7 @@
 ---
 description: Write tests first (TDD), then implement, using vertical slices (tracer bullets) rather than writing all tests up front. Covers happy path, boundaries, and error cases. Invoke for any new feature, bug fix, or class implementation.
 mode: subagent
+temperature: 0.2
 ---
 
 You are operating in strict TDD mode. Follow the Red-Green-Refactor cycle without exception, one behavior at a time.

@@ -5,7 +5,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE)
-[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)\
+[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)
 [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 
@@ -41,6 +41,14 @@ Keep these factors in mind when setting up repositories.
   * [Webhooks](#webhooks)
 * [Issue Labels](#issue-labels)
 * [Coding Harness](#coding-harness)
+  * [Quick-start loop](#quick-start-loop)
+  * [Primary agents](#primary-agents)
+  * [Built-in subagents](#built-in-subagents)
+  * [Custom agents](#custom-agents)
+  * [Slash commands](#slash-commands)
+  * [Skills (on-demand)](#skills-on-demand)
+  * [Project context — living docs](#project-context--living-docs)
+  * [Activation](#activation)
 * [Conventional Commits](#conventional-commits)
   * [Type](#type)
   * [Scope](#scope)
@@ -60,6 +68,20 @@ composer install
 npm install
 ```
 
+### Test setup
+
+After installing dependencies, bootstrap the Pest test suite (creates
+`tests/Pest.php` with the default arch test configuration):
+
+```text
+php vendor/bin/pest --init
+```
+
+The arch tests referenced in `.opencode/docs/conventions.md` (no debug
+functions, strict types) live in `tests/Pest.php`. Run `pest --init` once
+after cloning or after a fresh `composer install` if `tests/Pest.php` is
+absent.
+
 | Tool | Via | Purpose |
 | --- | --- | --- |
 | php-cs-fixer | Composer | PHP code style (PSR-12) |
@@ -70,13 +92,25 @@ npm install
 | uglify-js | npm | JavaScript minification |
 | eslint | npm | JavaScript linting |
 | stylelint | npm | SCSS linting |
-| @commitlint/* | npm | Commit message validation |
+| commitlint | npm | Commit message validation |
+| @commitlint/config-conventional | npm | Conventional commits preset for commitlint |
 | git-cliff | npm | Changelog generation |
 | playwright | npm | Browser testing |
 
 ### Gitleaks
 
 Gitleaks scans commits for secrets at pre-commit time. Install globally via your package manager or from [gitleaks/releases](https://github.com/gitleaks/gitleaks/releases).
+
+### Harness tools
+
+In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding agents:
+
+| Tool | Purpose | Install |
+| --- | --- | --- |
+| [OpenCode](https://opencode.ai) | The coding harness platform | See [opencode.ai/docs](https://opencode.ai/docs/) |
+| [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) |
 
 ## New Repository
 
@@ -123,6 +157,8 @@ Several files reference `kyaulabs/template` and must be updated to reflect your 
 | `cliff.toml` | All `github.com/kyaulabs/template` URLs → new repo location |
 | `composer.json` | `name` and `description` fields |
 | `package.json` | `name` and `description` fields |
+| `opencode.json` | `build` agent prompt references the project; update repo-specific pointers |
+| `CONTEXT.md` | Fill in the domain glossary, entities, invariants, and non-goals (or run `/prime` to draft) |
 | `commitlint.config.js` | Remove any unused types from `type-enum` if needed |
 
 ### Add Actions
@@ -144,11 +180,10 @@ on:
 
 ### Configuration
 
-Generate a config for commitlint.
-
-```c
-echo "module.exports = { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
-```
+The repository ships with a `commitlint.config.js` using the project's
+custom type-enum (see [Conventional Commits](#conventional-commits) below).
+No generation step is required — edit the file directly only if you need to
+add or remove commit types.
 
 ### Install Script
 
@@ -179,6 +214,8 @@ Push the initial commit with (non-commitlint verified message).
 git commit -S -a -m "ignore: here be dragons"
 ```
 
+The `ignore` type is project-specific (defined in `commitlint.config.js`) and excluded from the changelog. It exists for the initial repository commit and is otherwise unused — do not adopt it for normal commits.
+
 Finally set the main branch name.
 
 ```text
@@ -200,9 +237,9 @@ In order to have proper repository security, some settings need to change. Open 
 
 ### General
 
-Upload an image to customize the repository’s social media preview.
+Upload an image to customize the repository's social media preview.
 
-* Image should be 1280×640px - [Download template](https://github.com/kyaulabs/win11tweak/settings/og-template)
+* Image should be 1280×640px
 
 Under the `Features` section enable `Sponsorships` and then disable anything that is not being using.
 
@@ -301,12 +338,86 @@ In order to properly label something be sure to include at least one type, a sin
 
 ## Coding Harness
 
-This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development.
+This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development. The harness lives under `.opencode/` and is wired into OpenCode via `opencode.json`.
 
-* **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools
-* **`CODING_HARNESS.md`** — Full inventory of agents, skills, and built-in commands
-* **`opencode.json`** — Wires AGENTS.md + supplementary docs into the coding agent
-* **`.opencode/`** — Agents, commands, on-demand skills, and supplementary documentation
+**Reference docs:**
+* **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools (loaded by every session)
+* **`CODING_HARNESS.md`** — Full inventory of agents, skills, commands, and the directory tree (read this for the canonical list)
+* **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
+* **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
+* **`opencode.json`** — Wires instructions + agent definitions + permissions into the coding agent
+
+### Quick-start loop
+
+A typical AI-assisted change follows three steps:
+
+1. **Plan** — press `Tab` to switch to the Plan agent; discuss the approach, explore the codebase, run `@architect` to evaluate against `CONTEXT.md` + ADRs. No files change in this phase.
+2. **Implement** — `Tab` back to Build; invoke `@tdd` for the feature or bug fix. Tests are written first (red → green → refactor); the harness enforces 80% line coverage.
+3. **Verify** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message; run `/release` to cut a signed tag and generate the changelog.
+
+### Primary agents
+
+| Agent | Purpose |
+| --- | --- |
+| **Build** | Default mode — full tool access; enforces mandatory `@tdd` and the project's hard boundaries |
+| **Plan** | Restricted mode — analysis and planning only; cannot edit files or invoke code-modifying subagents |
+
+Press `Tab` to switch between Build and Plan during a session.
+
+### Built-in subagents
+
+| Agent | Purpose |
+| --- | --- |
+| `@explore` | Read-only codebase exploration — file patterns, keyword search |
+| `@scout` | External docs + dependency research (clones upstream repos) |
+| `@general` | Multi-step research, full tool access |
+
+### Custom agents
+
+| Agent | When to use |
+| --- | --- |
+| `@tdd` | Any new feature or bug fix requiring tests (mandatory for new code) |
+| `@test-audit` | Auditing an existing test suite for quality |
+| `@code-review` | Reviewing staged changes before push (uses `ocr`) |
+| `@architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
+| `@resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
+| `@semgrep` | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
+| `@debug` | Investigating bugs — log inspection, targeted tests, root cause analysis |
+| `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
+
+### Slash commands
+
+| Command | Purpose |
+| --- | --- |
+| `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
+| `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
+| `/release` | git-cliff changelog + signed tag + `gh release` command |
+| `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
+| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
+| `/build-assets` | Rebuild minified CSS and JS from SCSS/JS sources |
+| `/security` | SAST scan + dependency CVE audit in one pass |
+
+### Skills (on-demand)
+
+Skills load when an agent needs them — they are not loaded into every session. Load one explicitly with the `skill` tool, or let the agent pull it when the task matches.
+
+| Category | Skills |
+| --- | --- |
+| Visual language | `frontend-design`, `scss-mobile-first`, `accessibility` |
+| Frontend structure | `frontend-architecture`, `aurora-page` |
+| Defensive coding | `security-coding` |
+| Data | `database` |
+| Domain & architecture | `domain-context`, `adr`, `systems-design` |
+| Standards & process | `conventional-commits`, `rcs-header`, `pest-browser`, `audit-deps` |
+
+### Project context — living docs
+
+- **`CONTEXT.md`** — the domain's *what* and *why*: glossary, entities, invariants, boundaries, non-goals. Agents read it before domain-coupled work and update it when domain language changes. Draft a fresh one with `/prime`.
+- **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before non-trivial changes to check for ADR conflicts.
+
+### Activation
+
+The harness is active in any OpenCode session opened in this repo — no manual steps beyond installing OpenCode and running `composer install` / `npm install`. Git hooks (lint + gitleaks + commitlint) are activated separately via `bash .github/scripts/install-hooks.sh`.
 
 ## Conventional Commits
 
@@ -421,7 +532,9 @@ chore(release): v0.0.1 [skip ci]
 
 ## Changelog
 
-Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog.
+Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog. The recommended path is the `/release` command (see [Slash commands](#slash-commands) in the Coding Harness section), which drives `git-cliff` end-to-end. The manual flow below is a fallback.
+
+### Manual changelog
 
 ```bash
 git cliff --tag 0.0.1
@@ -433,7 +546,7 @@ After the initial run of git-cliff all subsequent runs should detect the version
 git cliff
 ```
 
-A typical workflow should look like the following.
+A typical manual workflow should look like the following.
 
 ```bash
 git add -A                      # add all un-indexed and changed files to the commit
@@ -446,5 +559,12 @@ git push -u origin develop      # finally, push the commit
 
 ## Attribution
 
-* [Commitlint](https://github.com/conventional-changelog/commitlint)
-* [git-cliff](https://github.com/orhun/git-cliff)
+* [OpenCode](https://opencode.ai) — the coding harness platform this template targets
+* [Aurora](https://github.com/kyaulabs/aurora) — the PHP framework included as a submodule
+* [Pest](https://github.com/pestphp/pest) — the PHP testing framework (TDD)
+* [php-cs-fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer) — PHP code style (PSR-12)
+* [Commitlint](https://github.com/conventional-changelog/commitlint) — commit message validation
+* [git-cliff](https://github.com/orhun/git-cliff) — changelog generation
+* [Semgrep](https://github.com/semgrep/semgrep) — static analysis security testing
+* [gitleaks](https://github.com/gitleaks/gitleaks) — secrets scanning at pre-commit
+* [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `@code-review` agent

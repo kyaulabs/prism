@@ -26,22 +26,32 @@
 
 PHP pages include Aurora, output HTML directly, and interact with the DB via raw SQL or Aurora's SQL handler. No controllers, no templating engine, no router. `backend/` holds PHP logic not web-accessible.
 
+## Project Context
+
+- `CONTEXT.md` (root) — domain glossary, entities, invariants, boundaries, non-goals. Read before domain-coupled work (see `domain-context` skill). Draft or refresh it via `/prime`.
+- `adr/` — Architecture Decision Records (Nygard format). Write one for hard-to-reverse or cross-cutting decisions (see `adr` skill).
+
 ## Directory Structure
 
 ```text
-├── aurora/              ← Aurora PHP Framework (git submodule)
-├── backend/             ← Backend PHP logic (not web-accessible)
+├── AGENTS.md              ← Stack, boundaries, pointers (loaded every session)
+├── CONTEXT.md             ← Domain glossary, entities, invariants, non-goals
+├── opencode.json          ← Wires instructions + agent definitions + permissions
+├── adr/                   ← Architecture Decision Records (Nygard format)
+├── aurora/                ← Aurora PHP Framework (git submodule)
+├── backend/               ← Backend PHP logic (not web-accessible)
+│   └── migrations/        ← Forward-only SQL migrations (timestamp-prefixed)
 ├── cdn/
-│   ├── css/             ← GENERATED — do not edit
-│   ├── javascript/      ← GENERATED — do not edit
-│   ├── sass/            ← SCSS source (edit these)
-│   └── js/              ← JS source (edit these)
+│   ├── css/               ← GENERATED — do not edit
+│   ├── javascript/        ← GENERATED — do not edit
+│   ├── sass/              ← SCSS source (edit these)
+│   └── js/                ← JS source (edit these)
 ├── tests/
 │   ├── Unit/
 │   ├── Feature/
 │   ├── Integration/
 │   └── Browser/
-├── <app>/               ← Public webroot (<app>.<domain>)
+├── <app>/                 ← Public webroot (<app>.<domain>)
 ├── <app>.sql
 └── <app>.nginx.conf
 ```
@@ -83,13 +93,14 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 All new code follows Red → Green → Refactor. No exceptions.  
 Use the `@tdd` agent for any new feature or bug fix.  
 Use the `@test-audit` agent to review an existing test suite.  
-Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`
+Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`  
+Pre-push gate: `/check` (php-cs-fixer + stylelint + eslint + pest --coverage).
 
 ## Linting & Enforcement
 
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on failure.  
 Commit message format is enforced by `.github/hooks/commit-msg` via commitlint.  
-To activate hooks after cloning: `bash scripts/install-hooks.sh`
+To activate hooks after cloning: `bash .github/scripts/install-hooks.sh`
 
 For linting details and responsive/mobile-first CSS rules, see `scss-mobile-first` skill.
 
@@ -119,9 +130,17 @@ Load these on demand when the task requires them:
 | --- | --- |
 | `rcs-header` | Creating or modifying any source file |
 | `aurora-page` | Creating a new PHP page |
-| `scss-mobile-first` | Writing or reviewing SCSS |
-| `pest-browser` | Writing browser tests |
+| `scss-mobile-first` | Writing or reviewing SCSS (breakpoints, units, build) |
+| `frontend-design` | Writing or reviewing visual language — responsive/mobile-first, CSS transitions, CSS-driven flow, neumorphism, default theme + tokens |
+| `frontend-architecture` | Structuring frontend JS — progressive enhancement, module pattern, jQuery policy, token consumption, CSP rules |
+| `accessibility` | Writing or reviewing markup/SCSS/JS for UI — WCAG 2.2 AA, focus, motion, neumorphism contrast floor |
+| `security-coding` | Defensive coding in the no-framework stack — SQL/XSS/CSRF, sessions, passwords, headers |
+| `database` | Schema design, `<app>.sql`, migrations, indexing, SQL style |
+| `domain-context` | Before domain-coupled work — read/update `CONTEXT.md` |
+| `adr` | Writing, reviewing, or superseding an Architecture Decision Record |
+| `systems-design` | Designing a non-trivial change — ADR vs RFC, C4-lite, interface design |
 | `conventional-commits` | Writing or reviewing commit messages |
+| `pest-browser` | Writing browser tests |
 | `audit-deps` | Scanning PHP/JS dependencies for known CVEs |
 
 ## Agents Available
@@ -131,7 +150,20 @@ Load these on demand when the task requires them:
 | `@tdd` | subagent | Any new feature or bug fix requiring tests |
 | `@test-audit` | subagent | Auditing an existing test suite for quality |
 | `@code-review` | subagent | Reviewing staged changes before push |
+| `@architect` | subagent | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
 | `@resolve-merge-conflicts` | subagent | Resolving in-progress git merge/rebase conflicts |
 | `@semgrep` | subagent | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
 | `@debug` | subagent | Investigating bugs — log inspection, targeted tests, root cause analysis |
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
+| `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
+| `/release` | git-cliff changelog + signed tag + `gh release` command |
+| `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
+| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
+| `/build-assets` | Rebuild minified CSS and JS from source |
+| `/security` | SAST scan + dependency CVE audit in one pass |

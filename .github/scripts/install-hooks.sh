@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# $KYAULabs: install-hooks.sh,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
+# $KYAULabs: install-hooks.sh,v 1.0.0 2026/07/02 22:16:56 -0700 kyau Exp $
 # Run once after cloning: bash .github/scripts/install-hooks.sh
 
 set -euo pipefail

@@ -1,16 +1,29 @@
 # Good and Bad Tests
 
+## Bootstrap
+
+If `tests/Pest.php` does not exist, run `php vendor/bin/pest --init` before
+writing tests. This creates the Pest bootstrap that the arch tests in
+`conventions.md` depend on. The `@tdd` agent should run this if it encounters
+a repo with no test bootstrap.
+
+---
+
+Examples are Pest/PHP, matching the project stack.
+
 ## Good Tests
 
 **Integration-style**: Test through real interfaces, not mocks of internal parts.
 
-```typescript
+```php
 // GOOD: Tests observable behavior
-test("user can checkout with valid cart", async () => {
-  const cart = createCart();
-  cart.add(product);
-  const result = await checkout(cart, paymentMethod);
-  expect(result.status).toBe("confirmed");
+it('checks out a valid cart', function () {
+    $cart = createCart();
+    $cart->add($product);
+
+    $result = checkout($cart, $paymentMethod);
+
+    expect($result->status)->toBe('confirmed');
 });
 ```
 
@@ -26,12 +39,17 @@ Characteristics:
 
 **Implementation-detail tests**: Coupled to internal structure.
 
-```typescript
+```php
 // BAD: Tests implementation details
-test("checkout calls paymentService.process", async () => {
-  const mockPayment = jest.mock(paymentService);
-  await checkout(cart, payment);
-  expect(mockPayment.process).toHaveBeenCalledWith(cart.total);
+it('calls payment service during checkout', function () {
+    $mockPayment = Mockery::mock(PaymentService::class);
+    App::bind(PaymentService::class, fn () => $mockPayment);
+
+    $mockPayment->shouldReceive('process')
+        ->once()
+        ->with($cart->total);
+
+    checkout($cart, $payment);
 });
 ```
 
@@ -44,34 +62,40 @@ Red flags:
 - Test name describes HOW not WHAT
 - Verifying through external means instead of interface
 
-```typescript
+```php
 // BAD: Bypasses interface to verify
-test("createUser saves to database", async () => {
-  await createUser({ name: "Alice" });
-  const row = await db.query("SELECT * FROM users WHERE name = ?", ["Alice"]);
-  expect(row).toBeDefined();
+it('saves the user to the database', function () {
+    createUser(['name' => 'Alice']);
+
+    $row = $db->query('SELECT * FROM users WHERE name = ?', ['Alice']);
+
+    expect($row)->not->toBeNull();
 });
 
 // GOOD: Verifies through interface
-test("createUser makes user retrievable", async () => {
-  const user = await createUser({ name: "Alice" });
-  const retrieved = await getUser(user.id);
-  expect(retrieved.name).toBe("Alice");
+it('makes a created user retrievable', function () {
+    $user = createUser(['name' => 'Alice']);
+    $retrieved = getUser($user->id);
+
+    expect($retrieved->name)->toBe('Alice');
 });
 ```
 
 **Tautological tests**: Expected value restates the implementation, so the test passes by construction.
 
-```typescript
+```php
 // BAD: Expected value is recomputed the way the code computes it
-test("calculateTotal sums line items", () => {
-  const items = [{ price: 10 }, { price: 5 }];
-  const expected = items.reduce((sum, i) => sum + i.price, 0);
-  expect(calculateTotal(items)).toBe(expected);
+it('sums line items into the total', function () {
+    $items = collect([['price' => 10], ['price' => 5]]);
+    $expected = $items->sum('price');
+
+    expect(calculateTotal($items))->toBe($expected);
 });
 
 // GOOD: Expected value is an independent, known literal
-test("calculateTotal sums line items", () => {
-  expect(calculateTotal([{ price: 10 }, { price: 5 }])).toBe(15);
+it('sums line items into the total', function () {
+    $items = collect([['price' => 10], ['price' => 5]]);
+
+    expect(calculateTotal($items))->toBe(15);
 });
 ```

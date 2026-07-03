@@ -34,9 +34,15 @@ arch('no debug functions in production code')
     ->not->toBeUsed();
 
 arch('backend classes use strict types')
-    ->expect('App')
+    ->expect('KYAULabs')
     ->toUseStrictTypes();
 ```
+
+The `KYAULabs` namespace covers Aurora and any project classes following the
+same convention. Backend procedural helpers in `backend/` are covered by the
+`no debug functions` rule above rather than the strict-types namespace check,
+since procedural files do not declare a namespace.
+
 
 ## JavaScript
 

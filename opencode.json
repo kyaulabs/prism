@@ -2,16 +2,27 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
     ".opencode/docs/conventions.md",
-    ".opencode/docs/build-pipeline.md"
+    ".opencode/docs/build-pipeline.md",
+    ".opencode/docs/versioning.md"
   ],
   "agent": {
+    "build": {
+      "mode": "primary",
+      "temperature": 0.2,
+      "prompt": "You are the primary build agent for a KYAULabs PHP project.\n\nStack: PHP 8.5+ (no MVC, no router), MariaDB, nginx, SCSS + vanilla JS, Pest v4.\n\nMandatory rules (do not restate to the user — just enforce them):\n- All new code follows Red → Green → Refactor TDD. Invoke the @tdd agent for any feature or bug fix that requires tests.\n- Load the rcs-header skill before creating or modifying any source file. Every source file starts with an RCS header and ends with a vim modeline.\n- Hard boundaries: NEVER edit cdn/css/*.min.css or cdn/javascript/*.min.js (generated). NEVER commit .env. Do not modify files outside the project directory. New dependencies must be explicitly noted.\n- Read CONTEXT.md before domain-coupled work; update it when domain terms or entities change (see domain-context skill). If CONTEXT.md is missing, suggest running /prime.\n- For non-trivial or cross-cutting changes, suggest an @architect review before implementing, and write an ADR when a decision is hard to reverse.\n- Frontend visual work: load the frontend-design skill — responsive always, mobile-first, CSS transitions for ease, CSS-driven load/scroll flow, neumorphic design language (default with documented exceptions), default light/dark theme with sky-blue or light-purple highlights unless the user specifies a palette.\n- Defensive coding in this no-framework stack: load the security-coding skill before writing auth, session, SQL, or user-input handling code.\n- Do not access external APIs without explicit permission.\n- Indentation: PHP 4-space, SCSS 2-space, JS tabs (tab-stop 4)."
+    },
     "plan": {
+      "mode": "primary",
+      "temperature": 0.1,
       "permission": {
+        "edit": "deny",
+        "bash": "deny",
         "task": {
           "*": "deny",
           "test-audit": "allow",
           "code-review": "allow",
           "semgrep": "allow",
+          "architect": "allow",
           "explore": "allow",
           "scout": "allow",
           "docs-writer": "allow"

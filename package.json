@@ -3,7 +3,9 @@
 	"private": true,
 	"description": "Template — Change This Description",
 	"devDependencies": {
+		"@commitlint/config-conventional": "*",
 		"@eslint/js": "*",
+		"commitlint": "*",
 		"eslint": "*",
 		"git-cliff": "*",
 		"playwright": "*",
@@ -11,5 +13,8 @@
 		"stylelint": "*",
 		"stylelint-config-standard-scss": "*",
 		"uglify-js": "*"
+	},
+	"allowScripts": {
+		"@parcel/watcher@2.5.6": true
 	}
 }
