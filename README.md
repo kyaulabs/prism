@@ -70,17 +70,16 @@ npm install
 
 ### Test setup
 
-After installing dependencies, bootstrap the Pest test suite (creates
-`tests/Pest.php` with the default arch test configuration):
+No bootstrap step needed — `tests/Pest.php` ships pre-configured with the
+arch tests from `.opencode/docs/conventions.md` (no debug functions, strict
+types). The four test subdirectories (`Unit`, `Feature`, `Integration`,
+`Browser`) are also pre-created.
+
+Run the test suite after `composer install`:
 
 ```text
-php vendor/bin/pest --init
+php vendor/bin/pest --coverage
 ```
-
-The arch tests referenced in `.opencode/docs/conventions.md` (no debug
-functions, strict types) live in `tests/Pest.php`. Run `pest --init` once
-after cloning or after a fresh `composer install` if `tests/Pest.php` is
-absent.
 
 | Tool | Via | Purpose |
 | --- | --- | --- |
@@ -130,6 +129,14 @@ Initialize your new repository.
 
 ```text
 git init
+```
+
+### Add Aurora Submodule
+
+The Aurora PHP Framework is a required submodule. Add it to the repository:
+
+```text
+git submodule add https://github.com/kyaulabs/aurora aurora
 ```
 
 ### Add `LICENSE`
@@ -257,6 +264,7 @@ Create a new branch protection rule by clicking `Add branch protection rule`.
 * Protect matching branches:
   * `Require a pull request before merging`
   * `Require approvals (1)`
+  * `Require status checks to pass before merging` — add `check` (the CI workflow job)
   * `Require signed commits`
 
 Click `Create`.

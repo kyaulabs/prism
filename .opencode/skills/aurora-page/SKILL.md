@@ -3,6 +3,19 @@ name: aurora-page
 description: Use when creating a new PHP page. Provides the standard Aurora Framework page template with RCS header, htmlHeader/htmlFooter pattern, DNS prefetch, CSS/JS registration, and required includes.
 ---
 
+## Before Generating
+
+Verify the Aurora submodule is present. If `aurora/aurora.inc.php` does not exist, output
+this error and **stop** — do not generate any code:
+
+```text
+✗ Aurora submodule is missing.
+
+Fix:
+  git submodule add https://github.com/kyaulabs/aurora aurora
+  git submodule update --init
+```
+
 ## Aurora Standard Page Template
 
 New PHP pages follow this exact structure. Replace `<app>`, `<domain>`, and page-specific

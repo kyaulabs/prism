@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  check:
+    name: Lint, Test & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: pcov
+          tools: composer
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Composer dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: PHP syntax check
+        run: |
+          find . -name '*.php' \
+            -not -path './vendor/*' \
+            -not -path './node_modules/*' \
+            -not -path './aurora/*' \
+            -print0 | xargs -0 -n1 php -l
+
+      - name: PHP CS Fixer (dry-run)
+        run: php vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Stylelint
+        if: hashFiles('cdn/sass/**/*.scss') != ''
+        run: npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
+
+      - name: ESLint
+        if: hashFiles('cdn/js/**/*.js') != ''
+        run: npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+
+      - name: Pest (coverage >= 80%)
+        if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php') != ''
+        run: php vendor/bin/pest --coverage --min=80
+
+      - name: Semgrep SAST
+        run: |
+          python3 -m pip install --quiet semgrep
+          semgrep ci
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      - name: Commitlint
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "${{ github.event.pull_request.title }}" | npx commitlint --verbose
+          git fetch origin "${{ github.event.pull_request.base.ref }}"
+          npx commitlint --from="origin/${{ github.event.pull_request.base.ref }}" --to="HEAD" --verbose
