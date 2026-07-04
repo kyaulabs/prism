@@ -45,6 +45,9 @@ jobs:
             -not -path './aurora/*' \
             -print0 | xargs -0 -n1 php -l
 
+      - name: Harness validation
+        run: bash .github/scripts/validate-harness.sh
+
       - name: PHP CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --dry-run --diff
 

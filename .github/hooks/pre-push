@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# $KYAULabs: pre-push,v 1.0.0 2026/07/04 12:00:00 -0700 kyau Exp $
+
+set -euo pipefail
+
+# ── No-squash check ──────────────────────────────────────────────────────────
+# Warn if pushing a single-commit branch that looks like a squash.
+# This is a soft gate — the push proceeds, but the warning is prominent.
+# The git history serves as the development and evaluation log; squashing
+# destroys the record of what was tried and abandoned.
+
+remote="$1"
+remote_url="$2"
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+	# Skip tag pushes and branch deletions
+	if [ -z "$local_oid" ] || [ "$local_oid" = "0000000000000000000000000000000000000000" ]; then
+		continue
+	fi
+
+	# Compute the range: commits not yet on the remote
+	range=""
+	if [ -n "$remote_oid" ] && [ "$remote_oid" != "0000000000000000000000000000000000000000" ]; then
+		range="${remote_oid}..${local_oid}"
+	else
+		range="$local_oid"
+	fi
+
+	count=$(git rev-list --count "$range" 2>/dev/null || echo 0)
+
+	if [ "$count" -eq 1 ]; then
+		commit_msg=$(git log -1 --format=%s "$local_oid")
+		cat >&2 <<EOF
+
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  WARNING: Single-commit push detected                          ║
+  ║                                                                ║
+  ║  This branch has only 1 commit:                                ║
+  ║    ${commit_msg}
+  ║                                                                ║
+  ║  If this is the result of a squash, consider pushing the       ║
+  ║  unsquashed history instead. The git history serves as the     ║
+  ║  development and evaluation log — squashing destroys the       ║
+  ║  record of what was tried, abandoned, and why.                 ║
+  ║                                                                ║
+  ║  See AGENTS.md § Git Workflow for the no-squash policy.        ║
+  ╚══════════════════════════════════════════════════════════════════╝
+
+EOF
+	fi
+done
+
+exit 0
+
+# vim: ft=sh sts=4 sw=4 ts=4 et :

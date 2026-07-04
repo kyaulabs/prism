@@ -136,6 +136,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
 - Every commit must include `Acked-by:` (model ID in kebab-case, e.g. `deepseek-v4-pro`) and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
+- No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 ## Build Pipeline
 

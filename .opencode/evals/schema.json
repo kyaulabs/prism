@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kyaulabs.com/evals/schema.json",
+  "title": "Harness Eval Case",
+  "description": "A single eval case for an OpenCode agent or skill.",
+  "type": "object",
+  "required": ["name", "description", "agent", "input", "expected_behavior", "pass_criteria"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Short, unique identifier in kebab-case.",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "What observable behavior this eval verifies."
+    },
+    "agent": {
+      "type": "string",
+      "description": "The agent or skill under test (e.g. @tdd, brainstorming).",
+      "pattern": "^(@?[a-z][a-z0-9_-]*)?$"
+    },
+    "input": {
+      "type": "string",
+      "description": "The prompt or scenario to feed the agent."
+    },
+    "expected_behavior": {
+      "type": "array",
+      "description": "Observable behaviors the output must satisfy.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "pass_criteria": {
+      "type": "string",
+      "description": "How to determine pass/fail.",
+      "enum": [
+        "all behaviors observed",
+        "no errors in output",
+        "exit code zero",
+        "output contains expected string",
+        "manual inspection required"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional tags for filtering (e.g. smoke, tdd, critical).",
+      "items": { "type": "string" }
+    }
+  }
+}
