@@ -61,7 +61,7 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 ## Hard Boundaries
 
 > [!IMPORTANT]
-> - NEVER edit `cdn/css/*.min.css` or `cdn/javascript/*.min.js` — these are generated
+> - NEVER edit `cdn/css/*.min.css` or `cdn/javascript/*.min.js` — these are generated (edit source in `cdn/sass/` and `cdn/js/`; see `conventions.md` for details)
 > - NEVER commit `.env` files — use `.env.example` only
 > - Do not access external APIs without explicit permission
 > - Do not modify files outside the project directory
@@ -70,11 +70,7 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 
 ## File Naming
 
-- PHP helpers / config: `snake_case.php`
-- PHP classes / interfaces / traits: `PascalCase.php`
-- All other files: `snake_case`
-- Test files: `PascalCaseTest.php`
-- Time-stamped files: append `-YYYYMMDDThhmmss`
+See `.opencode/docs/conventions.md` for file naming conventions.
 
 ## Commenting
 
@@ -86,9 +82,7 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 
 ## Indentation
 
-- PHP: 4-space (PSR-12)
-- SCSS: 2-space
-- JS: tabs, tab-stop 4
+Covered in `conventions.md`.
 
 ## Testing — MANDATORY TDD
 
