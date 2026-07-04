@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-commit,v 1.0.1 2026/06/30 20:40:03 -0700 kyau Exp $
+# $KYAULabs: pre-commit,v 1.0.2 2026/07/04 00:00:00 -0700 kyau Exp $
 
 set -euo pipefail
 
@@ -43,24 +43,32 @@ if [ -n "$CS_FIXER" ]; then
 	fi
 fi
 
-# ── Stylelint ─────────────────────────────────────────────────────────────────
+# ── Stylelint (staged files only) ─────────────────────────────────────────────
 STAGED_SCSS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
 if [ -n "$STAGED_SCSS" ] && [ -d node_modules/stylelint ]; then
 	echo "→ Stylelint"
-	npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
+	mapfile -t SCSS_FILES <<< "$STAGED_SCSS"
+	npx stylelint "${SCSS_FILES[@]}"
 fi
 
-# ── ESLint ────────────────────────────────────────────────────────────────────
+# ── ESLint (staged files only) ────────────────────────────────────────────────
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.js$' | grep -v '\.min\.js$' || true)
 if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
 	echo "→ ESLint"
-	npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+	mapfile -t JS_FILES <<< "$STAGED_JS"
+	npx eslint "${JS_FILES[@]}" --no-error-on-unmatched-pattern
 fi
 
 # ── Gitleaks ──────────────────────────────────────────────────────────────────
 if command -v gitleaks > /dev/null 2>&1; then
 	echo "→ gitleaks"
-	gitleaks protect --staged --redact --no-color --max-target-megabytes 5
+	# gitleaks v8+ uses 'detect'; v7 and earlier use 'protect'
+	if gitleaks detect --help > /dev/null 2>&1; then
+		GITLEAKS_CMD="detect"
+	else
+		GITLEAKS_CMD="protect"
+	fi
+	gitleaks "$GITLEAKS_CMD" --staged --redact --no-color --max-target-megabytes 5
 fi
 
 echo "✓ pre-commit passed"
