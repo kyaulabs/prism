@@ -16,6 +16,21 @@ description: Use when writing or reviewing commit messages. Covers the required 
 - Subject line: lowercase, no period at end, max 100 characters
 - Body: wrap at 72 characters, explain *why* not *what*
 - Signed commits required (`git commit -S`)
+- Every commit must include `Acked-by:` (agent in kebab-case) and `Signed-off-by:` (user) footers
+
+## Required Footers
+
+Every commit message must end with two footers:
+
+- **`Acked-by:`** — the AI agent that authored the change, in kebab-case.
+  Use the model ID without slashes. Examples: `deepseek-v4-pro`,
+  `claude-sonnet-4`, `gemini-2-5-pro`.
+- **`Signed-off-by:`** — the human user approving the change, formatted as
+  `username <email>`. Default when no user is specified:
+  `kyau <git@kyaulabs.com>`.
+
+These are mandatory for traceability. The agent writes them automatically based
+on the current model and the AGENTS.md default.
 
 ## Valid Types
 
@@ -58,12 +73,35 @@ directory, or feature area: `feat(aurora)`, `fix(db)`, `test(auth)`.
 
 ```
 feat(auth): add remember-me cookie to login flow
+
+Acked-by: deepseek-v4-pro
+Signed-off-by: kyau <git@kyaulabs.com>
+```
+
+```
 fix(db): prevent SQL injection in user search query
+
+Acked-by: deepseek-v4-pro
+Signed-off-by: kyau <git@kyaulabs.com>
+Fixes: #42
+```
+
+```
 test(auth): add boundary cases for empty credentials
+
+Acked-by: deepseek-v4-pro
+Signed-off-by: kyau <git@kyaulabs.com>
+```
+
+```
 refactor(backend): extract DB retry logic into helper
 chore: update composer dependencies
 docs: add browser test setup instructions to AGENTS.md
 ```
+
+Examples above show the required footers on all non-trivial commits.
+`chore` and `docs` commits that are purely mechanical may omit footers at the
+user's discretion.
 
 ## Enforcement
 

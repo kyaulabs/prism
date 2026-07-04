@@ -504,20 +504,23 @@ Longer commit body with additional contextual information about the code changes
 
 ```text
 <token>: <value>
-[optional] (max-length: 100)
-token (Sentance-case) = {
-  'BREAKING CHANGE',    # Exception to the rule
-  'Acked-by',
+(max-length: 100)
+token (Sentence-case) = {
+  'Acked-by',           # Required — the AI agent in kebab-case (e.g., deepseek-v4-pro)
+  'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
+  'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
   'Fixes',
   'Helped-by',
   'Refs',
   'Reviewed-by',
-  'Signed-off-by',
 }
-
-Any number of tokens may be included.
 ```
+
+Every commit must include `Acked-by` and `Signed-off-by` footers. If no user is
+explicitly named, the default `Signed-off-by` is `kyau <git@kyaulabs.com>`. The
+`Acked-by` value is the agent that authored the change in kebab-case (use the
+model ID without slashes, e.g., `deepseek-v4-pro`, `claude-sonnet-4`).
 
 ### Examples
 
@@ -528,12 +531,12 @@ The commit message will also go through validation with `commitlint` upon issuin
 ```text
 feat(player): begin new implementation of input controller
 
-As per #123 recommendation input contoller is now based on blah.
+As per #123 recommendation input controller is now based on blah.
 
 Basic movement added.
 
-Acked-by: Alice <alice@example.com>
-Signed-off-by: Bob <bob@example.com>
+Acked-by: deepseek-v4-pro
+Signed-off-by: kyau <git@kyaulabs.com>
 Refs: #123
 Refs: 676104e, a215868
 ```
@@ -543,8 +546,9 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
+Acked-by: deepseek-v4-pro
 Reviewed-by: Z
-Signed-off-by: Z
+Signed-off-by: kyau <git@kyaulabs.com>
 ```
 
 ```text
