@@ -70,7 +70,7 @@ npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" 2>/dev/null || echo "esl
 
 ### Tests
 ```bash
-php vendor/bin/pest --coverage
+php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 Coverage must be ≥80% on changed files. If it drops below, fix or flag it.
 

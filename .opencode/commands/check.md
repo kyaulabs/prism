@@ -34,7 +34,7 @@ Skip with a note if eslint is not configured or no JS source exists.
 ## 4. Tests with coverage
 
 ```bash
-php vendor/bin/pest --coverage
+php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
 - Gate: **≥ 80% line coverage** on changed files.

@@ -7,7 +7,7 @@ Audit the test suite for this project. Do NOT make any code changes — produce 
 
 Here is the current coverage output:
 
-!`php vendor/bin/pest --coverage 2>&1 | tail -40`
+!`php -d pcov.enabled=1 vendor/bin/pest --coverage 2>&1 | tail -40`
 
 ## What to audit
 

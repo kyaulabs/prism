@@ -89,7 +89,7 @@ Covered in `conventions.md`.
 > [!IMPORTANT]
 > All new code follows Red → Green → Refactor. No exceptions.
 > Use the `@tdd` agent for any new feature or bug fix.
-> Minimum 80% line coverage. Run: `php vendor/bin/pest --coverage`
+> Minimum 80% line coverage. Run: `php -d pcov.enabled=1 vendor/bin/pest --coverage`
 
 Use the `@test-audit` agent to review an existing test suite.
 Pre-push gate: `/check` (php-cs-fixer + stylelint + eslint + pest --coverage).

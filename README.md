@@ -78,7 +78,7 @@ types). The four test subdirectories (`Unit`, `Feature`, `Integration`,
 Run the test suite after `composer install`:
 
 ```text
-php vendor/bin/pest --coverage
+php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
 | Tool | Via | Purpose |
@@ -95,6 +95,44 @@ php vendor/bin/pest --coverage
 | @commitlint/config-conventional | npm | Conventional commits preset for commitlint |
 | git-cliff | npm | Changelog generation |
 | playwright | npm | Browser testing |
+
+### Coverage driver
+
+Pest's `--coverage` flag requires PCOV, a code coverage driver for PHP.
+The project uses **PCOV 1.0.12** (pinned) across all platforms.
+
+| Platform | Install |
+| --- | --- |
+| Linux | `sudo pecl install pcov-1.0.12` |
+| macOS | `sudo pecl install pcov-1.0.12` |
+| Windows | Download the matching DLL from [PECL](https://pecl.php.net/package/pcov/1.0.12/windows) and add `extension=php_pcov.dll` to `php.ini` |
+
+> PECL is deprecated in favor of PIE
+> ([github.com/php/pie](https://github.com/php/pie)). Once PCOV publishes a
+> PIE-compatible package, switch to `pie install <package>`.
+
+#### Default-disabled pattern (recommended)
+
+PCOV adds overhead to every PHP process. Configure it default-disabled and
+enable only when running tests with coverage:
+
+1.  Create a conf.d drop-in (path varies by platform):
+
+    ```bash
+    # Linux example (adapt to your PHP conf.d directory):
+    echo "pcov.enabled=0" | sudo tee /etc/php/8.5/mods-available/pcov.ini > /dev/null
+    ```
+
+2.  Enable per-run with the `-d` flag:
+
+    ```text
+    php -d pcov.enabled=1 vendor/bin/pest --coverage
+    ```
+
+The project's `/check` command, `@tdd` agent, and verification skills already
+use the `-d pcov.enabled=1` flag. CI provisions PCOV enabled via
+[shivammathur/setup-php](https://github.com/shivammathur/setup-php) and does
+not need the flag.
 
 ### Gitleaks
 

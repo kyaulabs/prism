@@ -25,7 +25,7 @@ php vendor/bin/pest --filter <TestName>
 Or the full suite if the change is cross-cutting:
 
 ```bash
-php vendor/bin/pest --coverage
+php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
 - [ ] All tests pass (green).

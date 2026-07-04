@@ -119,7 +119,7 @@ get back to Green first if a refactor breaks something.
 
 ### Step 6 — Coverage check
 
-Run `php vendor/bin/pest --coverage` and report coverage for the files you
+Run `php -d pcov.enabled=1 vendor/bin/pest --coverage` and report coverage for the files you
 touched. If line coverage for the new code is below 80%, identify the
 uncovered lines and either add a test for a missed behavior or explain why the
 line is legitimately excluded (e.g. defensive code unreachable through the
