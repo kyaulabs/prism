@@ -1,5 +1,5 @@
 # Ensure consistent line endings
-* text=auto
+* text=auto eol=lf
 *.md text
 
 # Treat binary files properly
