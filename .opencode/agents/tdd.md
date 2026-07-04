@@ -125,6 +125,22 @@ uncovered lines and either add a test for a missed behavior or explain why the
 line is legitimately excluded (e.g. defensive code unreachable through the
 public interface).
 
+### Step 7 — Produce commit message
+
+Before committing the implemented work, load the `conventional-commits` skill
+and produce a commit message in the required format:
+
+- Type and optional scope from the work performed (feat, fix, test, docs,
+  chore, etc.)
+- Subject: lowercase, no period, ≤ 100 chars, describes what changed
+- Footer: `Acked-by:` with the current model ID in kebab-case
+- Footer: `Signed-off-by: kyau <git@kyaulabs.com>`
+
+If the task already provided a commit message in the plan, validate it —
+ensure valid type, ≤ 100 char subject, and required footers. Correct if
+invalid. Present the final commit message to the user before executing the
+commit.
+
 ## Test quality rules
 
 - Use `describe()` to group scenarios for the same unit/function.

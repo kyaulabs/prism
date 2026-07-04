@@ -143,7 +143,10 @@ Expected: PASS
 
 ```bash
 git add tests/path/to/Test.php backend/path/to/file.php
-git commit -S -m "feat: add specific feature"
+git commit -S -m "feat(scope): concise subject describing the change
+
+Acked-by: deepseek-v4-pro
+Signed-off-by: kyau <git@kyaulabs.com>"
 ```
 ````
 
@@ -160,6 +163,8 @@ failures** — never write them:
 - Steps that describe what to do without showing how (code blocks required for
   code steps)
 - References to types, functions, or methods not defined in any task
+- Bare commit messages missing scope or required footers — use the full
+  conventional-commits format (type[scope]: subject + Acked-by + Signed-off-by)
 
 ## Self-review
 

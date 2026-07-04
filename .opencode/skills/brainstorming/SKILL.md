@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Refines rough ideas into a validated design through one-question-at-a-time grilling, then writes a spec. Hard-gate: no implementation until the design is approved and a spec is written.
+description: Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Refines rough ideas into a validated design through one-question-at-a-time grilling, then writes a spec. Hard-gate: no implementation until the design is approved and a spec is written (fast-path for zero-behavior-delta changes).
 ---
 
 # Brainstorming Ideas Into Designs
@@ -13,15 +13,31 @@ design and get user approval before any implementation.
 <HARD-GATE>
 Do NOT invoke any implementation skill, write any code, scaffold any project,
 or take any implementation action until you have presented a design and the
-user has approved it. This applies to EVERY change regardless of perceived
-simplicity.
+user has approved it. This applies to every change that has a behavior delta
+or introduces new functionality.
+
+**Fast-path exception — skip brainstorming for changes with zero behavior delta:**
+- Typo fixes (comments, strings, docs, log messages)
+- Documentation-only changes (README, comments, PHPDoc blocks)
+- RCS header / vim modeline additions or corrections
+- Style/formatting-only changes with no logic impact (php-cs-fixer, lint fixes)
+- Patch-level dependency bumps (no API breakage, no new features pulled in)
+- Test-only changes (fixing flaky assertions, adding tests for existing
+  behavior — no production code touched)
+
+The fast-path skip means: classify the change (e.g. "typo fix → fast-path"),
+announce it, implement directly, then run verification-before-completion and
+/check. If any doubt about triviality, default to the full brainstorming flow.
 </HARD-GATE>
 
 ## Anti-pattern: "This is too simple to need a design"
 
-Every change goes through this process. "Simple" changes are where unexamined
-assumptions cause the most wasted work. The design can be short (a few
-sentences for truly simple changes), but you MUST present it and get approval.
+Behavior-changing work goes through this process, even when it seems simple.
+"Simple" changes are where unexamined assumptions cause the most wasted work.
+The design can be short (a few sentences for truly simple changes), but you
+MUST present it and get approval. For zero-behavior-delta changes (typos,
+docs, RCS headers, style-only, patch deps, test-only fixes), use the fast-path
+exception defined in the HARD-GATE above.
 
 ## Checklist
 
@@ -163,9 +179,11 @@ the spec review. Only proceed once the user approves.
 Known failure modes that compound over time. Add entries when this skill
 causes a preventable mistake.
 
-- *Skipping brainstorming for "simple" changes* — simple changes are where
-  unexamined assumptions cause the most wasted work. The design can be short,
-  but it must be presented and approved.
+- *Skipping brainstorming for behavior-delta changes* — simple-looking behavior
+  changes are where unexamined assumptions cause the most wasted work. The
+  design can be short, but it must be presented and approved. Trivial
+  zero-behavior-delta work (typos, docs, headers, style, patch deps, test-only
+  fixes) follows the fast-path — that's the explicit exception, not a loophole.
 - *Asking multiple questions in one message* — overwhelms the user and
   produces lower-quality answers. One question at a time, always.
 - *Jumping to implementation before spec is written* — the hard-gate exists

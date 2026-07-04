@@ -96,8 +96,10 @@ Pre-push gate: `/check` (php-cs-fixer + stylelint + eslint + pest --coverage).
 
 ## Engineering Pipeline
 
-The full methodology, end to end. Follow this sequence for any non-trivial
-change. Each phase produces an artifact that the next phase consumes.
+The full methodology, end to end. Follow this sequence for changes with a
+behavior delta. Purely trivial changes with no behavior delta (typos, docs,
+RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
+see the brainstorming skill for the full definition.
 
 ```text
 brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
@@ -131,6 +133,13 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Signed commits required
 - Every commit must include `Acked-by:` (model ID in kebab-case, e.g. `deepseek-v4-pro`) and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
+
+After implementing any change — whether via @tdd, a direct fix, an issue
+tracker resolution, or a fast-path trivial change — produce a commit message
+in conventional commits format before committing. Load the
+`conventional-commits` skill and produce: type[scope]: subject + Acked-by +
+Signed-off-by footers. The commit-msg hook blocks invalid messages, but the
+message should be well-formed before you reach the hook.
 
 ## Build Pipeline
 

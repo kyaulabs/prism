@@ -3,12 +3,12 @@
 
 set -euo pipefail
 
-YELLOW='\033[1;33m'
-ORANGE='\033[38;5;208m'
-DIM='\033[2m'
-BOLD='\033[1m'
-CYAN='\033[36m'
-RESET='\033[0m'
+YELLOW=$'\033[1;33m'
+ORANGE=$'\033[38;5;208m'
+DIM=$'\033[2m'
+BOLD=$'\033[1m'
+CYAN=$'\033[36m'
+RESET=$'\033[0m'
 
 # ── No-squash check ──────────────────────────────────────────────────────────
 # Warn if pushing a single-commit branch that looks like a squash.
