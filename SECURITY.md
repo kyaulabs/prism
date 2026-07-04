@@ -32,6 +32,6 @@ When the security team receives a security bug report, they will assign it to a 
 * Audit code to find any potential similar problems.
 * Prepare fixes for all releases still under maintenance. These fixes will be released as fast as possible.
 
-## Commments
+## Comments
 
 If you have suggestions on how this process could be improved please submit a pull request.

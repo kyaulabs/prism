@@ -20,13 +20,18 @@ Keep these factors in mind when setting up repositories.
 
 * [About](#about)
 * [Dependencies](#dependencies)
+  * [Coverage driver](#coverage-driver)
+  * [Gitleaks](#gitleaks)
+  * [Harness tools](#harness-tools)
 * [New Repository](#new-repository)
-  * [Clone this Template](#clone)
+  * [Clone](#clone)
   * [Initialize Repository](#init)
+  * [Add Aurora Submodule](#add-aurora-submodule)
   * [Add License](#add-license)
   * [Add `.gitignore`](#add-gitignore)
   * [Update `README.md`](#update-readmemd)
   * [Configuration Files](#configuration-files)
+  * [Add Actions](#add-actions)
 * [Git Hooks](#git-hooks)
   * [Configuration](#configuration)
   * [Install Script](#install-script)
@@ -57,6 +62,7 @@ Keep these factors in mind when setting up repositories.
   * [Footer](#footer)
   * [Examples](#examples)
 * [Changelog](#changelog)
+  * [Manual changelog](#manual-changelog)
 * [Attribution](#attribution)
 
 ## Dependencies
@@ -208,9 +214,13 @@ Several files reference `kyaulabs/template` and must be updated to reflect your 
 
 ### Add Actions
 
-Make sure you add the appropriate actions from the [@kyaulabs/template-workflows](https://github.com/kyaulabs/template-workflows) repository.
+The template ships with a base CI workflow (`.github/workflows/ci.yml`) —
+lint, test, SAST, and commitlint. Add supplementary workflows from
+[@kyaulabs/template-workflows](https://github.com/kyaulabs/template-workflows)
+as your project requires.
 
-Edit the workflow accordingly as all workflows come with only manual activation set with automatic activation commented out.
+Edit each workflow after adding it — workflows from template-workflows ship
+with manual activation set and automatic activation commented out.
 
 ```yaml
 on:
@@ -454,6 +464,9 @@ Press `Tab` to switch between Build and Plan during a session.
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
+
+OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
+`/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
 
 ### Skills (on-demand)
 
