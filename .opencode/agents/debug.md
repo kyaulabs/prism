@@ -15,8 +15,8 @@ permission:
     "which *": allow
     "php -l *": allow
     "php -v": allow
-    "php -r *": allow
     "php vendor/bin/pest *": allow
+    "git checkout *": deny
     "git log *": allow
     "git diff *": allow
     "git show *": allow
@@ -24,6 +24,8 @@ permission:
     "git stash list": allow
     "git stash show *": allow
     "git blame *": allow
+    # git bisect mutates the working tree by checking out old commits.
+    # Use only for major regressions between known-good and known-bad commits.
     "git bisect *": allow
 ---
 
@@ -63,7 +65,9 @@ Dots in domain names are replaced with underscores (`voidbbs.com` →
 historical data.
 
 If logs are unavailable (local dev doesn't use nginx), check the PHP built-in
-server output or run the failing code directly via `php -r`.
+server output. Build a Pest test to reproduce the failure — the agent can run
+it via `php vendor/bin/pest`. Use `php -l` for stand-alone syntax checks on
+individual files.
 
 ## The 6 phases
 
@@ -94,7 +98,8 @@ Ways to construct one, try in roughly this order:
    random inputs and look for the failure mode.
 8. **Bisection harness** — if the bug appeared between two known states
    (commit, dataset, version), automate "boot at state X, check, repeat" so
-   you can `git bisect run` it.
+   you can `git bisect run` it (note: bisect mutates the working tree by
+   checking out old commits).
 9. **Differential loop** — run the same input through old-version vs
    new-version and diff outputs.
 10. **HITL bash script** — last resort. If a human must click, drive *them*
@@ -211,7 +216,7 @@ code was introduced:
 ```bash
 git log --oneline -20 -- <file>
 git blame <file> -L <start>,<end>
-git bisect start  # for major regressions between known-good and known-bad
+git bisect start  # mutates working tree; use only for major regressions
 ```
 
 Check for recent merges or refactors that may have introduced the issue.

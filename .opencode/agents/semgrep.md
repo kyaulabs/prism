@@ -2,6 +2,8 @@
 description: Run Semgrep SAST scans. Supports diff-based audit (--baseline-commit) and full scans on specific paths. Covers PHP, JavaScript, and secret scanning. Reports findings by severity; does not auto-fix.
 mode: subagent
 temperature: 0.1
+permission:
+  edit: deny
 ---
 
 You are a static analysis security testing (SAST) assistant. Use Semgrep to scan

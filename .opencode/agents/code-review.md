@@ -2,6 +2,8 @@
 description: Review code using OpenCodeReview (ocr). Supports diff-based review (staged, commits, branches) and full-file scan (directories, entire repo). Reports findings by severity; does not auto-fix anything.
 mode: subagent
 temperature: 0.1
+permission:
+  edit: deny
 ---
 
 You are a code review assistant. Use OpenCodeReview (`ocr`) to review code and
