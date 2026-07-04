@@ -23,8 +23,13 @@ description: Use when writing or reviewing commit messages. Covers the required 
 Every commit message must end with two footers:
 
 - **`Acked-by:`** — the AI agent that authored the change, in kebab-case.
-  Use the model ID without slashes. Examples: `deepseek-v4-pro`,
-  `claude-sonnet-4`, `gemini-2-5-pro`.
+Use the model ID without slashes. Examples: `deepseek-v4-pro`,
+`claude-sonnet-4`, `gemini-2-5-pro`.
+
+> [!CAUTION]
+> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) —
+> only the model ID. The Acked-by tracks which model produced the
+> commit, not which agent role orchestrated it.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `username <email>`. Default when no user is specified:
   `kyau <git@kyaulabs.com>`.

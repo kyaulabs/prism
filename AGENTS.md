@@ -135,7 +135,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Features: `feat/<username>-<hash>-<description>`
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Acked-by:` (agent in kebab-case) and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
+- Every commit must include `Acked-by:` (model ID in kebab-case, e.g. `deepseek-v4-pro`) and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
 
 ## Build Pipeline
 
