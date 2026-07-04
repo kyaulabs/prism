@@ -17,5 +17,7 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
+		'trailer-exists': [2, 'always', 'Acked-by:'],
+		'signed-off-by': [2, 'always', 'Signed-off-by:'],
 	},
 };
