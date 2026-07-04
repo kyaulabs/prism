@@ -3,16 +3,16 @@
 	"private": true,
 	"description": "Template — Change This Description",
 	"devDependencies": {
-		"@commitlint/config-conventional": "*",
-		"@eslint/js": "*",
-		"commitlint": "*",
-		"eslint": "*",
-		"git-cliff": "*",
-		"playwright": "*",
-		"sass": "*",
-		"stylelint": "*",
-		"stylelint-config-standard-scss": "*",
-		"uglify-js": "*"
+		"@commitlint/config-conventional": "^21",
+		"@eslint/js": "^10",
+		"commitlint": "^21",
+		"eslint": "^10",
+		"git-cliff": "^2",
+		"playwright": "^1",
+		"sass": "^1",
+		"stylelint": "^17",
+		"stylelint-config-standard-scss": "^17",
+		"uglify-js": "^3"
 	},
 	"allowScripts": {
 		"@parcel/watcher@2.5.6": true

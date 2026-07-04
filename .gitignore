@@ -9,8 +9,6 @@ tests/coverage.txt
 # Dependencies
 vendor/
 node_modules/
-composer.lock
-package-lock.json
 
 # Environment (NEVER commit .env — see AGENTS.md hard boundaries)
 .env

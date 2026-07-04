@@ -67,6 +67,10 @@ If no vulnerabilities are found, report: "No known vulnerabilities in JavaScript
 
 - Both tools are read-only — they never modify `composer.lock` or `package-lock.json`.
 - Skip either check gracefully if the corresponding manifest files don't exist.
+- If a lockfile is missing but the manifest exists, report a warning:
+  lockfiles are required for auditing; a fresh clone cannot be audited until
+  dependencies are installed against potentially unvetted versions. Committing
+  lockfiles eliminates this gap (see the lockfile policy in AGENTS.md).
 - If `composer audit --format json` returns a non-zero exit due to vulnerabilities,
   that's expected — parse the JSON output regardless.
 - If `npm audit --json` times out (large dependency trees can be slow), note it and

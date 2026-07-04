@@ -143,6 +143,23 @@ SCSS: `sass --style=compressed cdn/sass/source.scss cdn/css/output.min.css`
 JS:   `uglifyjs cdn/js/source.js -o cdn/javascript/output.min.js -c -m`
 Assets are built manually. No watchers.
 
+## Dependency Lockfiles
+
+> [!IMPORTANT]
+> `composer.lock` and `package-lock.json` are committed to the repository.
+> This ensures deterministic, auditable dependency trees and allows
+> `audit-deps` to scan known vulnerabilities on a fresh clone without
+> installing unvetted packages first.
+
+After any dependency change (adding, removing, or updating a package),
+regenerate and commit the updated lockfiles:
+
+```bash
+composer update   # regenerates composer.lock
+npm install       # regenerates package-lock.json
+git add composer.lock package-lock.json
+```
+
 ## Aurora Framework
 
 Submodule at `aurora/`. Entry: `require_once(__DIR__ . "/../aurora/aurora.inc.php")`  
