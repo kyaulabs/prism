@@ -644,3 +644,7 @@ git push -u origin develop      # finally, push the commit
 * [Semgrep](https://github.com/semgrep/semgrep) — static analysis security testing
 * [gitleaks](https://github.com/gitleaks/gitleaks) — secrets scanning at pre-commit
 * [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `@code-review` agent
+* [Superpowers](https://github.com/obra/superpowers) — engineering pipeline and core skill methodology
+* [Matt Pocock's Skills](https://github.com/mattpocock/skills) — prototype pattern, grilling concept, domain-modeling approach
+* [Anthropic Agent Skills](https://github.com/anthropics/skills) — SKILL.md format and skills specification
+* [Gleb's Claude Skills](https://github.com/glebis/claude-skills) — TDD multi-agent architecture
