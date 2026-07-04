@@ -19,8 +19,9 @@ methods, functions, and source files. Follow the project's documentation standar
 ## RCS Headers
 
 Load the `rcs-header` skill for the exact format. Every source file must begin
-with an RCS header and end with a vim modeline. For new files, start at version
-`1.0.0`. For modified files, increment the patch version and update the date.
+with an RCS header and end with a vim modeline. The header is a one-time
+creation stamp — write it once and never update it. The pre-commit hook
+auto-adds missing headers.
 
 ## PHPDoc (PSR-5)
 

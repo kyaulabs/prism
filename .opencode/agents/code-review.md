@@ -83,7 +83,7 @@ Parse JSON output and group findings:
 
 - **Blocking** — security vulnerabilities (SQL injection, XSS, secret
   exposure), logic errors, hard-boundary violations (see `AGENTS.md`), missing
-  RCS header on new files, PHP files missing PHPDoc.
+  RCS header on new source files, PHP files missing PHPDoc.
 - **Suggested** — style drift not caught by linters, missing test coverage
   for new logic, performance concerns, unclear naming.
 - **Informational** — minor style preferences, future refactor suggestions.

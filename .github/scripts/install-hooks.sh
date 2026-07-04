@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
+# $KYAULabs: install-hooks.sh kyau@nova 2026/07/04 -0700 Exp $
 
-# $KYAULabs: install-hooks.sh,v 1.0.0 2026/07/02 22:16:56 -0700 kyau Exp $
 # Run once after cloning: bash .github/scripts/install-hooks.sh
 
 set -euo pipefail
@@ -33,4 +33,4 @@ done
 echo ""
 echo "✓ Hooks installed. All commits will now run lint + gitleaks + commitlint."
 
-# vim 
+# vim: ft=sh sts=4 sw=4 ts=4 et :

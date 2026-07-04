@@ -1,22 +1,44 @@
 ---
 name: rcs-header
-description: Use when creating or modifying any source file. Provides the required RCS-style header format, version bump rules, and vim modeline for all file types (PHP, SCSS, JS, Bash).
+description: Use when creating or modifying any source file. Provides the required RCS-style header format, vim modeline, and PHPDoc conventions.
 ---
 
 ## RCS-Style Header (REQUIRED on every source file)
 
-Every source file must begin with an RCS-style identifier. Update the version and date
-on every modification.
+Every source file must begin with an RCS-style creation stamp. Write it once when
+the file is first created. Never update it. The pre-commit hook auto-adds the
+header if you miss one.
+
+Applies to **source files only**: `.php`, `.js`, `.scss`, `.sh`. Markdown, JSON,
+YAML, and other non-source files do not carry RCS headers.
 
 ```text
-PHP:  <?php # $KYAULabs: filename.php,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
-SCSS: // $KYAULabs: filename.scss,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
-JS:   // $KYAULabs: filename.js,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
-Bash: # $KYAULabs: filename.sh,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
+PHP:  <?php # $KYAULabs: filename.php creator@host YYYY/MM/DD ±TZ Exp $
+SCSS: // $KYAULabs: filename.scss creator@host YYYY/MM/DD ±TZ Exp $
+JS:   // $KYAULabs: filename.js creator@host YYYY/MM/DD ±TZ Exp $
+Bash: # $KYAULabs: filename.sh creator@host YYYY/MM/DD ±TZ Exp $
 ```
 
-Use the actual filename (not a path). Use the current date and time in the format shown.
-Start new files at version `1.0.0`. Increment the patch version on each modification.
+Use the actual filename (not a path). The fields are:
+
+- `creator@host` — `git config user.name`@`hostname` at creation time.
+- `YYYY/MM/DD ±TZ` — creation date and system timezone offset.
+
+The header is a one-time creation marker, like a `Signed-off-by` trailer at the
+file level. Version and modification history are tracked by git. Do not bump the
+version, update the timestamp, or otherwise modify the header after creation.
+
+### Placement
+
+- **PHP**: after `<?php` and optional `declare(strict_types=1);`, before code.
+- **SCSS/JS**: first line of the file.
+- **Bash**: after the shebang line (`#!/usr/bin/env bash`), before code.
+
+### Automation
+
+The `.github/hooks/pre-commit` hook checks staged source files. If a file is
+missing an RCS header, the hook inserts one automatically. Run
+`bash .github/scripts/install-hooks.sh` once after cloning to activate it.
 
 ## Vim Modeline (REQUIRED at end of every source file)
 

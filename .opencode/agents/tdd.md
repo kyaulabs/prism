@@ -140,8 +140,9 @@ public interface).
 - Do NOT test private/internal implementation details — test the public
   interface.
 - Follow Arrange / Act / Assert inside each test closure.
-- Apply the project RCS header to every new test file (see `rcs-header`
-  skill).
+- Apply the project RCS header to every new test file (see the `rcs-header`
+  skill). The header is a one-time creation stamp — write it once, never
+  update it.
 - Name test files in PascalCase with a `Test.php` suffix
   (UserAuthenticationTest.php).
 

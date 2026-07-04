@@ -68,8 +68,10 @@ npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
 
 ### 5. Files are well-formed
 
-- [ ] Every new or modified source file has an RCS header at the top (see
-      `rcs-header` skill).
+- [ ] Every new or modified source file has an RCS header with the correct
+      filename at the top (see `rcs-header` skill). The creator and date
+      fields are a one-time creation stamp, never updated — staleness is not
+      a defect. The pre-commit hook auto-adds missing headers.
 - [ ] Every new or modified source file has a vim modeline at the end.
 - [ ] PHP classes/methods/functions have PHPDoc (PSR-5).
 - [ ] No generated files (`cdn/css/*.min.css`, `cdn/javascript/*.min.js`)

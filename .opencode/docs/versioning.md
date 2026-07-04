@@ -32,19 +32,14 @@ Sections per release:
 - `Fixed` — bug fixes
 - `Security` — vulnerability fixes
 
-## RCS header version bumps
+## RCS header creation stamps
 
-Separate from release tags: every source file's RCS header carries a version
-(starts at `1.0.0`). Increment the **patch** on each modification, per the
-`rcs-header` skill. This is per-file bookkeeping, not the release version.
+Separate from release tags: every source file's RCS header carries a one-time
+creation stamp (`creator@host`, date, timezone). The header is never updated
+after creation — version and modification history are tracked by git. See the
+`rcs-header` skill for the exact format.
 
-| Bump trigger | RCS header |
-| --- | --- |
-| Any edit to an existing file | patch (`1.0.0` → `1.0.1`) |
-| New file | `1.0.0` |
-| (Major/minor RCS bumps are not used.) | — |
-
-The release tag (`vX.Y.Z`) and the per-file RCS versions are independent
+The release tag (`vX.Y.Z`) and the per-file RCS stamps are independent
 systems; do not try to keep them in sync.
 
 ## Release flow
