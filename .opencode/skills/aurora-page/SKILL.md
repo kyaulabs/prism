@@ -28,7 +28,7 @@ values:
 $rus = getrusage();
 require_once(__DIR__ . "/../aurora/aurora.inc.php");
 
-$site = new KYAULabs\Aurora("index.html", "/cdn", true, true);
+$site = new KYAULabs\Aurora("index.html", "/cdn", (bool)($_ENV['APP_DEBUG'] ?? false), true);
 $site->title = "Page Title";
 $site->description = "Page description for search engines.";
 $site->dns = ["cdn.<domain>"];
@@ -41,6 +41,7 @@ $site->preload = [
 $site->htmlHeader();
 // page content here
 $site->htmlFooter();
+echo $site->comment($rus, basename(__FILE__));
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
 ```
@@ -50,16 +51,40 @@ $site->htmlFooter();
 - Repository: `kyaulabs/aurora` (git submodule at `aurora/`)
 - Entry point: `require_once(__DIR__ . "/../aurora/aurora.inc.php")`
 - Main class: `KYAULabs\Aurora`
-- Provides: HTML header/footer templating, SRI, resource preloading, SQL handler, performance statistics
-- `$rus = getrusage()` must be called before the Aurora include — it captures start-of-request resource usage for the performance footer
+- Provides: HTML header/footer templating, unconditional SRI hashes, resource preloading, SQL handler, performance statistics via `comment()`
+- `$rus = getrusage()` must be called before the Aurora include — it captures start-of-request resource usage for the `comment()` performance footer
 
 ## Aurora Constructor Parameters
 
 ```php
-new KYAULabs\Aurora(string $template, string $cdnPath, bool $sri, bool $perf)
+new KYAULabs\Aurora(string $template, string $cdnPath, bool $status, bool $html, ?string $templateDir = null)
 ```
 
 - `$template` — base HTML template name (e.g. `"index.html"`)
 - `$cdnPath` — path prefix for CDN assets (e.g. `"/cdn"`)
-- `$sri` — enable Subresource Integrity hashes
-- `$perf` — enable performance statistics in footer
+- `$status` — **debug mode**: enables `display_errors`, `display_startup_errors`, `E_ALL` reporting, and `html_errors`. Must be `false` in production. Wire to `(bool)($_ENV['APP_DEBUG'] ?? false)`.
+- `$html` — **HTML output mode**: sets `mb_http_output('UTF-8')` and sends `Content-Type: text/html; charset=UTF-8` header
+- `$templateDir` — optional custom template overlay directory (checked first; falls back to Aurora's default `html/` directory)
+
+## Gotchas
+
+- *Using `$status = true` in production* — enables full error display with
+  stack traces, absolute paths, and SQL fragments rendered to any visitor on
+  an unhandled error. Always use `(bool)($_ENV['APP_DEBUG'] ?? false)` for
+  the `$status` parameter. `APP_DEBUG` must be `false` in `.env` for
+  production deployments.
+- *Constructor unconditionally enables error display before the `$status`
+  gate* — Aurora's constructor calls `ini_set('display_errors','1')` at
+  lines 88-91 of `aurora.inc.php` regardless of the `$status` value. If an
+  `AuroraException` is thrown during template/initialization validation
+  (missing template, bad CDN directory), the error renders verbosely even
+  when `$status=false`. This is an upstream issue in `kyaulabs/aurora`.
+  Until fixed, ensure the template file and CDN directory always exist before
+  deploying.
+- *SRI is unconditional in Aurora* — the constructor has no SRI toggle.
+  `htmlStyles()`, `htmlScripts()`, and `htmlPreload()` always emit
+  `integrity="sha512-..."` attributes regardless of constructor arguments.
+- *`$rus` without `comment()`* — `$rus = getrusage()` captures
+  start-of-request resource usage but only produces visible output when
+  paired with `$site->comment($rus, basename(__FILE__))`. Both must be
+  present in the page template for the performance footer to render.
