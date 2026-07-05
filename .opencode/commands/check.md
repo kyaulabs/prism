@@ -33,13 +33,36 @@ Skip with a note if eslint is not configured or no JS source exists.
 
 ## 4. Tests with coverage
 
+First, identify the PHP files that have changed:
+
+```bash
+# Staged files (pre-commit); fall back to working-tree if nothing staged
+git diff --staged --name-only --diff-filter=AM | grep '\.php$' > /tmp/changed.txt
+if [ ! -s /tmp/changed.txt ]; then
+  git diff --name-only | grep '\.php$' > /tmp/changed.txt
+fi
+echo "Changed PHP files:" && cat /tmp/changed.txt
+```
+
+Then run the full suite with coverage:
+
 ```bash
 php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
-- Gate: **≥ 80% line coverage** on changed files.
-- If coverage is below 80%, list the uncovered files and the specific lines
-  that are dragging the number down.
+**Changed-file coverage intersection** — assemble a table from the coverage
+output and `git diff` results:
+
+| Changed file | Coverage % | Gate |
+|---|---|---|
+| `backend/foo.php` | 92% | PASS |
+| `backend/bar.php` | 74% | FAIL |
+
+- Gate: **≥ 80% line coverage** on each changed file.
+- If a changed file's coverage is below 80%, list the file and the specific
+  lines that are driving the number down (from the coverage HTML/report).
+- Flag (non-blocking) if overall coverage is below 80% but every changed file
+  passes — this means technical debt in untouched files, not a blocker.
 - If any test fails, list the failing tests with their messages.
 
 ## 5. PHP syntax (sanity)
@@ -68,3 +91,6 @@ End with a single go/no-go:
   attempt to install it.
 - Coverage gate applies to changed files specifically; flag if overall
   coverage is below 80% but changed-file coverage is above.
+- **Check vs verification:** This command is the aggregate pre-push gate.
+  `verification-before-completion` is the per-task gate. Both run because
+  task-level green can rot by push time.

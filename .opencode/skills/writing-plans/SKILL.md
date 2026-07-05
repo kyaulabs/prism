@@ -185,22 +185,15 @@ on. If you find a spec requirement with no task, add the task.
 
 ## Execution handoff
 
-After saving the plan, offer execution choice:
+After saving the plan, hand off to the `executing-plans` skill:
 
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution
-options:**
+> "Plan complete and saved to `docs/plans/<filename>.md`. Invoking the
+> `executing-plans` skill to execute it."
 
-**1. Task-by-task via @tdd (recommended)** — I dispatch the @tdd agent per
-task, review between tasks, fast iteration.
-
-**2. Inline execution** — I execute tasks in this session, batch execution
-with checkpoints for review.
-
-**Which approach?"**
-
-If task-by-task: invoke the `@tdd` agent for each task in sequence, reviewing
-its output before moving to the next task. After each task is green, invoke
-the `verification-before-completion` skill before moving on.
+Load the `executing-plans` skill and follow its process — it defines two
+execution modes (inline batch-with-checkpoints and @tdd-dispatch with
+two-stage review), per-task review gates, halt/re-plan thresholds, and
+context management across long plans.
 
 ## Remember
 
@@ -213,6 +206,7 @@ the `verification-before-completion` skill before moving on.
 ## Cross-refs
 
 - `brainstorming` skill — the step before this one (produces the spec).
+- `executing-plans` skill — the step after this one (executes the plan).
 - `@tdd` agent — executes each task in Red → Green → Refactor cycles.
 - `verification-before-completion` skill — run after each task is green.
 - `rcs-header` skill — apply RCS header + vim modeline to every new file.

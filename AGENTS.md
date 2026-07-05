@@ -102,16 +102,17 @@ RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
 ```text
-brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** the change (grilling skill) → spec in `docs/specs/`.
 2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
-4. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
-5. **Verify** completion (verification-before-completion skill).
-6. **Gate** with `/check` (lint + coverage 80%).
-7. **Review** with `@code-review` before push.
+4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.
+5. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
+6. **Verify** completion (verification-before-completion skill).
+7. **Gate** with `/check` (lint + coverage 80%).
+8. **Review** with `@code-review` before push.
 
 For non-trivial or cross-cutting changes, insert `@architect` before step 4.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
@@ -189,6 +190,7 @@ Load these on demand when the task requires them:
 | `brainstorming` | Before any creative work — features, components, behavior changes. Grilling → design → spec |
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
+| `executing-plans` | After writing-plans — dispatches tasks to @tdd with two-mode execution (inline or dispatch), per-task review gates, and halt/re-plan policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `rcs-header` | Creating or modifying any source file |
 | `aurora-page` | Creating a new PHP page |

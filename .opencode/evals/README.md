@@ -4,7 +4,10 @@ Harness self-evaluation: structural validation catches rot in the prompt
 files; scenario evals verify that agents and skills actually produce the
 expected behavior.
 
-**Status:** Phase 1 — skeleton in place; live execution pending API access.
+**Status:** Phase 1 — schema and case format are stable; an automated,
+non-interactive runner is planned but not yet built. Until a runner exists,
+eval cases serve as documentation of expected agent behavior and provide a
+convention for authoring test cases alongside prompt changes.
 
 ## Structure
 
@@ -30,21 +33,13 @@ Each eval case is a JSON file conforming to `schema.json`. Fields:
 | `pass_criteria` | yes | How to determine pass/fail (e.g. "all behaviors observed", "no errors in output") |
 | `tags` | no | For filtering (e.g. `["smoke", "tdd", "critical"]`) |
 
-## Running evals
+## Planned runner
 
-Execution requires an OpenCode instance with API access. When that is
-available:
-
-```bash
-# Run smoke evals only
-opencode eval .opencode/evals/smoke/
-
-# Run all evals
-opencode eval .opencode/evals/
-```
-
-Until then, the framework defines the convention so that eval cases can be
-authored alongside prompt changes.
+When an automated runner is available, evals will be driven non-interactively
+against each case file — the schema and case format below are stable; only the
+runner is pending. In the meantime, eval cases serve as behavioral
+specifications: when you change a skill or agent, add or update its eval case
+in the same commit to document the expected behavior.
 
 ## Authoring conventions
 
@@ -62,6 +57,7 @@ authored alongside prompt changes.
 
 ## Cross-refs
 
-- `.github/scripts/validate-harness.sh` — structural frontmatter validation
-  (runs in CI; catches malformed files before they cause silent failures)
 - `AGENTS.md` § Git Workflow — no-squash policy (commit history is the eval log)
+- `AGENTS.md` § Linting & Enforcement — structural validation of frontmatter
+  is planned via CI; until then, validate manually when adding or changing
+  skills, agents, or commands
