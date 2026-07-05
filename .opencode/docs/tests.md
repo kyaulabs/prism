@@ -7,6 +7,12 @@ writing tests. This creates the Pest bootstrap that the arch tests in
 `conventions.md` depend on. The `@tdd` agent should run this if it encounters
 a repo with no test bootstrap.
 
+> [!WARNING]
+> `pest --init` generates a **bare** `Pest.php` (stock scaffolding only —
+> no arch tests). After running it, the `@tdd` agent must append the two
+> `arch()` blocks from `.opencode/docs/conventions.md` (Arch Tests section)
+> to the end of the generated file, before the vim modeline.
+
 ---
 
 Examples are Pest/PHP, matching the project stack.

@@ -51,9 +51,20 @@ Only if PHP files changed:
 php -r 'if (function_exists("opcache_reset")) { opcache_reset(); echo "opcache cleared\n"; } else { echo "opcache not available\n"; }'
 ```
 
-For a multi-PHP-FPM setup, clear via the FPM pool or a dedicated reset script
-rather than the CLI (CLI opcache and FPM opcache are separate). If unsure,
-suggest the canonical server-side reset.
+For a multi-PHP-FPM setup, clear via the FPM pool rather than the CLI (CLI
+opcache and FPM opcache are separate). The canonical server-side reset is:
+
+```bash
+cachetool opcache:reset --fcgi=/run/php/php8.5-fpm.sock
+```
+
+This requires `cachetool` installed on the production host
+(`curl -sO https://gordalina.github.io/cachetool/downloads/cachetool.phar`).
+If `cachetool` is unavailable, reload the FPM pool as a fallback:
+
+```bash
+systemctl reload php8.5-fpm
+```
 
 ## 5. Smoke check
 

@@ -63,3 +63,7 @@ A research run produces:
 - Quote sparingly. Paraphrase and cite.
 - If research reveals a security or correctness issue in the project, stop and
   flag it rather than burying it in the summary.
+- `websearch`, `webfetch`, and `@scout` are opencode builtin names that may
+  change between opencode versions. If a tool call fails with "tool not found,"
+  verify the current names against `opencode --help` or the opencode docs for
+  your version before assuming the tool does not exist.
