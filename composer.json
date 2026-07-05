@@ -11,6 +11,9 @@
 		"pestphp/pest-plugin-arch": "^4",
 		"pestphp/pest-plugin-browser": "^4"
 	},
+	"autoload": {
+		"classmap": [".opencode/evals/bin/includes/"]
+	},
 	"autoload-dev": {
 		"classmap": ["tests/"]
 	},

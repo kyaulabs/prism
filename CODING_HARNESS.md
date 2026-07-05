@@ -72,3 +72,33 @@ Invoke via `@mention`: `@explore find the auth implementation`.
 | `/redo` | Redo a previously undone change |
 | `/share` | Create a shareable link to the current conversation |
 | `/help` | Show available commands and help |
+
+## Custom additions
+
+Custom skills, agents, and commands are defined under `.opencode/`. The
+authoritative table of what's available is in `AGENTS.md` § Skills / Agents /
+Commands. This section exists so `writing-skills`'s cross-table-update rule
+has a landing point; the canonical list is in `AGENTS.md`.
+
+### Skills (process + domain)
+
+| Category | Skills |
+|---|---|
+| Pipeline (plan → execute → verify) | `brainstorming`, `writing-plans`, `executing-plans`, `verification-before-completion` |
+| Review triage | `receiving-code-review` |
+| Branch lifecycle | `finishing-a-development-branch` |
+| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
+| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
+| Frontend | `scss-mobile-first`, `frontend-design`, `frontend-architecture`, `accessibility` |
+| Testing | `pest-browser` |
+| Docs / process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `prototype` |
+
+### Custom agents
+
+All custom agents live under `.opencode/agents/` and are invoked via `@mention`.
+See `AGENTS.md` for the complete list with purpose descriptions.
+
+### Custom commands
+
+All custom commands live under `.opencode/commands/` and are invoked via `/slash`.
+See `AGENTS.md` for the complete list with purpose descriptions.

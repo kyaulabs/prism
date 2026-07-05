@@ -193,8 +193,11 @@ Load these on demand when the task requires them:
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
 | `executing-plans` | After writing-plans — dispatches tasks to @tdd with two-mode execution (inline or dispatch), per-task review gates, and halt/re-plan policy |
+| `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
+| `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `rcs-header` | Creating or modifying any source file |
+| `receiving-code-review` | Triaging and responding to @code-review findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `aurora-page` | Creating a new PHP page |
 | `scss-mobile-first` | Writing or reviewing SCSS (breakpoints, units, build) |
 | `frontend-design` | Writing or reviewing visual language — responsive/mobile-first, CSS transitions, CSS-driven flow, neumorphism, default theme + tokens |
@@ -206,6 +209,7 @@ Load these on demand when the task requires them:
 | `adr` | Writing, reviewing, or superseding an Architecture Decision Record |
 | `systems-design` | Designing a non-trivial change — ADR vs RFC, C4-lite, interface design |
 | `conventional-commits` | Writing or reviewing commit messages |
+| `opencode-docs` | Vendored opencode.ai/docs reference — config schemas, plugin hooks, permission rules, SDK API. Load instead of guessing or calling /research |
 | `pest-browser` | Writing browser tests |
 | `audit-deps` | Scanning PHP/JS dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, agents, commands, or docs in `.opencode/` |

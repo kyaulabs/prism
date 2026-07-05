@@ -18,12 +18,39 @@ obra/superpowers
   What was adapted: Engineering pipeline methodology — the
     brainstorming-to-plan-to-TDD-to-verification pipeline sequence,
     Red-Green-Refactor TDD discipline, verification gate, and the
-    zero-context implementation planning methodology.
+    zero-context implementation planning methodology. Also the
+    receiving-code-review triage discipline and the
+    finishing-a-development-branch checklist workflow.
   Used in:
     - .opencode/skills/executing-plans/SKILL.md (pipeline execution)
     - .opencode/skills/verification-before-completion/SKILL.md (verification gate)
     - .opencode/skills/writing-plans/SKILL.md (planning methodology)
+    - .opencode/skills/receiving-code-review/SKILL.md (review triage)
+    - .opencode/skills/finishing-a-development-branch/SKILL.md (branch completion)
     - .opencode/agents/tdd.md (Red-Green-Refactor TDD discipline)
+
+obra/superpowers-lab
+  URL: https://github.com/obra/superpowers-lab
+  Copyright: Copyright (c) Jesse Vincent
+  License: MIT
+  What was adapted: The two-phase semantic-duplication detection
+    pattern — classical structural extraction (Phase 1) followed by
+    LLM intent-clustering (Phase 2) with a deletion-test gate.
+  Used in:
+    - .opencode/skills/finding-duplicate-functions/SKILL.md (duplicate detection)
+
+obra/superpowers-developing-for-claude-code
+  URL: https://github.com/obra/superpowers-developing-for-claude-code
+  Copyright: Copyright (c) Jesse Vincent
+  License: MIT
+  What was adapted: The vendored-official-docs skill pattern — a local
+    docs/ directory populated by a fetch.sh script that shallow-clones
+    the upstream documentation repo with sparse checkout. The skill body
+    provides a quick-reference table with progressive disclosure to the
+    vendored files.
+  Used in:
+    - .opencode/skills/opencode-docs/SKILL.md (vendored docs skill)
+    - .opencode/skills/opencode-docs/fetch.sh (fetch script)
 
 mattpocock/skills
   URL: https://github.com/mattpocock/skills
