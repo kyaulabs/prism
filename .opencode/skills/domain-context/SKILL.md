@@ -41,3 +41,6 @@ CONTEXT.md is the *what* and *why* of the domain, never the *how*.
 - Do not duplicate CONTEXT.md content into ADRs or skills; reference it.
 - Keep glossary entries to one definition each; expand in prose only if a term
   is genuinely ambiguous.
+- For non-trivial or cross-cutting changes, `@architect` includes a
+  domain-context read as Step 1 of its workflow; the `domain-context` skill
+  alone suffices for small in-domain changes.

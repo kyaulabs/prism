@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SmokeTest.php,v 1.0.0 2026/07/04 -0700 kyau Exp $
+# $KYAULabs: SmokeTest.php kyau@nova 2026/07/04 -0700 Exp $
 
 test('smoke test verifies PHP version meets minimum requirement', function () {
     expect(version_compare(PHP_VERSION, '8.5', '>='))->toBeTrue();

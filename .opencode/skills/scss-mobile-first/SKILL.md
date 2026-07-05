@@ -43,7 +43,7 @@ padding: clamp(1rem, 4vw, 2rem);
 ```
 
 - Avoid fixed `px` widths on layout containers — use `max-width` + responsive padding
-- Touch targets must be at least `44px × 44px` for mobile accessibility
+- Touch targets ≥ 44×44px — see the `accessibility` skill for the WCAG minimum and adjacent-target gap rule
 
 ## Stylelint
 

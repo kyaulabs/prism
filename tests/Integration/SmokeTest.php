@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SmokeTest.php,v 1.0.0 2026/07/04 -0700 kyau Exp $
+# $KYAULabs: SmokeTest.php kyau@nova 2026/07/04 -0700 Exp $
 
 test('smoke test verifies backend smoke file exists and is readable', function () {
     $path = dirname(__DIR__, 2) . '/backend/smoke.php';

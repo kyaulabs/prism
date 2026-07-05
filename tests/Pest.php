@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php,v 1.0.0 2026/07/03 01:00:00 -0700 kyau Exp $
+# $KYAULabs: Pest.php kyau@nova 2026/07/03 -0700 Exp $
 
 /*
 |--------------------------------------------------------------------------

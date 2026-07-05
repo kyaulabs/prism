@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh,v 1.0.0 2026/07/04 12:00:00 -0700 kyau Exp $
+# $KYAULabs: validate-harness.sh kyau@nova 2026/07/04 -0700 Exp $
 
 set -euo pipefail
 

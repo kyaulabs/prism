@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: smoke.php,v 1.0.0 2026/07/04 -0700 kyau Exp $
+# $KYAULabs: smoke.php kyau@nova 2026/07/04 -0700 Exp $
 
 /**
  * Minimal production code used by the unit test smoke test to produce

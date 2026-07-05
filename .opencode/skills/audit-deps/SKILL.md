@@ -1,6 +1,6 @@
 ---
 name: audit-deps
-description: Scan PHP (Composer) and JavaScript (npm) dependencies for known CVEs. Parses structured output into severity tables with fix commands. Skips gracefully if manifests are absent.
+description: Use when auditing PHP (Composer) and JavaScript (npm) dependencies for known CVEs. Parses structured output into severity tables with fix commands. Skips gracefully if manifests are absent.
 ---
 
 ## Composer Audit

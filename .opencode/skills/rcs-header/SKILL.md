@@ -69,7 +69,5 @@ The modeline is the very last line of the file, after all code.
 
 Document all `@param`, `@return`, and `@throws`. Align the descriptions.
 
-## No explanatory comments
-
-Do not add inline comments explaining what the code does unless explicitly requested.
-Code should be self-documenting through naming. Comments are for *why*, not *what*.
+The "no explanatory comments" policy is owned by `AGENTS.md` (Commenting section) and
+`.opencode/docs/conventions.md` (PHP Standards). Refer to those authoritative sources.

@@ -10,14 +10,14 @@ requires a documented exception (an ADR or a page-level note in `CONTEXT.md`).
 
 ### 1. Responsive — always
 
-- No fixed-px container widths. Use `max-width` + fluid padding.
-- Layout breakpoints and `min-width` mechanics live in the `scss-mobile-first`
-  skill. This skill does not redefine them.
+Every project must be responsive. Breakpoint mechanics, fluid units, and
+`min-width` rules live in the `scss-mobile-first` skill. This skill does not
+redefine them.
 
 ### 2. Mobile-first mindset
 
-- Base styles target the smallest viewport (320px).
-- Scale up with `min-width` media queries. Never `max-width` for layout.
+Mobile-first is mandatory. See `scss-mobile-first` for base-viewport size,
+breakpoint values, and `min-width` mechanics.
 
 ### 3. Transitions for ease
 

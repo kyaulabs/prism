@@ -16,10 +16,11 @@ npm install playwright@latest
 npx playwright install
 ```
 
-Add to `.gitignore`:
+Verify `.gitignore` includes:
 ```text
 tests/Browser/Screenshots/
 ```
+(The template ships with this entry already present.)
 
 ## Global Config (`tests/Pest.php`)
 

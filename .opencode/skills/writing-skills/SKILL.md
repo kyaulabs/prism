@@ -26,7 +26,7 @@ description: Use when <trigger>. <What it provides — one sentence>.
 ---
 ```
 
-- `name` must match the directory name (snake_case).
+- `name` must match the directory name (kebab-case).
 - `description` starts with "Use when" so the agent knows when to load it.
 - Skills are on-demand (loaded via the Skill tool) — they cost zero tokens
   per session unless invoked.

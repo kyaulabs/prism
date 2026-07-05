@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-push,v 1.0.0 2026/07/04 12:00:00 -0700 kyau Exp $
+# $KYAULabs: pre-push kyau@nova 2026/07/04 -0700 Exp $
 
 set -euo pipefail
 

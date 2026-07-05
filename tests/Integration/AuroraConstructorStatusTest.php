@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorStatusTest.php,v 1.0.0 2026/07/04 -0700 kyau Exp $
+# $KYAULabs: AuroraConstructorStatusTest.php kyau@nova 2026/07/04 -0700 Exp $
 
 /**
  * Scans all web-accessible PHP files for hardcoded Aurora constructor

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SmokeTest.php,v 1.0.0 2026/07/04 -0700 kyau Exp $
+# $KYAULabs: SmokeTest.php kyau@nova 2026/07/04 -0700 Exp $
 
 require_once __DIR__ . '/../../backend/smoke.php';
 
