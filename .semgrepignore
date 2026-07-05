@@ -3,3 +3,4 @@ node_modules/
 aurora/
 cdn/css/*.min.css
 cdn/javascript/*.min.js
+tests/Semgrep/

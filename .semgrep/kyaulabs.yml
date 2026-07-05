@@ -1,0 +1,113 @@
+# KYAULabs first-party Semgrep rules pack
+#
+# Each rule has positive/negative fixtures in tests/Semgrep/<RuleId>/
+# and is validated by tests/Unit/Semgrep/RulesPackTest.php.
+#
+# New rules follow TDD: write fixture + test expectation first,
+# then implement the rule. Run semgrep --validate after editing.
+
+rules:
+  # --- Aurora constructor: $status must never be a literal true ---
+  - id: kyaulabs-aurora-status-true-literal
+    message: >-
+      Aurora constructor $status is a literal 'true'. Replace with
+      (bool)($_ENV['APP_DEBUG'] ?? false) so production deployments
+      never expose verbose error display to visitors. Prefer named
+      arguments: status: (bool)($_ENV['APP_DEBUG'] ?? false).
+      See ADR-0002 and the aurora-page skill.
+    severity: ERROR
+    languages: [php]
+    pattern-either:
+      - patterns:
+          - pattern: |
+              new KYAULabs\Aurora($TEMPLATE, $CDN, true, ...);
+          - pattern-not-regex: '\bAPP_DEBUG\b'
+      - patterns:
+          - pattern: |
+              new KYAULabs\Aurora(..., status: true, ...);
+          - pattern-not-regex: '\bAPP_DEBUG\b'
+
+  # --- SQL injection: string concatenation in query() ---
+  - id: kyaulabs-sqli-interpolated-query
+    message: >-
+      SQL query uses string concatenation in a query() call.
+      Use parameterized queries with bound parameters:
+      $db->execute("SELECT ... WHERE x = ?", [$var]).
+    severity: ERROR
+    languages: [php]
+    patterns:
+      - pattern-either:
+          - pattern: $DB->query("..." . $VAR);
+          - pattern: $DB->query("..." . $VAR . "...");
+          - pattern: $DB->query($VAR . "...");
+          - pattern: $DB->query("..." . $VAR,);
+      - pattern-not-regex: '\b(?:execute|prepare)\b'
+
+  # --- XSS: unescaped echo/print of request superglobals ---
+  - id: kyaulabs-xss-echo-request-sink
+    message: >-
+      Unescaped request superglobal written directly to output.
+      Escape with htmlspecialchars($val, ENT_QUOTES | ENT_HTML5, 'UTF-8').
+    severity: ERROR
+    languages: [php]
+    pattern-either:
+      - pattern: echo $_GET[$KEY];
+      - pattern: echo $_POST[$KEY];
+      - pattern: echo $_REQUEST[$KEY];
+      - pattern: echo $_COOKIE[$KEY];
+      - pattern: echo $_SERVER[$KEY];
+      - pattern: print $_GET[$KEY];
+      - pattern: print $_POST[$KEY];
+      - pattern: print $_REQUEST[$KEY];
+      - pattern: print $_COOKIE[$KEY];
+
+  # --- Deserialization: unserialize on request-reachable data ---
+  - id: kyaulabs-unserialize-request-data
+    message: >-
+      unserialize() on data reachable from a request superglobal is a
+      deserialization vulnerability. Use json_decode() instead.
+    severity: ERROR
+    languages: [php]
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+      - pattern: $_FILES
+      - pattern: $_SERVER
+    pattern-sinks:
+      - pattern: unserialize(...);
+
+  # --- CSRF: POST form without CSRF token (heuristic, INFO) ---
+  - id: kyaulabs-missing-csrf-token
+    message: >-
+      POST form detected — verify a CSRF token is included. Add an
+      <input type="hidden" name="csrf" value="..."> inside the form.
+      Token must be session-scoped and generated with random_bytes().
+      This is a heuristic — the absence of the word "csrf" in the
+      file does not guarantee safety. Review manually.
+    severity: INFO
+    languages: [generic]
+    paths:
+      include:
+        - "*.php"
+    pattern: |
+      <form method="post"
+
+  # --- Hardcoded display_errors enabled ---
+  - id: kyaulabs-hardcoded-display-errors-on
+    message: >-
+      display_errors is hardcoded to '1' / 1. Aurora manages error
+      display via its constructor $status parameter (wired to
+      (bool)($_ENV['APP_DEBUG'] ?? false)). Do not override
+      display_errors manually in application code.
+    severity: ERROR
+    languages: [php]
+    pattern-either:
+      - pattern: ini_set('display_errors', '1');
+      - pattern: ini_set('display_errors', 1);
+      - pattern: ini_set("display_errors", "1");
+      - pattern: ini_set("display_errors", 1);
+      - pattern: ini_set('display_errors','1');
+      - pattern: ini_set("display_errors","1");

@@ -6,16 +6,18 @@ declare(strict_types=1);
 
 /**
  * Scans all web-accessible PHP files for hardcoded Aurora constructor
- * $status=true. Every PHP page scaffolded through the aurora-page skill
- * must use (bool)($_ENV['APP_DEBUG'] ?? false) — never a literal true.
- * This test prevents that class of production error-display bug from
- * silently recurring as apps are added.
+ * $status=true (positional or named argument). Every PHP page scaffolded
+ * through the aurora-page skill must use (bool)($_ENV['APP_DEBUG'] ?? false)
+ * — never a literal true. This test prevents that class of production
+ * error-display bug from silently recurring as apps are added.
+ * The kyaulabs-aurora-status-true-literal Semgrep rule provides early
+ * warning at diff-audit time (see ADR-0002).
  */
 
 test('Aurora constructor must not hardcode $status=true in web-accessible files', function () {
     $root = dirname(__DIR__);
     $excluded = ['aurora', 'tests', 'backend', 'vendor', 'node_modules', '.git'];
-    $pattern = '/new\s+KYAULabs\\\\Aurora\(\s*[^,]+,\s*[^,]+,\s*true\b/';
+    $pattern = '/(?:new\s+KYAULabs\\\\Aurora\(\s*[^,]+,\s*[^,]+,\s*true\b)|(?:\bstatus:\s*true\b)/';
 
     $files = [];
 

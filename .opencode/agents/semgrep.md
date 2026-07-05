@@ -21,6 +21,19 @@ A `.semgrepignore` exists at the project root excluding `vendor/`,
 `node_modules/`, `aurora/`, and generated minified assets. Rely on it — no
 need for `--exclude` flags.
 
+## Custom rules pack
+
+Always load the first-party rules pack alongside registry rules:
+
+```
+-c .semgrep/kyaulabs.yml
+```
+
+This pack targets Aurora-specific footguns and no-framework sinks not covered
+by generic registry packs. Every rule has positive/negative fixtures in
+`tests/Semgrep/<RuleId>/` validated by `tests/Unit/Semgrep/RulesPackTest.php`.
+New rules follow TDD — see ADR-0002.
+
 ## Common flags (every invocation)
 
 - `--metrics off` — disable telemetry.
@@ -45,13 +58,13 @@ pushing to develop), `HEAD~1` (last commit), `<hash>~1` (specific commit),
 `<branch>` (user-specified).
 
 ```bash
-semgrep scan --config auto --baseline-commit <ref> \
+semgrep scan --config auto -c .semgrep/kyaulabs.yml --baseline-commit <ref> \
   --metrics off --disable-version-check --json
 ```
 
 Fallback if `--config auto` fails (no registry access):
 ```bash
-semgrep scan -c p/php -c p/secrets -c p/javascript \
+semgrep scan -c p/php -c p/secrets -c p/javascript -c .semgrep/kyaulabs.yml \
   --baseline-commit <ref> --metrics off --disable-version-check --json
 ```
 
@@ -61,7 +74,7 @@ Targets by scenario: `.` (entire codebase), `backend/` (single module),
 `backend/ cdn/js/` (multiple dirs), or specific files.
 
 ```bash
-semgrep scan --config auto --metrics off --disable-version-check --json [TARGETS...]
+semgrep scan --config auto -c .semgrep/kyaulabs.yml --metrics off --disable-version-check --json [TARGETS...]
 ```
 
 Same fallback to explicit packs if `--config auto` fails.
@@ -89,6 +102,20 @@ Format each finding:
 [SEVERITY] [rule-id]
   File: <path>:<line>
   <message>
+```
+
+## Suppression reporting
+
+After listing findings, scan the diff for existing `// nosemgrep
+<rule-id>` inline suppressions and report them alongside the active
+findings. Group by rule-id and show file:line + justification. This
+ensures the reviewer sees both what fired and what is already
+suppressed — and can re-evaluate suppressions against updated rules.
+
+```
+Suppressions in diff:
+  kyaulabs-sqli-interpolated-query  backend/reports.php:42  -- static SQL, no user input
+  kyaulabs-missing-csrf-token       backend/internal.php:18  -- internal cron endpoint
 ```
 
 ## Rules

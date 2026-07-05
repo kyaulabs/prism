@@ -28,7 +28,7 @@ values:
 $rus = getrusage();
 require_once(__DIR__ . "/../aurora/aurora.inc.php");
 
-$site = new KYAULabs\Aurora("index.html", "/cdn", (bool)($_ENV['APP_DEBUG'] ?? false), true);
+$site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: (bool)($_ENV['APP_DEBUG'] ?? false), html: true);
 $site->title = "Page Title";
 $site->description = "Page description for search engines.";
 $site->dns = ["cdn.<domain>"];
@@ -65,6 +65,13 @@ new KYAULabs\Aurora(string $template, string $cdnPath, bool $status, bool $html,
 - `$status` — **debug mode**: enables `display_errors`, `display_startup_errors`, `E_ALL` reporting, and `html_errors`. Must be `false` in production. Wire to `(bool)($_ENV['APP_DEBUG'] ?? false)`.
 - `$html` — **HTML output mode**: sets `mb_http_output('UTF-8')` and sends `Content-Type: text/html; charset=UTF-8` header
 - `$templateDir` — optional custom template overlay directory (checked first; falls back to Aurora's default `html/` directory)
+
+**Always use named arguments** at the call site. The constructor has positional
+bool parameters (`$status`, `$html`) that are a documented sharp edge — a call
+using bare `true, true` is ambiguous and has caused production incidents where
+error display was accidentally enabled. Named arguments make the dangerous
+`$status` parameter explicit and self-documenting. PHP 8.0+ is required; no
+API change to Aurora is needed.
 
 ## Gotchas
 

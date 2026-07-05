@@ -2,6 +2,9 @@
 .php-cs-fixer.cache
 .phpunit.cache
 
+# Semgrep settings (API keys, registry tokens)
+.semgrep/settings.yml
+
 # Code coverage
 tests/coverage/
 tests/coverage.txt
