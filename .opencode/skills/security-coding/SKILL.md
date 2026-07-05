@@ -102,6 +102,25 @@ Send security headers on every response (via Aurora or nginx):
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Strict-Transport-Security` on HTTPS
 
+### CSP and Aurora
+
+Aurora emits **only external** `<script src>` tags with SRI hashes
+(`integrity="sha512-..."` + `crossorigin="anonymous"`). No inline scripts
+are emitted. The canonical CSP for every Aurora page is:
+
+```
+Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+```
+
+- `'unsafe-inline'` is forbidden in production.
+- No nonce is required today — Aurora's output is already strict-CSP-compatible.
+- If a future feature requires inline scripts, implement a per-request
+  nonce in Aurora (generate a random nonce, emit it on the `<script>` tag, and
+  reflect it in `script-src 'nonce-<value>'`). See ADR-0001.
+
+Cross-ref: `frontend-architecture` skill — CSP-friendly script rules for
+page authors (inline scripts forbidden, SRI on external scripts).
+
 ## Secrets
 
 - Never hardcode credentials. Load from environment or a non-web-root config.

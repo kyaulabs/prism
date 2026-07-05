@@ -69,10 +69,12 @@ Visual tokens (colors, shadows, surfaces) are defined canonically by the
 ## CSP-friendly scripts
 
 - Avoid inline event handlers (`onclick=`, `onload=`).
-- Do not inline JS in the HTML body. Register scripts via the Aurora page
-  template's `$site->js` array (see `aurora-page` skill).
-- Inline `<script>` tags are forbidden outside the controlled header/footer
-  emitted by Aurora.
+- Inline `<script>` tags are forbidden. Aurora emits only external
+  `<script src>` tags with SRI hashes (`integrity`, `crossorigin`); script
+  tags emitted through Aurora's `$site->js` array (see `aurora-page` skill)
+  carry SRI automatically. Page authors must not emit inline scripts in the
+  body.
+- `'unsafe-inline'` is forbidden in the CSP. See ADR-0001.
 
 ## Cross-refs
 
