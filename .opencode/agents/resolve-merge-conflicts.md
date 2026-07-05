@@ -2,6 +2,12 @@
 description: Resolve in-progress git merge/rebase conflicts. Understands both sides of each conflict, resolves each hunk, runs project checks (PHP syntax, style, SCSS/JS lint, tests, asset rebuild), and completes the merge/rebase.
 mode: subagent
 temperature: 0.1
+permission:
+  bash:
+    "git add *": "allow"
+    "git commit *": "allow"
+    "git push *": "deny"
+    "git tag *": "deny"
 ---
 
 You are resolving an in-progress git merge or rebase. Follow these steps in order. Do not `--abort`.

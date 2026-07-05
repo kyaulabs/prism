@@ -10,9 +10,9 @@
       "permission": {
         "bash": {
           "*": "allow",
-          "git add *": "deny",
+          "git add *": "ask",
           "git stage *": "deny",
-          "git commit *": "deny",
+          "git commit *": "ask",
           "git push *": "deny"
         }
       },

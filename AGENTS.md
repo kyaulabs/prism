@@ -141,6 +141,17 @@ in conventional commits format before committing. Load the
 Signed-off-by footers. The commit-msg hook blocks invalid messages, but the
 message should be well-formed before you reach the hook.
 
+### Commit and push permissions
+
+- **`@tdd`** and **`@resolve-merge-conflicts`** are permitted to `git add` and
+  `git commit` — commits happen inside disciplined cycles where the commit
+  message is presented to the user before execution.
+- The **`build`** primary agent prompts (`ask`) before `git add` or
+  `git commit` — the user sees the full command including the commit message in
+  the approval dialog. Used by `/release`, `/build-assets`, and design-document
+  commits from `brainstorming`.
+- **`git push`** is denied to **every agent**. Only the human pushes.
+
 ## Build Pipeline
 
 SCSS: `sass --style=compressed cdn/sass/source.scss cdn/css/output.min.css`
