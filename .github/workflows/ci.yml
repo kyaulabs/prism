@@ -37,6 +37,9 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: PHP syntax check
         run: |
           find . -name '*.php' \
@@ -59,9 +62,21 @@ jobs:
         if: hashFiles('cdn/js/**/*.js') != ''
         run: npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 
+      - name: Start PHP dev server
+        if: hashFiles('tests/Browser/**/*.php') != ''
+        run: |
+          php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 &
+          echo "PHP_SERVER_PID=$!" >> $GITHUB_ENV
+
       - name: Pest (coverage >= 80%)
-        if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php') != ''
+        if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
         run: php vendor/bin/pest --coverage --min=80
+        env:
+          PEST_BROWSER_BASE_URL: http://localhost:8080
+
+      - name: Stop PHP dev server
+        if: always() && hashFiles('tests/Browser/**/*.php') != ''
+        run: kill $PHP_SERVER_PID 2>/dev/null || true
 
       - name: Semgrep SAST
         run: |
