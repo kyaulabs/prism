@@ -405,6 +405,8 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 * **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
 * **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
 * **`opencode.json`** — Wires instructions + agent definitions + permissions into the coding agent
+* **`docs/POSITIONING.md`** — Why this stack and harness exist (design rationale, differentiators)
+* **`NOTICE`** — Third-party attribution and provenance
 
 ### Quick-start loop
 
@@ -647,7 +649,7 @@ git push -u origin develop      # finally, push the commit
 * [Semgrep](https://github.com/semgrep/semgrep) — static analysis security testing
 * [gitleaks](https://github.com/gitleaks/gitleaks) — secrets scanning at pre-commit
 * [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `@code-review` agent
-* [Superpowers](https://github.com/obra/superpowers) — engineering pipeline and core skill methodology
-* [Matt Pocock's Skills](https://github.com/mattpocock/skills) — prototype pattern, grilling concept, domain-modeling approach
-* [Anthropic Agent Skills](https://github.com/anthropics/skills) — SKILL.md format and skills specification
-* [Gleb's Claude Skills](https://github.com/glebis/claude-skills) — TDD multi-agent architecture
+* [Superpowers](https://github.com/obra/superpowers) — engineering pipeline and core skill methodology (MIT, © Jesse Vincent)
+* [Matt Pocock's Skills](https://github.com/mattpocock/skills) — prototype pattern, grilling concept, domain-modeling approach (MIT, © Matt Pocock)
+* [Anthropic Agent Skills](https://github.com/anthropics/skills) — SKILL.md format and skills specification (MIT, © Anthropic)
+* [Gleb's Claude Skills](https://github.com/glebis/claude-skills) — TDD multi-agent architecture (MIT, © Gleb)

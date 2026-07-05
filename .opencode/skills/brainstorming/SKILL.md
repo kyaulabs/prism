@@ -1,6 +1,7 @@
 ---
 name: brainstorming
 description: Use before any creative work — creating features, building components, adding functionality, or modifying behavior. Refines rough ideas into a validated design through one-question-at-a-time grilling, then writes a spec. Hard-gate: no implementation until the design is approved and a spec is written (fast-path for zero-behavior-delta changes).
+derived-from: mattpocock/skills (MIT, © Matt Pocock)
 ---
 
 # Brainstorming Ideas Into Designs

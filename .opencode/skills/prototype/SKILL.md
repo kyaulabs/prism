@@ -1,6 +1,7 @@
 ---
 name: prototype
 description: Use when you need to answer a technical viability question with throwaway code before committing to an implementation plan. Builds a disposable prototype — logic (PHP CLI), UI (HTML+CSS+JS variants), or integration (DB/API boundary test) — to learn fast and then delete.
+derived-from: mattpocock/skills (MIT, © Matt Pocock)
 ---
 
 # Prototype

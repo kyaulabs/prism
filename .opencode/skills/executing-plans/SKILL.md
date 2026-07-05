@@ -1,6 +1,7 @@
 ---
 name: executing-plans
 description: Use when executing a multi-task implementation plan from docs/plans/. Defines two execution modes (inline batch-with-checkpoints, @tdd-dispatch with two-stage review), per-task review gates, halt/re-plan policy, and context management across long plans.
+derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
 # Executing Plans

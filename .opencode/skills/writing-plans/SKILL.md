@@ -1,6 +1,7 @@
 ---
 name: writing-plans
 description: Use when you have an approved spec or requirements for a multi-step task, before touching code. Produces a bite-sized, TDD-oriented implementation plan with exact file paths, interfaces, complete code, and verification commands. Sits between brainstorming approval and @tdd execution.
+derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
 # Writing Plans

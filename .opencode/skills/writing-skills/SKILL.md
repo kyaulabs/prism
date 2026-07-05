@@ -1,6 +1,7 @@
 ---
 name: writing-skills
 description: Use when creating or modifying skills, agents, commands, or docs in .opencode/. Provides the frontmatter schema, mode/permission conventions, cross-ref rules, and quality checks to keep the harness consistent as it grows.
+derived-from: anthropics/skills (MIT, © Anthropic); glebis/claude-skills (MIT, © Gleb)
 ---
 
 # Writing Skills, Agents, and Commands

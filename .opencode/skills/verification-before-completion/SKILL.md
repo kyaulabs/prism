@@ -1,6 +1,7 @@
 ---
 name: verification-before-completion
 description: Use before declaring a task done. Verifies the work is actually complete — re-runs the relevant test/loop, confirms green, confirms no debug instrumentation remains, confirms the original repro no longer reproduces. Prevents false "done" claims.
+derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
 # Verification Before Completion

@@ -8,6 +8,7 @@ permission:
     "git commit *": "allow"
     "git push *": "deny"
     "git tag *": "deny"
+derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 
 You are operating in strict TDD mode. Follow the Red-Green-Refactor cycle without exception, one behavior at a time.
