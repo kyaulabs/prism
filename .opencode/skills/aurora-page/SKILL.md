@@ -57,11 +57,11 @@ echo $site->comment($rus, basename(__FILE__));
 ## Aurora Constructor Parameters
 
 ```php
-new KYAULabs\Aurora(string $template, string $cdnPath, bool $status, bool $html, ?string $templateDir = null)
+new KYAULabs\Aurora(?string $template = null, ?string $cdn = '/cdn', bool $status = false, bool $html = false, ?string $templateDir = null)
 ```
 
 - `$template` — base HTML template name (e.g. `"index.html"`)
-- `$cdnPath` — path prefix for CDN assets (e.g. `"/cdn"`)
+- `$cdn` — CDN directory path (e.g. `"/cdn"`)
 - `$status` — **debug mode**: enables `display_errors`, `display_startup_errors`, `E_ALL` reporting, and `html_errors`. Must be `false` in production. Wire to `(bool)($_ENV['APP_DEBUG'] ?? false)`.
 - `$html` — **HTML output mode**: sets `mb_http_output('UTF-8')` and sends `Content-Type: text/html; charset=UTF-8` header
 - `$templateDir` — optional custom template overlay directory (checked first; falls back to Aurora's default `html/` directory)
