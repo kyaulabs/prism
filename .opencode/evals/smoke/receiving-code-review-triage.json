@@ -1,0 +1,17 @@
+{
+  "name": "receiving-code-review-triage",
+  "description": "Verify receiving-code-review skill triages findings by severity — fixes Blocking, defers Suggested with reason, acknowledges Informational.",
+  "agent": "receiving-code-review",
+  "input": "You received the following findings from @code-review:\n\nBlocking: Missing RCS header on backend/NewModule.php\nSuggested: Consider extracting the validation logic from processForm() into a helper\nInformational: The variable $x could be renamed to $count for clarity\n\nTriage and respond.",
+  "expected_behavior": [
+    "Agent announces using receiving-code-review skill",
+    "Agent reads ALL findings before acting on any",
+    "Blocking finding (missing RCS header) is fixed without pushback",
+    "Suggested finding is evaluated — either fixed cleanly or deferred with a one-line reason",
+    "Informational finding is acknowledged, not implemented",
+    "Agent presents a summary of what was fixed, deferred, and why",
+    "Agent does not argue with the Blocking finding"
+  ],
+  "pass_criteria": "all behaviors observed",
+  "tags": ["smoke", "process", "review"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "opencode-docs-reference",
+  "description": "Verify opencode-docs skill loads and references vendored docs instead of guessing OpenCode config semantics.",
+  "agent": "opencode-docs",
+  "input": "What keys are valid in opencode.json for the 'agent' section? How do I set a custom command?",
+  "expected_behavior": [
+    "Agent announces using opencode-docs skill",
+    "Agent identifies the relevant doc files from the quick-reference table",
+    "Agent reads config.mdx for opencode.json agent section keys",
+    "Agent reads commands.mdx for custom command configuration",
+    "Agent cites the doc file names in its answer (e.g. 'per config.mdx')",
+    "Agent does NOT make up config keys that aren't in the vendored docs",
+    "Agent does NOT call /research for questions the vendored docs cover"
+  ],
+  "pass_criteria": "all behaviors observed",
+  "tags": ["smoke", "docs", "config"]
+}

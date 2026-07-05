@@ -290,6 +290,132 @@ class Runner
             judgeUsed: false,
         );
     }
+    /**
+     * Build the prompt for the LLM judge.
+     *
+     * @param  EvalCase $case
+     * @param  string $agentOutput  Captured stdout + stderr from the agent run.
+     * @return string
+     */
+    public function buildJudgePrompt(EvalCase $case, string $agentOutput): string
+    {
+        $behaviors = '';
+        foreach ($case->expectedBehavior as $i => $behavior) {
+            $n = $i + 1;
+            $behaviors .= "{$n}. {$behavior}\n";
+        }
+
+        return <<<PROMPT
+You are evaluating whether an AI agent's output satisfies expected behaviors.
+Below is the eval case and the agent's full output. For each expected behavior,
+answer YES if the output demonstrates it, NO if it does not, or UNCLEAR if
+you cannot determine. Provide a one-sentence rationale per answer.
+
+Eval case: {$case->name}
+Description: {$case->description}
+
+Expected behaviors:
+{$behaviors}
+Agent output:
+---
+{$agentOutput}
+---
+
+Respond with ONLY a valid JSON array. No prose, no markdown fences.
+[{"behavior": "<exact text>", "verdict": "YES|NO|UNCLEAR", "rationale": "<one sentence>"}, ...]
+PROMPT;
+    }
+
+    /**
+     * Parse the judge's JSON response into a behaviors array.
+     *
+     * @param  string $response  Raw response from the judge (may include markdown fences).
+     * @return array<int, array{behavior: string, verdict: string, rationale: string}>
+     */
+    public static function parseJudgeResponse(string $response): array
+    {
+        $response = trim($response);
+        $response = preg_replace('/^```(?:json)?\s*\n?/', '', $response);
+        $response = preg_replace('/\n?```\s*$/', '', $response);
+
+        $decoded = json_decode($response, true);
+
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return array_map(function (array $item): array {
+            return [
+                'behavior' => $item['behavior'] ?? '',
+                'verdict' => strtoupper($item['verdict'] ?? 'UNCLEAR'),
+                'rationale' => $item['rationale'] ?? '',
+            ];
+        }, $decoded);
+    }
+
+    /**
+     * Build an EvalResult from the judge's parsed behaviors.
+     *
+     * @param  EvalCase $case
+     * @param  array<int, array{behavior: string, verdict: string, rationale: string}> $behaviors
+     * @param  int $durationMs
+     * @return EvalResult
+     */
+    public function buildJudgeResult(EvalCase $case, array $behaviors, int $durationMs): EvalResult
+    {
+        $allYes = true;
+        foreach ($behaviors as $b) {
+            if ($b['verdict'] !== 'YES') {
+                $allYes = false;
+                break;
+            }
+        }
+
+        return new EvalResult(
+            name: $case->name,
+            agent: $case->agent,
+            passCriteria: $case->passCriteria,
+            verdict: $allYes ? 'PASS' : 'FAIL',
+            behaviors: $behaviors,
+            deterministicChecks: [],
+            durationMs: $durationMs,
+            judgeUsed: true,
+        );
+    }
+
+    /**
+     * Run the LLM judge against the captured agent output.
+     *
+     * @param  EvalCase $case
+     * @param  string $agentOutput  Captured stdout + stderr from the agent run.
+     * @return EvalResult
+     */
+    public function runJudge(EvalCase $case, string $agentOutput): EvalResult
+    {
+        $prompt = $this->buildJudgePrompt($case, $agentOutput);
+        $judgeCmd = "opencode run --prompt " . escapeshellarg($prompt) .
+            " --mode build --path " . escapeshellarg($this->repoRoot);
+
+        $start = hrtime(true);
+        $output = $this->executeCommand($judgeCmd, $this->timeout);
+        $elapsed = (int) ((hrtime(true) - $start) / 1_000_000);
+
+        $behaviors = self::parseJudgeResponse($output['stdout']);
+
+        return $this->buildJudgeResult($case, $behaviors, $elapsed);
+    }
+
+    /**
+     * Check if opencode is available in PATH.
+     *
+     * @return bool
+     */
+    public function isOpenCodeAvailable(): bool
+    {
+        $output = $this->executeCommand('command -v opencode', 5);
+
+        return $output['exitCode'] === 0 && $output['stdout'] !== '';
+    }
 }
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

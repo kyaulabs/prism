@@ -4,10 +4,41 @@ Harness self-evaluation: structural validation catches rot in the prompt
 files; scenario evals verify that agents and skills actually produce the
 expected behavior.
 
-**Status:** Phase 1 — schema and case format are stable; an automated,
-non-interactive runner is planned but not yet built. Until a runner exists,
-eval cases serve as documentation of expected agent behavior and provide a
-convention for authoring test cases alongside prompt changes.
+**Status:** Phase 2 — automated runner implemented. Run evals with the PHP CLI
+scripts under `bin/`. See Usage below.
+
+## Usage
+
+### Run a single eval case
+
+```bash
+php .opencode/evals/bin/run-eval.php .opencode/evals/smoke/tdd-red-green.json
+```
+
+Options: `--timeout <seconds>` (default 120), `--dry-run` (print command, don't execute).
+
+Output: JSON result object to stdout. Exit code 0 = PASS, 1 = FAIL, 2 = SKIPPED.
+
+### Run a suite
+
+```bash
+php .opencode/evals/bin/run-suite.php .opencode/evals/smoke/
+```
+
+Options: `--tag <tag>` (filter by tags field), `--timeout <seconds>` (per case).
+
+Output: markdown summary table to stdout, detailed JSON to `results/<timestamp>.json`.
+Exit code 0 = all passed, 1 = one or more failures.
+
+### In pre-commit/pre-push hooks
+
+```bash
+php .opencode/evals/bin/run-suite.php .opencode/evals/smoke/ --tag smoke
+if [ $? -ne 0 ]; then
+    echo "Eval suite failed — review results before pushing."
+    exit 1
+fi
+```
 
 ## Structure
 
@@ -15,8 +46,19 @@ convention for authoring test cases alongside prompt changes.
 .opencode/evals/
 ├── README.md           ← This file
 ├── schema.json         ← JSON Schema for eval case definitions
-└── smoke/              ← Minimal smoke evals (one per critical agent)
-    └── tdd-red-green.json
+├── bin/                ← Runner scripts
+│   ├── includes/
+│   │   └── EvalRunner.php  ← Shared classes (EvalCase, EvalResult, Runner)
+│   ├── run-eval.php    ← Single-case runner
+│   └── run-suite.php   ← Batch suite runner
+├── smoke/              ← Minimal smoke evals (one per critical agent)
+│   ├── tdd-red-green.json
+│   ├── receiving-code-review-triage.json
+│   ├── finishing-a-development-branch-checklist.json
+│   ├── finding-duplicate-functions-two-phase.json
+│   └── opencode-docs-reference.json
+└── results/            ← Generated result files (gitignored)
+    └── <timestamp>.json
 ```
 
 ## Eval case format

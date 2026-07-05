@@ -1,0 +1,18 @@
+{
+  "name": "finishing-a-development-branch-checklist",
+  "description": "Verify finishing-a-development-branch skill runs the pre-completion checklist and presents disposal options without auto-merging.",
+  "agent": "finishing-a-development-branch",
+  "input": "I've finished all tasks on branch feat/kyau-abc123-add-login. All plan tasks are checked off. Verify the branch is ready and tell me my options.",
+  "expected_behavior": [
+    "Agent announces using finishing-a-development-branch skill",
+    "Agent runs each checklist item — working tree, rebase state, /check, @code-review",
+    "Agent does not skip any checklist item",
+    "If any item fails, agent stops and reports the failure without presenting options",
+    "If all items pass, agent presents the summary block with 4 numbered options",
+    "Agent does NOT propose git push",
+    "Agent does NOT auto-merge — waits for user response",
+    "Agent reminds about no-squash policy"
+  ],
+  "pass_criteria": "all behaviors observed",
+  "tags": ["smoke", "process", "git"]
+}
