@@ -97,4 +97,7 @@ Format each finding:
 - Exit codes: 0 = no findings, 1 = findings found (normal), 2 = fatal error,
   3+ = config/input error. Treat exit ≥ 2 as failure.
 - Respect `.semgrepignore` — do not override unless the user explicitly asks.
-- Do not scan the `aurora/` submodule — it's external code.
+- Do not scan the `aurora/` submodule — it is first-party code scanned in its
+  own repository's CI (Semgrep SAST + Gitleaks + `php -l` at
+  `aurora/.github/workflows/ci.yml`); excluded here only to avoid diff noise
+  and duplicate findings.

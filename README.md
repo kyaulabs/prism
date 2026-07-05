@@ -148,12 +148,14 @@ Gitleaks scans commits for secrets at pre-commit time. Install globally via your
 
 In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding agents:
 
-| Tool | Purpose | Install |
-| --- | --- | --- |
-| [OpenCode](https://opencode.ai) | The coding harness platform | See [opencode.ai/docs](https://opencode.ai/docs/) |
-| [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) |
-| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) |
+| Tool | Purpose | Install | Known-good version |
+| --- | --- | --- | --- |
+| [OpenCode](https://opencode.ai) | The coding harness platform | See [opencode.ai/docs](https://opencode.ai/docs/) | 1.17.13 |
+| [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
+
+> Recommended floor versions, not hard pins — refresh on each release.
 
 ## New Repository
 
