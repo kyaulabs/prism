@@ -102,3 +102,14 @@ See `AGENTS.md` for the complete list with purpose descriptions.
 
 All custom commands live under `.opencode/commands/` and are invoked via `/slash`.
 See `AGENTS.md` for the complete list with purpose descriptions.
+
+| Command | Purpose |
+| --- | --- |
+| `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
+| `/check` | Pre-push gate: lint + test + coverage |
+| `/release` | Changelog + signed tag + `gh release` |
+| `/deploy` | Post-pull production deploy |
+| `/build-assets` | Rebuild minified CSS/JS |
+| `/setup` | Interactive project configurator (replaces placeholders) |
+| `/plan-to-issues` | Parse a plan into GitHub issues |
+| `/teach` | Explain completed work pedagogically |

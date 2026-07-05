@@ -240,3 +240,6 @@ Load these on demand when the task requires them:
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
+| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders across the harness, sets accent theme |
+| `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
+| `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |

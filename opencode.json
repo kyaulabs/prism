@@ -23,7 +23,7 @@
     },
     "plan": {
       "mode": "primary",
-      "model": "openrouter/glm-5.2",
+      "model": "openrouter/z-ai/glm-5.2",
       "variant": "medium",
       "temperature": 0.1,
       "permission": {
