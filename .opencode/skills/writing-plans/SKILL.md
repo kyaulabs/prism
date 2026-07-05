@@ -146,6 +146,7 @@ Expected: PASS
 git add tests/path/to/Test.php backend/path/to/file.php
 git commit -S -m "feat(scope): concise subject describing the change
 
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>"
 ```
@@ -165,7 +166,7 @@ failures** — never write them:
   code steps)
 - References to types, functions, or methods not defined in any task
 - Bare commit messages missing scope or required footers — use the full
-  conventional-commits format (type[scope]: subject + Acked-by + Signed-off-by)
+  conventional-commits format (type[scope]: subject + Plan-by + Acked-by + Signed-off-by)
 
 ## Self-review
 

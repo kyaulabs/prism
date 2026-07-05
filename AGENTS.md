@@ -134,14 +134,15 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Features: `feat/<username>-<hash>-<description>`
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Acked-by:` (model ID in kebab-case, e.g. `deepseek-v4-pro`) and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
+- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.json`), `Acked-by:` (sourced from `agent.build.model` in `opencode.json` — model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via @tdd, a direct fix, an issue
 tracker resolution, or a fast-path trivial change — produce a commit message
 in conventional commits format before committing. Load the
-`conventional-commits` skill and produce: type[scope]: subject + Acked-by +
-Signed-off-by footers. The commit-msg hook blocks invalid messages, but the
+`conventional-commits` skill and produce: type[scope]: subject + Plan-by +
+Acked-by + Signed-off-by footers. The commit-msg hook blocks invalid messages,
+but the
 message should be well-formed before you reach the hook.
 
 ### Commit and push permissions

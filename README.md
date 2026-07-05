@@ -580,7 +580,8 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Acked-by',           # Required — the AI agent in kebab-case (e.g., deepseek-v4-pro)
+  'Plan-by',            # Required — the planning model from opencode.json (e.g., glm-5.2)
+  'Acked-by',           # Required — the build model from opencode.json (e.g., deepseek-v4-pro)
   'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
@@ -591,10 +592,11 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Acked-by` and `Signed-off-by` footers. If no user is
-explicitly named, the default `Signed-off-by` is `kyau <git@kyaulabs.com>`. The
-`Acked-by` value is the agent that authored the change in kebab-case (use the
-model ID without slashes, e.g., `deepseek-v4-pro`, `claude-sonnet-4`).
+Every commit must include `Plan-by`, `Acked-by`, and `Signed-off-by` footers. If
+no user is explicitly named, the default `Signed-off-by` is `kyau
+<git@kyaulabs.com>`. `Plan-by` and `Acked-by` are sourced from `agent.plan.model`
+and `agent.build.model` in `opencode.json` (the segment after the last `/`),
+e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
 ### Examples
 
@@ -609,6 +611,7 @@ As per #123 recommendation input controller is now based on blah.
 
 Basic movement added.
 
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 Refs: #123
@@ -620,6 +623,7 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>

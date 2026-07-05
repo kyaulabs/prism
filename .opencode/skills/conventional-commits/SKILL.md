@@ -16,26 +16,30 @@ description: Use when writing or reviewing commit messages. Covers the required 
 - Subject line: lowercase, no period at end, max 100 characters
 - Body: wrap at 72 characters, explain *why* not *what*
 - Signed commits required (`git commit -S`)
-- Every commit must include `Acked-by:` (agent in kebab-case) and `Signed-off-by:` (user) footers
+- Every commit must include `Plan-by:`, `Acked-by:`, and `Signed-off-by:` footers
 
 ## Required Footers
 
-Every commit message must end with two footers:
+Every commit message must end with three footers:
 
-- **`Acked-by:`** — the AI agent that authored the change, in kebab-case.
-Use the model ID without slashes. Examples: `deepseek-v4-pro`,
-`claude-sonnet-4`, `gemini-2-5-pro`.
+- **`Plan-by:`** — the planning model, in kebab-case. Sourced from
+  `agent.plan.model` in `opencode.json` (the segment after the last `/`).
+  Example: `openrouter/z-ai/glm-5.2` → `glm-5.2`.
+- **`Acked-by:`** — the build model, in kebab-case. Sourced from
+  `agent.build.model` in `opencode.json` (the segment after the last `/`).
+  Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
 > [!CAUTION]
-> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) —
-> only the model ID. The Acked-by tracks which model produced the
-> commit, not which agent role orchestrated it.
+> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
+> model ID. The Plan-by and Acked-by footers track which configured models
+> planned and built the change, not which agent role orchestrated it.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `username <email>`. Default when no user is specified:
   `kyau <git@kyaulabs.com>`.
 
-These are mandatory for traceability. The agent writes them automatically based
-on the current model and the AGENTS.md default.
+These are mandatory for traceability. The agent writes them automatically by
+reading `agent.plan.model` and `agent.build.model` from `opencode.json` and
+taking the segment after the last `/`.
 
 ## Valid Types
 
@@ -79,6 +83,7 @@ directory, or feature area: `feat(aurora)`, `fix(db)`, `test(auth)`.
 ```
 feat(auth): add remember-me cookie to login flow
 
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
@@ -86,6 +91,7 @@ Signed-off-by: kyau <git@kyaulabs.com>
 ```
 fix(db): prevent SQL injection in user search query
 
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 Fixes: #42
@@ -94,6 +100,7 @@ Fixes: #42
 ```
 test(auth): add boundary cases for empty credentials
 
+Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 ```

@@ -29,7 +29,7 @@ Run every item; do not skip:
 - [ ] No merge conflicts after rebase. If conflicts exist, suggest
       `@resolve-merge-conflicts` or manual resolution.
 - [ ] All commits follow Conventional Commits format and include
-      `Acked-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
+      `Plan-by:` + `Acked-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
 
 After every item passes, present the summary below. If any item fails, stop
 and fix it — do not proceed with a failing item.
