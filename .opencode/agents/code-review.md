@@ -1,5 +1,7 @@
 ---
 description: Review code using OpenCodeReview (ocr). Supports diff-based review (staged, commits, branches) and full-file scan (directories, entire repo). Reports findings by severity; does not auto-fix anything.
+model: deepseek/deepseek-v4-pro
+variant: max
 mode: subagent
 temperature: 0.1
 permission:

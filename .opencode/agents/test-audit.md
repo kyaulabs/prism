@@ -1,5 +1,7 @@
 ---
 description: Audit an existing test suite for quality problems — coverage padding, missing edge cases, weak assertions. Produces a report only; makes no code changes. Invoke when reviewing tests before a PR or release.
+model: deepseek/deepseek-v4-pro
+variant: max
 mode: subagent
 ---
 

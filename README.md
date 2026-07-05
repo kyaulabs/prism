@@ -456,6 +456,24 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 
+### Model Configuration
+
+Default models and variants are hardcoded in `opencode.json` and per-agent
+frontmatter files (`.opencode/agents/*.md`). The fallback chain is:
+
+1. Agent-level `model` and `variant` fields (in agent frontmatter or
+   `opencode.json`)
+2. Top-level `model` in `opencode.json`
+3. `--model` CLI flag
+4. Last-used model from `/models`
+
+To override, use one of these non-committed mechanisms:
+
+- **Global config** — set `model` in `~/.config/opencode/opencode.json`
+  (deep-merged with project config, overriding per-agent values)
+- **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5`
+- **Escape hatch** — `OPENCODE_CONFIG_CONTENT='{"model":"..."}' opencode`
+
 ### Slash commands
 
 | Command | Purpose |

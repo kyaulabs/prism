@@ -1,5 +1,7 @@
 ---
 description: Investigate bugs via a disciplined 6-phase loop — build a tight red-capable feedback loop, reproduce+minimize, rank hypotheses, instrument, fix+regression-test, cleanup+post-mortem. Proposes fixes but does not apply them.
+model: deepseek/deepseek-v4-pro
+variant: max
 mode: subagent
 temperature: 0.1
 permission:

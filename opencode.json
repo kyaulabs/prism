@@ -1,11 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "deepseek/deepseek-v4-pro",
   "instructions": [
     ".opencode/docs/conventions.md"
   ],
   "agent": {
     "build": {
       "mode": "primary",
+      "model": "deepseek/deepseek-v4-pro",
+      "variant": "max",
       "temperature": 0.2,
       "permission": {
         "bash": {
@@ -20,6 +23,8 @@
     },
     "plan": {
       "mode": "primary",
+      "model": "openrouter/glm-5.2",
+      "variant": "medium",
       "temperature": 0.1,
       "permission": {
         "edit": "deny",
@@ -35,6 +40,26 @@
           "docs-writer": "allow"
         }
       }
+    },
+    "general": {
+      "model": "deepseek/deepseek-v4-pro",
+      "variant": "max"
+    },
+    "explore": {
+      "model": "deepseek/deepseek-v4-pro",
+      "variant": "max"
+    },
+    "compaction": {
+      "model": "deepseek/deepseek-v4-flash",
+      "variant": "medium"
+    },
+    "title": {
+      "model": "deepseek/deepseek-v4-flash",
+      "variant": "medium"
+    },
+    "summary": {
+      "model": "deepseek/deepseek-v4-flash",
+      "variant": "medium"
     }
   }
 }
