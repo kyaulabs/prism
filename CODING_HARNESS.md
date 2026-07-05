@@ -27,7 +27,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 ## Where things live
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `AGENTS.md` | Stack, boundaries, directory structure, skills/agents/commands index (authoritative) |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
 | `opencode.json` | Wires instructions + agent definitions + permissions |
@@ -42,7 +42,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 ### Primary agents (Tab to switch)
 
 | Agent | Purpose |
-|---|---|
+| --- | --- |
 | **Build** | Default mode — full tool access for development; enforces mandatory `@tdd` + hard boundaries |
 | **Plan** | Restricted mode — analysis and planning, no file changes |
 
@@ -56,7 +56,7 @@ instrumentation) and is not invocable from Plan mode.
 ### Built-in subagents
 
 | Agent | Purpose |
-|---|---|
+| --- | --- |
 | **Explore** | Read-only codebase exploration — file patterns, keyword search |
 | **Scout** | External docs + dependency research (clones upstream repos) |
 | **General** | Multi-step research, full tool access |
@@ -66,7 +66,7 @@ Invoke via `@mention`: `@explore find the auth implementation`.
 ### Built-in slash commands
 
 | Command | Purpose |
-|---|---|
+| --- | --- |
 | `/init` | Analyze project and generate AGENTS.md |
 | `/undo` | Revert the last change made by the agent |
 | `/redo` | Redo a previously undone change |

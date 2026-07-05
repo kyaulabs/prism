@@ -6,8 +6,8 @@
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE)
 [![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)
-[![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
+[![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
 ## About
 
@@ -122,14 +122,14 @@ The project uses **PCOV 1.0.12** (pinned) across all platforms.
 PCOV adds overhead to every PHP process. Configure it default-disabled and
 enable only when running tests with coverage:
 
-1.  Create a conf.d drop-in (path varies by platform):
+1. Create a conf.d drop-in (path varies by platform):
 
     ```bash
     # Linux example (adapt to your PHP conf.d directory):
     echo "pcov.enabled=0" | sudo tee /etc/php/8.5/mods-available/pcov.ini > /dev/null
     ```
 
-2.  Enable per-run with the `-d` flag:
+2. Enable per-run with the `-d` flag:
 
     ```text
     php -d pcov.enabled=1 vendor/bin/pest --coverage
@@ -397,6 +397,7 @@ In order to properly label something be sure to include at least one type, a sin
 This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development. The harness lives under `.opencode/` and is wired into OpenCode via `opencode.json`.
 
 **Reference docs:**
+
 * **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools (loaded by every session)
 * **`CODING_HARNESS.md`** — Orientation guide: built-in features, pipeline overview, and pointers (agents load `AGENTS.md` as the authoritative source)
 * **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
@@ -484,8 +485,8 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 ### Project context — living docs
 
-- **`CONTEXT.md`** — the domain's *what* and *why*: glossary, entities, invariants, boundaries, non-goals. Agents read it before domain-coupled work and update it when domain language changes. Draft a fresh one with `/prime`.
-- **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before non-trivial changes to check for ADR conflicts.
+* **`CONTEXT.md`** — the domain's *what* and *why*: glossary, entities, invariants, boundaries, non-goals. Agents read it before domain-coupled work and update it when domain language changes. Draft a fresh one with `/prime`.
+* **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before non-trivial changes to check for ADR conflicts.
 
 ### Activation
 

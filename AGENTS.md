@@ -61,6 +61,7 @@ Projects live in `/nginx/git/<app>`, symlinked into `/nginx/https/<domain>`.
 ## Hard Boundaries
 
 > [!IMPORTANT]
+>
 > - NEVER edit `cdn/css/*.min.css` or `cdn/javascript/*.min.js` — these are generated (edit source in `cdn/sass/` and `cdn/js/`; see `conventions.md` for details)
 > - NEVER commit `.env` files — use `.env.example` only
 > - Do not access external APIs without explicit permission
@@ -75,6 +76,7 @@ See `.opencode/docs/conventions.md` for file naming conventions.
 ## Commenting
 
 > [!IMPORTANT]
+>
 > - Every file starts with an RCS-style header — see `rcs-header` skill
 > - Every file ends with a vim modeline — see `rcs-header` skill
 > - PHP classes/methods: PHPDoc (PSR-5) with params, return types, exceptions

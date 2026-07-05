@@ -1,3 +1,4 @@
 [submodule "aurora"]
 	path = aurora
 	url = https://github.com/kyaulabs/aurora
+	branch = main
