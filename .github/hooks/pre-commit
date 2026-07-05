@@ -143,13 +143,10 @@ if [ -n "$STAGED_SRC" ]; then
 			echo "$ML"
 		} > "$TMP.mod"
 
-		# Write to git object store and update index (index only, not working tree)
-		BLOB=$(git hash-object -w "$TMP.mod" 2>/dev/null)
-		MODE=$(git ls-files --stage "$file" | awk '{print $1}')
-		if [ -n "$BLOB" ] && [ -n "$MODE" ]; then
-			git update-index --cacheinfo "$MODE" "$BLOB" "$file"
-			echo "  + RCS header added: $file"
-		fi
+		# Write to working tree and re-stage
+		cp "$TMP.mod" "$file"
+		git add "$file"
+		echo "  + RCS header added: $file"
 
 		rm -f "$TMP" "$TMP.mod"
 	done <<< "$STAGED_SRC"
