@@ -47,9 +47,10 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 
 Plan mode is restricted from invoking code-modifying subagents (`@tdd`,
 `@resolve-merge-conflicts`) — it can only invoke read-only/audit
-agents (`@debug` (transient git bisect working-tree mutation excepted),
-`@test-audit`, `@code-review`, `@semgrep`, `@architect`, `@explore`,
-`@scout`, `@docs-writer`).
+agents (`@test-audit`, `@code-review`, `@semgrep`, `@architect`, `@explore`,
+`@scout`, `@docs-writer`). `@debug` is a build-mode investigation agent
+with scoped write access (repro tests, throwaway harnesses, `[DEBUG-]`
+instrumentation) and is not invocable from Plan mode.
 
 ### Built-in subagents
 

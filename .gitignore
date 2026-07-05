@@ -21,6 +21,10 @@ node_modules/
 # Browser test artifacts (see pest-browser skill)
 tests/Browser/Screenshots/
 
+# Throwaway prototypes and debug harnesses (see prototype skill)
+prototypes/
+prototype_*
+
 # Editor files
 *.swp
 *.swo
