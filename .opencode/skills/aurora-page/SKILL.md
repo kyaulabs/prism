@@ -23,7 +23,7 @@ values:
 
 ```php
 <?php
-# $KYAULabs: index.php,v 1.0.0 YYYY/MM/DD hh:mm:ss -0700 kyau Exp $
+# $KYAULabs: index.php kyau@host YYYY/MM/DD -0700 Exp $
 
 $rus = getrusage();
 require_once(__DIR__ . "/../aurora/aurora.inc.php");

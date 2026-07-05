@@ -43,6 +43,17 @@ git commit -S -m "chore(release): vX.Y.Z"
 
 Signed commit required (see `conventional-commits` skill).
 
+## 3.5. Update the version constant
+
+Update `AURORA_VERSION` in `version.inc.php` to the new tag and amend the
+release commit:
+
+```bash
+sed -i "s/define('AURORA_VERSION', '[^']*');/define('AURORA_VERSION', 'vX.Y.Z');/" version.inc.php
+git add version.inc.php
+git commit -S --amend --no-edit
+```
+
 ## 4. Create the signed tag
 
 ```bash
