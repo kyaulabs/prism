@@ -25,16 +25,15 @@ test('aurora-page skill constructor signature matches actual source', function (
     foreach ($params as $param) {
         $type = $param->getType();
         $typeStr = '';
-        if ($type instanceof ReflectionNamedType) {
-            if ($type->allowsNull() && !$param->isDefaultValueAvailable()) {
-                $typeStr = '?' . $type->getName();
-            } elseif ($type->allowsNull() && $param->isDefaultValueAvailable() && $param->getDefaultValue() === null) {
-                $typeStr = '?' . $type->getName();
-            } elseif ($type->allowsNull()) {
-                $typeStr = '?' . $type->getName();
-            } else {
-                $typeStr = $type->getName();
-            }
+        assert($type instanceof ReflectionNamedType, sprintf(
+            'Parameter $%s has a %s, which this test does not support. Extend the type rendering logic.',
+            $param->getName(),
+            $type::class,
+        ));
+        if ($type->allowsNull()) {
+            $typeStr = '?' . $type->getName();
+        } else {
+            $typeStr = $type->getName();
         }
 
         $sig = '$' . $param->getName();
@@ -47,8 +46,6 @@ test('aurora-page skill constructor signature matches actual source', function (
                 $sig .= 'false';
             } elseif ($default === true) {
                 $sig .= 'true';
-            } elseif (is_string($default)) {
-                $sig .= var_export($default, true);
             } else {
                 $sig .= var_export($default, true);
             }
@@ -60,6 +57,7 @@ test('aurora-page skill constructor signature matches actual source', function (
     // 2. Parse the documented signature from the skill file
     $skillPath = __DIR__ . '/../../.opencode/skills/aurora-page/SKILL.md';
     $skillContent = file_get_contents($skillPath);
+    expect($skillContent)->not->toBeFalse("Could not read aurora-page SKILL.md at {$skillPath}");
 
     // Extract the constructor signature from the fenced PHP block.
     // Must match the documented signature (with type-hinted params like
