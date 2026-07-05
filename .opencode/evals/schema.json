@@ -18,7 +18,7 @@
     "agent": {
       "type": "string",
       "description": "The agent or skill under test (e.g. @tdd, brainstorming).",
-      "pattern": "^(@?[a-z][a-z0-9_-]*)?$"
+      "pattern": "^@?[a-z][a-z0-9_-]*$"
     },
     "input": {
       "type": "string",
