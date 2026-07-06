@@ -8,6 +8,7 @@
 		"commitlint": "^21",
 		"eslint": "^10",
 		"git-cliff": "^2",
+		"js-yaml": "^5.2.1",
 		"playwright": "^1",
 		"sass": "^1",
 		"stylelint": "^17",

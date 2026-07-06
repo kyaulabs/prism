@@ -9,6 +9,22 @@ export default [
 			"no-unused-vars": "warn",
 			"no-console": "warn",
 			"indent": ["error", "tab"],
-		}
-	}
+		},
+	},
+	{
+		files: [".github/scripts/**/*.js"],
+		languageOptions: {
+			globals: {
+				require: "readonly",
+				process: "readonly",
+				console: "readonly",
+				__dirname: "readonly",
+				module: "readonly",
+			},
+		},
+		rules: {
+			"no-unused-vars": "warn",
+			"no-console": "off",
+		},
+	},
 ];

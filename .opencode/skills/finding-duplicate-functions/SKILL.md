@@ -1,6 +1,6 @@
 ---
 name: finding-duplicate-functions
-description: Use when seeking semantic duplication in a codebase — functions that solve the same problem for different callers. Complements /improve-architecture's deletion test. Two-phase: classical extraction then LLM intent-clustering.
+description: "Use when seeking semantic duplication in a codebase — functions that solve the same problem for different callers. Complements /improve-architecture's deletion test. Two-phase: classical extraction then LLM intent-clustering."
 derived-from: obra/superpowers-lab (MIT, © Jesse Vincent)
 ---
 

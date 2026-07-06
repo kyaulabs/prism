@@ -3,16 +3,36 @@
 
 set -euo pipefail
 
+# ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
+
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+	echo "ERROR: Bash 4+ required (found ${BASH_VERSION:-unknown})" >&2
+	exit 1
+fi
+
+# ── Prerequisite: Node.js required for YAML frontmatter parsing ─────────────────
+
+if ! command -v node >/dev/null 2>&1; then
+	echo "ERROR: Node.js required for YAML frontmatter parsing" >&2
+	exit 1
+fi
+
 # ── Configuration ────────────────────────────────────────────────────────────
 
-HARNESS_DIR=".opencode"
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -z "$REPO_ROOT" ]; then
+	echo "ERROR: Not in a git repository. Must be run from within a git checkout." >&2
+	exit 1
+fi
+
+HARNESS_DIR="${REPO_ROOT}/.opencode"
 SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
 
 ERRORS=0
 WARNINGS=0
-NAME_REGISTRY=""  # Track all names across categories to detect collisions
+declare -A NAME_REGISTRY  # key=name, value="file:category"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -22,18 +42,12 @@ ok() { echo "  OK:    $*"; }
 
 # Extract a YAML frontmatter key's value from a file.
 # Usage: frontmatter_key <file> <key>
-# Returns the value (whitespace trimmed) or empty string if not found.
+# Returns the value or empty string if not found.
+# Delegates to Node.js + js-yaml for proper YAML parsing (handles quoted
+# values, folded scalars, block scalars, comments, and CRLF).
 frontmatter_key() {
 	local file="$1" key="$2"
-	# Only search between the first pair of --- delimiters
-	awk -v key="$2" '
-		/^---$/ { in_fm=!in_fm; next }
-		in_fm && $1 == key ":" {
-			sub(/^[^:]+:[[:space:]]*/, "")
-			print
-			exit
-		}
-	' "$file" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+	node "${REPO_ROOT}/.github/scripts/frontmatter-parser.js" "$file" "$key" 2>/dev/null || true
 }
 
 # Check that a file has paired --- frontmatter delimiters.
@@ -41,7 +55,7 @@ frontmatter_key() {
 check_frontmatter_delimiters() {
 	local file="$1"
 	local open count
-	count=$(grep -c '^---$' "$file" 2>/dev/null || echo 0)
+	count=$(grep -c '^---$' "$file" 2>/dev/null) || count=0
 	if [ "$count" -eq 0 ]; then
 		return 1
 	fi
@@ -58,21 +72,19 @@ check_frontmatter_delimiters() {
 }
 
 # Register a name in the global registry and check for collisions.
+# Uses associative array for O(1) exact-match lookup (no regex injection).
 register_name() {
 	local name="$1" category="$2" file="$3"
 	if [ -z "$name" ]; then
 		return
 	fi
-	# Check if this name is already registered (any category)
-	local existing
-	existing=$(echo "$NAME_REGISTRY" | grep "^${name} " || true)
+	local existing="${NAME_REGISTRY[$name]:-}"
 	if [ -n "$existing" ]; then
-		local existing_file existing_cat
-		existing_file=$(echo "$existing" | awk '{print $2}')
-		existing_cat=$(echo "$existing" | awk '{print $3}')
+		local existing_file="${existing%%:*}"
+		local existing_cat="${existing##*:}"
 		err "${file}: name '${name}' already registered as ${existing_cat} in ${existing_file}"
 	else
-		NAME_REGISTRY="${NAME_REGISTRY}${name} ${file} ${category}"$'\n'
+		NAME_REGISTRY[$name]="${file}:${category}"
 	fi
 }
 
@@ -90,7 +102,7 @@ check_required_field() {
 
 echo "── Validating skills ──"
 SKILL_COUNT=0
-SKILL_NAMES=""
+declare -A SKILL_NAMES
 
 shopt -s nullglob
 SKILL_FILES=( "${SKILLS_DIR}"/*/SKILL.md )
@@ -122,10 +134,10 @@ else
 
 		# Check for duplicate names within skills
 		if [ -n "$name" ]; then
-			if echo "$SKILL_NAMES" | grep -qx "$name"; then
+			if [ -n "${SKILL_NAMES[$name]:-}" ]; then
 				err "${skill_file}: duplicate skill name '${name}'"
 			else
-				SKILL_NAMES="${SKILL_NAMES}${name}"$'\n'
+				SKILL_NAMES[$name]=1
 			fi
 			register_name "$name" "skill" "$skill_file"
 		fi
@@ -213,12 +225,10 @@ echo "── Checking cross-references ──"
 CROSSREF_COUNT=0
 
 # Build a set of all known names from the registry
-KNOWN_NAMES=""
-while IFS= read -r line; do
-	[ -z "$line" ] && continue
-	name=$(echo "$line" | awk '{print $1}')
-	KNOWN_NAMES="${KNOWN_NAMES}${name}"$'\n'
-done <<< "$NAME_REGISTRY"
+declare -A KNOWN_NAMES
+for name in "${!NAME_REGISTRY[@]}"; do
+	KNOWN_NAMES[$name]=1
+done
 
 # Scan explicit "Cross-refs" sections in skill files only.
 # These sections list related skills/agents/commands by name — the structured
@@ -248,6 +258,7 @@ while IFS= read -r file; do
 
 		# Extract backtick-wrapped names from this line
 		# Use basic grep -o (no -P for portability)
+		# shellcheck disable=SC2016  # backticks are a literal grep pattern, not expansion
 		refs=$(echo "$line" | grep -o '`[^`]*`' 2>/dev/null || true)
 		if [ -z "$refs" ]; then
 			continue
@@ -270,8 +281,8 @@ while IFS= read -r file; do
 				"") continue ;;
 			esac
 
-			# Check against known names
-			if echo "$KNOWN_NAMES" | grep -qx "$ref_clean"; then
+			# Check against known names (associative array O(1) lookup)
+			if [ -n "${KNOWN_NAMES[$ref_clean]:-}" ]; then
 				CROSSREF_COUNT=$((CROSSREF_COUNT + 1))
 			else
 				warn "${file}: cross-refs unknown name '${ref}'"
@@ -281,6 +292,12 @@ while IFS= read -r file; do
 done < <(find "${HARNESS_DIR}" -name 'SKILL.md' -not -path '*/node_modules/*' 2>/dev/null)
 
 ok "${CROSSREF_COUNT} cross-reference(s) verified"
+
+# ── Guard: fail on vacuous pass (all three categories empty) ──────────────────
+
+if [ "$SKILL_COUNT" -eq 0 ] && [ "$AGENT_COUNT" -eq 0 ] && [ "$CMD_COUNT" -eq 0 ]; then
+	err "No skills, agents, or commands found — harness directory may be missing or empty"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 
