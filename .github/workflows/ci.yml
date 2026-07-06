@@ -55,6 +55,9 @@ jobs:
       - name: Harness validation
         run: bash .github/scripts/validate-harness.sh
 
+      - name: Shellcheck
+        run: shellcheck .github/scripts/*.sh .github/hooks/* tests/Shell/*.sh
+
       - name: PHP CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --dry-run --diff
 
@@ -98,6 +101,5 @@ jobs:
       - name: Commitlint
         if: github.event_name == 'pull_request'
         run: |
-          echo "${{ github.event.pull_request.title }}" | npx commitlint --verbose
           git fetch origin "${{ github.event.pull_request.base.ref }}"
           npx commitlint --from="origin/${{ github.event.pull_request.base.ref }}" --to="HEAD" --verbose
