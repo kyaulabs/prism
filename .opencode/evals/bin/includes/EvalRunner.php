@@ -298,6 +298,7 @@ class Runner
             $ready = @stream_select($read, $write, $except, $remainingSec, $remainingUsec);
 
             if ($ready === false) {
+                $timedOut = true;
                 break;
             }
 
