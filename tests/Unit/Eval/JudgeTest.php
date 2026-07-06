@@ -91,4 +91,63 @@ it('runJudge returns FAIL when any behavior is NO', function () {
     expect($result->behaviors[1]['verdict'])->toBe('NO');
 });
 
+it('buildJudgeResult returns INVALID when behaviors array is empty', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $result = $runner->buildJudgeResult($case, [], 5000);
+
+    expect($result->verdict)->toBe('INVALID');
+    expect($result->error)->toContain('no behaviors');
+    expect($result->judgeUsed)->toBeTrue();
+});
+
+it('buildJudgeResult returns INVALID when behavior count mismatches expected', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing', 'do other'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $result = $runner->buildJudgeResult($case, [
+        ['behavior' => 'do thing', 'verdict' => 'YES', 'rationale' => 'did it'],
+    ], 5000);
+
+    expect($result->verdict)->toBe('INVALID');
+    expect($result->error)->toContain('1 of 2');
+    expect($result->judgeUsed)->toBeTrue();
+});
+
+it('parseJudgeResponse returns empty array for unparseable non-JSON text', function () {
+    $behaviors = Runner::parseJudgeResponse('not json at all');
+
+    expect($behaviors)->toBe([]);
+
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $result = $runner->buildJudgeResult($case, $behaviors, 5000);
+
+    expect($result->verdict)->toBe('INVALID');
+    expect($result->error)->toContain('no behaviors');
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

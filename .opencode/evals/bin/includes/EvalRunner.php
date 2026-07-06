@@ -472,6 +472,35 @@ PROMPT;
      */
     public function buildJudgeResult(EvalCase $case, array $behaviors, int $durationMs): EvalResult
     {
+        if (count($behaviors) === 0) {
+            return new EvalResult(
+                name: $case->name,
+                agent: $case->agent,
+                passCriteria: $case->passCriteria,
+                verdict: 'INVALID',
+                durationMs: $durationMs,
+                judgeUsed: true,
+                error: 'Judge returned no behaviors',
+            );
+        }
+
+        if (count($behaviors) !== count($case->expectedBehavior)) {
+            return new EvalResult(
+                name: $case->name,
+                agent: $case->agent,
+                passCriteria: $case->passCriteria,
+                verdict: 'INVALID',
+                behaviors: $behaviors,
+                durationMs: $durationMs,
+                judgeUsed: true,
+                error: sprintf(
+                    'Judge assessed %d of %d expected behaviors',
+                    count($behaviors),
+                    count($case->expectedBehavior),
+                ),
+            );
+        }
+
         $allYes = true;
         foreach ($behaviors as $b) {
             if ($b['verdict'] !== 'YES') {
@@ -522,6 +551,20 @@ PROMPT;
         }
 
         $behaviors = self::parseJudgeResponse($output['stdout']);
+
+        if ($behaviors === [] && $output['stdout'] !== '') {
+            $preview = mb_substr($output['stdout'], 0, 200);
+
+            return new EvalResult(
+                name: $case->name,
+                agent: $case->agent,
+                passCriteria: $case->passCriteria,
+                verdict: 'INVALID',
+                durationMs: $elapsed,
+                judgeUsed: true,
+                error: "Judge output is unparseable (not valid JSON): {$preview}",
+            );
+        }
 
         return $this->buildJudgeResult($case, $behaviors, $elapsed);
     }
