@@ -50,8 +50,8 @@ Floor: `semgrep` >= 1.168, `ocr` >= 1.7, `gitleaks` >= 8.30. These are run by ag
 ## 5. git hooks
 
 ```bash
-if [ -f .git/hooks/pre-commit ]; then echo "INSTALLED"; else echo "NOT_INSTALLED — run 'bash .github/scripts/install-hooks.sh'"; fi
-if [ -f .git/hooks/commit-msg ]; then echo "INSTALLED"; else echo "NOT_INSTALLED — run 'bash .github/scripts/install-hooks.sh'"; fi
+hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
+if [ "$hooks_path" = ".github/hooks" ]; then echo "INSTALLED ($hooks_path)"; else echo "NOT_INSTALLED — run 'bash .github/scripts/install-hooks.sh'"; fi
 ```
 
 ## Output

@@ -16,10 +16,7 @@ RESET=$'\033[0m'
 # The git history serves as the development and evaluation log; squashing
 # destroys the record of what was tried and abandoned.
 
-remote="$1"
-remote_url="$2"
-
-while read -r local_ref local_oid remote_ref remote_oid; do
+while read -r _local_ref local_oid _remote_ref remote_oid; do
 	# Skip tag pushes and branch deletions
 	if [ -z "$local_oid" ] || [ "$local_oid" = "0000000000000000000000000000000000000000" ]; then
 		continue

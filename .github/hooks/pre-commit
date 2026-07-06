@@ -85,6 +85,7 @@ if [ -n "$STAGED_SRC" ]; then
 		[ -z "$file" ] && continue
 
 		# Already has an RCS header?
+		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker, not a variable
 		if git show ":$file" 2>/dev/null | head -10 | grep -qF '$KYAULabs:'; then
 			continue
 		fi
