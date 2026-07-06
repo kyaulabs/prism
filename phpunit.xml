@@ -2,6 +2,7 @@
 <phpunit
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="tests/bootstrap.php"
     cacheDirectory=".phpunit.cache"
     colors="true"
 >
@@ -32,4 +33,11 @@
             <file>.php-cs-fixer.dist.php</file>
         </exclude>
     </source>
+
+    <coverage>
+        <report>
+            <html outputDirectory="tests/coverage"/>
+            <text outputFile="tests/coverage.txt"/>
+        </report>
+    </coverage>
 </phpunit>
