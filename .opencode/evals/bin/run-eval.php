@@ -105,6 +105,20 @@ $cmd = $runner->buildCommand($case);
 $agentOutput = $runner->executeCommand($cmd, $args['timeout']);
 $elapsedMs = (int) ((hrtime(true) - $start) / 1_000_000);
 
+// ── Agent timeout ─────────────────────────────────────────────────────────
+if ($agentOutput['timed_out']) {
+    $result = new EvalResult(
+        name: $case->name,
+        agent: $case->agent,
+        passCriteria: $case->passCriteria,
+        verdict: 'TIMEOUT',
+        durationMs: $elapsedMs,
+        error: "Agent timed out after {$args['timeout']} seconds",
+    );
+    echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
+    exit(1);
+}
+
 // ── Deterministic gate ───────────────────────────────────────────────────
 $result = $runner->checkDeterministic(
     $case,

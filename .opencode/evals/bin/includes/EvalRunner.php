@@ -214,9 +214,14 @@ class Runner
     /**
      * Execute a shell command and capture stdout, stderr, and exit code.
      *
+     * Uses non-blocking pipes to interleave reads on stdout and stderr,
+     * avoiding pipe-buffer deadlocks, and enforces the wall-clock
+     * $timeout via proc_terminate. A cross-platform polling loop with
+     * stream_select is used to wait for pipe data.
+     *
      * @param  string $cmd  Shell command to execute.
      * @param  int $timeout  Timeout in seconds.
-     * @return array{stdout: string, stderr: string, exitCode: int}
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
      */
     public function executeCommand(string $cmd, int $timeout): array
     {
@@ -228,23 +233,127 @@ class Runner
 
         $process = proc_open($cmd, $descriptors, $pipes);
         if (!is_resource($process)) {
-            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1];
+            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false];
         }
 
         fclose($pipes[0]);
 
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $status = proc_get_status($process);
+        $pid = $status['pid'];
+
+        return $this->readPipes($process, $pipes, $timeout, $pid);
+    }
+
+    /**
+     * Read stdout and stderr pipes until both EOF or timeout expires.
+     *
+     * Uses stream_select to wait for pipe data without blocking,
+     * interleaving reads on stdout and stderr to avoid pipe-buffer
+     * deadlock. Enforces a wall-clock timeout via proc_terminate
+     * and taskkill (Windows) to kill the process tree.
+     *
+     * @param  resource $process
+     * @param  array{0: resource, 1: resource, 2: resource} $pipes
+     * @param  int $timeout  Timeout in seconds.
+     * @param  int $pid  Process ID for tree-kill on Windows.
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
+     */
+    private function readPipes($process, array $pipes, int $timeout, int $pid): array
+    {
+        $stdout = '';
+        $stderr = '';
+        $timedOut = false;
+        $startNs = hrtime(true);
+        $timeoutNs = $timeout * 1_000_000_000;
+
+        while (true) {
+            $read = [];
+            $write = [];
+            $except = [];
+            if (!feof($pipes[1])) {
+                $read[] = $pipes[1];
+            }
+            if (!feof($pipes[2])) {
+                $read[] = $pipes[2];
+            }
+
+            if (empty($read)) {
+                break;
+            }
+
+            $elapsedNs = hrtime(true) - $startNs;
+            $remainingNs = $timeoutNs - $elapsedNs;
+
+            if ($remainingNs <= 0) {
+                $timedOut = true;
+                break;
+            }
+
+            $remainingSec = (int) ($remainingNs / 1_000_000_000);
+            $remainingUsec = (int) (($remainingNs % 1_000_000_000) / 1000);
+
+            $ready = @stream_select($read, $write, $except, $remainingSec, $remainingUsec);
+
+            if ($ready === false) {
+                break;
+            }
+
+            if ($ready === 0) {
+                $timedOut = true;
+                break;
+            }
+
+            foreach ($read as $pipe) {
+                $chunk = fread($pipe, 8192);
+                if ($chunk === false || $chunk === '') {
+                    continue;
+                }
+                if ($pipe === $pipes[1]) {
+                    $stdout .= $chunk;
+                } elseif ($pipe === $pipes[2]) {
+                    $stderr .= $chunk;
+                }
+            }
+        }
+
+        if ($timedOut) {
+            $this->killProcessTree($process, $pid);
+            $stdout .= (string) stream_get_contents($pipes[1]);
+            $stderr .= (string) stream_get_contents($pipes[2]);
+        }
+
         fclose($pipes[1]);
         fclose($pipes[2]);
 
         $exitCode = proc_close($process);
 
         return [
-            'stdout' => $stdout !== false ? trim($stdout) : '',
-            'stderr' => $stderr !== false ? trim($stderr) : '',
+            'stdout' => trim($stdout),
+            'stderr' => trim($stderr),
             'exitCode' => $exitCode,
+            'timed_out' => $timedOut,
         ];
+    }
+
+    /**
+     * Kill a process and its entire child tree.
+     *
+     * On Windows, proc_terminate only kills the shell wrapper (cmd.exe)
+     * but not child processes. taskkill /t ensures the full tree is
+     * terminated so stream_get_contents does not block.
+     *
+     * @param resource $process
+     * @param int $pid
+     */
+    private function killProcessTree($process, int $pid): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            exec("taskkill /f /t /pid {$pid} 2>NUL");
+        }
+        proc_terminate($process, 9);
     }
 
     /**
@@ -399,6 +508,18 @@ PROMPT;
         $start = hrtime(true);
         $output = $this->executeCommand($judgeCmd, $this->timeout);
         $elapsed = (int) ((hrtime(true) - $start) / 1_000_000);
+
+        if ($output['timed_out']) {
+            return new EvalResult(
+                name: $case->name,
+                agent: $case->agent,
+                passCriteria: $case->passCriteria,
+                verdict: 'TIMEOUT',
+                durationMs: $elapsed,
+                judgeUsed: true,
+                error: "Judge timed out after {$this->timeout} seconds",
+            );
+        }
 
         $behaviors = self::parseJudgeResponse($output['stdout']);
 

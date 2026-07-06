@@ -122,6 +122,51 @@ it('executeCommand runs a command and captures output', function () {
 
     expect($output['stdout'])->toContain('hello world');
     expect($output['exitCode'])->toBe(0);
+    expect($output['timed_out'])->toBeFalse();
+});
+
+it('executeCommand enforces timeout on slow commands', function () {
+    $runner = new Runner(__DIR__);
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand('sleep 3', 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['stdout'])->toBe('');
+    expect($output['stderr'])->toBe('');
+});
+
+it('executeCommand does not deadlock on large stderr before stdout', function () {
+    $runner = new Runner(__DIR__);
+
+    $output = $runner->executeCommand(
+        'php -r "fwrite(STDERR, str_repeat(\'x\', 131072)); echo \'done\';"',
+        10,
+    );
+
+    expect($output['timed_out'])->toBeFalse();
+    expect($output['stdout'])->toBe('done');
+    expect($output['exitCode'])->toBe(0);
+});
+
+it('runJudge returns TIMEOUT verdict when executeCommand times out', function () {
+    $runner = new Runner(__DIR__, timeout: 0);
+    $case = new EvalCase(
+        name: 'timeout-case',
+        description: 'Should timeout',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $result = $runner->runJudge($case, 'some output');
+
+    expect($result->verdict)->toBe('TIMEOUT');
+    expect($result->error)->toContain('timed out');
+    expect($result->judgeUsed)->toBeTrue();
 });
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
