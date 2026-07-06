@@ -56,7 +56,12 @@ jobs:
         run: bash .github/scripts/validate-harness.sh
 
       - name: Shellcheck
-        run: shellcheck .github/scripts/*.sh .github/hooks/* tests/Shell/*.sh
+        run: |
+          find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
+            -not -path './vendor/*' \
+            -not -path '*/node_modules/*' \
+            -not -path './aurora/*' \
+            -print0 | xargs -0 shellcheck
 
       - name: PHP CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --dry-run --diff

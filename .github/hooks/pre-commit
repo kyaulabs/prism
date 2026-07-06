@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-commit kyau@nova 2026/07/04 -0700 Exp $
+# $KYAULabs: pre-commit kyau@nova 2026/07/06 -0700 Exp $
 
 set -euo pipefail
 
@@ -57,6 +57,18 @@ if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
 	echo "→ ESLint"
 	mapfile -t JS_FILES <<< "$STAGED_JS"
 	npx eslint "${JS_FILES[@]}" --no-error-on-unmatched-pattern
+fi
+
+# ── Shellcheck (staged shell scripts only) ──────────────────────────────────
+STAGED_SH=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.sh$|^\.github/hooks/' || true)
+if [ -n "$STAGED_SH" ]; then
+	if command -v shellcheck > /dev/null 2>&1; then
+		echo "→ Shellcheck"
+		mapfile -t SH_FILES <<< "$STAGED_SH"
+		shellcheck "${SH_FILES[@]}"
+	else
+		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
+	fi
 fi
 
 # ── Gitleaks ──────────────────────────────────────────────────────────────────

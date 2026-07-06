@@ -45,5 +45,5 @@ done
 cd "${SCRIPT_DIR}"
 rm -rf "${TEMP_DIR}"
 
-file_count=$(ls -1 "${DOCS_DIR}"/*.mdx 2>/dev/null | wc -l)
+file_count=$(find "${DOCS_DIR}" -maxdepth 1 -name '*.mdx' -type f 2>/dev/null | wc -l)
 echo "==> Done. ${file_count} doc files in ${DOCS_DIR}/"
