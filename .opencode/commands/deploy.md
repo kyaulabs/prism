@@ -58,8 +58,16 @@ opcache and FPM opcache are separate). The canonical server-side reset is:
 cachetool opcache:reset --fcgi=/run/php/php8.5-fpm.sock
 ```
 
-This requires `cachetool` installed on the production host
-(`curl -sO https://gordalina.github.io/cachetool/downloads/cachetool.phar`).
+This requires `cachetool` installed on the production host. Download and
+verify the specific release:
+
+```bash
+CACHETOOL_VERSION="10.0.0"
+CACHETOOL_SHA256="cbe90e7acdde7beafe26b592a753c2b923a99d2033e073dc55e42fba2883bd1d"
+curl -sOL "https://github.com/gordalina/cachetool/releases/download/${CACHETOOL_VERSION}/cachetool.phar"
+echo "${CACHETOOL_SHA256}  cachetool.phar" | sha256sum -c -
+```
+
 If `cachetool` is unavailable, reload the FPM pool as a fallback:
 
 ```bash
