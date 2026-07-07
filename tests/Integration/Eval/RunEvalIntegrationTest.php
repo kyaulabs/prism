@@ -30,9 +30,18 @@ it('runs tdd-red-green smoke case through full pipeline', function () {
         $this->markTestSkipped('opencode not available in PATH — integration test skipped.');
     }
 
+    // Capture source-tree state before the eval run. The runner must not
+    // mutate the source working tree — it runs the agent in a disposable
+    // git worktree. A dirty dev tree is fine; we assert before == after.
+    $before = shell_exec('git -C ' . escapeshellarg($repoRoot) . ' status --porcelain');
+
     $output = [];
     $exitCode = 0;
     exec("php {$script} " . escapeshellarg($caseFile) . " --timeout 180 2>&1", $output, $exitCode);
+
+    $after = shell_exec('git -C ' . escapeshellarg($repoRoot) . ' status --porcelain');
+
+    expect($after)->toBe($before, 'eval run mutated the source working tree');
 
     $joined = implode("\n", $output);
     $result = json_decode($joined, true);
@@ -46,7 +55,7 @@ it('runs tdd-red-green smoke case through full pipeline', function () {
     expect($result)->toHaveKey('verdict');
     expect($result)->toHaveKey('behaviors');
     expect($result)->toHaveKey('duration_ms');
-    expect(in_array($result['verdict'], ['PASS', 'FAIL', 'SKIPPED', 'TIMEOUT']))->toBeTrue();
+    expect(in_array($result['verdict'], ['PASS', 'FAIL', 'SKIPPED', 'TIMEOUT', 'INVALID']))->toBeTrue();
 })->group('slow');
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
