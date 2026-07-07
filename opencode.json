@@ -60,6 +60,17 @@
     "summary": {
       "model": "deepseek/deepseek-v4-flash",
       "variant": "medium"
+    },
+    "judge": {
+      "mode": "primary",
+      "model": "deepseek/deepseek-v4-pro",
+      "variant": "medium",
+      "temperature": 0.0,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      },
+      "prompt": "You are a read-only evaluation judge. You receive an eval case and an agent's captured output. For each expected behavior, answer YES, NO, or UNCLEAR with a one-sentence rationale. Respond with ONLY a valid JSON array — no prose, no markdown fences. You may not edit files or run shell commands."
     }
   }
 }
