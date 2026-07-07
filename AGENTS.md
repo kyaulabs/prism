@@ -134,7 +134,8 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Features: `feat/<username>-<hash>-<description>`
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.json`), `Acked-by:` (sourced from `agent.build.model` in `opencode.json` — model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
+- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.json`), `Acked-by:` (sourced from `agent.build.model` in `opencode.json`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`.
+- Model inheritance: primary agents that omit `model:` inherit the top-level `model` in `opencode.json`. Subagents that omit `model:` inherit the *invoking primary agent's* model — subagents therefore keep an explicit `model:` line to guarantee deterministic model selection regardless of invoker.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via @tdd, a direct fix, an issue

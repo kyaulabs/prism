@@ -26,7 +26,8 @@ Every commit message must end with three footers:
   `agent.plan.model` in `opencode.json` (the segment after the last `/`).
   Example: `openrouter/z-ai/glm-5.2` → `glm-5.2`.
 - **`Acked-by:`** — the build model, in kebab-case. Sourced from
-  `agent.build.model` in `opencode.json` (the segment after the last `/`).
+  `agent.build.model` in `opencode.json`, falling back to the top-level
+  `model` — the segment after the last `/`.
   Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
 > [!CAUTION]
@@ -38,8 +39,9 @@ Every commit message must end with three footers:
   `kyau <git@kyaulabs.com>`.
 
 These are mandatory for traceability. The agent writes them automatically by
-reading `agent.plan.model` and `agent.build.model` from `opencode.json` and
-taking the segment after the last `/`.
+reading `agent.plan.model` and `agent.build.model` from `opencode.json` —
+falling back to the top-level `model` if the agent-specific key is absent —
+and taking the segment after the last `/`.
 
 ## Valid Types
 
