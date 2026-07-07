@@ -176,13 +176,14 @@ class Runner
      * Build the opencode run command for a case (dry-run mode).
      *
      * @param  EvalCase $case
+     * @param  string|null $dir  Optional directory override (e.g. worktree path).
      * @return string  Shell command string.
      */
-    public function buildCommand(EvalCase $case): string
+    public function buildCommand(EvalCase $case, ?string $dir = null): string
     {
         $agent = ltrim($case->agent, '@');
         $message = escapeshellarg($case->input);
-        $dir = escapeshellarg($this->repoRoot);
+        $dir = escapeshellarg($dir ?? $this->repoRoot);
 
         return "opencode run --agent {$agent} --dir {$dir} {$message}";
     }
@@ -594,6 +595,82 @@ PROMPT;
         $output = $this->executeCommand('command -v opencode', 5);
 
         return $output['exitCode'] === 0 && $output['stdout'] !== '';
+    }
+
+    /**
+     * Create a disposable detached git worktree of the repo root.
+     *
+     * The worktree shares the source repo's object database but has its own
+     * working tree and (detached) HEAD, so an agent running inside it cannot
+     * mutate the source working tree. The caller MUST remove it via
+     * removeWorktree() in a finally path.
+     *
+     * @return string  Absolute path to the new worktree directory.
+     * @throws \RuntimeException  If git is unavailable or worktree creation fails.
+     */
+    public function createWorktree(): string
+    {
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+
+        $cmd = sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($this->repoRoot),
+            escapeshellarg($worktree),
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0 || !is_dir($worktree)) {
+            throw new \RuntimeException(
+                'Failed to create git worktree: ' . implode("\n", $output),
+            );
+        }
+
+        return $worktree;
+    }
+
+    /**
+     * Remove a worktree created by createWorktree().
+     *
+     * Safe to call even if the directory was already removed. Never throws —
+     * intended for use in a finally path where cleanup must not mask the
+     * primary result.
+     *
+     * @param string $path  Absolute path returned by createWorktree().
+     */
+    public function removeWorktree(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $cmd = sprintf(
+            'git -C %s worktree remove --force %s 2>&1',
+            escapeshellarg($this->repoRoot),
+            escapeshellarg($path),
+        );
+        exec($cmd);
+
+        if (is_dir($path)) {
+            // Fallback: remove the directory directly if git refused.
+            $this->removeDirectory($path);
+        }
+    }
+
+    /**
+     * Recursively remove a directory (cross-platform).
+     *
+     * @param string $path
+     */
+    private function removeDirectory(string $path): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            exec('rd /s /q ' . escapeshellarg($path) . ' 2>NUL');
+        } else {
+            exec('rm -rf ' . escapeshellarg($path));
+        }
     }
 }
 

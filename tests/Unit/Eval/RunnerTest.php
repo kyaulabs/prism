@@ -294,5 +294,82 @@ it('buildJudgeCommand runs the judge as the read-only judge agent', function () 
 
     expect($cmd)->toContain('--agent judge');
 });
+it('createWorktree creates a real git worktree and removeWorktree cleans it up', function () {
+    // Build a throwaway git repo so we don't touch the real source tree.
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/README', "init\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add README');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    try {
+        $runner = new Runner($repo);
+
+        $worktree = $runner->createWorktree();
+
+        expect(is_dir($worktree))->toBeTrue();
+        expect(file_exists($worktree . '/README'))->toBeTrue();
+
+        // It is registered as a worktree of the source repo.
+        // Use basename for cross-platform path normalization — git may use
+        // 8.3 short names or different slash conventions on Windows.
+        $worktreeBase = basename($worktree);
+        $list = shell_exec('git -C ' . escapeshellarg($repo) . ' worktree list');
+        expect($list)->toContain($worktreeBase);
+
+        $runner->removeWorktree($worktree);
+
+        expect(is_dir($worktree))->toBeFalse();
+        $listAfter = shell_exec('git -C ' . escapeshellarg($repo) . ' worktree list');
+        expect($listAfter)->not->toContain($worktreeBase);
+    } finally {
+        if (is_dir($repo)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($repo . '/wt') . ' 2>/dev/null');
+            // Cross-platform recursive delete
+            if (DIRECTORY_SEPARATOR === '\\') {
+                exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
+            } else {
+                exec('rm -rf ' . escapeshellarg($repo));
+            }
+        }
+    }
+});
+
+it('buildCommand accepts a dir override for the worktree', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'do thing',
+        expectedBehavior: ['test'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $cmd = $runner->buildCommand($case, '/tmp/worktree-123');
+
+    expect($cmd)->toContain('--dir');
+    expect($cmd)->toContain('/tmp/worktree-123');
+    expect($cmd)->not->toContain('/path/to/repo');
+});
+
+it('buildCommand falls back to repoRoot when no dir is given', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'do thing',
+        expectedBehavior: ['test'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $cmd = $runner->buildCommand($case);
+
+    expect($cmd)->toContain('/path/to/repo');
+});
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

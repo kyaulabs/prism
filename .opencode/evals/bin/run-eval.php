@@ -99,45 +99,49 @@ if (!$runner->isOpenCodeAvailable()) {
     exit(2);
 }
 
-// ── Run the agent ────────────────────────────────────────────────────────
-$start = hrtime(true);
-$cmd = $runner->buildCommand($case);
-$agentOutput = $runner->executeCommand($cmd, $args['timeout']);
-$elapsedMs = (int) ((hrtime(true) - $start) / 1_000_000);
+// ── Run the agent in a disposable worktree ─────────────────────────────
+$worktree = $runner->createWorktree();
+$result = null;
 
-// ── Agent timeout ─────────────────────────────────────────────────────────
-if ($agentOutput['timed_out']) {
-    $result = new EvalResult(
-        name: $case->name,
-        agent: $case->agent,
-        passCriteria: $case->passCriteria,
-        verdict: 'TIMEOUT',
-        durationMs: $elapsedMs,
-        error: "Agent timed out after {$args['timeout']} seconds",
-    );
-    echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
-    exit(1);
-}
+try {
+    $start = hrtime(true);
+    $cmd = $runner->buildCommand($case, $worktree);
+    $agentOutput = $runner->executeCommand($cmd, $args['timeout']);
+    $elapsedMs = (int) ((hrtime(true) - $start) / 1_000_000);
 
-// ── Deterministic gate ───────────────────────────────────────────────────
-$result = $runner->checkDeterministic(
-    $case,
-    $agentOutput['stdout'],
-    $agentOutput['stderr'],
-    $agentOutput['exitCode'],
-);
+    // ── Agent timeout ─────────────────────────────────────────────────
+    if ($agentOutput['timed_out']) {
+        $result = new EvalResult(
+            name: $case->name,
+            agent: $case->agent,
+            passCriteria: $case->passCriteria,
+            verdict: 'TIMEOUT',
+            durationMs: $elapsedMs,
+            error: "Agent timed out after {$args['timeout']} seconds",
+        );
+    } else {
+        // ── Deterministic gate ────────────────────────────────────────
+        $result = $runner->checkDeterministic(
+            $case,
+            $agentOutput['stdout'],
+            $agentOutput['stderr'],
+            $agentOutput['exitCode'],
+        );
 
-// ── LLM judge ────────────────────────────────────────────────────────────
-if ($result === null) {
-    $combinedOutput = $agentOutput['stdout'];
-    if ($agentOutput['stderr'] !== '') {
-        $combinedOutput .= "\n\n[stderr]\n" . $agentOutput['stderr'];
+        // ── LLM judge ─────────────────────────────────────────────────
+        if ($result === null) {
+            $combinedOutput = $agentOutput['stdout'];
+            if ($agentOutput['stderr'] !== '') {
+                $combinedOutput .= "\n\n[stderr]\n" . $agentOutput['stderr'];
+            }
+
+            $result = $runner->runJudge($case, $combinedOutput);
+        }
+
+        $result->durationMs = $elapsedMs;
     }
-
-    $result = $runner->runJudge($case, $combinedOutput);
-    $result->durationMs = $elapsedMs;
-} else {
-    $result->durationMs = $elapsedMs;
+} finally {
+    $runner->removeWorktree($worktree);
 }
 
 // ── Output ───────────────────────────────────────────────────────────────
