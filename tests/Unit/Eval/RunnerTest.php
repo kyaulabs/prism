@@ -21,10 +21,120 @@ it('builds correct opencode run command', function () {
 
     $cmd = $runner->buildCommand($case);
 
+    // Command starts with opencode run
     expect($cmd)->toContain('opencode run');
-    expect($cmd)->toContain('--mode build');
-    expect($cmd)->toContain('--prompt');
+
+    // Uses --agent with the agent name (stripped of @)
+    expect($cmd)->toContain('--agent tdd');
+
+    // Uses --dir for the repo root
+    expect($cmd)->toContain('--dir');
+
+    // Message is positional (last argument)
     expect($cmd)->toContain('Write a function add(a, b)');
+
+    // Must NOT contain any invalid opencode run flags
+    expect($cmd)->not->toContain('--prompt');
+    expect($cmd)->not->toContain('--mode build');
+    expect($cmd)->not->toContain('--path');
+    expect($cmd)->not->toContain('--permissions');
+});
+
+it('buildCommand reflects case agent', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@code-review',
+        input: 'Review this code',
+        expectedBehavior: ['test'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $cmd = $runner->buildCommand($case);
+
+    // Agent from the eval case is reflected in --agent
+    expect($cmd)->toContain('--agent code-review');
+});
+
+it('buildJudgeCommand uses valid opencode run flags', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'Test input',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $cmd = $runner->buildJudgeCommand($case, 'some agent output');
+
+    // Judge runs with --dir for repo root
+    expect($cmd)->toContain('--dir');
+
+    // Judge prompt is embedded in the message
+    expect($cmd)->toContain('agent output');
+
+    // Must NOT contain invalid opencode run flags (these belong to tui/agent create, not run)
+    expect($cmd)->not->toContain('--prompt');
+    expect($cmd)->not->toContain('--mode build');
+    expect($cmd)->not->toContain('--path');
+    expect($cmd)->not->toContain('--permissions');
+});
+
+it('buildCommand and buildJudgeCommand use only valid opencode run flags', function () {
+    // Parse the vendored cli.mdx run-flags table and verify every
+    // --flag used by buildCommand/buildJudgeCommand appears in it.
+    $cliMdx = file_get_contents(dirname(__DIR__, 3) . '/.opencode/skills/opencode-docs/docs/cli.mdx');
+    if ($cliMdx === false) {
+        $this->markTestSkipped('cli.mdx not found');
+    }
+
+    // Extract run command flags table (under ### run section)
+    $runSection = false;
+    $startsWithH3 = false;
+    $runFlags = [];
+
+    $lines = explode("\n", $cliMdx);
+    foreach ($lines as $line) {
+        if (preg_match('/^### run\b/', $line)) {
+            $runSection = true;
+            continue;
+        }
+        if ($runSection && preg_match('/^### \w/', $line)) {
+            // Next section starts — stop collecting
+            break;
+        }
+        if ($runSection) {
+            // Match flag table rows: | <nobr><code>{"--flagname"}</code></nobr>
+            if (preg_match('/<code>\{"(--[\w-]+)"\}<\/code>/', $line, $m)) {
+                $runFlags[] = $m[1];
+            }
+        }
+    }
+
+    // Build a representative command and extract all --flags used
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test input',
+        expectedBehavior: ['test'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $buildCmd = $runner->buildCommand($case);
+    $judgeCmd = $runner->buildJudgeCommand($case, 'judge output');
+
+    $allCmds = [$buildCmd, $judgeCmd];
+    foreach ($allCmds as $cmd) {
+        preg_match_all('/--[a-zA-Z][\w-]*/', $cmd, $matches);
+        foreach ($matches[0] as $flag) {
+            expect($runFlags)->toContain($flag);
+        }
+    }
 });
 
 it('deterministic gate: exit code zero', function () {

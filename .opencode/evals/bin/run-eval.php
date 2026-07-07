@@ -80,7 +80,7 @@ if ($args['dryRun']) {
     $cmd = $runner->buildCommand($case);
     echo "DRY RUN — would execute:\n";
     echo "  {$cmd}\n";
-    $judgeCmd = "opencode run --prompt '<judge prompt>' --mode build --path {$repoRoot}";
+    $judgeCmd = $runner->buildJudgeCommand($case, '<judge prompt omitted>');
     echo "DRY RUN — judge would execute:\n";
     echo "  {$judgeCmd}\n";
     exit(0);

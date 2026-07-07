@@ -180,11 +180,27 @@ class Runner
      */
     public function buildCommand(EvalCase $case): string
     {
-        $prompt = escapeshellarg($case->input);
-        $path = escapeshellarg($this->repoRoot);
+        $agent = ltrim($case->agent, '@');
+        $message = escapeshellarg($case->input);
+        $dir = escapeshellarg($this->repoRoot);
 
-        return "opencode run --prompt {$prompt} --mode build --path {$path} " .
-            '--permissions "bash: allow, edit: allow, task: allow"';
+        return "opencode run --agent {$agent} --dir {$dir} {$message}";
+    }
+
+    /**
+     * Build the opencode run command for the LLM judge pass.
+     *
+     * @param  EvalCase $case
+     * @param  string $agentOutput  The agent's captured stdout+stderr.
+     * @return string  Shell command string.
+     */
+    public function buildJudgeCommand(EvalCase $case, string $agentOutput): string
+    {
+        $prompt = $this->buildJudgePrompt($case, $agentOutput);
+        $message = escapeshellarg($prompt);
+        $dir = escapeshellarg($this->repoRoot);
+
+        return "opencode run --dir {$dir} {$message}";
     }
 
     /**
@@ -531,9 +547,7 @@ PROMPT;
      */
     public function runJudge(EvalCase $case, string $agentOutput): EvalResult
     {
-        $prompt = $this->buildJudgePrompt($case, $agentOutput);
-        $judgeCmd = "opencode run --prompt " . escapeshellarg($prompt) .
-            " --mode build --path " . escapeshellarg($this->repoRoot);
+        $judgeCmd = $this->buildJudgeCommand($case, $agentOutput);
 
         $start = hrtime(true);
         $output = $this->executeCommand($judgeCmd, $this->timeout);
