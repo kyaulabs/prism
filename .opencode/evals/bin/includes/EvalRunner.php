@@ -172,6 +172,23 @@ class Runner
 {
     private string $repoRoot;
 
+    /**
+     * Error-severity prefixes that the 'no errors in output' criterion treats
+     * as a genuine fault. Matches at the start of any stderr line
+     * (case-insensitive, multiline). Benign chatter — warnings, progress,
+     * deprecation notices — does not match and does not fail the criterion.
+     */
+    private const ERROR_SEVERITY_PATTERN =
+        '/^(?:'
+        . 'Fatal error|Parse error|Compile error|Core error|'
+        . 'Uncaught|'
+        . 'Error:|TypeError:|ArgumentCountError:|ArithmeticError:|DivisionByZeroError:|'
+        . 'ReferenceError:|SyntaxError:|RangeError:|EvalError:|URIError:|'
+        . 'Unhandled (?:promise rejection|exception)|'
+        . 'UnhandledPromiseRejection|'
+        . 'Segmentation fault|core dumped'
+        . ')/im';
+
     public function __construct(
         string $repoRoot,
         private int $timeout = 120,
@@ -405,6 +422,17 @@ class Runner
     }
 
     /**
+     * Return true if $stderr contains any error-severity line.
+     *
+     * @param  string $stderr
+     * @return bool
+     */
+    private function detectErrorSeverity(string $stderr): bool
+    {
+        return (bool) preg_match(self::ERROR_SEVERITY_PATTERN, $stderr);
+    }
+
+    /**
      * Check if the pass criteria can be resolved deterministically (no LLM judge).
      *
      * Returns an EvalResult if the criteria can be resolved, or null if an
@@ -432,9 +460,9 @@ class Runner
                 break;
 
             case 'no errors in output':
-                $pass = $stderr === '';
-                $checks['stderr_empty'] = ['pass' => $pass, 'stderr_length' => strlen($stderr)];
-                $verdict = $pass ? 'PASS' : 'FAIL';
+                $matched = $this->detectErrorSeverity($stderr);
+                $checks['stderr_severity'] = ['pass' => !$matched, 'matched' => $matched];
+                $verdict = $matched ? 'FAIL' : 'PASS';
                 break;
 
             case 'output contains expected string':

@@ -188,16 +188,20 @@ it('deterministic gate: no errors in output', function () {
         passCriteria: 'no errors in output',
     );
 
-    $result = $runner->checkDeterministic($case, '', '', 0);
+    // Benign stderr (warnings, progress, deprecation notices) → PASS
+    $result = $runner->checkDeterministic($case, '', 'Warning: deprecated, progress 50%', 0);
     expect($result)->not->toBeNull();
     expect($result->verdict)->toBe('PASS');
-    expect($result->deterministicChecks)->toHaveKey('stderr_empty');
-    expect($result->deterministicChecks['stderr_empty']['pass'])->toBeTrue();
+    expect($result->deterministicChecks)->toHaveKey('stderr_severity');
+    expect($result->deterministicChecks['stderr_severity']['pass'])->toBeTrue();
+    expect($result->deterministicChecks['stderr_severity']['matched'])->toBeFalse();
 
-    $result2 = $runner->checkDeterministic($case, '', 'some error', 0);
+    // Error-severity stderr → FAIL
+    $result2 = $runner->checkDeterministic($case, '', "Fatal error: uncaught thing\n", 0);
     expect($result2)->not->toBeNull();
     expect($result2->verdict)->toBe('FAIL');
-    expect($result2->deterministicChecks['stderr_empty']['pass'])->toBeFalse();
+    expect($result2->deterministicChecks['stderr_severity']['pass'])->toBeFalse();
+    expect($result2->deterministicChecks['stderr_severity']['matched'])->toBeTrue();
 });
 
 it('deterministic gate: all behaviors observed returns null', function () {

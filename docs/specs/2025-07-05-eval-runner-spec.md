@@ -49,7 +49,7 @@ php .opencode/evals/bin/run-eval.php <case-file> [--timeout <seconds>] [--dry-ru
 3. **Execute** — run opencode, capture stdout, stderr, exit code. Apply timeout. If timeout exceeded, emit TIMEOUT result and exit 1. If opencode not found in PATH, emit SKIPPED and exit 2.
 4. **Deterministic gate** — dispatch on pass_criteria:
    - `exit code zero`: PASS if exit code is 0
-   - `no errors in output`: PASS if stderr is empty
+   - `no errors in output`: PASS unless stderr contains a line matching an error-severity prefix (Fatal error, Parse error, Uncaught, Error:, TypeError:, ReferenceError:, SyntaxError:, Unhandled promise rejection, Segmentation fault, etc.). Benign chatter (warnings, progress, deprecation notices) does not fail the criterion. See `Runner::ERROR_SEVERITY_PATTERN`.
    - `output contains expected string`: PASS if the expected_string field is found in stdout
    - `manual inspection required`: return a result with verdict UNDETERMINED (human must review)
    - `all behaviors observed`: skip this gate, proceed to LLM judge
@@ -91,7 +91,7 @@ Respond with ONLY a valid JSON array. No prose, no markdown fences.
     {"behavior": "<text>", "verdict": "YES|NO|UNCLEAR", "rationale": "<sentence>"}
   ],
   "deterministic_checks": {
-    "exit_code": {"expected": 0, "actual": 0, "pass": true}
+    "<criterion-specific key>": {"pass": true}
   },
   "duration_ms": 12345,
   "judge_used": true|false,
@@ -146,4 +146,3 @@ Detailed results: .opencode/evals/results/2025-07-05T120000.json
 - CI workflow definition. CI integration is a separate task — this runner produces the artifacts CI consumes (exit code, JSON results).
 - Parallel execution. Sequential is fine for the current 5-case suite.
 - Sub-suite directories beyond `smoke/`. The directory structure supports them, but none exist yet.
-- Schema evolution for the `expected_string` field on `output contains expected string` criteria. Add it when the first eval case needs it.

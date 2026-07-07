@@ -102,6 +102,16 @@ Each eval case is a JSON file conforming to `schema.json`. Fields:
 | `expected_string` | conditional | Required when `pass_criteria` is `"output contains expected string"`. The substring that must appear in stdout |
 | `tags` | no | For filtering (e.g. `["smoke", "tdd", "critical"]`) |
 
+### Pass criteria
+
+| `pass_criteria` value | How pass/fail is decided |
+|---|---|
+| `all behaviors observed` | LLM judge — all expected behaviors rated YES |
+| `exit code zero` | Deterministic — agent exit code is 0 |
+| `output contains expected string` | Deterministic — `expected_string` substring found in stdout |
+| `no errors in output` | Deterministic — stderr contains no error-severity line (warnings/progress are OK; see `Runner::ERROR_SEVERITY_PATTERN`) |
+| `manual inspection required` | Returns UNDETERMINED — a human must review |
+
 ## Planned runner
 
 When an automated runner is available, evals will be driven non-interactively
