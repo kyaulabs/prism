@@ -376,4 +376,75 @@ it('buildCommand falls back to repoRoot when no dir is given', function () {
     expect($cmd)->toContain('/path/to/repo');
 });
 
+it('executeCommand launches commands in a new process group on POSIX', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new Runner(__DIR__);
+
+    // sh -c prints its own PGID. With setsid, PGID should equal PID.
+    $output = $runner->executeCommand("sh -c 'echo \$\$ \$(ps -o pgid= -p \$\$ | tr -d \" \")'", 5);
+
+    expect($output['exitCode'])->toBe(0);
+    expect($output['timed_out'])->toBeFalse();
+
+    $parts = explode(' ', trim($output['stdout']));
+    $pid  = (int) $parts[0];
+    $pgid = (int) ($parts[1] ?? -1);
+
+    // With setsid, the process group ID equals the PID
+    expect($pgid)->toBe($pid);
+    // Also verify it is NOT in the parent process's process group
+    expect($pgid)->not->toBe(posix_getpgid(getmypid()));
+});
+
+it('killProcessTree terminates the full process tree on timeout (POSIX)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new Runner(__DIR__);
+
+    // Spawn a command that writes its child PID to a temp file, then sleeps.
+    // The child (sleep) should not survive the timeout+kill.
+    $marker = tempnam(sys_get_temp_dir(), 'eval-kill-');
+    $cmd = sprintf(
+        "sh -c 'sleep 30 & echo \$! > %s; wait'",
+        escapeshellarg($marker),
+    );
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand($cmd, 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+
+    // Read the child PID that was spawned
+    if (!file_exists($marker)) {
+        $this->markTestSkipped('Command did not write child PID file');
+    }
+
+    $childPid = (int) trim((string) file_get_contents($marker));
+    unlink($marker);
+
+    if ($childPid <= 0) {
+        $this->markTestSkipped('Could not read child PID');
+    }
+
+    // Retry: kernel reaping can lag under CI load
+    $alive = true;
+    for ($i = 0; $i < 10; $i++) {
+        $alive = posix_kill($childPid, 0);
+        if (!$alive) {
+            break;
+        }
+        usleep(50_000);
+    }
+
+    // The child should be dead — posix_kill(pid, 0) checks existence
+    expect($alive)->toBeFalse();
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

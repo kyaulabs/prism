@@ -242,6 +242,16 @@ class Runner
      */
     public function executeCommand(string $cmd, int $timeout): array
     {
+        // On POSIX, launch via exec setsid so the process runs in its own
+        // process group. The PID from proc_get_status then identifies the
+        // group, enabling posix_kill(-$pid, SIGKILL) to tree-kill on timeout.
+        // --wait: forces fork+wait on Linux where setsid forks by default.
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            $cmd = PHP_OS_FAMILY === 'Linux'
+                ? 'exec setsid --wait ' . $cmd
+                : 'exec setsid ' . $cmd;
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
@@ -269,13 +279,14 @@ class Runner
      *
      * Uses stream_select to wait for pipe data without blocking,
      * interleaving reads on stdout and stderr to avoid pipe-buffer
-     * deadlock. Enforces a wall-clock timeout via proc_terminate
-     * and taskkill (Windows) to kill the process tree.
+     * deadlock. Enforces a wall-clock timeout — on Windows via
+     * taskkill /t /f, on POSIX via posix_kill(-$pid, SIGKILL) against
+     * the process group (set up by exec setsid in executeCommand).
      *
      * @param  resource $process
      * @param  array{0: resource, 1: resource, 2: resource} $pipes
      * @param  int $timeout  Timeout in seconds.
-     * @param  int $pid  Process ID for tree-kill on Windows.
+     * @param  int $pid  Process group leader PID for tree-kill.
      * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
      */
     private function readPipes($process, array $pipes, int $timeout, int $pid): array
@@ -359,19 +370,31 @@ class Runner
     /**
      * Kill a process and its entire child tree.
      *
-     * On Windows, proc_terminate only kills the shell wrapper (cmd.exe)
+     * On Windows, proc_terminate only signals the shell wrapper (cmd.exe)
      * but not child processes. taskkill /t ensures the full tree is
      * terminated so stream_get_contents does not block.
      *
+     * On POSIX, the process was launched via exec setsid (own process group),
+     * so posix_kill(-$pid, SIGKILL) kills the entire group. Falls back to
+     * proc_terminate when the posix extension is unavailable.
+     *
      * @param resource $process
-     * @param int $pid
+     * @param int $pid    Process group leader PID (equal to PGID via setsid).
+     * @return void
      */
     private function killProcessTree($process, int $pid): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
             exec("taskkill /f /t /pid {$pid} 2>NUL");
+            proc_terminate($process, 9);
+        } elseif (function_exists('posix_kill')) {
+            // Negative PID: kill the entire process group (setsid'd).
+            // SIGKILL comes from PCNTL extension; fall back to integer 9
+            // when only posix (not pcntl) is available.
+            posix_kill(-$pid, defined('SIGKILL') ? SIGKILL : 9);
+        } else {
+            proc_terminate($process, 9);
         }
-        proc_terminate($process, 9);
     }
 
     /**
