@@ -63,6 +63,20 @@ jobs:
             -not -path './aurora/*' \
             -print0 | xargs -0 shellcheck
 
+      - name: Shell regression tests
+        run: |
+          shopt -s nullglob
+          tests=( tests/Shell/*_test.sh )
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No shell tests found in tests/Shell/"
+            exit 1
+          fi
+          for t in "${tests[@]}"; do
+            echo "::group::Running $t"
+            bash "$t"
+            echo "::endgroup::"
+          done
+
       - name: PHP CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --dry-run --diff
 

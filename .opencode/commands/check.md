@@ -74,6 +74,22 @@ git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; d
 Run on staged files; if nothing is staged, run on the working tree's modified
 PHP files via `git diff --name-only`.
 
+## 6. Shell regression tests
+
+```bash
+if compgen -G "tests/Shell/*_test.sh" > /dev/null; then
+  for t in tests/Shell/*_test.sh; do
+    echo "→ $t"
+    bash "$t"
+  done
+else
+  echo "SKIPPED: no tests/Shell/*_test.sh files found"
+fi
+```
+
+Run each `tests/Shell/*_test.sh`. Report PASS if all exit 0, FAIL with the
+failing script and its output, or SKIPPED if the directory is empty/missing.
+
 ## Output
 
 Group results by tool. For each tool: PASS / FAIL / SKIPPED (with reason).
