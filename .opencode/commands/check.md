@@ -65,7 +65,21 @@ output and `git diff` results:
   passes — this means technical debt in untouched files, not a blocker.
 - If any test fails, list the failing tests with their messages.
 
-## 5. PHP syntax (sanity)
+## 5. JS/TS tests
+
+```bash
+if compgen -G "tests/Plugin/*.test.ts" > /dev/null 2>&1; then
+  node --import tsx --test tests/Plugin/*.test.ts
+else
+  echo "SKIPPED: no tests/Plugin/*.test.ts files found"
+fi
+```
+
+Run the Node.js test runner on TS plugin tests. Report PASS if all exit 0,
+FAIL with the failing test output, or SKIPPED if the directory is empty or
+missing.
+
+## 6. PHP syntax (sanity)
 
 ```bash
 git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; do php -l "$f"; done
@@ -74,7 +88,7 @@ git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; d
 Run on staged files; if nothing is staged, run on the working tree's modified
 PHP files via `git diff --name-only`.
 
-## 6. Shell regression tests
+## 7. Shell regression tests
 
 ```bash
 if compgen -G "tests/Shell/*_test.sh" > /dev/null; then
