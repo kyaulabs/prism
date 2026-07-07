@@ -82,14 +82,15 @@ API change to Aurora is needed.
   an unhandled error. Always use `env_bool('APP_DEBUG')` for
   the `$status` parameter. `APP_DEBUG` must be `false` in `.env` for
   production deployments.
-- *Constructor unconditionally enables error display before the `$status`
-  gate* — Aurora's constructor calls `ini_set('display_errors','1')` at
-  lines 88-91 of `aurora.inc.php` regardless of the `$status` value. If an
-  `AuroraException` is thrown during template/initialization validation
-  (missing template, bad CDN directory), the error renders verbosely even
-  when `$status=false`. This is an upstream issue in `kyaulabs/aurora`.
-  Until fixed, ensure the template file and CDN directory always exist before
-  deploying.
+- *Constructor safe-defaults order* — Aurora's constructor sets
+  `display_errors='0'`, `display_startup_errors='0'`, and `html_errors='0'`
+  before any validation that may throw. Only then does it apply the
+  `if ($status)` gate to enable verbose display. Validation that throws
+  `AuroraException` (missing template, bad CDN directory) runs after both
+  the safe defaults and the gate, so `display_errors` stays `'0'` when
+  `$status=false`. The `exceptionHandler` checks `ini_get('display_errors')`
+  and routes to `error_log()` in production mode, never echoing error
+  details to the visitor.
 - *SRI is unconditional in Aurora* — the constructor has no SRI toggle.
   `htmlStyles()`, `htmlScripts()`, and `htmlPreload()` always emit
   `integrity="sha512-..."` attributes regardless of constructor arguments.
