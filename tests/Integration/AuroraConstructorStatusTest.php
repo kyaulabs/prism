@@ -15,8 +15,8 @@ declare(strict_types=1);
  */
 
 test('Aurora constructor must not hardcode $status=true in web-accessible files', function () {
-    $root = dirname(__DIR__);
-    $excluded = ['aurora', 'tests', 'backend', 'vendor', 'node_modules', '.git'];
+    $root = dirname(__DIR__, 2);
+    $excluded = ['aurora', 'tests', 'vendor', 'node_modules', '.git'];
     $pattern = '/(?:new\s+KYAULabs\\\\Aurora\(\s*[^,]+,\s*[^,]+,\s*true\b)|(?:\bstatus:\s*true\b)/';
 
     $files = [];
@@ -41,6 +41,10 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
         $files[] = $path;
     }
 
+    expect($files)->not->toBeEmpty(
+        'Scan found zero PHP files — root or exclusions are misconfigured.',
+    );
+
     $violations = [];
 
     foreach ($files as $path) {
@@ -60,6 +64,76 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
         "\n" . implode("\n", $violations) .
         "\nReplace with: env_bool('APP_DEBUG')",
     );
+
+    $expectedTail = implode(DIRECTORY_SEPARATOR, ['backend', 'smoke.php']);
+    $found = false;
+
+    foreach ($files as $f) {
+        if (str_ends_with($f, $expectedTail)) {
+            $found = true;
+            break;
+        }
+    }
+
+    expect($found)->toBeTrue(
+        "Expected backend/smoke.php in scan results to prove repo-root reach.\n"
+        . 'Scanned files: ' . implode(', ', $files),
+    );
+});
+
+test('regex catches hardcoded status:true in a planted fixture', function () {
+    $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'aurora_test_' . uniqid();
+    mkdir($tmpDir, 0700, true);
+
+    try {
+        $fixturePos = $tmpDir . DIRECTORY_SEPARATOR . 'violation_pos.php';
+        $fixtureNamed = $tmpDir . DIRECTORY_SEPARATOR . 'violation_named.php';
+
+        file_put_contents(
+            $fixturePos,
+            "<?php\n\$site = new KYAULabs\\Aurora('index.html', '/cdn', true, true);\n",
+        );
+        file_put_contents(
+            $fixtureNamed,
+            "<?php\n\$site = new KYAULabs\\Aurora('index.html', '/cdn', status: true);\n",
+        );
+
+        $pattern = '/(?:new\s+KYAULabs\\\\Aurora\(\s*[^,]+,\s*[^,]+,\s*true\b)|(?:\bstatus:\s*true\b)/';
+        $files = [];
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($tmpDir, RecursiveDirectoryIterator::SKIP_DOTS),
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+            $files[] = $file->getPathname();
+        }
+
+        $violations = [];
+
+        foreach ($files as $path) {
+            $contents = file_get_contents($path);
+
+            if ($contents === false) {
+                continue;
+            }
+
+            if (preg_match($pattern, $contents) === 1) {
+                $violations[] = $path;
+            }
+        }
+
+        expect($violations)->toHaveCount(
+            2,
+            'Both positional and named-argument fixtures must be caught.',
+        );
+    } finally {
+        array_map('unlink', glob($tmpDir . DIRECTORY_SEPARATOR . '*.php'));
+        rmdir($tmpDir);
+    }
 });
 
 test('env_bool returns true after load_env loads APP_DEBUG=true', function () {
