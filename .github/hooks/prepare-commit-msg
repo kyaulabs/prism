@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# $KYAULabs: prepare-commit-msg kyau@nova 2026/07/07 -0700 Exp $
+
+set -euo pipefail
+
+COMMIT_SOURCE="${2:-}"
+COMMIT_SHA="${3:-}"
+
+# Block --amend of pushed commits.
+#
+# Git passes $2 = "commit" and $3 = "HEAD" (literal) for --amend without
+# -m. However, -c HEAD and -C HEAD also pass $3 = "HEAD" — indistinguishable
+# from --amend here. The hook errs on the side of safety and blocks both when
+# HEAD is pushed. Workaround: use -c <sha> / -C <sha> with an explicit SHA.
+#
+# When -m is used with --amend, $2 is "message" — indistinguishable from a
+# regular commit in this hook. The pre-push hook's non-fast-forward block
+# is the safety net for that case.
+if [ "$COMMIT_SOURCE" = "commit" ] && [ "$COMMIT_SHA" = "HEAD" ]; then
+	# Check if the commit being amended has been pushed to any remote
+	if git branch -r --contains HEAD 2>/dev/null | grep -q .; then
+		cat >&2 <<EOF
+✗ Cannot amend a commit that has been pushed to a remote.
+  HEAD is reachable from a remote tracking branch.
+  Use a regular commit ('git commit', not '--amend') to add changes.
+  If you need to fix the commit message for an unpushed commit, amend
+  is safe — but this commit has already been published.
+EOF
+		exit 1
+	fi
+fi
+
+exit 0
+
+# vim: ft=sh sts=4 sw=4 ts=4 et :

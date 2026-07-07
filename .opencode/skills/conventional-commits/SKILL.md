@@ -122,3 +122,22 @@ The hook blocks the commit if the format is invalid.
 Config: `commitlint.config.js` extends `@commitlint/config-conventional`,
 with a custom `type-enum` that adds `build`, `patch`, and `ignore` to the
 standard set.
+
+## Passing the Message to Git
+
+> [!IMPORTANT]
+> Pass the full commit message as a **single `-m`** argument with embedded
+> newlines. Do **not** use multiple `-m` flags — git inserts blank lines
+> between them, which breaks commitlint's trailer detection (`git interpret-trailers --parse` requires that trailers be contiguous with the body).
+
+```bash
+# CORRECT — single -m with $'...\n...' embedded newlines
+git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nPlan-by: model\nAcked-by: model\nSigned-off-by: user <email>'
+
+# WRONG — multiple -m flags insert blank lines between each, breaking trailers
+git commit -S -m "type[scope]: subject" -m "Body." -m "Plan-by: model" -m "Acked-by: model"
+```
+
+If the commit fails due to the commit-msg hook, the commit was **not created**.
+Retry with `git commit` (not `--amend`), fixing the message format. There is
+nothing to amend because the commit was never made.

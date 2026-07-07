@@ -89,7 +89,7 @@ rm -rf "$T1"
 # ── Test 2: All hooks committed as 100755 ─────────────────────────────────────
 
 echo "── Test 2: Hooks committed as 100755 ──"
-for hook in commit-msg post-checkout post-merge pre-commit pre-push; do
+for hook in commit-msg post-checkout post-merge pre-commit pre-push prepare-commit-msg; do
 	mode=$(git -C "$REPO_ROOT" ls-files -s ".github/hooks/$hook" 2>/dev/null | awk '{print $1}')
 	if [ "$mode" = "100755" ]; then
 		pass "$hook is 100755"
