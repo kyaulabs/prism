@@ -40,6 +40,32 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+### Test integration
+
+The integration test (`tests/Integration/Eval/RunEvalIntegrationTest.php`) is tagged
+`@group slow` and **excluded from default `pest` runs** via `phpunit.xml`.
+This prevents a routine `/check` from launching a live 180s LLM agent on any
+machine with opencode installed.
+
+To run the eval integration tests explicitly:
+
+```bash
+php vendor/bin/pest --group slow
+```
+
+### Worktree isolation
+
+Each eval case runs the agent inside a **disposable git worktree**
+(`git worktree add --detach` under the system temp directory). The agent's
+file writes land in the worktree, never in the source working tree. The
+worktree is removed in a `finally` path after the case completes (or times
+out), so a real eval run leaves `git status --porcelain` unchanged in the
+source repo.
+
+The LLM judge runs as a dedicated **read-only `judge` agent** (see
+`opencode.json`) with `edit` and `bash` denied — it cannot mutate files or
+run shell commands even if prompted to.
+
 ## Structure
 
 ```text
