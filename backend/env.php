@@ -42,6 +42,8 @@ function env_bool(string $key, bool $default = false): bool
  *
  * @param string $path  Absolute or relative path to the .env file.
  * @return void
+ * @note Never throws — errors (unreadable file, parse failures) are
+ *       silently discarded.
  */
 function load_env(string $path): void
 {

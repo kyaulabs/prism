@@ -112,8 +112,13 @@ Page (aurora-page template)                backend/env.php (extended)
 - Cleanup between tests: `unset()` + `putenv("KEY")`.
 
 ### Integration — added to `tests/Integration/AuroraConstructorStatusTest.php`
-- Load temp `.env` with `APP_DEBUG=true`, construct `Aurora(status: env_bool('APP_DEBUG'))`.
-- No `.env` → `env_bool('APP_DEBUG')` is false → Aurora constructor sees `$status=false`.
+- Load temp `.env` with `APP_DEBUG=true`, verify `env_bool('APP_DEBUG')` is
+  true after `load_env()`. This smoke-tests the full env pipeline
+  (`load_env` → `$_ENV` → `env_bool`). The Aurora constructor contract is
+  separately enforced by the existing hardcoded-`$status=true` scan test and
+  ADR 0002's single-point-of-control design.
+- No `.env` → `env_bool('APP_DEBUG')` is false → confirms prod-default-off
+  invariant.
 
 ## Out of scope
 
