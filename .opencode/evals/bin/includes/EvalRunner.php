@@ -424,19 +424,36 @@ class Runner
     ): ?EvalResult {
         $checks = [];
 
-        $verdict = match ($case->passCriteria) {
-            'exit code zero' => ($exitCode === 0) ? 'PASS' : 'FAIL',
-            'no errors in output' => ($stderr === '') ? 'PASS' : 'FAIL',
-            'output contains expected string' => (str_contains($stdout, $case->expectedBehavior[0] ?? '')) ? 'PASS' : 'FAIL',
-            'manual inspection required' => 'UNDETERMINED',
-            default => null,
-        };
+        switch ($case->passCriteria) {
+            case 'exit code zero':
+                $pass = $exitCode === 0;
+                $checks['exit_code'] = ['expected' => 0, 'actual' => $exitCode, 'pass' => $pass];
+                $verdict = $pass ? 'PASS' : 'FAIL';
+                break;
 
-        if ($verdict === null) {
-            return null;
+            case 'no errors in output':
+                $pass = $stderr === '';
+                $checks['stderr_empty'] = ['pass' => $pass, 'stderr_length' => strlen($stderr)];
+                $verdict = $pass ? 'PASS' : 'FAIL';
+                break;
+
+            case 'output contains expected string':
+                $found = $case->expectedString !== null && str_contains($stdout, $case->expectedString);
+                $checks['expected_string'] = [
+                    'needle' => $case->expectedString ?? '',
+                    'found' => $found,
+                    'pass' => $found,
+                ];
+                $verdict = $found ? 'PASS' : 'FAIL';
+                break;
+
+            case 'manual inspection required':
+                $verdict = 'UNDETERMINED';
+                break;
+
+            default:
+                return null;
         }
-
-        $checks['exit_code'] = ['expected' => 0, 'actual' => $exitCode];
 
         return new EvalResult(
             name: $case->name,

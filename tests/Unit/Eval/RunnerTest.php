@@ -153,6 +153,9 @@ it('deterministic gate: exit code zero', function () {
     expect($result)->not->toBeNull();
     expect($result->verdict)->toBe('PASS');
     expect($result->judgeUsed)->toBeFalse();
+    expect($result->deterministicChecks)->toHaveKey('exit_code');
+    expect($result->deterministicChecks['exit_code']['pass'])->toBeTrue();
+    expect($result->deterministicChecks['exit_code']['actual'])->toBe(0);
 });
 
 it('deterministic gate: exit code zero fails on non-zero', function () {
@@ -170,6 +173,8 @@ it('deterministic gate: exit code zero fails on non-zero', function () {
 
     expect($result)->not->toBeNull();
     expect($result->verdict)->toBe('FAIL');
+    expect($result->deterministicChecks['exit_code']['pass'])->toBeFalse();
+    expect($result->deterministicChecks['exit_code']['actual'])->toBe(1);
 });
 
 it('deterministic gate: no errors in output', function () {
@@ -186,10 +191,13 @@ it('deterministic gate: no errors in output', function () {
     $result = $runner->checkDeterministic($case, '', '', 0);
     expect($result)->not->toBeNull();
     expect($result->verdict)->toBe('PASS');
+    expect($result->deterministicChecks)->toHaveKey('stderr_empty');
+    expect($result->deterministicChecks['stderr_empty']['pass'])->toBeTrue();
 
     $result2 = $runner->checkDeterministic($case, '', 'some error', 0);
     expect($result2)->not->toBeNull();
     expect($result2->verdict)->toBe('FAIL');
+    expect($result2->deterministicChecks['stderr_empty']['pass'])->toBeFalse();
 });
 
 it('deterministic gate: all behaviors observed returns null', function () {
@@ -223,6 +231,7 @@ it('deterministic gate: manual inspection returns undetermined', function () {
 
     expect($result)->not->toBeNull();
     expect($result->verdict)->toBe('UNDETERMINED');
+    expect($result->deterministicChecks)->toBe([]);
 });
 
 it('executeCommand runs a command and captures output', function () {
@@ -445,6 +454,47 @@ it('killProcessTree terminates the full process tree on timeout (POSIX)', functi
 
     // The child should be dead — posix_kill(pid, 0) checks existence
     expect($alive)->toBeFalse();
+});
+
+it('deterministic gate: output contains expected string passes when needle found', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['behavior'],
+        passCriteria: 'output contains expected string',
+        expectedString: 'function add(a, b)',
+    );
+
+    $result = $runner->checkDeterministic($case, 'here is function add(a, b) in output', '', 0);
+
+    expect($result)->not->toBeNull();
+    expect($result->verdict)->toBe('PASS');
+    expect($result->deterministicChecks)->toHaveKey('expected_string');
+    expect($result->deterministicChecks['expected_string']['pass'])->toBeTrue();
+    expect($result->deterministicChecks['expected_string']['found'])->toBeTrue();
+});
+
+it('deterministic gate: output contains expected string fails when needle absent', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['behavior'],
+        passCriteria: 'output contains expected string',
+        expectedString: 'function add(a, b)',
+    );
+
+    $result = $runner->checkDeterministic($case, 'totally unrelated output', '', 0);
+
+    expect($result)->not->toBeNull();
+    expect($result->verdict)->toBe('FAIL');
+    expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
+    expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
