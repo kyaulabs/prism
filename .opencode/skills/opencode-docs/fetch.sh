@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# $KYAULabs: fetch.sh kyau@nova 2026/07/07 -0700 Exp $
+
 # fetch.sh — Refresh vendored OpenCode docs from the anomalyco/opencode repo.
 #
 # Shallow-clones with sparse checkout, extracts the English top-level .mdx
@@ -47,3 +49,5 @@ rm -rf "${TEMP_DIR}"
 
 file_count=$(find "${DOCS_DIR}" -maxdepth 1 -name '*.mdx' -type f 2>/dev/null | wc -l)
 echo "==> Done. ${file_count} doc files in ${DOCS_DIR}/"
+
+# vim: ft=sh sts=4 sw=4 ts=4 et :

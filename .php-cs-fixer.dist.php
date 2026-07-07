@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+# $KYAULabs: .php-cs-fixer.dist.php kyau@nova 2026/07/07 -0700 Exp $
+
 use PhpCsFixer\Config;
 use PhpCsFixer\Finder;
 
@@ -29,3 +31,5 @@ return (new Config())
         // ->ignoreVCS(true) // true by default
     )
 ;
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
