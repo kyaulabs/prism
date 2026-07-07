@@ -61,6 +61,7 @@ rules:
       - pattern: print $_POST[$KEY];
       - pattern: print $_REQUEST[$KEY];
       - pattern: print $_COOKIE[$KEY];
+      - pattern: print $_SERVER[$KEY];
 
   # --- Deserialization: unserialize on request-reachable data ---
   - id: kyaulabs-unserialize-request-data

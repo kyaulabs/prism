@@ -11,5 +11,6 @@ declare(strict_types=1);
 $username = $_GET['username'];
 echo $username;
 echo $_GET['search'];
+print $_SERVER['HTTP_HOST'];
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

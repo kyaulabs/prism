@@ -40,7 +40,7 @@ count per positive fixture so that removing a branch becomes a test failure.
 - Consumes: `semgrepScanDir()` (returns `['results' => array, 'exitCode' => int]`), `filterFindings(array $results, string $ruleId, string $fixtureFile): array` (unchanged)
 - Produces: The positive test closure signature changes from `function (string $dir, string $ruleId): array` to `function (string $dir, string $ruleId, int $expectedCount): bool`. The negative test is unchanged.
 
-- [ ] **Step 1: Write failing positive fixture (Red)**
+- [x] **Step 1: Write failing positive fixture (Red)**
 
     Append interpolation line to `tests/Semgrep/SqliInterpolatedQuery/positive.php` so there are two sink lines:
 
@@ -54,7 +54,7 @@ count per positive fixture so that removing a branch becomes a test failure.
     $result = $db->query("SELECT * FROM users WHERE id = $id");
     ```
 
-- [ ] **Step 2: Write negative fixture addition**
+- [x] **Step 2: Write negative fixture addition**
 
     Append a bare-variable query line to `tests/Semgrep/SqliInterpolatedQuery/negative.php` to lock that only string-literal interpolation is caught, not bare variable passthrough:
 
@@ -69,7 +69,7 @@ count per positive fixture so that removing a branch becomes a test failure.
     $result = $db->query($sql);
     ```
 
-- [ ] **Step 3: Enhance RulesPackTest to assert exact counts**
+- [x] **Step 3: Enhance RulesPackTest to assert exact counts**
 
     In `tests/Unit/Semgrep/RulesPackTest.php`, replace the positive test (lines 140–154):
 
@@ -94,7 +94,7 @@ count per positive fixture so that removing a branch becomes a test failure.
 
     The old `->not->toBeEmpty()` line is removed. The old dataset rows (2-arity) become 3-arity with the expected count. `SqliInterpolatedQuery` expects 2 (concat + interpolation — the two distinct lines yield one finding each because the concat branch matches line 13 but not the interpolation line, and the interpolation branch matches line 14 but not the concat line — metavariable-pattern restricts to string literals, so the concat expression is excluded).
 
-- [ ] **Step 4: Verify Red — test fails because rule doesn't catch interpolation yet**
+- [x] **Step 4: Verify Red — test fails because rule doesn't catch interpolation yet**
 
     ```bash
     semgrep --validate --config .semgrep/kyaulabs.yml
@@ -107,7 +107,7 @@ count per positive fixture so that removing a branch becomes a test failure.
 
     If semgrep is not installed locally, the test skips — write the rule changes on faith and verify on Linux /check.
 
-- [ ] **Step 5: Add interpolation branch to the SQLi rule (Green)**
+- [x] **Step 5: Add interpolation branch to the SQLi rule (Green)**
 
     In `.semgrep/kyaulabs.yml`, add a 4th branch to the `pattern-either` block (between the closing of the 3rd concat pattern and the `pattern-not-regex` line):
 
@@ -148,14 +148,14 @@ count per positive fixture so that removing a branch becomes a test failure.
     - `metavariable-regex` `(?<!\\)\$[A-Za-z_{]` checks the source text of the string for an unescaped `$` followed by a letter or `{`. Catches `$id`, `${var}`, `{$var}`, `$obj->prop`, `$arr[0]`. Excludes `\$literal` (escaped dollar). The negative lookbehind `(?<!\\)` prevents false positives on escaped `\$`.
     - The outer `pattern-not-regex: '\b(?:execute|prepare)\b'` is inherited — no need to duplicate it in the nested `patterns`.
 
-- [ ] **Step 6: Validate the rule**
+- [x] **Step 6: Validate the rule**
 
     ```bash
     semgrep --validate --config .semgrep/kyaulabs.yml
     ```
     Expected: Configuration is valid (exit code 0).
 
-- [ ] **Step 7: Run test to verify Green**
+- [x] **Step 7: Run test to verify Green**
 
     ```bash
     php vendor/bin/pest tests/Unit/Semgrep/RulesPackTest.php --filter 'positive.*SqliInterpolatedQuery'
@@ -174,7 +174,7 @@ count per positive fixture so that removing a branch becomes a test failure.
     ```
     Expected: All tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
     ```bash
     git add .semgrep/kyaulabs.yml tests/Semgrep/SqliInterpolatedQuery/positive.php tests/Semgrep/SqliInterpolatedQuery/negative.php tests/Unit/Semgrep/RulesPackTest.php
@@ -208,7 +208,7 @@ count per positive fixture so that removing a branch becomes a test failure.
 - Consumes: The exact-count test from Task 1 (3-arity dataset, `->toBeTrue()` assertion).
 - Produces: XssEchoRequestSink expected count changes from 1 → 2.
 
-- [ ] **Step 1: Write failing fixture addition (Red)**
+- [x] **Step 1: Write failing fixture addition (Red)**
 
     Append `print $_SERVER` line to `tests/Semgrep/XssEchoRequestSink/positive.php`:
 
@@ -224,7 +224,7 @@ count per positive fixture so that removing a branch becomes a test failure.
 
     Note: The existing `echo $_GET['search']` (line 13) already fires 1 finding. The new `print $_SERVER['HTTP_HOST']` should fire a 2nd — but the rule doesn't have `print $_SERVER` yet, so the count stays at 1. The test from Task 1 expects 1 for XssEchoRequestSink → still passes. This step is the "Red" setup.
 
-- [ ] **Step 2: Update RulesPackTest count to expect 2**
+- [x] **Step 2: Update RulesPackTest count to expect 2**
 
     In `tests/Unit/Semgrep/RulesPackTest.php`, change the XssEchoRequestSink row:
 
@@ -234,14 +234,14 @@ count per positive fixture so that removing a branch becomes a test failure.
 
     The test now expects 2 findings but the rule only catches 1 (`echo $_GET`) — this is the Red phase.
 
-- [ ] **Step 3: Verify Red — test fails**
+- [x] **Step 3: Verify Red — test fails**
 
     ```bash
     php vendor/bin/pest tests/Unit/Semgrep/RulesPackTest.php --filter 'positive.*XssEchoRequestSink'
     ```
     Expected: FAIL. Count returns 1, expected 2.
 
-- [ ] **Step 4: Add `print $_SERVER[$KEY]` to the XSS rule (Green)**
+- [x] **Step 4: Add `print $_SERVER[$KEY]` to the XSS rule (Green)**
 
     In `.semgrep/kyaulabs.yml`, add after the existing `print` lines (after line 62 `- pattern: print $_COOKIE[$KEY];`):
 
@@ -265,14 +265,14 @@ count per positive fixture so that removing a branch becomes a test failure.
       - pattern: print $_SERVER[$KEY];
     ```
 
-- [ ] **Step 5: Validate the rule**
+- [x] **Step 5: Validate the rule**
 
     ```bash
     semgrep --validate --config .semgrep/kyaulabs.yml
     ```
     Expected: Configuration is valid (exit code 0).
 
-- [ ] **Step 6: Run test to verify Green**
+- [x] **Step 6: Run test to verify Green**
 
     ```bash
     php vendor/bin/pest tests/Unit/Semgrep/RulesPackTest.php --filter 'positive.*XssEchoRequestSink'
@@ -291,7 +291,7 @@ count per positive fixture so that removing a branch becomes a test failure.
     ```
     Expected: All tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
     ```bash
     git add .semgrep/kyaulabs.yml tests/Semgrep/XssEchoRequestSink/positive.php tests/Unit/Semgrep/RulesPackTest.php
@@ -313,10 +313,10 @@ count per positive fixture so that removing a branch becomes a test failure.
 
 ### Post-implementation verification
 
-- [ ] Run full test suite: `php -d pcov.enabled=1 vendor/bin/pest tests/Unit/Semgrep/`
-- [ ] Run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage 80%)
-- [ ] Load `verification-before-completion` skill — confirm no debug artifacts, semgrep validates, both tests green
-- [ ] `@code-review` on the two-commit branch before push (user pushes)
+- [x] Run full test suite: `php -d pcov.enabled=1 vendor/bin/pest tests/Unit/Semgrep/`
+- [x] Run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage 80%)
+- [x] Load `verification-before-completion` skill — confirm no debug artifacts, semgrep validates, both tests green
+- [x] `@code-review` on the two-commit branch before push (user pushes)
 
 ## Cross-refs
 - Issue: #34
