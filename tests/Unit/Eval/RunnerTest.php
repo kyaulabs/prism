@@ -279,4 +279,20 @@ it('runJudge returns TIMEOUT verdict when executeCommand times out', function ()
     expect($result->judgeUsed)->toBeTrue();
 });
 
+it('buildJudgeCommand runs the judge as the read-only judge agent', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test input',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    $cmd = $runner->buildJudgeCommand($case, 'agent output');
+
+    expect($cmd)->toContain('--agent judge');
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

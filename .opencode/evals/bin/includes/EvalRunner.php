@@ -200,7 +200,7 @@ class Runner
         $message = escapeshellarg($prompt);
         $dir = escapeshellarg($this->repoRoot);
 
-        return "opencode run --dir {$dir} {$message}";
+        return "opencode run --agent judge --dir {$dir} {$message}";
     }
 
     /**
