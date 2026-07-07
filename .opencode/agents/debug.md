@@ -34,6 +34,10 @@ permission:
     # git bisect mutates the working tree by checking out old commits.
     # Use only for major regressions between known-good and known-bad commits.
     "git bisect *": "allow"
+    "gh *": "deny"
+    "gh issue list": "allow"
+    "gh issue list *": "allow"
+    "gh issue view *": "allow"
 ---
 
 You are a debugging and root cause analysis assistant. You investigate, diagnose,
