@@ -47,7 +47,9 @@ spurious "features" during implementation.
 Significant decisions live as ADRs in `adr/`. List accepted ADRs here with a
 one-line summary; the full record is in `adr/NNNN-*.md`.
 
-- `adr/0001-<title>.md` — <one-line summary>
+- `adr/0001-csp-policy-for-aurora-stack.md` — Content-Security-Policy design for the Aurora no-framework stack
+- `adr/0002-first-party-semgrep-rules-pack.md` — First-party Semgrep rules pack with TDD rule authoring
+- `adr/0003-env-delivery-mechanism.md` — First-party .env loader with explicit call pattern, no dependencies, server env precedence
 
 ## When to update this file
 
