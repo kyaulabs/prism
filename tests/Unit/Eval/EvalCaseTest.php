@@ -57,4 +57,60 @@ it('validates pass_criteria against allowed values', function () {
     unlink($file);
 });
 
+it('validates expected_string required when pass_criteria is output contains expected string', function () {
+    $json = json_encode([
+        'name' => 'needs-string',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'output contains expected string',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->toContain("expected_string is required when pass_criteria is 'output contains expected string'");
+    unlink($file);
+});
+
+it('accepts expected_string when pass_criteria is output contains expected string', function () {
+    $json = json_encode([
+        'name' => 'has-string',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'output contains expected string',
+        'expected_string' => 'function add(a, b)',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->not->toContain("expected_string is required when pass_criteria is 'output contains expected string'");
+    unlink($file);
+});
+
+it('parses expected_string from JSON', function () {
+    $json = json_encode([
+        'name' => 'parse-string',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'output contains expected string',
+        'expected_string' => 'needle value',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->expectedString)->toBe('needle value');
+    unlink($file);
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

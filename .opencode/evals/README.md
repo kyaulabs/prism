@@ -99,6 +99,7 @@ Each eval case is a JSON file conforming to `schema.json`. Fields:
 | `input` | yes | The prompt or scenario to feed the agent |
 | `expected_behavior` | yes | Array of observable behaviors the output must satisfy |
 | `pass_criteria` | yes | How to determine pass/fail (e.g. "all behaviors observed", "no errors in output") |
+| `expected_string` | conditional | Required when `pass_criteria` is `"output contains expected string"`. The substring that must appear in stdout |
 | `tags` | no | For filtering (e.g. `["smoke", "tdd", "critical"]`) |
 
 ## Planned runner

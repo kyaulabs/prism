@@ -20,6 +20,7 @@ class EvalCase
         public readonly array $expectedBehavior,
         public readonly string $passCriteria,
         public readonly array $tags = [],
+        public readonly ?string $expectedString = null,
     ) {
     }
 
@@ -50,6 +51,7 @@ class EvalCase
             expectedBehavior: $data['expected_behavior'] ?? [],
             passCriteria: $data['pass_criteria'] ?? '',
             tags: $data['tags'] ?? [],
+            expectedString: $data['expected_string'] ?? null,
         );
     }
 
@@ -93,6 +95,11 @@ class EvalCase
 
         if (!in_array($this->passCriteria, $validCriteria, true)) {
             $errors[] = "pass_criteria '{$this->passCriteria}' is not a valid value";
+        }
+
+        if ($this->passCriteria === 'output contains expected string'
+            && ($this->expectedString === null || $this->expectedString === '')) {
+            $errors[] = "expected_string is required when pass_criteria is 'output contains expected string'";
         }
 
         return $errors;
