@@ -14,7 +14,7 @@ ini_set('display_errors', '0');
 $site = new KYAULabs\Aurora(
     template: "index.html",
     cdn: "/cdn",
-    status: (bool)($_ENV['APP_DEBUG'] ?? false),
+    status: env_bool('APP_DEBUG'),
     html: true,
 );
 

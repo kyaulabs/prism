@@ -11,9 +11,9 @@ rules:
   - id: kyaulabs-aurora-status-true-literal
     message: >-
       Aurora constructor $status is a literal 'true'. Replace with
-      (bool)($_ENV['APP_DEBUG'] ?? false) so production deployments
+      env_bool('APP_DEBUG') so production deployments
       never expose verbose error display to visitors. Prefer named
-      arguments: status: (bool)($_ENV['APP_DEBUG'] ?? false).
+      arguments: status: env_bool('APP_DEBUG').
       See ADR-0002 and the aurora-page skill.
     severity: ERROR
     languages: [php]
@@ -100,7 +100,7 @@ rules:
     message: >-
       display_errors is hardcoded to '1' / 1. Aurora manages error
       display via its constructor $status parameter (wired to
-      (bool)($_ENV['APP_DEBUG'] ?? false)). Do not override
+      env_bool('APP_DEBUG')). Do not override
       display_errors manually in application code.
     severity: ERROR
     languages: [php]

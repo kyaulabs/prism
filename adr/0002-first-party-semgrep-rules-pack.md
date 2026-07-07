@@ -20,7 +20,7 @@ language-generic — they cannot encode:
   obvious forms, if at all.
 - **Project conventions**: `ini_set('display_errors', '1')` in application
   code is a violation of Aurora's error-handling contract (the constructor's
-  `$status` parameter, wired to `APP_DEBUG`, is the single point of control).
+  `$status` parameter, wired to `APP_DEBUG` via `env_bool()`, is the single point of control).
 
 The `security-coding` skill (`.opencode/skills/security-coding/SKILL.md`)
 documents these defensive patterns in prose, but the detection layer (`@semgrep`)

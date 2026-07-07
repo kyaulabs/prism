@@ -7,7 +7,7 @@ declare(strict_types=1);
 /**
  * Scans all web-accessible PHP files for hardcoded Aurora constructor
  * $status=true (positional or named argument). Every PHP page scaffolded
- * through the aurora-page skill must use (bool)($_ENV['APP_DEBUG'] ?? false)
+ * through the aurora-page skill must use env_bool('APP_DEBUG')
  * — never a literal true. This test prevents that class of production
  * error-display bug from silently recurring as apps are added.
  * The kyaulabs-aurora-status-true-literal Semgrep rule provides early
@@ -58,7 +58,7 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
     expect($violations)->toBeEmpty(
         'Files with hardcoded $status=true in Aurora constructor:' .
         "\n" . implode("\n", $violations) .
-        "\nReplace with: (bool)(\$_ENV['APP_DEBUG'] ?? false)",
+        "\nReplace with: env_bool('APP_DEBUG')",
     );
 });
 

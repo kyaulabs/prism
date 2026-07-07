@@ -27,8 +27,9 @@ values:
 
 $rus = getrusage();
 require_once(__DIR__ . "/../aurora/aurora.inc.php");
+require_once(__DIR__ . "/../backend/env.php");
 
-$site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: (bool)($_ENV['APP_DEBUG'] ?? false), html: true);
+$site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: env_bool('APP_DEBUG'), html: true);
 $site->title = "Page Title";
 $site->description = "Page description for search engines.";
 $site->dns = ["cdn.<domain>"];
@@ -62,7 +63,7 @@ new KYAULabs\Aurora(?string $template = null, ?string $cdn = '/cdn', bool $statu
 
 - `$template` — base HTML template name (e.g. `"index.html"`)
 - `$cdn` — CDN directory path (e.g. `"/cdn"`)
-- `$status` — **debug mode**: enables `display_errors`, `display_startup_errors`, `E_ALL` reporting, and `html_errors`. Must be `false` in production. Wire to `(bool)($_ENV['APP_DEBUG'] ?? false)`.
+- `$status` — **debug mode**: enables `display_errors`, `display_startup_errors`, `E_ALL` reporting, and `html_errors`. Must be `false` in production. Wire to `env_bool('APP_DEBUG')`.
 - `$html` — **HTML output mode**: sets `mb_http_output('UTF-8')` and sends `Content-Type: text/html; charset=UTF-8` header
 - `$templateDir` — optional custom template overlay directory (checked first; falls back to Aurora's default `html/` directory)
 
@@ -77,7 +78,7 @@ API change to Aurora is needed.
 
 - *Using `$status = true` in production* — enables full error display with
   stack traces, absolute paths, and SQL fragments rendered to any visitor on
-  an unhandled error. Always use `(bool)($_ENV['APP_DEBUG'] ?? false)` for
+  an unhandled error. Always use `env_bool('APP_DEBUG')` for
   the `$status` parameter. `APP_DEBUG` must be `false` in `.env` for
   production deployments.
 - *Constructor unconditionally enables error display before the `$status`
