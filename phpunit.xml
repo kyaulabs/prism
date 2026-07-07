@@ -6,6 +6,12 @@
     cacheDirectory=".phpunit.cache"
     colors="true"
 >
+    <groups>
+        <exclude>
+            <group>slow</group>
+        </exclude>
+    </groups>
+
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
