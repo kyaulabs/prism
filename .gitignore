@@ -2,6 +2,9 @@
 .php-cs-fixer.cache
 .phpunit.cache
 
+# Coding Harness Setup
+.opencode/setup.json
+
 # Semgrep settings (API keys, registry tokens)
 .semgrep/settings.yml
 

@@ -501,4 +501,24 @@ it('deterministic gate: output contains expected string fails when needle absent
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
 
+it('deterministic gate: output contains expected string fails when expectedString is null', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['behavior'],
+        passCriteria: 'output contains expected string',
+        // expectedString defaults to null
+    );
+
+    $result = $runner->checkDeterministic($case, 'some output', '', 0);
+
+    expect($result)->not->toBeNull();
+    expect($result->verdict)->toBe('FAIL');
+    expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
+    expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

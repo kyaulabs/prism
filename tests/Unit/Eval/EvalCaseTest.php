@@ -113,4 +113,42 @@ it('parses expected_string from JSON', function () {
     unlink($file);
 });
 
+it('validates expected_string that is empty when pass_criteria requires it', function () {
+    $json = json_encode([
+        'name' => 'empty-string',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'output contains expected string',
+        'expected_string' => '',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->toContain("expected_string is required when pass_criteria is 'output contains expected string'");
+    unlink($file);
+});
+
+it('warns when expected_string is set but pass_criteria does not require it', function () {
+    $json = json_encode([
+        'name' => 'misconfigured',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'exit code zero',
+        'expected_string' => 'some needle',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->toContain("expected_string is set but pass_criteria is 'exit code zero' (did you mean 'output contains expected string'?)");
+    unlink($file);
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

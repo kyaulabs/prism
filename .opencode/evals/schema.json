@@ -43,6 +43,7 @@
     },
     "expected_string": {
       "type": "string",
+      "minLength": 1,
       "description": "Required when pass_criteria is 'output contains expected string'. The substring that must appear in stdout for the case to pass."
     },
     "tags": {
@@ -52,8 +53,7 @@
     }
   },
   "if": {
-    "properties": { "pass_criteria": { "const": "output contains expected string" } },
-    "required": ["pass_criteria"]
+    "properties": { "pass_criteria": { "const": "output contains expected string" } }
   },
   "then": {
     "required": ["expected_string"]

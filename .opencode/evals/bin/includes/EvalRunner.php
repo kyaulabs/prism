@@ -11,7 +11,10 @@ namespace KYAULabs\Eval;
  */
 class EvalCase
 {
-    /** @param string[] $expectedBehavior */
+    /**
+     * @param string[] $expectedBehavior
+     * @param ?string  $expectedString   Required when passCriteria is 'output contains expected string'.
+     */
     public function __construct(
         public readonly string $name,
         public readonly string $description,
@@ -100,6 +103,11 @@ class EvalCase
         if ($this->passCriteria === 'output contains expected string'
             && ($this->expectedString === null || $this->expectedString === '')) {
             $errors[] = "expected_string is required when pass_criteria is 'output contains expected string'";
+        }
+
+        if ($this->expectedString !== null && $this->expectedString !== ''
+            && $this->passCriteria !== 'output contains expected string') {
+            $errors[] = "expected_string is set but pass_criteria is '{$this->passCriteria}' (did you mean 'output contains expected string'?)";
         }
 
         return $errors;
@@ -466,13 +474,18 @@ class Runner
                 break;
 
             case 'output contains expected string':
-                $found = $case->expectedString !== null && str_contains($stdout, $case->expectedString);
-                $checks['expected_string'] = [
-                    'needle' => $case->expectedString ?? '',
-                    'found' => $found,
-                    'pass' => $found,
-                ];
-                $verdict = $found ? 'PASS' : 'FAIL';
+                if ($case->expectedString === null || $case->expectedString === '') {
+                    $checks['expected_string'] = ['needle' => '', 'found' => false, 'pass' => false];
+                    $verdict = 'FAIL';
+                } else {
+                    $found = str_contains($stdout, $case->expectedString);
+                    $checks['expected_string'] = [
+                        'needle' => $case->expectedString,
+                        'found' => $found,
+                        'pass' => $found,
+                    ];
+                    $verdict = $found ? 'PASS' : 'FAIL';
+                }
                 break;
 
             case 'manual inspection required':
