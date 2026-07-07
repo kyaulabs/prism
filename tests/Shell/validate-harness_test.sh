@@ -36,6 +36,8 @@ T1=$(mktemp -d)
 (
 	cd "$T1"
 	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
 	mkdir -p .opencode/skills/test-skill
 	cat > .opencode/skills/test-skill/SKILL.md <<'EOF'
 ---
