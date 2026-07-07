@@ -102,6 +102,18 @@ if [ -n "$STAGED_SRC" ]; then
 			continue
 		fi
 
+		# Refuse to rewrite when the working tree has unstaged changes to this file.
+		# The auto-add rebuilds the file from the staged blob; cp'ing that over the
+		# working tree would silently destroy unstaged hunks (e.g. from `git add -p`).
+		if ! git diff --quiet -- "$file"; then
+			echo "✗ RCS auto-add blocked: '$file' has unstaged working-tree changes." >&2
+			echo "  The auto-add rewrites the file from the staged blob, which would" >&2
+			echo "  destroy unstaged hunks. To fix:" >&2
+			echo "    - Stage the file fully:  git add $file" >&2
+			echo "    - Or add the RCS header manually." >&2
+			exit 1
+		fi
+
 		FNAME=$(basename "$file")
 		EXT="${file##*.}"
 
@@ -124,6 +136,31 @@ if [ -n "$STAGED_SRC" ]; then
 		# Extract staged content
 		TMP=$(mktemp)
 		git show ":$file" > "$TMP" 2>/dev/null || { rm -f "$TMP"; continue; }
+
+		# Determine whether to append the vim modeline.
+		# For PHP files, skip the modeline when the file ends outside PHP context
+		# (after `?>` or in HTML output) — a `// vim:` line would render as
+		# visible text in the browser.
+		APPEND_ML=true
+		if [ "$EXT" = "php" ]; then
+			in_php=$(awk '
+				BEGIN { in_php = 0 }
+				{
+					line = $0
+					while (length(line) > 0) {
+						if (!in_php) {
+							if (match(line, /<\?(php|=)?/)) { in_php = 1; line = substr(line, RSTART + RLENGTH) }
+							else { line = "" }
+						} else {
+							if (match(line, /\?>/)) { in_php = 0; line = substr(line, RSTART + 2) }
+							else { line = "" }
+						}
+					}
+				}
+				END { print (in_php ? "1" : "0") }
+			' "$TMP")
+			[ "$in_php" = "1" ] || APPEND_ML=false
+		fi
 
 		# Insert header and modeline
 		{
@@ -152,8 +189,10 @@ if [ -n "$STAGED_SRC" ]; then
 				echo ""
 				cat "$TMP"
 			fi
-			echo ""
-			echo "$ML"
+			if $APPEND_ML; then
+				echo ""
+				echo "$ML"
+			fi
 		} > "$TMP.mod"
 
 		# Write to working tree and re-stage
