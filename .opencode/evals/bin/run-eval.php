@@ -100,10 +100,12 @@ if (!$runner->isOpenCodeAvailable()) {
 }
 
 // ── Run the agent in a disposable worktree ─────────────────────────────
-$worktree = $runner->createWorktree();
+$worktree = null;
 $result = null;
 
 try {
+    $worktree = $runner->createWorktree();
+
     $start = hrtime(true);
     $cmd = $runner->buildCommand($case, $worktree);
     $agentOutput = $runner->executeCommand($cmd, $args['timeout']);
@@ -141,7 +143,9 @@ try {
         $result->durationMs = $elapsedMs;
     }
 } finally {
-    $runner->removeWorktree($worktree);
+    if ($worktree !== null) {
+        $runner->removeWorktree($worktree);
+    }
 }
 
 // ── Output ───────────────────────────────────────────────────────────────

@@ -181,7 +181,7 @@ class Runner
      */
     public function buildCommand(EvalCase $case, ?string $dir = null): string
     {
-        $agent = ltrim($case->agent, '@');
+        $agent = escapeshellarg(ltrim($case->agent, '@'));
         $message = escapeshellarg($case->input);
         $dir = escapeshellarg($dir ?? $this->repoRoot);
 
@@ -656,13 +656,22 @@ PROMPT;
         if (is_dir($path)) {
             // Fallback: remove the directory directly if git refused.
             $this->removeDirectory($path);
+
+            // Prune orphaned .git/worktrees/<id>/ metadata so git worktree
+            // list stays clean and future worktree adds don't collide.
+            $pruneCmd = sprintf(
+                'git -C %s worktree prune 2>&1',
+                escapeshellarg($this->repoRoot),
+            );
+            exec($pruneCmd);
         }
     }
 
     /**
      * Recursively remove a directory (cross-platform).
      *
-     * @param string $path
+     * @param  string $path
+     * @return void
      */
     private function removeDirectory(string $path): void
     {

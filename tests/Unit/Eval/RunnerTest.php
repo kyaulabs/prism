@@ -24,8 +24,8 @@ it('builds correct opencode run command', function () {
     // Command starts with opencode run
     expect($cmd)->toContain('opencode run');
 
-    // Uses --agent with the agent name (stripped of @)
-    expect($cmd)->toContain('--agent tdd');
+    // Uses --agent with the agent name (stripped of @, then escaped)
+    expect($cmd)->toContain(escapeshellarg('tdd'));
 
     // Uses --dir for the repo root
     expect($cmd)->toContain('--dir');
@@ -53,8 +53,8 @@ it('buildCommand reflects case agent', function () {
 
     $cmd = $runner->buildCommand($case);
 
-    // Agent from the eval case is reflected in --agent
-    expect($cmd)->toContain('--agent code-review');
+    // Agent from the eval case is reflected in --agent (escaped)
+    expect($cmd)->toContain(escapeshellarg('code-review'));
 });
 
 it('buildJudgeCommand uses valid opencode run flags', function () {
@@ -305,6 +305,8 @@ it('createWorktree creates a real git worktree and removeWorktree cleans it up',
     exec('git -C ' . escapeshellarg($repo) . ' add README');
     exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
+    $worktree = null;
+
     try {
         $runner = new Runner($repo);
 
@@ -326,8 +328,10 @@ it('createWorktree creates a real git worktree and removeWorktree cleans it up',
         $listAfter = shell_exec('git -C ' . escapeshellarg($repo) . ' worktree list');
         expect($listAfter)->not->toContain($worktreeBase);
     } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
         if (is_dir($repo)) {
-            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($repo . '/wt') . ' 2>/dev/null');
             // Cross-platform recursive delete
             if (DIRECTORY_SEPARATOR === '\\') {
                 exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
