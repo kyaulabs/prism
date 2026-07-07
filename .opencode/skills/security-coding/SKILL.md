@@ -139,7 +139,7 @@ split between Semgrep rules (`.semgrep/kyaulabs.yml`) and Pest tests.
 // DON'T — positional bools are ambiguous. Which is $status? Which is $html?
 $site = new KYAULabs\Aurora("index.html", "/cdn", true, true);
 // FIXED — named arguments make the dangerous $status param explicit
-$site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: (bool)($_ENV['APP_DEBUG'] ?? false), html: true);
+$site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: env_bool('APP_DEBUG'), html: true);
 ```
 
 - `$status=true` leaks stack traces, absolute paths, and SQL fragments to
