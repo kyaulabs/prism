@@ -65,6 +65,11 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
 test('env_bool returns true after load_env loads APP_DEBUG=true', function () {
     require_once __DIR__ . '/../../backend/env.php';
 
+    // Clear any leftover state from other test files (e.g. EnvBoolTest
+    // may leave putenv('APP_DEBUG=false') in the global environment).
+    unset($_ENV['APP_DEBUG']);
+    putenv('APP_DEBUG');
+
     $path = sys_get_temp_dir() . '/test_integration_debug.env';
     file_put_contents($path, "APP_DEBUG=true\n");
 
