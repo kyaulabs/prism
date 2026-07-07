@@ -84,8 +84,8 @@ if command -v gitleaks > /dev/null 2>&1; then
 fi
 
 # ── RCS header auto-add (staged source files missing a header) ─────────────────
-STAGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh)$' || true)
-STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|\.opencode/|cdn/css/|cdn/javascript/)' || true)
+STAGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh|ts)$' || true)
+STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|cdn/css/|cdn/javascript/)' || true)
 if [ -n "$STAGED_SRC" ]; then
 	CREATOR=$(git config user.email 2>/dev/null | cut -d@ -f1)
 	[ -z "$CREATOR" ] && CREATOR=$(git config user.name 2>/dev/null | tr -d ' ' 2>/dev/null || echo "unknown")
@@ -123,6 +123,7 @@ if [ -n "$STAGED_SRC" ]; then
 			scss)  HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
 			js)    HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
 			sh)    HDR="# \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
+			ts)    HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
 		esac
 
 		# Determine vim modeline
@@ -131,6 +132,7 @@ if [ -n "$STAGED_SRC" ]; then
 			scss)  ML="// vim: ft=scss sts=2 sw=2 ts=2 et :" ;;
 			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 noet :" ;;
 			sh)    ML="# vim: ft=sh sts=4 sw=4 ts=4 et :" ;;
+			ts)    ML="// vim: ft=typescript sts=4 sw=4 ts=4 et :" ;;
 		esac
 
 		# Extract staged content

@@ -9,7 +9,7 @@ Every source file must begin with an RCS-style creation stamp. Write it once whe
 the file is first created. Never update it. The pre-commit hook auto-adds the
 header if you miss one.
 
-Applies to **source files only**: `.php`, `.js`, `.scss`, `.sh`. Markdown, JSON,
+Applies to **source files only**: `.php`, `.js`, `.scss`, `.sh`, `.ts`. Markdown, JSON,
 YAML, and other non-source files do not carry RCS headers.
 
 ```text
@@ -17,6 +17,7 @@ PHP:  <?php # $KYAULabs: filename.php creator@host YYYY/MM/DD ±TZ Exp $
 SCSS: // $KYAULabs: filename.scss creator@host YYYY/MM/DD ±TZ Exp $
 JS:   // $KYAULabs: filename.js creator@host YYYY/MM/DD ±TZ Exp $
 Bash: # $KYAULabs: filename.sh creator@host YYYY/MM/DD ±TZ Exp $
+TS:   // $KYAULabs: filename.ts creator@host YYYY/MM/DD ±TZ Exp $
 ```
 
 Use the actual filename (not a path). The fields are:
@@ -31,7 +32,7 @@ version, update the timestamp, or otherwise modify the header after creation.
 ### Placement
 
 - **PHP**: after `<?php` and optional `declare(strict_types=1);`, before code.
-- **SCSS/JS**: first line of the file.
+- **SCSS/JS/TS**: first line of the file.
 - **Bash**: after the shebang line (`#!/usr/bin/env bash`), before code.
 
 ### Automation
@@ -47,6 +48,7 @@ PHP:  // vim: ft=php sts=4 sw=4 ts=4 et :
 SCSS: // vim: ft=scss sts=2 sw=2 ts=2 et :
 JS:   // vim: ft=javascript sts=4 sw=4 ts=4 noet :
 Bash: # vim: ft=sh sts=4 sw=4 ts=4 et :
+TS:   // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```
 
 The modeline is the very last line of the file, after all code.

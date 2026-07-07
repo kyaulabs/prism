@@ -77,8 +77,10 @@ See `.opencode/docs/conventions.md` for file naming conventions.
 
 > [!IMPORTANT]
 >
-> - Every file starts with an RCS-style header — see `rcs-header` skill
-> - Every file ends with a vim modeline — see `rcs-header` skill
+> - Every source file (`.php`, `.js`, `.scss`, `.sh`, `.ts`) starts with an
+>   RCS-style header — see `rcs-header` skill. Exempt: `vendor/`, `node_modules/`,
+>   `aurora/`, and generated `cdn/css/` + `cdn/javascript/` files.
+> - Every source file ends with a vim modeline — see `rcs-header` skill
 > - PHP classes/methods: PHPDoc (PSR-5) with params, return types, exceptions
 > - No explanatory comments unless explicitly requested
 

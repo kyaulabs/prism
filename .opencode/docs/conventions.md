@@ -17,6 +17,7 @@ Referenced by `opencode.json`. Loaded alongside AGENTS.md in every session. This
 - PHP: 4-space (PSR-12)
 - SCSS: 2-space
 - JS: tabs, tab-stop 4
+- TS: 4-space
 
 ## PHP Standards
 
