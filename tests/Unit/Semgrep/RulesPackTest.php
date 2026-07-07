@@ -137,21 +137,22 @@ function filterFindings(array $results, string $ruleId, string $fixtureFile): ar
     ));
 }
 
-test('Semgrep rules: each positive fixture triggers its rule')
+test('Semgrep rules: each positive fixture fires its rule the expected number of times')
     ->with([
-        ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal'],
-        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query'],
-        ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink'],
-        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data'],
-        ['MissingCsrfToken',        'kyaulabs-missing-csrf-token'],
-        ['HardcodedDisplayErrors',  'kyaulabs-hardcoded-display-errors-on'],
+        ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal', 1],
+        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query',    2],
+        ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink',      1],
+        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data',   1],
+        ['MissingCsrfToken',        'kyaulabs-missing-csrf-token',         1],
+        ['HardcodedDisplayErrors',  'kyaulabs-hardcoded-display-errors-on', 1],
     ])
     ->skip(!semgrepAvailable(), 'semgrep not installed')
-    ->expect(function (string $dir, string $ruleId): array {
+    ->expect(function (string $dir, string $ruleId, int $expectedCount): bool {
         $scan = semgrepScanDir($dir);
+        $findings = filterFindings($scan['results'], $ruleId, 'positive.php');
 
-        return filterFindings($scan['results'], $ruleId, 'positive.php');
-    })->not->toBeEmpty();
+        return count($findings) === $expectedCount;
+    })->toBeTrue();
 
 test('Semgrep rules: each negative fixture does not trigger its rule')
     ->with([

@@ -11,4 +11,7 @@ declare(strict_types=1);
 $id = $_GET['id'];
 $result = $db->execute("SELECT * FROM users WHERE id = ?", [$id]);
 
+$sql = "SELECT * FROM users WHERE id = ?";
+$result = $db->query($sql);
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

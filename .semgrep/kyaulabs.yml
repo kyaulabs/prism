@@ -41,6 +41,7 @@ rules:
           - pattern: $DB->query("..." . $VAR . "...");
           - pattern: $DB->query($VAR . "...");
           - pattern: $DB->query("..." . $VAR,);
+          - pattern-regex: 'query\(\s*"[^"]*\$[^"]*"\s*\)'
       - pattern-not-regex: '\b(?:execute|prepare)\b'
 
   # --- XSS: unescaped echo/print of request superglobals ---
