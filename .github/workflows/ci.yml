@@ -80,6 +80,9 @@ jobs:
           php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 &
           echo "PHP_SERVER_PID=$!" >> $GITHUB_ENV
 
+      - name: Install Semgrep
+        run: python3 -m pip install --quiet semgrep
+
       - name: Pest (coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
         run: php vendor/bin/pest --coverage --min=80
@@ -91,9 +94,7 @@ jobs:
         run: kill $PHP_SERVER_PID 2>/dev/null || true
 
       - name: Semgrep SAST
-        run: |
-          python3 -m pip install --quiet semgrep
-          semgrep ci
+        run: semgrep ci --config .semgrep/kyaulabs.yml
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
