@@ -12,34 +12,73 @@ declare(strict_types=1);
  * pre-push gate (/check).
  */
 
-function semgrepAvailable(): bool
+/**
+ * Resolve the semgrep binary path.
+ *
+ * Probes ~/.local/bin/semgrep first (when HOME or USERPROFILE is set),
+ * then semgrep on PATH. Returns the first binary that answers --version,
+ * or null if neither is available. Memoizes the result so probing occurs
+ * at most once per process.
+ *
+ * @return ?string  Quoted binary path, unquoted 'semgrep', or null.
+ */
+function semgrepResolve(): ?string
 {
-    $output = [];
-    $code = 0;
-    $home = getenv('USERPROFILE') ?: getenv('HOME');
+    static $resolved = null;
+    static $set = false;
 
-    if ($home) {
-        $bin = $home . DIRECTORY_SEPARATOR . '.local' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'semgrep';
-        exec('"' . $bin . '" --version 2>&1', $output, $code);
+    if ($set) {
+        return $resolved;
     }
 
-    if ($code !== 0) {
-        exec('semgrep --version 2>&1', $output, $code);
-    }
-
-    return $code === 0;
-}
-
-function semgrepBin(): string
-{
     $home = getenv('USERPROFILE') ?: getenv('HOME');
+    $candidates = [];
 
     if ($home) {
-        return '"' . $home . DIRECTORY_SEPARATOR . '.local'
+        $candidates[] = '"' . $home . DIRECTORY_SEPARATOR . '.local'
             . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'semgrep' . '"';
     }
+    $candidates[] = 'semgrep';
 
-    return 'semgrep';
+    foreach ($candidates as $bin) {
+        $output = [];
+        $code = 0;
+        exec($bin . ' --version 2>&1', $output, $code);
+
+        if ($code === 0) {
+            $resolved = $bin;
+            $set = true;
+
+            return $resolved;
+        }
+    }
+
+    $resolved = null;
+    $set = true;
+
+    return null;
+}
+
+/**
+ * Check whether semgrep is available on this system.
+ *
+ * @return bool
+ */
+function semgrepAvailable(): bool
+{
+    return semgrepResolve() !== null;
+}
+
+/**
+ * Return the semgrep binary path.
+ *
+ * Must only be called when semgrep is available (guarded by semgrepAvailable).
+ *
+ * @return string  Quoted binary path or 'semgrep'.
+ */
+function semgrepBin(): string
+{
+    return semgrepResolve() ?? 'semgrep';
 }
 
 function semgrepScanDir(string $dir): array
@@ -129,5 +168,16 @@ test('Semgrep rules: each negative fixture does not trigger its rule')
 
         return filterFindings($scan['results'], $ruleId, 'negative.php');
     })->toBeEmpty();
+
+test('semgrepBin returns a working binary when semgrep is available')
+    ->skip(! semgrepAvailable(), 'semgrep not installed')
+    ->expect(function (): int {
+        $bin = semgrepBin();
+        $output = [];
+        $code = 0;
+        exec($bin . ' --version 2>&1', $output, $code);
+
+        return $code;
+    })->toBe(0);
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
