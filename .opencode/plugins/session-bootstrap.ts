@@ -1,3 +1,5 @@
+// $KYAULabs: session-bootstrap.ts kyau@nova 2026/07/07 -0700 Exp $
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "@opencode-ai/plugin";
@@ -19,7 +21,17 @@ export const SessionBootstrap: Plugin = async ({ directory }) => {
         "docs",
         "session-bootstrap.md",
     );
-    const bootstrap = readFileSync(bootstrapPath, "utf-8");
+    let bootstrap = "";
+    try {
+        bootstrap = readFileSync(bootstrapPath, "utf-8");
+    } catch (err: unknown) {
+        console.warn(
+            `[session-bootstrap] could not read ${bootstrapPath}: ` +
+            `${err instanceof Error ? err.message : String(err)}. ` +
+            `Anti-drift bootstrap disabled for this session.`
+        );
+        return {};
+    }
 
     return {
         "experimental.chat.system.transform": async (_input, output) => {
@@ -30,3 +42,5 @@ export const SessionBootstrap: Plugin = async ({ directory }) => {
         },
     };
 };
+
+// vim: ft=typescript sts=4 sw=4 ts=4 et :

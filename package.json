@@ -13,6 +13,7 @@
 		"sass": "^1",
 		"stylelint": "^17",
 		"stylelint-config-standard-scss": "^17",
+		"tsx": "^4.23.0",
 		"uglify-js": "^3"
 	},
 	"allowScripts": {
