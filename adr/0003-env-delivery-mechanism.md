@@ -42,16 +42,21 @@ Forces:
 We implement a first-party `load_env(string $path): void` function in
 `backend/env.php` that parses a `.env` file at page bootstrap:
 
-- **Explicit call** — the aurora-page skill template calls `load_env()` after
-  `require_once "backend/env.php"`. No side-effect-on-include; tests that set
-  `$_ENV` manually are not disrupted.
+- **Explicit call with explicit path** — the aurora-page skill template calls
+  `load_env(__DIR__ . '/../.env')` after `require_once "backend/env.php"`. The
+  caller passes the path, keeping the function honest (no magic path derivation)
+  and testable (tests pass temp file paths directly). No side-effect-on-include;
+  tests that set `$_ENV` manually are not disrupted.
 - **File-absent → no-op** — production has no `.env` (gitignored). The
   debug-off default is held by *file absence*, not by PHP runtime config.
 - **Minimal parser** — read lines; skip blanks and `#`/`;` comments; split on
   first `=`; trim; strip surrounding matching quotes. No interpolation, no
   nested expansion.
-- **Never overwrite** — `$_ENV[$key]` is set only if the key does not already
-  exist. Server-delivered vars (FPM `env[]`) win over `.env`.
+- **Never overwrite** — a key is set only if it does not already exist in
+  `$_ENV` **and** `getenv()` returns `false`. This ensures server-delivered vars
+  (FPM `env[]`) win over `.env` regardless of whether the server populates
+  `$_ENV` (via `variables_order=E`) or only `getenv()`. The combined check
+  covers both delivery paths.
 - **Dual population** — `$_ENV[$key] = $value` and `putenv("$key=$value")`.
   This covers both consumers: `$_ENV` access (PHP arrays) and `getenv()` calls.
 - `env_bool()` is **unchanged** — continues reading `$_ENV ?? getenv()`.
@@ -60,7 +65,10 @@ We implement a first-party `load_env(string $path): void` function in
 
 - **Easier:** `APP_DEBUG=true` in `.env` now measurably enables Aurora debug
   mode. Developers follow the documented path; hardcoded `status: true` is no
-  longer the only option.
+  longer the only option. This completes the `env_bool()`-as-single-point-of-control
+  contract from ADR 0002 — the Semgrep rule `kyaulabs-aurora-status-true-literal`
+  and the Pest arch test `AuroraConstructorStatusTest` are now fully
+  enforceable (developers have a documented, working path to enable debug).
 - **Easier:** production default remains safe — absent `.env` file means
   `APP_DEBUG` resolves to the `env_bool()` default (`false`).
 - **Easier:** zero new dependencies; `composer.json` stays runtime-dependency-free.

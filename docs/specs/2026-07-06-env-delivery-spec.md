@@ -38,7 +38,9 @@ now safe.
 ### Explicit load, not auto-run
 
 `load_env()` is **not** called at the bottom of `backend/env.php`. Side-effect-on-include would break `EnvBoolTest` (which sets `$_ENV` manually) and would hide a file read in what appears to be a function library.
-The page template calls `load_env()` explicitly after the `require_once`.
+The page template calls `load_env(__DIR__ . '/../.env')` explicitly after the
+`require_once`. The caller passes the path — no magic path derivation in the
+function.
 
 ## Architecture
 
@@ -47,7 +49,7 @@ Page (aurora-page template)                backend/env.php (extended)
 ┌──────────────────────────────┐          ┌──────────────────────────────┐
 │ require aurora.inc.php       │          │ declare(strict_types=1);     │
 │ require backend/env.php      │          │                              │
-│ load_env();    ← NEW          │          │ env_bool()  ← UNCHANGED    │
+│ load_env("../.env"); ← NEW    │          │ env_bool()  ← UNCHANGED    │
 │                              │  writes  │                              │
 │ new Aurora(                   │────────→│ load_env()  ← NEW            │
 │   status: env_bool('APP_DEBUG')         │  - is_file() guard           │
@@ -71,7 +73,7 @@ Page (aurora-page template)                backend/env.php (extended)
 | `adr/0003-env-delivery-mechanism.md` | Create | ADR for the mechanism choice |
 | `backend/env.php` | Modify | Add `load_env()` function |
 | `tests/Unit/LoadEnvTest.php` | Create | TDD tests for `load_env()` |
-| `.opencode/skills/aurora-page/SKILL.md` | Modify | Add `load_env();` call |
+| `.opencode/skills/aurora-page/SKILL.md` | Modify | Add `load_env(__DIR__ . '/../.env');` call |
 | `.env.example` | Modify | Update header: how the file is consumed |
 | `CONTEXT.md` | Modify | Add ADR 0003 to architectural decisions |
 
@@ -81,7 +83,9 @@ Page (aurora-page template)                backend/env.php (extended)
 - Lines trimmed; blank lines and lines starting with `#` or `;` → skipped.
 - Split on **first** `=`; trim key and value.
 - Strips single matching pair of `'` or `"` from value.
-- **Never overwrites** a key already set in `$_ENV` (server env wins).
+- **Never overwrites** a key already set in `$_ENV` or `getenv()` (server env
+  wins over `.env`, regardless of whether the server populated `$_ENV` or only
+  `getenv()`).
 - No variable interpolation, no nested expansion, no escaping.
 - Sets both `$_ENV[$key]` and `putenv("$key=$value")`.
 
@@ -98,7 +102,9 @@ Page (aurora-page template)                backend/env.php (extended)
 - Happy: temp `.env` with `APP_DEBUG=true` → `env_bool('APP_DEBUG')` is true.
 - Happy: `APP_DEBUG=false` → false.
 - Absent file: `env_bool('APP_DEBUG')` stays false.
-- Precedence: pre-set `$_ENV['KEY']` not overwritten by `.env`.
+- Precedence (`$_ENV`): pre-set `$_ENV['KEY']` not overwritten by `.env`.
+- Precedence (`getenv`): pre-set via `putenv('KEY=server')` not overwritten by
+  `.env` even when `$_ENV['KEY']` is not set.
 - Comments: `#` and `;` lines ignored.
 - Blank lines ignored.
 - Quoted values: `KEY="value"` → value stripped to `value`.
