@@ -62,4 +62,36 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
     );
 });
 
+test('env_bool returns true after load_env loads APP_DEBUG=true', function () {
+    require_once __DIR__ . '/../../backend/env.php';
+
+    $path = sys_get_temp_dir() . '/test_integration_debug.env';
+    file_put_contents($path, "APP_DEBUG=true\n");
+
+    load_env($path);
+
+    $result = env_bool('APP_DEBUG');
+
+    expect($result)->toBeTrue();
+
+    unlink($path);
+    unset($_ENV['APP_DEBUG']);
+    putenv('APP_DEBUG');
+});
+
+test('env_bool returns false when load_env file is absent (prod default)', function () {
+    require_once __DIR__ . '/../../backend/env.php';
+
+    unset($_ENV['APP_DEBUG']);
+    putenv('APP_DEBUG');
+
+    $path = sys_get_temp_dir() . '/definitely_not_a_file.env';
+
+    load_env($path);
+
+    $result = env_bool('APP_DEBUG');
+
+    expect($result)->toBeFalse();
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

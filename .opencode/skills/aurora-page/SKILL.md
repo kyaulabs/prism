@@ -28,6 +28,7 @@ values:
 $rus = getrusage();
 require_once(__DIR__ . "/../aurora/aurora.inc.php");
 require_once(__DIR__ . "/../backend/env.php");
+load_env(__DIR__ . '/../.env');
 
 $site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: env_bool('APP_DEBUG'), html: true);
 $site->title = "Page Title";
@@ -96,3 +97,13 @@ API change to Aurora is needed.
   start-of-request resource usage but only produces visible output when
   paired with `$site->comment($rus, basename(__FILE__))`. Both must be
   present in the page template for the performance footer to render.
+- *`load_env()` must be called explicitly* — `.env` is not loaded
+  automatically. The page template calls `load_env(__DIR__ . '/../.env')`
+  after the `require_once` for `backend/env.php`. If debug mode isn't
+  activating, verify that: (a) `.env` exists at the expected path, (b)
+  `load_env()` is called before `env_bool('APP_DEBUG')`, and (c) the file
+  format follows KEY=VALUE with no shell-style `export` prefix.
+- *Absent `.env` is silent* — `load_env()` returns void and produces no
+  warning if the file is missing. This is by design for production safety.
+  If `env_bool('APP_DEBUG')` returns false unexpectedly, check whether `.env`
+  exists and is readable.
