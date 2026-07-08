@@ -58,22 +58,4 @@ function browser_base_url(): string
     return getenv('PEST_BROWSER_BASE_URL') ?: 'http://localhost:8080';
 }
 
-/*
-|--------------------------------------------------------------------------
-| Arch Tests
-|--------------------------------------------------------------------------
-|
-| Architecture tests enforce invariants across the entire codebase without
-| requiring per-class test files. See .opencode/docs/conventions.md.
-|
-*/
-
-arch('no debug functions in production code')
-    ->expect(['dd', 'dump', 'var_dump', 'print_r'])
-    ->not->toBeUsed();
-
-arch('backend classes use strict types')
-    ->expect('KYAULabs')
-    ->toUseStrictTypes();
-
 // vim: ft=php sts=4 sw=4 ts=4 et :

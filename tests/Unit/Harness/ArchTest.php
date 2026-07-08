@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 # $KYAULabs: ArchTest.php kyau@nova 2026/07/08 -0700 Exp $
 
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-
 /**
  * Harness architecture test exclude directories.
  *
