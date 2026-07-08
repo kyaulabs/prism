@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file uses the correct pattern: $status wired to APP_DEBUG via
 # env_bool() — filter_var coercion prevents the (bool) cast bug where

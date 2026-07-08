@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file sets display_errors off or delegates to Aurora. The
 # kyaulabs-hardcoded-display-errors-on rule must NOT fire.

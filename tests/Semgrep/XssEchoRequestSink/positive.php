@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: positive.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: positive.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file intentionally contains an unescaped request superglobal echo —
 # an XSS sink. The kyaulabs-xss-echo-request-sink rule must fire.

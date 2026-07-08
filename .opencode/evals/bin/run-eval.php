@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: run-eval.php kyau@nova 2026/07/05 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: run-eval.php kyau@nova 2026/07/05 -0700 Exp $
 
 /**
  * run-eval.php — Execute a single eval case against opencode run.

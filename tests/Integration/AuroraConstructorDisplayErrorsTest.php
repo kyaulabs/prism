@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@nova 2026/07/07 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@nova 2026/07/07 -0700 Exp $
 
 test('display_errors remains off when Aurora throws with status=false', function () {
     $auroraPath = dirname(__DIR__, 2) . '/aurora/aurora.inc.php';

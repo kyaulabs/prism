@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file uses a parameterized query with bound parameters — the safe
 # pattern. The kyaulabs-sqli-interpolated-query rule must NOT fire.

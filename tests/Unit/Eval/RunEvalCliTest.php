@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/05 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/05 -0700 Exp $
 
 it('run-eval.php exists and is executable', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';

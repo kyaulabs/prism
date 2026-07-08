@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: positive.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: positive.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file intentionally contains a SQL injection pattern: string
 # concatenation in a query() call. The kyaulabs-sqli-interpolated-query

@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: RunEvalIntegrationTest.php kyau@nova 2026/07/05 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: RunEvalIntegrationTest.php kyau@nova 2026/07/05 -0700 Exp $
 
 /**
  * @group slow

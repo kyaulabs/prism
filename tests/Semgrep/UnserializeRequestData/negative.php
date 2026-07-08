@@ -1,9 +1,8 @@
 <?php
 
-# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
-
-
 declare(strict_types=1);
+
+# $KYAULabs: negative.php kyau@nova 2026/07/05 -0700 Exp $
 
 # This file unserializes a static, hardcoded string — no taint from
 # request data. The kyaulabs-unserialize-request-data rule must NOT fire.

@@ -32,6 +32,7 @@ version, update the timestamp, or otherwise modify the header after creation.
 ### Placement
 
 - **PHP**: after `<?php` and optional `declare(strict_types=1);`, before code.
+  - Ordering is enforced by `tests/Unit/Harness/RcsHeaderConventionTest.php`.
 - **SCSS/JS/TS**: first line of the file.
 - **Bash**: after the shebang line (`#!/usr/bin/env bash`), before code.
 

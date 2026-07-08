@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/05 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/05 -0700 Exp $
 
 it('run-suite.php exists', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';

@@ -1,8 +1,8 @@
 <?php
 
-# $KYAULabs: run-suite.php kyau@nova 2026/07/05 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: run-suite.php kyau@nova 2026/07/05 -0700 Exp $
 
 /**
  * run-suite.php — Batch eval suite runner.
