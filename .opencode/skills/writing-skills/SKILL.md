@@ -43,7 +43,7 @@ permission:
   edit: deny          # for read-only agents
   bash:
     "*": deny
-    "<pattern>": allow
+    "git status*": allow      # space-less prefix form — NEVER "git status *"
   webfetch: deny
   task: deny
 ---
@@ -153,6 +153,12 @@ causes a preventable mistake.
   source instead of duplicating. Duplicated rules drift out of sync.
 - *New skill not added to AGENTS.md tables* — the skill exists but the agent
   doesn't know to load it. Always update the tables.
+- *Bash permission pattern ends in `" *"` (space-asterisk)* — the vendored
+  OpenCode permission semantics treat space as a literal character
+  (permissions.mdx:99). `"git push *"` matches `git push origin main` but
+  NOT bare `git push` — the bare form falls through to the catch-all.
+  Always use the space-less prefix form: `"git push*"`, `"ls*"`, `"grep*"`.
+  The `validate-harness.sh` regression check enforces this.
 
 ## Mandatory: Gotchas section
 
