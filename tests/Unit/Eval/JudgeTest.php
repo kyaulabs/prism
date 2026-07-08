@@ -1,6 +1,6 @@
 <?php
 
-# $KYAULabs: JudgeTest.php creator@host YYYY/MM/DD ±TZ Exp $
+# $KYAULabs: JudgeTest.php kyau@nova 2026/07/05 -0700 Exp $
 
 declare(strict_types=1);
 

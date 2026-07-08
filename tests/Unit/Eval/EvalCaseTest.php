@@ -1,6 +1,6 @@
 <?php
 
-# $KYAULabs: EvalCaseTest.php creator@host YYYY/MM/DD ±TZ Exp $
+# $KYAULabs: EvalCaseTest.php kyau@nova 2026/07/05 -0700 Exp $
 
 declare(strict_types=1);
 

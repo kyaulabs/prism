@@ -1,6 +1,6 @@
 <?php
 
-# $KYAULabs: run-eval.php SEANBR~1@KYAU-DEV 2025/07/05 -0500 Exp $
+# $KYAULabs: run-eval.php kyau@nova 2026/07/05 -0700 Exp $
 
 declare(strict_types=1);
 
