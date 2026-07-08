@@ -9,7 +9,17 @@ tool. Do not push or commit anything.
 ## 1. PHP code style
 
 ```bash
-php-cs-fixer fix . --dry-run --diff
+CS_FIXER=""
+if [ -x vendor/bin/php-cs-fixer ]; then
+	CS_FIXER=vendor/bin/php-cs-fixer
+elif command -v php-cs-fixer > /dev/null 2>&1; then
+	CS_FIXER=php-cs-fixer
+fi
+if [ -n "$CS_FIXER" ]; then
+	"$CS_FIXER" fix . --dry-run --diff
+else
+	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
+fi
 ```
 
 If violations are found, list the affected files and a one-line summary of the
@@ -36,12 +46,14 @@ Skip with a note if eslint is not configured or no JS source exists.
 First, identify the PHP files that have changed:
 
 ```bash
+CHANGED=$(mktemp)
+trap 'rm -f "$CHANGED"' EXIT
 # Staged files (pre-commit); fall back to working-tree if nothing staged
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' > /tmp/changed.txt
-if [ ! -s /tmp/changed.txt ]; then
-  git diff --name-only | grep '\.php$' > /tmp/changed.txt
+git diff --staged --name-only --diff-filter=AM | grep '\.php$' > "$CHANGED"
+if [ ! -s "$CHANGED" ]; then
+  git diff --name-only | grep '\.php$' > "$CHANGED"
 fi
-echo "Changed PHP files:" && cat /tmp/changed.txt
+echo "Changed PHP files:" && cat "$CHANGED"
 ```
 
 Then run the full suite with coverage:
