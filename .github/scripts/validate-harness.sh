@@ -293,6 +293,110 @@ done < <(find "${HARNESS_DIR}" -name 'SKILL.md' -not -path '*/node_modules/*' 2>
 
 ok "${CROSSREF_COUNT} cross-reference(s) verified"
 
+# ── AGENTS.md index cross-check ──────────────────────────────────────────────
+
+echo "── Checking AGENTS.md index tables ──"
+AGENTS_MD="${REPO_ROOT}/AGENTS.md"
+
+if [ ! -f "$AGENTS_MD" ]; then
+	err "AGENTS.md not found at $AGENTS_MD — cannot validate index tables"
+else
+	INDEX_OK=0
+
+	# Extract markdown table rows under a given ## heading.
+	# Matches the heading line exactly ($0 == "## " h), then collects all
+	# | -prefixed rows until the next ## heading or EOF.
+	# Non-| lines (description paragraphs between heading and table) are
+	# silently skipped.
+	extract_table() {
+		local heading="$1"
+		awk -v h="$heading" '
+			$0 == "## " h { in_section = 1; next }
+			in_section && /^## / { exit }
+			in_section && /^\|/ { print }
+		' "$AGENTS_MD"
+	}
+
+	# Extract first-column names from a pipe-delimited markdown table (stdin).
+	# Splits on |, takes field 2, trims whitespace, strips backtick/@//
+	# decoration. Skips the first two rows (header + separator) so table
+	# header labels like "Skill" or "Command" are not treated as names.
+	extract_first_column_names() {
+		awk -F'|' '
+			/^\|/ {
+				line_num++
+				if (line_num <= 2) next
+				cell = $2
+				gsub(/^[ \t]+|[ \t]+$/, "", cell)
+				gsub(/^`|`$/, "", cell)
+				gsub(/^@/, "", cell)
+				gsub(/^\//, "", cell)
+				if (cell != "") print cell
+			}
+		'
+	}
+
+	# ── Forward check: every filesystem entry must have a table row ──────────
+
+	# Commands table
+	CMD_TABLE_NAMES=$(extract_table "Commands" | extract_first_column_names)
+	for cmd_file in "${COMMANDS_DIR}"/*.md; do
+		[ -f "$cmd_file" ] || continue
+		cmd_name=$(basename "$cmd_file" .md)
+		if ! echo "$CMD_TABLE_NAMES" | grep -qxF "$cmd_name"; then
+			err "AGENTS.md Commands table missing entry for '/${cmd_name}' (file: .opencode/commands/${cmd_name}.md)"
+		fi
+	done
+
+	# Agents Available table
+	AGENT_TABLE_NAMES=$(extract_table "Agents Available" | extract_first_column_names)
+	for agent_file in "${AGENTS_DIR}"/*.md; do
+		[ -f "$agent_file" ] || continue
+		agent_name=$(basename "$agent_file" .md)
+		if ! echo "$AGENT_TABLE_NAMES" | grep -qxF "$agent_name"; then
+			err "AGENTS.md Agents Available table missing entry for '@${agent_name}' (file: .opencode/agents/${agent_name}.md)"
+		fi
+	done
+
+	# Skills Available table
+	shopt -s nullglob
+	SKILL_TABLE_NAMES=$(extract_table "Skills Available" | extract_first_column_names)
+	for skill_dir in "${SKILLS_DIR}"/*/; do
+		[ -d "$skill_dir" ] || continue
+		skill_name=$(basename "$skill_dir")
+		if ! echo "$SKILL_TABLE_NAMES" | grep -qxF "$skill_name"; then
+			err "AGENTS.md Skills Available table missing entry for '\`${skill_name}\`' (dir: .opencode/skills/${skill_name}/)"
+		fi
+	done
+	shopt -u nullglob
+
+	# ── Reverse check: every table row must have a filesystem counterpart ────
+
+	for name in $CMD_TABLE_NAMES; do
+		if [ ! -f "${COMMANDS_DIR}/${name}.md" ]; then
+			warn "AGENTS.md Commands table has entry '/${name}' but no file at .opencode/commands/${name}.md"
+		fi
+	done
+
+	for name in $AGENT_TABLE_NAMES; do
+		if [ ! -f "${AGENTS_DIR}/${name}.md" ]; then
+			warn "AGENTS.md Agents Available table has entry '@${name}' but no file at .opencode/agents/${name}.md"
+		fi
+	done
+
+	for name in $SKILL_TABLE_NAMES; do
+		if [ ! -d "${SKILLS_DIR}/${name}" ]; then
+			warn "AGENTS.md Skills Available table has entry '\`${name}\`' but no directory at .opencode/skills/${name}/"
+		fi
+	done
+
+	INDEX_OK=1
+fi
+
+if [ -n "${INDEX_OK:-}" ] && [ "${INDEX_OK:-0}" -eq 1 ]; then
+	ok "AGENTS.md index tables cross-checked"
+fi
+
 # ── Guard: fail on vacuous pass (all three categories empty) ──────────────────
 
 if [ "$SKILL_COUNT" -eq 0 ] && [ "$AGENT_COUNT" -eq 0 ] && [ "$CMD_COUNT" -eq 0 ]; then
