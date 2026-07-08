@@ -187,6 +187,34 @@ git add composer.lock package-lock.json
 Submodule at `aurora/`. Entry: `require_once(__DIR__ . "/../aurora/aurora.inc.php")`  
 For the standard page template, see the `aurora-page` skill.
 
+## LSP (Language Server Protocol)
+
+opencode's LSP integration is enabled. LSP servers provide real-time
+diagnostics and code intelligence to the agent.
+
+**Enabled servers:** PHP Intelephense (`.php`), TypeScript (`.ts`/`.js`),
+ESLint (`.js`/`.ts`), Bash (`.sh`), YAML (`.yaml`/`.yml`), Stylelint
+(`.css`/`.scss`). Deno LSP is explicitly disabled (conflicts with TypeScript
+LSP; project is not a deno project).
+
+**Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
+hover) is enabled for `build` and `explore` agents. Requires the
+`OPENCODE_EXPERIMENTAL_LSP_TOOL=true` environment variable — set it before
+launching opencode:
+
+```powershell
+# Windows (PowerShell, persistent)
+[Environment]::SetEnvironmentVariable("OPENCODE_EXPERIMENTAL_LSP_TOOL", "true", "User")
+```
+
+```bash
+# Linux/macOS (~/.bashrc or ~/.zshrc)
+export OPENCODE_EXPERIMENTAL_LSP_TOOL=true
+```
+
+Restart opencode after setting. See `.opencode/docs/lsp.md` for full
+configuration details, troubleshooting, and server prerequisites.
+
 ## Skills Available
 
 Load these on demand when the task requires them:
