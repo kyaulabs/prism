@@ -73,6 +73,149 @@ STUB
 )
 rm -rf "$T1"
 
+# ── Test 2: Merge commit passes the hook (commitlint required) ───────────────
+
+echo ""
+echo "── Test 2: Merge commit (--no-ff) passes ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 2 (merge) — commitlint not installed"
+else
+T2=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T2"
+(
+	cd "$T2"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
+	ln -s "$REPO_ROOT/node_modules" "$T2/node_modules"
+	cp "$REPO_ROOT/commitlint.config.js" "$T2/commitlint.config.js"
+	cp "$REAL_HOOK" .git/hooks/commit-msg
+	chmod +x .git/hooks/commit-msg
+
+	VALID=$'feat: base commit\n\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>'
+	echo a > a; git add a; git commit -q -m "$VALID"
+	git checkout -q -b feature
+	echo b > b; git add b; git commit -q -m "$VALID"
+	git checkout -q main 2>/dev/null || git checkout -q master
+
+	set +e
+	output=$(git merge --no-ff feature -m "Merge branch 'feature'" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Merge commit (--no-ff) passes the hook"
+	else
+		fail "Merge commit blocked (exit=$ret): $output"
+	fi
+)
+rm -rf "$T2"
+fi
+
+# ── Test 3: Revert commit passes the hook (commitlint required) ───────────────
+
+echo "── Test 3: Revert commit passes ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 3 (revert) — commitlint not installed"
+else
+T3=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T3"
+(
+	cd "$T3"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
+	cp "$REPO_ROOT/commitlint.config.js" "$T3/commitlint.config.js"
+	cp "$REAL_HOOK" .git/hooks/commit-msg
+	chmod +x .git/hooks/commit-msg
+
+	VALID=$'feat: original\n\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>'
+	echo a > a; git add a; git commit -q -m "$VALID"
+	TARGET=$(git rev-parse HEAD)
+
+	set +e
+	output=$(git revert --no-edit "$TARGET" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Revert commit passes the hook"
+	else
+		fail "Revert commit blocked (exit=$ret): $output"
+	fi
+)
+rm -rf "$T3"
+fi
+
+# ── Test 4: Regression — missing trailers still fails (commitlint required) ──
+
+echo "── Test 4: Missing trailers still fails ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 4 (missing-trailers regression) — commitlint not installed"
+else
+T4=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T4"
+(
+	cd "$T4"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
+	cp "$REPO_ROOT/commitlint.config.js" "$T4/commitlint.config.js"
+	cp "$REAL_HOOK" .git/hooks/commit-msg
+	chmod +x .git/hooks/commit-msg
+
+	echo a > a; git add a
+	set +e
+	output=$(git commit -q -m "feat: no trailers here" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -ne 0 ]; then
+		pass "Missing trailers rejected (exit=$ret)"
+	else
+		fail "Missing trailers allowed — enforcement broken"
+	fi
+)
+rm -rf "$T4"
+fi
+
+# ── Test 5: Regression — valid commit with all trailers passes ───────────────
+
+echo "── Test 5: Valid commit with trailers passes ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 5 (valid-commit regression) — commitlint not installed"
+else
+T5=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T5"
+(
+	cd "$T5"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
+	cp "$REPO_ROOT/commitlint.config.js" "$T5/commitlint.config.js"
+	cp "$REAL_HOOK" .git/hooks/commit-msg
+	chmod +x .git/hooks/commit-msg
+
+	VALID=$'feat: valid commit\n\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>'
+	echo a > a; git add a
+	set +e
+	output=$(git commit -q -m "$VALID" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Valid commit with trailers passes"
+	else
+		fail "Valid commit blocked (exit=$ret): $output"
+	fi
+)
+rm -rf "$T5"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)

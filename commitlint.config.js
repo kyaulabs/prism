@@ -1,8 +1,21 @@
-// $KYAULabs: commitlint.config.js kyau@nova 2026/07/05 -0700 Exp $
+// $KYAULabs: commitlint.config.js kyau@nova 2026/07/07 -0700 Exp $
 
 const { spawnSync } = require('child_process');
 
 const trailersExist = (parsed, when, trailers) => {
+	// Exempt merge commits and reverts from trailer enforcement.
+	// `git merge --no-ff` and `git revert` produce auto-generated messages
+	// that cannot carry Plan-by/Acked-by/Signed-off-by trailers. CI applies
+	// the same exemption via this config, so merges/reverts pass everywhere.
+	const isMerge =
+		(parsed.merges && parsed.merges.length > 0) ||
+		(parsed.header && /^Merge /.test(parsed.header));
+	const isRevert =
+		parsed.revert || (parsed.header && /^Revert /.test(parsed.header));
+	if (isMerge || isRevert) {
+		return [true, ''];
+	}
+
 	const output = spawnSync('git', ['interpret-trailers', '--parse'], {
 		input: parsed.raw || '',
 	}).stdout.toString();
@@ -46,8 +59,8 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
-		'trailers-exist': [2, 'always', ['Plan-by:', 'Acked-by:']],
-		'signed-off-by': [2, 'always', 'Signed-off-by:'],
+		'trailers-exist': [2, 'always', ['Plan-by:', 'Acked-by:', 'Signed-off-by:']],
+		'signed-off-by': [0],
 	},
 };
 
