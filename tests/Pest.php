@@ -44,10 +44,19 @@ declare(strict_types=1);
 |
 */
 
-// function something()
-// {
-//     // ..
-// }
+/**
+ * Get the browser base URL for browser-based tests.
+ *
+ * Reads from the process environment via getenv() — not \$_ENV —
+ * to avoid dependency on PHP's variables_order configuration.
+ *
+ * @return string The base URL from PEST_BROWSER_BASE_URL env var,
+ *                or 'http://localhost:8080' as fallback.
+ */
+function browser_base_url(): string
+{
+    return getenv('PEST_BROWSER_BASE_URL') ?: 'http://localhost:8080';
+}
 
 /*
 |--------------------------------------------------------------------------
