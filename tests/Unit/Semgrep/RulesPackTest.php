@@ -81,59 +81,99 @@ function semgrepBin(): string
     return semgrepResolve() ?? 'semgrep';
 }
 
-function semgrepScanDir(string $dir): array
+/**
+ * Mutable cell for tracking semgrep process invocations.
+ *
+ * Call with $increment = 0 to read the current count, or
+ * $increment = 1 to increment. Used by the counter test to
+ * assert exactly one semgrep process per suite run.
+ *
+ * @param int $increment  Amount to add to the counter (0 = read-only).
+ * @return int             Current invocation count.
+ */
+function semgrepInvocationCounter(int $increment = 0): int
 {
+    static $count = 0;
+    $count += $increment;
+
+    return $count;
+}
+
+/**
+ * Run a single semgrep scan over the entire tests/Semgrep/ fixture tree.
+ *
+ * Scans all fixture directories in one process, memoizes the result in a
+ * static so subsequent calls return the cached findings without spawning
+ * another semgrep process. Findings are filtered per-rule/per-fixture
+ * in-process by filterFindings().
+ *
+ * @return array{results: array, exitCode: int}
+ */
+function semgrepScanAll(): array
+{
+    static $cached = null;
+
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $projectRoot = realpath(__DIR__ . '/../../..');
 
     if ($projectRoot === false) {
         throw new \RuntimeException("Project root not resolvable");
     }
 
-    // Scan each fixture file individually to isolate positive/negative
-    $positiveFile = 'tests/Semgrep/' . $dir . '/positive.php';
-    $negativeFile = 'tests/Semgrep/' . $dir . '/negative.php';
     $configPath = '.semgrep/kyaulabs.yml';
-
+    $scanTarget = 'tests/Semgrep/';
     $null = (PHP_OS_FAMILY === 'Windows') ? 'nul' : '/dev/null';
 
-    // Scan both files and merge results, tagged by source
+    $cmd = 'cd ' . escapeshellarg($projectRoot) . ' && '
+        . semgrepBin() . ' scan --config ' . escapeshellarg($configPath)
+        . ' --json --metrics off --disable-version-check --x-ignore-semgrepignore-files '
+        . escapeshellarg($scanTarget) . ' 2>' . $null;
+
+    $output = [];
+    $code = 0;
+    exec($cmd, $output, $code);
+    semgrepInvocationCounter(1);
+
+    $json = json_decode(implode("\n", $output), true);
+
     $results = [];
-    $exitCode = 0;
-
-    foreach ([$positiveFile, $negativeFile] as $fixture) {
-        $cmd = 'cd ' . escapeshellarg($projectRoot) . ' && '
-            . semgrepBin() . ' scan --config ' . escapeshellarg($configPath)
-            . ' --json --metrics off --disable-version-check --x-ignore-semgrepignore-files '
-            . escapeshellarg($fixture) . ' 2>' . $null;
-
-        $output = [];
-        $code = 0;
-        exec($cmd, $output, $code);
-        $exitCode = max($exitCode, $code);
-
-        $json = json_decode(implode("\n", $output), true);
-
-        if (is_array($json) && isset($json['results'])) {
-            foreach ($json['results'] as $finding) {
-                $finding['_source'] = basename($fixture);
-                $results[] = $finding;
-            }
-        }
+    if (is_array($json) && isset($json['results'])) {
+        $results = $json['results'];
     }
 
-    return [
+    $cached = [
         'results' => $results,
-        'exitCode' => $exitCode,
+        'exitCode' => $code,
     ];
+
+    return $cached;
 }
 
-function filterFindings(array $results, string $ruleId, string $fixtureFile): array
+/**
+ * Filter scan results by rule ID and fixture directory + filename.
+ *
+ * Matches findings whose check_id ends with $ruleId and whose path
+ * ends with "$dir/$fixtureFile" (e.g. "AuroraStatusTrue/positive.php").
+ * Path comparison is normalized to forward slashes for cross-platform safety.
+ *
+ * @param array  $results      Raw findings from semgrepScanAll().
+ * @param string $ruleId       Short rule ID (e.g. 'kyaulabs-sqli-interpolated-query').
+ * @param string $dir          Fixture directory name (e.g. 'SqliInterpolatedQuery').
+ * @param string $fixtureFile  Fixture filename (e.g. 'positive.php').
+ * @return array               Matching findings, re-indexed.
+ */
+function filterFindings(array $results, string $ruleId, string $dir, string $fixtureFile): array
 {
+    $pathSuffix = $dir . '/' . $fixtureFile;
+
     return array_values(array_filter(
         $results,
         fn (array $f): bool =>
             ($f['check_id'] === $ruleId || str_ends_with($f['check_id'], '.' . $ruleId))
-            && ($f['_source'] ?? '') === $fixtureFile,
+            && str_ends_with(str_replace('\\', '/', $f['path'] ?? ''), $pathSuffix),
     ));
 }
 
@@ -148,8 +188,8 @@ test('Semgrep rules: each positive fixture fires its rule the expected number of
     ])
     ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId, int $expectedCount): bool {
-        $scan = semgrepScanDir($dir);
-        $findings = filterFindings($scan['results'], $ruleId, 'positive.php');
+        $scan = semgrepScanAll();
+        $findings = filterFindings($scan['results'], $ruleId, $dir, 'positive.php');
 
         return count($findings) === $expectedCount;
     })->toBeTrue();
@@ -165,9 +205,9 @@ test('Semgrep rules: each negative fixture does not trigger its rule')
     ])
     ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId): array {
-        $scan = semgrepScanDir($dir);
+        $scan = semgrepScanAll();
 
-        return filterFindings($scan['results'], $ruleId, 'negative.php');
+        return filterFindings($scan['results'], $ruleId, $dir, 'negative.php');
     })->toBeEmpty();
 
 test('semgrepBin returns a working binary when semgrep is available')
@@ -180,5 +220,15 @@ test('semgrepBin returns a working binary when semgrep is available')
 
         return $code;
     })->toBe(0);
+
+test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
+    ->skip(!semgrepAvailable(), 'semgrep not installed')
+    ->expect(function (): int {
+        semgrepScanAll();
+        semgrepScanAll();
+        semgrepScanAll();
+
+        return semgrepInvocationCounter();
+    })->toBe(1);
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
