@@ -409,7 +409,7 @@ echo "── Checking bash permission patterns ──"
 JSON_BAD=$(grep -noE '"[^"]* \*"\s*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
 if [ -n "$JSON_BAD" ]; then
 	while IFS= read -r line; do
-		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): $(echo "$line" | sed 's/^[0-9]*://')"
+		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
 	done <<< "$JSON_BAD"
 fi
 
@@ -428,7 +428,7 @@ else
 		bad=$(echo "$fm" | grep -noE '"[^"]* \*"' 2>/dev/null) || true
 		if [ -n "$bad" ]; then
 			while IFS= read -r line; do
-				err "${agent_file}:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): $(echo "$line" | sed 's/^[0-9]*://')"
+				err "${agent_file}:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
 			done <<< "$bad"
 		fi
 	done
