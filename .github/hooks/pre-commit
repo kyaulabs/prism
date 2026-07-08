@@ -206,6 +206,32 @@ if [ -n "$STAGED_SRC" ]; then
 	done <<< "$STAGED_SRC"
 fi
 
+# ── RCS placeholder/foreign header check ──────────────────────────────────────
+STAGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh|ts)$' || true)
+STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|cdn/css/|cdn/javascript/)' || true)
+if [ -n "$STAGED_SRC" ]; then
+	while IFS= read -r file; do
+		[ -z "$file" ] && continue
+
+		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+		HDR_LINE=$(git show ":$file" 2>/dev/null | head -10 | grep -F '$KYAULabs:' || true)
+		[ -z "$HDR_LINE" ] && continue
+
+		if echo "$HDR_LINE" | grep -qF 'creator@host'; then
+			echo "✗ RCS placeholder in '$file': 'creator@host' — replace with real identity." >&2
+			exit 1
+		fi
+		if echo "$HDR_LINE" | grep -qF 'YYYY/MM/DD'; then
+			echo "✗ RCS placeholder in '$file': 'YYYY/MM/DD' — replace with real date." >&2
+			exit 1
+		fi
+		if echo "$HDR_LINE" | grep -qF 'SEANBR~1'; then
+			echo "✗ RCS foreign header in '$file': 'SEANBR~1' — replace with kyau@nova." >&2
+			exit 1
+		fi
+	done <<< "$STAGED_SRC"
+fi
+
 echo "✓ pre-commit passed"
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
