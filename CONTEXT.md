@@ -50,6 +50,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0001-csp-policy-for-aurora-stack.md` — Content-Security-Policy design for the Aurora no-framework stack
 - `adr/0002-first-party-semgrep-rules-pack.md` — First-party Semgrep rules pack with TDD rule authoring
 - `adr/0003-env-delivery-mechanism.md` — First-party .env loader with explicit call pattern, no dependencies, server env precedence
+- `adr/0004-filesystem-walker-arch-tests.md` — Replace pest-plugin-arch DSL with filesystem-walker convention tests for procedural codebase
 
 ## When to update this file
 
