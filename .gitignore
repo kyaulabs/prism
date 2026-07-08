@@ -5,6 +5,10 @@
 # Coding Harness Setup
 .opencode/setup.json
 
+# Eval suite artifacts (see .opencode/evals/README.md)
+.opencode/evals/results/*
+!.opencode/evals/results/.gitkeep
+
 # Semgrep settings (API keys, registry tokens)
 .semgrep/settings.yml
 
