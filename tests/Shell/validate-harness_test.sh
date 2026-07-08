@@ -204,6 +204,150 @@ EOF
 )
 rm -rf "$T4"
 
+# ── Test 5: Forward check — command file exists, AGENTS.md row missing ───────
+
+echo "── Test 5: Forward check — command file without AGENTS.md row ──"
+T5=$(mktemp -d)
+(
+	cd "$T5"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	# Create a command file
+	cat > .opencode/commands/test-cmd.md <<'EOF'
+---
+description: A test command
+---
+EOF
+
+	# AGENTS.md with Commands table NOT containing test-cmd
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/other` | Other command |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "missing entry" && echo "$output" | grep -qF "test-cmd"; then
+		pass "Forward check errors on missing AGENTS.md table entry"
+	elif [ "${exit_code:-0}" -eq 0 ]; then
+		fail "Forward check did not error on missing AGENTS.md table entry (exit 0)"
+	else
+		fail "Forward check exited non-zero but unexpected output"
+	fi
+)
+rm -rf "$T5"
+
+# ── Test 6: Forward check — deleted row from complete table ──────────────────
+
+echo "── Test 6: Forward check — row deleted from AGENTS.md ──"
+T6=$(mktemp -d)
+(
+	cd "$T6"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	cat > .opencode/commands/cmd-a.md <<'EOF'
+---
+description: Command A
+---
+EOF
+	cat > .opencode/commands/cmd-b.md <<'EOF'
+---
+description: Command B
+---
+EOF
+
+	# AGENTS.md with both commands indexed
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/cmd-a` | Command A |
+| `/cmd-b` | Command B |
+EOF
+
+	# First run: should pass (no drift)
+	output1=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+	if echo "$output1" | grep -qF "missing entry"; then
+		fail "Complete AGENTS.md with no drift should not report missing entries"
+		exit 0
+	fi
+
+	# Delete cmd-b row from table
+	sed -i '/\/cmd-b/d' AGENTS.md
+
+	output2=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output2" | grep -qF "missing entry" && echo "$output2" | grep -qF "cmd-b"; then
+		pass "Deleted row caught by forward check (acceptance criterion 2)"
+	elif [ "${exit_code:-0}" -eq 0 ]; then
+		fail "Forward check did not error after row deletion"
+	else
+		fail "Forward check exited non-zero but unexpected output"
+	fi
+)
+rm -rf "$T6"
+
+# ── Test 7: Reverse check — stale table row without file ─────────────────────
+
+echo "── Test 7: Reverse check — stale table row, no file ──"
+T7=$(mktemp -d)
+(
+	cd "$T7"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	# Only cmd-a has a file; cmd-b is stale
+	cat > .opencode/commands/cmd-a.md <<'EOF'
+---
+description: Command A
+---
+EOF
+
+	# AGENTS.md has a stale entry for cmd-b
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/cmd-a` | Command A |
+| `/cmd-b` | Stale entry — no file |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -eq 0 ] && echo "$output" | grep -q "WARN.*cmd-b"; then
+		pass "Reverse check warns on stale table row, exits 0"
+	elif [ "${exit_code:-0}" -ne 0 ]; then
+		fail "Reverse check should be warning, not error (exited non-zero)"
+	else
+		fail "Reverse check did not warn on stale table row"
+	fi
+)
+rm -rf "$T7"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
