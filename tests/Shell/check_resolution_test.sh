@@ -63,7 +63,7 @@ fi
 RESOLVE
     chmod +x resolve.sh
 
-    # vendor/bin first, then global, then system PATH
+    # shellcheck disable=SC2030  # intentional: PATH scoping is local to the test subshell
     PATH="$T1/vendor/bin:$T1/global-bin:$PATH"
     export PATH
 
@@ -113,6 +113,7 @@ fi
 RESOLVE
     chmod +x resolve.sh
 
+    # shellcheck disable=SC2030,SC2031  # intentional subshell PATH isolation
     PATH="$T2/global-bin:$PATH"
     export PATH
 
@@ -155,8 +156,9 @@ fi
 RESOLVE
     chmod +x resolve.sh
 
-    # Empty PATH — no php-cs-fixer reachable; invoke bash directly
+    # shellcheck disable=SC2031  # intentional: reads PATH inside isolated test subshell
     OLD_PATH="$PATH"
+    # shellcheck disable=SC2123  # intentional: empty PATH exercises the not-found branch
     PATH=""
     export PATH
 
