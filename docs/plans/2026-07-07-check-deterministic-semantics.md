@@ -27,7 +27,7 @@
 | `tests/Unit/Eval/EvalCaseTest.php` | Modify | Validation + parsing tests for `expected_string` |
 | `tests/Unit/Eval/RunnerTest.php` | Modify | Update existing deterministic-gate tests; add expected_string + severity-pattern + honest-metadata tests |
 | `.opencode/evals/README.md` | Modify | Add `expected_string` to the field table; document severity-pattern criterion |
-| `docs/specs/2025-07-05-eval-runner-spec.md` | Modify | Update flow section (severity pattern, expected_string), result-schema example (per-criterion checks + `pass`), remove the now-resolved `expected_string` non-goal |
+| `docs/specs/2026-07-05-eval-runner-spec.md` | Modify | Update flow section (severity pattern, expected_string), result-schema example (per-criterion checks + `pass`), remove the now-resolved `expected_string` non-goal |
 
 ---
 
@@ -443,7 +443,7 @@ Signed-off-by: kyau <[EMAIL]>"
 **Files:**
 - Modify: `.opencode/evals/bin/includes/EvalRunner.php` (`Runner` class — add constant + helper, update `'no errors in output'` branch)
 - Test: `tests/Unit/Eval/RunnerTest.php`
-- Modify: `docs/specs/2025-07-05-eval-runner-spec.md:50-55,93-95,149`
+- Modify: `docs/specs/2026-07-05-eval-runner-spec.md:50-55,93-95,149`
 - Modify: `.opencode/evals/README.md` (document the severity criterion)
 
 **Interfaces:**
@@ -543,7 +543,7 @@ Expected: PASS.
 
 - [x] **Step 5: Update the spec doc**
 
-In `docs/specs/2025-07-05-eval-runner-spec.md`, update the `no errors in output` bullet (line 52):
+In `docs/specs/2026-07-05-eval-runner-spec.md`, update the `no errors in output` bullet (line 52):
 
 ```
    - `no errors in output`: PASS unless stderr contains a line matching an error-severity prefix (Fatal error, Parse error, Uncaught, Error:, TypeError:, ReferenceError:, SyntaxError:, Unhandled promise rejection, Segmentation fault, etc.). Benign chatter (warnings, progress, deprecation notices) does not fail the criterion. See `Runner::ERROR_SEVERITY_PATTERN`.
@@ -580,7 +580,7 @@ Expected: PASS, ≥80% line coverage on `.opencode/evals/bin/includes/EvalRunner
 - [x] **Step 8: Commit**
 
 ```bash
-git add .opencode/evals/bin/includes/EvalRunner.php tests/Unit/Eval/RunnerTest.php docs/specs/2025-07-05-eval-runner-spec.md .opencode/evals/README.md
+git add .opencode/evals/bin/includes/EvalRunner.php tests/Unit/Eval/RunnerTest.php docs/specs/2026-07-05-eval-runner-spec.md .opencode/evals/README.md
 git commit -S -m "fix(eval): replace empty-stderr criterion with error-severity pattern match
 
 The 'no errors in output' criterion previously failed on any stderr byte,

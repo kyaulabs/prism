@@ -1,6 +1,6 @@
 # Eval Runner — Phase 2 Specification
 
-**Date:** 2025-07-05
+**Date:** 2026-07-05
 **Status:** Approved
 **Scope:** Build an automated, non-interactive eval runner that executes
 `.opencode/evals/smoke/*.json` cases against `opencode run` and reports
