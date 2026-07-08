@@ -125,6 +125,12 @@ Config: `commitlint.config.js` extends `@commitlint/config-conventional`,
 with a custom `type-enum` that adds `build`, `patch`, and `ignore` to the
 standard set.
 
+Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
+exempt from trailer enforcement — their auto-generated messages cannot carry
+`Plan-by:`/`Acked-by:`/`Signed-off-by:` trailers. If `commitlint` is not
+installed (fresh clone without `npm install`), the hook skips with a visible
+notice; CI enforces the policy on every PR commit.
+
 ## Passing the Message to Git
 
 > [!IMPORTANT]

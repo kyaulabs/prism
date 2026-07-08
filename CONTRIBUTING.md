@@ -29,6 +29,32 @@ All code changes happen through pull requests and are the best way to propose ch
 6. Make sure your code lints.
 7. Issue the pull request!
 
+## Commit Message Policy
+
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/)
+format, enforced by [commitlint](https://commitlint.js.org/) via the
+`.github/hooks/commit-msg` hook and in CI on every pull request.
+
+**Required trailers** (every non-merge, non-revert commit):
+
+- `Plan-by:` — the planning model (from `agent.plan.model` in `opencode.json`)
+- `Acked-by:` — the build model (from `agent.build.model`, falling back to `model`)
+- `Signed-off-by:` — the human approver (default `kyau <git@kyaulabs.com>`)
+
+**Exemptions:**
+
+- **Merge commits** (`git merge --no-ff`) and **revert commits** (`git revert`)
+  are exempt from trailer enforcement — their messages are auto-generated and
+  cannot carry trailers.
+- **GitHub web-UI commits** (editing files on github.com) cannot add trailers or
+  sign commits, and are therefore out-of-policy. Use a local clone with signed
+  commits for all contributions.
+
+**Local hook behavior:** if `commitlint` is not installed (fresh clone without
+`npm install`), the `commit-msg` hook skips with a visible notice rather than
+blocking the commit. CI enforces the policy on every PR commit, so skipping
+locally is safe — malformed commits are caught upstream.
+
 ## Reporting Bugs / Feature Requests
 
 We use Github issues to track public bugs and feature requests. Report a bug/feature by [opening a new issue](/../../issues); it is that easy!
