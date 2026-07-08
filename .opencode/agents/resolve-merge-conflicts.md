@@ -6,10 +6,10 @@ mode: subagent
 temperature: 0.1
 permission:
   bash:
-    "git add *": "allow"
-    "git commit *": "allow"
-    "git push *": "deny"
-    "git tag *": "deny"
+    "git add*": "allow"
+    "git commit*": "allow"
+    "git push*": "deny"
+    "git tag*": "deny"
 ---
 
 You are resolving an in-progress git merge or rebase. Follow these steps in order. Do not `--abort`.

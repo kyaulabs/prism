@@ -6,10 +6,10 @@ mode: subagent
 temperature: 0.2
 permission:
   bash:
-    "git add *": "allow"
-    "git commit *": "allow"
-    "git push *": "deny"
-    "git tag *": "deny"
+    "git add*": "allow"
+    "git commit*": "allow"
+    "git push*": "deny"
+    "git tag*": "deny"
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 

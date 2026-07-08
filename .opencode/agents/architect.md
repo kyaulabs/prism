@@ -8,16 +8,16 @@ permission:
   edit: deny
   bash:
     "*": deny
-    "ls *": allow
-    "cat *": allow
-    "tail *": allow
-    "head *": allow
-    "grep *": allow
-    "find *": allow
-    "git log *": allow
-    "git show *": allow
+    "ls*": allow
+    "cat*": allow
+    "tail*": allow
+    "head*": allow
+    "grep*": allow
+    "find*": allow
+    "git log*": allow
+    "git show*": allow
     "git status": allow
-    "git diff *": allow
+    "git diff*": allow
   webfetch: deny
   task: deny
 ---
