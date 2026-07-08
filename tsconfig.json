@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowJs": true,
+        "checkJs": false,
+        "strict": false,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "lib": ["ES2022", "DOM"]
+    },
+    "include": [
+        "cdn/js/**/*.js",
+        ".github/scripts/**/*.js",
+        ".opencode/plugins/**/*.ts",
+        "eslint.config.mjs",
+        "commitlint.config.js"
+    ],
+    "exclude": [
+        "node_modules",
+        "vendor",
+        "aurora",
+        "cdn/javascript"
+    ]
+}
