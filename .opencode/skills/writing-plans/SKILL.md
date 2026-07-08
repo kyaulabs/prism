@@ -19,10 +19,14 @@ implementation plan."
 
 **Context:** This skill is invoked after the `brainstorming` skill has produced
 an approved spec. The spec lives at `docs/specs/YYYY-MM-DD-<topic>-spec.md`.
+The Plan agent delegates reading the spec file to `@explore` (since `read`
+is denied on the Plan agent) — dispatch `@explore` with the spec path to
+load its contents into context.
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
-- If `docs/plans/` doesn't exist, create it.
-- User preferences for plan location override this default.
+**Plan delivery:** Present the plan as text in the conversation for user review.
+If the user wants the plan saved to disk, delegate file writing to
+`@docs-writer` with the path `docs/plans/YYYY-MM-DD-<feature-name>.md`.
+The Plan agent does not write files directly (`edit: deny`).
 
 ## Scope check
 
@@ -187,10 +191,12 @@ on. If you find a spec requirement with no task, add the task.
 
 ## Execution handoff
 
-After saving the plan, hand off to the `executing-plans` skill:
+After presenting the plan and receiving user approval, hand off to the
+`executing-plans` skill:
 
-> "Plan complete and saved to `docs/plans/<filename>.md`. Invoking the
-> `executing-plans` skill to execute it."
+> "Plan complete. If you want this saved to `docs/plans/<filename>.md`,
+> I can delegate that to @docs-writer. Invoking the `executing-plans` skill
+> to execute it."
 
 Load the `executing-plans` skill and follow its process — it defines two
 execution modes (inline batch-with-checkpoints and @tdd-dispatch with
@@ -208,6 +214,9 @@ context management across long plans.
 ## Cross-refs
 
 - `brainstorming` skill — the step before this one (produces the spec).
+- `@explore` agent — delegate spec reading, codebase exploration, and file discovery (Plan agent cannot read files directly).
+- `@scout` agent — delegate web research and external dependency inspection.
+- `@docs-writer` agent — delegate writing the plan file to disk if the user requests it.
 - `executing-plans` skill — the step after this one (executes the plan).
 - `@tdd` agent — executes each task in Red → Green → Refactor cycles.
 - `verification-before-completion` skill — run after each task is green.
