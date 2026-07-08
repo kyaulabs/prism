@@ -54,6 +54,34 @@ hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
 if [ "$hooks_path" = ".github/hooks" ]; then echo "INSTALLED ($hooks_path)"; else echo "NOT_INSTALLED — run 'bash .github/scripts/install-hooks.sh'"; fi
 ```
 
+## 6. LSP servers
+
+```bash
+# PHP Intelephense (auto-installs for PHP projects)
+php -r "echo PHP_VERSION;" 2>/dev/null && echo " — intelephense auto-installs on first .php file" || echo "NOT_FOUND"
+
+# TypeScript (requires typescript dependency)
+npx tsc --version 2>/dev/null || echo "NOT_FOUND"
+
+# ESLint (requires eslint dependency)
+npx eslint --version 2>/dev/null || echo "NOT_FOUND"
+
+# Bash (auto-installs bash-language-server)
+command -v bash 2>/dev/null && echo "bash present — bash-language-server auto-installs" || echo "NOT_FOUND"
+
+# YAML (auto-installs yaml-language-server)
+echo "yaml-language-server auto-installs on first .yaml/.yml file"
+
+# Stylelint (custom — requires @stylelint/language-server)
+npx @stylelint/language-server --version 2>/dev/null || echo "NOT_FOUND"
+
+# Deno (should be disabled in opencode.json)
+node -e "const c=require('./opencode.json'); console.log(c.lsp?.deno?.disabled === true ? 'DISABLED (correct)' : 'ENABLED (should be disabled)')" 2>/dev/null || echo "CHECK_MANUALLY"
+```
+
+Floor: `typescript` any (LSP only, no compilation); `eslint` >= 9;
+`@stylelint/language-server` any; `deno` must be disabled in config.
+
 ## Output
 
 Group results by section. For each tool, report:
@@ -85,6 +113,13 @@ ocr          PASS     1.7.1           1.7          —
 gitleaks     FAIL     NOT_FOUND       8.30         go install github.com/gitleaks/gitleaks/v8@latest
 pre-commit   PASS     INSTALLED       —            —
 commit-msg   PASS     INSTALLED       —            —
+intelephense  PASS     auto-install    —            —
+typescript    PASS     7.x.x           any          —
+eslint        PASS     10.x.x          9.0          —
+bash-ls       PASS     auto-install    —            —
+yaml-ls       PASS     auto-install    —            —
+stylelint-ls  PASS     1.1.1           any          npm i -D @stylelint/language-server
+deno-lsp      PASS     DISABLED        —            —
 
 GO: 12 pass, 1 warn, 2 fail, 1 skipped. Unblocked for writing code.
 NO-GO for CI: fail items must be fixed before CI runs (git-cliff needed for
@@ -108,3 +143,6 @@ changelog generation).
   / `version` / `-v` prints. Dart Sass prints a bare version string.
   `gitleaks` uses `version` (not `--version`). `semgrep` may print a header
   line — take the first line only. Handle each tool's quirks.
+- LSP server checks are "soft" — a FAIL does not block writing code, but the
+  agent will not receive diagnostics from that language server. Report and
+  continue.
