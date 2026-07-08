@@ -401,6 +401,39 @@ if [ "$SKILL_COUNT" -eq 0 ] && [ "$AGENT_COUNT" -eq 0 ] && [ "$CMD_COUNT" -eq 0 
 	err "No skills, agents, or commands found — harness directory may be missing or empty"
 fi
 
+# ── Check bash permission patterns ────────────────────────────────────────────
+
+echo "── Checking bash permission patterns ──"
+
+# Check opencode.json for bash permission keys ending in " *"
+JSON_BAD=$(grep -noE '"[^"]* \*"\s*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
+if [ -n "$JSON_BAD" ]; then
+	while IFS= read -r line; do
+		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): $(echo "$line" | sed 's/^[0-9]*://')"
+	done <<< "$JSON_BAD"
+fi
+
+# Check agent .md file frontmatter for bash permission keys ending in " *"
+AGENTS_DIR_LOCAL="${HARNESS_DIR}/agents"
+shopt -s nullglob
+AGENT_MD_FILES=( "${AGENTS_DIR_LOCAL}"/*.md )
+shopt -u nullglob
+
+if [ ${#AGENT_MD_FILES[@]} -eq 0 ]; then
+	warn "No agent files found in ${AGENTS_DIR_LOCAL}/"
+else
+	for agent_file in "${AGENT_MD_FILES[@]}"; do
+		# Extract frontmatter only (lines between first and second ---)
+		fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+		bad=$(echo "$fm" | grep -noE '"[^"]* \*"' 2>/dev/null) || true
+		if [ -n "$bad" ]; then
+			while IFS= read -r line; do
+				err "${agent_file}:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): $(echo "$line" | sed 's/^[0-9]*://')"
+			done <<< "$bad"
+		fi
+	done
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""

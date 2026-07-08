@@ -352,6 +352,45 @@ EOF
 )
 rm -rf "$T7"
 
+# ── Test 8: Bash permission pattern ends in " *" regression check ────────────
+
+echo "── Test 8: Bash permission pattern ending in ' *' is caught ──"
+T8=$(mktemp -d)
+(
+	cd "$T8"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents .github/scripts
+
+	# Copy the validator and frontmatter parser
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	# Create an agent with a buggy pattern
+	cat > .opencode/agents/test-agent.md <<'EOF'
+---
+description: An agent with a buggy space-asterisk pattern
+mode: subagent
+permission:
+  bash:
+    "git push *": "deny"
+    "git status": "allow"
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "pattern ends in ' *'"; then
+		pass "Caught ' *' pattern in agent frontmatter"
+	elif echo "$output" | grep -qF "pattern ends in ' *'"; then
+		fail "Detected ' *' pattern but exited 0"
+	else
+		fail "Did not detect ' *' pattern in agent frontmatter"
+	fi
+)
+rm -rf "$T8"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
