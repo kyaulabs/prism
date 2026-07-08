@@ -301,7 +301,7 @@ AGENTS_MD="${REPO_ROOT}/AGENTS.md"
 if [ ! -f "$AGENTS_MD" ]; then
 	err "AGENTS.md not found at $AGENTS_MD — cannot validate index tables"
 else
-	INDEX_OK=0
+	INDEX_ERRORS_BEFORE=$ERRORS
 
 	# Extract markdown table rows under a given ## heading.
 	# Matches the heading line exactly ($0 == "## " h), then collects all
@@ -389,11 +389,9 @@ else
 			warn "AGENTS.md Skills Available table has entry '\`${name}\`' but no directory at .opencode/skills/${name}/"
 		fi
 	done
-
-	INDEX_OK=1
 fi
 
-if [ -n "${INDEX_OK:-}" ] && [ "${INDEX_OK:-0}" -eq 1 ]; then
+if [ -n "${INDEX_ERRORS_BEFORE:-}" ] && [ "${ERRORS:-0}" -eq "${INDEX_ERRORS_BEFORE}" ]; then
 	ok "AGENTS.md index tables cross-checked"
 fi
 

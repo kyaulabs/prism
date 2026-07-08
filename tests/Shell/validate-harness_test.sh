@@ -290,8 +290,8 @@ EOF
 		exit 0
 	fi
 
-	# Delete cmd-b row from table
-	sed -i '/\/cmd-b/d' AGENTS.md
+	# Delete cmd-b row from table (portable: grep -v + mv for BSD/macOS compat)
+	grep -v '/cmd-b' AGENTS.md > AGENTS.md.tmp && mv AGENTS.md.tmp AGENTS.md
 
 	output2=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 	if [ "${exit_code:-0}" -ne 0 ] && echo "$output2" | grep -qF "missing entry" && echo "$output2" | grep -qF "cmd-b"; then
@@ -342,9 +342,9 @@ EOF
 	# NOT an ERROR. The validator may exit non-zero due to unrelated
 	# frontmatter-parser failures in the temp repo (js-yaml not available);
 	# we only care about the cross-check's severity classification here.
-	if echo "$output" | grep -q "WARN.*cmd-b" && ! echo "$output" | grep -q "ERROR.*cmd-b"; then
+	if echo "$output" | grep -q 'WARN:.*cmd-b' && ! echo "$output" | grep -q 'ERROR:.*cmd-b'; then
 		pass "Reverse check warns (not errors) on stale table row"
-	elif echo "$output" | grep -q "ERROR.*cmd-b"; then
+	elif echo "$output" | grep -q 'ERROR:.*cmd-b'; then
 		fail "Reverse check reported ERROR instead of WARN for stale table row"
 	else
 		fail "Reverse check did not detect stale table row"
