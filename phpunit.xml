@@ -29,15 +29,9 @@
 
     <source>
         <include>
-            <directory>.</directory>
+            <directory>backend</directory>
+            <directory>.opencode/evals/bin/includes</directory>
         </include>
-        <exclude>
-            <directory>tests</directory>
-            <directory>vendor</directory>
-            <directory>node_modules</directory>
-            <directory>aurora</directory>
-            <file>.php-cs-fixer.dist.php</file>
-        </exclude>
     </source>
 
     <coverage>
