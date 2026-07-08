@@ -93,6 +93,7 @@ jobs:
         run: |
           php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 &
           echo "PHP_SERVER_PID=$!" >> $GITHUB_ENV
+          timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
       - name: Install Semgrep
         run: python3 -m pip install --quiet semgrep
