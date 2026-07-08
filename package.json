@@ -5,6 +5,7 @@
 	"devDependencies": {
 		"@commitlint/config-conventional": "^21",
 		"@eslint/js": "^10",
+		"@stylelint/language-server": "^1.1.1",
 		"commitlint": "^21",
 		"eslint": "^10",
 		"git-cliff": "^2",
@@ -14,6 +15,7 @@
 		"stylelint": "^17",
 		"stylelint-config-standard-scss": "^17",
 		"tsx": "^4.23.0",
+		"typescript": "^7.0.2",
 		"uglify-js": "^3"
 	},
 	"allowScripts": {
