@@ -216,6 +216,42 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 rm -rf "$T5"
 fi
 
+# ── Test 6: Plugin exemption exercises on non-standard merge header ──────────
+# commitlint's built-in isIgnored() matches ^Merge branch but NOT
+# ^Merge pull request. This ensures our plugin exemption (not just
+# isIgnored) actually handles merge detection for the header fallback path.
+
+echo "── Test 6: Plugin exemption on non-standard merge header ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 6 (plugin-exemption exercise) — commitlint not installed"
+else
+T6=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T6"
+(
+	cd "$T6"
+	git init --quiet
+	ln -s "$REPO_ROOT/node_modules" "$T6/node_modules"
+	cp "$REPO_ROOT/commitlint.config.js" "$T6/commitlint.config.js"
+
+	# Non-standard merge message — does NOT match isIgnored's ^Merge branch
+	# pattern, so commitlint evaluates our trailersExist rule. Our rule
+	# detects the /^Merge / header and returns pass.
+	printf 'Merge pull request #42 from feature/branch\n\nThis change integrates the feature branch.\n' > msg
+
+	set +e
+	output=$(npx commitlint --edit msg 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Plugin exempts non-standard merge header"
+	else
+		fail "Plugin did not exempt merge header (exit=$ret): $output"
+	fi
+)
+rm -rf "$T6"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)

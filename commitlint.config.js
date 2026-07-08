@@ -8,7 +8,7 @@ const trailersExist = (parsed, when, trailers) => {
 	// that cannot carry Plan-by/Acked-by/Signed-off-by trailers. CI applies
 	// the same exemption via this config, so merges/reverts pass everywhere.
 	const isMerge =
-		(parsed.merges && parsed.merges.length > 0) ||
+		(parsed.merge && parsed.merge.length > 0) ||
 		(parsed.header && /^Merge /.test(parsed.header));
 	const isRevert =
 		parsed.revert || (parsed.header && /^Revert /.test(parsed.header));

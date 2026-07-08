@@ -62,6 +62,7 @@
     },
     "judge": {
       "mode": "primary",
+      "model": "openrouter/z-ai/glm-5.2",
       "variant": "medium",
       "temperature": 0.0,
       "permission": {
