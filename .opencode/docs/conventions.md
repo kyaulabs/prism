@@ -27,22 +27,23 @@ Referenced by `opencode.json`. Loaded alongside AGENTS.md in every session. This
 - No explanatory inline comments unless explicitly requested
 - Raw SQL or Aurora SQL handler — no ORM
 
-## Arch Tests (enforce automatically in `tests/Pest.php`)
+## Arch Tests (enforced via `tests/Unit/Harness/ArchTest.php`)
 
-```php
-arch('no debug functions in production code')
-    ->expect(['dd', 'dump', 'var_dump', 'print_r'])
-    ->not->toBeUsed();
+Architecture tests live in `tests/Unit/Harness/ArchTest.php` alongside
+`RcsHeaderConventionTest.php`. They use filesystem walkers
+(`RecursiveDirectoryIterator`) to scan all PHP source files — not
+pest-plugin-arch's autoload-based DSL, which cannot see procedural code
+(see `adr/0004-filesystem-walker-arch-tests.md`).
 
-arch('backend classes use strict types')
-    ->expect('KYAULabs')
-    ->toUseStrictTypes();
-```
+Three tests scan all PHP files (excluding `vendor/`, `node_modules/`,
+`aurora/`, `cdn/css/`, `cdn/javascript/`, `tests/Semgrep/`):
 
-The `KYAULabs` namespace covers Aurora and any project classes following the
-same convention. Backend procedural helpers in `backend/` are covered by the
-`no debug functions` rule above rather than the strict-types namespace check,
-since procedural files do not declare a namespace.
+- **Vacuity guard** — fails if the scan finds zero PHP files, preventing
+  silent pass-via-empty-universe.
+- **No debug functions** — scans each PHP file for `var_dump`, `print_r`,
+  `dd`, and `dump` calls using word-boundary regex.
+- **Strict types** — asserts every PHP file has `declare(strict_types=1)`
+  in its first 10 lines.
 
 
 ## JavaScript

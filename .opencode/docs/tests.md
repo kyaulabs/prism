@@ -3,15 +3,15 @@
 ## Bootstrap
 
 If `tests/Pest.php` does not exist, run `php vendor/bin/pest --init` before
-writing tests. This creates the Pest bootstrap that the arch tests in
-`conventions.md` depend on. The `@tdd` agent should run this if it encounters
-a repo with no test bootstrap.
+writing tests. This creates the Pest bootstrap. The `@tdd` agent should run
+this if it encounters a repo with no test bootstrap.
 
 > [!WARNING]
 > `pest --init` generates a **bare** `Pest.php` (stock scaffolding only —
-> no arch tests). After running it, the `@tdd` agent must append the two
-> `arch()` blocks from `.opencode/docs/conventions.md` (Arch Tests section)
-> to the end of the generated file, before the vim modeline.
+> no arch tests). After running it, the `@tdd` agent must create
+> `tests/Unit/Harness/ArchTest.php` with the three filesystem-walker arch
+> tests described in `.opencode/docs/conventions.md` (Arch Tests section).
+> Do not append `arch()` blocks to `Pest.php` — they will not execute.
 
 ---
 

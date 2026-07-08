@@ -76,10 +76,10 @@ npm install
 
 ### Test setup
 
-No bootstrap step needed — `tests/Pest.php` ships pre-configured with the
-arch tests from `.opencode/docs/conventions.md` (no debug functions, strict
-types). The four test subdirectories (`Unit`, `Feature`, `Integration`,
-`Browser`) are also pre-created.
+No bootstrap step needed — `tests/Unit/Harness/ArchTest.php` ships
+pre-configured with filesystem-walker arch tests (no debug functions,
+strict types). The four test subdirectories (`Unit`, `Feature`,
+`Integration`, `Browser`) are also pre-created.
 
 Run the test suite after `composer install`:
 
