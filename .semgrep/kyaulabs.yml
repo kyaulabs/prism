@@ -84,18 +84,20 @@ rules:
   # --- CSRF: POST form without CSRF token (heuristic, INFO) ---
   - id: kyaulabs-missing-csrf-token
     message: >-
-      POST form detected — verify a CSRF token is included. Add an
-      <input type="hidden" name="csrf" value="..."> inside the form.
-      Token must be session-scoped and generated with random_bytes().
-      This is a heuristic — the absence of the word "csrf" in the
-      file does not guarantee safety. Review manually.
+      POST form detected without a visible CSRF token. Add an
+      <input type="hidden" name="csrf_token" value="..."> inside
+      the form. Token must be session-scoped and generated with
+      random_bytes(). This is a heuristic — the rule suppresses
+      when the word "csrf" appears within the form block, which
+      does not guarantee a real hidden input. Review manually.
     severity: INFO
     languages: [generic]
     paths:
       include:
         - "*.php"
-    pattern: |
-      <form method="post"
+    patterns:
+      - pattern-regex: '(?is)<form[^>]*method\s*=\s*["'']?post["'']?[^>]*>.*?</form>'
+      - pattern-not-regex: '(?i)csrf'
 
   # --- Hardcoded display_errors enabled ---
   - id: kyaulabs-hardcoded-display-errors-on
