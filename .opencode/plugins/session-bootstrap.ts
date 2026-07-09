@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin, Hooks } from "@opencode-ai/plugin";
 
 /**
  * Injects the rationalization red-flags bootstrap into the system prompt on
@@ -33,7 +33,7 @@ export const SessionBootstrap: Plugin = async ({ directory }) => {
         return {};
     }
 
-    return {
+    const hooks: Hooks = {
         "experimental.chat.system.transform": async (_input, output) => {
             output.system.push(bootstrap);
         },
@@ -41,6 +41,7 @@ export const SessionBootstrap: Plugin = async ({ directory }) => {
             output.context.push(bootstrap);
         },
     };
+    return hooks;
 };
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

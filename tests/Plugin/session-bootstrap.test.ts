@@ -27,7 +27,7 @@ describe("SessionBootstrap plugin", () => {
 
     it("returns empty hooks and warns when session-bootstrap.md is missing", async () => {
         // Do NOT create the .opencode/docs/session-bootstrap.md file
-        const mod = await import("../../.opencode/plugins/session-bootstrap.ts");
+        const mod: any = await import("../../.opencode/plugins/session-bootstrap.ts");
         const result = await mod.SessionBootstrap({ directory: tempDir });
 
         assert.deepStrictEqual(result, {});
@@ -45,7 +45,7 @@ describe("SessionBootstrap plugin", () => {
         mkdirSync(docsDir, { recursive: true });
         writeFileSync(join(docsDir, "session-bootstrap.md"), "# Test bootstrap content", "utf-8");
 
-        const mod = await import("../../.opencode/plugins/session-bootstrap.ts");
+        const mod: any = await import("../../.opencode/plugins/session-bootstrap.ts");
         const result = await mod.SessionBootstrap({ directory: tempDir });
 
         assert.ok(result["experimental.chat.system.transform"], "should have system.transform hook");

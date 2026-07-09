@@ -80,11 +80,7 @@ output and `git diff` results:
 ## 5. JS/TS tests
 
 ```bash
-if compgen -G "tests/Plugin/*.test.ts" > /dev/null 2>&1; then
-  node --import tsx --test tests/Plugin/*.test.ts
-else
-  echo "SKIPPED: no tests/Plugin/*.test.ts files found"
-fi
+npm run test:plugin 2>&1 || echo "SKIPPED: test:plugin script not found"
 ```
 
 Run the Node.js test runner on TS plugin tests. Report PASS if all exit 0,

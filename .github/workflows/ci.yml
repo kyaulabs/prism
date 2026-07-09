@@ -46,6 +46,15 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      - name: Install opencode plugin dependencies
+        run: cd .opencode && npm install
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Plugin tests
+        run: npm run test:plugin
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
