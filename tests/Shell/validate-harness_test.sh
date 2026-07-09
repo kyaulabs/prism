@@ -28,6 +28,17 @@ if [ ! -f "$REAL_VALIDATOR" ]; then
 	exit 1
 fi
 
+# Copy the validator, frontmatter parser, and symlink node_modules into the
+# current temp repo so the validator runs with a working frontmatter parser.
+# Must be called from inside the temp repo's root directory (after cd).
+# Usage: setup_validator_env
+setup_validator_env() {
+	mkdir -p .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	ln -s "$REPO_ROOT/node_modules" node_modules
+}
+
 # ── Test 1: Finding 3 — vacuous PASS on relative HARNESS_DIR ──────────────────
 
 echo ""
@@ -77,16 +88,15 @@ T2=$(mktemp -d)
 (
 	cd "$T2"
 	git init --quiet
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh 2>/dev/null || {
-		mkdir -p .github/scripts
-		cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
-	}
+	setup_validator_env
 
-	# Create an AGENT file with missing mode: but a --- rule in the body
-	# that has "mode: subagent" after it — the toggling parser would
-	# re-enter frontmatter mode and read that body line as mode: subagent
+	# Negative control: an AGENT file missing mode: in frontmatter, but
+	# with a --- horizontal rule in the body followed by text that says
+	# "mode: subagent". A buggy parser that re-enters frontmatter mode on
+	# the body --- would read that line as mode: subagent and NOT report
+	# it as missing.
 	mkdir -p .opencode/agents
-	cat > .opencode/agents/test-agent.md <<'EOF'
+	cat > .opencode/agents/missing-mode-agent.md <<'EOF'
 ---
 description: An agent file missing the mode field
 ---
@@ -101,23 +111,31 @@ Then a horizontal rule followed by text that happens to say:
 mode: subagent — this is NOT frontmatter, it's body prose.
 EOF
 
+	# Positive control: a fully valid agent with mode in frontmatter.
+	# If the parser is working, this file must NOT be flagged for missing
+	# mode. If the parser is absent/broken, it WILL be falsely flagged —
+	# catching the vacuous-pass regression.
+	cat > .opencode/agents/valid-agent.md <<'EOF'
+---
+description: A fully valid agent with all required fields
+mode: subagent
+---
+EOF
+
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
 
-	# Bug: the validator should report "missing or empty 'mode' field"
-	# But the toggling parser reads the body "mode: subagent" and accepts it
-	if echo "$output" | grep -q "missing or empty 'mode'" ; then
-		pass "Correctly detected missing mode field (parser stops at 2nd ---)"
-	elif echo "$output" | grep -q "expected 'subagent'" && ! echo "$output" | grep -q "missing.*mode"; then
-		# If it says "expected subagent" but NOT "missing mode",
-		# the body line "mode: subagent" was parsed as frontmatter
-		fail "Parser re-entered frontmatter mode on body '---' (found 'mode: subagent' in body)"
+	# Negative control: missing-mode agent must be flagged
+	if echo "$output" | grep -qF "missing-mode-agent.md: missing or empty 'mode'"; then
+		pass "Negative control: missing-mode agent correctly flagged"
 	else
-		# The bug may manifest differently depending on exact behavior
-		if echo "$output" | grep -qi "error"; then
-			pass "Validator reported errors (some detection working)"
-		else
-			fail "Validator missed missing mode field entirely"
-		fi
+		fail "Negative control: missing-mode agent not flagged (parser may have re-entered on body '---')"
+	fi
+
+	# Positive control: valid agent must NOT be flagged for missing mode
+	if echo "$output" | grep -qF "valid-agent.md: missing or empty 'mode'"; then
+		fail "Positive control: valid agent falsely flagged (parser broken or absent)"
+	else
+		pass "Positive control: valid agent not flagged (parser working)"
 	fi
 )
 rm -rf "$T2"
