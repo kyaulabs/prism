@@ -1,10 +1,10 @@
 ---
-description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then rewrites <app>/<domain>/[EMAIL] placeholders across the harness. Idempotent — re-runnable to update values.
+description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then rewrites template defaults (<app>, <domain>, kyau <git@kyaulabs.com>, kyaulabs/template) across the harness. Idempotent — re-runnable to update values.
 agent: build
 ---
 
-Replace template placeholders (`<app>`, `<domain>`, `[EMAIL]`, `kyaulabs/template`,
-`kyau <[EMAIL]>`) across the harness with real project values. Stores the
+Replace template defaults (`<app>`, `<domain>`, `kyau <git@kyaulabs.com>`,
+`kyaulabs/template`) across the harness with real project values. Stores the
 answers in `.opencode/setup.json` for idempotent re-runs.
 
 ## 1. Check for existing manifest
@@ -24,9 +24,12 @@ Ask one question at a time. Only re-ask if the answer is empty.
 3. **GitHub org/repo** — replaces `kyaulabs/template` (e.g. `myorg/myapp`).
    Used in `cliff.toml`, `composer.json`, `package.json`, and README.
 4. **Signed-off-by name** — committer name for the DCO footer (e.g. `kyau` or
-   your name). Replaces `kyau` in Signed-off-by contexts. Must not be empty.
-5. **Signed-off-by email** — email for the DCO footer. Replaces `[EMAIL]`.
-   Used in Signed-off-by, CODE_OF_CONDUCT, and SECURITY.
+   your name). Replaces `kyau <git@kyaulabs.com>` in Signed-off-by contexts.
+   Must not be empty.
+5. **Signed-off-by email** — email for the DCO footer. Replaces
+   `git@kyaulabs.com` (bare email). Used in Signed-off-by, CODE_OF_CONDUCT,
+   and SECURITY. The abuse contact `git+abuse@kyaulabs.com` in
+   CODE_OF_CONDUCT.md becomes `abuse@{domain}`.
 6. **Accent color** — `sky-blue` or `light-purple`. Toggles the default
    design tokens in `cdn/sass/_tokens.scss`. See the `frontend-design` skill.
 
@@ -40,21 +43,24 @@ When the user selects an accent color, show the palette:
 Construct the find/replace pairs in order (longest match first to avoid
 substring collisions):
 
-| # | Find (exact string) | Replace with |
-|---|---|---|
-| 1 | `kyau <[EMAIL]>` | `{name} <{email}>` |
-| 2 | `kyaulabs/template` | `{org}/{repo}` |
-| 3 | `<app>` | `{app}` |
-| 4 | `<domain>` | `{domain}` |
-| 5 | `<username>` | `{name}` |
-| 6 | `[EMAIL]` | `{email}` |
+| # | Find (literal default) | Replace with |
+|---|------------------------|-------------|
+| 1 | `kyau <git@kyaulabs.com>` | `{name} <{email}>` |
+| 2 | `git+abuse@kyaulabs.com` | `abuse@{domain}` |
+| 3 | `git@kyaulabs.com` | `{email}` |
+| 4 | `kyaulabs/template` | `{org}/{repo}` |
+| 5 | `<app>` | `{app}` |
+| 6 | `<domain>` | `{domain}` |
+| 7 | `<username>` | `{name}` |
 
-Token #1 must precede #6 — if `[EMAIL]` fires first, `kyau <[EMAIL]>` won't
-match.
+Token #1 must precede #3 — if bare email fires first, the composite
+`kyau <git@kyaulabs.com>` is partially replaced to `kyau <{email}>` and
+the name is lost. Token #2 must precede #3 for the same reason
+(`git+abuse@kyaulabs.com` contains `kyaulabs.com`).
 
 In **re-run mode**, use the values from the existing manifest as the find
-strings instead of the literal placeholder tokens. For example, if a prior run
-set app to `myapp`, the find string for token #3 is `myapp`, not `<app>`.
+strings instead of the literal defaults. For example, if a prior run
+set app to `myapp`, the find string for token #5 is `myapp`, not `<app>`.
 
 ## 4. Verify
 
@@ -66,14 +72,15 @@ Token                        Current               New
 <app>                        <app>                  myapp
 <domain>                     <domain>               example.com
 kyaulabs/template            kyaulabs/template      myorg/myapp
-kyau <[EMAIL]>               kyau <[EMAIL]>         kyau <kyau@example.com>
-[EMAIL]                      [EMAIL]                kyau@example.com
+kyau <git@kyaulabs.com>      kyau <git@kyaulabs...> kyau <kyau@example.com>
+git@kyaulabs.com             git@kyaulabs.com       kyau@example.com
+git+abuse@kyaulabs.com       git+abuse@kyaulabs.com abuse@example.com
 <username>                   <username>             kyau
 accent                       sky-blue (active)      light-purple
 
-Files to sweep (19 files; aurora/ excluded):
-  AGENTS.md, .env.example, README.md, CODE_OF_CONDUCT.md, SECURITY.md,
-  cliff.toml, composer.json, package.json,
+Files to sweep (20 files; aurora/ excluded):
+  AGENTS.md, CONTRIBUTING.md, .env.example, README.md, CODE_OF_CONDUCT.md,
+  SECURITY.md, cliff.toml, composer.json, package.json,
   .opencode/commands/deploy.md, .opencode/commands/prime.md,
   .opencode/agents/debug.md, .opencode/agents/tdd.md,
   .opencode/skills/aurora-page/SKILL.md, .opencode/skills/database/SKILL.md,
@@ -90,12 +97,19 @@ Ask: "Proceed with rewrites? (y/n)"
 For each file in the sweep list:
 
 1. Skip if the file does not exist (some may not apply to every project).
-2. Read the file.
-3. Apply token map substitutions in order (tokens #1 through #6 — always apply
-   #1 before #6 to preserve the `kyau <[EMAIL]>` composite match).
-4. For `cdn/sass/_tokens.scss` only: apply the accent toggle (see below).
-5. Write the file back.
-6. Count per-file replacements.
+2. Run the substitution script:
+
+   ```bash
+   bash .github/scripts/setup-substitute.sh <file> "{name}" "{email}" "{app}" "{domain}" "{org}" "{repo}"
+   ```
+
+   Replace `{name}`, `{email}`, `{app}`, `{domain}`, `{org}`, `{repo}` with the
+   actual interview values. The script applies all 7 token substitutions in
+   longest-match-first order (see token map above). It exits non-zero if the file
+   does not exist — skip missing files before calling it. The script is the single
+   source of truth for substitution logic.
+
+3. For `cdn/sass/_tokens.scss` only: apply the accent toggle (see below).
 
 **Accent toggle** (`cdn/sass/_tokens.scss`):
 
@@ -117,30 +131,34 @@ For **light-purple:**
 - `--accent-hover: #8b5cf6;` — uncommented, value `#8b5cf6`
 
 Use the Edit tool for the accent toggle — it is a small targeted change.
-For the token substitutions, use Edit with `replaceAll` for each token or
-`sed -i` when Edit would require many calls.
 
-**Use `sed` for bulk token substitution:**
+## 6. Verify sweep
+
+After the sweep, confirm no old identity strings remain (excluding
+LICENSE and NOTICE, which are legal/attribution and must not be swept):
 
 ```bash
-# Token #1 (longest composite first)
-sed -i "s|kyau <[EMAIL]>|{name} <{email}>|g" <file>
-# Token #2
-sed -i "s|kyaulabs/template|{org}/{repo}|g" <file>
-# Token #3
-sed -i 's|<app>|{app}|g' <file>
-# Token #4
-sed -i 's|<domain>|{domain}|g' <file>
-# Token #5
-sed -i 's|<username>|{name}|g' <file>
-# Token #6 (after token #1 has already consumed the composite matches)
-sed -i 's|\[EMAIL\]|{email}|g' <file>
+grep -rnF 'kyau <git@kyaulabs.com>' . \
+  --exclude-dir=.git --exclude-dir=aurora --exclude-dir=vendor \
+  --exclude-dir=node_modules --exclude-dir=cdn/css \
+  --exclude-dir=cdn/javascript \
+  --exclude=LICENSE --exclude=NOTICE
 ```
 
-Replace `{name}`, `{email}`, `{app}`, `{domain}`, `{org}`, `{repo}` with the
-actual interview values.
+This must return zero matches. If any matches are found, the sweep was
+incomplete — re-run the substitution script on the reported files.
 
-## 6. Save manifest
+Also verify the abuse contact was replaced:
+
+```bash
+grep -rnF 'git+abuse@kyaulabs.com' . \
+  --exclude-dir=.git --exclude-dir=aurora --exclude-dir=vendor \
+  --exclude-dir=node_modules
+```
+
+This must also return zero matches.
+
+## 7. Save manifest
 
 Write `.opencode/setup.json`:
 
@@ -157,12 +175,13 @@ Write `.opencode/setup.json`:
 }
 ```
 
-## 7. Report
+## 8. Report
 
 ```text
 File                                    Replacements
 --------------------------------------  ------------
 AGENTS.md                               8
+CONTRIBUTING.md                         2
 .env.example                            2
 README.md                               12
 CODE_OF_CONDUCT.md                      1
@@ -182,7 +201,7 @@ package.json                            1
 .opencode/docs/build-pipeline.md        1
 cdn/sass/_tokens.scss                   accent: light-purple
 --------------------------------------  ------------
-TOTAL                                   59 replacements across 19 files
+TOTAL                                   61 replacements across 20 files
 ```
 
 Remind the user:
@@ -201,10 +220,11 @@ Remind the user:
   these are rule identifiers, not placeholders.
 - Never touch `kyaulabs/aarch`, `kyaulabs/aurora`, `kyaulabs-bot` — these are
   real external resource references.
-- Apply token #1 (`kyau <[EMAIL]>`) before token #6 (`[EMAIL]`) — the
-  composite match must fire before the substring.
-- Skip missing files silently — not all projects will have every file in the
-  sweep list.
-- After successful rewrites, print the report. Do not commit or push anything.
-- If a file contains no matches for any token, skip it (do not write it back
-  unchanged — the Edit/sed approach inherently leaves it alone).
+- LICENSE and NOTICE must NOT be swept — they are legal/attribution files.
+- Apply token #1 (composite identity) before #3 (bare email) — the script
+  handles this automatically via longest-match-first ordering.
+- Apply token #2 (abuse contact) before #3 (bare email) — same reason.
+- Skip missing files silently (the script exits non-zero on missing files;
+  check existence before calling it).
+- After successful rewrites, print the report and run the verification grep
+  (section 6). Do not commit or push anything.
