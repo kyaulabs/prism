@@ -124,3 +124,43 @@ jobs:
         run: |
           git fetch origin "${{ github.event.pull_request.base.ref }}"
           npx commitlint --from="origin/${{ github.event.pull_request.base.ref }}" --to="HEAD" --verbose
+
+  check-macos:
+    name: macOS Eval & Shell
+    runs-on: macos-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Setup PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: pcov
+          tools: composer
+
+      - name: Install Composer dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Shell regression tests
+        shell: bash
+        run: |
+          shopt -s nullglob
+          tests=( tests/Shell/*_test.sh )
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No shell tests found in tests/Shell/"
+            exit 1
+          fi
+          for t in "${tests[@]}"; do
+            echo "::group::Running $t"
+            bash "$t"
+            echo "::endgroup::"
+          done
+
+      - name: Eval unit tests
+        run: php vendor/bin/pest tests/Unit/Eval
