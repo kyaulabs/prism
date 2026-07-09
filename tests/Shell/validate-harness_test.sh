@@ -505,6 +505,129 @@ EOF
 )
 rm -rf "$T11"
 
+# ── Test 12: Command file referencing nonexistent file via sed -i / git add ──
+
+echo "── Test 12: Command file path reference check — nonexistent file WARN ──"
+T12=$(mktemp -d)
+(
+	cd "$T12"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	# Command file with sed -i and git add targeting a nonexistent file
+	cat > .opencode/commands/test-release.md <<'CMDEOF'
+---
+description: Test release command
+---
+
+## 1. Update version
+
+```bash
+sed -i "s/define('VERSION', '[^']*');/define('VERSION', 'v1.0.0');/" version.inc.php
+git add version.inc.php
+```
+CMDEOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	# Should WARN about version.inc.php (nonexistent)
+	if echo "$output" | grep -qF "version.inc.php" && echo "$output" | grep -q "WARN"; then
+		pass "Caught sed -i / git add targeting nonexistent file"
+	else
+		fail "Did not warn about nonexistent file reference"
+	fi
+)
+rm -rf "$T12"
+
+# ── Test 13: Command file referencing existing file does not WARN ──────────────
+
+echo "── Test 13: Command file path reference check — existing file no WARN ──"
+T13=$(mktemp -d)
+(
+	cd "$T13"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	# Create an existing file in the repo root
+	echo "<?php" > existing.php
+
+	# Command file referencing the existing file
+	cat > .opencode/commands/test-cmd.md <<'CMDEOF'
+---
+description: Test command
+---
+
+## 1. Update
+
+```bash
+sed -i "s/foo/bar/" existing.php
+git add existing.php
+```
+CMDEOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	# Should NOT warn about existing.php
+	if echo "$output" | grep -qF "existing.php" && echo "$output" | grep -q "WARN"; then
+		fail "Warned about existing file reference (false positive)"
+	else
+		pass "No false warning for existing file reference"
+	fi
+)
+rm -rf "$T13"
+
+# ── Test 14: Variables, placeholders, and paths are skipped ───────────────────
+
+echo "── Test 14: Command file path reference check — edge cases skipped ──"
+T14=$(mktemp -d)
+(
+	cd "$T14"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+
+	cat > .opencode/commands/test-cmd.md <<'CMDEOF'
+---
+description: Test command
+---
+
+## 1. Various references
+
+```bash
+sed -i "s/foo/bar/" $VARFILE
+sed -i "s/foo/bar/" <placeholder>
+sed -i "s/foo/bar/" path/to/file.php
+git add -A
+git add .
+```
+CMDEOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	# Should NOT warn about any of these (all skipped by filters)
+	if echo "$output" | grep -q 'WARN.*VARFILE'; then
+		fail "Warned about variable reference \$VARFILE"
+	elif echo "$output" | grep -q 'WARN.*placeholder'; then
+		fail "Warned about placeholder reference"
+	elif echo "$output" | grep -q 'WARN.*path/to/file'; then
+		fail "Warned about path reference"
+	else
+		pass "Variables, placeholders, and paths correctly skipped"
+	fi
+)
+rm -rf "$T14"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)

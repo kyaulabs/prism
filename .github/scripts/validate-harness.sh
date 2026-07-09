@@ -219,6 +219,68 @@ fi
 
 ok "${CMD_COUNT} command(s) checked"
 
+# ── Doc-accuracy: command file path references ────────────────────────────────
+
+echo "── Checking command file path references ──"
+PATH_WARN_BEFORE=$WARNINGS
+
+# Check that a file referenced in a command exists in the repo root.
+# Skips variables, placeholders, globs, and paths with directory separators.
+# Usage: check_command_path <cmd_file> <cmd_type> <filename>
+check_command_path() {
+	local cmd_file="$1" cmd_type="$2" filename="$3"
+	[ -z "$filename" ] && return
+	# Skip variables, placeholders, globs, paths, quotes
+	case "$filename" in
+		*'$'*|*'<'*|'>'*|'*'*|'?'*|*'/'*|*"'"*|*'"'*) return ;;
+	esac
+	# Must look like a bare filename (word chars + dot + word chars)
+	echo "$filename" | grep -qE '^[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+$' || return
+	# Check existence in repo root
+	if [ ! -f "${REPO_ROOT}/${filename}" ]; then
+		warn "${cmd_file}: ${cmd_type} targets '${filename}' which does not exist in repo root"
+	fi
+}
+
+shopt -s nullglob
+CMD_PATH_FILES=( "${COMMANDS_DIR}"/*.md )
+shopt -u nullglob
+
+for cmd_file in "${CMD_PATH_FILES[@]}"; do
+	[ -f "$cmd_file" ] || continue
+
+	# Extract bash code blocks and check for sed -i / git add targeting
+	# nonexistent bare filenames.
+	bash_lines=$(awk '
+		/^```bash/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block { print }
+	' "$cmd_file")
+
+	while IFS= read -r line; do
+		[ -z "$line" ] && continue
+
+		# Check sed -i targets: the filename is the last whitespace-delimited
+		# token on the line (after the quoted sed expression).
+		if echo "$line" | grep -q 'sed -i'; then
+			filename=$(echo "$line" | awk '{print $NF}')
+			check_command_path "$cmd_file" "sed -i" "$filename"
+		fi
+
+		# Check git add targets: extract all non-flag tokens after "git add"
+		if echo "$line" | grep -q 'git add'; then
+			stripped=$(echo "$line" | sed 's/.*git add//' | sed 's/ -[a-zA-Z]*//g')
+			for token in $stripped; do
+				check_command_path "$cmd_file" "git add" "$token"
+			done
+		fi
+	done <<< "$bash_lines"
+done
+
+if [ "${WARNINGS:-0}" -eq "${PATH_WARN_BEFORE:-0}" ]; then
+	ok "Command file path references valid"
+fi
+
 # ── Cross-reference validation (soft: warnings only) ─────────────────────────
 
 echo "── Checking cross-references ──"
