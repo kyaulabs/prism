@@ -120,6 +120,7 @@ try {
             verdict: 'TIMEOUT',
             durationMs: $elapsedMs,
             error: "Agent timed out after {$args['timeout']} seconds",
+            degradedKill: $agentOutput['degraded_kill'],
         );
     } else {
         // ── Deterministic gate ────────────────────────────────────────

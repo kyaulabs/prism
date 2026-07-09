@@ -502,6 +502,89 @@ it('killProcessTree terminates the full process tree on timeout (POSIX)', functi
     expect($alive)->toBeFalse();
 });
 
+it('executeCommand reports degraded_kill when timeout occurs without setsid', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand('sleep 3', 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['degraded_kill'])->toBeTrue();
+});
+
+it('executeCommand does not set degraded_kill when setsid is available', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+    exec('command -v setsid 2>/dev/null', $probe, $probeExit);
+    if ($probeExit !== 0) {
+        $this->markTestSkipped('setsid not available on this platform');
+    }
+
+    $runner = new Runner(__DIR__);
+
+    $output = $runner->executeCommand('sleep 3', 1);
+
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['degraded_kill'])->toBeFalse();
+});
+
+it('killProcessTree kills direct children without setsid (POSIX fallback)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $marker = tempnam(sys_get_temp_dir(), 'eval-kill-');
+    $cmd = sprintf(
+        "sh -c 'sleep 30 & echo \$! > %s; wait'",
+        escapeshellarg($marker),
+    );
+
+    $output = $runner->executeCommand($cmd, 1);
+
+    expect($output['timed_out'])->toBeTrue();
+
+    if (!file_exists($marker)) {
+        $this->markTestSkipped('Command did not write child PID file');
+    }
+
+    $childPid = (int) trim((string) file_get_contents($marker));
+    unlink($marker);
+
+    if ($childPid <= 0) {
+        $this->markTestSkipped('Could not read child PID');
+    }
+
+    $alive = true;
+    for ($i = 0; $i < 10; $i++) {
+        $alive = posix_kill($childPid, 0);
+        if (!$alive) {
+            break;
+        }
+        usleep(50_000);
+    }
+
+    expect($alive)->toBeFalse();
+});
+
 it('deterministic gate: output contains expected string passes when needle found', function () {
     $runner = new Runner('/tmp');
     $case = new EvalCase(

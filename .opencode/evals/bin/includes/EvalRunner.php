@@ -131,6 +131,7 @@ class EvalResult
         public int $durationMs = 0,
         public bool $judgeUsed = false,
         public ?string $error = null,
+        public bool $degradedKill = false,
     ) {
     }
 
@@ -149,6 +150,7 @@ class EvalResult
             'duration_ms' => $this->durationMs,
             'judge_used' => $this->judgeUsed,
             'error' => $this->error,
+            'degraded_kill' => $this->degradedKill,
         ];
     }
 
@@ -298,7 +300,7 @@ class Runner
      *
      * @param  string $cmd  Shell command to execute.
      * @param  int $timeout  Timeout in seconds.
-     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool, degraded_kill: bool}
      */
     public function executeCommand(string $cmd, int $timeout): array
     {
@@ -322,7 +324,7 @@ class Runner
 
         $process = proc_open($cmd, $descriptors, $pipes);
         if (!is_resource($process)) {
-            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false];
+            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false, 'degraded_kill' => false];
         }
 
         fclose($pipes[0]);
@@ -349,7 +351,7 @@ class Runner
      * @param  array{0: resource, 1: resource, 2: resource} $pipes
      * @param  int $timeout  Timeout in seconds.
      * @param  int $pid  Process group leader PID for tree-kill.
-     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool, degraded_kill: bool}
      */
     private function readPipes($process, array $pipes, int $timeout, int $pid): array
     {
@@ -421,11 +423,14 @@ class Runner
 
         $exitCode = proc_close($process);
 
+        $degradedKill = $timedOut && !$this->hasSetSid();
+
         return [
-            'stdout' => trim($stdout),
-            'stderr' => trim($stderr),
-            'exitCode' => $exitCode,
-            'timed_out' => $timedOut,
+            'stdout'        => trim($stdout),
+            'stderr'        => trim($stderr),
+            'exitCode'      => $exitCode,
+            'timed_out'     => $timedOut,
+            'degraded_kill' => $degradedKill,
         ];
     }
 
@@ -449,12 +454,18 @@ class Runner
         if (DIRECTORY_SEPARATOR === '\\') {
             exec("taskkill /f /t /pid {$pid} 2>NUL");
             proc_terminate($process, 9);
-        } elseif (function_exists('posix_kill')) {
+        } elseif ($this->hasSetSid() && function_exists('posix_kill')) {
             // Negative PID: kill the entire process group (setsid'd).
             // SIGKILL comes from PCNTL extension; fall back to integer 9
             // when only posix (not pcntl) is available.
             posix_kill(-$pid, defined('SIGKILL') ? SIGKILL : 9);
         } else {
+            // No setsid (macOS/BSD) or no posix extension: the process is
+            // not a group leader, so posix_kill(-$pid) would signal the
+            // wrong group. Kill direct children best-effort via pkill -P
+            // while the parent is still alive (so they are findable),
+            // then terminate the parent. Grandchildren may escape.
+            exec("pkill -P {$pid} 2>/dev/null");
             proc_terminate($process, 9);
         }
     }
@@ -681,6 +692,7 @@ PROMPT;
                 durationMs: $elapsed,
                 judgeUsed: true,
                 error: "Judge timed out after {$this->timeout} seconds",
+                degradedKill: $output['degraded_kill'],
             );
         }
 
