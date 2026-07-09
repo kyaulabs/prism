@@ -274,6 +274,44 @@ it('executeCommand does not deadlock on large stderr before stdout', function ()
     expect($output['exitCode'])->toBe(0);
 });
 
+it('executeCommand succeeds without setsid (macOS/BSD fallback)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    // Simulate a platform where setsid is unavailable (e.g. macOS).
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $output = $runner->executeCommand('echo "hello world"', 5);
+
+    expect($output['exitCode'])->toBe(0);
+    expect($output['stdout'])->toContain('hello world');
+    expect($output['timed_out'])->toBeFalse();
+});
+
+it('hasSetSid is cached after first probe', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        public function probeHasSetSid(): bool
+        {
+            return $this->hasSetSid();
+        }
+    };
+    $first = $runner->probeHasSetSid();
+    $second = $runner->probeHasSetSid();
+
+    expect($first)->toBeBool();
+    expect($second)->toBe($first);
+});
+
 it('runJudge returns TIMEOUT verdict when executeCommand times out', function () {
     $runner = new Runner(__DIR__, timeout: 0);
     $case = new EvalCase(
@@ -392,6 +430,10 @@ it('buildCommand falls back to repoRoot when no dir is given', function () {
 it('executeCommand launches commands in a new process group on POSIX', function () {
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         $this->markTestSkipped('POSIX-only test');
+    }
+    exec('command -v setsid 2>/dev/null', $probe, $probeExit);
+    if ($probeExit !== 0) {
+        $this->markTestSkipped('setsid not available — process-group isolation is degraded on this platform');
     }
 
     $runner = new Runner(__DIR__);

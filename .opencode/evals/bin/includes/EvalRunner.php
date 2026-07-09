@@ -180,6 +180,9 @@ class Runner
 {
     private string $repoRoot;
 
+    /** @var bool|null Cached result of probing for the setsid(1) binary. */
+    private ?bool $hasSetSid = null;
+
     /**
      * Error-severity prefixes that the 'no errors in output' criterion treats
      * as a genuine fault. Matches at the start of any stderr line
@@ -260,6 +263,31 @@ class Runner
 
         return ['caseFile' => $caseFile, 'timeout' => $timeout, 'dryRun' => $dryRun];
     }
+
+    /**
+     * Probe once for the setsid(1) binary and cache the result.
+     *
+     * macOS and some BSDs do not ship setsid(1); on those platforms
+     * executeCommand() runs commands unprefixed and killProcessTree()
+     * uses a best-effort fallback (no process-group tree-kill).
+     *
+     * @return bool
+     */
+    protected function hasSetSid(): bool
+    {
+        if ($this->hasSetSid !== null) {
+            return $this->hasSetSid;
+        }
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            return $this->hasSetSid = false;
+        }
+
+        exec('command -v setsid 2>/dev/null', $output, $exitCode);
+
+        return $this->hasSetSid = ($exitCode === 0);
+    }
+
     /**
      * Execute a shell command and capture stdout, stderr, and exit code.
      *
@@ -274,11 +302,13 @@ class Runner
      */
     public function executeCommand(string $cmd, int $timeout): array
     {
-        // On POSIX, launch via exec setsid so the process runs in its own
-        // process group. The PID from proc_get_status then identifies the
-        // group, enabling posix_kill(-$pid, SIGKILL) to tree-kill on timeout.
+        // On POSIX with setsid(1), launch via exec setsid so the process
+        // runs in its own process group. The PID from proc_get_status then
+        // identifies the group, enabling posix_kill(-$pid, SIGKILL) to
+        // tree-kill on timeout. macOS/BSD lack setsid(1): run unprefixed
+        // and fall back to a best-effort kill in killProcessTree().
         // --wait: forces fork+wait on Linux where setsid forks by default.
-        if (DIRECTORY_SEPARATOR !== '\\') {
+        if ($this->hasSetSid()) {
             $cmd = PHP_OS_FAMILY === 'Linux'
                 ? 'exec setsid --wait ' . $cmd
                 : 'exec setsid ' . $cmd;
