@@ -147,6 +147,19 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-progress --no-interaction
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Install Homebrew bash 5
+        run: |
+          brew install bash
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+
       - name: Shell regression tests
         shell: bash
         run: |
