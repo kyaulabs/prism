@@ -171,9 +171,7 @@ $exitCode = Runner::computeSuiteExitCode(
     $failOnSkip,
 );
 
-if ($skipCount > 0 && $passCount === 0 && $failCount === 0
-    && $timeoutCount === 0 && $invalidCount === 0 && $skipCount === $total
-) {
+if ($total > 0 && $skipCount === $total) {
     fwrite(STDERR, "WARNING: every eval case was SKIPPED — the suite did nothing. "
         . "Verify opencode is installed and that cases are not filtered out.\n");
 }

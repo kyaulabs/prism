@@ -121,6 +121,7 @@ class EvalResult
 {
     /** @param array<int, array{behavior: string, verdict: string, rationale: string}> $behaviors */
     /** @param array<string, array<string, mixed>> $deterministicChecks */
+    /** @param bool $degradedKill True when a timeout occurred without process-group isolation (no setsid). */
     public function __construct(
         public string $name,
         public string $agent,
@@ -463,7 +464,7 @@ class Runner
 
         $exitCode = proc_close($process);
 
-        $degradedKill = $timedOut && !$this->hasSetSid();
+        $degradedKill = $timedOut && (!$this->hasSetSid() || !function_exists('posix_kill'));
 
         return [
             'stdout'        => trim($stdout),
@@ -505,7 +506,7 @@ class Runner
             // wrong group. Kill direct children best-effort via pkill -P
             // while the parent is still alive (so they are findable),
             // then terminate the parent. Grandchildren may escape.
-            exec("pkill -P {$pid} 2>/dev/null");
+            exec("pkill -P " . escapeshellarg((string) $pid) . " 2>/dev/null");
             proc_terminate($process, 9);
         }
     }
