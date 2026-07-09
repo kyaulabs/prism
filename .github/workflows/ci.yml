@@ -15,6 +15,8 @@ jobs:
     name: Lint, Test & Security
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SEMGREP_TOKEN_PRESENT: ${{ secrets.SEMGREP_APP_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -108,10 +110,22 @@ jobs:
         if: always() && hashFiles('tests/Browser/**/*.php') != ''
         run: kill $PHP_SERVER_PID 2>/dev/null || true
 
-      - name: Semgrep SAST
-        run: semgrep ci --config .semgrep/kyaulabs.yml
+      - name: Semgrep App (findings dashboard)
+        if: ${{ env.SEMGREP_TOKEN_PRESENT == 'true' }}
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: semgrep ci
+
+      - name: Semgrep SAST
+        run: >-
+          semgrep scan
+          --config .semgrep/kyaulabs.yml
+          --config p/php
+          --config p/secrets
+          --config p/javascript
+          --error
+          --metrics off
+          --disable-version-check
 
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
