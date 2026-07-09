@@ -121,6 +121,7 @@ class EvalResult
 {
     /** @param array<int, array{behavior: string, verdict: string, rationale: string}> $behaviors */
     /** @param array<string, array<string, mixed>> $deterministicChecks */
+    /** @param bool $degradedKill True when a timeout occurred without process-group isolation (no setsid). */
     public function __construct(
         public string $name,
         public string $agent,
@@ -131,6 +132,7 @@ class EvalResult
         public int $durationMs = 0,
         public bool $judgeUsed = false,
         public ?string $error = null,
+        public bool $degradedKill = false,
     ) {
     }
 
@@ -149,6 +151,7 @@ class EvalResult
             'duration_ms' => $this->durationMs,
             'judge_used' => $this->judgeUsed,
             'error' => $this->error,
+            'degraded_kill' => $this->degradedKill,
         ];
     }
 
@@ -179,6 +182,9 @@ class EvalResult
 class Runner
 {
     private string $repoRoot;
+
+    /** @var bool|null Cached result of probing for the setsid(1) binary. */
+    private ?bool $hasSetSid = null;
 
     /**
      * Error-severity prefixes that the 'no errors in output' criterion treats
@@ -260,6 +266,71 @@ class Runner
 
         return ['caseFile' => $caseFile, 'timeout' => $timeout, 'dryRun' => $dryRun];
     }
+
+    /**
+     * Compute the suite exit code from per-verdict counts.
+     *
+     * 0 — all pass (mixed pass+skip with no failures is still 0).
+     * 1 — any FAIL/TIMEOUT/INVALID, or any SKIPPED when $failOnSkip is set.
+     * 2 — every case SKIPPED (silent-suite guard); $failOnSkip promotes to 1.
+     *
+     * @param int  $pass
+     * @param int  $fail
+     * @param int  $timeout
+     * @param int  $skip
+     * @param int  $invalid
+     * @param bool $failOnSkip
+     * @return int
+     */
+    public static function computeSuiteExitCode(
+        int $pass,
+        int $fail,
+        int $timeout,
+        int $skip,
+        int $invalid,
+        bool $failOnSkip,
+    ): int {
+        $total = $pass + $fail + $timeout + $skip + $invalid;
+
+        if ($fail > 0 || $timeout > 0 || $invalid > 0) {
+            return 1;
+        }
+
+        if ($failOnSkip && $skip > 0) {
+            return 1;
+        }
+
+        if ($total > 0 && $skip === $total) {
+            return 2;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Probe once for the setsid(1) binary and cache the result.
+     *
+     * macOS and some BSDs do not ship setsid(1); on those platforms
+     * executeCommand() runs commands unprefixed and killProcessTree()
+     * uses a best-effort fallback (no process-group tree-kill).
+     *
+     * @return bool
+     */
+    protected function hasSetSid(): bool
+    {
+        if ($this->hasSetSid !== null) {
+            return $this->hasSetSid;
+        }
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            return $this->hasSetSid = false;
+        }
+
+        exec('command -v setsid 2>/dev/null', $output, $exitCode);
+
+        return $this->hasSetSid = ($exitCode === 0);
+    }
+
     /**
      * Execute a shell command and capture stdout, stderr, and exit code.
      *
@@ -270,15 +341,17 @@ class Runner
      *
      * @param  string $cmd  Shell command to execute.
      * @param  int $timeout  Timeout in seconds.
-     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool, degraded_kill: bool}
      */
     public function executeCommand(string $cmd, int $timeout): array
     {
-        // On POSIX, launch via exec setsid so the process runs in its own
-        // process group. The PID from proc_get_status then identifies the
-        // group, enabling posix_kill(-$pid, SIGKILL) to tree-kill on timeout.
+        // On POSIX with setsid(1), launch via exec setsid so the process
+        // runs in its own process group. The PID from proc_get_status then
+        // identifies the group, enabling posix_kill(-$pid, SIGKILL) to
+        // tree-kill on timeout. macOS/BSD lack setsid(1): run unprefixed
+        // and fall back to a best-effort kill in killProcessTree().
         // --wait: forces fork+wait on Linux where setsid forks by default.
-        if (DIRECTORY_SEPARATOR !== '\\') {
+        if ($this->hasSetSid()) {
             $cmd = PHP_OS_FAMILY === 'Linux'
                 ? 'exec setsid --wait ' . $cmd
                 : 'exec setsid ' . $cmd;
@@ -292,7 +365,7 @@ class Runner
 
         $process = proc_open($cmd, $descriptors, $pipes);
         if (!is_resource($process)) {
-            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false];
+            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false, 'degraded_kill' => false];
         }
 
         fclose($pipes[0]);
@@ -319,7 +392,7 @@ class Runner
      * @param  array{0: resource, 1: resource, 2: resource} $pipes
      * @param  int $timeout  Timeout in seconds.
      * @param  int $pid  Process group leader PID for tree-kill.
-     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool}
+     * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool, degraded_kill: bool}
      */
     private function readPipes($process, array $pipes, int $timeout, int $pid): array
     {
@@ -391,11 +464,14 @@ class Runner
 
         $exitCode = proc_close($process);
 
+        $degradedKill = $timedOut && (!$this->hasSetSid() || !function_exists('posix_kill'));
+
         return [
-            'stdout' => trim($stdout),
-            'stderr' => trim($stderr),
-            'exitCode' => $exitCode,
-            'timed_out' => $timedOut,
+            'stdout'        => trim($stdout),
+            'stderr'        => trim($stderr),
+            'exitCode'      => $exitCode,
+            'timed_out'     => $timedOut,
+            'degraded_kill' => $degradedKill,
         ];
     }
 
@@ -406,9 +482,14 @@ class Runner
      * but not child processes. taskkill /t ensures the full tree is
      * terminated so stream_get_contents does not block.
      *
-     * On POSIX, the process was launched via exec setsid (own process group),
-     * so posix_kill(-$pid, SIGKILL) kills the entire group. Falls back to
-     * proc_terminate when the posix extension is unavailable.
+     * On POSIX with setsid, the process runs in its own process group,
+     * so posix_kill(-$pid, SIGKILL) kills the entire group.
+     *
+     * On POSIX without setsid (macOS/BSD) or without the posix extension,
+     * walks the full descendant tree via pgrep -P and kills each process
+     * individually, then terminates the parent. This handles the extra
+     * shell layer proc_open introduces (string commands run via sh -c),
+     * which can place the workload at grandchild depth.
      *
      * @param resource $process
      * @param int $pid    Process group leader PID (equal to PGID via setsid).
@@ -419,14 +500,57 @@ class Runner
         if (DIRECTORY_SEPARATOR === '\\') {
             exec("taskkill /f /t /pid {$pid} 2>NUL");
             proc_terminate($process, 9);
-        } elseif (function_exists('posix_kill')) {
+        } elseif ($this->hasSetSid() && function_exists('posix_kill')) {
             // Negative PID: kill the entire process group (setsid'd).
             // SIGKILL comes from PCNTL extension; fall back to integer 9
             // when only posix (not pcntl) is available.
             posix_kill(-$pid, defined('SIGKILL') ? SIGKILL : 9);
         } else {
+            // No setsid (macOS/BSD) or no posix extension: the process is
+            // not a group leader, so posix_kill(-$pid) would signal the
+            // wrong group. Walk the full descendant tree and kill each
+            // process individually, then terminate the parent. The walk
+            // handles the extra shell layer proc_open introduces on Unix
+            // (string commands run via sh -c), which can place the workload
+            // at grandchild depth — invisible to a flat pkill -P.
+            foreach ($this->collectDescendantPids($pid) as $descPid) {
+                if (function_exists('posix_kill')) {
+                    posix_kill($descPid, defined('SIGKILL') ? SIGKILL : 9);
+                } else {
+                    exec('kill -9 ' . escapeshellarg((string) $descPid) . ' 2>/dev/null');
+                }
+            }
             proc_terminate($process, 9);
         }
+    }
+
+    /**
+     * Recursively collect all descendant PIDs of $rootPid via pgrep -P.
+     *
+     * Walks the process tree breadth-first so children are discovered
+     * while their parents are still alive (and thus still listed as
+     * PPID by pgrep). Returns PIDs in discovery order (siblings before
+     * nieces), excluding $rootPid itself.
+     *
+     * @param int $rootPid  PID whose descendants to collect.
+     * @return list<int>    Descendant PIDs, excluding $rootPid.
+     */
+    private function collectDescendantPids(int $rootPid): array
+    {
+        $pids = [];
+        $queue = [$rootPid];
+        while ($queue !== []) {
+            $parent = array_shift($queue);
+            exec('pgrep -P ' . escapeshellarg((string) $parent) . ' 2>/dev/null', $children);
+            foreach ($children as $child) {
+                $child = (int) trim($child);
+                if ($child > 0 && !in_array($child, $pids, true)) {
+                    $pids[] = $child;
+                    $queue[] = $child;
+                }
+            }
+        }
+        return $pids;
     }
 
     /**
@@ -651,6 +775,7 @@ PROMPT;
                 durationMs: $elapsed,
                 judgeUsed: true,
                 error: "Judge timed out after {$this->timeout} seconds",
+                degradedKill: $output['degraded_kill'],
             );
         }
 

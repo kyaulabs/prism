@@ -274,6 +274,44 @@ it('executeCommand does not deadlock on large stderr before stdout', function ()
     expect($output['exitCode'])->toBe(0);
 });
 
+it('executeCommand succeeds without setsid (macOS/BSD fallback)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    // Simulate a platform where setsid is unavailable (e.g. macOS).
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $output = $runner->executeCommand('echo "hello world"', 5);
+
+    expect($output['exitCode'])->toBe(0);
+    expect($output['stdout'])->toContain('hello world');
+    expect($output['timed_out'])->toBeFalse();
+});
+
+it('hasSetSid is cached after first probe', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        public function probeHasSetSid(): bool
+        {
+            return $this->hasSetSid();
+        }
+    };
+    $first = $runner->probeHasSetSid();
+    $second = $runner->probeHasSetSid();
+
+    expect($first)->toBeBool();
+    expect($second)->toBe($first);
+});
+
 it('runJudge returns TIMEOUT verdict when executeCommand times out', function () {
     $runner = new Runner(__DIR__, timeout: 0);
     $case = new EvalCase(
@@ -393,6 +431,10 @@ it('executeCommand launches commands in a new process group on POSIX', function 
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         $this->markTestSkipped('POSIX-only test');
     }
+    exec('command -v setsid 2>/dev/null', $probe, $probeExit);
+    if ($probeExit !== 0) {
+        $this->markTestSkipped('setsid not available — process-group isolation is degraded on this platform');
+    }
 
     $runner = new Runner(__DIR__);
 
@@ -457,6 +499,89 @@ it('killProcessTree terminates the full process tree on timeout (POSIX)', functi
     }
 
     // The child should be dead — posix_kill(pid, 0) checks existence
+    expect($alive)->toBeFalse();
+});
+
+it('executeCommand reports degraded_kill when timeout occurs without setsid', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand('sleep 3', 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['degraded_kill'])->toBeTrue();
+});
+
+it('executeCommand does not set degraded_kill when setsid is available', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+    exec('command -v setsid 2>/dev/null', $probe, $probeExit);
+    if ($probeExit !== 0) {
+        $this->markTestSkipped('setsid not available on this platform');
+    }
+
+    $runner = new Runner(__DIR__);
+
+    $output = $runner->executeCommand('sleep 3', 1);
+
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['degraded_kill'])->toBeFalse();
+});
+
+it('killProcessTree kills direct children without setsid (POSIX fallback)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $marker = tempnam(sys_get_temp_dir(), 'eval-kill-');
+    $cmd = sprintf(
+        "sh -c 'sleep 30 & echo \$! > %s; wait'",
+        escapeshellarg($marker),
+    );
+
+    $output = $runner->executeCommand($cmd, 1);
+
+    expect($output['timed_out'])->toBeTrue();
+
+    if (!file_exists($marker)) {
+        $this->markTestSkipped('Command did not write child PID file');
+    }
+
+    $childPid = (int) trim((string) file_get_contents($marker));
+    unlink($marker);
+
+    if ($childPid <= 0) {
+        $this->markTestSkipped('Could not read child PID');
+    }
+
+    $alive = true;
+    for ($i = 0; $i < 10; $i++) {
+        $alive = posix_kill($childPid, 0);
+        if (!$alive) {
+            break;
+        }
+        usleep(50_000);
+    }
+
     expect($alive)->toBeFalse();
 });
 
