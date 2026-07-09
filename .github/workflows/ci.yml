@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: lts/*
 
+      - name: Validate composer.json and lock file
+        run: composer validate --strict --no-check-publish
+
       - name: Install Composer dependencies
         run: composer install --no-progress --no-interaction
 
@@ -157,6 +160,9 @@ jobs:
           php-version: '8.5'
           coverage: pcov
           tools: composer
+
+      - name: Validate composer.json and lock file
+        run: composer validate --strict --no-check-publish
 
       - name: Install Composer dependencies
         run: composer install --no-progress --no-interaction
