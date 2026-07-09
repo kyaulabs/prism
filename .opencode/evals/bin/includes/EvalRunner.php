@@ -267,6 +267,46 @@ class Runner
     }
 
     /**
+     * Compute the suite exit code from per-verdict counts.
+     *
+     * 0 — all pass (mixed pass+skip with no failures is still 0).
+     * 1 — any FAIL/TIMEOUT/INVALID, or any SKIPPED when $failOnSkip is set.
+     * 2 — every case SKIPPED (silent-suite guard); $failOnSkip promotes to 1.
+     *
+     * @param int  $pass
+     * @param int  $fail
+     * @param int  $timeout
+     * @param int  $skip
+     * @param int  $invalid
+     * @param bool $failOnSkip
+     * @return int
+     */
+    public static function computeSuiteExitCode(
+        int $pass,
+        int $fail,
+        int $timeout,
+        int $skip,
+        int $invalid,
+        bool $failOnSkip,
+    ): int {
+        $total = $pass + $fail + $timeout + $skip + $invalid;
+
+        if ($fail > 0 || $timeout > 0 || $invalid > 0) {
+            return 1;
+        }
+
+        if ($failOnSkip && $skip > 0) {
+            return 1;
+        }
+
+        if ($total > 0 && $skip === $total) {
+            return 2;
+        }
+
+        return 0;
+    }
+
+    /**
      * Probe once for the setsid(1) binary and cache the result.
      *
      * macOS and some BSDs do not ship setsid(1); on those platforms

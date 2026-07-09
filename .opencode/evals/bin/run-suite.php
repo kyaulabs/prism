@@ -7,7 +7,7 @@ declare(strict_types=1);
 /**
  * run-suite.php — Batch eval suite runner.
  *
- * Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run]
+ * Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip]
  *
  * Discovers all .json eval case files in the given directory, optionally
  * filtered by --tag. Runs each through run-eval.php, aggregates results,
@@ -15,18 +15,24 @@ declare(strict_types=1);
  * results file.
  *
  * Exit codes:
- *   0 — all cases PASS
- *   1 — one or more cases FAIL, TIMEOUT, or INVALID
+ *   0 — all cases PASS (mixed PASS+SKIP with no failures is 0)
+ *   1 — any FAIL, TIMEOUT, or INVALID case (or any SKIP with --fail-on-skip)
+ *   2 — every case SKIPPED (silent-suite guard)
  */
 
 $repoRoot = realpath(dirname(__DIR__, 3));
 $runEvalScript = __DIR__ . '/run-eval.php';
+
+require_once __DIR__ . '/includes/EvalRunner.php';
+
+use KYAULabs\Eval\Runner;
 
 // ── Parse arguments ──────────────────────────────────────────────────────
 $directory = '';
 $tag = null;
 $timeout = 120;
 $dryRun = false;
+$failOnSkip = false;
 
 for ($i = 1; $i < count($argv); $i++) {
     if ($argv[$i] === '--tag' && isset($argv[$i + 1])) {
@@ -35,6 +41,8 @@ for ($i = 1; $i < count($argv); $i++) {
         $timeout = (int) $argv[++$i];
     } elseif ($argv[$i] === '--dry-run') {
         $dryRun = true;
+    } elseif ($argv[$i] === '--fail-on-skip') {
+        $failOnSkip = true;
     } elseif (!str_starts_with($argv[$i], '--')) {
         $directory = $argv[$i];
     }
@@ -42,7 +50,7 @@ for ($i = 1; $i < count($argv); $i++) {
 
 if ($directory === '' || !is_dir($directory)) {
     fwrite(STDERR, "Error: directory not found: {$directory}\n");
-    fwrite(STDERR, "Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run]\n");
+    fwrite(STDERR, "Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip]\n");
     exit(1);
 }
 
@@ -154,7 +162,22 @@ file_put_contents(
 
 echo "\nDetailed results: {$resultsFile}\n";
 
-$anyNonPass = $failCount > 0 || $timeoutCount > 0 || $invalidCount > 0;
-exit($anyNonPass ? 1 : 0);
+$exitCode = Runner::computeSuiteExitCode(
+    $passCount,
+    $failCount,
+    $timeoutCount,
+    $skipCount,
+    $invalidCount,
+    $failOnSkip,
+);
+
+if ($skipCount > 0 && $passCount === 0 && $failCount === 0
+    && $timeoutCount === 0 && $invalidCount === 0 && $skipCount === $total
+) {
+    fwrite(STDERR, "WARNING: every eval case was SKIPPED — the suite did nothing. "
+        . "Verify opencode is installed and that cases are not filtered out.\n");
+}
+
+exit($exitCode);
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
