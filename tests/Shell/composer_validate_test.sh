@@ -20,6 +20,12 @@ if ! command -v composer >/dev/null 2>&1; then
 	exit 1
 fi
 
+# Guard: node must be available (for JSON manipulation in test 2)
+if ! command -v node >/dev/null 2>&1; then
+	echo "FAIL: node is not installed or not on PATH"
+	exit 1
+fi
+
 # 1. Green path: the real repo must pass strict validation
 echo "── Test 1: composer validate --strict --no-check-publish (real repo) ──"
 if (cd "$REPO_ROOT" && composer validate --strict --no-check-publish) 2>&1; then
@@ -44,6 +50,7 @@ TMPDIR_WIN="$(cygpath -m "$TMPDIR_TEST" 2>/dev/null)" || TMPDIR_WIN="$TMPDIR_TES
 node -e "
 	const fs = require('fs');
 	const p = JSON.parse(fs.readFileSync('$TMPDIR_WIN/composer.json', 'utf8'));
+	p.require = p.require || {};
 	p.require['fake/drift-test'] = '^1.0';
 	fs.writeFileSync('$TMPDIR_WIN/composer.json', JSON.stringify(p, null, '\t') + '\n');
 "
