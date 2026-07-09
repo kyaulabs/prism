@@ -184,7 +184,7 @@ if [ -n "$STAGED_SRC" ]; then
 				echo ""
 				echo "$HDR"
 				echo ""
-				tail -n +2 "$TMP" | sed -e '1{' -e '/declare(strict_types=1);/d' -e '}'
+				tail -n +2 "$TMP" | awk 'NR==1 && index($0,"declare(strict_types=1);"){next} 1'
 			elif [ "$EXT" = "sh" ]; then
 				LINE1=$(head -1 "$TMP")
 				if echo "$LINE1" | grep -q '^#!/'; then

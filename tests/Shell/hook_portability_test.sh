@@ -14,11 +14,13 @@ HOOK="$HERE/../../.github/hooks/pre-commit"
 
 fail=0
 
-# 1. GNU-sed '{...;...}' command-group syntax (BSD sed rejects ';' inside groups)
-#    Matches when {, ;, and } all appear within a single '...' sed argument
-if grep -nE "sed[^|]*'[^']*\{[^']*;[^']*\}[^']*'" "$HOOK" > /dev/null; then
-	echo "FAIL: GNU-sed '{...;...}' group syntax found (BSD-incompatible):"
-	grep -nE "sed[^|]*'[^']*\{[^']*;[^']*\}[^']*'" "$HOOK"
+# 1. sed brace-grouping syntax '{ ... }' (BSD sed parses unreliably across
+#    -e args and rejects forms without ';' before '}'). Banned entirely —
+#    use awk or portable alternatives. Conservative: flags any '{' inside a
+#    sed quoted argument (single-quote or -e form).
+if grep -nE "sed[^|]*'[^']*\{[^']*'" "$HOOK" > /dev/null; then
+	echo "FAIL: sed brace-grouping '{...}' found (BSD sed incompatible):"
+	grep -nE "sed[^|]*'[^']*\{[^']*'" "$HOOK"
 	fail=1
 fi
 
