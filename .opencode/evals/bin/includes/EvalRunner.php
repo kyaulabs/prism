@@ -2,6 +2,9 @@
 
 # $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
+
+# $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 declare(strict_types=1);
 
 namespace KYAULabs\Eval;
@@ -815,6 +818,15 @@ PROMPT;
     /**
      * Resolve a binary name against PATH using is_executable().
      *
+     * Guard clauses return false for: empty binary name, names containing
+     * a directory separator (path-traversal prevention), and empty PATH.
+     * Empty PATH entries (leading, trailing, or doubled colons) are
+     * silently skipped to avoid CWD-relative matches.
+     *
+     * clearstatcache() is called defensively on each candidate: the
+     * current callers invoke this once at startup, but a future hot-loop
+     * caller could encounter stale stat results without it.
+     *
      * @param  string $binary Binary name without a directory component.
      * @return bool
      */
@@ -929,5 +941,7 @@ PROMPT;
         }
     }
 }
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

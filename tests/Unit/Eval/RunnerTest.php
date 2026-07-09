@@ -2,6 +2,9 @@
 
 # $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
+
+# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 declare(strict_types=1);
 
 use KYAULabs\Eval\Runner;
@@ -300,7 +303,9 @@ it('isOpenCodeAvailable returns true when an executable opencode is on PATH', fu
     }
 
     $dir = sys_get_temp_dir() . '/opencode-stub-' . bin2hex(random_bytes(4));
-    mkdir($dir, 0700, true);
+    if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+        $this->markTestSkipped('Failed to create temp directory');
+    }
     $stub = $dir . '/opencode';
     file_put_contents($stub, "#!/bin/sh\nexit 0\n");
     chmod($stub, 0755);
@@ -324,7 +329,9 @@ it('isOpenCodeAvailable returns false when opencode is not on PATH', function ()
     }
 
     $emptyDir = sys_get_temp_dir() . '/empty-path-' . bin2hex(random_bytes(4));
-    mkdir($emptyDir, 0700, true);
+    if (!mkdir($emptyDir, 0700, true) && !is_dir($emptyDir)) {
+        $this->markTestSkipped('Failed to create temp directory');
+    }
 
     $originalPath = getenv('PATH');
     putenv('PATH=' . $emptyDir);
@@ -344,7 +351,9 @@ it('isOpenCodeAvailable ignores a non-executable opencode on PATH', function () 
     }
 
     $dir = sys_get_temp_dir() . '/opencode-noexec-' . bin2hex(random_bytes(4));
-    mkdir($dir, 0700, true);
+    if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+        $this->markTestSkipped('Failed to create temp directory');
+    }
     $stub = $dir . '/opencode';
     file_put_contents($stub, "#!/bin/sh\nexit 0\n");
     chmod($stub, 0644); // present but not executable
@@ -713,5 +722,7 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
