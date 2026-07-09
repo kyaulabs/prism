@@ -3,6 +3,23 @@ description: Audit an existing test suite for quality problems — coverage padd
 model: deepseek/deepseek-v4-pro
 variant: max
 mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "cat*": allow
+    "tail*": allow
+    "head*": allow
+    "grep*": allow
+    "find*": allow
+    "php -d pcov.enabled=1 vendor/bin/pest*": allow
+    "git log*": allow
+    "git show*": allow
+    "git status": allow
+    "git diff*": allow
+  webfetch: deny
+  task: deny
 ---
 
 Audit the test suite for this project. Do NOT make any code changes — produce a report only.
