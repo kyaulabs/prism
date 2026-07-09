@@ -2,9 +2,6 @@
 
 # $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
-
-# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
-
 declare(strict_types=1);
 
 use KYAULabs\Eval\Runner;
