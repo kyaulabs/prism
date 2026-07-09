@@ -60,7 +60,7 @@ check_frontmatter_delimiters() {
 		return 1
 	fi
 	# First line must be ---
-	open=$(head -1 "$file")
+	open=$(head -n 1 "$file")
 	if [ "$open" != "---" ]; then
 		return 1
 	fi
@@ -289,7 +289,7 @@ while IFS= read -r file; do
 			fi
 		done <<< "$refs"
 	done < "$file"
-done < <(find "${HARNESS_DIR}" -name 'SKILL.md' -not -path '*/node_modules/*' 2>/dev/null)
+done < <(find "${HARNESS_DIR}" -name 'SKILL.md' ! -path '*/node_modules/*' 2>/dev/null)
 
 ok "${CROSSREF_COUNT} cross-reference(s) verified"
 
@@ -327,7 +327,7 @@ else
 				line_num++
 				if (line_num <= 2) next
 				cell = $2
-				gsub(/^[ \t]+|[ \t]+$/, "", cell)
+				gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
 				gsub(/^`|`$/, "", cell)
 				gsub(/^@/, "", cell)
 				gsub(/^\//, "", cell)
@@ -406,7 +406,7 @@ fi
 echo "── Checking bash permission patterns ──"
 
 # Check opencode.json for bash permission keys ending in " *"
-JSON_BAD=$(grep -noE '"[^"]* \*"\s*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
+JSON_BAD=$(grep -noE '"[^"]* \*"[[:space:]]*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
 if [ -n "$JSON_BAD" ]; then
 	while IFS= read -r line; do
 		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
