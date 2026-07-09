@@ -2,10 +2,7 @@
 
 # $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
-
 declare(strict_types=1);
-
-# $KYAULabs: EvalRunner.php kyau@nova 2026/07/05 -0700 Exp $
 
 namespace KYAULabs\Eval;
 
@@ -932,7 +929,5 @@ PROMPT;
         }
     }
 }
-
-// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
