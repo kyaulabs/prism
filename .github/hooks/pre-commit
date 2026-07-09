@@ -3,6 +3,13 @@
 
 set -euo pipefail
 
+# Require bash >= 3.2 (macOS ships 3.2; avoids silent misbehaviour on sh/dash)
+if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || \
+	{ [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
+	echo "pre-commit: bash >= 3.2 required (found ${BASH_VERSION:-unknown})" >&2
+	exit 1
+fi
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
@@ -34,7 +41,8 @@ if [ -n "$CS_FIXER" ]; then
 		fi
 		# --path-mode=override: scan ONLY the explicitly-passed paths,
 		# ignoring the Finder scope entirely (prevents node_modules leakage)
-		mapfile -t PATHS <<< "$STAGED_PHP"
+		PATHS=()
+		while IFS= read -r p; do [ -n "$p" ] && PATHS+=("$p"); done <<< "$STAGED_PHP"
 		if [ -n "$CS_CONFIG" ]; then
 			"$CS_FIXER" fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1
 		else
@@ -47,7 +55,8 @@ fi
 STAGED_SCSS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
 if [ -n "$STAGED_SCSS" ] && [ -d node_modules/stylelint ]; then
 	echo "→ Stylelint"
-	mapfile -t SCSS_FILES <<< "$STAGED_SCSS"
+	SCSS_FILES=()
+	while IFS= read -r f; do [ -n "$f" ] && SCSS_FILES+=("$f"); done <<< "$STAGED_SCSS"
 	npx stylelint "${SCSS_FILES[@]}"
 fi
 
@@ -55,7 +64,8 @@ fi
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACMR | grep '^cdn/js/.*\.js$' | grep -v '\.min\.js$' || true)
 if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
 	echo "→ ESLint"
-	mapfile -t JS_FILES <<< "$STAGED_JS"
+	JS_FILES=()
+	while IFS= read -r f; do [ -n "$f" ] && JS_FILES+=("$f"); done <<< "$STAGED_JS"
 	npx eslint "${JS_FILES[@]}" --no-error-on-unmatched-pattern
 fi
 
@@ -64,7 +74,8 @@ STAGED_SH=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.sh$|^\
 if [ -n "$STAGED_SH" ]; then
 	if command -v shellcheck > /dev/null 2>&1; then
 		echo "→ Shellcheck"
-		mapfile -t SH_FILES <<< "$STAGED_SH"
+		SH_FILES=()
+		while IFS= read -r f; do [ -n "$f" ] && SH_FILES+=("$f"); done <<< "$STAGED_SH"
 		shellcheck "${SH_FILES[@]}"
 	else
 		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
@@ -173,7 +184,7 @@ if [ -n "$STAGED_SRC" ]; then
 				echo ""
 				echo "$HDR"
 				echo ""
-				tail -n +2 "$TMP" | sed '1{/declare(strict_types=1);/d}'
+				tail -n +2 "$TMP" | sed -e '1{' -e '/declare(strict_types=1);/d' -e '}'
 			elif [ "$EXT" = "sh" ]; then
 				LINE1=$(head -1 "$TMP")
 				if echo "$LINE1" | grep -q '^#!/'; then
