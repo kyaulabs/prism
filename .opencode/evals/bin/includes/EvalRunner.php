@@ -801,13 +801,49 @@ PROMPT;
     /**
      * Check if opencode is available in PATH.
      *
+     * Scans PATH directly with is_executable() rather than routing through
+     * executeCommand(): on Linux executeCommand() prepends `exec setsid
+     * --wait`, and setsid(1) execs the target via execvp() with no shell,
+     * so a shell builtin like `command` is never found (exit 127). A native
+     * PATH scan is shell-free, cross-platform, and unit-testable.
+     *
      * @return bool
      */
     public function isOpenCodeAvailable(): bool
     {
-        $output = $this->executeCommand('command -v opencode', 5);
+        return $this->isBinaryOnPath('opencode');
+    }
 
-        return $output['exitCode'] === 0 && $output['stdout'] !== '';
+    /**
+     * Resolve a binary name against PATH using is_executable().
+     *
+     * @param  string $binary Binary name without a directory component.
+     * @return bool
+     */
+    private function isBinaryOnPath(string $binary): bool
+    {
+        if ($binary === '' || str_contains($binary, '/')) {
+            return false;
+        }
+
+        $path = (string) getenv('PATH');
+        if ($path === '') {
+            return false;
+        }
+
+        foreach (explode(':', $path) as $dir) {
+            $dir = rtrim($dir, '/');
+            if ($dir === '') {
+                continue; // skip empty entries (would otherwise match CWD)
+            }
+            $candidate = $dir . '/' . $binary;
+            clearstatcache(true, $candidate);
+            if (is_file($candidate) && is_executable($candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

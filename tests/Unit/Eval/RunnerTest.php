@@ -1,5 +1,8 @@
 <?php
 
+# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
+
 declare(strict_types=1);
 
 # $KYAULabs: RunnerTest.php kyau@nova 2026/07/05 -0700 Exp $
@@ -292,6 +295,74 @@ it('executeCommand succeeds without setsid (macOS/BSD fallback)', function () {
     expect($output['exitCode'])->toBe(0);
     expect($output['stdout'])->toContain('hello world');
     expect($output['timed_out'])->toBeFalse();
+});
+
+it('isOpenCodeAvailable returns true when an executable opencode is on PATH', function () {
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $dir = sys_get_temp_dir() . '/opencode-stub-' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    $stub = $dir . '/opencode';
+    file_put_contents($stub, "#!/bin/sh\nexit 0\n");
+    chmod($stub, 0755);
+
+    $originalPath = getenv('PATH');
+    putenv('PATH=' . $dir);
+
+    try {
+        $runner = new Runner('/path/to/repo');
+        expect($runner->isOpenCodeAvailable())->toBeTrue();
+    } finally {
+        putenv('PATH=' . $originalPath);
+        unlink($stub);
+        rmdir($dir);
+    }
+});
+
+it('isOpenCodeAvailable returns false when opencode is not on PATH', function () {
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $emptyDir = sys_get_temp_dir() . '/empty-path-' . bin2hex(random_bytes(4));
+    mkdir($emptyDir, 0700, true);
+
+    $originalPath = getenv('PATH');
+    putenv('PATH=' . $emptyDir);
+
+    try {
+        $runner = new Runner('/path/to/repo');
+        expect($runner->isOpenCodeAvailable())->toBeFalse();
+    } finally {
+        putenv('PATH=' . $originalPath);
+        rmdir($emptyDir);
+    }
+});
+
+it('isOpenCodeAvailable ignores a non-executable opencode on PATH', function () {
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $dir = sys_get_temp_dir() . '/opencode-noexec-' . bin2hex(random_bytes(4));
+    mkdir($dir, 0700, true);
+    $stub = $dir . '/opencode';
+    file_put_contents($stub, "#!/bin/sh\nexit 0\n");
+    chmod($stub, 0644); // present but not executable
+
+    $originalPath = getenv('PATH');
+    putenv('PATH=' . $dir);
+
+    try {
+        $runner = new Runner('/path/to/repo');
+        expect($runner->isOpenCodeAvailable())->toBeFalse();
+    } finally {
+        putenv('PATH=' . $originalPath);
+        unlink($stub);
+        rmdir($dir);
+    }
 });
 
 it('hasSetSid is cached after first probe', function () {
@@ -645,5 +716,7 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
