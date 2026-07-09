@@ -482,9 +482,14 @@ class Runner
      * but not child processes. taskkill /t ensures the full tree is
      * terminated so stream_get_contents does not block.
      *
-     * On POSIX, the process was launched via exec setsid (own process group),
-     * so posix_kill(-$pid, SIGKILL) kills the entire group. Falls back to
-     * proc_terminate when the posix extension is unavailable.
+     * On POSIX with setsid, the process runs in its own process group,
+     * so posix_kill(-$pid, SIGKILL) kills the entire group.
+     *
+     * On POSIX without setsid (macOS/BSD) or without the posix extension,
+     * walks the full descendant tree via pgrep -P and kills each process
+     * individually, then terminates the parent. This handles the extra
+     * shell layer proc_open introduces (string commands run via sh -c),
+     * which can place the workload at grandchild depth.
      *
      * @param resource $process
      * @param int $pid    Process group leader PID (equal to PGID via setsid).
@@ -503,12 +508,49 @@ class Runner
         } else {
             // No setsid (macOS/BSD) or no posix extension: the process is
             // not a group leader, so posix_kill(-$pid) would signal the
-            // wrong group. Kill direct children best-effort via pkill -P
-            // while the parent is still alive (so they are findable),
-            // then terminate the parent. Grandchildren may escape.
-            exec("pkill -P " . escapeshellarg((string) $pid) . " 2>/dev/null");
+            // wrong group. Walk the full descendant tree and kill each
+            // process individually, then terminate the parent. The walk
+            // handles the extra shell layer proc_open introduces on Unix
+            // (string commands run via sh -c), which can place the workload
+            // at grandchild depth — invisible to a flat pkill -P.
+            foreach ($this->collectDescendantPids($pid) as $descPid) {
+                if (function_exists('posix_kill')) {
+                    posix_kill($descPid, defined('SIGKILL') ? SIGKILL : 9);
+                } else {
+                    exec('kill -9 ' . escapeshellarg((string) $descPid) . ' 2>/dev/null');
+                }
+            }
             proc_terminate($process, 9);
         }
+    }
+
+    /**
+     * Recursively collect all descendant PIDs of $rootPid via pgrep -P.
+     *
+     * Walks the process tree breadth-first so children are discovered
+     * while their parents are still alive (and thus still listed as
+     * PPID by pgrep). Returns PIDs in discovery order (siblings before
+     * nieces), excluding $rootPid itself.
+     *
+     * @param int $rootPid  PID whose descendants to collect.
+     * @return list<int>    Descendant PIDs, excluding $rootPid.
+     */
+    private function collectDescendantPids(int $rootPid): array
+    {
+        $pids = [];
+        $queue = [$rootPid];
+        while ($queue !== []) {
+            $parent = array_shift($queue);
+            exec('pgrep -P ' . escapeshellarg((string) $parent) . ' 2>/dev/null', $children);
+            foreach ($children as $child) {
+                $child = (int) trim($child);
+                if ($child > 0 && !in_array($child, $pids, true)) {
+                    $pids[] = $child;
+                    $queue[] = $child;
+                }
+            }
+        }
+        return $pids;
     }
 
     /**
