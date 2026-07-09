@@ -189,6 +189,62 @@ PHPEOF
 )
 rm -rf "$T3"
 
+# ── Test 4: declare(strict_types=1) preserved exactly once ────────────────────
+
+echo "── Test 4: declare line preserved once, not duplicated ──"
+T4=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T4"
+(
+	cd "$T4"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# PHP file with declare(strict_types=1); on line 2, no RCS header
+	cat > file.php <<'PHPEOF'
+<?php
+declare(strict_types=1);
+echo "hello";
+PHPEOF
+	git add file.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Full-stage commit proceeds with declare (exit 0)"
+	else
+		fail "Full-stage commit blocked unexpectedly with declare (exit $ret)"
+	fi
+
+	# Staged blob should have exactly one declare(strict_types=1); line
+	declare_count=$(git show ":file.php" 2>/dev/null | grep -cF 'declare(strict_types=1);' || true)
+	if [ "$declare_count" -eq 1 ]; then
+		pass "declare(strict_types=1) appears exactly once"
+	else
+		fail "declare(strict_types=1) appears $declare_count time(s) (expected 1)"
+	fi
+
+	# RCS header should be present
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	if git show ":file.php" 2>/dev/null | head -10 | grep -qF '$KYAULabs:'; then
+		pass "RCS header added to staged blob"
+	else
+		fail "RCS header NOT added (missing from staged blob)"
+	fi
+
+	# First line must remain <?php
+	first_line=$(git show ":file.php" 2>/dev/null | head -1)
+	if [ "$first_line" = '<?php' ]; then
+		pass "First line preserved as <?php"
+	else
+		fail "First line is '$first_line' (expected '<?php')"
+	fi
+)
+rm -rf "$T4"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
