@@ -52,6 +52,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0003-env-delivery-mechanism.md` — First-party .env loader with explicit call pattern, no dependencies, server env precedence
 - `adr/0004-filesystem-walker-arch-tests.md` — Replace pest-plugin-arch DSL with filesystem-walker convention tests for procedural codebase
 - `adr/0005-plan-agent-delegation-only.md` — Deny all I/O permissions on Plan agent, add delegation-only prompt; all filesystem/web ops delegated to subagents
+- `adr/0007-setup-token-strategy.md` — Find literal template defaults instead of non-existent [EMAIL] placeholders; extract substitution logic into testable shell script
 
 ## When to update this file
 
