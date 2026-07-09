@@ -163,10 +163,14 @@ Base the repository off of the organization template repository.
 
 ### Clone
 
+Clone the template and remove its git history. The `aurora/` directory is
+shipped as an uninitialized submodule placeholder; remove it too so it can be
+re-registered cleanly in the new repository.
+
 ```text
 git clone https://github.com/kyaulabs/template <REPOSITORY_NAME>
 cd <REPOSITORY_NAME>
-rm -rf .git
+rm -rf .git aurora
 ```
 
 ### Init
@@ -179,11 +183,19 @@ git init
 
 ### Add Aurora Submodule
 
-The Aurora PHP Framework is a required submodule. Add it to the repository:
+The Aurora PHP Framework is a required submodule. The template ships a
+pre-registered `.gitmodules` entry for `aurora` (including its `branch = main`
+tracking directive), so a plain `git submodule add` reconciles the existing
+entry rather than creating a new one:
 
 ```text
 git submodule add https://github.com/kyaulabs/aurora aurora
 ```
+
+> **Note:** If you cloned the template to contribute to it directly (rather
+> than basing a new repository on it), do not re-init. Instead run
+> `git submodule update --init` after cloning to check out the pre-registered
+> submodule at its committed revision.
 
 ### Add `LICENSE`
 
