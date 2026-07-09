@@ -25,6 +25,14 @@ if [ -z "$REPO_ROOT" ]; then
 	exit 1
 fi
 
+# ── Prerequisite: js-yaml must be resolvable for frontmatter parsing ─────────
+
+if ! (cd "$REPO_ROOT" && node -e "require('js-yaml')") 2>/dev/null; then
+	echo "ERROR: Node.js module 'js-yaml' is not resolvable from ${REPO_ROOT}." >&2
+	echo "       Install dependencies: npm install" >&2
+	exit 1
+fi
+
 HARNESS_DIR="${REPO_ROOT}/.opencode"
 SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"

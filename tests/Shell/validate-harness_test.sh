@@ -639,6 +639,45 @@ CMDEOF
 )
 rm -rf "$T14"
 
+# ── Test 15: Validator fails loudly when js-yaml is unresolvable ──────────────
+
+echo "── Test 15: Validator fails loudly when js-yaml is unresolvable ──"
+T15=$(mktemp -d)
+(
+	cd "$T15"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# Copy validator + parser but DO NOT symlink node_modules
+	# (simulates a fresh clone without npm install)
+	mkdir -p .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+
+	# Create a valid skill so the validator has something to parse
+	mkdir -p .opencode/skills/test-skill
+	cat > .opencode/skills/test-skill/SKILL.md <<'EOF'
+---
+name: test-skill
+description: A valid test skill.
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# The validator must fail loudly with a clear js-yaml message, NOT
+	# silently swallow the error and report vacuous "missing field" errors
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qi "js-yaml"; then
+		pass "Validator fails loudly when js-yaml is unresolvable"
+	elif [ "${exit_code:-0}" -eq 0 ]; then
+		fail "Validator did not fail when js-yaml is missing (exit 0)"
+	else
+		fail "Validator failed but message did not mention js-yaml"
+	fi
+)
+rm -rf "$T15"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
