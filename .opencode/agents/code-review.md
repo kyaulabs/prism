@@ -6,6 +6,23 @@ mode: subagent
 temperature: 0.1
 permission:
   edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "cat*": allow
+    "tail*": allow
+    "head*": allow
+    "grep*": allow
+    "find*": allow
+    "command -v*": allow
+    "npm install -g*": allow
+    "ocr*": allow
+    "git log*": allow
+    "git show*": allow
+    "git status": allow
+    "git diff*": allow
+  webfetch: deny
+  task: deny
 ---
 
 You are a code review assistant. Use OpenCodeReview (`ocr`) to review code and
