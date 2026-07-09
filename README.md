@@ -208,7 +208,7 @@ Several files reference `kyaulabs/template` and must be updated to reflect your 
 | File | What to update |
 | --- | --- |
 | `cliff.toml` | All `github.com/kyaulabs/template` URLs → new repo location |
-| `composer.json` | `name` and `description` fields |
+| `composer.json` | `name`, `description`, and `license` fields |
 | `package.json` | `name` and `description` fields |
 | `opencode.json` | `build` agent prompt references the project; update repo-specific pointers |
 | `CONTEXT.md` | Fill in the domain glossary, entities, invariants, and non-goals (or run `/prime` to draft) |
