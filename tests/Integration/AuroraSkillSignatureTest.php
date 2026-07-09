@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraSkillSignatureTest.php kyau@nova 2026/07/05 -0700 Exp $
-
-require_once __DIR__ . '/../../aurora/aurora.inc.php';
+# $KYAULabs: AuroraSkillSignatureTest.php kyau@nova 2026/07/08 -0700 Exp $
 
 use KYAULabs\Aurora;
 
@@ -17,6 +15,12 @@ use KYAULabs\Aurora;
  */
 
 test('aurora-page skill constructor signature matches actual source', function () {
+    $auroraPath = __DIR__ . '/../../aurora/aurora.inc.php';
+    if (!is_file($auroraPath)) {
+        $this->markTestSkipped('aurora submodule not initialized — run: git submodule update --init');
+    }
+    require_once $auroraPath;
+
     // 1. Get the real signature via reflection
     $reflected = new ReflectionMethod(Aurora::class, '__construct');
     $params = $reflected->getParameters();

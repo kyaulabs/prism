@@ -155,4 +155,60 @@ test('PHP source files declare strict types', function (): void {
     }
 });
 
+test('test files referencing aurora submodule guard with markTestSkipped', function (): void {
+    $files = harness_arch_discover_php_files();
+    $repoRoot = dirname(__DIR__, 3);
+    $failures = [];
+
+    foreach ($files as $path) {
+        $relative = substr($path, strlen($repoRoot) + 1);
+        $content = file_get_contents($path);
+
+        if ($content === false) {
+            continue;
+        }
+
+        // Only inspect test files that reference the aurora entry point.
+        if (!str_contains($relative, 'tests' . DIRECTORY_SEPARATOR)) {
+            continue;
+        }
+
+        if (!str_contains($content, 'aurora.inc.php')) {
+            continue;
+        }
+
+        $hasGuard = str_contains($content, 'is_file(') || str_contains($content, 'file_exists(');
+        $hasSkip = str_contains($content, 'markTestSkipped(');
+
+        if (!$hasGuard || !$hasSkip) {
+            $missing = [];
+            if (!$hasGuard) {
+                $missing[] = 'is_file()/file_exists() guard';
+            }
+            if (!$hasSkip) {
+                $missing[] = 'markTestSkipped() call';
+            }
+            $failures[] = sprintf(
+                '  %s: missing %s',
+                $relative,
+                implode(' and ', $missing),
+            );
+        }
+    }
+
+    if ($failures !== []) {
+        $message = sprintf(
+            "Found %d file(s) referencing aurora.inc.php without a skip guard:\n\n%s\n\n"
+            . "Guard aurora.inc.php references with is_file()/file_exists() + markTestSkipped() "
+            . "so a missing submodule skips tests instead of fatalling the suite. "
+            . "Fix: git submodule update --init",
+            count($failures),
+            implode("\n", $failures),
+        );
+        expect($failures)->toBeEmpty($message);
+    } else {
+        expect($failures)->toBeEmpty();
+    }
+});
+
 // vim: ft=php sts=4 sw=4 ts=4 et :

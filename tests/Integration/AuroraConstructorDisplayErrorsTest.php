@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@nova 2026/07/07 -0700 Exp $
+# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@nova 2026/07/08 -0700 Exp $
+
+beforeEach(function () {
+    if (!is_file(dirname(__DIR__, 2) . '/aurora/aurora.inc.php')) {
+        $this->markTestSkipped('aurora submodule not initialized — run: git submodule update --init');
+    }
+});
 
 test('display_errors remains off when Aurora throws with status=false', function () {
     $auroraPath = dirname(__DIR__, 2) . '/aurora/aurora.inc.php';
