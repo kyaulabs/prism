@@ -149,16 +149,20 @@ $site = new KYAULabs\Aurora(template: "index.html", cdn: "/cdn", status: env_boo
 - Detected by: `kyaulabs-aurora-status-true-literal` Semgrep rule + Pest
   `AuroraConstructorStatusTest.php`. See ADR-0002.
 
-### Aurora's `ini_set('display_errors','1')` at constructor start
+### Aurora constructor `display_errors` — canonical source
 
-- Aurora's constructor unconditionally enables error display before the
-  `$status` gate (lines 66-69 of `aurora.inc.php`). If an `AuroraException`
-  is thrown during initialization (missing template, bad CDN directory), the
-  error renders verbosely even when `$status=false`. This is an upstream
-  issue in `kyaulabs/aurora`.
-- Application code must never compound this by calling `ini_set('display_errors', '1')`
+Aurora's constructor sets safe defaults (`display_errors='0'`,
+`display_startup_errors='0'`, `html_errors='0'`) **before** the
+`if ($status)` gate, and validation that throws `AuroraException` runs
+**after** both — so `display_errors` stays `'0'` when `$status=false`.
+There is no upstream bug. The canonical statement with file:line citation
+lives in the `aurora-page` skill (Gotchas → "Constructor safe-defaults
+order"); do not duplicate it here.
+
+- Application code must never call `ini_set('display_errors', '1')`
   directly — detected by `kyaulabs-hardcoded-display-errors-on`.
-- Deploy only with the template file and CDN directory confirmed present.
+- Deploy only with the template file and CDN directory confirmed present
+  to avoid `AuroraException` during initialization.
 
 ## Suppressing findings
 

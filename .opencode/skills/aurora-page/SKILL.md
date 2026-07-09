@@ -90,7 +90,11 @@ API change to Aurora is needed.
   the safe defaults and the gate, so `display_errors` stays `'0'` when
   `$status=false`. The `exceptionHandler` checks `ini_get('display_errors')`
   and routes to `error_log()` in production mode, never echoing error
-  details to the visitor.
+  details to the visitor. This is the canonical statement of Aurora's
+  `display_errors` behavior; other skills cross-reference it rather than
+  duplicating. Source: `aurora/aurora.inc.php` `__construct()` — safe
+  defaults (lines 67-70) → `if ($status)` gate (lines 73-78) → validation
+  that throws (line 84+); pinned at submodule commit `7a00fc4`.
 - *SRI is unconditional in Aurora* — the constructor has no SRI toggle.
   `htmlStyles()`, `htmlScripts()`, and `htmlPreload()` always emit
   `integrity="sha512-..."` attributes regardless of constructor arguments.
