@@ -335,6 +335,30 @@ Levels: `debug`, `info`, `warn`, `error`. See [SDK documentation](https://openco
 
 ---
 
+### System prompt transform hooks
+
+Inject text into the system prompt on every LLM call:
+
+```ts title=".opencode/plugins/system-prompt.ts"
+import type { Plugin } from "@opencode-ai/plugin"
+
+export const SystemPromptPlugin: Plugin = async (ctx) => {
+  return {
+    "experimental.chat.system.transform": async (input, output) => {
+      // Push strings into output.system — they are appended to the
+      // system prompt sent to the LLM on every chat call.
+      output.system.push("Always follow the project's coding conventions.")
+    },
+  }
+}
+```
+
+The `experimental.chat.system.transform` hook fires before every LLM call. Use it to inject persistent instructions, policy text, or context that should appear in the system prompt for every message in the session. Each string pushed to `output.system` is appended to the system prompt array.
+
+> **Note:** This hook is experimental and may change in future SDK versions. The `input` object contains `sessionID` (optional) and `model` (the `Model` being called). The `output` object contains `system` (a `string[]` you push into).
+
+---
+
 ### Compaction hooks
 
 Customize the context included when a session is compacted:
