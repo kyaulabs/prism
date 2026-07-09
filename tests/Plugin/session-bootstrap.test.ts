@@ -5,6 +5,19 @@ import { strict as assert } from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import type { Hooks } from "@opencode-ai/plugin";
+
+/**
+ * Compile-time assertion: the hook names used by SessionBootstrap must be
+ * valid keys of the SDK's Hooks interface. If the SDK removes or renames
+ * either hook, tsc --noEmit fails here — preventing the plugin from
+ * silently going inert. This is the acceptance test for issue #63.
+ *
+ * When the hook name is not a valid Hooks key, the conditional type
+ * resolves to `never`, and `const x: never = true` is a type error.
+ */
+const _assertSystemTransformValid: "experimental.chat.system.transform" extends keyof Hooks ? true : never = true;
+const _assertCompactingValid: "experimental.session.compacting" extends keyof Hooks ? true : never = true;
 
 let warnCalls: string[] = [];
 const originalWarn = console.warn;
