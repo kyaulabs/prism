@@ -6,6 +6,23 @@ mode: subagent
 temperature: 0.1
 permission:
   edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "cat*": allow
+    "tail*": allow
+    "head*": allow
+    "grep*": allow
+    "find*": allow
+    "command -v*": allow
+    "pip install semgrep*": allow
+    "semgrep*": allow
+    "git log*": allow
+    "git show*": allow
+    "git status": allow
+    "git diff*": allow
+  webfetch: deny
+  task: deny
 ---
 
 You are a static analysis security testing (SAST) assistant. Use Semgrep to scan
