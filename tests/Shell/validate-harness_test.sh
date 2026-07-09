@@ -59,9 +59,7 @@ EOF
 	git add -A
 	git commit --quiet -m "init"
 
-	# Copy the validator
-	mkdir -p .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	setup_validator_env
 
 	# Run from a SUBDIRECTORY (not repo root) — should resolve HARNESS_DIR via git
 	mkdir subdir
@@ -147,8 +145,8 @@ T3=$(mktemp -d)
 (
 	cd "$T3"
 	git init --quiet
-	mkdir -p .opencode/agents .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Create two agent files — '-' sorts before '.' in C locale,
 	# so the hyphenated file is processed FIRST and the dotted file SECOND.
@@ -193,8 +191,8 @@ T4=$(mktemp -d)
 (
 	cd "$T4"
 	git init --quiet
-	mkdir -p .opencode/agents .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Create an agent file with NO frontmatter at all
 	# check_frontmatter_delimiters does grep -c '^---$' which yields 0\n0
@@ -232,8 +230,8 @@ T5=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	# Create a command file
 	cat > .opencode/commands/test-cmd.md <<'EOF'
@@ -275,8 +273,8 @@ T6=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	cat > .opencode/commands/cmd-a.md <<'EOF'
 ---
@@ -332,8 +330,8 @@ T7=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	# Only cmd-a has a file; cmd-b is stale
 	cat > .opencode/commands/cmd-a.md <<'EOF'
@@ -380,10 +378,8 @@ T8=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/agents .github/scripts
-
-	# Copy the validator and frontmatter parser
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Create an agent with a buggy pattern
 	cat > .opencode/agents/test-agent.md <<'EOF'
@@ -419,9 +415,8 @@ T9=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/agents .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
-	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Agent whose description claims read-only but has NO permission block
 	cat > .opencode/agents/rogue-auditor.md <<'EOF'
@@ -431,7 +426,7 @@ mode: subagent
 ---
 EOF
 
-	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
 	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "claims read-only"; then
 		pass "Caught read-only agent missing edit: deny"
@@ -453,9 +448,8 @@ T10=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/agents .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
-	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Agent with edit: deny but bash fully open (no catch-all deny)
 	cat > .opencode/agents/leaky-auditor.md <<'EOF'
@@ -467,7 +461,7 @@ permission:
 ---
 EOF
 
-	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
 	# Must match the specific read-only contract error for bash restriction
 	# (not just any line containing "bash" — the validator header would match)
@@ -491,9 +485,8 @@ T11=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/agents .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
-	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	mkdir -p .opencode/agents
+	setup_validator_env
 
 	# Agent with full architect-pattern permissions
 	cat > .opencode/agents/safe-auditor.md <<'EOF'
@@ -512,7 +505,7 @@ permission:
 ---
 EOF
 
-	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
 	# Should NOT flag safe-auditor for read-only contract violation
 	if echo "$output" | grep -F "safe-auditor" | grep -qF "claims read-only"; then
@@ -533,8 +526,8 @@ T12=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	# Command file with sed -i and git add targeting a nonexistent file
 	cat > .opencode/commands/test-release.md <<'CMDEOF'
@@ -571,8 +564,8 @@ T13=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	# Create an existing file in the repo root
 	echo "<?php" > existing.php
@@ -612,8 +605,8 @@ T14=$(mktemp -d)
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
-	mkdir -p .opencode/commands .github/scripts
-	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	mkdir -p .opencode/commands
+	setup_validator_env
 
 	cat > .opencode/commands/test-cmd.md <<'CMDEOF'
 ---
