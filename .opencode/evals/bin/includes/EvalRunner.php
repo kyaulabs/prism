@@ -1,5 +1,8 @@
 <?php
 
+# $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
+
 declare(strict_types=1);
 
 # $KYAULabs: EvalRunner.php kyau@nova 2026/07/05 -0700 Exp $
@@ -326,9 +329,7 @@ class Runner
             return $this->hasSetSid = false;
         }
 
-        exec('command -v setsid 2>/dev/null', $output, $exitCode);
-
-        return $this->hasSetSid = ($exitCode === 0);
+        return $this->hasSetSid = $this->isBinaryOnPath('setsid');
     }
 
     /**
@@ -931,5 +932,7 @@ PROMPT;
         }
     }
 }
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
