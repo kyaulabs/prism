@@ -391,6 +391,120 @@ EOF
 )
 rm -rf "$T8"
 
+# ── Test 9: Read-only agent without edit: deny is caught ─────────────────────
+
+echo "── Test 9: Read-only contract — agent claims read-only but lacks edit: deny ──"
+T9=$(mktemp -d)
+(
+	cd "$T9"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+
+	# Agent whose description claims read-only but has NO permission block
+	cat > .opencode/agents/rogue-auditor.md <<'EOF'
+---
+description: Audit tests and produce a report only; makes no code changes.
+mode: subagent
+---
+EOF
+
+	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "claims read-only"; then
+		pass "Caught read-only agent missing edit: deny"
+	elif echo "$output" | grep -qF "claims read-only"; then
+		fail "Detected read-only violation but exited 0"
+	else
+		fail "Did not detect read-only agent missing edit: deny"
+	fi
+)
+rm -rf "$T9"
+
+# ── Test 10: Read-only agent with edit: deny but no bash restriction is caught
+
+echo "── Test 10: Read-only contract — agent has edit: deny but no bash restriction ──"
+T10=$(mktemp -d)
+(
+	cd "$T10"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+
+	# Agent with edit: deny but bash fully open (no catch-all deny)
+	cat > .opencode/agents/leaky-auditor.md <<'EOF'
+---
+description: Review code; does not auto-fix anything.
+mode: subagent
+permission:
+  edit: deny
+---
+EOF
+
+	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# Must match the specific read-only contract error for bash restriction
+	# (not just any line containing "bash" — the validator header would match)
+	if echo "$output" | grep -qF "ERROR" && echo "$output" | grep -qF "leaky-auditor"; then
+		pass "Caught read-only agent missing bash restriction"
+	elif echo "$output" | grep -qF "claims read-only" && echo "$output" | grep -qF "leaky-auditor"; then
+		pass "Caught read-only agent missing bash restriction (no ERROR prefix)"
+	else
+		fail "Did not detect read-only agent missing bash restriction"
+	fi
+)
+rm -rf "$T10"
+
+# ── Test 11: Properly locked-down read-only agent passes
+
+echo "── Test 11: Read-only contract — properly locked-down agent passes ──"
+T11=$(mktemp -d)
+(
+	cd "$T11"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents .github/scripts
+	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
+	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+
+	# Agent with full architect-pattern permissions
+	cat > .opencode/agents/safe-auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "cat*": allow
+    "grep*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(NODE_PATH="$REPO_ROOT/node_modules" bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# Should NOT flag safe-auditor for read-only contract violation
+	if echo "$output" | grep -F "safe-auditor" | grep -qF "claims read-only"; then
+		fail "Properly locked-down agent was flagged as read-only violation"
+	else
+		pass "Properly locked-down agent not flagged"
+	fi
+)
+rm -rf "$T11"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)

@@ -434,6 +434,58 @@ else
 	done
 fi
 
+# ── Check read-only agent permission contract ────────────────────────────────
+
+echo "── Checking read-only agent permission contracts ──"
+RO_CHECKED=0
+RO_VIOLATIONS=0
+
+# Read-only keyword set — agents whose description contains any of these
+# (case-insensitive) must carry edit: deny AND a bash catch-all deny.
+RO_KEYWORDS='read-only|report only|does not modify|makes no code changes|does not auto-fix|does not automatically fix'
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	desc=$(frontmatter_key "$agent_file" "description")
+
+	# Skip if description doesn't claim read-only
+	if [ -z "$desc" ] || ! echo "$desc" | grep -qiE "$RO_KEYWORDS"; then
+		continue
+	fi
+
+	RO_CHECKED=$((RO_CHECKED + 1))
+	agent_name=$(basename "$agent_file" .md)
+
+	# Extract frontmatter text (between first two --- delimiters)
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+
+	# Check 1: edit: deny must be present
+	if ! echo "$fm" | grep -qE '^[[:space:]]*edit:[[:space:]]*"?deny"?[[:space:]]*$'; then
+		err "${agent_file}: agent '${agent_name}' claims read-only in description but lacks 'edit: deny' in permission block"
+		RO_VIOLATIONS=$((RO_VIOLATIONS + 1))
+		continue
+	fi
+
+	# Check 2: bash must be restricted — either "bash: deny" (full deny)
+	# or a catch-all deny entry ("*": deny or "*": "deny")
+	bash_restricted=0
+	if echo "$fm" | grep -qE '^[[:space:]]*bash:[[:space:]]*"?deny"?[[:space:]]*$'; then
+		bash_restricted=1
+	fi
+	if echo "$fm" | grep -qE '"\*"[[:space:]]*:[[:space:]]*"?deny"?'; then
+		bash_restricted=1
+	fi
+	if [ "$bash_restricted" -eq 0 ]; then
+		err "${agent_file}: agent '${agent_name}' claims read-only in description but bash is not restricted (needs '\"*\": deny' catch-all or 'bash: deny')"
+		RO_VIOLATIONS=$((RO_VIOLATIONS + 1))
+	fi
+done
+
+if [ "$RO_CHECKED" -eq 0 ]; then
+	warn "No read-only agents found — keyword detection may need updating"
+else
+	ok "${RO_CHECKED} read-only agent(s) checked, ${RO_VIOLATIONS} violation(s)"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
