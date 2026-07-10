@@ -5,6 +5,9 @@
 
 # $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
+
+# $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 declare(strict_types=1);
 
 namespace KYAULabs\Eval;
@@ -415,7 +418,26 @@ class Runner
             }
 
             if (empty($read)) {
-                break;
+                // Both pipes at EOF. A child that closed its stdout/stderr
+                // but is still running (e.g. a daemonizing tool) would
+                // otherwise cause proc_close() to block indefinitely,
+                // bypassing the timeout. Poll proc_get_status()['running']
+                // against the remaining deadline; on expiry call
+                // killProcessTree() and set timed_out. The 'running' field
+                // is reliable on every call (only 'exitcode' is first-call
+                // only, and the exit code is still read via proc_close()).
+                while (true) {
+                    $status = proc_get_status($process);
+                    if (!$status['running']) {
+                        break 2;
+                    }
+                    $elapsedNs = hrtime(true) - $startNs;
+                    if ($elapsedNs >= $timeoutNs) {
+                        $timedOut = true;
+                        break 2;
+                    }
+                    usleep(10_000);
+                }
             }
 
             $elapsedNs = hrtime(true) - $startNs;
@@ -941,6 +963,8 @@ PROMPT;
         }
     }
 }
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
 
