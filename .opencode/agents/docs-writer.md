@@ -6,6 +6,7 @@ mode: subagent
 temperature: 0.1
 permission:
   bash: deny
+  lsp: allow
 ---
 
 You are a documentation generator. Create and update documentation for PHP classes,

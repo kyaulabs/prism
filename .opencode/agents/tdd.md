@@ -10,6 +10,7 @@ permission:
     "git commit*": "allow"
     "git push*": "deny"
     "git tag*": "deny"
+  lsp: allow
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 

@@ -66,11 +66,35 @@ After setting the env var, restart opencode. Alternatively, `OPENCODE_EXPERIMENT
 
 ### Agent Permissions
 
-| Agent | LSP Tool Permission | Rationale |
-|---|---|---|
-| `build` | `allow` | Primary build agent benefits from go-to-definition and find-references during implementation |
-| `explore` | `allow` | Exploration agent uses LSP queries for codebase navigation |
-| `plan` | `deny` | Plan mode is read-only; no LSP queries needed |
+The top-level `permission.lsp` is set to `"deny"` in `opencode.json` — agents
+must explicitly opt in to LSP access. The guiding principle: LSP `allow`
+belongs on agents that **write PHP or navigate code semantically**
+(Intelephense premium fills the gap left by the absence of `psalm`/`phpstan`
+in `composer.json`). LSP `deny` belongs on agents that are **read-only and
+delegating** (`plan`, `@architect`), agents that **shell out to a dedicated
+analyzer CLI** (`@code-review`→`ocr`, `@semgrep`→`semgrep`,
+`@test-audit`→`pest`), agents that **already run every CLI tool themselves**
+(`@resolve-merge-conflicts`), and **text-only utilities** (`compaction`,
+`title`, `summary`, `judge`).
+
+| Agent | LSP | Defined in | Rationale |
+|---|---|---|---|
+| `build` | `allow` | `opencode.json` | Primary implementer; Intelephense provides the only PHP static analysis (no psalm/phpstan) |
+| `explore` | `allow` | `opencode.json` | Codebase navigation is its core job |
+| `general` | `allow` | `opencode.json` | Catch-all with full tool access; occasional code work justifies it |
+| `@tdd` | `allow` | `.opencode/agents/tdd.md` | Workhorse implementer; Red→Green `pest` loop is the deterministic truth source that overrides stale LSP diagnostics |
+| `@debug` | `allow` | `.opencode/agents/debug.md` | `incomingCalls`/`outgoingCalls`/`findReferences` answer "who calls this buggy function" that `grep` can't |
+| `@docs-writer` | `allow` | `.opencode/agents/docs-writer.md` | Intelephense hover gives accurate param/return types for PHPDoc generation |
+| `plan` | `deny` | `opencode.json` | Read-only by design; delegates LSP queries to `@explore` |
+| `@architect` | `deny` (inherited) | — | Focused on `CONTEXT.md` + ADRs; live-code spelunking is `@explore`'s job |
+| `@code-review` | `deny` (inherited) | — | Delegates all analysis to the `ocr` CLI tool |
+| `@semgrep` | `deny` (inherited) | — | Delegates all analysis to the `semgrep` CLI |
+| `@test-audit` | `deny` (inherited) | — | `pest --coverage` is its source of truth |
+| `@resolve-merge-conflicts` | `deny` (inherited) | — | Mid-merge working tree is worst-case out-of-sync for LSP; all CLI tools already wired |
+| `compaction` | `deny` (inherited) | — | Text-only utility on flash model |
+| `title` | `deny` (inherited) | — | Text-only utility on flash model |
+| `summary` | `deny` (inherited) | — | Text-only utility on flash model |
+| `judge` | `deny` (inherited) | — | Read-only evaluation judge; no code involvement |
 
 ## Auto-Download Behavior
 

@@ -198,7 +198,14 @@ ESLint (`.js`/`.ts`), Bash (`.sh`), YAML (`.yaml`/`.yml`), Stylelint
 LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
-hover) is enabled for `build` and `explore` agents. Requires the
+hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
+default in `opencode.json`. Six agents explicitly opt in with `lsp: "allow"`:
+`build`, `explore`, `general`, `@tdd`, `@debug`, and `@docs-writer` — agents
+that write PHP or navigate code semantically (Intelephense premium fills the
+gap left by the absence of `psalm`/`phpstan` in `composer.json`). All other
+agents (`plan`, `@architect`, `@code-review`, `@semgrep`, `@test-audit`,
+`@resolve-merge-conflicts`, `compaction`, `title`, `summary`, `judge`)
+inherit the `deny` default. Requires the
 `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` environment variable — set it before
 launching opencode:
 

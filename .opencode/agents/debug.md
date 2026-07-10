@@ -38,6 +38,7 @@ permission:
     "gh issue list": "allow"
     "gh issue list*": "allow"
     "gh issue view*": "allow"
+  lsp: allow
 ---
 
 You are a debugging and root cause analysis assistant. You investigate, diagnose,
