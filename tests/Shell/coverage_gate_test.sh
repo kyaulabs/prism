@@ -2,6 +2,7 @@
 # $KYAULabs: coverage_gate_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
 
+
 # ── Tests for coverage-gate.php changed-file coverage gate ───────────────────
 # Verifies that the script correctly parses Clover XML, intersects with
 # changed files from stdin, and enforces >=80% per-file coverage.
@@ -240,6 +241,32 @@ T10=$(mktemp -d)
 )
 rm -rf "$T10"
 
+# ── Test 11: Symlinked --root still relativizes Clover paths ────────────────
+# Reproduces the macOS /tmp -> /private/tmp asymmetry on Linux: --root points
+# through a symlink whose realpath target lives under a different prefix, so
+# the literal str_starts_with match fails and the script must fall back to
+# realpath() on the Clover path to relativize correctly.
+echo ""
+echo "── Test 11: symlinked root relativizes correctly ──"
+T11_REAL=$(mktemp -d)
+T11_LINK_DIR=$(mktemp -d)
+T11_LINK="$T11_LINK_DIR/root"
+ln -s "$T11_REAL" "$T11_LINK"
+(
+	cd "$T11_LINK"
+	mkdir -p backend
+	echo '<?php' > backend/env.php
+	CLOVER=$(mktemp)
+	build_clover "$CLOVER" "$T11_LINK" "backend/env.php:5:10"
+	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T11_LINK" >out.txt 2>&1 || rc=$?
+	if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
+		pass "symlinked root still fails under-threshold file (exit 1)"
+	else
+		fail "expected exit 1 + FAIL under symlinked root, got rc=${rc:-0}"
+	fi
+)
+rm -rf "$T11_REAL" "$T11_LINK_DIR"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -258,6 +285,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

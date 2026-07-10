@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -165,8 +168,17 @@ function relativize_path(string $absPath, string $rootPrefix): string
     if (str_starts_with($absPath, $rootPrefix)) {
         return substr($absPath, strlen($rootPrefix));
     }
+    // Handle symlink-resolution mismatch (e.g. macOS /tmp -> /private/tmp):
+    // the Clover XML may carry the unresolved form while --root is realpath'd,
+    // or vice-versa. Clover paths always reference executed (existing) files,
+    // so realpath() is safe here.
+    $resolved = realpath($absPath);
+    if ($resolved !== false && str_starts_with($resolved, $rootPrefix)) {
+        return substr($resolved, strlen($rootPrefix));
+    }
     return $absPath;
 }
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
