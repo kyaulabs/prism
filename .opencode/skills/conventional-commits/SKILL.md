@@ -80,6 +80,16 @@ BREAKING CHANGE: existing session tokens are invalidated on deploy.
 Scope is optional but recommended for larger projects. Use the affected module,
 directory, or feature area: `feat(aurora)`, `fix(db)`, `test(auth)`.
 
+## Issue References
+
+- **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing
+  keyword. Place it at the **top of the footer block**, immediately above
+  `Plan-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
+  `Resolves`, `Resolved`, `Fix`, `Fixed`, and colon-less forms (`Fixes #42`).
+- **`Refs: #NN`** — references an issue *without* closing it. Same footer
+  block, above `Plan-by:`.
+- Lowercase `fixes:` is rejected — the token is Sentence-case.
+
 ## Examples
 
 ```
@@ -93,10 +103,10 @@ Signed-off-by: kyau <git@kyaulabs.com>
 ```
 fix(db): prevent SQL injection in user search query
 
+Fixes: #42
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
-Fixes: #42
 ```
 
 ```

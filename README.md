@@ -658,6 +658,12 @@ and `agent.build.model` in `opencode.json`, falling back to the top-level
 `model` — the segment after the last `/`.
 e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
+**Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
+placed at the top of the footer block immediately above `Plan-by:`.
+commitlint rejects all other GitHub closing keywords (`Closes`, `Resolve`,
+`Fix`, `Fixed`, etc.) and no-colon forms (`Fixes #42`). Use `Refs: #NN` for
+non-closing references, in the same top-of-footer block.
+
 ### Examples
 
 The following are all examples of valid commit messages.
@@ -671,11 +677,11 @@ As per #123 recommendation input controller is now based on blah.
 
 Basic movement added.
 
+Refs: #123
+Refs: 676104e, a215868
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
-Refs: #123
-Refs: 676104e, a215868
 ```
 
 ```text
