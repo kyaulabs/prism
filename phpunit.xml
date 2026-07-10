@@ -38,6 +38,7 @@
         <report>
             <html outputDirectory="tests/coverage"/>
             <text outputFile="tests/coverage.txt"/>
+            <clover outputFile="tests/coverage.xml"/>
         </report>
     </coverage>
 </phpunit>

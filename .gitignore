@@ -15,6 +15,7 @@
 # Code coverage
 tests/coverage/
 tests/coverage.txt
+tests/coverage.xml
 
 # Dependencies
 vendor/
