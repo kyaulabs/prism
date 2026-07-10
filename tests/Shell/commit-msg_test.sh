@@ -2,6 +2,7 @@
 # $KYAULabs: commit-msg_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
 
+
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
 #   - Guard: skip with a visible notice when commitlint is not installed
@@ -272,7 +273,7 @@ else
 	if [ "$ret" -ne 0 ]; then
 		pass "Test 7: Closes #40 rejected (banned keyword)"
 	else
-		fail "Test 7: Closes #40 accepted (should be banned)"
+		fail "Test 7: Closes #40 accepted (should be banned) (exit=$ret): $output"
 	fi
 )
 fi
@@ -295,7 +296,7 @@ else
 	if [ "$ret" -ne 0 ]; then
 		pass "Test 8: Resolve: #50 rejected (banned keyword)"
 	else
-		fail "Test 8: Resolve: #50 accepted (should be banned)"
+		fail "Test 8: Resolve: #50 accepted (should be banned) (exit=$ret): $output"
 	fi
 )
 fi
@@ -318,7 +319,7 @@ else
 	if [ "$ret" -ne 0 ]; then
 		pass "Test 9: Fixes #42 (no colon) rejected"
 	else
-		fail "Test 9: Fixes #42 (no colon) accepted (should be rejected)"
+		fail "Test 9: Fixes #42 (no colon) accepted (should be rejected) (exit=$ret): $output"
 	fi
 )
 fi
@@ -341,7 +342,7 @@ else
 	if [ "$ret" -ne 0 ]; then
 		pass "Test 10: fixes: #42 (lowercase) rejected"
 	else
-		fail "Test 10: fixes: #42 (lowercase) accepted (should be rejected)"
+		fail "Test 10: fixes: #42 (lowercase) accepted (should be rejected) (exit=$ret): $output"
 	fi
 )
 fi
@@ -364,7 +365,7 @@ else
 	if [ "$ret" -ne 0 ]; then
 		pass "Test 11: Fixes: after Plan-by: rejected (placement)"
 	else
-		fail "Test 11: Fixes: after Plan-by: accepted (should be rejected)"
+		fail "Test 11: Fixes: after Plan-by: accepted (should be rejected) (exit=$ret): $output"
 	fi
 )
 fi
@@ -415,6 +416,52 @@ else
 )
 fi
 
+# ── Test 14: Reject Fix #42 (banned keyword, Sentence-case, no colon) ──────────
+
+echo "── Test 14: Fix #42 rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 14 (banned Fix) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nFix #42\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 14: Fix #42 rejected (banned keyword)"
+	else
+		fail "Test 14: Fix #42 accepted (should be banned) (exit=$ret): $output"
+	fi
+)
+fi
+
+# ── Test 15: Body prose with keyword not falsely rejected ($ anchor guard) ─────
+
+echo "── Test 15: Body prose Fix #NN passes ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 15 (body prose) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -eq 0 ]; then
+		pass "Test 15: body prose 'Fix #42 was the hardest...' not falsely rejected"
+	else
+		fail "Test 15: body prose falsely rejected (exit=$ret): $output"
+	fi
+)
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -433,6 +480,7 @@ else
 	echo "═══════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

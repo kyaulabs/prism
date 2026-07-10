@@ -1,6 +1,7 @@
 // $KYAULabs: commitlint.config.js kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
 
+
 const { spawnSync } = require('child_process');
 
 const BANNED_CLOSING = new Set([
@@ -9,10 +10,13 @@ const BANNED_CLOSING = new Set([
 	'fix', 'fixed',
 ]);
 const CLOSING_RE = new RegExp(
-	'^\\s*(close|closes|closed|resolve|resolves|resolved|fix|fixes|fixed)\\b\\s*:?\\s*#\\d+',
+	'^\\s*(close|closes|closed|resolve|resolves|resolved|fix|fixes|fixed)\\b\\s*:?\\s*#\\d+\\s*$',
 	'i'
 );
-const ISSUE_REF_RE = /^\s*(Fixes|Refs):\s*#\d+/;
+// ISSUE_REF_RE tracks Fixes:/Refs: trailers for placement enforcement.
+// Colon is required (Fixes #42 or refs: #42 are rejected/mis-cased earlier by
+// the CLOSING_RE checks). The /i flag catches lowercase `refs:` as well.
+const ISSUE_REF_RE = /^\s*(Fixes|Refs):\s*#\d+\s*$/i;
 const PLAN_BY_RE = /^\s*Plan-by:\s/;
 
 const isMergeOrRevert = (parsed) => {
@@ -134,6 +138,7 @@ module.exports = {
 		'signed-off-by': [0],
 	},
 };
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :
