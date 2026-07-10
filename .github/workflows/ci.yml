@@ -114,7 +114,21 @@ jobs:
 
       - name: Pest (coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
-        run: php vendor/bin/pest --coverage --min=80
+        run: |
+          # Aggregate backstop gate
+          php vendor/bin/pest --coverage --min=80
+          # Per-changed-file gate (mechanized, same script as /check)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.event.pull_request.base.ref }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            case "$BEFORE" in
+              0000000000000000000000000000000000000000) BASE="HEAD~1" ;;
+              *) BASE="$BEFORE" ;;
+            esac
+          fi
+          git diff --name-only "$BASE...HEAD" -- '*.php' \
+            | php .github/scripts/coverage-gate.php tests/coverage.xml
         env:
           PEST_BROWSER_BASE_URL: http://localhost:8080
 
