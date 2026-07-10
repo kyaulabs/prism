@@ -1,11 +1,10 @@
 <?php
-
-# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
-
-
-# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
-
 declare(strict_types=1);
+
+# $KYAULabs: RunnerTest.php kyau@nova 2026/07/09 -0700 Exp $
+
+
+
 
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
@@ -766,8 +765,5 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
 
-// vim: ft=php sts=4 sw=4 ts=4 et :
-
-// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
