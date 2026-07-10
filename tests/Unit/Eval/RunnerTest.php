@@ -1,7 +1,11 @@
 <?php
+
 declare(strict_types=1);
 
 # $KYAULabs: RunnerTest.php kyau@nova 2026/07/09 -0700 Exp $
+
+
+
 
 
 
@@ -764,6 +768,7 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

@@ -180,6 +180,7 @@ if [ -n "$STAGED_SRC" ]; then
 			if [ "$EXT" = "php" ]; then
 				# <?php on line 1
 				head -1 "$CLEAN"
+				echo ""
 
 				# Emit declare(strict_types=1); exactly once if present anywhere
 				declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
