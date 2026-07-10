@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/09 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 
 
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
@@ -258,6 +259,7 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 	git config user.name "Test User"
 
 	# Broken state: 3 headers, declare after them, 5 modelines
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
 	{
 		echo '<?php'
 		echo '# $KYAULabs: broken.php t@t.t 2026/07/09 Exp $'
@@ -380,6 +382,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

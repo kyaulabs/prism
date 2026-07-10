@@ -199,6 +199,7 @@ if [ -n "$STAGED_SRC" ]; then
 		# This makes the normalizer idempotent: duplicates are collapsed to exactly
 		# one of each below.
 		CLEAN=$(mktemp)
+		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
 		grep -vE '^[[:space:]]*(#|//)[[:space:]]*(\$KYAULabs:|vim: ft=)' "$TMP" > "$CLEAN"
 
 		# Build normalized file with exactly one canonical header + modeline
