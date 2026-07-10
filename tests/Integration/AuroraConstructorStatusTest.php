@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorStatusTest.php kyau@nova 2026/07/04 -0700 Exp $
+# $KYAULabs: AuroraConstructorStatusTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
+
+
 
 /**
  * Scans all web-accessible PHP files for hardcoded Aurora constructor
@@ -65,7 +68,7 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
         "\nReplace with: env_bool('APP_DEBUG')",
     );
 
-    $expectedTail = implode(DIRECTORY_SEPARATOR, ['backend', 'smoke.php']);
+    $expectedTail = implode(DIRECTORY_SEPARATOR, ['backend', 'env.php']);
     $found = false;
 
     foreach ($files as $f) {
@@ -76,7 +79,7 @@ test('Aurora constructor must not hardcode $status=true in web-accessible files'
     }
 
     expect($found)->toBeTrue(
-        "Expected backend/smoke.php in scan results to prove repo-root reach.\n"
+        "Expected backend/env.php in scan results to prove repo-root reach.\n"
         . 'Scanned files: ' . implode(', ', $files),
     );
 });
@@ -172,5 +175,6 @@ test('env_bool returns false when load_env file is absent (prod default)', funct
 
     expect($result)->toBeFalse();
 });
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
