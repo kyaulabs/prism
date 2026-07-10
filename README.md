@@ -256,13 +256,34 @@ add or remove commit types.
 
 ### Install Script
 
-Run the install script to symlink hooks from `.github/hooks/` into `.git/hooks/`.
+Run the install script once after cloning to activate the git hooks:
 
 ```text
 bash .github/scripts/install-hooks.sh
 ```
 
-The script backs up any existing hooks and symlinks in the pre-commit (lint + gitleaks) and commit-msg (commitlint) hooks.
+The script sets `git config core.hooksPath .github/hooks` — git's native
+hooks mechanism. No symlinks are created, no files are backed up, and no
+executable bits are changed. Git runs every hook in `.github/hooks/`
+directly from the working tree.
+
+> [!IMPORTANT]
+>
+> Setting `core.hooksPath` **silently supersedes** any hooks already in
+> `.git/hooks/` — they stop firing for this repository. If you keep
+> personal hooks there, migrate them into `.github/hooks/` or unset the
+> config (`git config --unset core.hooksPath`) to restore them.
+
+Six hooks are activated:
+
+| Hook | Behavior |
+| --- | --- |
+| `pre-commit` | PHP syntax check, php-cs-fixer, Stylelint, ESLint, Shellcheck, gitleaks, and an idempotent RCS header normalizer that auto-adds/repairs headers on staged source files. |
+| `commit-msg` | commitlint against the project type-enum. Skips with a notice when `commitlint` is not installed (e.g. before `npm install`). |
+| `prepare-commit-msg` | Blocks `--amend` of a commit already pushed to a remote. Also blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
+| `pre-push` | **Hard gate:** blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
+| `post-checkout` | `git submodule update --init --recursive`. |
+| `post-merge` | `git submodule update --init --recursive`. |
 
 ## Initial Commit
 
@@ -544,7 +565,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 ### Activation
 
-The harness is active in any OpenCode session opened in this repo — no manual steps beyond installing OpenCode and running `composer install` / `npm install`. Git hooks (lint + gitleaks + commitlint) are activated separately via `bash .github/scripts/install-hooks.sh`.
+The harness is active in any OpenCode session opened in this repo — no manual steps beyond installing OpenCode and running `composer install` / `npm install`. Git hooks (lint, commitlint, amend/non-fast-forward guards, submodule sync) are activated separately via `bash .github/scripts/install-hooks.sh`.
 
 ## Conventional Commits
 
