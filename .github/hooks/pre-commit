@@ -94,7 +94,7 @@ if command -v gitleaks > /dev/null 2>&1; then
 	fi
 fi
 
-# ── RCS header auto-add (staged source files missing a header) ─────────────────
+# ── RCS header auto-add (strip-then-insert idempotent normalizer) ─────────────
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh|ts)$' || true)
 STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|cdn/css/|cdn/javascript/)' || true)
 if [ -n "$STAGED_SRC" ]; then
@@ -106,12 +106,6 @@ if [ -n "$STAGED_SRC" ]; then
 
 	while IFS= read -r file; do
 		[ -z "$file" ] && continue
-
-		# Already has an RCS header?
-		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker, not a variable
-		if git show ":$file" 2>/dev/null | head -10 | grep -qF '$KYAULabs:'; then
-			continue
-		fi
 
 		# Refuse to rewrite when the working tree has unstaged changes to this file.
 		# The auto-add rebuilds the file from the staged blob; cp'ing that over the
@@ -175,32 +169,51 @@ if [ -n "$STAGED_SRC" ]; then
 			[ "$in_php" = "1" ] || APPEND_ML=false
 		fi
 
-		# Insert header and modeline
+		# Strip ALL existing RCS headers and vim modelines into a cleaned copy.
+		# This makes the normalizer idempotent: duplicates are collapsed to exactly
+		# one of each below.
+		CLEAN=$(mktemp)
+		grep -vE '^[[:space:]]*(#|//)[[:space:]]*(\$KYAULabs:|vim: ft=)' "$TMP" > "$CLEAN"
+
+		# Build normalized file with exactly one canonical header + modeline
 		{
 			if [ "$EXT" = "php" ]; then
-				# PHP: insert after <?php and optional declare(strict_types=1);
-				head -1 "$TMP"
-				sed -n '2p' "$TMP" | grep -q 'declare(strict_types=1);' && sed -n '2p' "$TMP"
+				# <?php on line 1
+				head -1 "$CLEAN"
+
+				# Emit declare(strict_types=1); exactly once if present anywhere
+				declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
+				if [ -n "$declare_line" ]; then
+					sed -n "${declare_line}p" "$CLEAN"
+				fi
+
 				echo ""
 				echo "$HDR"
 				echo ""
-				tail -n +2 "$TMP" | awk 'NR==1 && index($0,"declare(strict_types=1);"){next} 1'
+
+				# Body: skip <?php and (if found) the declare line
+				if [ -n "$declare_line" ]; then
+					skip=$((declare_line - 1))
+					tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1'
+				else
+					tail -n +2 "$CLEAN"
+				fi
 			elif [ "$EXT" = "sh" ]; then
-				LINE1=$(head -1 "$TMP")
+				LINE1=$(head -1 "$CLEAN")
 				if echo "$LINE1" | grep -q '^#!/'; then
 					echo "$LINE1"
 					echo "$HDR"
 					echo ""
-					tail -n +2 "$TMP"
+					tail -n +2 "$CLEAN"
 				else
 					echo "$HDR"
 					echo ""
-					cat "$TMP"
+					cat "$CLEAN"
 				fi
 			else
 				echo "$HDR"
 				echo ""
-				cat "$TMP"
+				cat "$CLEAN"
 			fi
 			if $APPEND_ML; then
 				echo ""
@@ -208,12 +221,14 @@ if [ -n "$STAGED_SRC" ]; then
 			fi
 		} > "$TMP.mod"
 
-		# Write to working tree and re-stage
-		cp "$TMP.mod" "$file"
-		git add "$file"
-		echo "  + RCS header added: $file"
+		# Only re-stage if the normalized content differs from the original staged blob
+		if ! cmp -s "$TMP" "$TMP.mod"; then
+			cp "$TMP.mod" "$file"
+			git add "$file"
+			echo "  + RCS header added: $file"
+		fi
 
-		rm -f "$TMP" "$TMP.mod"
+		rm -f "$TMP" "$CLEAN" "$TMP.mod"
 	done <<< "$STAGED_SRC"
 fi
 
