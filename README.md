@@ -353,7 +353,7 @@ Create a new branch protection rule by clicking `Add branch protection rule`.
 * Protect matching branches:
   * `Require a pull request before merging`
   * `Require approvals (1)`
-  * `Require status checks to pass before merging` — add `check` (the CI workflow job)
+  * `Require status checks to pass before merging` — add `Lint, Test & Security` (the CI workflow job's display name)
   * `Require signed commits`
 
 Click `Create`.
