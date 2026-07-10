@@ -470,21 +470,41 @@ Press `Tab` to switch between Build and Plan during a session.
 
 ### Model Configuration
 
-Default models and variants are hardcoded in `opencode.json` and per-agent
-frontmatter files (`.opencode/agents/*.md`). The fallback chain is:
+Default models and variants are pinned in `opencode.json` (top-level `model`)
+and per-agent `model` fields in the `agent` block and `.opencode/agents/*.md`
+frontmatter. Per-agent `model` overrides the top-level `model` for that agent.
 
-1. Agent-level `model` and `variant` fields (in agent frontmatter or
-   `opencode.json`)
-2. Top-level `model` in `opencode.json`
-3. `--model` CLI flag
-4. Last-used model from `/models`
+**Model loading priority** (per OpenCode `models.mdx`):
 
-To override, use one of these non-committed mechanisms:
+1. `--model` / `-m` CLI flag (highest)
+2. `model` key in the resolved OpenCode config
+3. Last-used model (from `/models`)
+4. First available model by internal priority
 
-- **Global config** — set `model` in `~/.config/opencode/opencode.json`
-  (deep-merged with project config, overriding per-agent values)
+**Config file precedence** (per OpenCode `config.mdx`; later sources override
+earlier ones):
+
+1. Remote config (`.well-known/opencode`)
+2. Global config (`~/.config/opencode/opencode.json`)
+3. `OPENCODE_CONFIG` custom path
+4. **Project config (`opencode.json`)** ← this repo's pins live here
+5. `.opencode/` directories (agents, commands, etc.)
+6. `OPENCODE_CONFIG_CONTENT` (inline, runtime)
+7. Managed settings (admin-controlled, MDM, mobileconfig)
+
+Because project config (#4) overrides global config (#2), setting a `model`
+in `~/.config/opencode/opencode.json` will **not** change the models pinned
+by this repo. To override the pinned models, use one of:
+
 - **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5`
-- **Escape hatch** — `OPENCODE_CONFIG_CONTENT='{"model":"..."}' opencode`
+  (highest model-loading priority, per `models.mdx:206-210`)
+- **Inline config (top-level)** — `OPENCODE_CONFIG_CONTENT='{"model":"..."}' opencode`
+  (runtime override at precedence #6; overrides the top-level `model` only —
+  per-agent pins still hold for agents with explicit `model` fields)
+- **Inline config (per-agent)** — target specific agents to override their
+  pins: `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
+- **Edit the project file** — modify `opencode.json` or the relevant
+  `.opencode/agents/*.md` frontmatter directly (a committed change)
 
 ### Slash commands
 
