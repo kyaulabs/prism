@@ -56,25 +56,29 @@ fi
 echo "Changed PHP files:" && cat "$CHANGED"
 ```
 
-Then run the full suite with coverage:
+Then run the full suite with coverage (Clover XML feeds the changed-file
+gate):
 
 ```bash
 php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
-**Changed-file coverage intersection** — assemble a table from the coverage
-output and `git diff` results:
+**Changed-file coverage gate** — enforced mechanically by the same script
+CI uses (`coverage-gate.php`):
 
-| Changed file | Coverage % | Gate |
-|---|---|---|
-| `backend/foo.php` | 92% | PASS |
-| `backend/bar.php` | 74% | FAIL |
+```bash
+cat "$CHANGED" | php .github/scripts/coverage-gate.php tests/coverage.xml
+```
 
-- Gate: **≥ 80% line coverage** on each changed file.
-- If a changed file's coverage is below 80%, list the file and the specific
-  lines that are driving the number down (from the coverage HTML/report).
-- Flag (non-blocking) if overall coverage is below 80% but every changed file
-  passes — this means technical debt in untouched files, not a blocker.
+- Gate: **≥ 80% line coverage** on each changed file that is in the
+  coverage source set (`<source>` in `phpunit.xml`).
+- Files outside the source set, deleted files, and files with no
+  executable lines are SKIPped (non-blocking).
+- If the script exits non-zero, report the failing files and the specific
+  uncovered lines (from the coverage HTML report at `tests/coverage/`).
+- Flag (non-blocking) if overall coverage is below 80% but every changed
+  file passes — this means technical debt in untouched files, not a
+  blocker.
 - If any test fails, list the failing tests with their messages.
 
 ## 5. JS/TS tests
