@@ -2,6 +2,9 @@
 
 # $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
 
+
+# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 declare(strict_types=1);
 
 use KYAULabs\Eval\Runner;
@@ -614,6 +617,49 @@ it('executeCommand does not set degraded_kill when setsid is available', functio
     expect($output['degraded_kill'])->toBeFalse();
 });
 
+it('executeCommand enforces timeout when child closes pipes but keeps running', function () {
+    $runner = new Runner(__DIR__);
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand('php -r "fclose(STDOUT);fclose(STDERR);sleep(5);"', 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['stdout'])->toBe('');
+    expect($output['stderr'])->toBe('');
+});
+
+it('executeCommand returns normally when child closes pipes and exits', function () {
+    $runner = new Runner(__DIR__);
+
+    $output = $runner->executeCommand('php -r "fclose(STDOUT);fclose(STDERR);exit(0);"', 5);
+
+    expect($output['timed_out'])->toBeFalse();
+    expect($output['exitCode'])->toBe(0);
+});
+
+it('executeCommand enforces timeout on pipe-closing child without setsid (macOS/BSD fallback)', function () {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $this->markTestSkipped('POSIX-only test');
+    }
+
+    $runner = new class (__DIR__) extends Runner {
+        protected function hasSetSid(): bool
+        {
+            return false;
+        }
+    };
+
+    $start = hrtime(true);
+    $output = $runner->executeCommand('php -r "fclose(STDOUT);fclose(STDERR);sleep(5);"', 1);
+    $elapsed = (hrtime(true) - $start) / 1_000_000_000;
+
+    expect($elapsed)->toBeLessThan(2.5);
+    expect($output['timed_out'])->toBeTrue();
+    expect($output['degraded_kill'])->toBeTrue();
+});
+
 it('killProcessTree kills direct children without setsid (POSIX fallback)', function () {
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
         $this->markTestSkipped('POSIX-only test');
@@ -719,6 +765,8 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
+
+// vim: ft=php sts=4 sw=4 ts=4 et :
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
 
