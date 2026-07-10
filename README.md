@@ -87,6 +87,11 @@ Run the test suite after `composer install`:
 php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
+The coverage gate enforces ≥80% line coverage on changed PHP files via
+`.github/scripts/coverage-gate.php`, wired into both CI and `/check`.
+When you add new source directories, register them in `phpunit.xml`'s
+`<source>` block so they enter the coverage denominator.
+
 | Tool | Via | Purpose |
 | --- | --- | --- |
 | php-cs-fixer | Composer | PHP code style (PSR-12) |
@@ -225,6 +230,7 @@ Several files reference `kyaulabs/template` and must be updated to reflect your 
 | `opencode.json` | `build` agent prompt references the project; update repo-specific pointers |
 | `CONTEXT.md` | Fill in the domain glossary, entities, invariants, and non-goals (or run `/prime` to draft) |
 | `commitlint.config.js` | Remove any unused types from `type-enum` if needed |
+| `phpunit.xml` | Add `<app>/` and new source directories to the `<source>` block so they enter the coverage denominator |
 
 ### Add Actions
 
