@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@nova 2026/07/07 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
 
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
@@ -252,6 +253,168 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 rm -rf "$T6"
 fi
 
+# ── Test 7: Reject Closes #NN (banned closing keyword) ───────────────────────
+
+echo ""
+echo "── Test 7: Closes #NN rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 7 (banned Closes) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nCloses #40\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 7: Closes #40 rejected (banned keyword)"
+	else
+		fail "Test 7: Closes #40 accepted (should be banned)"
+	fi
+)
+fi
+
+# ── Test 8: Reject Resolve: #NN (banned closing keyword) ─────────────────────
+
+echo "── Test 8: Resolve: #NN rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 8 (banned Resolve) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nResolve: #50\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 8: Resolve: #50 rejected (banned keyword)"
+	else
+		fail "Test 8: Resolve: #50 accepted (should be banned)"
+	fi
+)
+fi
+
+# ── Test 9: Reject Fixes #42 (no colon) ───────────────────────────────────────
+
+echo "── Test 9: Fixes #42 (no colon) rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 9 (no colon) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nFixes #42\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 9: Fixes #42 (no colon) rejected"
+	else
+		fail "Test 9: Fixes #42 (no colon) accepted (should be rejected)"
+	fi
+)
+fi
+
+# ── Test 10: Reject fixes: #42 (lowercase keyword) ────────────────────────────
+
+echo "── Test 10: fixes: #42 (lowercase) rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 10 (lowercase) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nfixes: #42\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 10: fixes: #42 (lowercase) rejected"
+	else
+		fail "Test 10: fixes: #42 (lowercase) accepted (should be rejected)"
+	fi
+)
+fi
+
+# ── Test 11: Reject Fixes: placed after Plan-by: (placement) ───────────────────
+
+echo "── Test 11: Fixes: after Plan-by: rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 11 (placement) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 11: Fixes: after Plan-by: rejected (placement)"
+	else
+		fail "Test 11: Fixes: after Plan-by: accepted (should be rejected)"
+	fi
+)
+fi
+
+# ── Test 12: Accept Fixes: #NN at top of footer (green path) ───────────────────
+
+echo "── Test 12: Fixes: at top of footer accepted ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 12 (green Fixes) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'fix(db): sqli in search\n\nFixes: #42\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -eq 0 ]; then
+		pass "Test 12: Fixes: #42 at top of footer accepted"
+	else
+		fail "Test 12: Fixes: #42 at top rejected (exit=$ret): $output"
+	fi
+)
+fi
+
+# ── Test 13: Accept Refs: #NN at top of footer (non-closing reference) ────────
+
+echo "── Test 13: Refs: at top of footer accepted ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 13 (green Refs) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'feat(db): add index\n\nRefs: #123\nPlan-by: x\nAcked-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -eq 0 ]; then
+		pass "Test 13: Refs: #123 at top of footer accepted"
+	else
+		fail "Test 13: Refs: #123 at top rejected (exit=$ret): $output"
+	fi
+)
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -270,5 +433,6 @@ else
 	echo "═══════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
