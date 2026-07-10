@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/06 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+
+
 
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
 # Bugs under test (#28):
@@ -245,6 +247,123 @@ PHPEOF
 )
 rm -rf "$T4"
 
+# ── Test 5: Duplicate headers/modelines are normalized to one each ────────────
+
+echo "── Test 5: Duplicate headers/modelines normalized ──"
+T5=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T5"
+(
+	cd "$T5"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# Broken state: 3 headers, declare after them, 5 modelines
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	{
+		echo '<?php'
+		echo '# $KYAULabs: broken.php t@t.t 2026/07/09 Exp $'
+		echo '# $KYAULabs: broken.php t@t.t 2026/07/09 Exp $'
+		echo '# $KYAULabs: broken.php t@t.t 2026/07/09 Exp $'
+		echo 'declare(strict_types=1);'
+		echo 'echo 1;'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+	} > broken.php
+
+	git add broken.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Duplicate normalization commit proceeds (exit 0)"
+	else
+		fail "Duplicate normalization commit blocked (exit $ret)"
+	fi
+
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	header_count=$(grep -cF '$KYAULabs:' broken.php 2>/dev/null || true)
+	modeline_count=$(grep -c 'vim: ft=php' broken.php 2>/dev/null || true)
+	declare_line=$(grep -n 'declare(strict_types=1);' broken.php | head -1 | cut -d: -f1)
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	header_line=$(grep -nF '$KYAULabs:' broken.php | head -1 | cut -d: -f1)
+
+	if [ "$header_count" -eq 1 ]; then
+		pass "Exactly 1 header after normalization (was 3)"
+	else
+		fail "Expected 1 header, got $header_count"
+	fi
+
+	if [ "$modeline_count" -eq 1 ]; then
+		pass "Exactly 1 modeline after normalization (was 5)"
+	else
+		fail "Expected 1 modeline, got $modeline_count"
+	fi
+
+	if [ "$declare_line" -lt "$header_line" ]; then
+		pass "declare(strict_types=1) precedes RCS header"
+	else
+		fail "declare(strict_types=1) must precede header (declare=$declare_line, header=$header_line)"
+	fi
+)
+rm -rf "$T5"
+
+# ── Test 6: Headerless file with existing modeline keeps exactly one modeline ──
+
+echo "── Test 6: Headerless file with modeline not duplicated ──"
+T6=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T6"
+(
+	cd "$T6"
+	git init --quiet
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# File with modeline but NO header
+	{
+		echo '<?php'
+		echo 'declare(strict_types=1);'
+		echo 'echo 1;'
+		echo '// vim: ft=php sts=4 sw=4 ts=4 et :'
+	} > hasml.php
+
+	git add hasml.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Modeline-not-duplicated commit proceeds (exit 0)"
+	else
+		fail "Modeline-not-duplicated commit blocked (exit $ret)"
+	fi
+
+	modeline_count=$(grep -c 'vim: ft=php' hasml.php 2>/dev/null || true)
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	header_count=$(grep -cF '$KYAULabs:' hasml.php 2>/dev/null || true)
+
+	if [ "$modeline_count" -eq 1 ]; then
+		pass "Exactly 1 modeline (not duplicated)"
+	else
+		fail "Expected 1 modeline, got $modeline_count"
+	fi
+
+	if [ "$header_count" -eq 1 ]; then
+		pass "RCS header added"
+	else
+		fail "Expected 1 RCS header, got $header_count"
+	fi
+)
+rm -rf "$T6"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -263,5 +382,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

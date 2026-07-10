@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/09 -0700 Exp $
 
+
 # ── Tests for setup-substitute.sh identity/token substitution ────────────────
 # Verifies that the substitution script correctly replaces template default
 # identity tokens with user-provided values, with correct longest-match-first
@@ -256,6 +257,45 @@ T10=$(mktemp -d)
 )
 rm -rf "$T10"
 
+# ── Test 11: runs under BSD-style sed (no GNU -i) ─────────────────────────────
+
+test_runs_under_bsd_sed() {
+	local tmp_bin
+	tmp_bin=$(mktemp -d)
+
+	# BSD-emulating sed: error if -i given without a backup-extension arg.
+	cat > "$tmp_bin/sed" <<'SHIM'
+#!/usr/bin/env bash
+prev=""
+for a in "$@"; do
+    if [ "$prev" = "-i" ]; then
+        case "$a" in
+            s*|y*) echo "sed: -i requires a backup extension (BSD)" >&2; exit 1 ;;
+        esac
+    fi
+    prev="$a"
+done
+exec /usr/bin/sed "$@"
+SHIM
+	chmod +x "$tmp_bin/sed"
+
+	local f
+	f=$(mktemp -d)/file.md
+	printf 'kyau <git@kyaulabs.com>\n' > "$f"
+
+	PATH="$tmp_bin:$PATH" bash "$SCRIPT" "$f" "Jane" "jane@example.com" "org" "repo" "myapp" "example.com" "Jane" >/dev/null 2>&1
+	local rc=$?
+	if [ "$rc" -ne 0 ]; then
+		fail "script failed under BSD sed (rc=$rc)"
+		return 1
+	fi
+	pass "runs under BSD sed"
+}
+
+echo ""
+echo "── Test 11: runs under BSD-style sed (no GNU -i) ──"
+test_runs_under_bsd_sed
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -274,5 +314,6 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
