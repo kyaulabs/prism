@@ -53,6 +53,26 @@ read-only/audit agents (`@test-audit`, `@code-review`, `@semgrep`,
 agent with scoped write access (repro tests, throwaway harnesses, `[DEBUG-]`
 instrumentation) and is not invocable from Plan mode.
 
+### Plan Agent Complexity Assessment
+
+The plan agent uses the `high` variant (not `max`) as a cost/quality balance —
+more capable than `medium` for reasoning, but without the full token cost of
+`max`. A **Complexity Assessment Protocol** in the agent's system prompt
+instructs it to classify task complexity and adjust reasoning depth:
+
+- **Complex tasks** (architecture, security, DB schema, cross-cutting refactors,
+  complex bugs): deeper reasoning, alternatives exploration, `@architect`
+  dispatch for validation.
+- **Simple tasks** (docs, style fixes, minor bugs, routine tests): concise,
+  skip alternative exploration.
+
+Dynamic per-turn variant switching (e.g., automatically escalating to `max`
+for complex tasks) is **not feasible** with opencode's current architecture —
+the model and variant are resolved statically at startup, before any plugin
+hook fires. See ADR-0011 for the full investigation. The closest plugin
+mechanism, `experimental.chat.system.transform` (ADR-0008), can only modify
+the system prompt, not the model variant.
+
 ### Built-in subagents
 
 | Agent | Purpose |
