@@ -49,13 +49,14 @@ EOF
 	# ── No-squash check (soft gate) ───────────────────────────────────────
 	# Warn if pushing a single-commit branch that looks like a squash.
 	# The push proceeds, but the warning is prominent.
-	if [ -n "$remote_oid" ] && [ "$remote_oid" != "0000000000000000000000000000000000000000" ]; then
-		range="${remote_oid}..${local_oid}"
+	# Only applies to new branches — the non-fast-forward gate above
+	# already blocks force-pushes, so existing branches are always
+	# fast-forward (incremental) pushes here.
+	if [ -z "$remote_oid" ] || [ "$remote_oid" = "0000000000000000000000000000000000000000" ]; then
+		count=$(git rev-list --count "$local_oid" --not --remotes 2>/dev/null || echo 0)
 	else
-		range="$local_oid"
+		count=0
 	fi
-
-	count=$(git rev-list --count "$range" 2>/dev/null || echo 0)
 
 	if [ "$count" -eq 1 ]; then
 		commit_msg=$(git log -1 --format=%s "$local_oid")
