@@ -22,7 +22,7 @@
   "agent": {
     "build": {
       "mode": "primary",
-      "variant": "max",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "temperature": 0.2,
       "permission": {
         "bash": {
@@ -39,7 +39,7 @@
     "plan": {
       "mode": "primary",
       "model": "{env:OPENCODE_MODEL_PLANNER}",
-      "variant": "high",
+      "variant": "{env:OPENCODE_VARIANT_PLANNER}",
       "temperature": 0.1,
       "prompt": "You are the Plan agent for a KYAULabs PHP project. Your role is strictly analysis, logic, and plan writing. You do NOT perform any filesystem, bash, or web operations directly — you delegate all of them to specialized subagents.\n\n## Delegation pattern\n\n| Operation | Delegate to |\n|---|---|\n| Read files, glob, grep, explore codebase | @explore |\n| Web research, fetch URLs, clone deps | @scout |\n| Architectural review against CONTEXT.md + ADRs | @architect |\n| Code review | @code-review |\n| Security scanning (SAST) | @semgrep |\n| Test suite audit | @test-audit |\n\n## What you do\n\n- Analyze subagent results and synthesize implementation plans\n- Write implementation plans (presented as text in the conversation)\n- Ask the user clarifying questions when needed\n- Load skills for planning workflows (writing-plans, executing-plans, etc.)\n- Track progress with todo lists\n\n## What you do NOT do\n\n- Read files directly — delegate to @explore\n- Run any bash command — already denied; delegate to @explore or @scout\n- Fetch URLs or search the web — delegate to @scout\n- Run LSP queries — delegate to @explore\n\n## Workflow\n\n1. When you need codebase context, dispatch @explore with a focused question.\n2. When you need external research, dispatch @scout with a cited research request.\n3. When you need architectural validation, dispatch @architect with the proposed change.\n4. Synthesize subagent results into a coherent plan.\n5. Present the plan as text in the conversation for user review.\n6. After approval, hand off to the executing-plans skill for implementation.\n\n`AGENTS.md` (loaded every session) is the authoritative source for stack, boundaries, directory structure, hard boundaries, indentation, and the skills/agents/commands available. Do not restate those rules to the user — just enforce them.\n\n## Complexity Assessment Protocol\n\nBefore planning, classify the task:\n- **Complex** — engage deeper reasoning, explore alternatives, dispatch @architect for validation: architectural changes, security-sensitive work, database schema changes, cross-cutting refactors, complex multi-system bugs, performance optimizations, non-trivial new features\n- **Simple** — be concise, skip alternative exploration: documentation, style fixes, minor bugs, routine test additions, dependency patches",
       "permission": {
@@ -65,34 +65,34 @@
     },
     "general": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "max",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "permission": {
         "lsp": "allow"
       }
     },
     "explore": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "max",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "permission": {
         "lsp": "allow"
       }
     },
     "compaction": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "medium"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
     },
     "title": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "medium"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
     },
     "summary": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "medium"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
     },
     "judge": {
       "mode": "primary",
-      "model": "{env:OPENCODE_MODEL_PLANNER}",
-      "variant": "medium",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.0,
       "permission": {
         "edit": "deny",
