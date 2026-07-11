@@ -85,13 +85,9 @@ fi
 # ── Gitleaks ──────────────────────────────────────────────────────────────────
 if command -v gitleaks > /dev/null 2>&1; then
 	echo "→ gitleaks"
-	# gitleaks v8+ uses 'detect'; v7 and earlier use 'protect'
-	# v8+ removed --staged; pipe staged diff via --pipe instead
-	if gitleaks detect --help > /dev/null 2>&1; then
-		git diff --cached | gitleaks detect --pipe --redact --no-color --max-target-megabytes 5
-	else
-		gitleaks protect --staged --redact --no-color --max-target-megabytes 5
-	fi
+	gitleaks git --pre-commit --staged --redact --verbose --no-color --max-target-megabytes 5
+else
+	echo "⚠ gitleaks not installed — skipping secrets scan (https://github.com/gitleaks/gitleaks/releases)"
 fi
 
 # ── RCS placeholder/foreign header check ──────────────────────────────────────
