@@ -73,6 +73,30 @@ hook fires. See ADR-0011 for the full investigation. The closest plugin
 mechanism, `experimental.chat.system.transform` (ADR-0008), can only modify
 the system prompt, not the model variant.
 
+### Model Configuration
+
+Models are assigned via environment variable substitution (`{env:VAR}`) rather
+than hard-coded model IDs. Three tiers with committed defaults in
+`.opencode/models.default.env`:
+
+| Tier | Env Var | Default | Agents |
+| --- | --- | --- | --- |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, judge |
+| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
+
+**After clone:** Run `direnv allow` (one-time) to trust the `.envrc` that
+sources the defaults. Without direnv, add `source /path/to/repo/.opencode/models.default.env`
+to your shell profile.
+
+**Customize:** Run `/setup` and follow the Model Configuration prompts.
+Choices are written to `~/.config/opencode/models.env` — user overrides take
+precedence over the committed defaults.
+
+`variant` and `temperature` remain literals in `opencode.json` — only the
+`model` field uses `{env:VAR}` substitution. See ADR-0011 and ADR-0012 for
+the full design rationale.
+
 ### Built-in subagents
 
 | Agent | Purpose |

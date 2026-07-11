@@ -497,16 +497,32 @@ Press `Tab` to switch between Build and Plan during a session.
 
 ### Model Configuration
 
-Default models and variants are pinned in `opencode.json` (top-level `model`)
-and per-agent `model` fields in the `agent` block and `.opencode/agents/*.md`
-frontmatter. Per-agent `model` overrides the top-level `model` for that agent.
+Models are assigned via environment variable substitution (`{env:VAR}`) in
+`opencode.json` and `.opencode/agents/*.md` — no hard-coded model IDs.
+Three tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
 
-**Model loading priority** (per OpenCode `models.mdx`):
+| Tier | Env Var | Default | Agents |
+| --- | --- | --- | --- |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, judge |
+| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
-1. `--model` / `-m` CLI flag (highest)
-2. `model` key in the resolved OpenCode config
-3. Last-used model (from `/models`)
-4. First available model by internal priority
+**Default delivery:** A direnv `.envrc` automatically sources the committed
+`.opencode/models.default.env` when you `cd` into the project. After clone:
+
+```bash
+direnv allow                      # trust the .envrc (one-time)
+echo $OPENCODE_MODEL_PRIMARY      # verify: deepseek/deepseek-v4-pro
+```
+
+Without direnv, add to your shell profile:
+```bash
+source /path/to/repo/.opencode/models.default.env
+```
+
+**Customizing via /setup:** Run `/setup` to interactively choose models for
+each tier. Choices are written to `~/.config/opencode/models.env` (sourced
+by `.envrc` after the defaults, so user choices take precedence).
 
 **Config file precedence** (per OpenCode `config.mdx`; later sources override
 earlier ones):
@@ -514,24 +530,18 @@ earlier ones):
 1. Remote config (`.well-known/opencode`)
 2. Global config (`~/.config/opencode/opencode.json`)
 3. `OPENCODE_CONFIG` custom path
-4. **Project config (`opencode.json`)** ← this repo's pins live here
+4. **Project config (`opencode.json`)** ← `{env:VAR}` references live here
 5. `.opencode/` directories (agents, commands, etc.)
 6. `OPENCODE_CONFIG_CONTENT` (inline, runtime)
 7. Managed settings (admin-controlled, MDM, mobileconfig)
 
-Because project config (#4) overrides global config (#2), setting a `model`
-in `~/.config/opencode/opencode.json` will **not** change the models pinned
-by this repo. To override the pinned models, use one of:
+**Override mechanisms** (in order of escalation):
 
-- **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5`
-  (highest model-loading priority, per `models.mdx:206-210`)
-- **Inline config (top-level)** — `OPENCODE_CONFIG_CONTENT='{"model":"..."}' opencode`
-  (runtime override at precedence #6; overrides the top-level `model` only —
-  per-agent pins still hold for agents with explicit `model` fields)
-- **Inline config (per-agent)** — target specific agents to override their
-  pins: `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
-- **Edit the project file** — modify `opencode.json` or the relevant
-  `.opencode/agents/*.md` frontmatter directly (a committed change)
+- **Change models in /setup** — writes user choices to `~/.config/opencode/models.env`
+- **Edit `.opencode/models.default.env`** — change defaults committed to the repo
+- **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
+  top-level; per-agent `{env:VAR}` references still resolve from env vars)
+- **Inline config** — `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
 
 ### Slash commands
 
