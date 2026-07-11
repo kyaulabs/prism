@@ -1,6 +1,6 @@
 ---
 description: Generate and update PHPDoc, RCS headers, and project documentation per PSR-5 and the rcs-header skill.
-model: deepseek/deepseek-v4-flash
+model: "{env:OPENCODE_MODEL_UTILITY}"
 variant: medium
 mode: subagent
 temperature: 0.1

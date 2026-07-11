@@ -1,6 +1,6 @@
 ---
 description: Resolve in-progress git merge/rebase conflicts. Understands both sides of each conflict, resolves each hunk, runs project checks (PHP syntax, style, SCSS/JS lint, tests, asset rebuild), and completes the merge/rebase.
-model: deepseek/deepseek-v4-pro
+model: "{env:OPENCODE_MODEL_PRIMARY}"
 variant: max
 mode: subagent
 temperature: 0.1

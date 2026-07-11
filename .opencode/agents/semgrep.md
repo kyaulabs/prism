@@ -1,6 +1,6 @@
 ---
 description: Run Semgrep SAST scans. Supports diff-based audit (--baseline-commit) and full scans on specific paths. Covers PHP, JavaScript, and secret scanning. Reports findings by severity; does not auto-fix.
-model: deepseek/deepseek-v4-flash
+model: "{env:OPENCODE_MODEL_UTILITY}"
 variant: medium
 mode: subagent
 temperature: 0.1

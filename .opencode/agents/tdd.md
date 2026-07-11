@@ -1,6 +1,6 @@
 ---
 description: Write tests first (TDD), then implement, using vertical slices (tracer bullets) rather than writing all tests up front. Covers happy path, boundaries, and error cases. Invoke for any new feature, bug fix, or class implementation.
-model: deepseek/deepseek-v4-pro
+model: "{env:OPENCODE_MODEL_PRIMARY}"
 variant: max
 mode: subagent
 temperature: 0.2
