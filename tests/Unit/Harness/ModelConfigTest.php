@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 it('has a models default env file with three tier exports', function () {
@@ -146,21 +149,28 @@ it('has consistent env var names between defaults and config', function () {
     }
 });
 
-it('keeps variant and temperature as literals, not env var references', function () {
+it('uses env var substitution for variant, keeps temperature as literal', function () {
     // opencode.json agent block
     $configPath = __DIR__ . '/../../../opencode.json';
     $config = json_decode(file_get_contents($configPath), true);
 
     Assert::assertIsArray($config['agent']);
     foreach ($config['agent'] as $name => $agent) {
-        foreach (['variant', 'temperature'] as $field) {
-            if (isset($agent[$field])) {
-                Assert::assertStringNotContainsString(
-                    '{env:',
-                    (string) $agent[$field],
-                    "Agent '{$name}' {$field} must be a literal, not {env:VAR}",
-                );
-            }
+        // variant MUST use {env:VAR} substitution
+        if (isset($agent['variant'])) {
+            Assert::assertStringContainsString(
+                '{env:',
+                (string) $agent['variant'],
+                "Agent '{$name}' variant must use {env:VAR} substitution",
+            );
+        }
+        // temperature must NOT use {env:VAR} — stays literal
+        if (isset($agent['temperature'])) {
+            Assert::assertStringNotContainsString(
+                '{env:',
+                (string) $agent['temperature'],
+                "Agent '{$name}' temperature must be a literal, not {env:VAR}",
+            );
         }
     }
 
@@ -175,17 +185,65 @@ it('keeps variant and temperature as literals, not env var references', function
         }
         $frontmatter = $matches[1];
 
-        foreach (['variant', 'temperature'] as $field) {
-            if (preg_match('/^\s*' . $field . ':\s*(.+)$/m', $frontmatter, $m)) {
-                $value = trim($m[1]);
-                Assert::assertStringNotContainsString(
-                    '{env:',
-                    $value,
-                    "Agent '{$basename}' {$field} must be a literal, not {env:VAR}",
-                );
-            }
+        // variant MUST use {env:VAR} substitution
+        if (preg_match('/^\s*variant:\s*(.+)$/m', $frontmatter, $m)) {
+            $value = trim($m[1]);
+            Assert::assertStringContainsString(
+                '{env:',
+                $value,
+                "Agent '{$basename}' variant must use {env:VAR} substitution",
+            );
+        }
+        // temperature must NOT use {env:VAR} — stays literal
+        if (preg_match('/^\s*temperature:\s*(.+)$/m', $frontmatter, $m)) {
+            $value = trim($m[1]);
+            Assert::assertStringNotContainsString(
+                '{env:',
+                $value,
+                "Agent '{$basename}' temperature must be a literal, not {env:VAR}",
+            );
         }
     }
 });
+
+it('has 8 env var exports in models.default.env', function () {
+    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
+    $expectedVars = [
+        'OPENCODE_MODEL_PRIMARY', 'OPENCODE_MODEL_PLANNER', 'OPENCODE_MODEL_JUDGE', 'OPENCODE_MODEL_UTILITY',
+        'OPENCODE_VARIANT_PRIMARY', 'OPENCODE_VARIANT_PLANNER', 'OPENCODE_VARIANT_JUDGE', 'OPENCODE_VARIANT_UTILITY',
+    ];
+    foreach ($expectedVars as $var) {
+        expect($content)->toContain("export {$var}=");
+    }
+});
+
+it('has correct default variant values', function () {
+    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
+    expect($content)
+        ->toContain("export OPENCODE_VARIANT_PRIMARY='max'")
+        ->and($content)->toContain("export OPENCODE_VARIANT_PLANNER='high'")
+        ->and($content)->toContain("export OPENCODE_VARIANT_JUDGE='medium'")
+        ->and($content)->toContain("export OPENCODE_VARIANT_UTILITY='medium'");
+});
+
+it('has OPENCODE_MODEL_JUDGE with correct default', function () {
+    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
+    expect($content)->toContain("export OPENCODE_MODEL_JUDGE='openrouter/z-ai/glm-5.2'");
+});
+
+it('uses {env:VAR} for variant in all opencode.json agents', function () {
+    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    foreach ($json['agent'] as $name => $agent) {
+        if (isset($agent['variant'])) {
+            expect($agent['variant'])->toStartWith('{env:OPENCODE_VARIANT_');
+        }
+    }
+});
+
+it('judge agent uses OPENCODE_MODEL_JUDGE not PLANNER', function () {
+    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    expect($json['agent']['judge']['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}');
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

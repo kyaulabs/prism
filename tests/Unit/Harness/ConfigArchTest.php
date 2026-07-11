@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Config assertion tests for opencode.json agent definitions.
  *
@@ -44,20 +47,11 @@ function harness_config_load_opencode_json(): array
     return $config;
 }
 
-test('plan agent uses "high" variant', function (): void {
+test('plan agent uses {env:VAR} for variant', function (): void {
     $config = harness_config_load_opencode_json();
 
-    expect($config)
-        ->toHaveKey('agent')
-        ->and($config['agent'])->toBeArray()
-        ->and($config['agent'])->toHaveKey('plan');
-
-    /** @var array<string, mixed> $planAgent */
-    $planAgent = $config['agent']['plan'];
-
-    expect($planAgent)
-        ->toHaveKey('variant')
-        ->and($planAgent['variant'])->toBe('high');
+    expect($config['agent']['plan']['variant'])
+        ->toBe('{env:OPENCODE_VARIANT_PLANNER}');
 });
 
 test('plan agent prompt contains complexity assessment protocol', function (): void {
@@ -79,6 +73,7 @@ test('plan agent prompt contains complexity assessment protocol', function (): v
         ->and($prompt)->toContain('documentation')
         ->and($prompt)->toContain('style fixes');
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
