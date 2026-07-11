@@ -4,7 +4,7 @@ Date: 2026-07-10
 
 ## Status
 
-Accepted
+Accepted (partially superseded by ADR-0013 — variant clause only)
 
 ## Context
 
