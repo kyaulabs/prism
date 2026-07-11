@@ -499,12 +499,13 @@ Press `Tab` to switch between Build and Plan during a session.
 
 Models are assigned via environment variable substitution (`{env:VAR}`) in
 `opencode.json` and `.opencode/agents/*.md` — no hard-coded model IDs.
-Three tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
+Four tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
 
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, judge |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan |
+| Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
 **Default delivery:** A direnv `.envrc` automatically sources the committed
@@ -562,6 +563,12 @@ earlier ones):
 - **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
   top-level; per-agent `{env:VAR}` references still resolve from env vars)
 - **Inline config** — `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
+
+**Choosing a model and variant:** The defaults are tuned for the three
+models shipped in `.opencode/models.default.env`. To use a different
+model — or to confirm which `variant` values it accepts, what its context
+window is, and how to map a task onto a `variant` + `temperature` pair —
+see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).
 
 ### Slash commands
 

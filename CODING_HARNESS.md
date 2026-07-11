@@ -101,6 +101,10 @@ precedence over the committed defaults.
 env var values to numeric (confirmed by prototype, see ADR-0013). See ADR-0011,
 ADR-0012, and ADR-0013 for the full design rationale.
 
+For guidance on picking `variant` / `temperature` for a non-default model —
+including per-provider lookup references and a task-type → variant decision
+frame — see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).
+
 ### Built-in subagents
 
 | Agent | Purpose |
