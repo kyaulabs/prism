@@ -508,12 +508,32 @@ Three tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
 **Default delivery:** A direnv `.envrc` automatically sources the committed
-`.opencode/models.default.env` when you `cd` into the project. After clone:
+`.opencode/models.default.env` when you `cd` into the project.
 
-```bash
-direnv allow                      # trust the .envrc (one-time)
-echo $OPENCODE_MODEL_PRIMARY      # verify: deepseek/deepseek-v4-pro
-```
+1. **Install the direnv shell hook** (one-time, per-shell):
+
+   ```fish
+   # fish
+   echo 'direnv hook fish | source' > ~/.config/fish/conf.d/direnv.fish
+   ```
+   ```bash
+   # bash
+   echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
+   ```
+   ```zsh
+   # zsh
+   echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+   ```
+
+   Restart your shell, or `exec $SHELL -l`.
+
+2. **Trust the .envrc** (one-time, per-clone):
+
+   ```bash
+   cd /path/to/repo
+   direnv allow
+   echo $OPENCODE_MODEL_PRIMARY      # verify: deepseek/deepseek-v4-pro
+   ```
 
 Without direnv, add to your shell profile:
 ```bash

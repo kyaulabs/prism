@@ -85,8 +85,9 @@ than hard-coded model IDs. Three tiers with committed defaults in
 | Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
-**After clone:** Run `direnv allow` (one-time) to trust the `.envrc` that
-sources the defaults. Without direnv, add `source /path/to/repo/.opencode/models.default.env`
+**Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
+commands), then `cd` into the project and run `direnv allow` to trust the
+`.envrc`. Without direnv, add `source /path/to/repo/.opencode/models.default.env`
 to your shell profile.
 
 **Customize:** Run `/setup` and follow the Model Configuration prompts.
