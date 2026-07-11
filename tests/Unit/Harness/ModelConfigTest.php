@@ -5,7 +5,6 @@ declare(strict_types=1);
 # $KYAULabs: ModelConfigTest.php kyau@akira.kyaulabs 2026/07/10 -0700 Exp $
 
 
-// $Header: /tests/Unit/Harness/ModelConfigTest.php kyau Exp $
 
 
 use PHPUnit\Framework\Assert;
@@ -113,6 +112,5 @@ it('has consistent env var names between defaults and config', function () {
         Assert::assertStringContainsString($var, $config, "opencode.json must reference {$var}");
     }
 });
-// vim: set ft=php ts=4 sw=4 noet:
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
