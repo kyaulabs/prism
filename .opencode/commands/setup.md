@@ -56,21 +56,21 @@ Model Configuration
 ┌──────────────────────┬───────────────────────────────────────┬────────────────────────────────────┐
 │ Tier                 │ Default Model                         │ Description                       │
 ├──────────────────────┼───────────────────────────────────────┼────────────────────────────────────┤
-│ Primary Coder        │ deepseek/deepseek-v4-pro              │ Code generation, TDD, arch, CR    │
-│ Primary Planner      │ openrouter/z-ai/glm-5.2              │ Planning, judging, evaluation      │
-│ Utility Agent        │ deepseek/deepseek-v4-flash            │ Compaction, titles, docs, scanning │
+│ Primary               │ deepseek/deepseek-v4-pro              │ Code generation, TDD, arch, CR    │
+│ Planner               │ openrouter/z-ai/glm-5.2              │ Planning, judging, evaluation      │
+│ Utility               │ deepseek/deepseek-v4-flash            │ Compaction, titles, docs, scanning │
 └──────────────────────┴───────────────────────────────────────┴────────────────────────────────────┘
 ```
 
 Prompt for each tier one at a time. Press Enter at any prompt to accept
 the default shown in brackets.
 
-1. **Primary Coder** model [deepseek/deepseek-v4-pro] — the main coding engine.
+1. **Primary** model [deepseek/deepseek-v4-pro] — the main coding engine.
    Used by: build, tdd, architect, code-review, debug, resolve-merge-conflicts,
    test-audit, general, explore.
-2. **Primary Planner** model [openrouter/z-ai/glm-5.2] — reasoning/planning
+2. **Planner** model [openrouter/z-ai/glm-5.2] — reasoning/planning
    engine. Used by: plan, judge.
-3. **Utility Agent** model [deepseek/deepseek-v4-flash] — cost-efficient engine
+3. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
    for routine tasks. Used by: compaction, title, summary, docs-writer, semgrep.
 
 If the user pressed Enter for all three (accepted all defaults), skip the

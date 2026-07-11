@@ -32,40 +32,73 @@ it('uses env var substitution for all model fields in opencode.json', function (
     $content = file_get_contents($path);
     $config = json_decode($content, true);
 
+    // Guard: config structure must be intact
+    Assert::assertIsArray($config, 'opencode.json must parse as valid JSON');
+    Assert::assertArrayHasKey('model', $config, 'opencode.json must have top-level model key');
+    Assert::assertArrayHasKey('agent', $config, 'opencode.json must have agent key');
+
     // Top-level model must use {env:VAR}
+    Assert::assertIsString($config['model']);
     Assert::assertStringContainsString(
         '{env:OPENCODE_MODEL_',
         $config['model'],
-        'Top-level model must use {env:VAR} substitution'
+        'Top-level model must use {env:VAR} substitution',
     );
 
     // Every agent with a model field must use {env:VAR}
+    Assert::assertIsArray($config['agent']);
     foreach ($config['agent'] as $name => $agent) {
         if (isset($agent['model'])) {
+            Assert::assertIsString($agent['model']);
             Assert::assertStringContainsString(
                 '{env:OPENCODE_MODEL_',
                 $agent['model'],
-                "Agent '{$name}' model must use {env:VAR} substitution"
+                "Agent '{$name}' model must use {env:VAR} substitution",
             );
         }
     }
 });
 
-it('has no hard-coded model IDs in opencode.json', function () {
-    $path = __DIR__ . '/../../../opencode.json';
-    $content = file_get_contents($path);
-
-    $hardcodedPatterns = [
-        'deepseek/deepseek-v4-pro',
-        'deepseek/deepseek-v4-flash',
-        'openrouter/z-ai/glm-5.2',
+it('has no bare provider/model-id patterns in opencode.json or agent md files', function () {
+    $paths = [
+        __DIR__ . '/../../../opencode.json',
     ];
 
-    foreach ($hardcodedPatterns as $pattern) {
-        Assert::assertStringNotContainsString(
+    // Agent .md files
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    $paths = array_merge($paths, $agentFiles);
+
+    // Matches provider/model-name patterns NOT wrapped in {env:...}
+    $pattern = '/"model"\s*:\s*"(?!\{env:)\w+\/\S+"/';
+
+    foreach ($paths as $path) {
+        $content = file_get_contents($path);
+        $basename = basename($path);
+
+        Assert::assertDoesNotMatchRegularExpression(
             $pattern,
             $content,
-            "opencode.json must not contain hard-coded model ID: {$pattern}"
+            "File '{$basename}' must not contain bare model IDs outside {env:VAR} substitution",
+        );
+    }
+});
+
+it('does not use dollar-prefixed env var syntax anywhere', function () {
+    $paths = [
+        __DIR__ . '/../../../opencode.json',
+    ];
+
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    $paths = array_merge($paths, $agentFiles);
+
+    foreach ($paths as $path) {
+        $content = file_get_contents($path);
+        $basename = basename($path);
+
+        Assert::assertStringNotContainsString(
+            '${env:',
+            $content,
+            "File '{$basename}' must not use \${env:} syntax (openCode uses {env:}, no \$ prefix)",
         );
     }
 });
@@ -86,13 +119,13 @@ it('uses env var substitution for model in all agent md files', function () {
         }
         $frontmatter = $matches[1];
 
-        // If model: is present, it must use {env:VAR}
-        if (preg_match('/^model:\s*(.+)$/m', $frontmatter, $modelMatch)) {
+        // If model: is present, it must use {env:VAR} (handle leading whitespace)
+        if (preg_match('/^\s*model:\s*(.+)$/m', $frontmatter, $modelMatch)) {
             $modelValue = trim($modelMatch[1]);
             Assert::assertStringContainsString(
                 '{env:OPENCODE_MODEL_',
                 $modelValue,
-                "Agent '{$basename}' model frontmatter must use {env:VAR} substitution"
+                "Agent '{$basename}' model frontmatter must use {env:VAR} substitution",
             );
         }
     }
@@ -110,6 +143,48 @@ it('has consistent env var names between defaults and config', function () {
     foreach ($expectedVars as $var) {
         Assert::assertStringContainsString($var, $defaults, "Default env file must define {$var}");
         Assert::assertStringContainsString($var, $config, "opencode.json must reference {$var}");
+    }
+});
+
+it('keeps variant and temperature as literals, not env var references', function () {
+    // opencode.json agent block
+    $configPath = __DIR__ . '/../../../opencode.json';
+    $config = json_decode(file_get_contents($configPath), true);
+
+    Assert::assertIsArray($config['agent']);
+    foreach ($config['agent'] as $name => $agent) {
+        foreach (['variant', 'temperature'] as $field) {
+            if (isset($agent[$field])) {
+                Assert::assertStringNotContainsString(
+                    '{env:',
+                    (string) $agent[$field],
+                    "Agent '{$name}' {$field} must be a literal, not {env:VAR}",
+                );
+            }
+        }
+    }
+
+    // Agent .md files
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    foreach ($agentFiles as $file) {
+        $content = file_get_contents($file);
+        $basename = basename($file);
+
+        if (!preg_match('/^---\n(.*?)\n---/s', $content, $matches)) {
+            continue;
+        }
+        $frontmatter = $matches[1];
+
+        foreach (['variant', 'temperature'] as $field) {
+            if (preg_match('/^\s*' . $field . ':\s*(.+)$/m', $frontmatter, $m)) {
+                $value = trim($m[1]);
+                Assert::assertStringNotContainsString(
+                    '{env:',
+                    $value,
+                    "Agent '{$basename}' {$field} must be a literal, not {env:VAR}",
+                );
+            }
+        }
     }
 });
 
