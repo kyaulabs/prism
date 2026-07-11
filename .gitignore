@@ -17,6 +17,7 @@ coverage.php
 tests/coverage/
 tests/coverage.txt
 tests/coverage.xml
+build/
 
 # Dependencies
 vendor/
