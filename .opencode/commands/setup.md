@@ -11,6 +11,8 @@ answers in `.opencode/setup.json` for idempotent re-runs.
 
 If `.opencode/setup.json` exists, read it to pre-fill the interview with
 current values and enter re-run mode (old-value → new-value substitution).
+If `setup_version` is absent or `< 2`, treat variant fields as unset —
+prompt for them as new values using defaults from `.opencode/models.default.env`.
 If absent, enter first-run mode (placeholder → value substitution).
 
 ## 2. Interview
@@ -38,71 +40,94 @@ When the user selects an accent color, show the palette:
 - **sky-blue:** accent `#38bdf8`, soft `#87ceeb`, hover `#0ea5e9`
 - **light-purple:** accent `#a78bfa`, soft `#c4b5fd`, hover `#8b5cf6`
 
-## 3. Model configuration
+## 3. Model and variant configuration
 
 Read the current defaults from `.opencode/models.default.env`:
 
 ```bash
 source .opencode/models.default.env
-echo "Primary coder:    $OPENCODE_MODEL_PRIMARY"
-echo "Primary planner:  $OPENCODE_MODEL_PLANNER"
-echo "Utility agent:   $OPENCODE_MODEL_UTILITY"
+echo "Primary  model:   $OPENCODE_MODEL_PRIMARY    variant: $OPENCODE_VARIANT_PRIMARY"
+echo "Planner  model:   $OPENCODE_MODEL_PLANNER    variant: $OPENCODE_VARIANT_PLANNER"
+echo "Judge    model:   $OPENCODE_MODEL_JUDGE      variant: $OPENCODE_VARIANT_JUDGE"
+echo "Utility  model:   $OPENCODE_MODEL_UTILITY    variant: $OPENCODE_VARIANT_UTILITY"
 ```
 
 Present a summary table:
 
 ```text
-Model Configuration
-┌──────────────────────┬───────────────────────────────────────┬────────────────────────────────────┐
-│ Tier                 │ Default Model                         │ Description                       │
-├──────────────────────┼───────────────────────────────────────┼────────────────────────────────────┤
-│ Primary               │ deepseek/deepseek-v4-pro              │ Code generation, TDD, arch, CR    │
-│ Planner               │ openrouter/z-ai/glm-5.2              │ Planning, judging, evaluation      │
-│ Utility               │ deepseek/deepseek-v4-flash            │ Compaction, titles, docs, scanning │
-└──────────────────────┴───────────────────────────────────────┴────────────────────────────────────┘
+Model & Variant Configuration
+┌──────────┬─────────────────────────────────┬─────────┬────────────────────────────────────────────────────┐
+│ Tier     │ Default Model                   │ Variant │ Description                                        │
+├──────────┼─────────────────────────────────┼─────────┼────────────────────────────────────────────────────┤
+│ Primary  │ deepseek/deepseek-v4-pro        │ max     │ Code generation, TDD, arch, CR, debug, resolve      │
+│ Planner  │ openrouter/z-ai/glm-5.2         │ high    │ Planning (plan agent only)                          │
+│ Judge    │ openrouter/z-ai/glm-5.2         │ medium  │ Read-only evaluation (judge agent only)             │
+│ Utility  │ deepseek/deepseek-v4-flash      │ medium  │ Compaction, titles, docs, scanning                  │
+└──────────┴─────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
 Prompt for each tier one at a time. Press Enter at any prompt to accept
 the default shown in brackets.
 
+**Model prompts (4 tiers):**
+
 1. **Primary** model [deepseek/deepseek-v4-pro] — the main coding engine.
    Used by: build, tdd, architect, code-review, debug, resolve-merge-conflicts,
    test-audit, general, explore.
 2. **Planner** model [openrouter/z-ai/glm-5.2] — reasoning/planning
-   engine. Used by: plan, judge.
-3. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
+   engine. Used by: plan.
+3. **Judge** model [openrouter/z-ai/glm-5.2] — evaluation engine for
+   read-only assessment. Used by: judge.
+4. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
    for routine tasks. Used by: compaction, title, summary, docs-writer, semgrep.
 
-If the user pressed Enter for all three (accepted all defaults), skip the
-write step — the committed `.opencode/models.default.env` already provides
+**Variant prompts (4 tiers):**
+
+5. **Primary** variant [max] — variant for PRIMARY-tier agents.
+   Common values: max, high, medium.
+6. **Planner** variant [high] — variant for plan agent.
+   Common values: high, max, medium.
+7. **Judge** variant [medium] — variant for judge agent.
+   Common values: medium, high, max.
+8. **Utility** variant [medium] — variant for UTILITY-tier agents.
+   Common values: medium, high, max.
+
+If the user pressed Enter for all eight prompts (accepted all defaults), skip
+the write step — the committed `.opencode/models.default.env` already provides
 defaults. Instruct the user:
 
-> Using default models from `.opencode/models.default.env`.
+> Using default models and variants from `.opencode/models.default.env`.
 > If NOT using direnv, add this to your shell profile:
 >   source .opencode/models.default.env
 
-If the user changed any model, write `~/.config/opencode/models.env`:
+If the user changed any model or variant, write `~/.config/opencode/models.env`:
 
 ```bash
 cat > ~/.config/opencode/models.env <<'ENVEOF'
 # Generated by /setup — do not edit manually
 export OPENCODE_MODEL_PRIMARY="<primary>"
 export OPENCODE_MODEL_PLANNER="<planner>"
+export OPENCODE_MODEL_JUDGE="<judge>"
 export OPENCODE_MODEL_UTILITY="<utility>"
+export OPENCODE_VARIANT_PRIMARY="<primary_variant>"
+export OPENCODE_VARIANT_PLANNER="<planner_variant>"
+export OPENCODE_VARIANT_JUDGE="<judge_variant>"
+export OPENCODE_VARIANT_UTILITY="<utility_variant>"
 ENVEOF
 ```
 
-Replace `<primary>`, `<planner>`, `<utility>` with the user's actual choices.
+Replace `<primary>`, `<planner>`, `<judge>`, `<utility>` and corresponding
+`<variant>` values with the user's actual choices.
 
 After writing, instruct:
 
-> Model preferences written to `~/.config/opencode/models.env`.
+> Model and variant preferences written to `~/.config/opencode/models.env`.
 > If using direnv, run `direnv allow` to reload.
 > If NOT using direnv, add this to your shell profile:
 >   `source .opencode/models.default.env`
 
-Record the model choices (whether defaults or user-specified) for the
-manifest (section 8).
+Record the model and variant choices (whether defaults or user-specified)
+for the manifest (section 8).
 
 ## 4. Build the token map
 
@@ -230,7 +255,7 @@ Write `.opencode/setup.json`:
 
 ```json
 {
-  "setup_version": 1,
+  "setup_version": 2,
   "setup_date": "<ISO 8601 timestamp>",
   "app": "<app>",
   "domain": "<domain>",
@@ -241,7 +266,14 @@ Write `.opencode/setup.json`:
   "models": {
     "primary": "<primary model ID>",
     "planner": "<planner model ID>",
+    "judge": "<judge model ID>",
     "utility": "<utility model ID>"
+  },
+  "variants": {
+    "primary": "<primary variant>",
+    "planner": "<planner variant>",
+    "judge": "<judge variant>",
+    "utility": "<utility variant>"
   }
 }
 ```
