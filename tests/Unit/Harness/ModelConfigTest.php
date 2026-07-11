@@ -10,15 +10,19 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
-it('has a models default env file with three tier exports', function () {
+it('has a models default env file with four tier model exports', function () {
     $path = __DIR__ . '/../../../.opencode/models.default.env';
     Assert::assertFileExists($path, '.opencode/models.default.env must exist');
 
     $content = file_get_contents($path);
     Assert::assertStringContainsString('export OPENCODE_MODEL_PRIMARY=', $content);
     Assert::assertStringContainsString('export OPENCODE_MODEL_PLANNER=', $content);
+    Assert::assertStringContainsString('export OPENCODE_MODEL_JUDGE=', $content);
     Assert::assertStringContainsString('export OPENCODE_MODEL_UTILITY=', $content);
 });
 
@@ -206,7 +210,7 @@ it('uses env var substitution for variant, keeps temperature as literal', functi
     }
 });
 
-it('has 8 env var exports in models.default.env', function () {
+it('has all required env var exports in models.default.env', function () {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
     $expectedVars = [
         'OPENCODE_MODEL_PRIMARY', 'OPENCODE_MODEL_PLANNER', 'OPENCODE_MODEL_JUDGE', 'OPENCODE_MODEL_UTILITY',
@@ -244,6 +248,7 @@ it('judge agent uses OPENCODE_MODEL_JUDGE not PLANNER', function () {
     $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
     expect($json['agent']['judge']['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}');
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
