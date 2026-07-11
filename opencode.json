@@ -66,6 +66,7 @@
     "general": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1,
       "permission": {
         "lsp": "allow"
       }
@@ -73,21 +74,25 @@
     "explore": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1,
       "permission": {
         "lsp": "allow"
       }
     },
     "compaction": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}",
+      "temperature": 0.2
     },
     "title": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}",
+      "temperature": 0.4
     },
     "summary": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
-      "variant": "{env:OPENCODE_VARIANT_UTILITY}"
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}",
+      "temperature": 0.2
     },
     "judge": {
       "mode": "primary",
