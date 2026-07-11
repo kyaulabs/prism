@@ -84,13 +84,17 @@ the default shown in brackets.
 **Variant prompts (4 tiers):**
 
 5. **Primary** variant [max] — variant for PRIMARY-tier agents.
-   Common values: max, high, medium.
+   Common values: max, high, medium, low.
+   (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 6. **Planner** variant [high] — variant for plan agent.
-   Common values: high, max, medium.
+   Common values: high, max, medium, low.
+   (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 7. **Judge** variant [medium] — variant for judge agent.
-   Common values: medium, high, max.
+   Common values: medium, high, max, low.
+   (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 8. **Utility** variant [medium] — variant for UTILITY-tier agents.
-   Common values: medium, high, max.
+   Common values: medium, high, max, low.
+   (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 
 If the user pressed Enter for all eight prompts (accepted all defaults), skip
 the write step — the committed `.opencode/models.default.env` already provides
