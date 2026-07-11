@@ -55,7 +55,8 @@ instrumentation) and is not invocable from Plan mode.
 
 ### Plan Agent Complexity Assessment
 
-The plan agent uses the `high` variant (not `max`) as a cost/quality balance —
+The plan agent uses the `high` variant by default (configurable via
+`OPENCODE_VARIANT_PLANNER`) as a cost/quality balance —
 more capable than `medium` for reasoning, but without the full token cost of
 `max`. A **Complexity Assessment Protocol** in the agent's system prompt
 instructs it to classify task complexity and adjust reasoning depth:
@@ -75,28 +76,30 @@ the system prompt, not the model variant.
 
 ### Model Configuration
 
-Models are assigned via environment variable substitution (`{env:VAR}`) rather
-than hard-coded model IDs. Three tiers with committed defaults in
-`.opencode/models.default.env`:
+Models and variants are assigned via environment variable substitution
+(`{env:VAR}`) rather than hard-coded values. Four tiers with committed defaults
+in `.opencode/models.default.env`:
 
-| Tier | Env Var | Default | Agents |
-| --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, judge |
-| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
+| Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
+| --- | --- | --- | --- | --- | --- |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
+| Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan |
+| Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
+| Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 
 **Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
 commands), then `cd` into the project and run `direnv allow` to trust the
 `.envrc`. Without direnv, add `source /path/to/repo/.opencode/models.default.env`
 to your shell profile.
 
-**Customize:** Run `/setup` and follow the Model Configuration prompts.
+**Customize:** Run `/setup` and follow the Model and Variant Configuration prompts.
 Choices are written to `~/.config/opencode/models.env` — user overrides take
 precedence over the committed defaults.
 
-`variant` and `temperature` remain literals in `opencode.json` — only the
-`model` field uses `{env:VAR}` substitution. See ADR-0011 and ADR-0012 for
-the full design rationale.
+`variant` uses `{env:VAR}` substitution, consistent with the `model` field.
+`temperature` remains a hard-coded literal — opencode does not coerce string
+env var values to numeric (confirmed by prototype, see ADR-0013). See ADR-0011,
+ADR-0012, and ADR-0013 for the full design rationale.
 
 ### Built-in subagents
 

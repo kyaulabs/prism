@@ -59,6 +59,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0010-issue-closing-keyword-convention.md` — Enforce `Fixes: #NN` as the sole issue-closing keyword via commitlint, placed above `Plan-by:`; reject all other GitHub closing keywords
 - `adr/0011-plan-agent-complexity-assessment.md` — Plan agent uses `high` variant + prompt-based complexity heuristics; dynamic variant switching ruled infeasible (opencode architecture limitation)
 - `adr/0012-configurable-model-variables.md` — Replace hard-coded model IDs with `{env:VAR}` substitution across three tiers; direnv-delivered defaults with /setup integration
+- `adr/0013-configurable-variant-via-env-var.md` — Extend `{env:VAR}` substitution to `variant` field; add JUDGE tier (4 tiers total); temperature stays literal per prototype findings
 
 ## When to update this file
 
