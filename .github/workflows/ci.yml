@@ -44,10 +44,10 @@ jobs:
         run: composer install --no-progress --no-interaction
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install opencode plugin dependencies
-        run: cd .opencode && npm install
+        run: cd .opencode && npm ci
 
       - name: TypeScript type-check
         run: npx tsc --noEmit
@@ -196,7 +196,7 @@ jobs:
           node-version: 'lts/*'
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Homebrew bash 5
         run: |

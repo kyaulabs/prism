@@ -13,6 +13,7 @@
 .semgrep/settings.yml
 
 # Code coverage
+coverage.php
 tests/coverage/
 tests/coverage.txt
 tests/coverage.xml
