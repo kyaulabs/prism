@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 it('has a models default env file with four tier model exports', function () {
@@ -248,6 +251,43 @@ it('judge agent uses OPENCODE_MODEL_JUDGE not PLANNER', function () {
     $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
     expect($json['agent']['judge']['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}');
 });
+
+it('every agent has an explicit temperature — no silent default inheritance', function () {
+    // opencode.json agents
+    $config = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    Assert::assertIsArray($config['agent'] ?? null, 'opencode.json must define agents');
+    foreach ($config['agent'] as $name => $agent) {
+        Assert::assertArrayHasKey(
+            'temperature',
+            $agent,
+            "Agent '{$name}' in opencode.json must set an explicit temperature "
+            . "(cannot use {env:VAR} — ADR-0013; must be a literal). "
+            . 'See .opencode/docs/model-configuration.md §5.'
+        );
+        Assert::assertIsFloat(
+            $agent['temperature'],
+            "Agent '{$name}' temperature must be numeric (float)."
+        );
+    }
+
+    // agent .md frontmatter
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    Assert::assertNotEmpty($agentFiles, 'Agent .md files must exist');
+    foreach ($agentFiles as $file) {
+        $content = file_get_contents($file);
+        $basename = basename($file);
+        if (!preg_match('/^---\n(.*?)\n---/s', $content, $matches)) {
+            continue;
+        }
+        $frontmatter = $matches[1];
+        Assert::assertMatchesRegularExpression(
+            '/^\s*temperature:\s*[\d.]+/m',
+            $frontmatter,
+            "Agent '{$basename}' frontmatter must set an explicit numeric temperature."
+        );
+    }
+});
+
 
 
 
