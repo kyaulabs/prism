@@ -16,15 +16,21 @@ fi
 LINT_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$LINT_TMPDIR"' EXIT
 
+# Check out a staged blob to the lint temp directory, preserving structure.
+# Sets TMPF to the temp file path.
+checkout_staged() {
+	TMPF="$LINT_TMPDIR/$1"
+	mkdir -p "$(dirname "$TMPF")"
+	git show ":$1" > "$TMPF" 2>/dev/null || true
+}
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
 	if [ -n "$STAGED_PHP" ]; then
 		echo "→ PHP syntax check"
 		while IFS= read -r f; do
-			TMPF="$LINT_TMPDIR/$f"
-			mkdir -p "$(dirname "$TMPF")"
-			git show ":$f" > "$TMPF"
+			checkout_staged "$f"
 			php -l "$TMPF" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 		done <<< "$STAGED_PHP"
 	fi
@@ -53,9 +59,7 @@ if [ -n "$CS_FIXER" ]; then
 		PATHS=()
 		while IFS= read -r p; do
 			[ -n "$p" ] || continue
-			TMPF="$LINT_TMPDIR/$p"
-			mkdir -p "$(dirname "$TMPF")"
-			git show ":$p" > "$TMPF"
+			checkout_staged "$p"
 			PATHS+=("$TMPF")
 		done <<< "$STAGED_PHP"
 		if [ -n "$CS_CONFIG" ]; then
@@ -102,9 +106,7 @@ if [ -n "$STAGED_SH" ]; then
 		SH_TMPFILES=()
 		while IFS= read -r f; do
 			[ -z "$f" ] && continue
-			TMPF="$LINT_TMPDIR/$f"
-			mkdir -p "$(dirname "$TMPF")"
-			git show ":$f" > "$TMPF"
+			checkout_staged "$f"
 			SH_TMPFILES+=("$TMPF")
 		done <<< "$STAGED_SH"
 		shellcheck "${SH_TMPFILES[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
