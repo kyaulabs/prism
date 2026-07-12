@@ -1,7 +1,5 @@
 ---
 description: Generate and update PHPDoc, RCS headers, and project documentation per PSR-5 and the rcs-header skill.
-model: "{env:OPENCODE_MODEL_UTILITY}"
-variant: "{env:OPENCODE_VARIANT_UTILITY}"
 mode: subagent
 temperature: 0.1
 permission:

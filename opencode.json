@@ -79,6 +79,46 @@
         "lsp": "allow"
       }
     },
+    "tdd": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.2
+    },
+    "architect": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "code-review": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "debug": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "resolve-merge-conflicts": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "test-audit": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "docs-writer": {
+      "model": "{env:OPENCODE_MODEL_UTILITY}",
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}",
+      "temperature": 0.1
+    },
+    "semgrep": {
+      "model": "{env:OPENCODE_MODEL_UTILITY}",
+      "variant": "{env:OPENCODE_VARIANT_UTILITY}",
+      "temperature": 0.1
+    },
     "compaction": {
       "model": "{env:OPENCODE_MODEL_UTILITY}",
       "variant": "{env:OPENCODE_VARIANT_UTILITY}",

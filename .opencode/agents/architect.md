@@ -1,7 +1,5 @@
 ---
 description: Read-only evaluation of a proposed change against CONTEXT.md and accepted ADRs before implementation. Returns a go/no-go plus a list of ADRs to write or update. Does not modify files.
-model: "{env:OPENCODE_MODEL_PRIMARY}"
-variant: "{env:OPENCODE_VARIANT_PRIMARY}"
 mode: subagent
 temperature: 0.1
 permission:

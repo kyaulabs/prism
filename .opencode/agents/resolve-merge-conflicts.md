@@ -1,7 +1,5 @@
 ---
 description: Resolve in-progress git merge/rebase conflicts. Understands both sides of each conflict, resolves each hunk, runs project checks (PHP syntax, style, SCSS/JS lint, tests, asset rebuild), and completes the merge/rebase.
-model: "{env:OPENCODE_MODEL_PRIMARY}"
-variant: "{env:OPENCODE_VARIANT_PRIMARY}"
 mode: subagent
 temperature: 0.1
 permission:

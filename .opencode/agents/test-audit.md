@@ -1,7 +1,5 @@
 ---
 description: Audit an existing test suite for quality problems — coverage padding, missing edge cases, weak assertions. Produces a report only; makes no code changes. Invoke when reviewing tests before a PR or release.
-model: "{env:OPENCODE_MODEL_PRIMARY}"
-variant: "{env:OPENCODE_VARIANT_PRIMARY}"
 temperature: 0.1
 mode: subagent
 permission:
