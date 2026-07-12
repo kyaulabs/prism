@@ -177,6 +177,15 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      - name: macOS version diagnostics
+        run: |
+          echo "=== sw_vers ==="
+          sw_vers
+          echo "=== uname ==="
+          uname -a
+          echo "=== bash version ==="
+          bash --version | head -1
+
       - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
