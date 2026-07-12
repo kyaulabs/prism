@@ -12,6 +12,7 @@
 
 
 
+
 # ── Robustness tests for pre-commit hook (issue #79) ──────────────────────────
 # Three defects:
 #   1. CREATOR/HOSTNAME fallbacks unreachable under `set -euo pipefail`
@@ -93,7 +94,10 @@ else
 	(
 		cd "$T1"
 
-		# Prevent git from reading global/system config for user.email
+		# Prevent git from reading global/system config for user.email.
+		# Requires Git >= 2.32.0 (GIT_CONFIG_GLOBAL/SYSTEM env vars).
+		# On older Git, if user.email is in global config, the fallback
+		# path is never exercised — a false negative that masks regressions.
 		export GIT_CONFIG_GLOBAL=/dev/null
 		export GIT_CONFIG_SYSTEM=/dev/null
 
@@ -248,6 +252,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
