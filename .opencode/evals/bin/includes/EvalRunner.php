@@ -50,14 +50,14 @@ class EvalCase
         }
 
         return new self(
-            name: $data['name'] ?? '',
-            description: $data['description'] ?? '',
-            agent: $data['agent'] ?? '',
-            input: $data['input'] ?? '',
-            expectedBehavior: $data['expected_behavior'] ?? [],
-            passCriteria: $data['pass_criteria'] ?? '',
-            tags: $data['tags'] ?? [],
-            expectedString: $data['expected_string'] ?? null,
+            name: is_string($data['name'] ?? null) ? $data['name'] : '',
+            description: is_string($data['description'] ?? null) ? $data['description'] : '',
+            agent: is_string($data['agent'] ?? null) ? $data['agent'] : '',
+            input: is_string($data['input'] ?? null) ? $data['input'] : '',
+            expectedBehavior: is_array($data['expected_behavior'] ?? null) ? $data['expected_behavior'] : [],
+            passCriteria: is_string($data['pass_criteria'] ?? null) ? $data['pass_criteria'] : '',
+            tags: is_array($data['tags'] ?? null) ? $data['tags'] : [],
+            expectedString: is_string($data['expected_string'] ?? null) ? $data['expected_string'] : null,
         );
     }
 
@@ -968,6 +968,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

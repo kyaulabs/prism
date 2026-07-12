@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalCaseTest.php kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: EvalCaseTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
+
+
 
 use KYAULabs\Eval\EvalCase;
 
@@ -150,5 +153,98 @@ it('warns when expected_string is set but pass_criteria does not require it', fu
     expect($errors)->toContain("expected_string is set but pass_criteria is 'exit code zero' (did you mean 'output contains expected string'?)");
     unlink($file);
 });
+
+it('fromFile coerces wrong-typed name to empty string', function () {
+    $json = json_encode([
+        'name' => 123,
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->name)->toBe('');
+    unlink($file);
+});
+
+it('fromFile coerces wrong-typed tags to empty array', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+        'tags' => 'smoke',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->tags)->toBe([]);
+    unlink($file);
+});
+
+it('fromFile coerces wrong-typed expected_behavior to empty array', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => 'not an array',
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->expectedBehavior)->toBe([]);
+    unlink($file);
+});
+
+it('fromFile coerces wrong-typed expected_string to null', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+        'expected_string' => 456,
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->expectedString)->toBeNull();
+    unlink($file);
+});
+
+it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => ['not', 'a', 'string'],
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $case = EvalCase::fromFile($file);
+
+    expect($case->passCriteria)->toBe('');
+    unlink($file);
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
