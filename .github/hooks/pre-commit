@@ -197,8 +197,9 @@ if [ -n "$STAGED_SRC" ]; then
 		esac
 
 		# Extract staged content
-		TMP=$(mktemp)
-		git show ":$file" > "$TMP" 2>/dev/null || { rm -f "$TMP"; continue; }
+		TMP="$LINT_TMPDIR/rcs_blob"
+		MOD="$LINT_TMPDIR/rcs_mod"
+		git show ":$file" > "$TMP" 2>/dev/null || { rm -f "$TMP" "$MOD"; continue; }
 
 		# Determine whether to append the vim modeline.
 		# For PHP files, skip the modeline when the file ends outside PHP context
@@ -228,7 +229,7 @@ if [ -n "$STAGED_SRC" ]; then
 		# Strip ALL existing RCS headers and vim modelines into a cleaned copy.
 		# This makes the normalizer idempotent: duplicates are collapsed to exactly
 		# one of each below.
-		CLEAN=$(mktemp)
+		CLEAN="$LINT_TMPDIR/rcs_clean"
 		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
 		grep -vE '^[[:space:]]*(#|//)[[:space:]]*(\$KYAULabs:|vim: ft=)' "$TMP" > "$CLEAN"
 
@@ -243,7 +244,7 @@ if [ -n "$STAGED_SRC" ]; then
 				echo "  The header would land outside PHP context and render as page text." >&2
 				echo "  To fix:" >&2
 				echo "    - Add the RCS header manually inside the first <?php block." >&2
-				rm -f "$TMP" "$CLEAN"
+				rm -f "$TMP" "$CLEAN" "$MOD"
 				exit 1
 			fi
 		fi
@@ -293,16 +294,16 @@ if [ -n "$STAGED_SRC" ]; then
 				echo ""
 				echo "$ML"
 			fi
-		} > "$TMP.mod"
+		} > "$MOD"
 
 		# Only re-stage if the normalized content differs from the original staged blob
-		if ! cmp -s "$TMP" "$TMP.mod"; then
-			cp "$TMP.mod" "$file"
+		if ! cmp -s "$TMP" "$MOD"; then
+			cp "$MOD" "$file"
 			git add "$file"
 			echo "  + RCS header added: $file"
 		fi
 
-		rm -f "$TMP" "$CLEAN" "$TMP.mod"
+		rm -f "$TMP" "$CLEAN" "$MOD"
 	done <<< "$STAGED_SRC"
 fi
 
