@@ -74,7 +74,7 @@ EOF
 	fi
 
 	if [ "$count" -eq 1 ]; then
-		commit_msg=$(git log -1 --format=%s "$local_oid")
+		commit_msg=$(git log -1 --format=%s "$local_oid" | tr -d '\000-\037')
 		cat >&2 <<EOF
 
 ${YELLOW}╭─  WARNING  Single-commit push detected ─────────────────────────╮${RESET}

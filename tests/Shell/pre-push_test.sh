@@ -6,6 +6,7 @@
 
 
 
+
 # Tests for the pre-push hook's no-squash heuristic and non-fast-forward gate.
 # Covers the three acceptance criteria from issue #74:
 #   1. Squashed new branch warns
@@ -281,6 +282,62 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 )
 rm -rf "$T6"
 
+# ── Test 7: Control chars stripped from echoed commit subject ─────────────
+
+echo ""
+echo "── Test 7: Control chars stripped from commit subject ──"
+T7=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T7"
+(
+    cd "$T7"
+    git init --quiet
+    git config commit.gpgsign false
+    git config user.email "test@example.com"
+    git config user.name "Test User"
+
+    # Base commit on main, simulate pushed
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+    simulate_pushed origin main "$BASE_OID"
+
+    # New branch with 1 commit whose subject contains ANSI escape sequences.
+    # Uses \033[5m (blink-on) which is distinct from hook formatting codes
+    # (RED, YELLOW, ORANGE, DIM, BOLD, CYAN, RESET), so it can be detected
+    # independently in the output.
+    git checkout --quiet -b feat/test-user-abc7-feature
+    echo "change" > change.txt
+    git add change.txt
+    git commit --quiet -m "$(printf 'feat: \033[5mblink\033[25m text')"
+    LOCAL_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/feat/test-user-abc7-feature $LOCAL_OID refs/heads/feat/test-user-abc7-feature $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    # After 'tr -d '\000-\037'', the ESC byte in \033[5m is stripped,
+    # leaving visible "[5mblink[25m" text. Verify:
+    #   1. Warning fires (Single-commit in output)
+    #   2. Injected ESC+[5m is NOT in output
+    #   3. Visible "[5mblink[25m" IS in output (proves commit was read)
+
+    visible=$(echo "$output" | grep -F '[5mblink[25m' || true)
+    has_injected=false
+    printf '%s' "$output" | grep -qF $'\033[5m' && has_injected=true
+
+    if [ "$ret" -eq 0 ] \
+       && echo "$output" | grep -qi 'Single-commit' \
+       && [ "$has_injected" = false ] \
+       && [ -n "$visible" ]; then
+        pass "Control chars stripped from commit subject (exit $ret)"
+    else
+        fail "Control chars not stripped or warning missing (exit=$ret, injected=$has_injected, visible=$visible)"
+    fi
+)
+rm -rf "$T7"
+
 # ── Summary ────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -299,6 +356,7 @@ else
     echo "═══════════════════════════════════════════════════════"
     exit 1
 fi
+
 
 
 
