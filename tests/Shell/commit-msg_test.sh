@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+
+
 
 
 
@@ -87,6 +89,7 @@ TEMP_DIRS="$TEMP_DIRS $T2"
 (
 	cd "$T2"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
@@ -126,6 +129,7 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 (
 	cd "$T3"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
@@ -162,6 +166,7 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 (
 	cd "$T4"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
@@ -195,6 +200,7 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 (
 	cd "$T5"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
@@ -232,6 +238,7 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 (
 	cd "$T6"
 	git init --quiet
+	git config commit.gpgsign false
 	ln -s "$REPO_ROOT/node_modules" "$T6/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T6/commitlint.config.js"
 
@@ -480,6 +487,8 @@ else
 	echo "═══════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 
 

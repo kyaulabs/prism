@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+
+
 
 
 
@@ -49,6 +51,7 @@ TEMP_DIRS="$TEMP_DIRS $T1"
 (
 	cd "$T1"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -106,6 +109,7 @@ TEMP_DIRS="$TEMP_DIRS $T2"
 (
 	cd "$T2"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -152,6 +156,7 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 (
 	cd "$T3"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -199,6 +204,7 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 (
 	cd "$T4"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -255,6 +261,7 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 (
 	cd "$T5"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -322,6 +329,7 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 (
 	cd "$T6"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -382,6 +390,8 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 
 

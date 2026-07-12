@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare-commit-msg_test.sh kyau@nova 2026/07/07 -0700 Exp $
+# $KYAULabs: prepare-commit-msg_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+
+
 
 # ── Tests for prepare-commit-msg hook (amend-of-pushed-commit guard) ───────────
 # Bugs prevented:
@@ -54,6 +56,7 @@ TEMP_DIRS="$TEMP_DIRS $T1"
 (
 	cd "$T1"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -89,6 +92,7 @@ TEMP_DIRS="$TEMP_DIRS $T2"
 (
 	cd "$T2"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -138,6 +142,7 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 (
 	cd "$T3"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -176,6 +181,7 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 (
 	cd "$T4"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -213,6 +219,7 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 (
 	cd "$T5"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -262,5 +269,7 @@ else
 	echo "═══════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

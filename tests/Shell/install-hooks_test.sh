@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: install-hooks_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+
+
 
 # ── Repro-first tests for install-hooks.sh ─────────────────────────────────────
 # Bugs under test (from Fable 5 audit):
@@ -46,6 +48,7 @@ TEMP_DIRS="$TEMP_DIRS $T1"
 (
 	cd "$T1"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	mkdir -p .github/hooks .github/scripts
@@ -106,6 +109,7 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 (
 	cd "$T3"
 	git init --quiet
+	git config commit.gpgsign false
 	mkdir -p .github/scripts
 	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
 	set +e
@@ -128,6 +132,7 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 (
 	cd "$T4"
 	git init --quiet
+	git config commit.gpgsign false
 	mkdir -p .github/hooks .github/scripts
 	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
 	if bash .github/scripts/install-hooks.sh > /dev/null 2>&1; then
@@ -159,5 +164,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

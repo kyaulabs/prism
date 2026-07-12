@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+
+
 
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
@@ -47,6 +49,7 @@ T1=$(mktemp -d)
 (
 	cd "$T1"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 	mkdir -p .opencode/skills/test-skill
@@ -86,6 +89,7 @@ T2=$(mktemp -d)
 (
 	cd "$T2"
 	git init --quiet
+	git config commit.gpgsign false
 	setup_validator_env
 
 	# Negative control: an AGENT file missing mode: in frontmatter, but
@@ -145,6 +149,7 @@ T3=$(mktemp -d)
 (
 	cd "$T3"
 	git init --quiet
+	git config commit.gpgsign false
 	mkdir -p .opencode/agents
 	setup_validator_env
 
@@ -191,6 +196,7 @@ T4=$(mktemp -d)
 (
 	cd "$T4"
 	git init --quiet
+	git config commit.gpgsign false
 	mkdir -p .opencode/agents
 	setup_validator_env
 
@@ -227,6 +233,7 @@ T5=$(mktemp -d)
 (
 	cd "$T5"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -270,6 +277,7 @@ T6=$(mktemp -d)
 (
 	cd "$T6"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -327,6 +335,7 @@ T7=$(mktemp -d)
 (
 	cd "$T7"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -375,6 +384,7 @@ T8=$(mktemp -d)
 (
 	cd "$T8"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -412,6 +422,7 @@ T9=$(mktemp -d)
 (
 	cd "$T9"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -445,6 +456,7 @@ T10=$(mktemp -d)
 (
 	cd "$T10"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -482,6 +494,7 @@ T11=$(mktemp -d)
 (
 	cd "$T11"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -523,6 +536,7 @@ T12=$(mktemp -d)
 (
 	cd "$T12"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -561,6 +575,7 @@ T13=$(mktemp -d)
 (
 	cd "$T13"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -602,6 +617,7 @@ T14=$(mktemp -d)
 (
 	cd "$T14"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -646,6 +662,7 @@ T15=$(mktemp -d)
 (
 	cd "$T15"
 	git init --quiet
+	git config commit.gpgsign false
 	git config user.email "test@example.com"
 	git config user.name "Test User"
 
@@ -696,5 +713,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
