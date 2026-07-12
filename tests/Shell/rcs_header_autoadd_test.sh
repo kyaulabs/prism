@@ -5,12 +5,17 @@
 
 
 
+
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
-# Bugs under test (#28):
+# Bugs under test (#28, #78):
 #   1. The auto-add overwrites the working-tree file from the staged blob; with
 #      partial staging (git add -p), unstaged hunks are silently destroyed.
 #   2. The trailing vim modeline is appended unconditionally, injecting visible
 #      text into PHP pages that end in HTML context (after ?>).
+#   3. The header is inserted after line 1 unconditionally; for HTML-first
+#      templates or shebang scripts the # $KYAULabs: line lands outside
+#      <?php and renders as page text. The modeline already has a context
+#      gate; the header needs the same.
 #
 # Fix:
 #   1. Run `git diff --quiet -- "$file"` before rewriting; if unstaged changes
@@ -18,6 +23,8 @@
 #   2. Gate the modeline on PHP context via an awk state-machine that tracks
 #      <?php/<?=/<? open and ?> close; skip the modeline when the file ends
 #      outside PHP context.
+#   3. Gate the header on line 1 matching <?php or <?=; otherwise block with
+#      the "add header manually" message.
 
 set -euo pipefail
 
@@ -372,6 +379,118 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 )
 rm -rf "$T6"
 
+# ── Test 7: HTML-first PHP file — auto-add blocked (Bug #78) ─────────────────
+
+echo "── Test 7: HTML-first PHP blocks auto-add ──"
+T7=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T7"
+(
+	cd "$T7"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# HTML-first PHP file: <!DOCTYPE html> on line 1, <?php embedded later
+	cat > page.php <<'PHPEOF'
+<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+<?php echo "hello"; ?>
+</body>
+</html>
+PHPEOF
+	git add page.php
+
+	# Capture working-tree checksum BEFORE the hook runs
+	WT_HASH=$(sha256sum page.php | awk '{print $1}')
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	# Bug #78: Without the fix, the hook inserts the header after <!DOCTYPE html>
+	# (outside PHP context) and exits 0. After the fix, it blocks (exit 1).
+	if [ "$ret" -ne 0 ]; then
+		pass "HTML-first PHP blocked auto-add (exit $ret)"
+	else
+		fail "HTML-first PHP was NOT blocked (exit 0 — header outside PHP context)"
+	fi
+
+	# Working tree should be preserved byte-for-byte
+	WT_AFTER=$(sha256sum page.php | awk '{print $1}')
+	if [ "$WT_HASH" = "$WT_AFTER" ]; then
+		pass "Working tree preserved byte-for-byte"
+	else
+		fail "Working tree CHANGED — header was injected outside PHP context"
+	fi
+
+	# Staged blob should NOT have an RCS header (hook did not rewrite it)
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	if git show ":page.php" 2>/dev/null | head -10 | grep -qF '$KYAULabs:'; then
+		fail "Staged blob gained RCS header (should have been blocked)"
+	else
+		pass "Staged blob unchanged (no header injected)"
+	fi
+)
+rm -rf "$T7"
+
+# ── Test 8: Shebang PHP file — auto-add blocked (Bug #78) ───────────────────
+
+echo "── Test 8: Shebang PHP blocks auto-add ──"
+T8=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T8"
+(
+	cd "$T8"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	# Shebang PHP file: #!/usr/bin/env php on line 1, <?php on line 2
+	cat > script.php <<'PHPEOF'
+#!/usr/bin/env php
+<?php
+echo "hello";
+PHPEOF
+	git add script.php
+
+	# Capture working-tree checksum BEFORE the hook runs
+	WT_HASH=$(sha256sum script.php | awk '{print $1}')
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	# Bug #78: Without the fix, the hook inserts the header after the shebang
+	# (outside PHP context) and exits 0. After the fix, it blocks (exit 1).
+	if [ "$ret" -ne 0 ]; then
+		pass "Shebang PHP blocked auto-add (exit $ret)"
+	else
+		fail "Shebang PHP was NOT blocked (exit 0 — header outside PHP context)"
+	fi
+
+	# Working tree should be preserved byte-for-byte
+	WT_AFTER=$(sha256sum script.php | awk '{print $1}')
+	if [ "$WT_HASH" = "$WT_AFTER" ]; then
+		pass "Working tree preserved byte-for-byte"
+	else
+		fail "Working tree CHANGED — header was injected outside PHP context"
+	fi
+
+	# Staged blob should NOT have an RCS header (hook did not rewrite it)
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	if git show ":script.php" 2>/dev/null | head -10 | grep -qF '$KYAULabs:'; then
+		fail "Staged blob gained RCS header (should have been blocked)"
+	else
+		pass "Staged blob unchanged (no header injected)"
+	fi
+)
+rm -rf "$T8"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -390,6 +509,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

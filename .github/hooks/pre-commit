@@ -232,6 +232,22 @@ if [ -n "$STAGED_SRC" ]; then
 		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
 		grep -vE '^[[:space:]]*(#|//)[[:space:]]*(\$KYAULabs:|vim: ft=)' "$TMP" > "$CLEAN"
 
+		# For PHP files, refuse to auto-add when line 1 is not <?php or <?=.
+		# HTML-first templates and shebang scripts would land the header outside
+		# PHP context, rendering it as page text. The user must add it manually
+		# inside the first <?php block. Mirrors the modeline context gate above.
+		if [ "$EXT" = "php" ]; then
+			LINE1=$(head -1 "$CLEAN")
+			if ! echo "$LINE1" | grep -qE '^<\?(php|=)'; then
+				echo "✗ RCS auto-add blocked: '$file' does not start with <?php or <?=." >&2
+				echo "  The header would land outside PHP context and render as page text." >&2
+				echo "  To fix:" >&2
+				echo "    - Add the RCS header manually inside the first <?php block." >&2
+				rm -f "$TMP" "$CLEAN"
+				exit 1
+			fi
+		fi
+
 		# Build normalized file with exactly one canonical header + modeline
 		{
 			if [ "$EXT" = "php" ]; then
