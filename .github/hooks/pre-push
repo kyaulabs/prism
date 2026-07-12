@@ -12,7 +12,13 @@ CYAN=$'\033[36m'
 RESET=$'\033[0m'
 
 while read -r local_ref local_oid _ remote_oid; do
-	# Skip tag pushes and branch deletions
+	# Skip tag pushes — tags are not branches and should not trigger
+	# history-protection or no-squash checks.
+	case "$local_ref" in
+		refs/tags/*) continue ;;
+	esac
+
+	# Skip branch deletions (zero or empty local OID).
 	if [ -z "$local_oid" ] || [ "$local_oid" = "0000000000000000000000000000000000000000" ]; then
 		continue
 	fi

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-push_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: pre-push_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
 
 
 
@@ -210,6 +211,39 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 )
 rm -rf "$T4"
 
+# ── Test 5: Tag push is skipped (no warning, no block) ────────────────────
+
+echo ""
+echo "── Test 5: Tag push — skipped (no warning, no block) ──"
+T5=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T5"
+(
+    cd "$T5"
+    git init --quiet
+    git config commit.gpgsign false
+    git config user.email "test@example.com"
+    git config user.name "Test User"
+
+    # Single commit, tag it
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    TAG_OID=$(git rev-parse HEAD)
+
+    # Push the tag — should be skipped entirely (no BLOCKED, no Single-commit)
+    set +e
+    output=$(echo "refs/tags/v1.0 $TAG_OID refs/tags/v1.0 $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'Single-commit\|BLOCKED'; then
+        pass "Tag push skipped (exit $ret)"
+    else
+        fail "Tag push not skipped (exit=$ret): $output"
+    fi
+)
+rm -rf "$T5"
+
 # ── Summary ────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -228,6 +262,7 @@ else
     echo "═══════════════════════════════════════════════════════"
     exit 1
 fi
+
 
 
 
