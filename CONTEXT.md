@@ -60,6 +60,8 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0011-plan-agent-complexity-assessment.md` — Plan agent uses `high` variant + prompt-based complexity heuristics; dynamic variant switching ruled infeasible (opencode architecture limitation)
 - `adr/0012-configurable-model-variables.md` — Replace hard-coded model IDs with `{env:VAR}` substitution across three tiers; direnv-delivered defaults with /setup integration
 - `adr/0013-configurable-variant-via-env-var.md` — Extend `{env:VAR}` substitution to `variant` field; add JUDGE tier (4 tiers total); temperature stays literal per prototype findings
+- `adr/0014-model-default-rebalancing.md` — Model default rebalancing (primary/planner/judge/utility tier defaults) and temperature explicitness
+- `adr/0015-index-based-linting-in-pre-commit-hook.md` — Index-based linting in pre-commit hook (lint staged blobs, not working-tree files)
 
 ## When to update this file
 
