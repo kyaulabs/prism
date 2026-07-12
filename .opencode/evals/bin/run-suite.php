@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-suite.php kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: run-suite.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
+
+
 
 /**
  * run-suite.php — Batch eval suite runner.
@@ -69,7 +72,8 @@ foreach ($files as $file) {
         continue;
     }
 
-    if ($tag !== null && !in_array($tag, $data['tags'] ?? [], true)) {
+    $tags = is_array($data['tags'] ?? []) ? $data['tags'] : [];
+    if ($tag !== null && !in_array($tag, $tags, true)) {
         continue;
     }
 
@@ -177,5 +181,6 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
