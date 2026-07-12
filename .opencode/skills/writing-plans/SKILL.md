@@ -28,6 +28,10 @@ If the user wants the plan saved to disk, delegate file writing to
 `@docs-writer` with the path `docs/plans/YYYY-MM-DD-<feature-name>.md`.
 The Plan agent does not write files directly (`edit: deny`).
 
+**Plan lifecycle:** Plans are development artifacts. After the branch is
+finished (see `finishing-a-development-branch` skill), delete the plan and
+spec files from `docs/plans/` and `docs/specs/`. Git history preserves them.
+
 ## Scope check
 
 If the spec covers multiple independent subsystems, it should have been broken

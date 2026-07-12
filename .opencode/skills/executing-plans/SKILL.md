@@ -127,6 +127,9 @@ Long plans (10+ tasks) will exhaust context. Manage it proactively:
 - Never continue past a halt trigger without user intervention.
 - The parent handles code-quality fixes (missing RCS headers, debug artifact
   cleanup) — don't bounce those back to @tdd.
+- Plans are ephemeral — delete or archive plan/spec files after
+  `finishing-a-development-branch`. They are development artifacts, not
+  permanent documentation.
 
 ## Cross-refs
 
