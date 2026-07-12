@@ -4,6 +4,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -946,6 +947,92 @@ EOF
 )
 rm -rf "$T19"
 
+# ── Test 20: Stale plan files with unchecked boxes trigger WARN ──
+
+echo ""
+echo "── Test 20: Stale plan files with unchecked boxes trigger WARN ──"
+T20=$(mktemp -d)
+(
+	cd "$T20"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .opencode/skills .opencode/agents docs/plans
+	setup_validator_env
+
+	# Create a valid command so the vacuity guard doesn't fire
+	cat > .opencode/commands/some-cmd.md <<'EOF'
+---
+description: Placeholder command
+---
+EOF
+
+	# Create a stale plan file with unchecked boxes
+	cat > docs/plans/20260101T120000-old-feature.md <<'EOF'
+# Old Feature Plan
+- [ ] Task 1
+- [ ] Task 2
+EOF
+	touch -d "8 days ago" docs/plans/20260101T120000-old-feature.md
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "Stale plan" && echo "$output" | grep -qF "20260101T120000-old-feature.md"; then
+		pass "Detected stale plan file as WARN"
+	else
+		fail "Did not detect stale plan file"
+	fi
+)
+rm -rf "$T20"
+
+# ── Test 21: Recent plans and fully-checked old plans do not WARN ──
+
+echo ""
+echo "── Test 21: Recent plans and fully-checked old plans do not WARN ──"
+T21=$(mktemp -d)
+(
+	cd "$T21"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .opencode/skills .opencode/agents docs/plans
+	setup_validator_env
+
+	# Create a valid command so the vacuity guard doesn't fire
+	cat > .opencode/commands/some-cmd.md <<'EOF'
+---
+description: Placeholder command
+---
+EOF
+
+	# Recent plan with unchecked boxes (should NOT warn — too new)
+	cat > docs/plans/20260712T120000-recent-feature.md <<'EOF'
+# Recent Feature Plan
+- [ ] Task 1
+EOF
+
+	# Old plan with all boxes checked (should NOT warn — complete)
+	cat > docs/plans/20260101T120000-old-complete.md <<'EOF'
+# Old Complete Plan
+- [x] Task 1
+- [x] Task 2
+EOF
+	touch -d "30 days ago" docs/plans/20260101T120000-old-complete.md
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "Stale plan"; then
+		fail "Warned on recent or fully-checked plan"
+	else
+		pass "No false positive on recent or fully-checked plans"
+	fi
+)
+rm -rf "$T21"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -964,6 +1051,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

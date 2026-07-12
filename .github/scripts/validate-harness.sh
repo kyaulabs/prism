@@ -2,6 +2,7 @@
 # $KYAULabs: validate-harness.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -677,6 +678,22 @@ else
 	ok "${RO_CHECKED} read-only agent(s) checked, ${RO_VIOLATIONS} violation(s)"
 fi
 
+# ── Checking for stale plan files ─────────────────────────────────────────────
+
+STALE_PLANS=0
+if [[ -d "$REPO_ROOT/docs/plans" ]]; then
+	while IFS= read -r -d '' plan_file; do
+		if grep -q '\- \[ \]' "$plan_file" 2>/dev/null; then
+			warn "Stale plan: $(basename "$plan_file") has unchecked tasks and is older than 7 days — delete or archive it after finishing-a-development-branch."
+			STALE_PLANS=$((STALE_PLANS + 1))
+		fi
+	done < <(find "$REPO_ROOT/docs/plans" -maxdepth 1 -name '*.md' -mtime +7 -print0 2>/dev/null)
+
+	if [[ $STALE_PLANS -eq 0 ]]; then
+		ok "No stale plan files in docs/plans/"
+	fi
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
@@ -694,6 +711,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
