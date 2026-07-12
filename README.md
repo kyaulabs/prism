@@ -452,16 +452,17 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming → prototype (if needed) → writing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
 2. **Prototype** (if needed) — load the `prototype` skill; build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
 3. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
-4. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
-5. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
-6. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-7. **Review** — invoke `@code-review` before push.
+4. **Execute** — load the `executing-plans` skill; dispatch tasks to `@tdd` with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
+5. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
+6. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
+7. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
+8. **Review** — invoke `@code-review` before push.
 
 For non-trivial or cross-cutting changes, insert `@architect` before step 4. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
 
@@ -583,6 +584,10 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
+| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme |
+| `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
+| `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
+| `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 
 OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
 `/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
@@ -593,13 +598,14 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 | Category | Skills |
 | --- | --- |
-| Engineering pipeline | `brainstorming`, `prototype`, `writing-plans`, `verification-before-completion` |
-| Visual language | `frontend-design`, `scss-mobile-first`, `accessibility` |
-| Frontend structure | `frontend-architecture`, `aurora-page` |
-| Defensive coding | `security-coding` |
-| Data | `database` |
-| Domain & architecture | `domain-context`, `adr`, `systems-design` |
-| Standards & process | `conventional-commits`, `rcs-header`, `pest-browser`, `audit-deps`, `writing-skills` |
+| Engineering pipeline | `brainstorming`, `prototype`, `writing-plans`, `executing-plans`, `verification-before-completion` |
+| Review triage | `receiving-code-review` |
+| Branch lifecycle | `finishing-a-development-branch` |
+| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
+| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
+| Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
+| Testing | `pest-browser` |
+| Docs & process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `opencode-docs` |
 
 ### Project context — living docs
 
