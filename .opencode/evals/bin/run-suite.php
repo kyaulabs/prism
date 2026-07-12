@@ -7,6 +7,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 /**
  * run-suite.php — Batch eval suite runner.
  *
@@ -86,9 +92,26 @@ if (empty($cases)) {
     exit(0);
 }
 
+// ── Dry-run mode: stream verbatim, skip aggregation ───────────────────
+if ($dryRun) {
+    foreach ($cases as $i => $caseInfo) {
+        $num = $i + 1;
+        $total = count($cases);
+        echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
+
+        $cmd = "php {$runEvalScript} " . escapeshellarg($caseInfo['file']) .
+            " --timeout {$timeout} --dry-run 2>&1";
+        $output = [];
+        $exitCode = 0;
+        exec($cmd, $output, $exitCode);
+
+        echo implode("\n", $output) . "\n";
+    }
+    exit(0);
+}
+
 // ── Run each case ─────────────────────────────────────────────────────────
 $results = [];
-$dryFlag = $dryRun ? ' --dry-run' : '';
 
 foreach ($cases as $i => $caseInfo) {
     $num = $i + 1;
@@ -96,7 +119,7 @@ foreach ($cases as $i => $caseInfo) {
     echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
 
     $cmd = "php {$runEvalScript} " . escapeshellarg($caseInfo['file']) .
-        " --timeout {$timeout}{$dryFlag} 2>&1";
+        " --timeout {$timeout} 2>&1";
     $output = [];
     $exitCode = 0;
     exec($cmd, $output, $exitCode);
@@ -181,6 +204,8 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
