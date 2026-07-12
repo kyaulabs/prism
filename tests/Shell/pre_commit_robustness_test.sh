@@ -10,6 +10,7 @@
 
 
 
+
 # ── Robustness tests for pre-commit hook (issue #79) ──────────────────────────
 # Three defects:
 #   1. CREATOR/HOSTNAME fallbacks unreachable under `set -euo pipefail`
@@ -122,6 +123,71 @@ SHEOF
 	rm -rf "$T1"
 fi
 
+# ==============================================================================
+# Test 2: RCS temp files live inside LINT_TMPDIR (no bare mktemp)
+# ==============================================================================
+
+echo ""
+echo "── Test 2: RCS temp files use LINT_TMPDIR, not bare mktemp ──"
+# Static analysis: verify the hook doesn't use bare mktemp for TMP/CLEAN
+bare_tmp=$(grep -n 'TMP=\$(mktemp)' "$PRE_COMMIT" || true)
+bare_clean=$(grep -n 'CLEAN=\$(mktemp)' "$PRE_COMMIT" || true)
+if [ -z "$bare_tmp" ] && [ -z "$bare_clean" ]; then
+	pass "No bare mktemp calls for TMP/CLEAN"
+else
+	fail "Bare mktemp found — TMP: $bare_tmp  CLEAN: $bare_clean"
+fi
+
+# ==============================================================================
+# Test 3: No predictable $TMP.mod filename
+# ==============================================================================
+
+echo ""
+echo "── Test 3: No predictable \$TMP.mod filename ──"
+# Static analysis: verify the hook doesn't use $TMP.mod (predictable derived name)
+tmp_mod=$(grep -n 'TMP\.mod' "$PRE_COMMIT" || true)
+if [ -z "$tmp_mod" ]; then
+	pass "No \$TMP.mod predictable filename"
+else
+	fail "Predictable \$TMP.mod found: $tmp_mod"
+fi
+
+# ==============================================================================
+# Test 4: RCS auto-add regression — still works after temp file migration
+# ==============================================================================
+
+echo ""
+echo "── Test 4: RCS auto-add regression ──"
+if ! $HAS_PHP; then
+	skip "php not available"
+else
+	T4=$(mktemp -d)
+	TEMP_DIRS="$TEMP_DIRS $T4"
+	setup_test_repo "$T4"
+	(
+		cd "$T4"
+
+		# Create a clean .sh file without RCS header
+		cat > test.sh <<'SHEOF'
+#!/bin/bash
+echo "hello"
+SHEOF
+		git add test.sh
+
+		set +e
+		HOOK_OUT=$(bash "$PRE_COMMIT" 2>&1)
+		ret=$?
+		set -e
+
+		if [ "$ret" -eq 0 ] && echo "$HOOK_OUT" | grep -qF "RCS header added"; then
+			pass "RCS auto-add works with LINT_TMPDIR-based temp files"
+		else
+			fail "RCS auto-add broken after temp file migration (exit $ret)"
+		fi
+	)
+	rm -rf "$T4"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -140,6 +206,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
