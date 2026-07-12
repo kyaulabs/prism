@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-eval.php kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: run-eval.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
+
+
 
 /**
  * run-eval.php — Execute a single eval case against opencode run.
@@ -46,7 +49,7 @@ if ($args['caseFile'] === '' || !file_exists($args['caseFile'])) {
 // ── Parse and validate case file ─────────────────────────────────────────
 try {
     $case = EvalCase::fromFile($args['caseFile']);
-} catch (\RuntimeException $e) {
+} catch (\RuntimeException | \TypeError $e) {
     $result = new EvalResult(
         name: basename($args['caseFile']),
         agent: 'unknown',
@@ -143,6 +146,14 @@ try {
 
         $result->durationMs = $elapsedMs;
     }
+} catch (\TypeError $e) {
+    $result = new EvalResult(
+        name: $case->name,
+        agent: $case->agent,
+        passCriteria: $case->passCriteria,
+        verdict: 'INVALID',
+        error: 'Unexpected type error: ' . $e->getMessage(),
+    );
 } finally {
     if ($worktree !== null) {
         $runner->removeWorktree($worktree);
@@ -153,5 +164,6 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
