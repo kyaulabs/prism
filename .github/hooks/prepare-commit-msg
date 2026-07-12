@@ -3,6 +3,12 @@
 
 set -euo pipefail
 
+# Allow amend during interactive rebase (reword/edit operations re-create
+# commits intentionally; blocking would prevent signing/correcting history).
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+	exit 0
+fi
+
 COMMIT_SOURCE="${2:-}"
 COMMIT_SHA="${3:-}"
 
