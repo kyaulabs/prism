@@ -5,6 +5,7 @@
 
 
 
+
 # Tests for the pre-push hook's no-squash heuristic and non-fast-forward gate.
 # Covers the three acceptance criteria from issue #74:
 #   1. Squashed new branch warns
@@ -244,6 +245,42 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 )
 rm -rf "$T5"
 
+# ── Test 6: SHA-256 zero OID (64 zeros) recognized as zero ───────────────
+
+echo ""
+echo "── Test 6: SHA-256 zero OID — recognized as zero ──"
+T6=$(mktemp -d)
+TEMP_DIRS="$TEMP_DIRS $T6"
+(
+    cd "$T6"
+    git init --quiet
+    git config commit.gpgsign false
+    git config user.email "test@example.com"
+    git config user.name "Test User"
+
+    # Single commit
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    LOCAL_OID=$(git rev-parse HEAD)
+
+    ZERO_OID_256="0000000000000000000000000000000000000000000000000000000000000000"
+
+    # Push with 64-zero remote_oid — should be treated as new branch
+    # (skip non-FF check), not crash on merge-base with invalid OID.
+    set +e
+    output=$(echo "refs/heads/main $LOCAL_OID refs/heads/main $ZERO_OID_256" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'BLOCKED'; then
+        pass "SHA-256 zero remote_oid handled gracefully (exit $ret)"
+    else
+        fail "SHA-256 zero remote_oid not handled (exit=$ret): $output"
+    fi
+)
+rm -rf "$T6"
+
 # ── Summary ────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -262,6 +299,7 @@ else
     echo "═══════════════════════════════════════════════════════"
     exit 1
 fi
+
 
 
 

@@ -11,6 +11,15 @@ BOLD=$'\033[1m'
 CYAN=$'\033[36m'
 RESET=$'\033[0m'
 
+# Returns 0 (true) if $1 is empty or all zeros (deletion or new ref).
+# Works with both SHA-1 (40 zeros) and SHA-256 (64 zeros) OIDs.
+is_zero_oid() {
+	case "$1" in
+		*[!0]*) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
 while read -r local_ref local_oid _ remote_oid; do
 	# Skip tag pushes — tags are not branches and should not trigger
 	# history-protection or no-squash checks.
@@ -19,14 +28,14 @@ while read -r local_ref local_oid _ remote_oid; do
 	esac
 
 	# Skip branch deletions (zero or empty local OID).
-	if [ -z "$local_oid" ] || [ "$local_oid" = "0000000000000000000000000000000000000000" ]; then
+	if is_zero_oid "$local_oid"; then
 		continue
 	fi
 
 	# ── Non-fast-forward check (hard gate) ─────────────────────────────────
 	# Block pushes that would rewrite published history. amend, rebase, or
 	# reset on a pushed commit triggers this — fix local history before pushing.
-	if [ -n "$remote_oid" ] && [ "$remote_oid" != "0000000000000000000000000000000000000000" ]; then
+	if [ -n "$remote_oid" ] && ! is_zero_oid "$remote_oid"; then
 		# git merge-base exits 0 if remote_oid is an ancestor of local_oid
 		# (fast-forward). We run it inside an if to avoid triggering set -e.
 		set +e
@@ -58,7 +67,7 @@ EOF
 	# Only applies to new branches — the non-fast-forward gate above
 	# already blocks force-pushes, so existing branches are always
 	# fast-forward (incremental) pushes here.
-	if [ -z "$remote_oid" ] || [ "$remote_oid" = "0000000000000000000000000000000000000000" ]; then
+	if [ -z "$remote_oid" ] || is_zero_oid "$remote_oid"; then
 		count=$(git rev-list --count "$local_oid" --not --remotes 2>/dev/null || echo 0)
 	else
 		count=0
