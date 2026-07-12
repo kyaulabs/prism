@@ -50,7 +50,10 @@ PHP pages include Aurora, output HTML directly, and interact with the DB via raw
 │   ├── Unit/
 │   ├── Feature/
 │   ├── Integration/
-│   └── Browser/
+│   ├── Browser/
+│   ├── Plugin/
+│   ├── Semgrep/
+│   └── Shell/
 ├── <app>/                 ← Public webroot (<app>.<domain>)
 ├── <app>.sql
 └── <app>.nginx.conf

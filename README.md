@@ -78,8 +78,9 @@ npm install
 
 No bootstrap step needed — `tests/Unit/Harness/ArchTest.php` ships
 pre-configured with filesystem-walker arch tests (no debug functions,
-strict types). The four test subdirectories (`Unit`, `Feature`,
-`Integration`, `Browser`) are also pre-created.
+strict types). The seven test subdirectories (`Unit`, `Feature`,
+`Integration`, `Browser`, `Plugin`, `Semgrep`, `Shell`) are also
+pre-created.
 
 Run the test suite after `composer install`:
 
