@@ -10,13 +10,22 @@ if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || \
 	exit 1
 fi
 
+# ── Temp directory for index-based linting ───────────────────────────────────
+# Staged (index) blobs are checked out to a temp directory so linters read
+# exactly what will be committed, not the working tree. See ADR-0015.
+LINT_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$LINT_TMPDIR"' EXIT
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
 	if [ -n "$STAGED_PHP" ]; then
 		echo "→ PHP syntax check"
 		while IFS= read -r f; do
-			php -l "$f"
+			TMPF="$LINT_TMPDIR/$f"
+			mkdir -p "$(dirname "$TMPF")"
+			git show ":$f" > "$TMPF"
+			php -l "$TMPF" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 		done <<< "$STAGED_PHP"
 	fi
 fi
@@ -42,11 +51,17 @@ if [ -n "$CS_FIXER" ]; then
 		# --path-mode=override: scan ONLY the explicitly-passed paths,
 		# ignoring the Finder scope entirely (prevents node_modules leakage)
 		PATHS=()
-		while IFS= read -r p; do [ -n "$p" ] && PATHS+=("$p"); done <<< "$STAGED_PHP"
+		while IFS= read -r p; do
+			[ -n "$p" ] || continue
+			TMPF="$LINT_TMPDIR/$p"
+			mkdir -p "$(dirname "$TMPF")"
+			git show ":$p" > "$TMPF"
+			PATHS+=("$TMPF")
+		done <<< "$STAGED_PHP"
 		if [ -n "$CS_CONFIG" ]; then
-			"$CS_FIXER" fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1
+			"$CS_FIXER" fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 		else
-			"$CS_FIXER" fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1
+			"$CS_FIXER" fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 		fi
 	fi
 fi
@@ -55,18 +70,28 @@ fi
 STAGED_SCSS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
 if [ -n "$STAGED_SCSS" ] && [ -d node_modules/stylelint ]; then
 	echo "→ Stylelint"
-	SCSS_FILES=()
-	while IFS= read -r f; do [ -n "$f" ] && SCSS_FILES+=("$f"); done <<< "$STAGED_SCSS"
-	npx stylelint "${SCSS_FILES[@]}"
+	SCSS_FAILED=0
+	while IFS= read -r f; do
+		[ -z "$f" ] && continue
+		if ! git show ":$f" | npx stylelint --stdin-filename "$f"; then
+			SCSS_FAILED=1
+		fi
+	done <<< "$STAGED_SCSS"
+	[ "$SCSS_FAILED" -eq 0 ] || exit 1
 fi
 
 # ── ESLint (staged files only) ────────────────────────────────────────────────
 STAGED_JS=$(git diff --cached --name-only --diff-filter=ACMR | grep '^cdn/js/.*\.js$' | grep -v '\.min\.js$' || true)
 if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
 	echo "→ ESLint"
-	JS_FILES=()
-	while IFS= read -r f; do [ -n "$f" ] && JS_FILES+=("$f"); done <<< "$STAGED_JS"
-	npx eslint "${JS_FILES[@]}" --no-error-on-unmatched-pattern
+	JS_FAILED=0
+	while IFS= read -r f; do
+		[ -z "$f" ] && continue
+		if ! git show ":$f" | npx eslint --stdin --stdin-filename "$f" --no-error-on-unmatched-pattern; then
+			JS_FAILED=1
+		fi
+	done <<< "$STAGED_JS"
+	[ "$JS_FAILED" -eq 0 ] || exit 1
 fi
 
 # ── Shellcheck (staged shell scripts only) ──────────────────────────────────
@@ -74,9 +99,15 @@ STAGED_SH=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.sh$|^\
 if [ -n "$STAGED_SH" ]; then
 	if command -v shellcheck > /dev/null 2>&1; then
 		echo "→ Shellcheck"
-		SH_FILES=()
-		while IFS= read -r f; do [ -n "$f" ] && SH_FILES+=("$f"); done <<< "$STAGED_SH"
-		shellcheck "${SH_FILES[@]}"
+		SH_TMPFILES=()
+		while IFS= read -r f; do
+			[ -z "$f" ] && continue
+			TMPF="$LINT_TMPDIR/$f"
+			mkdir -p "$(dirname "$TMPF")"
+			git show ":$f" > "$TMPF"
+			SH_TMPFILES+=("$TMPF")
+		done <<< "$STAGED_SH"
+		shellcheck "${SH_TMPFILES[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 	else
 		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
 	fi
