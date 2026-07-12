@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/04 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
 
 set -euo pipefail
 
@@ -465,6 +466,126 @@ if [ -n "${INDEX_ERRORS_BEFORE:-}" ] && [ "${ERRORS:-0}" -eq "${INDEX_ERRORS_BEF
 	ok "AGENTS.md index tables cross-checked"
 fi
 
+# ── README.md index cross-check ───────────────────────────────────────────────
+
+echo "── Checking README.md index tables ──"
+README_MD="${REPO_ROOT}/README.md"
+
+if [ ! -f "$README_MD" ]; then
+	warn "README.md not found at $README_MD — cannot validate index tables"
+else
+	README_INDEX_ERRORS_BEFORE=$ERRORS
+
+	# Extract markdown table rows under a given ### heading (README uses H3).
+	# Matches the heading line exactly, then collects all | -prefixed rows
+	# until the next ## or ### heading or EOF.
+	extract_table_h3() {
+		local heading="$1"
+		awk -v h="$heading" '
+			$0 == "### " h { in_section = 1; next }
+			in_section && /^### / { exit }
+			in_section && /^## / { exit }
+			in_section && /^\|/ { print }
+		' "$README_MD"
+	}
+
+	# Extract first-column names from a pipe-delimited markdown table (stdin).
+	# Splits on |, takes field 2, trims whitespace, strips backtick/@//
+	# decoration. Skips the first two rows (header + separator).
+	extract_first_col_names() {
+		awk -F'|' '
+			/^\|/ {
+				line_num++
+				if (line_num <= 2) next
+				cell = $2
+				gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
+				gsub(/^`|`$/, "", cell)
+				gsub(/^@/, "", cell)
+				gsub(/^\//, "", cell)
+				if (cell != "") print cell
+			}
+		'
+	}
+
+	# Extract ALL backtick-wrapped names from ALL columns of a markdown
+	# table (stdin). Used for the README skills table which uses a
+	# category format (multiple skills per row in column 2+).
+	extract_all_backtick_names() {
+		awk -F'|' '
+			/^\|/ {
+				line_num++
+				if (line_num <= 2) next
+				for (i = 2; i <= NF; i++) {
+					cell = $i
+					while (match(cell, /`[^`]+`/)) {
+						name = substr(cell, RSTART + 1, RLENGTH - 2)
+						print name
+						cell = substr(cell, RSTART + RLENGTH)
+					}
+				}
+			}
+		'
+	}
+
+	# ── Forward check: every filesystem entry must have a README table row ──
+
+	# Slash commands table (### Slash commands)
+	README_CMD_NAMES=$(extract_table_h3 "Slash commands" | extract_first_col_names)
+	for cmd_file in "${COMMANDS_DIR}"/*.md; do
+		[ -f "$cmd_file" ] || continue
+		cmd_name=$(basename "$cmd_file" .md)
+		if ! echo "$README_CMD_NAMES" | grep -qxF "$cmd_name"; then
+			err "README.md Slash commands table missing entry for '/${cmd_name}' (file: .opencode/commands/${cmd_name}.md)"
+		fi
+	done
+
+	# Custom agents table (### Custom agents)
+	README_AGENT_NAMES=$(extract_table_h3 "Custom agents" | extract_first_col_names)
+	for agent_file in "${AGENTS_DIR}"/*.md; do
+		[ -f "$agent_file" ] || continue
+		agent_name=$(basename "$agent_file" .md)
+		if ! echo "$README_AGENT_NAMES" | grep -qxF "$agent_name"; then
+			err "README.md Custom agents table missing entry for '@${agent_name}' (file: .opencode/agents/${agent_name}.md)"
+		fi
+	done
+
+	# Skills table (### Skills (on-demand)) — category format, all columns
+	shopt -s nullglob
+	README_SKILL_NAMES=$(extract_table_h3 "Skills (on-demand)" | extract_all_backtick_names)
+	for skill_dir in "${SKILLS_DIR}"/*/; do
+		[ -d "$skill_dir" ] || continue
+		skill_name=$(basename "$skill_dir")
+		if ! echo "$README_SKILL_NAMES" | grep -qxF "$skill_name"; then
+			err "README.md Skills table missing entry for '\`${skill_name}\`' (dir: .opencode/skills/${skill_name}/)"
+		fi
+	done
+	shopt -u nullglob
+
+	# ── Reverse check: every README table row must have a filesystem counterpart ──
+
+	for name in $README_CMD_NAMES; do
+		if [ ! -f "${COMMANDS_DIR}/${name}.md" ]; then
+			warn "README.md Slash commands table has entry '/${name}' but no file at .opencode/commands/${name}.md"
+		fi
+	done
+
+	for name in $README_AGENT_NAMES; do
+		if [ ! -f "${AGENTS_DIR}/${name}.md" ]; then
+			warn "README.md Custom agents table has entry '@${name}' but no file at .opencode/agents/${name}.md"
+		fi
+	done
+
+	for name in $README_SKILL_NAMES; do
+		if [ ! -d "${SKILLS_DIR}/${name}" ]; then
+			warn "README.md Skills table has entry '\`${name}\`' but no directory at .opencode/skills/${name}/"
+		fi
+	done
+
+	if [ "${ERRORS:-0}" -eq "${README_INDEX_ERRORS_BEFORE}" ]; then
+		ok "README.md index tables cross-checked"
+	fi
+fi
+
 # ── Guard: fail on vacuous pass (all three categories empty) ──────────────────
 
 if [ "$SKILL_COUNT" -eq 0 ] && [ "$AGENT_COUNT" -eq 0 ] && [ "$CMD_COUNT" -eq 0 ]; then
@@ -573,5 +694,6 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

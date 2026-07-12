@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
 
 
 
@@ -695,6 +696,256 @@ EOF
 )
 rm -rf "$T15"
 
+# ── Test 16: README.md forward check — command file exists, README table missing ──
+
+echo "── Test 16: README.md forward check — command without README table entry ──"
+T16=$(mktemp -d)
+(
+	cd "$T16"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .opencode/agents .opencode/skills
+	setup_validator_env
+
+	# Create a command file
+	cat > .opencode/commands/test-cmd.md <<'EOF'
+---
+description: A test command
+---
+EOF
+
+	# AGENTS.md with the command listed (so AGENTS.md check passes)
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/test-cmd` | Test command |
+EOF
+
+	# README.md with Slash commands table NOT containing test-cmd
+	cat > README.md <<'EOF'
+# Test README
+
+## Some Section
+
+### Slash commands
+
+| Command | Purpose |
+| --- | --- |
+| `/other` | Other command |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "README.md Slash commands table missing entry" && echo "$output" | grep -qF "test-cmd"; then
+		pass "README forward check errors on missing Slash commands table entry"
+	elif [ "${exit_code:-0}" -eq 0 ]; then
+		fail "README forward check did not error on missing Slash commands entry (exit 0)"
+	else
+		fail "README forward check exited non-zero but unexpected output"
+	fi
+)
+rm -rf "$T16"
+
+# ── Test 17: README.md forward check — skill exists, README category table missing ──
+
+echo "── Test 17: README.md forward check — skill without README table entry ──"
+T17=$(mktemp -d)
+(
+	cd "$T17"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/skills/test-skill
+	setup_validator_env
+
+	# Create a valid skill
+	cat > .opencode/skills/test-skill/SKILL.md <<'EOF'
+---
+name: test-skill
+description: A test skill.
+---
+EOF
+
+	# AGENTS.md with the skill listed
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Skills Available
+
+| Skill | When to use |
+| --- | --- |
+| `test-skill` | Testing |
+EOF
+
+	# README.md with Skills table NOT containing test-skill
+	cat > README.md <<'EOF'
+# Test README
+
+### Skills (on-demand)
+
+| Category | Skills |
+| --- | --- |
+| Other | `other-skill` |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "README.md Skills table missing entry" && echo "$output" | grep -qF "test-skill"; then
+		pass "README forward check errors on missing Skills table entry (category format)"
+	elif [ "${exit_code:-0}" -eq 0 ]; then
+		fail "README forward check did not error on missing Skills entry (exit 0)"
+	else
+		fail "README forward check exited non-zero but unexpected output"
+	fi
+)
+rm -rf "$T17"
+
+# ── Test 18: README.md reverse check — stale table entry, no file ──
+
+echo "── Test 18: README.md reverse check — stale Slash commands entry ──"
+T18=$(mktemp -d)
+(
+	cd "$T18"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# AGENTS.md (empty commands table)
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+EOF
+
+	# README.md with a stale command entry
+	cat > README.md <<'EOF'
+# Test README
+
+### Slash commands
+
+| Command | Purpose |
+| --- | --- |
+| `/fake-cmd` | Does not exist |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "README.md Slash commands table has entry" && echo "$output" | grep -qF "fake-cmd"; then
+		pass "README reverse check warns on stale Slash commands entry"
+	else
+		fail "README reverse check did not warn on stale entry"
+	fi
+)
+rm -rf "$T18"
+
+# ── Test 19: README.md clean — all entries match filesystem ──
+
+echo "── Test 19: README.md clean — all tables in sync ──"
+T19=$(mktemp -d)
+(
+	cd "$T19"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/commands .opencode/agents .opencode/skills
+	setup_validator_env
+
+	# Create one command, one agent, one skill
+	cat > .opencode/commands/my-cmd.md <<'EOF'
+---
+description: A command.
+---
+EOF
+
+	cat > .opencode/agents/my-agent.md <<'EOF'
+---
+description: An agent.
+mode: subagent
+---
+EOF
+
+	mkdir -p .opencode/skills/my-skill
+	cat > .opencode/skills/my-skill/SKILL.md <<'EOF'
+---
+name: my-skill
+description: A skill.
+---
+EOF
+
+	# AGENTS.md with all entries
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `/my-cmd` | A command |
+
+## Agents Available
+
+| Agent | When to use |
+| --- | --- |
+| `@my-agent` | An agent |
+
+## Skills Available
+
+| Skill | When to use |
+| --- | --- |
+| `my-skill` | A skill |
+EOF
+
+	# README.md with all entries in sync
+	cat > README.md <<'EOF'
+# Test README
+
+### Slash commands
+
+| Command | Purpose |
+| --- | --- |
+| `/my-cmd` | A command |
+
+### Custom agents
+
+| Agent | When to use |
+| --- | --- |
+| `@my-agent` | An agent |
+
+### Skills (on-demand)
+
+| Category | Skills |
+| --- | --- |
+| Test | `my-skill` |
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -eq 0 ] && echo "$output" | grep -qF "README.md index tables cross-checked"; then
+		pass "README clean — all tables in sync, validator passes"
+	else
+		fail "README clean — validator failed or did not confirm cross-check (exit ${exit_code:-0})"
+	fi
+)
+rm -rf "$T19"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -713,6 +964,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
