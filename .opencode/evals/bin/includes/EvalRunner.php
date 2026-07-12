@@ -237,29 +237,20 @@ class Runner
     }
 
     /**
-     * Build the opencode run command for the LLM judge pass.
+     * Build the opencode run command skeleton for the LLM judge pass.
+     *
+     * The judge prompt is delivered via stdin by runJudge(), not as a
+     * positional argument, to avoid ps visibility and MAX_ARG_STRLEN
+     * limits.
      *
      * @param  EvalCase $case
-     * @param  string $agentOutput  The agent's captured stdout+stderr.
-     * @return string  Shell command string.
+     * @return string  Shell command string (without the prompt).
      */
-    public function buildJudgeCommand(EvalCase $case, string $agentOutput): string
+    public function buildJudgeCommand(EvalCase $case): string
     {
-        $prompt = $this->buildJudgePrompt($case, $agentOutput);
         $dir = escapeshellarg($this->repoRoot);
 
-        try {
-            $message = escapeshellarg($prompt);
-        } catch (\ValueError $e) {
-            // Backstop: truncation in buildJudgePrompt should prevent
-            // this, but if the prompt template + behaviors push the
-            // total over PHP_MAX_SHELL_ARG_LEN, truncate aggressively.
-            $prompt = mb_strcut($prompt, 0, 65536, 'UTF-8')
-                . "\n\n[... prompt truncated due to shell argument size limit ...]\n";
-            $message = escapeshellarg($prompt);
-        }
-
-        return "opencode run --agent judge --dir {$dir} {$message}";
+        return "opencode run --agent judge --dir {$dir}";
     }
 
     /**
@@ -359,9 +350,10 @@ class Runner
      *
      * @param  string $cmd  Shell command to execute.
      * @param  int $timeout  Timeout in seconds.
+     * @param  ?string $stdin  Optional data to write to the child's stdin pipe before closing.
      * @return array{stdout: string, stderr: string, exitCode: int, timed_out: bool, degraded_kill: bool}
      */
-    public function executeCommand(string $cmd, int $timeout): array
+    public function executeCommand(string $cmd, int $timeout, ?string $stdin = null): array
     {
         // On POSIX with setsid(1), launch via exec setsid so the process
         // runs in its own process group. The PID from proc_get_status then
@@ -386,6 +378,9 @@ class Runner
             return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1, 'timed_out' => false, 'degraded_kill' => false];
         }
 
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
         fclose($pipes[0]);
 
         stream_set_blocking($pipes[1], false);
@@ -812,10 +807,11 @@ PROMPT;
      */
     public function runJudge(EvalCase $case, string $agentOutput): EvalResult
     {
-        $judgeCmd = $this->buildJudgeCommand($case, $agentOutput);
+        $prompt = $this->buildJudgePrompt($case, $agentOutput);
+        $judgeCmd = $this->buildJudgeCommand($case);
 
         $start = hrtime(true);
-        $output = $this->executeCommand($judgeCmd, $this->timeout);
+        $output = $this->executeCommand($judgeCmd, $this->timeout, $prompt);
         $elapsed = (int) ((hrtime(true) - $start) / 1_000_000);
 
         if ($output['timed_out']) {
@@ -992,6 +988,8 @@ PROMPT;
         }
     }
 }
+
+
 
 
 

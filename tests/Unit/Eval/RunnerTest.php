@@ -13,6 +13,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -77,13 +83,13 @@ it('buildJudgeCommand uses valid opencode run flags', function () {
         passCriteria: 'all behaviors observed',
     );
 
-    $cmd = $runner->buildJudgeCommand($case, 'some agent output');
+    $cmd = $runner->buildJudgeCommand($case);
 
     // Judge runs with --dir for repo root
     expect($cmd)->toContain('--dir');
 
-    // Judge prompt is embedded in the message
-    expect($cmd)->toContain('agent output');
+    // Prompt is delivered via stdin, not in the command
+    expect($cmd)->not->toContain('agent output');
 
     // Must NOT contain invalid opencode run flags (these belong to tui/agent create, not run)
     expect($cmd)->not->toContain('--prompt');
@@ -135,7 +141,7 @@ it('buildCommand and buildJudgeCommand use only valid opencode run flags', funct
     );
 
     $buildCmd = $runner->buildCommand($case);
-    $judgeCmd = $runner->buildJudgeCommand($case, 'judge output');
+    $judgeCmd = $runner->buildJudgeCommand($case);
 
     $allCmds = [$buildCmd, $judgeCmd];
     foreach ($allCmds as $cmd) {
@@ -424,7 +430,7 @@ it('buildJudgeCommand runs the judge as the read-only judge agent', function () 
         passCriteria: 'all behaviors observed',
     );
 
-    $cmd = $runner->buildJudgeCommand($case, 'agent output');
+    $cmd = $runner->buildJudgeCommand($case);
 
     expect($cmd)->toContain('--agent judge');
 });
@@ -790,14 +796,46 @@ it('buildJudgeCommand catches ValueError from escapeshellarg and truncates as ba
         passCriteria: 'all behaviors observed',
     );
 
-    // This should NOT throw — the try/catch catches the ValueError
-    // and truncates the prompt as a backstop.
-    $cmd = $runner->buildJudgeCommand($case, 'irrelevant');
+    // With stdin delivery, buildJudgeCommand is a skeleton — the
+    // prompt (even a huge one from buildJudgePrompt) is NOT in the command.
+    $cmd = $runner->buildJudgeCommand($case);
 
     expect(strlen($cmd))->toBeLessThan(2 * 1024 * 1024);
     expect($cmd)->toContain('opencode run --agent judge');
-    expect($cmd)->toContain('[... prompt truncated');
+    expect($cmd)->not->toContain('[... prompt truncated');
 });
+
+it('executeCommand writes stdin data to the child process', function () {
+    $runner = new Runner(__DIR__);
+    $output = $runner->executeCommand('cat', 5, 'hello from stdin');
+    expect($output['stdout'])->toContain('hello from stdin');
+    expect($output['exitCode'])->toBe(0);
+});
+
+it('executeCommand works normally when stdin is null', function () {
+    $runner = new Runner(__DIR__);
+    $output = $runner->executeCommand('echo "no stdin"', 5);
+    expect($output['stdout'])->toContain('no stdin');
+    expect($output['exitCode'])->toBe(0);
+});
+
+it('buildJudgeCommand returns skeleton without prompt for stdin delivery', function () {
+    $runner = new Runner('/path/to/repo');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+    $cmd = $runner->buildJudgeCommand($case);
+    expect($cmd)->toContain('opencode run --agent judge');
+    expect($cmd)->toContain('--dir');
+    // The prompt should NOT be in the command — it's delivered via stdin
+    expect($cmd)->not->toContain('do thing');
+});
+
 
 
 
