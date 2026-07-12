@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: JudgeTest.php kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: JudgeTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+
+
+
 
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
@@ -149,5 +152,62 @@ it('parseJudgeResponse returns empty array for unparseable non-JSON text', funct
     expect($result->verdict)->toBe('INVALID');
     expect($result->error)->toContain('no behaviors');
 });
+
+it('parseJudgeResponse skips non-array items without crashing', function () {
+    $json = json_encode([
+        ['behavior' => 'valid', 'verdict' => 'YES', 'rationale' => 'ok'],
+        'not an array',
+        null,
+        42,
+    ]);
+
+    $behaviors = Runner::parseJudgeResponse($json);
+
+    expect($behaviors)->toHaveCount(1);
+    expect($behaviors[0]['behavior'])->toBe('valid');
+    expect($behaviors[0]['verdict'])->toBe('YES');
+});
+
+it('parseJudgeResponse handles array of strings without crashing', function () {
+    $json = json_encode(['yes', 'no']);
+
+    $behaviors = Runner::parseJudgeResponse($json);
+
+    expect($behaviors)->toBe([]);
+});
+
+it('parseJudgeResponse coerces non-string verdict to UNCLEAR', function () {
+    $json = json_encode([
+        ['behavior' => 'test', 'verdict' => 123, 'rationale' => 'ok'],
+    ]);
+
+    $behaviors = Runner::parseJudgeResponse($json);
+
+    expect($behaviors)->toHaveCount(1);
+    expect($behaviors[0]['verdict'])->toBe('UNCLEAR');
+});
+
+it('parseJudgeResponse coerces non-string behavior to empty string', function () {
+    $json = json_encode([
+        ['behavior' => 456, 'verdict' => 'YES', 'rationale' => 'ok'],
+    ]);
+
+    $behaviors = Runner::parseJudgeResponse($json);
+
+    expect($behaviors)->toHaveCount(1);
+    expect($behaviors[0]['behavior'])->toBe('');
+});
+
+it('parseJudgeResponse coerces non-string rationale to empty string', function () {
+    $json = json_encode([
+        ['behavior' => 'test', 'verdict' => 'YES', 'rationale' => false],
+    ]);
+
+    $behaviors = Runner::parseJudgeResponse($json);
+
+    expect($behaviors)->toHaveCount(1);
+    expect($behaviors[0]['rationale'])->toBe('');
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

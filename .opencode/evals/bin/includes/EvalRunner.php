@@ -1,7 +1,8 @@
 <?php
+
 declare(strict_types=1);
 
-# $KYAULabs: EvalRunner.php kyau@nova 2026/07/09 -0700 Exp $
+# $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
 
 
 
@@ -702,13 +703,21 @@ PROMPT;
             return [];
         }
 
-        return array_map(function (array $item): array {
-            return [
-                'behavior' => $item['behavior'] ?? '',
-                'verdict' => strtoupper($item['verdict'] ?? 'UNCLEAR'),
-                'rationale' => $item['rationale'] ?? '',
+        $results = [];
+        foreach ($decoded as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $verdict = $item['verdict'] ?? 'UNCLEAR';
+            $results[] = [
+                'behavior' => is_string($item['behavior'] ?? null) ? $item['behavior'] : '',
+                'verdict' => is_string($verdict) ? strtoupper($verdict) : 'UNCLEAR',
+                'rationale' => is_string($item['rationale'] ?? null) ? $item['rationale'] : '',
             ];
-        }, $decoded);
+        }
+
+        return $results;
     }
 
     /**
@@ -959,6 +968,7 @@ PROMPT;
         }
     }
 }
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
