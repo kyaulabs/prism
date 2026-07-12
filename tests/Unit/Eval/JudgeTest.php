@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 
@@ -208,6 +211,56 @@ it('parseJudgeResponse coerces non-string rationale to empty string', function (
     expect($behaviors)->toHaveCount(1);
     expect($behaviors[0]['rationale'])->toBe('');
 });
+
+it('truncates agent output exceeding 98304 bytes (96 KiB)', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+    $hugeOutput = str_repeat('A', 98305);
+    $prompt = $runner->buildJudgePrompt($case, $hugeOutput);
+    expect($prompt)->toContain('[... agent output truncated at 98304 bytes');
+    expect($prompt)->toContain('original size: 98305 bytes');
+});
+
+it('does not truncate agent output at exactly 98304 bytes', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+    $output = str_repeat('A', 98304);
+    $prompt = $runner->buildJudgePrompt($case, $output);
+    expect($prompt)->not->toContain('[... agent output truncated');
+});
+
+it('preserves multi-byte character boundaries when truncating', function () {
+    $runner = new Runner('/tmp');
+    $case = new EvalCase(
+        name: 'test',
+        description: 'desc',
+        agent: '@tdd',
+        input: 'test',
+        expectedBehavior: ['do thing'],
+        passCriteria: 'all behaviors observed',
+    );
+    // 4-byte emoji × 25000 = 100000 bytes (> 98304)
+    $hugeOutput = str_repeat('😀', 25000);
+    $prompt = $runner->buildJudgePrompt($case, $hugeOutput);
+    expect($prompt)->toContain('[... agent output truncated');
+    // mb_strcut backs off to character boundaries — no split characters
+    expect($prompt)->toContain('😀');
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

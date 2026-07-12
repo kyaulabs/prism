@@ -206,6 +206,13 @@ class Runner
         . 'Segmentation fault|core dumped'
         . ')/im';
 
+    /**
+     * Maximum byte budget for agent output embedded in the judge prompt.
+     * Keeps the total prompt well under Linux MAX_ARG_STRLEN (128 KiB)
+     * and PHP's escapeshellarg limit (1 MB). 96 KiB = 98304 bytes.
+     */
+    private const MAX_AGENT_OUTPUT_BYTES = 98304;
+
     public function __construct(
         string $repoRoot,
         private int $timeout = 120,
@@ -658,6 +665,13 @@ class Runner
      */
     public function buildJudgePrompt(EvalCase $case, string $agentOutput): string
     {
+        $originalLength = strlen($agentOutput);
+        if ($originalLength > self::MAX_AGENT_OUTPUT_BYTES) {
+            $agentOutput = mb_strcut($agentOutput, 0, self::MAX_AGENT_OUTPUT_BYTES, 'UTF-8')
+                . "\n\n[... agent output truncated at " . self::MAX_AGENT_OUTPUT_BYTES
+                . " bytes; original size: {$originalLength} bytes ...]\n";
+        }
+
         $behaviors = '';
         foreach ($case->expectedBehavior as $i => $behavior) {
             $n = $i + 1;
@@ -968,6 +982,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
