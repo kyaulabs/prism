@@ -30,6 +30,7 @@ if command -v php > /dev/null 2>&1; then
 	if [ -n "$STAGED_PHP" ]; then
 		echo "→ PHP syntax check"
 		while IFS= read -r f; do
+			[ -z "$f" ] && continue
 			checkout_staged "$f"
 			php -l "$TMPF" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 		done <<< "$STAGED_PHP"
