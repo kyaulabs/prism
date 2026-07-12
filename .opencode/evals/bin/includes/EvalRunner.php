@@ -246,8 +246,18 @@ class Runner
     public function buildJudgeCommand(EvalCase $case, string $agentOutput): string
     {
         $prompt = $this->buildJudgePrompt($case, $agentOutput);
-        $message = escapeshellarg($prompt);
         $dir = escapeshellarg($this->repoRoot);
+
+        try {
+            $message = escapeshellarg($prompt);
+        } catch (\ValueError $e) {
+            // Backstop: truncation in buildJudgePrompt should prevent
+            // this, but if the prompt template + behaviors push the
+            // total over PHP_MAX_SHELL_ARG_LEN, truncate aggressively.
+            $prompt = mb_strcut($prompt, 0, 65536, 'UTF-8')
+                . "\n\n[... prompt truncated due to shell argument size limit ...]\n";
+            $message = escapeshellarg($prompt);
+        }
 
         return "opencode run --agent judge --dir {$dir} {$message}";
     }
@@ -982,6 +992,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
