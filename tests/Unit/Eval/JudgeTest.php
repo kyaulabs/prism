@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 
@@ -259,7 +262,10 @@ it('preserves multi-byte character boundaries when truncating', function () {
     expect($prompt)->toContain('[... agent output truncated');
     // mb_strcut backs off to character boundaries — no split characters
     expect($prompt)->toContain('😀');
+    // Verify the entire prompt is valid UTF-8 (no split multi-byte sequences)
+    expect(mb_check_encoding($prompt, 'UTF-8'))->toBeTrue();
 });
+
 
 
 

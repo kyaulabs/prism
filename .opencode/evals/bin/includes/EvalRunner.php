@@ -379,7 +379,15 @@ class Runner
         }
 
         if ($stdin !== null) {
-            fwrite($pipes[0], $stdin);
+            $written = 0;
+            $length  = strlen($stdin);
+            while ($written < $length) {
+                $result = fwrite($pipes[0], substr($stdin, $written));
+                if ($result === false) {
+                    break;
+                }
+                $written += $result;
+            }
         }
         fclose($pipes[0]);
 
@@ -672,8 +680,10 @@ class Runner
     {
         $originalLength = strlen($agentOutput);
         if ($originalLength > self::MAX_AGENT_OUTPUT_BYTES) {
-            $agentOutput = mb_strcut($agentOutput, 0, self::MAX_AGENT_OUTPUT_BYTES, 'UTF-8')
-                . "\n\n[... agent output truncated at " . self::MAX_AGENT_OUTPUT_BYTES
+            $truncated = mb_strcut($agentOutput, 0, self::MAX_AGENT_OUTPUT_BYTES, 'UTF-8');
+            $truncatedLength = strlen($truncated);
+            $agentOutput = $truncated
+                . "\n\n[... agent output truncated at {$truncatedLength}"
                 . " bytes; original size: {$originalLength} bytes ...]\n";
         }
 
@@ -988,6 +998,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

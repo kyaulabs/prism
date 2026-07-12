@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * run-eval.php — Execute a single eval case against opencode run.
  *
@@ -83,7 +86,7 @@ if ($args['dryRun']) {
     $cmd = $runner->buildCommand($case);
     echo "DRY RUN — would execute:\n";
     echo "  {$cmd}\n";
-    $judgeCmd = $runner->buildJudgeCommand($case, '<judge prompt omitted>');
+    $judgeCmd = $runner->buildJudgeCommand($case);
     echo "DRY RUN — judge would execute:\n";
     echo "  {$judgeCmd}\n";
     exit(0);
@@ -164,6 +167,7 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

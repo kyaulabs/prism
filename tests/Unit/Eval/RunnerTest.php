@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -778,33 +781,6 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
 
-it('buildJudgeCommand catches ValueError from escapeshellarg and truncates as backstop', function () {
-    // Bypass buildJudgePrompt's truncation by overriding it to return
-    // a string exceeding PHP_MAX_SHELL_ARG_LEN (1 MB).
-    $runner = new class ('/path/to/repo') extends Runner {
-        public function buildJudgePrompt(EvalCase $case, string $agentOutput): string
-        {
-            return str_repeat('x', 2 * 1024 * 1024); // 2 MB
-        }
-    };
-    $case = new EvalCase(
-        name: 'test',
-        description: 'desc',
-        agent: '@tdd',
-        input: 'test',
-        expectedBehavior: ['do thing'],
-        passCriteria: 'all behaviors observed',
-    );
-
-    // With stdin delivery, buildJudgeCommand is a skeleton — the
-    // prompt (even a huge one from buildJudgePrompt) is NOT in the command.
-    $cmd = $runner->buildJudgeCommand($case);
-
-    expect(strlen($cmd))->toBeLessThan(2 * 1024 * 1024);
-    expect($cmd)->toContain('opencode run --agent judge');
-    expect($cmd)->not->toContain('[... prompt truncated');
-});
-
 it('executeCommand writes stdin data to the child process', function () {
     $runner = new Runner(__DIR__);
     $output = $runner->executeCommand('cat', 5, 'hello from stdin');
@@ -835,6 +811,7 @@ it('buildJudgeCommand returns skeleton without prompt for stdin delivery', funct
     // The prompt should NOT be in the command — it's delivered via stdin
     expect($cmd)->not->toContain('do thing');
 });
+
 
 
 
