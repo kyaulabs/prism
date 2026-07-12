@@ -134,16 +134,9 @@ has a landing point; the canonical list is in `AGENTS.md`.
 
 ### Skills (process + domain)
 
-| Category | Skills |
-|---|---|
-| Pipeline (plan → execute → verify) | `brainstorming`, `writing-plans`, `executing-plans`, `verification-before-completion` |
-| Review triage | `receiving-code-review` |
-| Branch lifecycle | `finishing-a-development-branch` |
-| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
-| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
-| Frontend | `scss-mobile-first`, `frontend-design`, `frontend-architecture`, `accessibility` |
-| Testing | `pest-browser` |
-| Docs / process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `prototype` |
+All custom skills live under `.opencode/skills/` and are loaded on demand
+via the `skill` tool. See `AGENTS.md` § Skills Available for the complete
+list with usage descriptions.
 
 ### Custom agents
 
@@ -154,14 +147,3 @@ See `AGENTS.md` for the complete list with purpose descriptions.
 
 All custom commands live under `.opencode/commands/` and are invoked via `/slash`.
 See `AGENTS.md` for the complete list with purpose descriptions.
-
-| Command | Purpose |
-| --- | --- |
-| `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
-| `/check` | Pre-push gate: lint + test + coverage |
-| `/release` | Changelog + signed tag + `gh release` |
-| `/deploy` | Post-pull production deploy |
-| `/build-assets` | Rebuild minified CSS/JS |
-| `/setup` | Interactive project configurator (replaces placeholders) |
-| `/plan-to-issues` | Parse a plan into GitHub issues |
-| `/teach` | Explain completed work pedagogically |
