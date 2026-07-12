@@ -5,6 +5,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -975,7 +976,8 @@ EOF
 - [ ] Task 1
 - [ ] Task 2
 EOF
-	touch -d "8 days ago" docs/plans/20260101T120000-old-feature.md
+	old_ts=$(date -v-8d +%Y%m%d%H%M 2>/dev/null || date -d "8 days ago" +%Y%m%d%H%M)
+	touch -t "$old_ts" docs/plans/20260101T120000-old-feature.md
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
 
@@ -1021,7 +1023,8 @@ EOF
 - [x] Task 1
 - [x] Task 2
 EOF
-	touch -d "30 days ago" docs/plans/20260101T120000-old-complete.md
+	old_ts=$(date -v-30d +%Y%m%d%H%M 2>/dev/null || date -d "30 days ago" +%Y%m%d%H%M)
+	touch -t "$old_ts" docs/plans/20260101T120000-old-complete.md
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
 
@@ -1051,6 +1054,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

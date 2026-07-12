@@ -13,6 +13,7 @@
 
 
 
+
 # ── Robustness tests for pre-commit hook (issue #79) ──────────────────────────
 # Three defects:
 #   1. CREATOR/HOSTNAME fallbacks unreachable under `set -euo pipefail`
@@ -75,9 +76,7 @@ setup_test_repo()
 # ── Linter availability flags ──────────────────────────────────────────────────
 
 HAS_PHP=false
-HAS_SHELLCHECK=false
 command -v php > /dev/null 2>&1 && HAS_PHP=true
-command -v shellcheck > /dev/null 2>&1 && HAS_SHELLCHECK=true
 
 # ==============================================================================
 # Test 1: CREATOR/HOSTNAME fallback — hook survives missing user.email
@@ -135,8 +134,10 @@ fi
 echo ""
 echo "── Test 2: RCS temp files use LINT_TMPDIR, not bare mktemp ──"
 # Static analysis: verify the hook doesn't use bare mktemp for TMP/CLEAN
-bare_tmp=$(grep -n 'TMP=\$(mktemp)' "$PRE_COMMIT" || true)
-bare_clean=$(grep -n 'CLEAN=\$(mktemp)' "$PRE_COMMIT" || true)
+# shellcheck disable=SC2016  # literal $() pattern for grep, not shell expansion
+bare_tmp=$(grep -nF 'TMP=$(mktemp)' "$PRE_COMMIT" || true)
+# shellcheck disable=SC2016
+bare_clean=$(grep -nF 'CLEAN=$(mktemp)' "$PRE_COMMIT" || true)
 if [ -z "$bare_tmp" ] && [ -z "$bare_clean" ]; then
 	pass "No bare mktemp calls for TMP/CLEAN"
 else
@@ -252,6 +253,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
