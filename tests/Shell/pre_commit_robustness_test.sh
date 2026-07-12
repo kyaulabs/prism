@@ -11,6 +11,7 @@
 
 
 
+
 # ── Robustness tests for pre-commit hook (issue #79) ──────────────────────────
 # Three defects:
 #   1. CREATOR/HOSTNAME fallbacks unreachable under `set -euo pipefail`
@@ -188,6 +189,47 @@ SHEOF
 	rm -rf "$T4"
 fi
 
+# ==============================================================================
+# Test 5: Non-ASCII filename is processed by the hook
+# ==============================================================================
+
+echo ""
+echo "── Test 5: Non-ASCII filename processed (quotePath) ──"
+if ! $HAS_PHP; then
+	skip "php not available"
+else
+	T5=$(mktemp -d)
+	TEMP_DIRS="$TEMP_DIRS $T5"
+	setup_test_repo "$T5"
+	(
+		cd "$T5"
+
+		# Create a PHP file with non-ASCII characters in the name.
+		# 'café.php' — the é (U+00E9) is UTF-8: \xc3\xa9.
+		# Without fix: git diff --name-only outputs "caf\303\251.php"
+		# (quoted/escaped), grep '\.php$' doesn't match (ends with "),
+		# file is silently skipped by all linters.
+		# With fix: git -c core.quotePath=false outputs café.php (raw),
+		# grep matches, file is processed.
+		printf '<?php\n\ndeclare(strict_types=1);\n\necho "hello";\n' > 'café.php'
+		git add 'café.php'
+
+		set +e
+		HOOK_OUT=$(bash "$PRE_COMMIT" 2>&1)
+		ret=$?
+		set -e
+
+		# The hook should process the file — either lint it or add an RCS
+		# header. We check that the filename appears in the output.
+		if echo "$HOOK_OUT" | grep -qF 'café.php'; then
+			pass "Non-ASCII filename 'café.php' processed by hook"
+		else
+			fail "Non-ASCII filename not processed (quotePath escaping)"
+		fi
+	)
+	rm -rf "$T5"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -206,6 +248,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
