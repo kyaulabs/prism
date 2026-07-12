@@ -30,6 +30,9 @@ Run every item; do not skip:
       `@resolve-merge-conflicts` or manual resolution.
 - [ ] All commits follow Conventional Commits format and include
       `Plan-by:` + `Acked-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
+- [ ] Plan and spec files deleted from `docs/plans/` and `docs/specs/`
+      (unless branch is being kept for further work — see post-disposal
+      cleanup below).
 
 After every item passes, present the summary below. If any item fails, stop
 and fix it — do not proceed with a failing item.
@@ -99,6 +102,19 @@ git checkout develop
 git branch -D <branch-name>
 ```
 
+## Post-disposal cleanup
+
+After the branch is merged, PR'd, or discarded, clean up the plan and spec
+files:
+
+```bash
+rm -f docs/plans/<plan-filename>.md docs/specs/<spec-filename>.md
+```
+
+Plans and specs are development artifacts — git history preserves them. They
+should not accumulate in the working tree. If the branch is being kept for
+further work, defer cleanup until the branch is ultimately disposed of.
+
 ## No-squash reminder
 
 Each logical change is its own atomic commit — the git history serves as the
@@ -129,6 +145,7 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 - `receiving-code-review` skill — triage any `@code-review` findings that
   aren't Informational.
 - `AGENTS.md` § Git Workflow — branch naming convention and no-squash policy.
+- `writing-plans` skill — produces the plan; documents its own lifecycle.
 
 ## Gotchas
 
