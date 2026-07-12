@@ -7,6 +7,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -18,13 +19,6 @@ set -euo pipefail
 
 RESULT_FILE=$(mktemp)
 trap 'rm -f "$RESULT_FILE"' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
@@ -1054,6 +1048,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
