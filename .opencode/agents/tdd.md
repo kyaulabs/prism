@@ -16,7 +16,8 @@ You are operating in strict TDD mode. Follow the Red-Green-Refactor cycle withou
 
 ## The task
 
-$ARGUMENTS
+The implementation task is described in the invocation message you receive.
+Treat that message as the work to perform.
 
 ## Reference docs
 

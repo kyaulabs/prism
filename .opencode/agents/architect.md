@@ -26,7 +26,9 @@ files and you do not invoke other agents.
 
 ## The proposed change
 
-$ARGUMENTS
+The change to evaluate is described in the invocation message you receive
+from the calling agent. Treat that message as the proposed change to assess
+against the project's context and decisions.
 
 ## Step 1 — Load context
 

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ArchTest.php kyau@nova 2026/07/08 -0700 Exp $
+# $KYAULabs: ArchTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 /**
  * Harness architecture test exclude directories.
@@ -68,6 +71,39 @@ function harness_arch_discover_php_files(): array
     return $files;
 }
 
+/**
+ * Discovers all agent markdown files in .opencode/agents/.
+ *
+ * Returns absolute paths to all .md files found under .opencode/agents/.
+ *
+ * @return list<string> Absolute file paths.
+ */
+function harness_arch_discover_agent_files(): array
+{
+    $repoRoot = dirname(__DIR__, 3);
+    $agentsDir = $repoRoot . DIRECTORY_SEPARATOR . '.opencode' . DIRECTORY_SEPARATOR . 'agents';
+
+    if (!is_dir($agentsDir)) {
+        return [];
+    }
+
+    $files = [];
+
+    $dirIter = new RecursiveDirectoryIterator(
+        $agentsDir,
+        RecursiveDirectoryIterator::SKIP_DOTS,
+    );
+    $iter = new RecursiveIteratorIterator($dirIter);
+
+    foreach ($iter as $file) {
+        if (strtolower($file->getExtension()) === 'md') {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    return $files;
+}
+
 test('arch scan universe is non-empty', function (): void {
     $files = harness_arch_discover_php_files();
 
@@ -75,6 +111,46 @@ test('arch scan universe is non-empty', function (): void {
         'Arch scan universe is empty — no PHP files found. '
         . 'Check exclude paths in harness_arch_exclude_dirs().'
     );
+});
+
+test('agent files do not use command-only template features', function (): void {
+    $files = harness_arch_discover_agent_files();
+    $repoRoot = dirname(__DIR__, 3);
+    $failures = [];
+
+    foreach ($files as $path) {
+        $relative = substr($path, strlen($repoRoot) + 1);
+        $content = file_get_contents($path);
+
+        if ($content === false) {
+            continue;
+        }
+
+        // $ARGUMENTS is a command-only feature — renders as literal text in agents.
+        if (preg_match('/\$ARGUMENTS/', $content)) {
+            $failures[] = sprintf('  %s: uses $ARGUMENTS (command-only)', $relative);
+        }
+
+        // !`command` shell injection is a command-only feature.
+        if (preg_match('/!`[^`]+`/', $content)) {
+            $failures[] = sprintf('  %s: uses !`command` shell injection (command-only)', $relative);
+        }
+    }
+
+    if ($failures !== []) {
+        $message = sprintf(
+            "Found %d agent file(s) using command-only template features:\n\n%s\n\n"
+            . '$ARGUMENTS and !`command` are processed only in command templates '
+            . "(SessionPrompt.command()). Agent system prompts are assembled "
+            . 'statically. Agents receive their task as a separate invocation '
+            . 'message at runtime.',
+            count($failures),
+            implode("\n", $failures),
+        );
+        expect($failures)->toBeEmpty($message);
+    } else {
+        expect($failures)->toBeEmpty();
+    }
 });
 
 test('no debug functions in source code', function (): void {
@@ -210,5 +286,6 @@ test('test files referencing aurora submodule guard with markTestSkipped', funct
         expect($failures)->toBeEmpty();
     }
 });
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

@@ -60,7 +60,8 @@ time and create new bugs. Quick patches mask underlying issues.
 
 ## The task
 
-$ARGUMENTS
+The bug or issue to investigate is described in the invocation message you
+receive. Treat that message as the work to perform.
 
 ## Production log locations
 

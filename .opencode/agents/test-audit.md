@@ -23,9 +23,16 @@ permission:
 
 Audit the test suite for this project. Do NOT make any code changes — produce a report only.
 
-Here is the current coverage output:
+## Gather coverage baseline
 
-!`php -d pcov.enabled=1 vendor/bin/pest --coverage 2>&1 | tail -40`
+Before auditing, run the coverage command to get the current baseline:
+
+```bash
+php -d pcov.enabled=1 vendor/bin/pest --coverage
+```
+
+You have bash permission for this command. Capture and review the full output
+— it is your baseline for the audit.
 
 ## What to audit
 
