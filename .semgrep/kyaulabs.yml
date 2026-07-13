@@ -102,6 +102,8 @@ rules:
       - pattern: $_COOKIE
       - pattern: $_FILES
       - pattern: $_SERVER
+      - pattern: file_get_contents('php://input', ...)
+      - pattern: file_get_contents("php://input", ...)
     pattern-sinks:
       - pattern: unserialize(...);
 

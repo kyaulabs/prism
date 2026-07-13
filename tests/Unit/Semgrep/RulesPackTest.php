@@ -7,12 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -191,7 +185,7 @@ test('Semgrep rules: each positive fixture fires its rule the expected number of
         ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal', 4],
         ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query',    7],
         ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink',      3],
-        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data',   1],
+        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data',   3],
         ['MissingCsrfToken',        'kyaulabs-missing-csrf-token',         1],
         ['HardcodedDisplayErrors',  'kyaulabs-hardcoded-display-errors-on', 1],
     ])
@@ -239,6 +233,8 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
+
 
 
 
