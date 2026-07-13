@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -180,15 +183,34 @@ function filterFindings(array $results, string $ruleId, string $dir, string $fix
     ));
 }
 
+/**
+ * Canonical rule → fixture → expected-positive-count mapping.
+ *
+ * Single source of truth consumed by the positive/negative dataset tests
+ * below AND by the sync test that enforces parity with
+ * .semgrep/kyaulabs.yml and the tests/Semgrep/<Dir>/ fixtures. Adding a
+ * new rule means appending one row here and creating the fixture dir —
+ * the sync test fails otherwise (see ADR-0002).
+ *
+ * @return list<array{dir: string, rule: string, positive: int}>
+ */
+function semgrepRulesProvider(): array
+{
+    return [
+        ['dir' => 'AuroraStatusTrue',       'rule' => 'kyaulabs-aurora-status-true-literal',  'positive' => 4],
+        ['dir' => 'SqliInterpolatedQuery',   'rule' => 'kyaulabs-sqli-interpolated-query',    'positive' => 7],
+        ['dir' => 'XssEchoRequestSink',      'rule' => 'kyaulabs-xss-echo-request-sink',      'positive' => 3],
+        ['dir' => 'UnserializeRequestData',   'rule' => 'kyaulabs-unserialize-request-data',   'positive' => 3],
+        ['dir' => 'MissingCsrfToken',        'rule' => 'kyaulabs-missing-csrf-token',         'positive' => 1],
+        ['dir' => 'HardcodedDisplayErrors',  'rule' => 'kyaulabs-hardcoded-display-errors-on', 'positive' => 1],
+    ];
+}
+
 test('Semgrep rules: each positive fixture fires its rule the expected number of times')
-    ->with([
-        ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal', 4],
-        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query',    7],
-        ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink',      3],
-        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data',   3],
-        ['MissingCsrfToken',        'kyaulabs-missing-csrf-token',         1],
-        ['HardcodedDisplayErrors',  'kyaulabs-hardcoded-display-errors-on', 1],
-    ])
+    ->with(array_map(
+        static fn (array $r): array => [$r['dir'], $r['rule'], $r['positive']],
+        semgrepRulesProvider(),
+    ))
     ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId, int $expectedCount): bool {
         $scan = semgrepScanAll();
@@ -198,14 +220,10 @@ test('Semgrep rules: each positive fixture fires its rule the expected number of
     })->toBeTrue();
 
 test('Semgrep rules: each negative fixture does not trigger its rule')
-    ->with([
-        ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal'],
-        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query'],
-        ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink'],
-        ['UnserializeRequestData',   'kyaulabs-unserialize-request-data'],
-        ['MissingCsrfToken',        'kyaulabs-missing-csrf-token'],
-        ['HardcodedDisplayErrors',  'kyaulabs-hardcoded-display-errors-on'],
-    ])
+    ->with(array_map(
+        static fn (array $r): array => [$r['dir'], $r['rule']],
+        semgrepRulesProvider(),
+    ))
     ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId): array {
         $scan = semgrepScanAll();
@@ -233,6 +251,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
