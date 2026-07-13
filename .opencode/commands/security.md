@@ -6,12 +6,19 @@ subtask: true
 Run a combined security scan and report all findings grouped by severity in a
 single summary.
 
+## Baseline argument
+
+The user may specify a baseline commit or branch: $ARGUMENTS
+
+If empty, default to `develop` (or `main` if on `main`). If still empty and
+the working tree is clean, use `--baseline-commit HEAD~1`.
+
 ## 1. SAST scan
 
-Invoke `@semgrep` in **diff audit** mode. Use `--baseline-commit <base>`
-where `<base>` is the target branch (default `develop`, or `main` if the
-user specifies). If no baseline is specified and the working tree is clean,
-use `--baseline-commit HEAD~1` to scan the most recent commit.
+Invoke `@semgrep` in **diff audit** mode. Use `--baseline-commit` with the
+baseline specified in the argument section above. If the argument is empty
+and the working tree is clean, use `--baseline-commit HEAD~1` to scan the
+most recent commit.
 
 ## 2. Dependency audit
 

@@ -7,10 +7,16 @@ Survey the most recently completed task or feature and deliver a pedagogical
 summary at the user's level. Reference specifics — file paths, commit hashes,
 design decisions — not vague generalities.
 
+## Topic argument
+
+The user may specify a topic, file, commit, or time range to focus on: $ARGUMENTS
+
+If empty, survey the most recently completed work by default.
+
 ## 1. Survey recent work
 
 Review the conversation and recent git log for the most recently completed
-task:
+task. If a specific topic was provided in the argument above, focus on that:
 
 ```bash
 git log --oneline -5

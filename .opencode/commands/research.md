@@ -7,6 +7,10 @@ Research the user's question and produce a cited summary. Load
 `.opencode/docs/research.md` for source-trust heuristics and the citation
 format before writing the summary.
 
+## The question
+
+$ARGUMENTS
+
 ## 1. Clarify scope
 
 Restate the question in one sentence. If it is ambiguous, ask the user a

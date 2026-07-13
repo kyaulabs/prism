@@ -6,6 +6,12 @@ agent: build
 Parse a writing-plans-format plan file and push it into GitHub Issues as an
 epic with per-task sub-issues. Runs `gh issue create` after user confirmation.
 
+## Plan file argument
+
+The user may specify a plan file path: $ARGUMENTS
+
+If the above is empty, automatically pick the most recent plan (Step 2).
+
 ## 1. Prerequisites
 
 ```bash
@@ -23,7 +29,7 @@ Fix:
 
 ## 2. Identify the plan file
 
-If the user specified a plan file path, use it. Otherwise pick the most recent
+If the argument above specifies a plan file path, use it. Otherwise pick the most recent
 plan:
 
 ```bash
