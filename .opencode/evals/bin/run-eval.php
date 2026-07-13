@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * run-eval.php — Execute a single eval case against opencode run.
  *
@@ -113,6 +116,10 @@ $worktree = null;
 $result = null;
 
 try {
+    if ($runner->isWorkingTreeDirty()) {
+        fwrite(STDERR, "NOTICE: working tree has uncommitted changes — propagating to worktree\n");
+    }
+
     $worktree = $runner->createWorktree();
 
     $start = hrtime(true);
@@ -170,6 +177,7 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 
 
