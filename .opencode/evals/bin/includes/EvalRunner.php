@@ -951,6 +951,73 @@ PROMPT;
     }
 
     /**
+     * Propagate uncommitted changes from the source working tree into a worktree.
+     *
+     * Uses `git stash push --include-untracked` to capture modified tracked
+     * files and new untracked files (excluding .gitignore'd paths), then
+     * applies the stash in the worktree. The source working tree is restored
+     * immediately via `git stash pop --index` inside a `finally` block so
+     * the source tree is never left in a modified state — even if the apply
+     * fails. Since the worktree shares the object database and is at the same
+     * HEAD, the apply is conflict-free.
+     *
+     * @param  string $worktree  Absolute path to the worktree directory.
+     * @return bool  True if changes were propagated, false if the tree was clean.
+     * @throws \RuntimeException  If stash apply fails in the worktree.
+     */
+    public function propagateUncommittedChanges(string $worktree): bool
+    {
+        $stashCmd = sprintf(
+            'git -C %s stash push --include-untracked '
+            . '--message eval-propagation 2>&1',
+            escapeshellarg($this->repoRoot),
+        );
+
+        $stashOutput = [];
+        $stashExit = 0;
+        exec($stashCmd, $stashOutput, $stashExit);
+
+        if ($stashExit !== 0) {
+            return false;
+        }
+
+        $stashSummary = implode("\n", $stashOutput);
+
+        // If no local changes to save, the working tree is clean.
+        if (str_contains($stashSummary, 'No local changes to save')) {
+            return false;
+        }
+
+        try {
+            $applyCmd = sprintf(
+                'git -C %s stash apply 2>&1',
+                escapeshellarg($worktree),
+            );
+
+            $applyOutput = [];
+            $applyExit = 0;
+            exec($applyCmd, $applyOutput, $applyExit);
+
+            if ($applyExit !== 0) {
+                throw new \RuntimeException(
+                    'Failed to apply uncommitted changes to worktree: '
+                    . implode("\n", $applyOutput),
+                );
+            }
+        } finally {
+            // Restore the source working tree even if apply fails.
+            // git stash pop --index applies the stash back and drops it.
+            $popCmd = sprintf(
+                'git -C %s stash pop --index 2>&1',
+                escapeshellarg($this->repoRoot),
+            );
+            exec($popCmd);
+        }
+
+        return true;
+    }
+
+    /**
      * Create a disposable detached git worktree of the repo root.
      *
      * The worktree shares the source repo's object database but has its own
@@ -1035,6 +1102,8 @@ PROMPT;
         }
     }
 }
+
+
 
 
 
