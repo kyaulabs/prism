@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -287,6 +290,30 @@ test('rules pack stays in sync across YAML, provider, and fixtures', function ()
     }
 });
 
+test('semgrep scan over fixtures exits zero (experimental flag still recognized)')
+    ->skip(!semgrepAvailable(), 'semgrep not installed')
+    ->expect(function (): int {
+        return semgrepScanAll()['exitCode'];
+    })->toBe(0, 'semgrep exited non-zero. The experimental'
+        . ' --x-ignore-semgrepignore-files flag may have been removed/renamed,'
+        . ' or semgrep otherwise failed. Do not trust any positive/negative'
+        . ' result until this passes (negatives pass vacuously on empty results).');
+
+test('semgrep still advertises the --x-ignore-semgrepignore-files flag')
+    ->skip(!semgrepAvailable(), 'semgrep not installed')
+    ->expect(function (): bool {
+        $output = [];
+        $code = 0;
+        exec(semgrepBin() . ' scan --help 2>&1', $output, $code);
+
+        $help = preg_replace('/\x1b\[[0-9;]*m/', '', implode("\n", $output));
+
+        return str_contains($help, 'x-ignore-semgrepignore-files');
+    })->toBeTrue('semgrep no longer advertises'
+        . ' --x-ignore-semgrepignore-files in `scan --help`. The flag may be'
+        . ' graduating (dropping the x- prefix) or being removed. Update the'
+        . ' command in semgrepScanAll() and this assertion to the new name.');
+
 test('Semgrep rules: each positive fixture fires its rule the expected number of times')
     ->with(array_map(
         static fn (array $r): array => [$r['dir'], $r['rule'], $r['positive']],
@@ -332,6 +359,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
