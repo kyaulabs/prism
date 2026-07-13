@@ -82,8 +82,10 @@ agent: build          # or "subtask: true" for subtask commands
 ### Agents
 
 1. **Role statement** — "You are a ...".
-2. **The task** — `$ARGUMENTS` placeholder (agents receive their invocation
-   args here).
+2. **The task** — a heading that tells the agent the task arrives in its
+   invocation message (a separate user message delivered at runtime). Do NOT
+   use `$ARGUMENTS` — that is a command-only feature and renders as literal
+   text in agent system prompts.
 3. **Workflow** — numbered steps.
 4. **Output format** — a template for the agent's report.
 5. **Rules** — hard constraints.
@@ -91,9 +93,13 @@ agent: build          # or "subtask: true" for subtask commands
 ### Commands
 
 1. **One-line summary** of what the command does.
-2. **Steps** — numbered, with bash commands in code blocks.
-3. **Output** — what to report.
-4. **Rules** — hard constraints.
+2. **Arguments** — use `$ARGUMENTS` to place the user's invocation arguments
+   at a specific point in the template, or `$1`, `$2`, ... for positional
+   parameters. If neither is present, arguments are appended to the end of
+   the template as a fallback — but explicit placement is preferred.
+3. **Steps** — numbered, with bash commands in code blocks.
+4. **Output** — what to report.
+5. **Rules** — hard constraints.
 
 ## Quality checks
 
@@ -159,6 +165,12 @@ causes a preventable mistake.
   NOT bare `git push` — the bare form falls through to the catch-all.
   Always use the space-less prefix form: `"git push*"`, `"ls*"`, `"grep*"`.
   The `validate-harness.sh` regression check enforces this.
+- *`$ARGUMENTS` or `!`command`` used in an agent file* — both are
+  command-only features in opencode (processed in `SessionPrompt.command()`,
+  not in agent system prompt assembly). In agents they render as literal
+  text. Agents receive their task as a separate user message at runtime —
+  reference "the invocation message" instead. The arch test
+  `agent files do not use command-only template features` enforces this.
 
 ## Mandatory: Gotchas section
 
