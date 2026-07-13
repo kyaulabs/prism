@@ -14,18 +14,19 @@ rules:
       env_bool('APP_DEBUG') so production deployments
       never expose verbose error display to visitors. Prefer named
       arguments: status: env_bool('APP_DEBUG').
-      See ADR-0002 and the aurora-page skill.
+      See ADR-0002 and the aurora-page skill. Genuine exceptions use
+      // nosemgrep: kyaulabs-aurora-status-true-literal -- <justification>.
     severity: ERROR
     languages: [php]
     pattern-either:
-      - patterns:
-          - pattern: |
-              new KYAULabs\Aurora($TEMPLATE, $CDN, true, ...);
-          - pattern-not-regex: '\bAPP_DEBUG\b'
-      - patterns:
-          - pattern: |
-              new KYAULabs\Aurora(..., status: true, ...);
-          - pattern-not-regex: '\bAPP_DEBUG\b'
+      - pattern: |
+          new KYAULabs\Aurora($TEMPLATE, $CDN, true, ...);
+      - pattern: |
+          new KYAULabs\Aurora(..., status: true, ...);
+      - pattern: |
+          new \KYAULabs\Aurora($TEMPLATE, $CDN, true, ...);
+      - pattern: |
+          new \KYAULabs\Aurora(..., status: true, ...);
 
   # --- SQL injection: string concatenation in query() ---
   - id: kyaulabs-sqli-interpolated-query
