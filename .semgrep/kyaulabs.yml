@@ -45,24 +45,35 @@ rules:
           - pattern-regex: 'query\(\s*"[^"]*\$[^"]*"\s*\)'
       - pattern-not-regex: '\b(?:execute|prepare)\b'
 
-  # --- XSS: unescaped echo/print of request superglobals ---
+  # --- XSS: unescaped echo/print of request-reachable data (taint mode) ---
+  # Mirrors kyaulabs-unserialize-request-data: sources are request
+  # superglobals, sinks are echo/print/printf (direct output). Taint
+  # propagates through assignment and concatenation, so indirect flows like
+  # $x = $_GET[...]; echo $x; are now caught.
+  # Sanitizers: htmlspecialchars and htmlentities stop the taint flow. A
+  # custom escaping wrapper will NOT be recognized — suppress with
+  # // nosemgrep: kyaulabs-xss-echo-request-sink -- <justification>.
   - id: kyaulabs-xss-echo-request-sink
     message: >-
       Unescaped request superglobal written directly to output.
       Escape with htmlspecialchars($val, ENT_QUOTES | ENT_HTML5, 'UTF-8').
     severity: ERROR
     languages: [php]
-    pattern-either:
-      - pattern: echo $_GET[$KEY];
-      - pattern: echo $_POST[$KEY];
-      - pattern: echo $_REQUEST[$KEY];
-      - pattern: echo $_COOKIE[$KEY];
-      - pattern: echo $_SERVER[$KEY];
-      - pattern: print $_GET[$KEY];
-      - pattern: print $_POST[$KEY];
-      - pattern: print $_REQUEST[$KEY];
-      - pattern: print $_COOKIE[$KEY];
-      - pattern: print $_SERVER[$KEY];
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+      - pattern: $_FILES
+      - pattern: $_SERVER
+    pattern-sanitizers:
+      - pattern: htmlspecialchars(...)
+      - pattern: htmlentities(...)
+    pattern-sinks:
+      - pattern: echo $X;
+      - pattern: print $X;
+      - pattern: printf(...);
 
   # --- Deserialization: unserialize on request-reachable data ---
   - id: kyaulabs-unserialize-request-data
