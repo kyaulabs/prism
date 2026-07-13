@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunEvalIntegrationTest.php kyau@nova 2026/07/05 -0700 Exp $
+# $KYAULabs: RunEvalIntegrationTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 /**
  * @group slow
  *
  * Requires opencode in PATH and a configured LLM provider.
- * Skip in default test runs; run manually or in pre-commit/pre-push hook.
+ * Excluded from default runs (phpunit.xml excludes 'slow' group).
+ * Run manually: vendor/bin/pest --group slow
  */
 it('runs tdd-red-green smoke case through full pipeline', function () {
     $repoRoot = dirname(__DIR__, 3);
@@ -49,13 +53,19 @@ it('runs tdd-red-green smoke case through full pipeline', function () {
     expect($result)->toBeArray();
     expect($result['name'] ?? '')->toBe('tdd-red-green');
 
-    // The test may pass or fail — the integration test verifies the runner
-    // produces valid JSON with expected fields, not that the agent behaves
-    // perfectly (that's what the LLM judge does).
+    // opencode is present (checked above), so the runner must actually execute.
+    // PASS and FAIL are both valid outcomes — the judge determines quality.
+    // TIMEOUT is a legitimate slow-model outcome. SKIPPED means the runner
+    // bailed without running (broken/misconfigured); INVALID means the smoke
+    // case is malformed — both indicate a broken pipeline and must fail.
     expect($result)->toHaveKey('verdict');
     expect($result)->toHaveKey('behaviors');
     expect($result)->toHaveKey('duration_ms');
-    expect(in_array($result['verdict'], ['PASS', 'FAIL', 'SKIPPED', 'TIMEOUT', 'INVALID']))->toBeTrue();
+    expect(in_array($result['verdict'], ['PASS', 'FAIL', 'TIMEOUT']))->toBeTrue(
+        'opencode is present but verdict was ' . ($result['verdict'] ?? 'NULL')
+        . ' — SKIPPED/INVALID indicate a broken or misconfigured runner'
+    );
 })->group('slow');
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
