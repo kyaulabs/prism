@@ -7,15 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -224,7 +215,7 @@ test('rules pack stays in sync across YAML, provider, and fixtures', function ()
 
     // Regex extraction is safe: the YAML is first-party/controlled and `id:`
     // appears only as the list-item form `- id: <rule>` under `rules:`.
-    preg_match_all('/^[ \t]*-[ \t]+id:[ \t]+([A-Za-z0-9][A-Za-z0-9_-]*)/m', $yaml, $m);
+    preg_match_all('/^[ \t]*-[ \t]+id:[ \t]+([A-Za-z0-9][A-Za-z0-9._+-]*)/m', $yaml, $m);
     $yamlRules = array_values(array_unique($m[1]));
 
     $rows = semgrepRulesProvider();
@@ -359,6 +350,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
