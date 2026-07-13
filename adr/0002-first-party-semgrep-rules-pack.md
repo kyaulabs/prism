@@ -50,8 +50,10 @@ diff-time early warning + test-time enforcement.
 **Rule-authoring convention**: new rules follow TDD:
 1. Write positive fixture (code that SHOULD trigger the rule).
 2. Write negative fixture (code that SHOULD NOT trigger).
-3. Add the fixture directory to the `semgrepRulesProvider()` in
-   `RulesPackTest.php`.
+3. Add one row to `semgrepRulesProvider()` in `RulesPackTest.php` — a
+   `['dir' => <Dir>, 'rule' => <rule-id>, 'positive' => <expected count>]`
+   entry. The positive and negative dataset tests project from this single
+   source of truth.
 4. Run the test — it fails (Red).
 5. Implement the rule in `.semgrep/kyaulabs.yml`.
 6. Run the test — it passes (Green).
@@ -73,6 +75,24 @@ See the `/security` command's false-positive adjudication protocol.
   regressions immediately visible).
 - **Dependency:** requires `semgrep` on the build/review host. Already a
   soft-requirement for `/check` and `@semgrep` — no new tooling.
+- **Sync enforcement (issue #94):** a test in `RulesPackTest.php` keeps the
+  rules pack, `semgrepRulesProvider()`, and the `tests/Semgrep/<Dir>/`
+  fixtures in lock-step. It extracts rule ids from `.semgrep/kyaulabs.yml`,
+  asserts set-equality with the provider, verifies each provider directory
+  has both `positive.php` and `negative.php`, and rejects orphan fixture
+  directories. A rule added to the YAML without a provider row + fixtures
+  now fails the test suite — the "no untested rules" invariant is mechanized,
+  not aspirational.
+- **`--x-ignore-semgrepignore-files` dependency:** the test harness scans
+  `tests/Semgrep/` even though `.semgrepignore` excludes it (intentionally
+  vulnerable SAST fixtures must not pollute normal scans). It relies on
+  semgrep's experimental `--x-ignore-semgrepignore-files` flag to bypass
+  that exclusion during validation. Two guards pin it: the scan's exit code
+  is asserted `0` (so a failed scan cannot let negatives pass vacuously on
+  empty results), and `semgrep scan --help` is checked for the flag name as
+  an early-warning canary against rename/removal. If the flag graduates
+  (drops the `x-` prefix) or is removed, update `semgrepScanAll()` and the
+  canary assertion.
 
 ## Alternatives Considered
 
