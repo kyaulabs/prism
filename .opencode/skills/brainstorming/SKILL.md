@@ -173,7 +173,7 @@ the spec review. Only proceed once the user approves.
 - `systems-design` skill — ADR vs RFC decision, deep-modules heuristic,
   interface-design checklist.
 - `@architect` agent — for non-trivial or cross-cutting changes, suggest an
-  architect review before implementation.
+  architect review before `writing-plans`.
 
 ## Gotchas
 

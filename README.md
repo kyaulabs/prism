@@ -611,7 +611,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 ### Project context — living docs
 
 * **`CONTEXT.md`** — the domain's *what* and *why*: glossary, entities, invariants, boundaries, non-goals. Agents read it before domain-coupled work and update it when domain language changes. Draft a fresh one with `/prime`.
-* **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before non-trivial changes to check for ADR conflicts.
+* **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before `writing-plans` to check for ADR conflicts on non-trivial changes.
 
 ### Activation
 
