@@ -62,8 +62,11 @@ class EvalCase
     }
 
     /**
-     * Validate this case against the schema. Returns an array of error
-     * messages; empty array means valid.
+     * Validate this case using hand-rolled rules mirrored from
+     * .opencode/evals/schema.json. Returns an array of error messages; an
+     * empty array means valid. Parity with schema.json is enforced by
+     * tests/Unit/Eval/EvalCaseSchemaParityTest.php — when editing this method
+     * or schema.json, keep both in sync or that test fails in CI.
      *
      * @return string[]
      */
@@ -91,6 +94,26 @@ class EvalCase
             }
         }
 
+        foreach ($this->expectedBehavior as $i => $item) {
+            if (!is_string($item)) {
+                $errors[] = "expected_behavior[{$i}] must be a string";
+            }
+        }
+
+        foreach ($this->tags as $i => $item) {
+            if (!is_string($item)) {
+                $errors[] = "tags[{$i}] must be a string";
+            }
+        }
+
+        if ($this->name !== '' && preg_match('/^[a-z][a-z0-9-]*$/', $this->name) !== 1) {
+            $errors[] = "name '{$this->name}' must be kebab-case (lowercase letters, digits, hyphens; must start with a letter)";
+        }
+
+        if ($this->agent !== '' && preg_match('/^@?[a-z][a-z0-9_-]*$/', $this->agent) !== 1) {
+            $errors[] = "agent '{$this->agent}' must be kebab-case, optionally @-prefixed";
+        }
+
         $validCriteria = [
             'all behaviors observed',
             'no errors in output',
@@ -108,9 +131,9 @@ class EvalCase
             $errors[] = "expected_string is required when pass_criteria is 'output contains expected string'";
         }
 
-        if ($this->expectedString !== null && $this->expectedString !== ''
+        if ($this->expectedString !== null
             && $this->passCriteria !== 'output contains expected string') {
-            $errors[] = "expected_string is set but pass_criteria is '{$this->passCriteria}' (did you mean 'output contains expected string'?)";
+            $errors[] = "expected_string must not be set when pass_criteria is '{$this->passCriteria}' (it is only valid with 'output contains expected string')";
         }
 
         return $errors;
@@ -1119,6 +1142,9 @@ PROMPT;
         }
     }
 }
+
+
+
 
 
 

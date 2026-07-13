@@ -2,7 +2,16 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalCaseTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: EvalCaseTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -150,7 +159,7 @@ it('warns when expected_string is set but pass_criteria does not require it', fu
 
     $errors = EvalCase::fromFile($file)->validate();
 
-    expect($errors)->toContain("expected_string is set but pass_criteria is 'exit code zero' (did you mean 'output contains expected string'?)");
+    expect($errors)->toContain("expected_string must not be set when pass_criteria is 'exit code zero' (it is only valid with 'output contains expected string')");
     unlink($file);
 });
 
@@ -228,6 +237,62 @@ it('fromFile coerces wrong-typed expected_string to null', function () {
     unlink($file);
 });
 
+it('rejects a name that is not kebab-case', function () {
+    $json = json_encode([
+        'name' => 'Bad_Name',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, "name 'Bad_Name'"));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('rejects an agent that is not kebab-case (with optional @)', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => 'Bad Agent',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'agent'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('accepts a valid @-prefixed agent', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->toBeEmpty();
+    unlink($file);
+});
+
 it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
     $json = json_encode([
         'name' => 'test',
@@ -245,6 +310,67 @@ it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
     expect($case->passCriteria)->toBe('');
     unlink($file);
 });
+
+it('rejects non-string items in expected_behavior', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => [123, 'ok'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'expected_behavior'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('rejects expected_string present (even empty) when pass_criteria is not a string match', function () {
+    $json = json_encode([
+        'name' => 'reverse-empty',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'exit code zero',
+        'expected_string' => '',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'expected_string'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('rejects non-string items in tags', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+        'tags' => ['ok', 5],
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'tags'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
