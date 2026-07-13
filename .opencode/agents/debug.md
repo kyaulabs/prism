@@ -20,6 +20,8 @@ permission:
     "php -v": "allow"
     "php vendor/bin/pest*": "allow"
     "php prototypes/*": "allow"
+    "rm tests/*": "ask"
+    "rm prototypes/*": "ask"
     "curl*": "ask"
     "git checkout*": "deny"
     "git log*": "allow"

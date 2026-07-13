@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -719,6 +720,27 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	fi
 done
 
+# ── Check throwaway-dir edit-allow has matching rm permission ─────────────────
+
+echo "── Checking throwaway-dir edit/rm permission consistency ──"
+
+# An agent with edit allow on throwaway scaffolding dirs (prototypes/**,
+# tests/**) must also have a scoped rm bash permission, else mandatory
+# cleanup phases (e.g. @debug Phase 6) stall with no permitted delete path.
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	if echo "$fm" | grep -qE '"prototypes/\*\*"[[:space:]]*:[[:space:]]*"?allow"?'; then
+		if ! echo "$fm" | grep -qE '"rm prototypes/\*"'; then
+			err "${agent_file}: grants edit allow on 'prototypes/**' but lacks 'rm prototypes/*' bash permission (cleanup blocked)"
+		fi
+	fi
+	if echo "$fm" | grep -qE '"tests/\*\*"[[:space:]]*:[[:space:]]*"?allow"?'; then
+		if ! echo "$fm" | grep -qE '"rm tests/\*"'; then
+			err "${agent_file}: grants edit allow on 'tests/**' but lacks 'rm tests/*' bash permission (cleanup blocked)"
+		fi
+	fi
+done
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -752,6 +774,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

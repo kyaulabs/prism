@@ -10,6 +10,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1188,6 +1189,83 @@ EOF
 )
 rm -rf "$T25"
 
+# ── Test 26: edit-allow on prototypes/** without rm permission is caught ─────
+
+echo "── Test 26: edit-allow prototypes/** without rm is caught ──"
+T26=$(mktemp -d)
+(
+	cd "$T26"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/debugger.md <<'EOF'
+---
+description: Investigates bugs with scoped write access.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+    "prototypes/**": "allow"
+  bash:
+    "*": "deny"
+    "php prototypes/*": "allow"
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "cleanup blocked"; then
+		pass "Caught edit-allow prototypes/** without rm permission"
+	else
+		fail "Did not detect edit-allow prototypes/** without rm permission"
+	fi
+)
+rm -rf "$T26"
+
+# ── Test 27: edit-allow on prototypes/** with rm permission not flagged ───────
+
+echo "── Test 27: edit-allow prototypes/** with rm not flagged ──"
+T27=$(mktemp -d)
+(
+	cd "$T27"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/debugger.md <<'EOF'
+---
+description: Investigates bugs with scoped write access.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+    "prototypes/**": "allow"
+  bash:
+    "*": "deny"
+    "php prototypes/*": "allow"
+    "rm prototypes/*": "ask"
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "cleanup blocked"; then
+		fail "edit-allow prototypes/** with rm permission was falsely flagged"
+	else
+		pass "edit-allow prototypes/** with rm permission not flagged"
+	fi
+)
+rm -rf "$T27"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -1206,6 +1284,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
