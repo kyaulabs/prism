@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\EvalCase;
 
 it('parses a valid eval case JSON file', function () {
@@ -156,7 +159,7 @@ it('warns when expected_string is set but pass_criteria does not require it', fu
 
     $errors = EvalCase::fromFile($file)->validate();
 
-    expect($errors)->toContain("expected_string is set but pass_criteria is 'exit code zero' (did you mean 'output contains expected string'?)");
+    expect($errors)->toContain("expected_string must not be set when pass_criteria is 'exit code zero' (it is only valid with 'output contains expected string')");
     unlink($file);
 });
 
@@ -327,6 +330,26 @@ it('rejects non-string items in expected_behavior', function () {
     unlink($file);
 });
 
+it('rejects expected_string present (even empty) when pass_criteria is not a string match', function () {
+    $json = json_encode([
+        'name' => 'reverse-empty',
+        'description' => 'desc',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['behavior'],
+        'pass_criteria' => 'exit code zero',
+        'expected_string' => '',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'expected_string'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
 it('rejects non-string items in tags', function () {
     $json = json_encode([
         'name' => 'test',
@@ -346,6 +369,7 @@ it('rejects non-string items in tags', function () {
     expect($filtered)->not->toBeEmpty();
     unlink($file);
 });
+
 
 
 
