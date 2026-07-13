@@ -17,7 +17,7 @@ php .opencode/evals/bin/run-eval.php .opencode/evals/smoke/tdd-red-green.json
 
 Options: `--timeout <seconds>` (default 120), `--dry-run` (print command, don't execute).
 
-Output: JSON result object to stdout. Exit code 0 = PASS, 1 = FAIL, 2 = SKIPPED.
+Output: JSON result object to stdout. Exit code 0 = PASS, 1 = FAIL/TIMEOUT/INVALID/UNDETERMINED, 2 = SKIPPED.
 
 ### Run a suite
 
@@ -25,10 +25,10 @@ Output: JSON result object to stdout. Exit code 0 = PASS, 1 = FAIL, 2 = SKIPPED.
 php .opencode/evals/bin/run-suite.php .opencode/evals/smoke/
 ```
 
-Options: `--tag <tag>` (filter by tags field), `--timeout <seconds>` (per case).
+Options: `--tag <tag>` (filter by tags field), `--timeout <seconds>` (per case), `--fail-on-skip` (treat skipped as failure), `--fail-on-undetermined` (treat undetermined as failure).
 
 Output: markdown summary table to stdout, detailed JSON to `results/<timestamp>.json`.
-Exit code 0 = all passed, 1 = one or more failures.
+Exit code 0 = all passed (UNDETERMINED does not gate), 1 = one or more failures (FAIL/TIMEOUT/INVALID, or UNDETERMINED with --fail-on-undetermined), 2 = all skipped.
 
 ### In pre-commit/pre-push hooks
 

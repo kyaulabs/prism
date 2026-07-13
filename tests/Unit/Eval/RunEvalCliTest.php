@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunEvalCliTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -63,6 +66,13 @@ it('run-eval.php produces INVALID JSON for wrong-typed case fields', function ()
     expect($decoded['verdict'])->toBe('INVALID');
 
     unlink($caseFile);
+});
+
+
+it('run-eval.php header documents UNDETERMINED in exit codes', function () {
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
+    $contents = file_get_contents($script);
+    expect($contents)->toContain('UNDETERMINED');
 });
 
 

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-eval.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: run-eval.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -22,7 +25,7 @@ declare(strict_types=1);
  *
  * Exit codes:
  *   0 — PASS
- *   1 — FAIL, TIMEOUT, or INVALID
+ *   1 — FAIL, TIMEOUT, INVALID, or UNDETERMINED (not a PASS)
  *   2 — SKIPPED (opencode not available)
  */
 
@@ -167,6 +170,7 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 
 
