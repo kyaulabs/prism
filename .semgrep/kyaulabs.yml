@@ -28,22 +28,31 @@ rules:
       - pattern: |
           new \KYAULabs\Aurora(..., status: true, ...);
 
-  # --- SQL injection: string concatenation in query() ---
+  # --- SQL injection: request-reachable data in query() (taint mode) ---
+  # Mirrors kyaulabs-xss-echo-request-sink and
+  # kyaulabs-unserialize-request-data: sources are request superglobals,
+  # sink is $DB->query(...). Taint propagates through assignment,
+  # concatenation, sprintf, and heredoc interpolation, so indirect flows
+  # like $id = $_GET[...]; $sql = "..." . $id; $db->query($sql); are
+  # caught. execute() and prepare() are simply not sinks — the old
+  # pattern-not-regex over-suppression is eliminated.
   - id: kyaulabs-sqli-interpolated-query
     message: >-
-      SQL query uses string concatenation in a query() call.
+      Request-reachable data flows into a raw query() call.
       Use parameterized queries with bound parameters:
       $db->execute("SELECT ... WHERE x = ?", [$var]).
     severity: ERROR
     languages: [php]
-    patterns:
-      - pattern-either:
-          - pattern: $DB->query("..." . $VAR);
-          - pattern: $DB->query("..." . $VAR . "...");
-          - pattern: $DB->query($VAR . "...");
-          - pattern: $DB->query("..." . $VAR,);
-          - pattern-regex: 'query\(\s*"[^"]*\$[^"]*"\s*\)'
-      - pattern-not-regex: '\b(?:execute|prepare)\b'
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+      - pattern: $_FILES
+      - pattern: $_SERVER
+    pattern-sinks:
+      - pattern: $DB->query(...)
 
   # --- XSS: unescaped echo/print of request-reachable data (taint mode) ---
   # Mirrors kyaulabs-unserialize-request-data: sources are request
