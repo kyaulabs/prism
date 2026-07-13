@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -678,6 +681,66 @@ else
 	ok "${RO_CHECKED} read-only agent(s) checked, ${RO_VIOLATIONS} violation(s)"
 fi
 
+# ── Check git add/git stage verdict parity ────────────────────────────────────
+
+echo "── Checking git add/git stage verdict parity ──"
+
+# git add and git stage are synonyms. Where both patterns coexist, their
+# verdicts must match — a mismatch is a latent bypass or false-deny.
+
+# opencode.json (inline agent permission blocks)
+add_v=$(grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+stage_v=$(grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+if [ -n "$add_v" ] && [ -n "$stage_v" ] && [ "$add_v" != "$stage_v" ]; then
+	err "opencode.json: 'git add*' ($add_v) and 'git stage*' ($stage_v) are git synonyms with different verdicts"
+fi
+
+# Agent .md frontmatter
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	a_v=$(echo "$fm" | grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+	s_v=$(echo "$fm" | grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+	if [ -n "$a_v" ] && [ -n "$s_v" ] && [ "$a_v" != "$s_v" ]; then
+		err "${agent_file}: 'git add*' ($a_v) and 'git stage*' ($s_v) are git synonyms with different verdicts"
+	fi
+done
+
+# ── Check for bare "git status" without wildcard ──────────────────────────────
+
+echo "── Checking for bare 'git status' permission patterns ──"
+
+# "git status" (no wildcard) matches only the exact command, silently blocking
+# read-only variants like "git status --porcelain". Use "git status*" instead.
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	# Key "git status" with closing quote immediately before the colon excludes
+	# the wildcard form "git status*" (which has * before the closing quote).
+	if echo "$fm" | grep -qE '"git status"[[:space:]]*:'; then
+		err "${agent_file}: bare 'git status' permission cannot match 'git status --porcelain'; use 'git status*' wildcard"
+	fi
+done
+
+# ── Check throwaway-dir edit-allow has matching rm permission ─────────────────
+
+echo "── Checking throwaway-dir edit/rm permission consistency ──"
+
+# An agent with edit allow on throwaway scaffolding dirs (prototypes/**,
+# tests/**) must also have a scoped rm bash permission, else mandatory
+# cleanup phases (e.g. @debug Phase 6) stall with no permitted delete path.
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	if echo "$fm" | grep -qE '"prototypes/\*\*"[[:space:]]*:[[:space:]]*"?allow"?'; then
+		if ! echo "$fm" | grep -qE '"rm prototypes/\*"'; then
+			err "${agent_file}: grants edit allow on 'prototypes/**' but lacks 'rm prototypes/*' bash permission (cleanup blocked)"
+		fi
+	fi
+	if echo "$fm" | grep -qE '"tests/\*\*"[[:space:]]*:[[:space:]]*"?allow"?'; then
+		if ! echo "$fm" | grep -qE '"rm tests/\*"'; then
+			err "${agent_file}: grants edit allow on 'tests/**' but lacks 'rm tests/*' bash permission (cleanup blocked)"
+		fi
+	fi
+done
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -711,6 +774,9 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 

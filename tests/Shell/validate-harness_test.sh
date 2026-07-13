@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -398,7 +401,7 @@ mode: subagent
 permission:
   bash:
     "git push *": "deny"
-    "git status": "allow"
+    "git status*": "allow"
 ---
 EOF
 
@@ -1030,6 +1033,239 @@ EOF
 )
 rm -rf "$T21"
 
+# ── Test 22: git add/stage verdict mismatch in opencode.json is caught ────────
+
+echo "── Test 22: git add/stage verdict mismatch is caught ──"
+T22=$(mktemp -d)
+(
+	cd "$T22"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > opencode.json <<'EOF'
+{
+	"agents": {
+		"build": {
+			"permission": {
+				"bash": {
+					"*": "allow",
+					"git add*": "ask",
+					"git stage*": "deny"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "git synonyms with different verdicts"; then
+		pass "Caught git add/stage verdict mismatch in opencode.json"
+	else
+		fail "Did not detect git add/stage verdict mismatch"
+	fi
+)
+rm -rf "$T22"
+
+# ── Test 23: matching git add/stage verdicts are not flagged ──────────────────
+
+echo "── Test 23: matching git add/stage verdicts not flagged ──"
+T23=$(mktemp -d)
+(
+	cd "$T23"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > opencode.json <<'EOF'
+{
+	"agents": {
+		"build": {
+			"permission": {
+				"bash": {
+					"*": "allow",
+					"git add*": "ask",
+					"git stage*": "ask"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "git synonyms with different verdicts"; then
+		fail "Matching git add/stage verdicts were falsely flagged"
+	else
+		pass "Matching git add/stage verdicts not flagged"
+	fi
+)
+rm -rf "$T23"
+
+# ── Test 24: bare "git status" without wildcard is caught ─────────────────────
+
+echo "── Test 24: bare 'git status' permission is caught ──"
+T24=$(mktemp -d)
+(
+	cd "$T24"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "git status": "allow"
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "bare 'git status' permission cannot match"; then
+		pass "Caught bare 'git status' permission pattern"
+	else
+		fail "Did not detect bare 'git status' permission pattern"
+	fi
+)
+rm -rf "$T24"
+
+# ── Test 25: "git status*" wildcard is not flagged ────────────────────────────
+
+echo "── Test 25: 'git status*' wildcard not flagged ──"
+T25=$(mktemp -d)
+(
+	cd "$T25"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "git status*": "allow"
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "bare 'git status' permission cannot match"; then
+		fail "'git status*' wildcard was falsely flagged as bare"
+	else
+		pass "'git status*' wildcard not flagged"
+	fi
+)
+rm -rf "$T25"
+
+# ── Test 26: edit-allow on prototypes/** without rm permission is caught ─────
+
+echo "── Test 26: edit-allow prototypes/** without rm is caught ──"
+T26=$(mktemp -d)
+(
+	cd "$T26"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/debugger.md <<'EOF'
+---
+description: Investigates bugs with scoped write access.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+    "prototypes/**": "allow"
+  bash:
+    "*": "deny"
+    "php prototypes/*": "allow"
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "cleanup blocked"; then
+		pass "Caught edit-allow prototypes/** without rm permission"
+	else
+		fail "Did not detect edit-allow prototypes/** without rm permission"
+	fi
+)
+rm -rf "$T26"
+
+# ── Test 27: edit-allow on prototypes/** with rm permission not flagged ───────
+
+echo "── Test 27: edit-allow prototypes/** with rm not flagged ──"
+T27=$(mktemp -d)
+(
+	cd "$T27"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/debugger.md <<'EOF'
+---
+description: Investigates bugs with scoped write access.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+    "prototypes/**": "allow"
+  bash:
+    "*": "deny"
+    "php prototypes/*": "allow"
+    "rm prototypes/*": "ask"
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "cleanup blocked"; then
+		fail "edit-allow prototypes/** with rm permission was falsely flagged"
+	else
+		pass "edit-allow prototypes/** with rm permission not flagged"
+	fi
+)
+rm -rf "$T27"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -1048,6 +1284,9 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 

@@ -14,7 +14,7 @@ permission:
     "find*": allow
     "git log*": allow
     "git show*": allow
-    "git status": allow
+    "git status*": allow
     "git diff*": allow
   webfetch: deny
   task: deny

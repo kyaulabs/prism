@@ -15,7 +15,7 @@ permission:
     "php -d pcov.enabled=1 vendor/bin/pest*": allow
     "git log*": allow
     "git show*": allow
-    "git status": allow
+    "git status*": allow
     "git diff*": allow
   webfetch: deny
   task: deny
