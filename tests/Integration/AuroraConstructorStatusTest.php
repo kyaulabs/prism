@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorStatusTest.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: AuroraConstructorStatusTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -16,6 +19,8 @@ declare(strict_types=1);
  * The kyaulabs-aurora-status-true-literal Semgrep rule provides early
  * warning at diff-audit time (see ADR-0002).
  */
+
+afterEach(restoreEnvVars('APP_DEBUG'));
 
 test('Aurora constructor must not hardcode $status=true in web-accessible files', function () {
     $root = dirname(__DIR__, 2);
@@ -142,11 +147,6 @@ test('regex catches hardcoded status:true in a planted fixture', function () {
 test('env_bool returns true after load_env loads APP_DEBUG=true', function () {
     require_once __DIR__ . '/../../backend/env.php';
 
-    // Clear any leftover state from other test files (e.g. EnvBoolTest
-    // may leave putenv('APP_DEBUG=false') in the global environment).
-    unset($_ENV['APP_DEBUG']);
-    putenv('APP_DEBUG');
-
     $path = sys_get_temp_dir() . '/test_integration_debug.env';
     file_put_contents($path, "APP_DEBUG=true\n");
 
@@ -157,15 +157,10 @@ test('env_bool returns true after load_env loads APP_DEBUG=true', function () {
     expect($result)->toBeTrue();
 
     unlink($path);
-    unset($_ENV['APP_DEBUG']);
-    putenv('APP_DEBUG');
 });
 
 test('env_bool returns false when load_env file is absent (prod default)', function () {
     require_once __DIR__ . '/../../backend/env.php';
-
-    unset($_ENV['APP_DEBUG']);
-    putenv('APP_DEBUG');
 
     $path = sys_get_temp_dir() . '/definitely_not_a_file.env';
 
@@ -175,6 +170,7 @@ test('env_bool returns false when load_env file is absent (prod default)', funct
 
     expect($result)->toBeFalse();
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

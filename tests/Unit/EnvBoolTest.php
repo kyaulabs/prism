@@ -2,9 +2,14 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EnvBoolTest.php kyau@nova 2026/07/06 -0700 Exp $
+# $KYAULabs: EnvBoolTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 require_once __DIR__ . '/../../backend/env.php';
+
+afterEach(restoreEnvVars('APP_DEBUG', 'UNSET_KEY'));
 
 test('env_bool returns false when value is the string "false"', function () {
     $_ENV['APP_DEBUG'] = 'false';
@@ -102,5 +107,6 @@ test('env_bool returns false for unrecognized string value', function () {
 
     expect($result)->toBeFalse();
 });
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

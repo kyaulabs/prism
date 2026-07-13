@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: LoadEnvTest.php kyau@nova 2026/07/06 -0700 Exp $
+# $KYAULabs: LoadEnvTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 require_once __DIR__ . '/../../backend/env.php';
 
@@ -15,6 +18,8 @@ beforeEach(function () {
     putenv('EQUALS_KEY');
 });
 
+afterEach(restoreEnvVars('APP_DEBUG', 'TEST_KEY', 'QUOTED_KEY', 'EQUALS_KEY'));
+
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
     $path = sys_get_temp_dir() . '/test_env_true.env';
     file_put_contents($path, "APP_DEBUG=true\n");
@@ -24,7 +29,6 @@ test('load_env parses .env with APP_DEBUG=true and env_bool returns true', funct
     expect(env_bool('APP_DEBUG'))->toBeTrue();
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
 
 test('load_env parses .env with APP_DEBUG=false and env_bool returns false', function () {
@@ -36,7 +40,6 @@ test('load_env parses .env with APP_DEBUG=false and env_bool returns false', fun
     expect(env_bool('APP_DEBUG'))->toBeFalse();
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
 
 test('load_env with file absent does not change env_bool default', function () {
@@ -58,8 +61,6 @@ test('load_env does not overwrite pre-set $_ENV key', function () {
     expect($_ENV['TEST_KEY'])->toBe('server_value');
 
     unlink($path);
-    unset($_ENV['TEST_KEY']);
-    putenv('TEST_KEY');
 });
 
 test('load_env does not overwrite pre-set getenv key when $_ENV is not set', function () {
@@ -74,7 +75,6 @@ test('load_env does not overwrite pre-set getenv key when $_ENV is not set', fun
     expect(getenv('TEST_KEY'))->toBe('server_value');
 
     unlink($path);
-    putenv('TEST_KEY');
 });
 
 test('load_env skips hash comment lines', function () {
@@ -86,7 +86,6 @@ test('load_env skips hash comment lines', function () {
     expect(env_bool('APP_DEBUG'))->toBeTrue();
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
 
 test('load_env skips semicolon comment lines', function () {
@@ -98,7 +97,6 @@ test('load_env skips semicolon comment lines', function () {
     expect(env_bool('APP_DEBUG'))->toBeTrue();
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
 
 test('load_env skips blank lines', function () {
@@ -110,7 +108,6 @@ test('load_env skips blank lines', function () {
     expect(env_bool('APP_DEBUG'))->toBeTrue();
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
 
 test('load_env strips surrounding double quotes from value', function () {
@@ -122,8 +119,6 @@ test('load_env strips surrounding double quotes from value', function () {
     expect($_ENV['QUOTED_KEY'])->toBe('value with spaces');
 
     unlink($path);
-    unset($_ENV['QUOTED_KEY']);
-    putenv('QUOTED_KEY');
 });
 
 test('load_env strips surrounding single quotes from value', function () {
@@ -135,8 +130,6 @@ test('load_env strips surrounding single quotes from value', function () {
     expect($_ENV['QUOTED_KEY'])->toBe('single quoted');
 
     unlink($path);
-    unset($_ENV['QUOTED_KEY']);
-    putenv('QUOTED_KEY');
 });
 
 test('load_env splits only on first = in line', function () {
@@ -148,8 +141,6 @@ test('load_env splits only on first = in line', function () {
     expect($_ENV['EQUALS_KEY'])->toBe('value=with=equals');
 
     unlink($path);
-    unset($_ENV['EQUALS_KEY']);
-    putenv('EQUALS_KEY');
 });
 
 test('load_env sets both $_ENV and getenv for each key', function () {
@@ -162,7 +153,7 @@ test('load_env sets both $_ENV and getenv for each key', function () {
     expect(getenv('APP_DEBUG'))->toBe('true');
 
     unlink($path);
-    putenv('APP_DEBUG');
 });
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
