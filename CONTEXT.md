@@ -63,6 +63,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0014-model-default-rebalancing.md` — Model default rebalancing (primary/planner/judge/utility tier defaults) and temperature explicitness
 - `adr/0015-index-based-linting-in-pre-commit-hook.md` — Index-based linting in pre-commit hook (lint staged blobs, not working-tree files)
 - `adr/0016-eval-case-dual-validation.md` — schema.json canonical, validate() hand-rolled mirror guarded by parity test; runtime schema validation deferred due to worktree vendor/ constraint
+- `adr/0017-command-only-template-features.md` — $ARGUMENTS and !`command` shell injection are command-only; agents use invocation-message references
 
 ## When to update this file
 
