@@ -88,9 +88,6 @@ etc.). Manual refresh — no watchers (per AGENTS.md build policy).
 
 - `writing-skills` skill — how to write skills, agents, and commands per
   OpenCode conventions.
-- `customize-opencode` skill — editing opencode's own configuration (may
-  overlap; this skill provides the doc reference; customize-opencode provides
-  the editing workflow).
 - `/research` command — fall back when the vendored docs don't cover the
   question.
 

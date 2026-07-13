@@ -66,7 +66,7 @@ agent: build          # or "subtask: true" for subtask commands
 
 - `agent: build` — the command runs in the build agent context (full tool
   access).
-- `subtask: true` — the command is a subtask (no agent context switch).
+- `subtask: true` — forces a subagent invocation (isolated context; keeps the command out of the primary agent's context).
 
 ## Body structure
 

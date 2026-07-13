@@ -112,7 +112,7 @@ see the brainstorming skill for the full definition.
 brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-1. **Brainstorm** the change (grilling skill) → spec in `docs/specs/`.
+1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`.
 2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
 4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.

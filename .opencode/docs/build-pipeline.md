@@ -1,6 +1,6 @@
 # Build Pipeline
 
-Referenced by `opencode.json`. Loaded alongside AGENTS.md in every session.
+On-demand reference. Not auto-loaded — only `AGENTS.md` and `conventions.md` load every session.
 
 Assets are built **manually** — no watchers, no automatic pipelines.
 
