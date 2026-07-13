@@ -132,7 +132,7 @@ user's discretion.
 Commitlint validates every commit message via `.github/hooks/commit-msg`.
 The hook blocks the commit if the format is invalid.
 Config: `commitlint.config.js` extends `@commitlint/config-conventional`,
-with a custom `type-enum` that adds `build`, `patch`, and `ignore` to the
+with a custom `type-enum` that adds `patch` and `ignore` to the
 standard set.
 
 Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
