@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RulesPackTest.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: RulesPackTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -186,7 +189,7 @@ function filterFindings(array $results, string $ruleId, string $dir, string $fix
 test('Semgrep rules: each positive fixture fires its rule the expected number of times')
     ->with([
         ['AuroraStatusTrue',        'kyaulabs-aurora-status-true-literal', 4],
-        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query',    2],
+        ['SqliInterpolatedQuery',    'kyaulabs-sqli-interpolated-query',    7],
         ['XssEchoRequestSink',      'kyaulabs-xss-echo-request-sink',      3],
         ['UnserializeRequestData',   'kyaulabs-unserialize-request-data',   1],
         ['MissingCsrfToken',        'kyaulabs-missing-csrf-token',         1],
@@ -236,6 +239,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
