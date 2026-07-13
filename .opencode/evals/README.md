@@ -62,6 +62,14 @@ worktree is removed in a `finally` path after the case completes (or times
 out), so a real eval run leaves `git status --porcelain` unchanged in the
 source repo.
 
+Uncommitted changes in the source working tree are **propagated into the
+worktree** via `git stash push --include-untracked` + `git stash apply`,
+so the eval tests the author's current working state, not the last commit.
+The source working tree is restored immediately via `git stash pop --index`
+in a `finally` block. A notice is printed to stderr when the working tree
+is dirty. This means the before/after authoring workflow (see convention #4
+below) works correctly without committing between runs.
+
 The LLM judge runs as a dedicated **read-only `judge` agent** (see
 `opencode.json`) with `edit` and `bash` denied — it cannot mutate files or
 run shell commands even if prompted to.
