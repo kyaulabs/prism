@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use Opis\JsonSchema\Validator;
 
 describe('eval case schema conformance', function () {
@@ -44,6 +47,21 @@ describe('eval case schema conformance', function () {
         return array_map(fn ($f) => [$f], $files);
     });
 
+    it('rejects expected_string when pass_criteria is not a string match', function () use ($buildValidator, $schemaId) {
+        $case = (object) [
+            'name' => 'reverse-mismatch',
+            'description' => 'x',
+            'agent' => '@tdd',
+            'input' => 'x',
+            'expected_behavior' => ['an observable behavior'],
+            'pass_criteria' => 'exit code zero',
+            'expected_string' => 'should not be here',
+        ];
+        $result = $buildValidator()->validate($case, $schemaId);
+
+        expect($result->isValid())->toBeFalse();
+    });
+
     it('rejects a deliberately invalid case (negative control)', function () use ($buildValidator, $schemaId) {
         $bad = (object) [
             'name' => 'Bad_Name',          // violates kebab pattern
@@ -58,6 +76,7 @@ describe('eval case schema conformance', function () {
         expect($result->isValid())->toBeFalse();
     });
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

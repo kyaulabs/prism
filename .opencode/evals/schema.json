@@ -57,5 +57,8 @@
   },
   "then": {
     "required": ["expected_string"]
+  },
+  "else": {
+    "not": { "required": ["expected_string"] }
   }
 }
