@@ -91,6 +91,18 @@ class EvalCase
             }
         }
 
+        foreach ($this->expectedBehavior as $i => $item) {
+            if (!is_string($item)) {
+                $errors[] = "expected_behavior[{$i}] must be a string";
+            }
+        }
+
+        foreach ($this->tags as $i => $item) {
+            if (!is_string($item)) {
+                $errors[] = "tags[{$i}] must be a string";
+            }
+        }
+
         if ($this->name !== '' && preg_match('/^[a-z][a-z0-9-]*$/', $this->name) !== 1) {
             $errors[] = "name '{$this->name}' must be kebab-case (lowercase letters, digits, hyphens; must start with a letter)";
         }
@@ -1127,6 +1139,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

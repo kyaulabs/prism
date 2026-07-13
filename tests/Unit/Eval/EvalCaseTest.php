@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\EvalCase;
 
 it('parses a valid eval case JSON file', function () {
@@ -302,6 +305,45 @@ it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
     $case = EvalCase::fromFile($file);
 
     expect($case->passCriteria)->toBe('');
+    unlink($file);
+});
+
+it('rejects non-string items in expected_behavior', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => [123, 'ok'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'expected_behavior'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('rejects non-string items in tags', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+        'tags' => ['ok', 5],
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'tags'));
+    expect($filtered)->not->toBeEmpty();
     unlink($file);
 });
 
