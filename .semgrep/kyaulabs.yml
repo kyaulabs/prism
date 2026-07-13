@@ -51,6 +51,9 @@ rules:
       - pattern: $_COOKIE
       - pattern: $_FILES
       - pattern: $_SERVER
+    # Sanitizers: none. The safe path is $DB->execute() with bound
+    # parameters, not escape-then-query(). Suppress genuine exceptions
+    # via // nosemgrep: kyaulabs-sqli-interpolated-query -- <justification>.
     pattern-sinks:
       - pattern: $DB->query(...)
 
