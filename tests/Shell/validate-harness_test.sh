@@ -9,6 +9,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -399,7 +400,7 @@ mode: subagent
 permission:
   bash:
     "git push *": "deny"
-    "git status": "allow"
+    "git status*": "allow"
 ---
 EOF
 
@@ -1111,6 +1112,82 @@ EOF
 )
 rm -rf "$T23"
 
+# ── Test 24: bare "git status" without wildcard is caught ─────────────────────
+
+echo "── Test 24: bare 'git status' permission is caught ──"
+T24=$(mktemp -d)
+(
+	cd "$T24"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "git status": "allow"
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "bare 'git status' permission cannot match"; then
+		pass "Caught bare 'git status' permission pattern"
+	else
+		fail "Did not detect bare 'git status' permission pattern"
+	fi
+)
+rm -rf "$T24"
+
+# ── Test 25: "git status*" wildcard is not flagged ────────────────────────────
+
+echo "── Test 25: 'git status*' wildcard not flagged ──"
+T25=$(mktemp -d)
+(
+	cd "$T25"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "git status*": "allow"
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "bare 'git status' permission cannot match"; then
+		fail "'git status*' wildcard was falsely flagged as bare"
+	else
+		pass "'git status*' wildcard not flagged"
+	fi
+)
+rm -rf "$T25"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -1129,6 +1206,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

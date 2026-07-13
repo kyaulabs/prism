@@ -25,7 +25,7 @@ permission:
     "git log*": "allow"
     "git diff*": "allow"
     "git show*": "allow"
-    "git status": "allow"
+    "git status*": "allow"
     "git stash list": "allow"
     "git stash show*": "allow"
     "git blame*": "allow"

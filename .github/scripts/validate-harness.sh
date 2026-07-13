@@ -4,6 +4,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -703,6 +704,21 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	fi
 done
 
+# ── Check for bare "git status" without wildcard ──────────────────────────────
+
+echo "── Checking for bare 'git status' permission patterns ──"
+
+# "git status" (no wildcard) matches only the exact command, silently blocking
+# read-only variants like "git status --porcelain". Use "git status*" instead.
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	# Key "git status" with closing quote immediately before the colon excludes
+	# the wildcard form "git status*" (which has * before the closing quote).
+	if echo "$fm" | grep -qE '"git status"[[:space:]]*:'; then
+		err "${agent_file}: bare 'git status' permission cannot match 'git status --porcelain'; use 'git status*' wildcard"
+	fi
+done
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -736,6 +752,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
