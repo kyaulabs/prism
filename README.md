@@ -465,7 +465,7 @@ brainstorming → prototype (if needed) → writing-plans → executing-plans �
 7. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
 8. **Review** — invoke `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before step 4. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
+For non-trivial or cross-cutting changes, insert `@architect` before `writing-plans`. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
 
 ### Primary agents
 

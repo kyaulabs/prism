@@ -121,7 +121,7 @@ brainstorming → prototype (if needed) → writing-plans → executing-plans �
 7. **Gate** with `/check` (lint + coverage 80%).
 8. **Review** with `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before step 4.
+For non-trivial or cross-cutting changes, insert `@architect` before `writing-plans`.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 For architectural entropy, run `/improve-architecture` on a cadence.
 
