@@ -91,6 +91,14 @@ class EvalCase
             }
         }
 
+        if ($this->name !== '' && preg_match('/^[a-z][a-z0-9-]*$/', $this->name) !== 1) {
+            $errors[] = "name '{$this->name}' must be kebab-case (lowercase letters, digits, hyphens; must start with a letter)";
+        }
+
+        if ($this->agent !== '' && preg_match('/^@?[a-z][a-z0-9_-]*$/', $this->agent) !== 1) {
+            $errors[] = "agent '{$this->agent}' must be kebab-case, optionally @-prefixed";
+        }
+
         $validCriteria = [
             'all behaviors observed',
             'no errors in output',
@@ -1119,6 +1127,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

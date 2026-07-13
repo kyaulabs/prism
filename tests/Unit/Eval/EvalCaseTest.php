@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalCaseTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: EvalCaseTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -228,6 +231,62 @@ it('fromFile coerces wrong-typed expected_string to null', function () {
     unlink($file);
 });
 
+it('rejects a name that is not kebab-case', function () {
+    $json = json_encode([
+        'name' => 'Bad_Name',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, "name 'Bad_Name'"));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('rejects an agent that is not kebab-case (with optional @)', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => 'Bad Agent',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    $filtered = array_filter($errors, fn ($m) => str_contains($m, 'agent'));
+    expect($filtered)->not->toBeEmpty();
+    unlink($file);
+});
+
+it('accepts a valid @-prefixed agent', function () {
+    $json = json_encode([
+        'name' => 'test',
+        'description' => 'test',
+        'agent' => '@tdd',
+        'input' => 'test',
+        'expected_behavior' => ['test'],
+        'pass_criteria' => 'all behaviors observed',
+    ]);
+    $file = tempnam(sys_get_temp_dir(), 'eval_');
+    file_put_contents($file, $json);
+
+    $errors = EvalCase::fromFile($file)->validate();
+
+    expect($errors)->toBeEmpty();
+    unlink($file);
+});
+
 it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
     $json = json_encode([
         'name' => 'test',
@@ -245,6 +304,7 @@ it('fromFile coerces wrong-typed pass_criteria to empty string', function () {
     expect($case->passCriteria)->toBe('');
     unlink($file);
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
