@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunnerTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: RunnerTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -812,6 +815,52 @@ it('buildJudgeCommand returns skeleton without prompt for stdin delivery', funct
     expect($cmd)->not->toContain('do thing');
 });
 
+it('isWorkingTreeDirty returns false on a clean tree', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/README', "init\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add README');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    try {
+        $runner = new Runner($repo);
+        expect($runner->isWorkingTreeDirty())->toBeFalse();
+    } finally {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
+        } else {
+            exec('rm -rf ' . escapeshellarg($repo));
+        }
+    }
+});
+
+it('isWorkingTreeDirty returns true on a dirty tree', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/README', "init\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add README');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Make an uncommitted change
+    file_put_contents($repo . '/README', "modified\n");
+
+    try {
+        $runner = new Runner($repo);
+        expect($runner->isWorkingTreeDirty())->toBeTrue();
+    } finally {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
+        } else {
+            exec('rm -rf ' . escapeshellarg($repo));
+        }
+    }
+});
 
 
 

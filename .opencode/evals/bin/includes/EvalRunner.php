@@ -928,6 +928,29 @@ PROMPT;
     }
 
     /**
+     * Check whether the source working tree has uncommitted changes.
+     *
+     * @return bool  True if `git status --porcelain` reports any changes.
+     */
+    public function isWorkingTreeDirty(): bool
+    {
+        $cmd = sprintf(
+            'git -C %s status --porcelain 2>&1',
+            escapeshellarg($this->repoRoot),
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            return false;
+        }
+
+        return !empty(array_filter($output));
+    }
+
+    /**
      * Create a disposable detached git worktree of the repo root.
      *
      * The worktree shares the source repo's object database but has its own
@@ -1012,6 +1035,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
