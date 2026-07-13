@@ -28,6 +28,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -880,9 +883,16 @@ it('propagateUncommittedChanges applies modified tracked files to worktree', fun
 
     $worktree = null;
     try {
-        $runner = new Runner($repo);
-        $worktree = $runner->createWorktree();
+        // Create worktree manually (not via createWorktree) so the
+        // propagate call is tested in isolation.
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+        exec(sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($repo),
+            escapeshellarg($worktree),
+        ));
 
+        $runner = new Runner($repo);
         $propagated = $runner->propagateUncommittedChanges($worktree);
 
         expect($propagated)->toBeTrue();
@@ -916,9 +926,16 @@ it('propagateUncommittedChanges applies untracked files to worktree', function (
 
     $worktree = null;
     try {
-        $runner = new Runner($repo);
-        $worktree = $runner->createWorktree();
+        // Create worktree manually (not via createWorktree) so the
+        // propagate call is tested in isolation.
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+        exec(sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($repo),
+            escapeshellarg($worktree),
+        ));
 
+        $runner = new Runner($repo);
         $propagated = $runner->propagateUncommittedChanges($worktree);
 
         expect($propagated)->toBeTrue();
@@ -956,6 +973,73 @@ it('propagateUncommittedChanges returns false on a clean tree', function () {
         $propagated = $runner->propagateUncommittedChanges($worktree);
 
         expect($propagated)->toBeFalse();
+    } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
+        if (is_dir($repo)) {
+            if (DIRECTORY_SEPARATOR === '\\') {
+                exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
+            } else {
+                exec('rm -rf ' . escapeshellarg($repo));
+            }
+        }
+    }
+});
+it('createWorktree propagates uncommitted modifications to the worktree', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/skill.md', "original content\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Make an uncommitted change
+    file_put_contents($repo . '/skill.md', "modified content\n");
+
+    $worktree = null;
+    try {
+        $runner = new Runner($repo);
+        $worktree = $runner->createWorktree();
+
+        // The worktree should contain the MODIFIED content, not the committed content
+        expect(file_get_contents($worktree . '/skill.md'))->toBe("modified content\n");
+    } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
+        if (is_dir($repo)) {
+            if (DIRECTORY_SEPARATOR === '\\') {
+                exec('rd /s /q ' . escapeshellarg($repo) . ' 2>NUL');
+            } else {
+                exec('rm -rf ' . escapeshellarg($repo));
+            }
+        }
+    }
+});
+
+it('createWorktree propagates untracked files to the worktree', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/README', "init\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add README');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Add an untracked file (e.g., a new skill not yet committed)
+    file_put_contents($repo . '/new_skill.md', "new skill content\n");
+
+    $worktree = null;
+    try {
+        $runner = new Runner($repo);
+        $worktree = $runner->createWorktree();
+
+        expect(file_exists($worktree . '/new_skill.md'))->toBeTrue();
+        expect(file_get_contents($worktree . '/new_skill.md'))->toBe("new skill content\n");
     } finally {
         if ($worktree !== null && is_dir($worktree)) {
             exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');

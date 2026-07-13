@@ -1048,6 +1048,13 @@ PROMPT;
             );
         }
 
+        try {
+            $this->propagateUncommittedChanges($worktree);
+        } catch (\Throwable $e) {
+            $this->removeWorktree($worktree);
+            throw $e;
+        }
+
         return $worktree;
     }
 
@@ -1102,6 +1109,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
