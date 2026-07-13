@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunSuiteTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -108,6 +111,20 @@ it('run-suite.php --dry-run streams verbatim and exits 0', function () {
     rmdir($tmpDir);
 });
 
+
+
+it('run-suite.php header documents --fail-on-undetermined flag', function () {
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
+    $contents = file_get_contents($script);
+    expect($contents)->toContain('--fail-on-undetermined');
+    expect($contents)->toContain('UNDETERMINED');
+});
+
+it('run-suite.php summary line includes undetermined count', function () {
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
+    $contents = file_get_contents($script);
+    expect($contents)->toContain('undetermined');
+});
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

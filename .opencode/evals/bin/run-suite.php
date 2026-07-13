@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-suite.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: run-suite.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 
 
@@ -16,7 +19,7 @@ declare(strict_types=1);
 /**
  * run-suite.php — Batch eval suite runner.
  *
- * Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip]
+ * Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip] [--fail-on-undetermined]
  *
  * Discovers all .json eval case files in the given directory, optionally
  * filtered by --tag. Runs each through run-eval.php, aggregates results,
@@ -24,8 +27,9 @@ declare(strict_types=1);
  * results file.
  *
  * Exit codes:
- *   0 — all cases PASS (mixed PASS+SKIP with no failures is 0)
- *   1 — any FAIL, TIMEOUT, or INVALID case (or any SKIP with --fail-on-skip)
+ *   0 — all cases PASS (mixed PASS+SKIP+UNDETERMINED with no failures is 0)
+ *   1 — any FAIL, TIMEOUT, or INVALID case (or any SKIP with --fail-on-skip,
+ *       or any UNDETERMINED with --fail-on-undetermined)
  *   2 — every case SKIPPED (silent-suite guard)
  */
 
@@ -42,6 +46,7 @@ $tag = null;
 $timeout = 120;
 $dryRun = false;
 $failOnSkip = false;
+$failOnUndetermined = false;
 
 for ($i = 1; $i < count($argv); $i++) {
     if ($argv[$i] === '--tag' && isset($argv[$i + 1])) {
@@ -52,6 +57,8 @@ for ($i = 1; $i < count($argv); $i++) {
         $dryRun = true;
     } elseif ($argv[$i] === '--fail-on-skip') {
         $failOnSkip = true;
+    } elseif ($argv[$i] === '--fail-on-undetermined') {
+        $failOnUndetermined = true;
     } elseif (!str_starts_with($argv[$i], '--')) {
         $directory = $argv[$i];
     }
@@ -59,7 +66,7 @@ for ($i = 1; $i < count($argv); $i++) {
 
 if ($directory === '' || !is_dir($directory)) {
     fwrite(STDERR, "Error: directory not found: {$directory}\n");
-    fwrite(STDERR, "Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip]\n");
+    fwrite(STDERR, "Usage: php run-suite.php <directory> [--tag <tag>] [--timeout <seconds>] [--dry-run] [--fail-on-skip] [--fail-on-undetermined]\n");
     exit(1);
 }
 
@@ -149,6 +156,7 @@ $failCount = 0;
 $skipCount = 0;
 $timeoutCount = 0;
 $invalidCount = 0;
+$undeterminedCount = 0;
 
 foreach ($results as $i => $r) {
     $num = $i + 1;
@@ -166,12 +174,13 @@ foreach ($results as $i => $r) {
         'FAIL' => $failCount++,
         'TIMEOUT' => $timeoutCount++,
         'SKIPPED' => $skipCount++,
+        'UNDETERMINED' => $undeterminedCount++,
         default => $invalidCount++,
     };
 }
 
 $total = count($results);
-echo "\n**Suite: {$passCount}/{$total} passed ({$failCount} failed, {$timeoutCount} timeout, {$skipCount} skipped, {$invalidCount} invalid)**\n";
+echo "\n**Suite: {$passCount}/{$total} passed ({$failCount} failed, {$timeoutCount} timeout, {$skipCount} skipped, {$invalidCount} invalid, {$undeterminedCount} undetermined)**\n";
 echo "\n" . str_repeat('-', 60) . "\n";
 
 // ── Write JSON results ───────────────────────────────────────────────────
@@ -196,6 +205,8 @@ $exitCode = Runner::computeSuiteExitCode(
     $skipCount,
     $invalidCount,
     $failOnSkip,
+    $undeterminedCount,
+    $failOnUndetermined,
 );
 
 if ($total > 0 && $skipCount === $total) {
@@ -204,6 +215,7 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
 
 
 
