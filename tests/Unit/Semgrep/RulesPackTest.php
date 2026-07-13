@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -206,6 +209,84 @@ function semgrepRulesProvider(): array
     ];
 }
 
+test('rules pack stays in sync across YAML, provider, and fixtures', function (): void {
+    $repoRoot = dirname(__DIR__, 3);
+    $yamlPath = $repoRoot . DIRECTORY_SEPARATOR . '.semgrep'
+        . DIRECTORY_SEPARATOR . 'kyaulabs.yml';
+    $fixturesRoot = $repoRoot . DIRECTORY_SEPARATOR . 'tests'
+        . DIRECTORY_SEPARATOR . 'Semgrep';
+
+    $yaml = file_get_contents($yamlPath);
+    expect($yaml)->not->toBeEmpty(".semgrep/kyaulabs.yml missing or empty at {$yamlPath}");
+
+    // Regex extraction is safe: the YAML is first-party/controlled and `id:`
+    // appears only as the list-item form `- id: <rule>` under `rules:`.
+    preg_match_all('/^[ \t]*-[ \t]+id:[ \t]+([A-Za-z0-9][A-Za-z0-9_-]*)/m', $yaml, $m);
+    $yamlRules = array_values(array_unique($m[1]));
+
+    $rows = semgrepRulesProvider();
+    $providerRules = array_column($rows, 'rule');
+    $providerDirs = array_column($rows, 'dir');
+
+    $failures = [];
+
+    // 1. set-equality: every YAML rule is tested, no stale test rows.
+    $untested = array_values(array_diff($yamlRules, $providerRules));
+    $stale = array_values(array_diff($providerRules, $yamlRules));
+    if ($untested !== []) {
+        $failures[] = 'In YAML but absent from semgrepRulesProvider() '
+            . '(untested — violates ADR-0002 "no untested rules"): '
+            . implode(', ', $untested);
+    }
+    if ($stale !== []) {
+        $failures[] = 'In semgrepRulesProvider() but absent from YAML (stale rows): '
+            . implode(', ', $stale);
+    }
+
+    // 2. every provider dir has both fixtures.
+    foreach ($rows as $r) {
+        foreach (['positive.php', 'negative.php'] as $fixture) {
+            $path = $fixturesRoot . DIRECTORY_SEPARATOR . $r['dir']
+                . DIRECTORY_SEPARATOR . $fixture;
+            if (!is_file($path)) {
+                $failures[] = "Provider references tests/Semgrep/{$r['dir']}/{$fixture} but it does not exist.";
+            }
+        }
+    }
+
+    // 3. no orphan fixture directories.
+    $diskDirs = [];
+    foreach (glob($fixturesRoot . '/*', GLOB_ONLYDIR) ?: [] as $d) {
+        $diskDirs[] = basename($d);
+    }
+    $orphans = array_values(array_diff($diskDirs, $providerDirs));
+    if ($orphans !== []) {
+        $failures[] = 'Fixture dirs on disk with no provider row (orphans): '
+            . implode(', ', $orphans);
+    }
+
+    // 4. no duplicate dirs or rules in the provider.
+    if (count($providerDirs) !== count(array_unique($providerDirs))) {
+        $failures[] = 'Duplicate dir entries in semgrepRulesProvider().';
+    }
+    if (count($providerRules) !== count(array_unique($providerRules))) {
+        $failures[] = 'Duplicate rule entries in semgrepRulesProvider().';
+    }
+
+    if ($failures !== []) {
+        $message = sprintf(
+            "Rules-pack sync drift detected (issue #94):\n\n%s\n\n"
+            . "Ensure each rule in .semgrep/kyaulabs.yml has exactly one row in"
+            . " semgrepRulesProvider() (RulesPackTest.php) and matching"
+            . " tests/Semgrep/<Dir>/{positive,negative}.php fixtures.",
+            implode("\n", $failures),
+        );
+        expect($failures)->toBeEmpty($message);
+    } else {
+        expect($failures)->toBeEmpty();
+    }
+});
+
 test('Semgrep rules: each positive fixture fires its rule the expected number of times')
     ->with(array_map(
         static fn (array $r): array => [$r['dir'], $r['rule'], $r['positive']],
@@ -251,6 +332,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
