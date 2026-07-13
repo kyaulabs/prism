@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -1030,6 +1031,86 @@ EOF
 )
 rm -rf "$T21"
 
+# ── Test 22: git add/stage verdict mismatch in opencode.json is caught ────────
+
+echo "── Test 22: git add/stage verdict mismatch is caught ──"
+T22=$(mktemp -d)
+(
+	cd "$T22"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > opencode.json <<'EOF'
+{
+	"agents": {
+		"build": {
+			"permission": {
+				"bash": {
+					"*": "allow",
+					"git add*": "ask",
+					"git stage*": "deny"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "git synonyms with different verdicts"; then
+		pass "Caught git add/stage verdict mismatch in opencode.json"
+	else
+		fail "Did not detect git add/stage verdict mismatch"
+	fi
+)
+rm -rf "$T22"
+
+# ── Test 23: matching git add/stage verdicts are not flagged ──────────────────
+
+echo "── Test 23: matching git add/stage verdicts not flagged ──"
+T23=$(mktemp -d)
+(
+	cd "$T23"
+	git init --quiet
+	git config commit.gpgsign false
+	git config user.email "test@example.com"
+	git config user.name "Test User"
+
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > opencode.json <<'EOF'
+{
+	"agents": {
+		"build": {
+			"permission": {
+				"bash": {
+					"*": "allow",
+					"git add*": "ask",
+					"git stage*": "ask"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "git synonyms with different verdicts"; then
+		fail "Matching git add/stage verdicts were falsely flagged"
+	else
+		pass "Matching git add/stage verdicts not flagged"
+	fi
+)
+rm -rf "$T23"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
@@ -1048,6 +1129,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

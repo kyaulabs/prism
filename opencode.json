@@ -41,7 +41,7 @@
         "bash": {
           "*": "allow",
           "git add*": "ask",
-          "git stage*": "deny",
+          "git stage*": "ask",
           "git commit*": "ask",
           "git push*": "deny"
         },
