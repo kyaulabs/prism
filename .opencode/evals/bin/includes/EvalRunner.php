@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalRunner.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: EvalRunner.php kyau@nova 2026/07/12 -0700 Exp $
 
 
 
@@ -281,9 +281,15 @@ class Runner
     /**
      * Compute the suite exit code from per-verdict counts.
      *
-     * 0 — all pass (mixed pass+skip with no failures is still 0).
-     * 1 — any FAIL/TIMEOUT/INVALID, or any SKIPPED when $failOnSkip is set.
+     * 0 — all pass (mixed pass+skip+undetermined with no failures is still 0).
+     * 1 — any FAIL/TIMEOUT/INVALID, or any SKIPPED when $failOnSkip is set,
+     *     or any UNDETERMINED when $failOnUndetermined is set.
      * 2 — every case SKIPPED (silent-suite guard); $failOnSkip promotes to 1.
+     *
+     * UNDETERMINED (manual inspection required) does NOT gate the suite by
+     * default — it is a designed verdict, not a failure. Use --fail-on-undetermined
+     * to promote any UNDETERMINED case to a failure (exit 1) in CI contexts
+     * that require human review of every case.
      *
      * @param int  $pass
      * @param int  $fail
@@ -291,6 +297,8 @@ class Runner
      * @param int  $skip
      * @param int  $invalid
      * @param bool $failOnSkip
+     * @param int  $undetermined
+     * @param bool $failOnUndetermined
      * @return int
      */
     public static function computeSuiteExitCode(
@@ -300,14 +308,20 @@ class Runner
         int $skip,
         int $invalid,
         bool $failOnSkip,
+        int $undetermined = 0,
+        bool $failOnUndetermined = false,
     ): int {
-        $total = $pass + $fail + $timeout + $skip + $invalid;
+        $total = $pass + $fail + $timeout + $skip + $invalid + $undetermined;
 
         if ($fail > 0 || $timeout > 0 || $invalid > 0) {
             return 1;
         }
 
         if ($failOnSkip && $skip > 0) {
+            return 1;
+        }
+
+        if ($failOnUndetermined && $undetermined > 0) {
             return 1;
         }
 
@@ -998,6 +1012,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

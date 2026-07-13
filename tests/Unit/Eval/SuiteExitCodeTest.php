@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SuiteExitCodeTest.php kyau@nova 2026/07/08 -0700 Exp $
+# $KYAULabs: SuiteExitCodeTest.php kyau@nova 2026/07/12 -0700 Exp $
+
+
+
 
 /**
  * SuiteExitCodeTest — Unit tests for Runner::computeSuiteExitCode().
@@ -49,5 +52,26 @@ it('returns 1 for all-skipped when --fail-on-skip is set', function () {
 it('returns 0 for an empty suite', function () {
     expect(Runner::computeSuiteExitCode(0, 0, 0, 0, 0, false))->toBe(0);
 });
+
+it('returns 0 when undetermined cases exist without failures', function () {
+    expect(Runner::computeSuiteExitCode(2, 0, 0, 0, 0, false, 1))->toBe(0);
+});
+
+it('returns 0 when only undetermined cases exist (no pass, no fail)', function () {
+    expect(Runner::computeSuiteExitCode(0, 0, 0, 0, 0, false, 2))->toBe(0);
+});
+
+it('returns 1 for any undetermined when --fail-on-undetermined is set', function () {
+    expect(Runner::computeSuiteExitCode(2, 0, 0, 0, 0, false, 1, true))->toBe(1);
+});
+
+it('returns 0 for undetermined with --fail-on-undetermined when undetermined is 0', function () {
+    expect(Runner::computeSuiteExitCode(2, 0, 0, 0, 0, false, 0, true))->toBe(0);
+});
+
+it('returns 1 when both fail and undetermined exist regardless of --fail-on-undetermined', function () {
+    expect(Runner::computeSuiteExitCode(1, 1, 0, 0, 0, false, 1, false))->toBe(1);
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
