@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php kyau@nova 2026/07/03 -0700 Exp $
+# $KYAULabs: Pest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -57,5 +60,46 @@ function browser_base_url(): string
 {
     return getenv('PEST_BROWSER_BASE_URL') ?: 'http://localhost:8080';
 }
+
+/**
+ * Snapshots environment-variable state and returns a restore closure.
+ *
+ * Captures both the $_ENV superglobal entry and the process-level
+ * getenv() value for each key. The returned closure restores each
+ * key to its pre-snapshot state — use it as an afterEach() hook
+ * to prevent cross-test-file env-var pollution.
+ *
+ * @param  string ...$keys Environment variable names to snapshot.
+ * @return Closure         Restore function — pass to afterEach().
+ */
+function restoreEnvVars(string ...$keys): Closure
+{
+    $snapshots = [];
+
+    foreach ($keys as $key) {
+        $snapshots[$key] = [
+            'hasEnv' => array_key_exists($key, $_ENV),
+            'envValue' => $_ENV[$key] ?? null,
+            'getenvValue' => getenv($key),
+        ];
+    }
+
+    return function () use ($snapshots): void {
+        foreach ($snapshots as $key => $snap) {
+            if ($snap['hasEnv']) {
+                $_ENV[$key] = $snap['envValue'];
+            } else {
+                unset($_ENV[$key]);
+            }
+
+            if ($snap['getenvValue'] === false) {
+                putenv($key);
+            } else {
+                putenv("{$key}={$snap['getenvValue']}");
+            }
+        }
+    };
+}
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
