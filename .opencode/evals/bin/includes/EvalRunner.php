@@ -978,7 +978,10 @@ PROMPT;
         exec($stashCmd, $stashOutput, $stashExit);
 
         if ($stashExit !== 0) {
-            return false;
+            throw new \RuntimeException(
+                'git stash push failed in source tree: '
+                . implode("\n", $stashOutput),
+            );
         }
 
         $stashSummary = implode("\n", $stashOutput);
@@ -1011,7 +1014,14 @@ PROMPT;
                 'git -C %s stash pop --index 2>&1',
                 escapeshellarg($this->repoRoot),
             );
-            exec($popCmd);
+            $popOutput = [];
+            $popExit = 0;
+            exec($popCmd, $popOutput, $popExit);
+            if ($popExit !== 0) {
+                fwrite(STDERR, "WARNING: git stash pop failed in source tree — "
+                    . "stash may still be on the stack. Output: "
+                    . implode("\n", $popOutput) . "\n");
+            }
         }
 
         return true;
@@ -1109,6 +1119,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

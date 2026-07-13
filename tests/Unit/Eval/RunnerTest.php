@@ -31,6 +31,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -986,6 +989,7 @@ it('propagateUncommittedChanges returns false on a clean tree', function () {
         }
     }
 });
+
 it('createWorktree propagates uncommitted modifications to the worktree', function () {
     $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
     mkdir($repo);
@@ -1053,6 +1057,7 @@ it('createWorktree propagates untracked files to the worktree', function () {
         }
     }
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
