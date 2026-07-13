@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@akira.kyaulabs 2026/07/10 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -252,6 +258,21 @@ it('judge agent uses OPENCODE_MODEL_JUDGE not PLANNER', function () {
     expect($json['agent']['judge']['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}');
 });
 
+it('judge agent has a description', function () {
+    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    expect($json['agent']['judge']['description'])
+        ->toBeString()
+        ->not->toBeEmpty();
+});
+
+it('judge agent is a primary agent (eval runner needs --agent CLI access)', function () {
+    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    expect($json['agent']['judge']['mode'])->toBe('primary');
+    // hidden must NOT be set — subagent-only; primary agents ignore it but
+    // its presence would be misleading
+    expect(array_key_exists('hidden', $json['agent']['judge']))->toBeFalse();
+});
+
 it('every agent has an explicit temperature — no silent default inheritance', function () {
     // opencode.json agents
     $config = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
@@ -287,6 +308,8 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
+
 
 
 
