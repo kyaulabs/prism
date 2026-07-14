@@ -2,6 +2,7 @@
 # $KYAULabs: rcs_header_placeholder_test.sh kyau@nova 2026/07/13 -0700 Exp $
 
 
+
 # ── Repro-first tests for pre-commit RCS placeholder rejection ──────────────
 # Verifies that the pre-commit hook blocks source files with placeholder
 # or foreign RCS headers (creator@host, YYYY/MM/DD, SEANBR~1).
@@ -32,14 +33,18 @@ git_init_test_repo "$T1"
 	cp "$PRE_COMMIT" .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
-	cat > "file.php" <<'EOF'
-<?php
-
-
-declare(strict_types=1);
-
-echo "hi";
-EOF
+	# Build file with placeholder RCS header (split to keep $KYAULabs
+	# inside a shell string — the pre-commit hook's auto-add strips
+	RCS_LINE='# $KYAULabs: file.php creator@host YYYY/MM/DD ±TZ Exp $'
+	{
+		echo '<?php'
+		echo ''
+		echo "$RCS_LINE"
+		echo ''
+		echo 'declare(strict_types=1);'
+		echo ''
+		echo 'echo "hi";'
+	} > file.php
 	git add file.php
 	if git commit --quiet -m "test: placeholder header" 2>&1; then
 		fail "commit with placeholder header was NOT rejected"
@@ -59,14 +64,16 @@ git_init_test_repo "$T2"
 	cp "$PRE_COMMIT" .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
-	cat > "file.php" <<'EOF'
-<?php
-
-
-declare(strict_types=1);
-
-echo "hi";
-EOF
+	RCS_LINE='# $KYAULabs: file.php SEANBR~1@KYAU-DEV 2025/07/05 -0500 Exp $'
+	{
+		echo '<?php'
+		echo ''
+		echo "$RCS_LINE"
+		echo ''
+		echo 'declare(strict_types=1);'
+		echo ''
+		echo 'echo "hi";'
+	} > file.php
 	git add file.php
 	if git commit --quiet -m "test: foreign header" 2>&1; then
 		fail "commit with SEANBR~1 header was NOT rejected"
@@ -86,14 +93,16 @@ git_init_test_repo "$T3"
 	cp "$PRE_COMMIT" .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
-	cat > "file.php" <<'EOF'
-<?php
-
-
-declare(strict_types=1);
-
-echo "hi";
-EOF
+	RCS_LINE='# $KYAULabs: file.php kyau@nova 2026/07/07 -0700 Exp $'
+	{
+		echo '<?php'
+		echo ''
+		echo "$RCS_LINE"
+		echo ''
+		echo 'declare(strict_types=1);'
+		echo ''
+		echo 'echo "hi";'
+	} > file.php
 	git add file.php
 	if git commit --quiet -m "test: valid header passes" 2>&1; then
 		pass "valid header accepted"
@@ -106,6 +115,7 @@ EOF
 
 print_summary "rcs-header placeholder"
 exit $?
+
 
 
 

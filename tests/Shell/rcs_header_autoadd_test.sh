@@ -8,6 +8,7 @@
 
 
 
+
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
 # Bugs under test (#28, #78):
 #   1. The auto-add overwrites the working-tree file from the staged blob; with
@@ -36,7 +37,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 # Portable sha256 hash: sha256sum (Linux/Cygwin), hash_file (macOS)
-hash_file() { sha256sum "$1" 2>/dev/null || hash_file "$1"; }
+hash_file() { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; }
 
 # ── Resolve paths BEFORE any cd ────────────────────────────────────────────────
 
@@ -470,6 +471,7 @@ rm -rf "$T8"
 
 print_summary "rcs_header_autoadd_test.sh"
 exit $?
+
 
 
 
