@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: ci_npm_test.sh kyau@akira.kyaulabs 2026/07/10 -0700 Exp $
+# $KYAULabs: ci_npm_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 # ci_npm_test.sh — Verify CI workflow uses `npm ci` (not `npm install`).
@@ -10,17 +11,11 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-trap 'rm -f "$RESULT_FILE"' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
+
 CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
 
 # ── Test 1: ci.yml must not contain `npm install` ─────────────────────
@@ -57,20 +52,10 @@ else
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-    echo "✓ CI npm tests PASSED — $total_pass assertion(s), 0 failures"
-    echo "═══════════════════════════════════════════════════════════"
-    exit 0
-else
-    echo "✗ CI npm tests FAILED — $total_pass passed, $total_fail failure(s)"
-    echo "═══════════════════════════════════════════════════════════"
-    exit 1
-fi
+print_summary "ci_npm_test.sh"
+exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

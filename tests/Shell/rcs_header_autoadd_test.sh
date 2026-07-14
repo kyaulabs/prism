@@ -7,6 +7,7 @@
 
 
 
+
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
 # Bugs under test (#28, #78):
 #   1. The auto-add overwrites the working-tree file from the staged blob; with
@@ -29,16 +30,13 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
+setup_result_file
 
-pass() { echo "${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
+# Portable sha256 hash: sha256sum (Linux/Cygwin), hash_file (macOS)
+hash_file() { sha256sum "$1" 2>/dev/null || hash_file "$1"; }
 
 # ── Resolve paths BEFORE any cd ────────────────────────────────────────────────
 
@@ -55,13 +53,10 @@ fi
 echo ""
 echo "── Test 1: Partial-stage blocks, working tree preserved ──"
 T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
+register_temp_dir "$T1"
 (
 	cd "$T1"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# Create a PHP file WITHOUT an RCS header
 	cat > file.php <<'PHPEOF'
@@ -76,7 +71,7 @@ PHPEOF
 echo "unstaged hunk";
 PHPEOF2
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(shasum -a 256 file.php | awk '{print $1}')
+	WT_HASH=$(hash_file file.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -92,7 +87,7 @@ PHPEOF2
 		fail "Partial-stage was NOT blocked (exit 0 — auto-add overwrite bug)"
 	fi
 
-	WT_AFTER=$(shasum -a 256 file.php | awk '{print $1}')
+	WT_AFTER=$(hash_file file.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -113,13 +108,10 @@ rm -rf "$T1"
 
 echo "── Test 2: Full-stage adds header and modeline ──"
 T2=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T2"
+register_temp_dir "$T2"
 (
 	cd "$T2"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# PHP file ending in PHP context (no ?>), no RCS header
 	cat > file.php <<'PHPEOF'
@@ -160,13 +152,10 @@ rm -rf "$T2"
 
 echo "── Test 3: Modeline skipped for ?>-terminated PHP ──"
 T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
+register_temp_dir "$T3"
 (
 	cd "$T3"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# PHP file ending with ?> (outside PHP context), no RCS header
 	cat > file.php <<'PHPEOF'
@@ -208,13 +197,10 @@ rm -rf "$T3"
 
 echo "── Test 4: declare line preserved once, not duplicated ──"
 T4=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T4"
+register_temp_dir "$T4"
 (
 	cd "$T4"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# PHP file with declare(strict_types=1); on line 2, no RCS header
 	cat > file.php <<'PHPEOF'
@@ -265,13 +251,10 @@ rm -rf "$T4"
 
 echo "── Test 5: Duplicate headers/modelines normalized ──"
 T5=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T5"
+register_temp_dir "$T5"
 (
 	cd "$T5"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# Broken state: 3 headers, declare after them, 5 modelines
 	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
@@ -333,13 +316,10 @@ rm -rf "$T5"
 
 echo "── Test 6: Headerless file with modeline not duplicated ──"
 T6=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T6"
+register_temp_dir "$T6"
 (
 	cd "$T6"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# File with modeline but NO header
 	{
@@ -384,13 +364,10 @@ rm -rf "$T6"
 
 echo "── Test 7: HTML-first PHP blocks auto-add ──"
 T7=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T7"
+register_temp_dir "$T7"
 (
 	cd "$T7"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# HTML-first PHP file: <!DOCTYPE html> on line 1, <?php embedded later
 	cat > page.php <<'PHPEOF'
@@ -405,7 +382,7 @@ PHPEOF
 	git add page.php
 
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(shasum -a 256 page.php | awk '{print $1}')
+	WT_HASH=$(hash_file page.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -421,7 +398,7 @@ PHPEOF
 	fi
 
 	# Working tree should be preserved byte-for-byte
-	WT_AFTER=$(shasum -a 256 page.php | awk '{print $1}')
+	WT_AFTER=$(hash_file page.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -442,13 +419,10 @@ rm -rf "$T7"
 
 echo "── Test 8: Shebang PHP blocks auto-add ──"
 T8=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T8"
+register_temp_dir "$T8"
 (
 	cd "$T8"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# Shebang PHP file: #!/usr/bin/env php on line 1, <?php on line 2
 	cat > script.php <<'PHPEOF'
@@ -459,7 +433,7 @@ PHPEOF
 	git add script.php
 
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(shasum -a 256 script.php | awk '{print $1}')
+	WT_HASH=$(hash_file script.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -475,7 +449,7 @@ PHPEOF
 	fi
 
 	# Working tree should be preserved byte-for-byte
-	WT_AFTER=$(shasum -a 256 script.php | awk '{print $1}')
+	WT_AFTER=$(hash_file script.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -494,22 +468,9 @@ rm -rf "$T8"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "rcs_header_autoadd_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ rcs-header autoadd tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ rcs-header autoadd tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
 
 
 

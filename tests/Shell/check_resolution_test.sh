@@ -3,6 +3,7 @@
 
 
 
+
 # ── Tests for pre-commit hook CS-fixer resolution ──────────────────────────
 # Covers:
 #   - Real pre-commit hook detects CS violations in staged PHP
@@ -86,16 +87,15 @@ if (
 
 	setup_linter_repo .
 
-	# Create a conforming PHP file (PSR-12, strict types, proper RCS header
-	# so the RCS auto-add section doesn't flag or modify it).
+	# Create a conforming PHP file (PSR-12, strict types). No RCS header
+	# or vim modeline here — the pre-commit hook's auto-add section
+	# strips those tokens globally, including from inside heredocs.
 	cat > good.php <<'PHP'
 <?php
 
 declare(strict_types=1);
 
-
 echo "hello";
-
 PHP
 
 	git add good.php
@@ -127,6 +127,7 @@ fi
 
 print_summary "check_resolution_test.sh"
 exit $?
+
 
 
 
