@@ -1,6 +1,6 @@
 # 0002. First-Party Semgrep Rules Pack
 
-Date: 2026-07-05
+Date: 2026-07-14
 
 ## Status
 
@@ -64,6 +64,14 @@ diff-time early warning + test-time enforcement.
 forbidden. Suppressions are re-reviewed when the named rule is updated.
 See the `/security` command's false-positive adjudication protocol.
 
+**Metadata convention (issue #104):** each rule carries a `metadata:`
+block with `category: security`, a `cwe:` ID + description, `technology:
+[php|generic]`, `confidence:` and `likelihood:` ratings (HIGH/MEDIUM/LOW),
+and `references:` pointing to relevant CWE/OWASP pages and ADR-0002. These
+blocks are informational — they document the security taxonomy and enable
+SARIF consumers to display categorized findings without affecting rule
+matching.
+
 ## Consequences
 
 - **Easier:** Aurora-specific footguns and no-framework sinks are detected
@@ -93,6 +101,14 @@ See the `/security` command's false-positive adjudication protocol.
   an early-warning canary against rename/removal. If the flag graduates
   (drops the `x-` prefix) or is removed, update `semgrepScanAll()` and the
   canary assertion.
+- **CSRF regex expansion (issue #104):** the `pattern-regex` for
+  `kyaulabs-missing-csrf-token` was changed from a strict `</form>`
+  requirement to `(?:</form>|\z)`, catching forms without closing tags.
+  The regex continues to match the full form body so that
+  `pattern-not-regex: '(?i)csrf'` (which checks the matched region, not
+  the file level) can detect CSRF token hidden inputs and suppress findings.
+  The `severity: INFO` and "review manually" message mitigate potential
+  false positives from matching inside HTML comments.
 
 ## Alternatives Considered
 
