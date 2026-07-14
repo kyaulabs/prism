@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunnerTest.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: RunnerTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -397,6 +400,19 @@ it('isOpenCodeAvailable ignores a non-executable opencode on PATH', function () 
         rmdir($dir);
     }
 });
+
+it('Runner constructor throws TypeError for non-string repoRoot', function () {
+    new Runner(123);
+})->throws(\TypeError::class);
+
+it('Runner constructor throws TypeError for null repoRoot', function () {
+    $null = null;
+    new Runner($null);
+})->throws(\TypeError::class);
+
+it('EvalCase constructor throws TypeError for non-array expectedBehavior', function () {
+    new EvalCase('test', 'test', '@tdd', 'test', 'not-an-array', 'all behaviors observed');
+})->throws(\TypeError::class);
 
 it('hasSetSid is cached after first probe', function () {
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -1057,6 +1073,7 @@ it('createWorktree propagates untracked files to the worktree', function () {
         }
     }
 });
+
 
 
 

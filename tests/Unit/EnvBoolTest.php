@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 afterEach(restoreEnvVars('APP_DEBUG', 'UNSET_KEY'));
@@ -100,6 +103,15 @@ test('env_bool respects getenv() fallback when $_ENV is not set but getenv() ret
     expect($result)->toBeFalse();
 });
 
+test('env_bool prefers $_ENV over getenv() when both are set with conflicting values', function () {
+    $_ENV['APP_DEBUG'] = 'true';
+    putenv('APP_DEBUG=false');
+
+    $result = env_bool('APP_DEBUG');
+
+    expect($result)->toBeTrue();
+});
+
 test('env_bool returns false for unrecognized string value', function () {
     unset($_ENV['UNSET_KEY']);
 
@@ -107,6 +119,7 @@ test('env_bool returns false for unrecognized string value', function () {
 
     expect($result)->toBeFalse();
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

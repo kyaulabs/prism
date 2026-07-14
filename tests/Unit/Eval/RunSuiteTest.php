@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -37,7 +40,12 @@ it('run-suite.php discovers JSON files in a directory', function () {
     exec("php {$script} {$tmpDir} --timeout 5 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
-    expect($joined)->not->toBeEmpty();
+    expect($exitCode)->not->toBe(255);
+    expect($joined)->not->toContain('Fatal error');
+    expect($joined)->not->toContain('TypeError');
+    expect($joined)->toContain('test-case');
+    expect($joined)->toContain('| # | Eval Case | Verdict |');
+    expect($joined)->toContain('**Suite:');
 
     unlink($casePath);
     rmdir($tmpDir);
@@ -66,6 +74,7 @@ it('run-suite.php handles case file with string tags without crashing', function
     expect($exitCode)->not->toBe(255);
     expect($joined)->not->toContain('Fatal error');
     expect($joined)->not->toContain('TypeError');
+    expect($joined)->toContain('No eval cases found');
 
     unlink($casePath);
     rmdir($tmpDir);
@@ -125,6 +134,7 @@ it('run-suite.php summary line includes undetermined count', function () {
     $contents = file_get_contents($script);
     expect($contents)->toContain('undetermined');
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

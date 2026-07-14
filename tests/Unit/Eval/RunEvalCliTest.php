@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/13 -0700 Exp $
 
 
 
@@ -10,7 +10,13 @@ declare(strict_types=1);
 
 
 
-it('run-eval.php exists and is executable', function () {
+
+
+
+
+
+
+it('run-eval.php exists', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
     expect(file_exists($script))->toBeTrue();
 });
@@ -74,6 +80,8 @@ it('run-eval.php header documents UNDETERMINED in exit codes', function () {
     $contents = file_get_contents($script);
     expect($contents)->toContain('UNDETERMINED');
 });
+
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
