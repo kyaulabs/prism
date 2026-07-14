@@ -64,6 +64,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0015-index-based-linting-in-pre-commit-hook.md` — Index-based linting in pre-commit hook (lint staged blobs, not working-tree files)
 - `adr/0016-eval-case-dual-validation.md` — schema.json canonical, validate() hand-rolled mirror guarded by parity test; runtime schema validation deferred due to worktree vendor/ constraint
 - `adr/0017-command-only-template-features.md` — $ARGUMENTS and !`command` shell injection are command-only; agents use invocation-message references
+- `adr/0018-shell-test-helper-library.md` — Consolidate duplicated shell-test boilerplate into tests/Shell/lib/test_helpers.sh as the single source of truth
 
 ## When to update this file
 
