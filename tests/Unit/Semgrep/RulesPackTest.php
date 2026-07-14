@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
@@ -201,7 +204,7 @@ function semgrepRulesProvider(): array
         ['dir' => 'SqliInterpolatedQuery',   'rule' => 'kyaulabs-sqli-interpolated-query',    'positive' => 7],
         ['dir' => 'XssEchoRequestSink',      'rule' => 'kyaulabs-xss-echo-request-sink',      'positive' => 3],
         ['dir' => 'UnserializeRequestData',   'rule' => 'kyaulabs-unserialize-request-data',   'positive' => 3],
-        ['dir' => 'MissingCsrfToken',        'rule' => 'kyaulabs-missing-csrf-token',         'positive' => 1],
+        ['dir' => 'MissingCsrfToken',        'rule' => 'kyaulabs-missing-csrf-token',         'positive' => 5],
         ['dir' => 'HardcodedDisplayErrors',  'rule' => 'kyaulabs-hardcoded-display-errors-on', 'positive' => 10],
     ];
 }
@@ -353,6 +356,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
