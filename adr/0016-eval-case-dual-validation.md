@@ -64,6 +64,16 @@ deferred as a follow-up issue (out of scope for #89).
 - `opis/json-schema` exists only in `require-dev`; it is never loaded at eval
   runtime.
 
+### Update (2026-07-13)
+
+The deferred `run-suite.php` discovery-path follow-up has been resolved in
+[#115](https://github.com/kyaulabs/template/issues/115) — `run-suite.php` now
+routes case discovery through `EvalCase::fromFile()` + `validate()`,
+eliminating the third parse path. Invalid case files are surfaced as
+`INVALID` results instead of silently skipped (excluded from `--tag`-filtered
+runs). All three parse paths now converge on `schema.json` as the canonical
+source of truth.
+
 ## Alternatives Considered
 
 ### Make `validate()` schema-driven at runtime via opis

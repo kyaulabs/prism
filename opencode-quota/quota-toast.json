@@ -5,10 +5,10 @@
     "enabled": true
   },
   "tuiCompactStatus": {
-    "enabled": true
+    "enabled": false
   },
   "maintainerAnnouncements": {
     "enabled": true,
-    "home": true
+    "home": false
   }
 }
