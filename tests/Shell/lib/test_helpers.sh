@@ -5,6 +5,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -86,6 +87,20 @@ print_summary() {
 	echo "════════════════════════════════════════"
 	[ "$total_fail" -eq 0 ]
 }
+
+# git_init_test_repo <dir> — init a disposable git repo with gpgsign disabled
+# and a test identity. Fixes Issue #29 (global commit.gpgsign=true hangs).
+git_init_test_repo() {
+	local dir="$1"
+	git init --quiet "$dir"
+	(
+		cd "$dir" || exit 1
+		git config commit.gpgsign false
+		git config user.email "test@example.com"
+		git config user.name "Test User"
+	)
+}
+
 
 
 

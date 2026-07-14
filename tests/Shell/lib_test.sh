@@ -5,6 +5,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -142,6 +143,22 @@ test_print_summary_with_fail() {
 	fi
 }
 
+# Test 9: git_init_test_repo creates a repo with gpgsign disabled
+test_git_init_test_repo() {
+	local d fails
+	d=$(mktemp -d)
+	register_temp_dir "$d"
+	fails=0
+	git_init_test_repo "$d"
+	[ "$(git -C "$d" config commit.gpgsign)" = "false" ] || fails=1
+	[ "$(git -C "$d" config user.email)" = "test@example.com" ] || fails=1
+	if [ "$fails" -eq 0 ]; then
+		pass "git_init_test_repo set gpgsign=false and test identity"
+	else
+		fail "git_init_test_repo produced wrong config"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
@@ -152,10 +169,12 @@ test_setup_result_file
 test_register_temp_dir_cleanup
 test_print_summary_pass_only
 test_print_summary_with_fail
+test_git_init_test_repo
 
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 
