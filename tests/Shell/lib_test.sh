@@ -6,6 +6,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -159,6 +160,20 @@ test_git_init_test_repo() {
 	fi
 }
 
+# Test 10: setup_linter_repo symlinks deps and calls git_init_test_repo
+test_setup_linter_repo() {
+	local d
+	d=$(mktemp -d)
+	register_temp_dir "$d"
+	setup_linter_repo "$d"
+	if [ -L "$d/vendor" ] && [ -L "$d/node_modules" ] \
+		&& [ "$(git -C "$d" config commit.gpgsign)" = "false" ]; then
+		pass "setup_linter_repo symlinked deps + disabled gpgsign"
+	else
+		fail "setup_linter_repo did not set up repo correctly"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
@@ -170,10 +185,12 @@ test_register_temp_dir_cleanup
 test_print_summary_pass_only
 test_print_summary_with_fail
 test_git_init_test_repo
+test_setup_linter_repo
 
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

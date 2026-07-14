@@ -6,6 +6,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -100,6 +101,23 @@ git_init_test_repo() {
 		git config user.name "Test User"
 	)
 }
+
+# setup_linter_repo <dir> — git_init_test_repo + symlink vendor/node_modules +
+# copy linter configs. Used by pre-commit lint tests that invoke the real hook.
+setup_linter_repo() {
+	local dir="$1"
+	git_init_test_repo "$dir"
+	(
+		cd "$dir" || exit 1
+		ln -s "$REPO_ROOT/vendor" vendor
+		ln -s "$REPO_ROOT/node_modules" node_modules
+		[ -f "$REPO_ROOT/.php-cs-fixer.dist.php" ] && cp "$REPO_ROOT/.php-cs-fixer.dist.php" .php-cs-fixer.dist.php
+		[ -f "$REPO_ROOT/eslint.config.mjs" ] && cp "$REPO_ROOT/eslint.config.mjs" eslint.config.mjs
+		[ -f "$REPO_ROOT/.stylelintrc.json" ] && cp "$REPO_ROOT/.stylelintrc.json" .stylelintrc.json
+	)
+}
+
+
 
 
 
