@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: Pest.php kyau@nova 2026/07/14 -0700 Exp $
+
+
+
 
 
 
@@ -100,6 +103,123 @@ function restoreEnvVars(string ...$keys): Closure
         }
     };
 }
+
+/**
+ * Strip JSONC comments (// and / * * /) without corrupting string contents.
+ *
+ * String-state aware: tracks whether the cursor is inside a double-quoted
+ * string and honours backslash escapes.  Newlines are preserved so source
+ * line numbers stay stable after stripping.
+ *
+ * Handles the common gotcha: URLs like "https://opencode.ai/config.json"
+ * contain // inside strings — these are left intact because the scanner
+ * knows it is inside a quoted string.
+ *
+ * @param  string $jsonc Raw JSONC source.
+ * @return string Comment-free JSON.
+ */
+function strip_jsonc_comments(string $jsonc): string
+{
+    $out = '';
+    $len = strlen($jsonc);
+    $i   = 0;
+    $inString = false;
+
+    while ($i < $len) {
+        $ch = $jsonc[$i];
+
+        if ($inString) {
+            if ($ch === '\\' && $i + 1 < $len) {
+                $out .= $ch . $jsonc[$i + 1];
+                $i += 2;
+                continue;
+            }
+
+            if ($ch === '"') {
+                $inString = false;
+            }
+
+            $out .= $ch;
+            $i++;
+            continue;
+        }
+
+        if ($ch === '"') {
+            $inString = true;
+            $out .= $ch;
+            $i++;
+            continue;
+        }
+
+        if ($ch === '/' && $i + 1 < $len && $jsonc[$i + 1] === '/') {
+            $i += 2;
+
+            while ($i < $len && $jsonc[$i] !== "\n") {
+                $i++;
+            }
+
+            continue;
+        }
+
+        if ($ch === '/' && $i + 1 < $len && $jsonc[$i + 1] === '*') {
+            $i += 2;
+
+            while ($i < $len && ! ($jsonc[$i] === '*' && $i + 1 < $len && $jsonc[$i + 1] === '/')) {
+                $i++;
+            }
+
+            $i += 2;
+            continue;
+        }
+
+        $out .= $ch;
+        $i++;
+    }
+
+    return $out;
+}
+
+/**
+ * Resolve the absolute path to the opencode config (JSONC).
+ *
+ * @return string Absolute path to opencode.jsonc at the repo root.
+ */
+function opencode_config_path(): string
+{
+    return dirname(__DIR__) . '/opencode.jsonc';
+}
+
+/**
+ * Load and decode opencode.jsonc (comments stripped) as an associative array.
+ *
+ * @return array<string, mixed>
+ *
+ * @throws RuntimeException If the file is missing, unreadable, or invalid JSON.
+ */
+function load_opencode_config(): array
+{
+    $path = opencode_config_path();
+
+    if (! file_exists($path)) {
+        throw new RuntimeException("opencode.jsonc not found at: {$path}");
+    }
+
+    $contents = file_get_contents($path);
+
+    if ($contents === false) {
+        throw new RuntimeException("Failed to read opencode.jsonc: {$path}");
+    }
+
+    /** @var array<string, mixed> $config */
+    $config = json_decode(strip_jsonc_comments($contents), true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        throw new RuntimeException('Failed to parse opencode.jsonc: ' . json_last_error_msg());
+    }
+
+    return $config;
+}
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
