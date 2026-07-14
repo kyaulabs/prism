@@ -40,6 +40,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -469,6 +475,30 @@ it('buildJudgeCommand runs the judge as the read-only judge agent', function () 
 
     expect($cmd)->toContain('--agent judge');
 });
+
+it('accumulates judge durationMs with agent elapsed time', function () {
+    $runner = new Runner(realpath(dirname(__DIR__, 3)));
+    $case = new EvalCase(
+        name: 'test-judge-duration',
+        description: 'Validates duration accumulation',
+        agent: 'test-agent',
+        input: 'test input',
+        expectedBehavior: ['behavior one'],
+        passCriteria: 'all behaviors observed',
+    );
+
+    // buildJudgeResult sets durationMs to the judge's own time
+    $result = $runner->buildJudgeResult($case, [
+        ['behavior' => 'behavior one', 'verdict' => 'YES', 'rationale' => 'ok'],
+    ], 500);
+
+    // Simulate the run-eval.php accumulation line
+    $agentElapsedMs = 300;
+    $result->durationMs += $agentElapsedMs;
+
+    expect($result->durationMs)->toBe(800);
+});
+
 it('createWorktree creates a real git worktree and removeWorktree cleans it up', function () {
     // Build a throwaway git repo so we don't touch the real source tree.
     $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
@@ -1077,6 +1107,8 @@ it('createWorktree propagates untracked files to the worktree', function () {
         }
     }
 });
+
+
 
 
 

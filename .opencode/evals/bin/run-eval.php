@@ -19,6 +19,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 /**
  * run-eval.php — Execute a single eval case against opencode run.
  *
@@ -161,7 +167,7 @@ try {
             $result = $runner->runJudge($case, $combinedOutput);
         }
 
-        $result->durationMs = $elapsedMs;
+        $result->durationMs += $elapsedMs;
     }
 } catch (\TypeError $e) {
     $result = new EvalResult(
@@ -181,6 +187,8 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
+
 
 
 
