@@ -27,6 +27,17 @@ rules:
           new \KYAULabs\Aurora($TEMPLATE, $CDN, true, ...);
       - pattern: |
           new \KYAULabs\Aurora(..., status: true, ...);
+    metadata:
+      category: security
+      cwe:
+        - "CWE-209: Generation of Error Message Containing Sensitive Information"
+      technology:
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      references:
+        - https://cwe.mitre.org/data/definitions/209.html
+        - adr/0002-first-party-semgrep-rules-pack.md
 
   # --- SQL injection: request-reachable data in query() (taint mode) ---
   # Mirrors kyaulabs-xss-echo-request-sink and
@@ -56,6 +67,18 @@ rules:
     # via // nosemgrep: kyaulabs-sqli-interpolated-query -- <justification>.
     pattern-sinks:
       - pattern: $DB->query(...)
+    metadata:
+      category: security
+      cwe:
+        - "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      technology:
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/89.html
+        - https://owasp.org/www-community/attacks/SQL_Injection
+        - adr/0002-first-party-semgrep-rules-pack.md
 
   # --- XSS: unescaped echo/print of request-reachable data (taint mode) ---
   # Mirrors kyaulabs-unserialize-request-data: sources are request
@@ -86,6 +109,18 @@ rules:
       - pattern: echo $X;
       - pattern: print $X;
       - pattern: printf(...);
+    metadata:
+      category: security
+      cwe:
+        - "CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')"
+      technology:
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/79.html
+        - https://owasp.org/www-community/attacks/xss/
+        - adr/0002-first-party-semgrep-rules-pack.md
 
   # --- Deserialization: unserialize on request-reachable data ---
   - id: kyaulabs-unserialize-request-data
@@ -106,6 +141,18 @@ rules:
       - pattern: file_get_contents("php://input", ...)
     pattern-sinks:
       - pattern: unserialize(...);
+    metadata:
+      category: security
+      cwe:
+        - "CWE-502: Deserialization of Untrusted Data"
+      technology:
+        - php
+      confidence: HIGH
+      likelihood: HIGH
+      references:
+        - https://cwe.mitre.org/data/definitions/502.html
+        - https://owasp.org/www-community/attacks/Deserialization_of_untrusted_data
+        - adr/0002-first-party-semgrep-rules-pack.md
 
   # --- CSRF: POST form without CSRF token (heuristic, INFO) ---
   - id: kyaulabs-missing-csrf-token
@@ -124,6 +171,18 @@ rules:
     patterns:
       - pattern-regex: '(?is)<form[^>]*method\s*=\s*["'']?post["'']?[^>]*>.*?(?:</form>|\z)'
       - pattern-not-regex: '(?i)csrf'
+    metadata:
+      category: security
+      cwe:
+        - "CWE-352: Cross-Site Request Forgery (CSRF)"
+      technology:
+        - generic
+      confidence: MEDIUM
+      likelihood: MEDIUM
+      references:
+        - https://cwe.mitre.org/data/definitions/352.html
+        - https://owasp.org/www-community/attacks/csrf
+        - adr/0002-first-party-semgrep-rules-pack.md
 
   # --- Hardcoded display_errors enabled ---
   - id: kyaulabs-hardcoded-display-errors-on
@@ -139,3 +198,14 @@ rules:
       - metavariable-regex:
           metavariable: $VAL
           regex: '(?i)^[''"]?(1|on|true|yes)[''"]?$'
+    metadata:
+      category: security
+      cwe:
+        - "CWE-209: Generation of Error Message Containing Sensitive Information"
+      technology:
+        - php
+      confidence: HIGH
+      likelihood: MEDIUM
+      references:
+        - https://cwe.mitre.org/data/definitions/209.html
+        - adr/0002-first-party-semgrep-rules-pack.md
