@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: codeowners_syntax_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: codeowners_syntax_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 set -euo pipefail
@@ -11,14 +12,17 @@ set -euo pipefail
 # test prevents that regression.
 # ─────────────────────────────────────────────────────────────────────────────
 
-HERE="$(cd "$(dirname "$0")" && pwd)"
-CODEOWNERS="$HERE/../../.github/CODEOWNERS"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
-fail=0
+setup_result_file
+
+CODEOWNERS="$REPO_ROOT/.github/CODEOWNERS"
 
 if [ ! -f "$CODEOWNERS" ]; then
-	echo "FAIL: .github/CODEOWNERS not found at $CODEOWNERS"
-	exit 1
+	fail ".github/CODEOWNERS not found at $CODEOWNERS"
+	print_summary "codeowners_syntax_test"
+	exit $?
 fi
 
 # Valid owner forms:
@@ -40,23 +44,19 @@ while IFS= read -r line || [ -n "$line" ]; do
 	# shellcheck disable=SC2086
 	set -- $trimmed
 	set +f
-	[ "$#" -eq 1 ] && { echo "FAIL: line $line_no: pattern '$1' has no owner"; fail=1; continue; }
+	[ "$#" -eq 1 ] && { fail "line $line_no: pattern '$1' has no owner"; continue; }
 	pattern="$1"; shift 1
 	for owner in "$@"; do
 		if printf '%s' "$owner" | grep -Eq "$valid_owner"; then
 			:
 		else
-			echo "FAIL: line $line_no, pattern '$pattern': invalid owner '$owner' (must be @username, @org/team, or email)"
-			fail=1
+			fail "line $line_no, pattern '$pattern': invalid owner '$owner' (must be @username, @org/team, or email)"
 		fi
 	done
 done < "$CODEOWNERS"
 
-if [ "$fail" -ne 0 ]; then
-	echo ""
-	echo "✗ CODEOWNERS syntax test FAILED"
-	exit 1
-fi
-echo "✓ CODEOWNERS syntax test PASSED"
+print_summary "codeowners_syntax_test"
+exit $?
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
