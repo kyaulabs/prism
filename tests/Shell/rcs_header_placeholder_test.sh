@@ -3,6 +3,8 @@
 
 
 
+
+
 # ── Repro-first tests for pre-commit RCS placeholder rejection ──────────────
 # Verifies that the pre-commit hook blocks source files with placeholder
 # or foreign RCS headers (creator@host, YYYY/MM/DD, SEANBR~1).
@@ -35,6 +37,7 @@ git_init_test_repo "$T1"
 
 	# Build file with placeholder RCS header (split to keep $KYAULabs
 	# inside a shell string — the pre-commit hook's auto-add strips
+	# shellcheck disable=SC2016  # literal $KYAULabs RCS placeholder, not shell expansion
 	RCS_LINE='# $KYAULabs: file.php creator@host YYYY/MM/DD ±TZ Exp $'
 	{
 		echo '<?php'
@@ -64,6 +67,7 @@ git_init_test_repo "$T2"
 	cp "$PRE_COMMIT" .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
+	# shellcheck disable=SC2016  # literal $KYAULabs RCS placeholder, not shell expansion
 	RCS_LINE='# $KYAULabs: file.php SEANBR~1@KYAU-DEV 2025/07/05 -0500 Exp $'
 	{
 		echo '<?php'
@@ -93,6 +97,7 @@ git_init_test_repo "$T3"
 	cp "$PRE_COMMIT" .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
+	# shellcheck disable=SC2016  # literal $KYAULabs RCS placeholder, not shell expansion
 	RCS_LINE='# $KYAULabs: file.php kyau@nova 2026/07/07 -0700 Exp $'
 	{
 		echo '<?php'
@@ -115,6 +120,8 @@ git_init_test_repo "$T3"
 
 print_summary "rcs-header placeholder"
 exit $?
+
+
 
 
 

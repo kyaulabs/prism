@@ -7,6 +7,8 @@
 
 
 
+
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -25,6 +27,7 @@ export REPO_ROOT
 
 RED=$'\033[1;31m'
 GREEN=$'\033[1;32m'
+# shellcheck disable=SC2034  # consumed by sourcing test files (commit-msg_test.sh, lib_test.sh)
 YELLOW=$'\033[1;33m'
 RESET=$'\033[0m'
 
@@ -65,7 +68,10 @@ register_temp_dir() {
 # shellcheck disable=SC2317  # called via trap, not reachable directly
 shell_test_cleanup() {
 	[ -n "$RESULT_FILE" ] && rm -f "$RESULT_FILE"
-	[ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS 2>/dev/null || true
+	if [ -n "$TEMP_DIRS" ]; then
+		# shellcheck disable=SC2086  # intentional word-splitting of space-separated dir list
+		rm -rf $TEMP_DIRS 2>/dev/null || true
+	fi
 }
 
 # print_summary <label> — tally RESULT_FILE (PASS / FAIL), print a boxed
@@ -116,6 +122,8 @@ setup_linter_repo() {
 		[ -f "$REPO_ROOT/.stylelintrc.json" ] && cp "$REPO_ROOT/.stylelintrc.json" .stylelintrc.json
 	)
 }
+
+
 
 
 
