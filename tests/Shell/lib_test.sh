@@ -4,6 +4,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -11,8 +12,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
-RESULT_FILE=$(mktemp)
-trap 'rm -f "$RESULT_FILE"' EXIT
+setup_result_file
 
 # Test 1: make_file_stale sets mtime to approximately N days ago
 test_make_file_stale() {
@@ -100,22 +100,45 @@ test_setup_result_file() {
 
 # Test 6: register_temp_dir tracks dirs for cleanup
 test_register_temp_dir_cleanup() {
-	(
+	if (
 		setup_result_file
 		local d
 		d=$(mktemp -d)
 		register_temp_dir "$d"
 		shell_test_cleanup
-		if [ ! -d "$d" ]; then
-			exit 0
-		fi
-		rm -rf "$d"
-		exit 1
-	)
-	if [ $? -eq 0 ]; then
+		[ ! -d "$d" ] || { rm -rf "$d"; exit 1; }
+	); then
 		pass "shell_test_cleanup removed registered temp dir"
 	else
 		fail "shell_test_cleanup did not remove temp dir"
+	fi
+}
+
+# Test 7: print_summary exits 0 when all tests pass
+test_print_summary_pass_only() {
+	if (
+		setup_result_file
+		RESULT_FILE="$RESULT_FILE" pass "ok1"
+		RESULT_FILE="$RESULT_FILE" pass "ok2"
+		print_summary "unit" >/dev/null 2>&1
+	); then
+		pass "print_summary exits 0 when no failures"
+	else
+		fail "print_summary exited non-zero with no failures"
+	fi
+}
+
+# Test 8: print_summary exits non-zero on failure
+test_print_summary_with_fail() {
+	if (
+		setup_result_file
+		RESULT_FILE="$RESULT_FILE" pass "ok"
+		RESULT_FILE="$RESULT_FILE" fail "bad"
+		! print_summary "unit" >/dev/null 2>&1
+	); then
+		pass "print_summary exits non-zero on failure"
+	else
+		fail "print_summary exited 0 despite a failure"
 	fi
 }
 
@@ -127,18 +150,13 @@ test_pass_fail_helpers
 test_yellow_color_defined
 test_setup_result_file
 test_register_temp_dir_cleanup
+test_print_summary_pass_only
+test_print_summary_with_fail
 
 # Summary
-total=$(wc -l < "$RESULT_FILE")
-fails=$(grep -c "FAIL" "$RESULT_FILE" || true)
-passes=$((total - fails))
+print_summary "lib_test.sh"
+exit $?
 
-echo ""
-echo "Results: ${passes} passed, ${fails} failed"
-
-if [ "$fails" -gt 0 ]; then
-	exit 1
-fi
 
 
 

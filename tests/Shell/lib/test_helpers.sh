@@ -4,6 +4,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -64,6 +65,28 @@ shell_test_cleanup() {
 	[ -n "$RESULT_FILE" ] && rm -f "$RESULT_FILE"
 	[ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS 2>/dev/null || true
 }
+
+# print_summary <label> — tally RESULT_FILE (PASS / FAIL), print a boxed
+# summary, and return non-zero if any FAIL line is present. The guards are
+# belt-and-suspenders default-value assignments that prevent unset-variable
+# aborts under `set -u` (some consumers omit them; this function fixes that).
+print_summary() {
+	local label="${1:-tests}"
+	: "${total_pass:=0}"
+	: "${total_fail:=0}"
+	total_pass=$(grep -c "PASS" "$RESULT_FILE" || true)
+	total_fail=$(grep -c "FAIL" "$RESULT_FILE" || true)
+	echo ""
+	echo "════════════════════════════════════════"
+	if [ "$total_fail" -eq 0 ]; then
+		echo "✓ ${label}: ${total_pass} passed, ${total_fail} failed"
+	else
+		echo "✗ ${label}: ${total_pass} passed, ${total_fail} failed"
+	fi
+	echo "════════════════════════════════════════"
+	[ "$total_fail" -eq 0 ]
+}
+
 
 
 
