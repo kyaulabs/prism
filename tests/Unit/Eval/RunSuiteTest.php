@@ -19,6 +19,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 it('run-suite.php exists', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
     expect(file_exists($script))->toBeTrue();
@@ -138,7 +144,32 @@ it('run-suite.php summary line includes undetermined count', function () {
     expect($contents)->toContain('undetermined');
 });
 
+it('run-suite.php surfaces malformed-JSON case files as INVALID instead of skipping', function () {
+    $tmpDir = sys_get_temp_dir() . '/eval_suite_invalid_test_' . uniqid();
+    mkdir($tmpDir);
+    $brokenPath = $tmpDir . '/broken-case.json';
+    // Malformed JSON — not parseable by json_decode
+    file_put_contents($brokenPath, '{ this is not valid json');
 
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
+    $output = [];
+    $exitCode = 0;
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($tmpDir) . " --timeout 5 2>&1", $output, $exitCode);
+
+    $joined = implode("\n", $output);
+    expect($exitCode)->not->toBe(255);
+    expect($joined)->not->toContain('Fatal error');
+    // Must NOT claim there were no cases — the broken file must be reported
+    expect($joined)->not->toContain('No eval cases found');
+    // The broken file's name and an INVALID verdict must appear
+    expect($joined)->toContain('broken-case');
+    expect($joined)->toContain('INVALID');
+    // The suite summary line counts the invalid case
+    expect($joined)->toContain('invalid');
+
+    unlink($brokenPath);
+    rmdir($tmpDir);
+});
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

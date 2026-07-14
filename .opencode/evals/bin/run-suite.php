@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * run-suite.php — Batch eval suite runner.
  *
@@ -41,6 +44,7 @@ $runEvalScript = __DIR__ . '/run-eval.php';
 
 require_once __DIR__ . '/includes/EvalRunner.php';
 
+use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\Runner;
 
 // ── Parse arguments ──────────────────────────────────────────────────────
@@ -76,27 +80,60 @@ if ($directory === '' || !is_dir($directory)) {
 // ── Discover case files ──────────────────────────────────────────────────
 $files = glob($directory . '/*.json');
 $cases = [];
+$invalidResults = [];
 
 foreach ($files as $file) {
-    $contents = file_get_contents($file);
-    if ($contents === false) {
+    try {
+        $case = EvalCase::fromFile($file);
+    } catch (\RuntimeException $e) {
+        // Unreadable file or invalid JSON. Report only in unfiltered runs;
+        // a --tag filter narrows scope and an invalid file cannot claim
+        // membership in any tag, so it is excluded from filtered runs.
+        if ($tag === null) {
+            $invalidResults[] = [
+                'name' => basename($file),
+                'agent' => 'unknown',
+                'pass_criteria' => '',
+                'verdict' => 'INVALID',
+                'behaviors' => [],
+                'deterministic_checks' => [],
+                'duration_ms' => 0,
+                'judge_used' => false,
+                'error' => $e->getMessage(),
+                'degraded_kill' => false,
+            ];
+        }
         continue;
     }
 
-    $data = json_decode($contents, true);
-    if (!is_array($data)) {
+    $errors = $case->validate();
+    if (!empty($errors)) {
+        // Structurally parseable but schema-invalid. Same tag-scope rule.
+        if ($tag === null) {
+            $invalidResults[] = [
+                'name' => $case->name !== '' ? $case->name : basename($file),
+                'agent' => $case->agent,
+                'pass_criteria' => $case->passCriteria,
+                'verdict' => 'INVALID',
+                'behaviors' => [],
+                'deterministic_checks' => [],
+                'duration_ms' => 0,
+                'judge_used' => false,
+                'error' => implode('; ', $errors),
+                'degraded_kill' => false,
+            ];
+        }
         continue;
     }
 
-    $tags = is_array($data['tags'] ?? []) ? $data['tags'] : [];
-    if ($tag !== null && !in_array($tag, $tags, true)) {
+    if ($tag !== null && !in_array($tag, $case->tags, true)) {
         continue;
     }
 
-    $cases[] = ['file' => $file, 'name' => $data['name'] ?? basename($file)];
+    $cases[] = ['file' => $file, 'name' => $case->name];
 }
 
-if (empty($cases)) {
+if (empty($cases) && empty($invalidResults)) {
     echo "No eval cases found in {$directory}" .
         ($tag !== null ? " with tag '{$tag}'" : '') . ".\n";
     exit(0);
@@ -147,6 +184,11 @@ foreach ($cases as $i => $caseInfo) {
         ];
     }
 }
+
+// Merge discovery-time INVALID cases into results so they appear in the
+// summary table and the JSON results file (unfiltered runs only — filtered
+// runs exclude invalid cases per the tag-scope rule).
+$results = array_merge($results, $invalidResults);
 
 // ── Markdown summary ─────────────────────────────────────────────────────
 echo "\n";
@@ -219,6 +261,7 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
 
 
 
