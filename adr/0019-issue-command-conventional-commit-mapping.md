@@ -54,6 +54,12 @@ and generates the title/body) has `bash: deny`.
   prompt for 3 fields only (Priority, Effort, Progress).
 - The `Security` issue type has no direct commit-type counterpart. It is
   only reachable through the `fix(security)` scope override.
+- The `/plan-to-issues` command now applies the same commit-type →
+  issue-type mapping. Plan epics derive their type from the `**Goal:**`
+  line; all task sub-issues inherit the epic's type. The two commands
+  share the same mapping table, custom-field definitions, optional
+  labels, and dynamic-repo-detection discipline, ensuring consistent
+  metadata across every issue created by the harness.
 
 ## Alternatives Considered
 
