@@ -3,6 +3,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -88,12 +89,44 @@ test_yellow_color_defined() {
 	fi
 }
 
+# Test 5: setup_result_file creates RESULT_FILE and installs trap
+test_setup_result_file() {
+	if ( setup_result_file && [ -n "$RESULT_FILE" ] && [ -f "$RESULT_FILE" ]; ); then
+		pass "setup_result_file created RESULT_FILE"
+	else
+		fail "setup_result_file did not create RESULT_FILE"
+	fi
+}
+
+# Test 6: register_temp_dir tracks dirs for cleanup
+test_register_temp_dir_cleanup() {
+	(
+		setup_result_file
+		local d
+		d=$(mktemp -d)
+		register_temp_dir "$d"
+		shell_test_cleanup
+		if [ ! -d "$d" ]; then
+			exit 0
+		fi
+		rm -rf "$d"
+		exit 1
+	)
+	if [ $? -eq 0 ]; then
+		pass "shell_test_cleanup removed registered temp dir"
+	else
+		fail "shell_test_cleanup did not remove temp dir"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
 test_make_file_stale_30
 test_pass_fail_helpers
 test_yellow_color_defined
+test_setup_result_file
+test_register_temp_dir_cleanup
 
 # Summary
 total=$(wc -l < "$RESULT_FILE")
@@ -106,6 +139,7 @@ echo "Results: ${passes} passed, ${fails} failed"
 if [ "$fails" -gt 0 ]; then
 	exit 1
 fi
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
