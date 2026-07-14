@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -75,7 +76,7 @@ PHPEOF
 echo "unstaged hunk";
 PHPEOF2
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(sha256sum file.php | awk '{print $1}')
+	WT_HASH=$(shasum -a 256 file.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -91,7 +92,7 @@ PHPEOF2
 		fail "Partial-stage was NOT blocked (exit 0 — auto-add overwrite bug)"
 	fi
 
-	WT_AFTER=$(sha256sum file.php | awk '{print $1}')
+	WT_AFTER=$(shasum -a 256 file.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -404,7 +405,7 @@ PHPEOF
 	git add page.php
 
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(sha256sum page.php | awk '{print $1}')
+	WT_HASH=$(shasum -a 256 page.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -420,7 +421,7 @@ PHPEOF
 	fi
 
 	# Working tree should be preserved byte-for-byte
-	WT_AFTER=$(sha256sum page.php | awk '{print $1}')
+	WT_AFTER=$(shasum -a 256 page.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -458,7 +459,7 @@ PHPEOF
 	git add script.php
 
 	# Capture working-tree checksum BEFORE the hook runs
-	WT_HASH=$(sha256sum script.php | awk '{print $1}')
+	WT_HASH=$(shasum -a 256 script.php | awk '{print $1}')
 
 	set +e
 	bash "$PRE_COMMIT" > /dev/null 2>&1
@@ -474,7 +475,7 @@ PHPEOF
 	fi
 
 	# Working tree should be preserved byte-for-byte
-	WT_AFTER=$(sha256sum script.php | awk '{print $1}')
+	WT_AFTER=$(shasum -a 256 script.php | awk '{print $1}')
 	if [ "$WT_HASH" = "$WT_AFTER" ]; then
 		pass "Working tree preserved byte-for-byte"
 	else
@@ -509,6 +510,7 @@ else
 	echo "═══════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
