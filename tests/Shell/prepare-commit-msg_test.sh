@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare-commit-msg_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: prepare-commit-msg_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -18,18 +19,10 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
 REAL_HOOK="$REPO_ROOT/.github/hooks/prepare-commit-msg"
 
 if [ ! -f "$REAL_HOOK" ]; then
@@ -52,13 +45,10 @@ simulate_pushed() {
 echo ""
 echo "── Test 1: Amend of pushed commit blocked (--no-edit) ──"
 T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
+register_temp_dir "$T1"
 (
 	cd "$T1"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	# Install the hook
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
@@ -82,19 +72,15 @@ TEMP_DIRS="$TEMP_DIRS $T1"
 		fail "Amend of pushed commit allowed — history rewrite not prevented"
 	fi
 )
-rm -rf "$T1"
 
 # ── Test 2: Amend of an unpushed commit is allowed (--no-edit path) ───────────
 
 echo "── Test 2: Amend of unpushed commit allowed (--no-edit) ──"
 T2=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T2"
+register_temp_dir "$T2"
 (
 	cd "$T2"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -132,19 +118,15 @@ TEMP_DIRS="$TEMP_DIRS $T2"
 		echo "$output"
 	fi
 )
-rm -rf "$T2"
 
 # ── Test 3: Regular commit (not amend) is allowed on pushed branch ────────────
 
 echo "── Test 3: Regular commit allowed on pushed branch ──"
 T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
+register_temp_dir "$T3"
 (
 	cd "$T3"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -171,19 +153,15 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 		echo "$output"
 	fi
 )
-rm -rf "$T3"
 
 # ── Test 4: Amend blocked when HEAD on any remote branch (not just tracking) ──
 
 echo "── Test 4: Amend blocked when HEAD on any remote branch ──"
 T4=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T4"
+register_temp_dir "$T4"
 (
 	cd "$T4"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -206,7 +184,6 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 		fail "Amend allowed despite HEAD being on a remote branch"
 	fi
 )
-rm -rf "$T4"
 
 # ── Test 5: -C with explicit SHA (not HEAD) is allowed on pushed commits ──────
 # Note: -C HEAD and --amend are indistinguishable in prepare-commit-msg
@@ -215,13 +192,10 @@ rm -rf "$T4"
 
 echo "── Test 5: -C with explicit SHA allowed on pushed branch ──"
 T5=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T5"
+register_temp_dir "$T5"
 (
 	cd "$T5"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo .
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -249,26 +223,12 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 		echo "$output"
 	fi
 )
-rm -rf "$T5"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "prepare-commit-msg_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ prepare-commit-msg tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ prepare-commit-msg tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════"
-	exit 1
-fi
 
 
 

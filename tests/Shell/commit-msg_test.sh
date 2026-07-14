@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -13,21 +14,13 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-YELLOW=$'\033[1;33m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-# shellcheck disable=SC2317,SC2329  # used in Task 2 (merge/revert exemption)
-skip() { echo "  ${YELLOW}SKIP${RESET} $*"; }
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
+
+# shellcheck disable=SC2317,SC2329  # used in tests that skip when commitlint absent
+skip() { echo "  ${YELLOW}SKIP${RESET} $*"; }
 REAL_HOOK="$REPO_ROOT/.github/hooks/commit-msg"
 
 if [ ! -f "$REAL_HOOK" ]; then
@@ -48,7 +41,7 @@ COMMITLINT_AVAILABLE=$([ -d "$REPO_ROOT/node_modules/commitlint" ] && echo true 
 echo ""
 echo "── Test 1: Guard skips when commitlint not installed ──"
 T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
+register_temp_dir "$T1"
 (
 	cd "$T1"
 	# Stub npx: exits non-zero with a known message. Only reached if the
@@ -75,7 +68,6 @@ STUB
 		fail "Guard did not skip (exit=$ret): $output"
 	fi
 )
-rm -rf "$T1"
 
 # ── Test 2: Merge commit passes the hook (commitlint required) ───────────────
 
@@ -85,13 +77,10 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 2 (merge) — commitlint not installed"
 else
 T2=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T2"
+register_temp_dir "$T2"
 (
 	cd "$T2"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo "$T2"
 	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
 	ln -s "$REPO_ROOT/node_modules" "$T2/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T2/commitlint.config.js"
@@ -115,7 +104,6 @@ TEMP_DIRS="$TEMP_DIRS $T2"
 		fail "Merge commit blocked (exit=$ret): $output"
 	fi
 )
-rm -rf "$T2"
 fi
 
 # ── Test 3: Revert commit passes the hook (commitlint required) ───────────────
@@ -125,13 +113,10 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 3 (revert) — commitlint not installed"
 else
 T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
+register_temp_dir "$T3"
 (
 	cd "$T3"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo "$T3"
 	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T3/commitlint.config.js"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
@@ -152,7 +137,6 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 		fail "Revert commit blocked (exit=$ret): $output"
 	fi
 )
-rm -rf "$T3"
 fi
 
 # ── Test 4: Regression — missing trailers still fails (commitlint required) ──
@@ -162,13 +146,10 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 4 (missing-trailers regression) — commitlint not installed"
 else
 T4=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T4"
+register_temp_dir "$T4"
 (
 	cd "$T4"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo "$T4"
 	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T4/commitlint.config.js"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
@@ -186,7 +167,6 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 		fail "Missing trailers allowed — enforcement broken"
 	fi
 )
-rm -rf "$T4"
 fi
 
 # ── Test 5: Regression — valid commit with all trailers passes ───────────────
@@ -196,13 +176,10 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 5 (valid-commit regression) — commitlint not installed"
 else
 T5=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T5"
+register_temp_dir "$T5"
 (
 	cd "$T5"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
+	git_init_test_repo "$T5"
 	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T5/commitlint.config.js"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
@@ -221,7 +198,6 @@ TEMP_DIRS="$TEMP_DIRS $T5"
 		fail "Valid commit blocked (exit=$ret): $output"
 	fi
 )
-rm -rf "$T5"
 fi
 
 # ── Test 6: Plugin exemption exercises on non-standard merge header ──────────
@@ -234,11 +210,10 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 6 (plugin-exemption exercise) — commitlint not installed"
 else
 T6=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T6"
+register_temp_dir "$T6"
 (
 	cd "$T6"
-	git init --quiet
-	git config commit.gpgsign false
+	git_init_test_repo "$T6"
 	ln -s "$REPO_ROOT/node_modules" "$T6/node_modules"
 	cp "$REPO_ROOT/commitlint.config.js" "$T6/commitlint.config.js"
 
@@ -258,7 +233,6 @@ TEMP_DIRS="$TEMP_DIRS $T6"
 		fail "Plugin did not exempt merge header (exit=$ret): $output"
 	fi
 )
-rm -rf "$T6"
 fi
 
 # ── Test 7: Reject Closes #NN (banned closing keyword) ───────────────────────
@@ -469,24 +443,11 @@ else
 )
 fi
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "commit-msg_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ commit-msg tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ commit-msg tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════"
-	exit 1
-fi
 
 
 

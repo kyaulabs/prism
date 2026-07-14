@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -9,17 +10,10 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-trap 'rm -f "$RESULT_FILE"' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
 SCRIPT="$REPO_ROOT/.github/scripts/coverage-gate.php"
 
 if [ ! -f "$SCRIPT" ]; then
@@ -64,6 +58,7 @@ build_clover() {
 echo ""
 echo "── Test 1: 100% covered changed file passes ──"
 T1=$(mktemp -d)
+register_temp_dir "$T1"
 (
 	cd "$T1"
 	mkdir -p backend
@@ -77,12 +72,12 @@ T1=$(mktemp -d)
 		fail "expected exit 0 + PASS, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T1"
 
 # ── Test 2: Changed file at 50% coverage → FAIL, exit 1 ────────────────────
 echo ""
 echo "── Test 2: 50% covered changed file fails ──"
 T2=$(mktemp -d)
+register_temp_dir "$T2"
 (
 	cd "$T2"
 	mkdir -p backend
@@ -96,12 +91,12 @@ T2=$(mktemp -d)
 		fail "expected exit 1 + FAIL, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T2"
 
 # ── Test 3: Changed file not in clover → SKIP, exit 0 ───────────────────────
 echo ""
 echo "── Test 3: file outside coverage source is skipped ──"
 T3=$(mktemp -d)
+register_temp_dir "$T3"
 (
 	cd "$T3"
 	mkdir -p backend
@@ -116,12 +111,12 @@ T3=$(mktemp -d)
 		fail "expected exit 0 + SKIP, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T3"
 
 # ── Test 4: No changed files (empty stdin) → exit 0 ────────────────────────
 echo ""
 echo "── Test 4: empty stdin → exit 0 ──"
 T4=$(mktemp -d)
+register_temp_dir "$T4"
 (
 	cd "$T4"
 	CLOVER=$(mktemp)
@@ -133,12 +128,12 @@ T4=$(mktemp -d)
 		fail "expected exit 0, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T4"
 
 # ── Test 5: Deleted file (path doesn't exist) → SKIP, exit 0 ────────────────
 echo ""
 echo "── Test 5: deleted file is skipped ──"
 T5=$(mktemp -d)
+register_temp_dir "$T5"
 (
 	cd "$T5"
 	CLOVER=$(mktemp)
@@ -150,12 +145,12 @@ T5=$(mktemp -d)
 		fail "expected exit 0 + SKIP, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T5"
 
 # ── Test 6: File with 0 executable lines → SKIP, exit 0 ────────────────────
 echo ""
 echo "── Test 6: file with 0 executable lines is skipped ──"
 T6=$(mktemp -d)
+register_temp_dir "$T6"
 (
 	cd "$T6"
 	mkdir -p backend
@@ -169,12 +164,12 @@ T6=$(mktemp -d)
 		fail "expected exit 0 + SKIP, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T6"
 
 # ── Test 7: Multiple files, one fails → exit 1 ─────────────────────────────
 echo ""
 echo "── Test 7: mixed pass/fail → exit 1 ──"
 T7=$(mktemp -d)
+register_temp_dir "$T7"
 (
 	cd "$T7"
 	mkdir -p backend
@@ -189,12 +184,12 @@ T7=$(mktemp -d)
 		fail "expected exit 1 with PASS+FAIL, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T7"
 
 # ── Test 8: Custom --min threshold ──────────────────────────────────────────
 echo ""
 echo "── Test 8: custom --min=90 threshold ──"
 T8=$(mktemp -d)
+register_temp_dir "$T8"
 (
 	cd "$T8"
 	mkdir -p backend
@@ -209,12 +204,12 @@ T8=$(mktemp -d)
 		fail "expected exit 1 + FAIL under --min=90, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T8"
 
 # ── Test 9: Missing clover path → exit 2 ───────────────────────────────────
 echo ""
 echo "── Test 9: missing clover path → exit 2 ──"
 T9=$(mktemp -d)
+register_temp_dir "$T9"
 (
 	cd "$T9"
 	printf 'backend/env.php\n' | php "$SCRIPT" >out.txt 2>&1 || rc=$?
@@ -224,12 +219,12 @@ T9=$(mktemp -d)
 		fail "expected exit 2, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T9"
 
 # ── Test 10: Unreadable clover file → exit 2 ───────────────────────────────
 echo ""
 echo "── Test 10: unreadable clover file → exit 2 ──"
 T10=$(mktemp -d)
+register_temp_dir "$T10"
 (
 	cd "$T10"
 	printf 'backend/env.php\n' | php "$SCRIPT" /nonexistent/clover.xml --root="$T10" >out.txt 2>&1 || rc=$?
@@ -239,7 +234,6 @@ T10=$(mktemp -d)
 		fail "expected exit 2, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T10"
 
 # ── Test 11: Symlinked --root still relativizes Clover paths ────────────────
 # Reproduces the macOS /tmp -> /private/tmp asymmetry on Linux: --root points
@@ -249,7 +243,9 @@ rm -rf "$T10"
 echo ""
 echo "── Test 11: symlinked root relativizes correctly ──"
 T11_REAL=$(mktemp -d)
+register_temp_dir "$T11_REAL"
 T11_LINK_DIR=$(mktemp -d)
+register_temp_dir "$T11_LINK_DIR"
 T11_LINK="$T11_LINK_DIR/root"
 ln -s "$T11_REAL" "$T11_LINK"
 (
@@ -265,26 +261,12 @@ ln -s "$T11_REAL" "$T11_LINK"
 		fail "expected exit 1 + FAIL under symlinked root, got rc=${rc:-0}"
 	fi
 )
-rm -rf "$T11_REAL" "$T11_LINK_DIR"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "coverage_gate_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ coverage-gate tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ coverage-gate tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
 
 
 

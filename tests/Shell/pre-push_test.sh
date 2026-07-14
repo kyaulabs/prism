@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-push_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: pre-push_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -16,18 +17,10 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
 REAL_HOOK="$REPO_ROOT/.github/hooks/pre-push"
 
 if [ ! -f "$REAL_HOOK" ]; then
@@ -48,13 +41,10 @@ simulate_pushed() {
 echo ""
 echo "── Test 1: New branch, 1 commit — squash warning fires ──"
 T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
+register_temp_dir "$T1"
 (
     cd "$T1"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Base commit on main, simulate pushed to origin
     echo "base" > base.txt
@@ -81,20 +71,16 @@ TEMP_DIRS="$TEMP_DIRS $T1"
         fail "Squashed new branch did not warn (exit=$ret): $output"
     fi
 )
-rm -rf "$T1"
 
 # ── Test 2: New branch with 3 commits does not warn ───────────────────────
 
 echo ""
 echo "── Test 2: New branch, 3 commits — no warning ──"
 T2=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T2"
+register_temp_dir "$T2"
 (
     cd "$T2"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Base commit on main, simulate pushed
     echo "base" > base.txt
@@ -123,20 +109,16 @@ TEMP_DIRS="$TEMP_DIRS $T2"
         fail "3-commit new branch warned unexpectedly (exit=$ret): $output"
     fi
 )
-rm -rf "$T2"
 
 # ── Test 3: Existing branch, incremental push (1 new commit) — no warning ─
 
 echo ""
 echo "── Test 3: Existing branch, incremental push — no warning ──"
 T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
+register_temp_dir "$T3"
 (
     cd "$T3"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Base commit on main, simulate pushed
     echo "base" > base.txt
@@ -172,20 +154,16 @@ TEMP_DIRS="$TEMP_DIRS $T3"
         fail "Incremental push warned unexpectedly (exit=$ret): $output"
     fi
 )
-rm -rf "$T3"
 
 # ── Test 4: Non-fast-forward push is blocked (regression) ─────────────────
 
 echo ""
 echo "── Test 4: Non-fast-forward push — blocked (regression) ──"
 T4=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T4"
+register_temp_dir "$T4"
 (
     cd "$T4"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Base commit on main, simulate pushed
     echo "base" > base.txt
@@ -211,20 +189,16 @@ TEMP_DIRS="$TEMP_DIRS $T4"
         fail "Non-fast-forward push not blocked (exit=$ret): $output"
     fi
 )
-rm -rf "$T4"
 
 # ── Test 5: Tag push is skipped (no warning, no block) ────────────────────
 
 echo ""
 echo "── Test 5: Tag push — skipped (no warning, no block) ──"
 T5=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T5"
+register_temp_dir "$T5"
 (
     cd "$T5"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Single commit, tag it
     echo "base" > base.txt
@@ -244,20 +218,16 @@ TEMP_DIRS="$TEMP_DIRS $T5"
         fail "Tag push not skipped (exit=$ret): $output"
     fi
 )
-rm -rf "$T5"
 
 # ── Test 6: SHA-256 zero OID (64 zeros) recognized as zero ───────────────
 
 echo ""
 echo "── Test 6: SHA-256 zero OID — recognized as zero ──"
 T6=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T6"
+register_temp_dir "$T6"
 (
     cd "$T6"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Single commit
     echo "base" > base.txt
@@ -280,20 +250,16 @@ TEMP_DIRS="$TEMP_DIRS $T6"
         fail "SHA-256 zero remote_oid not handled (exit=$ret): $output"
     fi
 )
-rm -rf "$T6"
 
 # ── Test 7: Control chars stripped from echoed commit subject ─────────────
 
 echo ""
 echo "── Test 7: Control chars stripped from commit subject ──"
 T7=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T7"
+register_temp_dir "$T7"
 (
     cd "$T7"
-    git init --quiet
-    git config commit.gpgsign false
-    git config user.email "test@example.com"
-    git config user.name "Test User"
+    git_init_test_repo .
 
     # Base commit on main, simulate pushed
     echo "base" > base.txt
@@ -336,26 +302,12 @@ TEMP_DIRS="$TEMP_DIRS $T7"
         fail "Control chars not stripped or warning missing (exit=$ret, injected=$has_injected, visible=$visible)"
     fi
 )
-rm -rf "$T7"
 
-# ── Summary ────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "pre-push_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-    echo "✓ pre-push tests PASSED — $total_pass assertion(s), 0 failures"
-    echo "═══════════════════════════════════════════════════════"
-    exit 0
-else
-    echo "✗ pre-push tests FAILED — $total_pass passed, $total_fail failure(s)"
-    echo "═══════════════════════════════════════════════════════"
-    exit 1
-fi
 
 
 
