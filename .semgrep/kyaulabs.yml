@@ -122,7 +122,7 @@ rules:
       include:
         - "*.php"
     patterns:
-      - pattern-regex: '(?is)<form[^>]*method\s*=\s*["'']?post["'']?[^>]*>.*?</form>'
+      - pattern-regex: '(?is)<form[^>]*method\s*=\s*["'']?post["'']?[^>]*>.*?(?:</form>|\z)'
       - pattern-not-regex: '(?i)csrf'
 
   # --- Hardcoded display_errors enabled ---
