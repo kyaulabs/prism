@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalRunner.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: EvalRunner.php kyau@nova 2026/07/13 -0700 Exp $
 
 
 
 
 namespace KYAULabs\Eval;
+
+require_once __DIR__ . '/Verdict.php';
 
 /**
  * Parsed eval case from a JSON file.
@@ -1142,6 +1144,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
