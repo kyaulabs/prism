@@ -36,7 +36,7 @@ Skip with a note if stylelint is not configured or no SCSS exists.
 ## 3. JS lint
 
 ```bash
-npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
+npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js"
 ```
 
 Skip with a note if eslint is not configured or no JS source exists.

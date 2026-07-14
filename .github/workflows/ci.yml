@@ -121,7 +121,7 @@ jobs:
 
       - name: ESLint
         if: hashFiles('cdn/js/**/*.js') != ''
-        run: npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+        run: npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 
       - name: Start PHP dev server
         if: hashFiles('tests/Browser/**/*.php') != ''
