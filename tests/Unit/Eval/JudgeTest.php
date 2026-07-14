@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: JudgeTest.php kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: JudgeTest.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -15,6 +18,7 @@ declare(strict_types=1);
 
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
+use KYAULabs\Eval\Verdict;
 
 it('builds a judge prompt containing expected behaviors', function () {
     $runner = new Runner('/tmp');
@@ -76,7 +80,7 @@ it('runJudge returns PASS when all behaviors are YES', function () {
         ['behavior' => 'do thing', 'verdict' => 'YES', 'rationale' => 'did it'],
     ], 5000);
 
-    expect($result->verdict)->toBe('PASS');
+    expect($result->verdict)->toBe(Verdict::Pass);
     expect($result->judgeUsed)->toBeTrue();
 });
 
@@ -96,7 +100,7 @@ it('runJudge returns FAIL when any behavior is NO', function () {
         ['behavior' => 'do other', 'verdict' => 'NO', 'rationale' => 'missed'],
     ], 5000);
 
-    expect($result->verdict)->toBe('FAIL');
+    expect($result->verdict)->toBe(Verdict::Fail);
     expect($result->behaviors[1]['verdict'])->toBe('NO');
 });
 
@@ -113,7 +117,7 @@ it('buildJudgeResult returns INVALID when behaviors array is empty', function ()
 
     $result = $runner->buildJudgeResult($case, [], 5000);
 
-    expect($result->verdict)->toBe('INVALID');
+    expect($result->verdict)->toBe(Verdict::Invalid);
     expect($result->error)->toContain('no behaviors');
     expect($result->judgeUsed)->toBeTrue();
 });
@@ -133,7 +137,7 @@ it('buildJudgeResult returns INVALID when behavior count mismatches expected', f
         ['behavior' => 'do thing', 'verdict' => 'YES', 'rationale' => 'did it'],
     ], 5000);
 
-    expect($result->verdict)->toBe('INVALID');
+    expect($result->verdict)->toBe(Verdict::Invalid);
     expect($result->error)->toContain('1 of 2');
     expect($result->judgeUsed)->toBeTrue();
 });
@@ -155,7 +159,7 @@ it('parseJudgeResponse returns empty array for unparseable non-JSON text', funct
 
     $result = $runner->buildJudgeResult($case, $behaviors, 5000);
 
-    expect($result->verdict)->toBe('INVALID');
+    expect($result->verdict)->toBe(Verdict::Invalid);
     expect($result->error)->toContain('no behaviors');
 });
 
@@ -265,6 +269,7 @@ it('preserves multi-byte character boundaries when truncating', function () {
     // Verify the entire prompt is valid UTF-8 (no split multi-byte sequences)
     expect(mb_check_encoding($prompt, 'UTF-8'))->toBeTrue();
 });
+
 
 
 

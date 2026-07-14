@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-eval.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: run-eval.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -37,6 +40,7 @@ require_once __DIR__ . '/includes/EvalRunner.php';
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
+use KYAULabs\Eval\Verdict;
 
 // ── Parse arguments ──────────────────────────────────────────────────────
 $args = Runner::parseArgs($argv);
@@ -47,7 +51,7 @@ if ($args['caseFile'] === '' || !file_exists($args['caseFile'])) {
         name: $name,
         agent: 'unknown',
         passCriteria: '',
-        verdict: 'INVALID',
+        verdict: Verdict::Invalid,
         error: $args['caseFile'] === ''
             ? 'No case file specified.' : "Case file not found: {$args['caseFile']}",
     );
@@ -63,7 +67,7 @@ try {
         name: basename($args['caseFile']),
         agent: 'unknown',
         passCriteria: '',
-        verdict: 'INVALID',
+        verdict: Verdict::Invalid,
         error: $e->getMessage(),
     );
     echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
@@ -76,7 +80,7 @@ if (!empty($errors)) {
         name: $case->name,
         agent: $case->agent,
         passCriteria: $case->passCriteria,
-        verdict: 'INVALID',
+        verdict: Verdict::Invalid,
         error: implode('; ', $errors),
     );
     echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
@@ -104,7 +108,7 @@ if (!$runner->isOpenCodeAvailable()) {
         name: $case->name,
         agent: $case->agent,
         passCriteria: $case->passCriteria,
-        verdict: 'SKIPPED',
+        verdict: Verdict::Skipped,
         error: 'opencode not found in PATH. Install opencode to run evals.',
     );
     echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
@@ -133,7 +137,7 @@ try {
             name: $case->name,
             agent: $case->agent,
             passCriteria: $case->passCriteria,
-            verdict: 'TIMEOUT',
+            verdict: Verdict::Timeout,
             durationMs: $elapsedMs,
             error: "Agent timed out after {$args['timeout']} seconds",
             degradedKill: $agentOutput['degraded_kill'],
@@ -164,7 +168,7 @@ try {
         name: $case->name,
         agent: $case->agent,
         passCriteria: $case->passCriteria,
-        verdict: 'INVALID',
+        verdict: Verdict::Invalid,
         error: 'Unexpected type error: ' . $e->getMessage(),
     );
 } finally {
@@ -177,6 +181,7 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 
 

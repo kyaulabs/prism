@@ -154,7 +154,7 @@ class EvalResult
         public string $name,
         public string $agent,
         public string $passCriteria,
-        public string $verdict,
+        public Verdict $verdict,
         public array $behaviors = [],
         public array $deterministicChecks = [],
         public int $durationMs = 0,
@@ -173,7 +173,7 @@ class EvalResult
             'name' => $this->name,
             'agent' => $this->agent,
             'pass_criteria' => $this->passCriteria,
-            'verdict' => $this->verdict,
+            'verdict' => $this->verdict->value,
             'behaviors' => $this->behaviors,
             'deterministic_checks' => $this->deterministicChecks,
             'duration_ms' => $this->durationMs,
@@ -190,18 +190,9 @@ class EvalResult
      */
     public function isPass(): bool
     {
-        return $this->verdict === 'PASS';
+        return $this->verdict === Verdict::Pass;
     }
 
-    /**
-     * Return true if this result represents a failure (FAIL, TIMEOUT, or INVALID).
-     *
-     * @return bool
-     */
-    public function isFail(): bool
-    {
-        return in_array($this->verdict, ['FAIL', 'TIMEOUT', 'INVALID'], true);
-    }
 }
 
 /**
@@ -667,19 +658,19 @@ class Runner
             case 'exit code zero':
                 $pass = $exitCode === 0;
                 $checks['exit_code'] = ['expected' => 0, 'actual' => $exitCode, 'pass' => $pass];
-                $verdict = $pass ? 'PASS' : 'FAIL';
+                $verdict = $pass ? Verdict::Pass : Verdict::Fail;
                 break;
 
             case 'no errors in output':
                 $matched = $this->detectErrorSeverity($stderr);
                 $checks['stderr_severity'] = ['pass' => !$matched, 'matched' => $matched];
-                $verdict = $matched ? 'FAIL' : 'PASS';
+                $verdict = $matched ? Verdict::Fail : Verdict::Pass;
                 break;
 
             case 'output contains expected string':
                 if ($case->expectedString === null || $case->expectedString === '') {
                     $checks['expected_string'] = ['needle' => '', 'found' => false, 'pass' => false];
-                    $verdict = 'FAIL';
+                    $verdict = Verdict::Fail;
                 } else {
                     $found = str_contains($stdout, $case->expectedString);
                     $checks['expected_string'] = [
@@ -687,12 +678,12 @@ class Runner
                         'found' => $found,
                         'pass' => $found,
                     ];
-                    $verdict = $found ? 'PASS' : 'FAIL';
+                    $verdict = $found ? Verdict::Pass : Verdict::Fail;
                 }
                 break;
 
             case 'manual inspection required':
-                $verdict = 'UNDETERMINED';
+                $verdict = Verdict::Undetermined;
                 break;
 
             default:
@@ -803,7 +794,7 @@ PROMPT;
                 name: $case->name,
                 agent: $case->agent,
                 passCriteria: $case->passCriteria,
-                verdict: 'INVALID',
+                verdict: Verdict::Invalid,
                 durationMs: $durationMs,
                 judgeUsed: true,
                 error: 'Judge returned no behaviors',
@@ -815,7 +806,7 @@ PROMPT;
                 name: $case->name,
                 agent: $case->agent,
                 passCriteria: $case->passCriteria,
-                verdict: 'INVALID',
+                verdict: Verdict::Invalid,
                 behaviors: $behaviors,
                 durationMs: $durationMs,
                 judgeUsed: true,
@@ -839,7 +830,7 @@ PROMPT;
             name: $case->name,
             agent: $case->agent,
             passCriteria: $case->passCriteria,
-            verdict: $allYes ? 'PASS' : 'FAIL',
+            verdict: $allYes ? Verdict::Pass : Verdict::Fail,
             behaviors: $behaviors,
             deterministicChecks: [],
             durationMs: $durationMs,
@@ -868,7 +859,7 @@ PROMPT;
                 name: $case->name,
                 agent: $case->agent,
                 passCriteria: $case->passCriteria,
-                verdict: 'TIMEOUT',
+                verdict: Verdict::Timeout,
                 durationMs: $elapsed,
                 judgeUsed: true,
                 error: "Judge timed out after {$this->timeout} seconds",
@@ -885,7 +876,7 @@ PROMPT;
                 name: $case->name,
                 agent: $case->agent,
                 passCriteria: $case->passCriteria,
-                verdict: 'INVALID',
+                verdict: Verdict::Invalid,
                 durationMs: $elapsed,
                 judgeUsed: true,
                 error: "Judge output is unparseable (not valid JSON): {$preview}",
@@ -1144,6 +1135,7 @@ PROMPT;
         }
     }
 }
+
 
 
 

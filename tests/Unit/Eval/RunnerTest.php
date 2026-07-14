@@ -37,9 +37,13 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
+use KYAULabs\Eval\Verdict;
 
 it('builds correct opencode run command', function () {
     $runner = new Runner('/path/to/repo');
@@ -184,7 +188,7 @@ it('deterministic gate: exit code zero', function () {
     $result = $runner->checkDeterministic($case, 'output', '', 0);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('PASS');
+    expect($result->verdict)->toBe(Verdict::Pass);
     expect($result->judgeUsed)->toBeFalse();
     expect($result->deterministicChecks)->toHaveKey('exit_code');
     expect($result->deterministicChecks['exit_code']['pass'])->toBeTrue();
@@ -205,7 +209,7 @@ it('deterministic gate: exit code zero fails on non-zero', function () {
     $result = $runner->checkDeterministic($case, 'output', 'error', 1);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('FAIL');
+    expect($result->verdict)->toBe(Verdict::Fail);
     expect($result->deterministicChecks['exit_code']['pass'])->toBeFalse();
     expect($result->deterministicChecks['exit_code']['actual'])->toBe(1);
 });
@@ -224,7 +228,7 @@ it('deterministic gate: no errors in output', function () {
     // Benign stderr (warnings, progress, deprecation notices) → PASS
     $result = $runner->checkDeterministic($case, '', 'Warning: deprecated, progress 50%', 0);
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('PASS');
+    expect($result->verdict)->toBe(Verdict::Pass);
     expect($result->deterministicChecks)->toHaveKey('stderr_severity');
     expect($result->deterministicChecks['stderr_severity']['pass'])->toBeTrue();
     expect($result->deterministicChecks['stderr_severity']['matched'])->toBeFalse();
@@ -232,7 +236,7 @@ it('deterministic gate: no errors in output', function () {
     // Error-severity stderr → FAIL
     $result2 = $runner->checkDeterministic($case, '', "Fatal error: uncaught thing\n", 0);
     expect($result2)->not->toBeNull();
-    expect($result2->verdict)->toBe('FAIL');
+    expect($result2->verdict)->toBe(Verdict::Fail);
     expect($result2->deterministicChecks['stderr_severity']['pass'])->toBeFalse();
     expect($result2->deterministicChecks['stderr_severity']['matched'])->toBeTrue();
 });
@@ -267,7 +271,7 @@ it('deterministic gate: manual inspection returns undetermined', function () {
     $result = $runner->checkDeterministic($case, '', '', 0);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('UNDETERMINED');
+    expect($result->verdict)->toBe(Verdict::Undetermined);
     expect($result->deterministicChecks)->toBe([]);
 });
 
@@ -445,7 +449,7 @@ it('runJudge returns TIMEOUT verdict when executeCommand times out', function ()
 
     $result = $runner->runJudge($case, 'some output');
 
-    expect($result->verdict)->toBe('TIMEOUT');
+    expect($result->verdict)->toBe(Verdict::Timeout);
     expect($result->error)->toContain('timed out');
     expect($result->judgeUsed)->toBeTrue();
 });
@@ -763,7 +767,7 @@ it('deterministic gate: output contains expected string passes when needle found
     $result = $runner->checkDeterministic($case, 'here is function add(a, b) in output', '', 0);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('PASS');
+    expect($result->verdict)->toBe(Verdict::Pass);
     expect($result->deterministicChecks)->toHaveKey('expected_string');
     expect($result->deterministicChecks['expected_string']['pass'])->toBeTrue();
     expect($result->deterministicChecks['expected_string']['found'])->toBeTrue();
@@ -784,7 +788,7 @@ it('deterministic gate: output contains expected string fails when needle absent
     $result = $runner->checkDeterministic($case, 'totally unrelated output', '', 0);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('FAIL');
+    expect($result->verdict)->toBe(Verdict::Fail);
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
@@ -804,7 +808,7 @@ it('deterministic gate: output contains expected string fails when expectedStrin
     $result = $runner->checkDeterministic($case, 'some output', '', 0);
 
     expect($result)->not->toBeNull();
-    expect($result->verdict)->toBe('FAIL');
+    expect($result->verdict)->toBe(Verdict::Fail);
     expect($result->deterministicChecks['expected_string']['pass'])->toBeFalse();
     expect($result->deterministicChecks['expected_string']['found'])->toBeFalse();
 });
@@ -1073,6 +1077,7 @@ it('createWorktree propagates untracked files to the worktree', function () {
         }
     }
 });
+
 
 
 
