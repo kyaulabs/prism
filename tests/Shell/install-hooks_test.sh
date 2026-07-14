@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@akira.kyaulabs 2026/07/11 -0700 Exp $
+# $KYAULabs: install-hooks_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -18,20 +19,11 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
-# ── Resolve paths BEFORE any cd ────────────────────────────────────────────────
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
+
 REAL_SCRIPT="$REPO_ROOT/.github/scripts/install-hooks.sh"
 
 if [ ! -f "$REAL_SCRIPT" ]; then
@@ -44,13 +36,10 @@ fi
 echo ""
 echo "── Test 1: core.hooksPath (no symlinks, no chmod) ──"
 T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
+register_temp_dir "$T1"
+git_init_test_repo "$T1"
 (
 	cd "$T1"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 	mkdir -p .github/hooks .github/scripts
 	cat > .github/hooks/pre-commit <<'HOOKEOF'
 #!/usr/bin/env bash
@@ -87,7 +76,7 @@ HOOKEOF
 		git diff --name-only
 	fi
 )
-rm -rf "$T1"
+
 
 # ── Test 2: All hooks committed as 100755 ─────────────────────────────────────
 
@@ -105,11 +94,10 @@ done
 
 echo "── Test 3: Error on missing hooks directory ──"
 T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
+register_temp_dir "$T3"
+git_init_test_repo "$T3"
 (
 	cd "$T3"
-	git init --quiet
-	git config commit.gpgsign false
 	mkdir -p .github/scripts
 	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
 	set +e
@@ -122,17 +110,14 @@ TEMP_DIRS="$TEMP_DIRS $T3"
 		fail "Should error when .github/hooks is missing (exit 0)"
 	fi
 )
-rm -rf "$T3"
-
 # ── Test 4: Handles empty hooks directory (nullglob bug) ──────────────────────
 
 echo "── Test 4: Empty hooks directory (nullglob) ──"
 T4=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T4"
+register_temp_dir "$T4"
+git_init_test_repo "$T4"
 (
 	cd "$T4"
-	git init --quiet
-	git config commit.gpgsign false
 	mkdir -p .github/hooks .github/scripts
 	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
 	if bash .github/scripts/install-hooks.sh > /dev/null 2>&1; then
@@ -146,24 +131,13 @@ TEMP_DIRS="$TEMP_DIRS $T4"
 		pass "No junk '*' file in .git/hooks"
 	fi
 )
-rm -rf "$T4"
+# ── Summary ────────────────────────────────────────────────────────────
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+print_summary "install-hooks"
+exit $?
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ install-hooks tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ install-hooks tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
+
 
 
 

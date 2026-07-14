@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_robustness_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: pre_commit_robustness_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 
@@ -25,53 +26,19 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
+setup_result_file
 
-pass() { echo "${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
 skip() { echo "SKIP $*"; }
 
-# ── Resolve paths BEFORE any cd ────────────────────────────────────────────────
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PRE_COMMIT="$REPO_ROOT/.github/hooks/pre-commit"
-VENDOR_DIR="$REPO_ROOT/vendor"
-NODE_MODULES_DIR="$REPO_ROOT/node_modules"
-CS_FIXER_CONFIG="$REPO_ROOT/.php-cs-fixer.dist.php"
-ESLINT_CONFIG="$REPO_ROOT/eslint.config.mjs"
-STYLELINT_CONFIG="$REPO_ROOT/.stylelintrc.json"
 
 if [ ! -f "$PRE_COMMIT" ]; then
 	fail "Cannot find pre-commit hook at $PRE_COMMIT"
 	exit 1
 fi
-
-# ── Helper: create an isolated git repo with linter tooling available ──────────
-
-setup_test_repo()
-{
-	local dir="$1"
-	git init --quiet "$dir"
-	(
-		cd "$dir"
-		git config commit.gpgsign false
-		git config user.email "test@example.com"
-		git config user.name "Test User"
-
-		ln -s "$VENDOR_DIR" vendor
-		ln -s "$NODE_MODULES_DIR" node_modules
-
-		[ -f "$CS_FIXER_CONFIG" ] && cp "$CS_FIXER_CONFIG" .php-cs-fixer.dist.php
-		[ -f "$ESLINT_CONFIG" ]  && cp "$ESLINT_CONFIG"  eslint.config.mjs
-		[ -f "$STYLELINT_CONFIG" ] && cp "$STYLELINT_CONFIG" .stylelintrc.json
-	)
-}
 
 # ── Linter availability flags ──────────────────────────────────────────────────
 
@@ -88,8 +55,8 @@ if ! $HAS_PHP; then
 	skip "php not available"
 else
 	T1=$(mktemp -d)
-	TEMP_DIRS="$TEMP_DIRS $T1"
-	setup_test_repo "$T1"
+	register_temp_dir "$T1"
+	setup_linter_repo "$T1"
 	(
 		cd "$T1"
 
@@ -123,8 +90,7 @@ SHEOF
 		else
 			fail "Hook aborted when user.email is missing (exit $ret)"
 		fi
-	)
-	rm -rf "$T1"
+		)
 fi
 
 # ==============================================================================
@@ -168,8 +134,8 @@ if ! $HAS_PHP; then
 	skip "php not available"
 else
 	T4=$(mktemp -d)
-	TEMP_DIRS="$TEMP_DIRS $T4"
-	setup_test_repo "$T4"
+	register_temp_dir "$T4"
+	setup_linter_repo "$T4"
 	(
 		cd "$T4"
 
@@ -190,8 +156,7 @@ SHEOF
 		else
 			fail "RCS auto-add broken after temp file migration (exit $ret)"
 		fi
-	)
-	rm -rf "$T4"
+		)
 fi
 
 # ==============================================================================
@@ -204,8 +169,8 @@ if ! $HAS_PHP; then
 	skip "php not available"
 else
 	T5=$(mktemp -d)
-	TEMP_DIRS="$TEMP_DIRS $T5"
-	setup_test_repo "$T5"
+	register_temp_dir "$T5"
+	setup_linter_repo "$T5"
 	(
 		cd "$T5"
 
@@ -231,28 +196,16 @@ else
 		else
 			fail "Non-ASCII filename not processed (quotePath escaping)"
 		fi
-	)
-	rm -rf "$T5"
+		)
 fi
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "pre-commit robustness"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ pre-commit robustness tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ pre-commit robustness tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
+
+
 
 
 

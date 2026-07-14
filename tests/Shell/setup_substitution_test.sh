@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/09 -0700 Exp $
+# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 # ── Tests for setup-substitute.sh identity/token substitution ────────────────
@@ -9,19 +10,11 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-trap 'rm -f "$RESULT_FILE"' EXIT
-
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
-
-pass() { echo "${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
-
-# ── Resolve paths BEFORE any cd ────────────────────────────────────────────────
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
+
 SCRIPT="$REPO_ROOT/.github/scripts/setup-substitute.sh"
 
 if [ ! -f "$SCRIPT" ]; then
@@ -42,6 +35,7 @@ T_REPO="myrepo"
 echo ""
 echo "── Test 1: Composite identity (kyau <git@kyaulabs.com>) replaced ──"
 T1=$(mktemp -d)
+register_temp_dir "$T1"
 (
 	cd "$T1"
 	printf 'Signed-off-by: kyau <git@kyaulabs.com>\n' > file.md
@@ -54,13 +48,13 @@ T1=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T1"
 
 # ── Test 2: Abuse contact replacement ────────────────────────────────────────
 
 echo ""
 echo "── Test 2: Abuse contact (git+abuse@kyaulabs.com) replaced ──"
 T2=$(mktemp -d)
+register_temp_dir "$T2"
 (
 	cd "$T2"
 	printf 'Contact: git+abuse@kyaulabs.com for issues.\n' > file.md
@@ -73,13 +67,13 @@ T2=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T2"
 
 # ── Test 3: Bare email replacement ──────────────────────────────────────────
 
 echo ""
 echo "── Test 3: Bare email (git@kyaulabs.com) replaced ──"
 T3=$(mktemp -d)
+register_temp_dir "$T3"
 (
 	cd "$T3"
 	printf 'Email git@kyaulabs.com for details.\n' > file.md
@@ -92,13 +86,13 @@ T3=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T3"
 
 # ── Test 4: GitHub org/repo replacement ──────────────────────────────────────
 
 echo ""
 echo "── Test 4: GitHub org/repo (kyaulabs/template) replaced ──"
 T4=$(mktemp -d)
+register_temp_dir "$T4"
 (
 	cd "$T4"
 	printf 'Repo: kyaulabs/template\n' > file.md
@@ -111,13 +105,13 @@ T4=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T4"
 
 # ── Test 5: App name placeholder replacement ────────────────────────────────
 
 echo ""
 echo "── Test 5: App name (<app>) replaced ──"
 T5=$(mktemp -d)
+register_temp_dir "$T5"
 (
 	cd "$T5"
 	printf 'Webroot: <app>\n' > file.md
@@ -130,13 +124,13 @@ T5=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T5"
 
 # ── Test 6: Domain placeholder replacement ───────────────────────────────────
 
 echo ""
 echo "── Test 6: Domain (<domain>) replaced ──"
 T6=$(mktemp -d)
+register_temp_dir "$T6"
 (
 	cd "$T6"
 	printf 'Server: <domain>\n' > file.md
@@ -149,13 +143,13 @@ T6=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T6"
 
 # ── Test 7: Username placeholder replacement ─────────────────────────────────
 
 echo ""
 echo "── Test 7: Username (<username>) replaced ──"
 T7=$(mktemp -d)
+register_temp_dir "$T7"
 (
 	cd "$T7"
 	printf 'Branch: feat/<username>-abc123-desc\n' > file.md
@@ -168,13 +162,13 @@ T7=$(mktemp -d)
 		fail "expected: $expected, got: $result"
 	fi
 )
-rm -rf "$T7"
 
 # ── Test 8: Ordering — composite fires before bare email ────────────────────
 
 echo ""
 echo "── Test 8: Ordering — composite identity not partially replaced ──"
 T8=$(mktemp -d)
+register_temp_dir "$T8"
 (
 	cd "$T8"
 	# File with BOTH composite identity and bare email on different lines
@@ -190,13 +184,13 @@ T8=$(mktemp -d)
 		fail "line1 expected: $exp1 got: $line1; line2 expected: $exp2 got: $line2"
 	fi
 )
-rm -rf "$T8"
 
 # ── Test 9: Multiple tokens in one file ──────────────────────────────────────
 
 echo ""
 echo "── Test 9: Multiple tokens in one file all replaced ──"
 T9=$(mktemp -d)
+register_temp_dir "$T9"
 (
 	cd "$T9"
 	cat > file.md <<EOF
@@ -227,13 +221,13 @@ EOF
 		pass "all tokens replaced, no old identity strings remain"
 	fi
 )
-rm -rf "$T9"
 
 # ── Test 10: Post-run verification grep pattern ──────────────────────────────
 
 echo ""
 echo "── Test 10: Post-run verification grep excludes LICENSE/NOTICE ──"
 T10=$(mktemp -d)
+register_temp_dir "$T10"
 (
 	cd "$T10"
 	# Create files with old identity
@@ -255,7 +249,6 @@ T10=$(mktemp -d)
 		fail "LICENSE or NOTICE was incorrectly modified"
 	fi
 )
-rm -rf "$T10"
 
 # ── Test 11: runs under BSD-style sed (no GNU -i) ─────────────────────────────
 
@@ -296,24 +289,13 @@ echo ""
 echo "── Test 11: runs under BSD-style sed (no GNU -i) ──"
 test_runs_under_bsd_sed
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "setup substitution"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ setup substitution tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ setup substitution tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

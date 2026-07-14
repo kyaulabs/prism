@@ -11,6 +11,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -20,11 +21,10 @@
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-trap 'rm -f "$RESULT_FILE"' EXIT
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+
+setup_result_file
 REAL_VALIDATOR="$REPO_ROOT/.github/scripts/validate-harness.sh"
 
 if [ ! -f "$REAL_VALIDATOR" ]; then
@@ -48,12 +48,10 @@ setup_validator_env() {
 echo ""
 echo "── Test 1: Vacuous PASS when run from non-repo-root ──"
 T1=$(mktemp -d)
+register_temp_dir "$T1"
+git_init_test_repo "$T1"
 (
 	cd "$T1"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 	mkdir -p .opencode/skills/test-skill
 	cat > .opencode/skills/test-skill/SKILL.md <<'EOF'
 ---
@@ -82,16 +80,15 @@ EOF
 	)
 
 )
-rm -rf "$T1"
 
 # ── Test 2: Finding 4 — frontmatter parser re-enters on body '---' ──────────────
 
 echo "── Test 2: Frontmatter parser re-enters on body '---' ──"
 T2=$(mktemp -d)
+register_temp_dir "$T2"
+git_init_test_repo "$T2"
 (
 	cd "$T2"
-	git init --quiet
-	git config commit.gpgsign false
 	setup_validator_env
 
 	# Negative control: an AGENT file missing mode: in frontmatter, but
@@ -142,16 +139,15 @@ EOF
 		pass "Positive control: valid agent not flagged (parser working)"
 	fi
 )
-rm -rf "$T2"
 
 # ── Test 3: Finding 6 — dotted name causes false collision ────────────────────
 
 echo "── Test 3: Dotted name causes false regex collision ──"
 T3=$(mktemp -d)
+register_temp_dir "$T3"
+git_init_test_repo "$T3"
 (
 	cd "$T3"
-	git init --quiet
-	git config commit.gpgsign false
 	mkdir -p .opencode/agents
 	setup_validator_env
 
@@ -189,16 +185,15 @@ EOF
 		fail "Agent count mismatch (expected 2)"
 	fi
 )
-rm -rf "$T3"
 
 # ── Test 4: Finding 9 — grep -c || echo 0 yields 0\n0 ────────────────────────
 
 echo "── Test 4: grep -c || echo 0 integer expression error ──"
 T4=$(mktemp -d)
+register_temp_dir "$T4"
+git_init_test_repo "$T4"
 (
 	cd "$T4"
-	git init --quiet
-	git config commit.gpgsign false
 	mkdir -p .opencode/agents
 	setup_validator_env
 
@@ -226,18 +221,15 @@ EOF
 		fail "No-frontmatter file not detected (expected malformed/missing YAML error)"
 	fi
 )
-rm -rf "$T4"
 
 # ── Test 5: Forward check — command file exists, AGENTS.md row missing ───────
 
 echo "── Test 5: Forward check — command file without AGENTS.md row ──"
 T5=$(mktemp -d)
+register_temp_dir "$T5"
+git_init_test_repo "$T5"
 (
 	cd "$T5"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -270,18 +262,15 @@ EOF
 		fail "Forward check exited non-zero but unexpected output"
 	fi
 )
-rm -rf "$T5"
 
 # ── Test 6: Forward check — deleted row from complete table ──────────────────
 
 echo "── Test 6: Forward check — row deleted from AGENTS.md ──"
 T6=$(mktemp -d)
+register_temp_dir "$T6"
+git_init_test_repo "$T6"
 (
 	cd "$T6"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -328,18 +317,15 @@ EOF
 		fail "Forward check exited non-zero but unexpected output"
 	fi
 )
-rm -rf "$T6"
 
 # ── Test 7: Reverse check — stale table row without file ─────────────────────
 
 echo "── Test 7: Reverse check — stale table row, no file ──"
 T7=$(mktemp -d)
+register_temp_dir "$T7"
+git_init_test_repo "$T7"
 (
 	cd "$T7"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -377,18 +363,15 @@ EOF
 		fail "Reverse check did not detect stale table row"
 	fi
 )
-rm -rf "$T7"
 
 # ── Test 8: Bash permission pattern ends in " *" regression check ────────────
 
 echo "── Test 8: Bash permission pattern ending in ' *' is caught ──"
 T8=$(mktemp -d)
+register_temp_dir "$T8"
+git_init_test_repo "$T8"
 (
 	cd "$T8"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -415,18 +398,15 @@ EOF
 		fail "Did not detect ' *' pattern in agent frontmatter"
 	fi
 )
-rm -rf "$T8"
 
 # ── Test 9: Read-only agent without edit: deny is caught ─────────────────────
 
 echo "── Test 9: Read-only contract — agent claims read-only but lacks edit: deny ──"
 T9=$(mktemp -d)
+register_temp_dir "$T9"
+git_init_test_repo "$T9"
 (
 	cd "$T9"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -449,18 +429,15 @@ EOF
 		fail "Did not detect read-only agent missing edit: deny"
 	fi
 )
-rm -rf "$T9"
 
 # ── Test 10: Read-only agent with edit: deny but no bash restriction is caught
 
 echo "── Test 10: Read-only contract — agent has edit: deny but no bash restriction ──"
 T10=$(mktemp -d)
+register_temp_dir "$T10"
+git_init_test_repo "$T10"
 (
 	cd "$T10"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -487,18 +464,15 @@ EOF
 		fail "Did not detect read-only agent missing bash restriction"
 	fi
 )
-rm -rf "$T10"
 
 # ── Test 11: Properly locked-down read-only agent passes
 
 echo "── Test 11: Read-only contract — properly locked-down agent passes ──"
 T11=$(mktemp -d)
+register_temp_dir "$T11"
+git_init_test_repo "$T11"
 (
 	cd "$T11"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -529,18 +503,15 @@ EOF
 		pass "Properly locked-down agent not flagged"
 	fi
 )
-rm -rf "$T11"
 
 # ── Test 12: Command file referencing nonexistent file via sed -i / git add ──
 
 echo "── Test 12: Command file path reference check — nonexistent file WARN ──"
 T12=$(mktemp -d)
+register_temp_dir "$T12"
+git_init_test_repo "$T12"
 (
 	cd "$T12"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -568,18 +539,15 @@ CMDEOF
 		fail "Did not warn about nonexistent file reference"
 	fi
 )
-rm -rf "$T12"
 
 # ── Test 13: Command file referencing existing file does not WARN ──────────────
 
 echo "── Test 13: Command file path reference check — existing file no WARN ──"
 T13=$(mktemp -d)
+register_temp_dir "$T13"
+git_init_test_repo "$T13"
 (
 	cd "$T13"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -610,18 +578,15 @@ CMDEOF
 		pass "No false warning for existing file reference"
 	fi
 )
-rm -rf "$T13"
 
 # ── Test 14: Variables, placeholders, and paths are skipped ───────────────────
 
 echo "── Test 14: Command file path reference check — edge cases skipped ──"
 T14=$(mktemp -d)
+register_temp_dir "$T14"
+git_init_test_repo "$T14"
 (
 	cd "$T14"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -655,18 +620,15 @@ CMDEOF
 		pass "Variables, placeholders, and paths correctly skipped"
 	fi
 )
-rm -rf "$T14"
 
 # ── Test 15: Validator fails loudly when js-yaml is unresolvable ──────────────
 
 echo "── Test 15: Validator fails loudly when js-yaml is unresolvable ──"
 T15=$(mktemp -d)
+register_temp_dir "$T15"
+git_init_test_repo "$T15"
 (
 	cd "$T15"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	# Copy validator + parser but DO NOT symlink node_modules
 	# (simulates a fresh clone without npm install)
@@ -695,18 +657,15 @@ EOF
 		fail "Validator failed but message did not mention js-yaml"
 	fi
 )
-rm -rf "$T15"
 
 # ── Test 16: README.md forward check — command file exists, README table missing ──
 
 echo "── Test 16: README.md forward check — command without README table entry ──"
 T16=$(mktemp -d)
+register_temp_dir "$T16"
+git_init_test_repo "$T16"
 (
 	cd "$T16"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands .opencode/agents .opencode/skills
 	setup_validator_env
@@ -752,18 +711,15 @@ EOF
 		fail "README forward check exited non-zero but unexpected output"
 	fi
 )
-rm -rf "$T16"
 
 # ── Test 17: README.md forward check — skill exists, README category table missing ──
 
 echo "── Test 17: README.md forward check — skill without README table entry ──"
 T17=$(mktemp -d)
+register_temp_dir "$T17"
+git_init_test_repo "$T17"
 (
 	cd "$T17"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/skills/test-skill
 	setup_validator_env
@@ -808,18 +764,15 @@ EOF
 		fail "README forward check exited non-zero but unexpected output"
 	fi
 )
-rm -rf "$T17"
 
 # ── Test 18: README.md reverse check — stale table entry, no file ──
 
 echo "── Test 18: README.md reverse check — stale Slash commands entry ──"
 T18=$(mktemp -d)
+register_temp_dir "$T18"
+git_init_test_repo "$T18"
 (
 	cd "$T18"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands
 	setup_validator_env
@@ -853,18 +806,15 @@ EOF
 		fail "README reverse check did not warn on stale entry"
 	fi
 )
-rm -rf "$T18"
 
 # ── Test 19: README.md clean — all entries match filesystem ──
 
 echo "── Test 19: README.md clean — all tables in sync ──"
 T19=$(mktemp -d)
+register_temp_dir "$T19"
+git_init_test_repo "$T19"
 (
 	cd "$T19"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands .opencode/agents .opencode/skills
 	setup_validator_env
@@ -945,19 +895,16 @@ EOF
 		fail "README clean — validator failed or did not confirm cross-check (exit ${exit_code:-0})"
 	fi
 )
-rm -rf "$T19"
 
 # ── Test 20: Stale plan files with unchecked boxes trigger WARN ──
 
 echo ""
 echo "── Test 20: Stale plan files with unchecked boxes trigger WARN ──"
 T20=$(mktemp -d)
+register_temp_dir "$T20"
+git_init_test_repo "$T20"
 (
 	cd "$T20"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands .opencode/skills .opencode/agents docs/plans
 	setup_validator_env
@@ -985,19 +932,16 @@ EOF
 		fail "Did not detect stale plan file"
 	fi
 )
-rm -rf "$T20"
 
 # ── Test 21: Recent plans and fully-checked old plans do not WARN ──
 
 echo ""
 echo "── Test 21: Recent plans and fully-checked old plans do not WARN ──"
 T21=$(mktemp -d)
+register_temp_dir "$T21"
+git_init_test_repo "$T21"
 (
 	cd "$T21"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/commands .opencode/skills .opencode/agents docs/plans
 	setup_validator_env
@@ -1031,18 +975,15 @@ EOF
 		pass "No false positive on recent or fully-checked plans"
 	fi
 )
-rm -rf "$T21"
 
 # ── Test 22: git add/stage verdict mismatch in opencode.json is caught ────────
 
 echo "── Test 22: git add/stage verdict mismatch is caught ──"
 T22=$(mktemp -d)
+register_temp_dir "$T22"
+git_init_test_repo "$T22"
 (
 	cd "$T22"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1071,18 +1012,15 @@ EOF
 		fail "Did not detect git add/stage verdict mismatch"
 	fi
 )
-rm -rf "$T22"
 
 # ── Test 23: matching git add/stage verdicts are not flagged ──────────────────
 
 echo "── Test 23: matching git add/stage verdicts not flagged ──"
 T23=$(mktemp -d)
+register_temp_dir "$T23"
+git_init_test_repo "$T23"
 (
 	cd "$T23"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1111,18 +1049,15 @@ EOF
 		pass "Matching git add/stage verdicts not flagged"
 	fi
 )
-rm -rf "$T23"
 
 # ── Test 24: bare "git status" without wildcard is caught ─────────────────────
 
 echo "── Test 24: bare 'git status' permission is caught ──"
 T24=$(mktemp -d)
+register_temp_dir "$T24"
+git_init_test_repo "$T24"
 (
 	cd "$T24"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1149,18 +1084,15 @@ EOF
 		fail "Did not detect bare 'git status' permission pattern"
 	fi
 )
-rm -rf "$T24"
 
 # ── Test 25: "git status*" wildcard is not flagged ────────────────────────────
 
 echo "── Test 25: 'git status*' wildcard not flagged ──"
 T25=$(mktemp -d)
+register_temp_dir "$T25"
+git_init_test_repo "$T25"
 (
 	cd "$T25"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1187,18 +1119,15 @@ EOF
 		pass "'git status*' wildcard not flagged"
 	fi
 )
-rm -rf "$T25"
 
 # ── Test 26: edit-allow on prototypes/** without rm permission is caught ─────
 
 echo "── Test 26: edit-allow prototypes/** without rm is caught ──"
 T26=$(mktemp -d)
+register_temp_dir "$T26"
+git_init_test_repo "$T26"
 (
 	cd "$T26"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1225,18 +1154,15 @@ EOF
 		fail "Did not detect edit-allow prototypes/** without rm permission"
 	fi
 )
-rm -rf "$T26"
 
 # ── Test 27: edit-allow on prototypes/** with rm permission not flagged ───────
 
 echo "── Test 27: edit-allow prototypes/** with rm not flagged ──"
 T27=$(mktemp -d)
+register_temp_dir "$T27"
+git_init_test_repo "$T27"
 (
 	cd "$T27"
-	git init --quiet
-	git config commit.gpgsign false
-	git config user.email "test@example.com"
-	git config user.name "Test User"
 
 	mkdir -p .opencode/agents
 	setup_validator_env
@@ -1264,34 +1190,11 @@ EOF
 		pass "edit-allow prototypes/** with rm permission not flagged"
 	fi
 )
-rm -rf "$T27"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary ─────────────────────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
-
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-	echo "✓ validate-harness tests PASSED — $total_pass assertion(s), 0 failures"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 0
-else
-	echo "✗ validate-harness tests FAILED — $total_pass passed, $total_fail failure(s)"
-	echo "═══════════════════════════════════════════════════════════"
-	exit 1
-fi
-
-
-
-
-
-
-
-
+print_summary "validate-harness"
+exit $?
 
 
 
