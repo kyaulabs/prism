@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/14 -0700 Exp $
+
+
+
 
 
 
@@ -44,14 +47,12 @@ it('has an envrc file that sources the defaults', function () {
 });
 
 it('uses env var substitution for all model fields in opencode.json', function () {
-    $path = __DIR__ . '/../../../opencode.json';
-    $content = file_get_contents($path);
-    $config = json_decode($content, true);
+    $config = load_opencode_config();
 
     // Guard: config structure must be intact
-    Assert::assertIsArray($config, 'opencode.json must parse as valid JSON');
-    Assert::assertArrayHasKey('model', $config, 'opencode.json must have top-level model key');
-    Assert::assertArrayHasKey('agent', $config, 'opencode.json must have agent key');
+    Assert::assertIsArray($config, 'opencode.jsonc must parse as valid JSON');
+    Assert::assertArrayHasKey('model', $config, 'opencode.jsonc must have top-level model key');
+    Assert::assertArrayHasKey('agent', $config, 'opencode.jsonc must have agent key');
 
     // Top-level model must use {env:VAR}
     Assert::assertIsString($config['model']);
@@ -77,7 +78,7 @@ it('uses env var substitution for all model fields in opencode.json', function (
 
 it('has no bare provider/model-id patterns in opencode.json or agent md files', function () {
     $paths = [
-        __DIR__ . '/../../../opencode.json',
+        opencode_config_path(),
     ];
 
     // Agent .md files
@@ -101,7 +102,7 @@ it('has no bare provider/model-id patterns in opencode.json or agent md files', 
 
 it('does not use dollar-prefixed env var syntax anywhere', function () {
     $paths = [
-        __DIR__ . '/../../../opencode.json',
+        opencode_config_path(),
     ];
 
     $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
@@ -149,7 +150,7 @@ it('uses env var substitution for model in all agent md files', function () {
 
 it('has consistent env var names between defaults and config', function () {
     $defaultsPath = __DIR__ . '/../../../.opencode/models.default.env';
-    $configPath = __DIR__ . '/../../../opencode.json';
+    $configPath = opencode_config_path();
 
     $defaults = file_get_contents($defaultsPath);
     $config = file_get_contents($configPath);
@@ -158,14 +159,13 @@ it('has consistent env var names between defaults and config', function () {
 
     foreach ($expectedVars as $var) {
         Assert::assertStringContainsString($var, $defaults, "Default env file must define {$var}");
-        Assert::assertStringContainsString($var, $config, "opencode.json must reference {$var}");
+        Assert::assertStringContainsString($var, $config, "opencode.jsonc must reference {$var}");
     }
 });
 
 it('uses env var substitution for variant, keeps temperature as literal', function () {
-    // opencode.json agent block
-    $configPath = __DIR__ . '/../../../opencode.json';
-    $config = json_decode(file_get_contents($configPath), true);
+    // opencode.jsonc agent block
+    $config = load_opencode_config();
 
     Assert::assertIsArray($config['agent']);
     foreach ($config['agent'] as $name => $agent) {
@@ -245,7 +245,7 @@ it('has OPENCODE_MODEL_JUDGE with correct default', function () {
 });
 
 it('uses {env:VAR} for variant in all opencode.json agents', function () {
-    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    $json = load_opencode_config();
     foreach ($json['agent'] as $name => $agent) {
         if (isset($agent['variant'])) {
             expect($agent['variant'])->toStartWith('{env:OPENCODE_VARIANT_');
@@ -254,19 +254,19 @@ it('uses {env:VAR} for variant in all opencode.json agents', function () {
 });
 
 it('judge agent uses OPENCODE_MODEL_JUDGE not PLANNER', function () {
-    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    $json = load_opencode_config();
     expect($json['agent']['judge']['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}');
 });
 
 it('judge agent has a description', function () {
-    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    $json = load_opencode_config();
     expect($json['agent']['judge']['description'])
         ->toBeString()
         ->not->toBeEmpty();
 });
 
 it('judge agent is a primary agent (eval runner needs --agent CLI access)', function () {
-    $json = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
+    $json = load_opencode_config();
     expect($json['agent']['judge']['mode'])->toBe('primary');
     // hidden must NOT be set — subagent-only; primary agents ignore it but
     // its presence would be misleading
@@ -275,13 +275,13 @@ it('judge agent is a primary agent (eval runner needs --agent CLI access)', func
 
 it('every agent has an explicit temperature — no silent default inheritance', function () {
     // opencode.json agents
-    $config = json_decode(file_get_contents(__DIR__ . '/../../../opencode.json'), true);
-    Assert::assertIsArray($config['agent'] ?? null, 'opencode.json must define agents');
+    $config = load_opencode_config();
+    Assert::assertIsArray($config['agent'] ?? null, 'opencode.jsonc must define agents');
     foreach ($config['agent'] as $name => $agent) {
         Assert::assertArrayHasKey(
             'temperature',
             $agent,
-            "Agent '{$name}' in opencode.json must set an explicit temperature "
+            "Agent '{$name}' in opencode.jsonc must set an explicit temperature "
             . "(cannot use {env:VAR} — ADR-0013; must be a literal). "
             . 'See .opencode/docs/model-configuration.md §5.'
         );
@@ -308,6 +308,7 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
 
 
 

@@ -35,7 +35,7 @@ npx stylelint --version 2>/dev/null || echo "NOT_FOUND"
 npx commitlint --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 ```
 
-Floor: `php-cs-fixer` checks any installed version (same as `php-cs-fixer fix --dry-run` gate); `pest` >= 4; `eslint` >= 9; `stylelint` >= 16; `commitlint` >= 19.
+Floor: `php-cs-fixer` checks any installed version (same as `php-cs-fixer fix --dry-run` gate); `pest` >= 4; `eslint` >= 10; `stylelint` >= 17; `commitlint` >= 21.
 
 ## 4. Security and review
 
@@ -79,7 +79,7 @@ npx @stylelint/language-server --version 2>/dev/null || echo "NOT_FOUND"
 node -e "const c=require('./opencode.json'); console.log(c.lsp?.deno?.disabled === true ? 'DISABLED (correct)' : 'ENABLED (should be disabled)')" 2>/dev/null || echo "CHECK_MANUALLY"
 ```
 
-Floor: `typescript` any (LSP only, no compilation); `eslint` >= 9;
+Floor: `typescript` any (LSP only, no compilation); `eslint` >= 10;
 `@stylelint/language-server` any; `deno` must be disabled in config.
 
 ## Output

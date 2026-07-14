@@ -10,6 +10,10 @@ on:
     branches: [main, develop]
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Lint, Test & Security
@@ -20,25 +24,36 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
           submodules: true
 
       - name: Setup PHP 8.5
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.5'
           coverage: pcov
           tools: composer
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            .opencode/package-lock.json
 
       - name: Validate composer.json and lock file
         run: composer validate --strict --no-check-publish
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
 
       - name: Install Composer dependencies
         run: composer install --no-progress --no-interaction
@@ -54,6 +69,12 @@ jobs:
 
       - name: Plugin tests
         run: npm run test:plugin
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -99,8 +120,8 @@ jobs:
         run: npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
 
       - name: ESLint
-        if: hashFiles('cdn/js/**/*.js') != ''
-        run: npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+        if: hashFiles('cdn/js/**/*.js', '.github/scripts/**/*.js') != ''
+        run: npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 
       - name: Start PHP dev server
         if: hashFiles('tests/Browser/**/*.php') != ''
@@ -110,7 +131,7 @@ jobs:
           timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
       - name: Install Semgrep
-        run: python3 -m pip install --quiet semgrep
+        run: python3 -m pip install --quiet semgrep==1.168.0
 
       - name: Pest (coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
@@ -119,7 +140,7 @@ jobs:
           php vendor/bin/pest --coverage --min=80
           # Per-changed-file gate (mechanized, same script as /check)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${{ github.event.pull_request.base.ref }}"
+            BASE="origin/${BASE_REF}"
           else
             BEFORE="${{ github.event.before }}"
             case "$BEFORE" in
@@ -130,6 +151,7 @@ jobs:
           git diff --name-only "$BASE...HEAD" -- '*.php' \
             | php .github/scripts/coverage-gate.php tests/coverage.xml
         env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           PEST_BROWSER_BASE_URL: http://localhost:8080
 
       - name: Stop PHP dev server
@@ -154,16 +176,18 @@ jobs:
           --disable-version-check
 
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
       - name: Commitlint
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
-          npx commitlint --from="origin/${{ github.event.pull_request.base.ref }}" --to="HEAD" --verbose
+          git fetch origin "${BASE_REF}"
+          npx commitlint --from="origin/${BASE_REF}" --to="HEAD" --verbose
 
   check-macos:
     name: macOS Eval & Shell
@@ -172,7 +196,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
           submodules: true
@@ -187,7 +211,7 @@ jobs:
           bash --version | head -1
 
       - name: Setup PHP 8.5
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.5'
           coverage: pcov
@@ -196,13 +220,24 @@ jobs:
       - name: Validate composer.json and lock file
         run: composer validate --strict --no-check-publish
 
+      - name: Cache Composer dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
       - name: Install Composer dependencies
         run: composer install --no-progress --no-interaction
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 'lts/*'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            .opencode/package-lock.json
 
       - name: Install npm dependencies
         run: npm ci

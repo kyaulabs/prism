@@ -72,7 +72,7 @@ anthropics/skills
     convention. Adopted as the harness's skill file format.
   Used in:
     - .opencode/skills/writing-skills/SKILL.md (format documentation)
-    - Applied as the structural format for all 19 skill files under
+    - Applied as the structural format for all skill files under
       .opencode/skills/
 
 glebis/claude-skills

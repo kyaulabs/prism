@@ -4,7 +4,7 @@
 
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
-[![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE)
+[![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=gnu)](LICENSE)
 [![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)
 [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
@@ -18,11 +18,14 @@ This repository is the basis for all other repositories created here at KYAU Lab
 
 Keep these factors in mind when setting up repositories.
 
+![GitHub Flow](.github/media/github-flow.svg)
+
 * [About](#about)
 * [Dependencies](#dependencies)
   * [Coverage driver](#coverage-driver)
   * [Gitleaks](#gitleaks)
   * [Harness tools](#harness-tools)
+  * [Test setup](#test-setup)
 * [New Repository](#new-repository)
   * [Clone](#clone)
   * [Initialize Repository](#init)
@@ -54,6 +57,7 @@ Keep these factors in mind when setting up repositories.
   * [Skills (on-demand)](#skills-on-demand)
   * [Project context — living docs](#project-context--living-docs)
   * [Activation](#activation)
+  * [Model Configuration](#model-configuration)
 * [Conventional Commits](#conventional-commits)
   * [Type](#type)
   * [Scope](#scope)
@@ -111,7 +115,7 @@ When you add new source directories, register them in `phpunit.xml`'s
 ### Coverage driver
 
 Pest's `--coverage` flag requires PCOV, a code coverage driver for PHP.
-The project uses **PCOV 1.0.12** (pinned) across all platforms.
+The project uses **PCOV 1.0.12** (floor) across all platforms.
 
 | Platform | Install |
 | --- | --- |
@@ -750,7 +754,7 @@ Once you have published at least one proper commit using conventional commits sy
 ### Manual changelog
 
 ```bash
-git cliff --tag 0.0.1
+git cliff --tag v0.0.1
 ```
 
 After the initial run of git-cliff all subsequent runs should detect the version automatically.
@@ -782,6 +786,8 @@ git push -u origin develop      # finally, push the commit
 * [gitleaks](https://github.com/gitleaks/gitleaks) — secrets scanning at pre-commit
 * [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `@code-review` agent
 * [Superpowers](https://github.com/obra/superpowers) — engineering pipeline and core skill methodology (MIT, © Jesse Vincent)
+* [Superpowers Lab](https://github.com/obra/superpowers-lab) — two-phase semantic-duplication detection pattern (MIT, © Jesse Vincent)
+* [Superpowers Developing for Claude Code](https://github.com/obra/superpowers-developing-for-claude-code) — vendored-official-docs skill pattern (MIT, © Jesse Vincent)
 * [Matt Pocock's Skills](https://github.com/mattpocock/skills) — prototype pattern, grilling concept, domain-modeling approach (MIT, © Matt Pocock)
 * [Anthropic Agent Skills](https://github.com/anthropics/skills) — SKILL.md format and skills specification (MIT, © Anthropic)
 * [Gleb's Claude Skills](https://github.com/glebis/claude-skills) — TDD multi-agent architecture (MIT, © Gleb)

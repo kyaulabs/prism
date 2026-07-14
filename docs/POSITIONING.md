@@ -54,12 +54,12 @@ behavior delta**. The fast-path lets you skip brainstorming, planning, TDD, and
 `@code-review` for these changes.
 
 Why two pipelines? Because every pipeline step carries a cognitive and time
-cost. Running a 96-line `/check` gate for a one-character typo fix is waste.
+cost. Running the full `/check` gate for a one-character typo fix is waste.
 Forcing a brainstorming session for an RCS header update burns the reviewer's
 patience. The fast-path keeps velocity high on chores so the heavy pipeline's
 signal stays clean on behavior deltas.
 
-The fast-path is defined in `session-bootstrap.md` — zero-behavior-delta
+The fast-path is defined in `.opencode/docs/session-bootstrap.md` — zero-behavior-delta
 changes (typos, docs, RCS headers, style-only, patch deps, test-only fixes)
 skip the full pipeline. Everything else goes through:
 
@@ -105,7 +105,7 @@ ships to production because nobody had the discipline to throw it away first.
 | Layer | Technology | Rationale |
 |---|---|---|
 | AI harness | OpenCode + agents/skills/commands/plugins | Per-agent permissions, structural anti-drift, pipeline scaffolding |
-| Web server | nginx | Fast, stable, project-proven (see `*.nginx.conf`) |
+| Web server | nginx | Fast, stable, project-proven (see `<app>.nginx.conf` template) |
 | Database | MariaDB | InnoDB, indexed, fully auditable (no ORM) |
 | Backend | PHP 8.5 (procedural / class-based) | No MVC, no router, raw SQL via Aurora's handler |
 | Frontend | HTML5 + SCSS + vanilla JS | Mobile-first, neumorphic, CSS-driven transitions |

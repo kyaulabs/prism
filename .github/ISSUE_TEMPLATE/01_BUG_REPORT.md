@@ -2,7 +2,7 @@
 name: "\U0001F41B Bug Report"
 about: "If something isn't working as expected \U0001F914."
 title: ''
-labels: 'i: bug, i: needs triage'
+labels: 'bug'
 assignees: ''
 
 ---
@@ -10,14 +10,13 @@ assignees: ''
 ## Bug Report
 
 ### Environment
-| Hardware        | Model                      |
-| ----------------| -------------------------- |
-| Platform        | *Desktop, Laptop, or Tablet* |
-| CPU             |                            |
-| GPU             |                            |
-| HDD             | *Disk, SSD, or NVME*       |
-| Windows Version | *Pro N*                    |
-| Windows Build   | *22621.169*                |
+| Component       | Details                                              |
+| --------------- | ---------------------------------------------------- |
+| OS              | *Distribution and version (e.g., Ubuntu 24.04)* |
+| Web Server      | *nginx version*                                 |
+| PHP Version     | *8.5.x*                                         |
+| MariaDB Version |                                                |
+| Aurora Version  |                                                |
 
 ### What is the expected behavior?
 

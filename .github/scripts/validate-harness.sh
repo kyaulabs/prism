@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@nova 2026/07/14 -0700 Exp $
+
+
+
 
 
 
@@ -32,7 +35,7 @@ fi
 
 # ── Prerequisite: js-yaml must be resolvable for frontmatter parsing ─────────
 
-if ! (cd "$REPO_ROOT" && node -e "require('js-yaml')") 2>/dev/null; then
+if ! (cd "$REPO_ROOT" && node -e "require('js-yaml')") 2>&1; then
 	echo "ERROR: Node.js module 'js-yaml' is not resolvable from ${REPO_ROOT}." >&2
 	echo "       Install dependencies: npm install" >&2
 	exit 1
@@ -774,6 +777,9 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 
