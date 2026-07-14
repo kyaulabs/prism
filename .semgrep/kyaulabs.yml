@@ -128,16 +128,14 @@ rules:
   # --- Hardcoded display_errors enabled ---
   - id: kyaulabs-hardcoded-display-errors-on
     message: >-
-      display_errors is hardcoded to '1' / 1. Aurora manages error
-      display via its constructor $status parameter (wired to
-      env_bool('APP_DEBUG')). Do not override
-      display_errors manually in application code.
+      display_errors is hardcoded to an enabled value (1, On, true, yes).
+      Aurora manages error display via its constructor $status parameter
+      (wired to env_bool('APP_DEBUG')). Do not override display_errors
+      manually in application code.
     severity: ERROR
     languages: [php]
-    pattern-either:
-      - pattern: ini_set('display_errors', '1');
-      - pattern: ini_set('display_errors', 1);
-      - pattern: ini_set("display_errors", "1");
-      - pattern: ini_set("display_errors", 1);
-      - pattern: ini_set('display_errors','1');
-      - pattern: ini_set("display_errors","1");
+    patterns:
+      - pattern: ini_set('display_errors', $VAL);
+      - metavariable-regex:
+          metavariable: $VAL
+          regex: '(?i)^[''"]?(1|on|true|yes)[''"]?$'
