@@ -286,3 +286,4 @@ Load these on demand when the task requires them:
 | `/doctor` | Toolchain health check — verifies dev tools are installed at version floors; reports PASS/FAIL/SKIPPED table + go/no-go summary |
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
+| `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
