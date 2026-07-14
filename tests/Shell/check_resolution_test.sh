@@ -1,213 +1,133 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_resolution_test.sh kyau@nova 2026/07/07 -0700 Exp $
+# $KYAULabs: check_resolution_test.sh kyau@nova 2026/07/13 -0700 Exp $
 
-# ── Tests for /check tool resolution and mktemp isolation ──────────────────
+
+
+# ── Tests for pre-commit hook CS-fixer resolution ──────────────────────────
 # Covers:
-#   - php-cs-fixer resolution: vendor/bin preferred over PATH global
-#   - Fallback to PATH when vendor/bin is absent
-#   - SKIPPED notice when php-cs-fixer is not found
-#   - mktemp produces unique filenames (prevents /tmp collision)
+#   - Real pre-commit hook detects CS violations in staged PHP
+#   - Real pre-commit hook exits non-zero on violations
+#   - Hook-driven: invokes .github/hooks/pre-commit against fixture repos
+#     instead of testing stale heredoc copies of the resolution block.
 
 set -euo pipefail
 
-RESULT_FILE=$(mktemp)
-TEMP_DIRS=""
-trap 'rm -f "$RESULT_FILE"; [ -n "$TEMP_DIRS" ] && rm -rf $TEMP_DIRS' EXIT
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
-RED=$'\033[1;31m'
-GREEN=$'\033[1;32m'
-RESET=$'\033[0m'
+setup_result_file
 
-pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
-fail() { echo "  ${RED}FAIL${RESET} $*" >&2; echo "FAIL" >> "$RESULT_FILE"; }
+HOOK="$REPO_ROOT/.github/hooks/pre-commit"
 
-# ── Test 1: Resolution prefers vendor/bin over PATH ────────────────────────
+# ── Test A: Hook detects php-cs-fixer violations in staged PHP ─────────────
 
 echo ""
-echo "── Test 1: Resolution prefers vendor/bin over PATH ──"
-T1=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T1"
-(
-    cd "$T1"
+echo "── Test A: Hook detects CS violations ──"
+TA=$(mktemp -d)
+register_temp_dir "$TA"
 
-    # Create vendor/bin/php-cs-fixer stub — echoes "vendor"
-    mkdir -p vendor/bin
-    cat > vendor/bin/php-cs-fixer <<'STUB'
-#!/usr/bin/env bash
-echo "vendor"
-STUB
-    chmod +x vendor/bin/php-cs-fixer
+if (
+	cd "$TA"
 
-    # Create global php-cs-fixer stub — echoes "global"
-    mkdir -p global-bin
-    cat > global-bin/php-cs-fixer <<'STUB'
-#!/usr/bin/env bash
-echo "global"
-STUB
-    chmod +x global-bin/php-cs-fixer
+	setup_linter_repo .
 
-    # Write the EXACT resolution block (tab-indented, mirrors pre-commit hook
-    # lines 18-23 and the block that will replace check.md line 12).
-    cat > resolve.sh <<'RESOLVE'
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix --dry-run --diff
+	# Create a deliberately non-conforming PHP file (2-space indent is
+	# forbidden by PSR-12, and declare(strict_types=1) is missing).
+	cat > bad.php <<'PHP'
+<?php
+
+  $x = 1;
+  echo $x;
+PHP
+
+	git add bad.php
+
+	set +e
+	output=$(bash "$HOOK" 2>&1)
+	ret=$?
+	set -e
+
+	fails=0
+
+	# The hook should mention php-cs-fixer
+	echo "$output" | grep -qF "→ php-cs-fixer" || {
+		echo "  output missing '→ php-cs-fixer'"
+		fails=1
+	}
+
+	# The hook should produce a diff (lines starting with - or +)
+	echo "$output" | grep -qE '^\-|^\+' || {
+		echo "  output missing diff markers"
+		fails=1
+	}
+
+	# The hook should exit non-zero (violations found)
+	[ "$ret" -ne 0 ] || {
+		echo "  expected non-zero exit, got $ret"
+		fails=1
+	}
+
+	[ "$fails" -eq 0 ]
+); then
+	pass "Hook detects CS violations in staged PHP"
 else
-	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
+	fail "Hook did not detect CS violations as expected"
 fi
-RESOLVE
-    chmod +x resolve.sh
 
-    # shellcheck disable=SC2030  # intentional: PATH scoping is local to the test subshell
-    PATH="$T1/vendor/bin:$T1/global-bin:$PATH"
-    export PATH
-
-    set +e
-    output=$(bash resolve.sh 2>&1)
-    ret=$?
-    set -e
-
-    if [ "$ret" -eq 0 ] && echo "$output" | grep -q "vendor" && ! echo "$output" | grep -q "global"; then
-        pass "Resolution prefers vendor/bin over PATH (got 'vendor', not 'global')"
-    else
-        fail "Expected 'vendor' (not 'global'), got (exit=$ret): $output"
-    fi
-)
-rm -rf "$T1"
-
-# ── Test 2: Resolution falls back to PATH when vendor/bin absent ───────────
+# ── Test B: Hook passes on conforming PHP (no CS violations) ──────────────
 
 echo ""
-echo "── Test 2: Falls back to PATH when vendor/bin absent ──"
-T2=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T2"
-(
-    cd "$T2"
+echo "── Test B: Hook passes on conforming PHP ──"
+TB=$(mktemp -d)
+register_temp_dir "$TB"
 
-    # Global php-cs-fixer stub only — no vendor/bin
-    mkdir -p global-bin
-    cat > global-bin/php-cs-fixer <<'STUB'
-#!/usr/bin/env bash
-echo "global"
-STUB
-    chmod +x global-bin/php-cs-fixer
+if (
+	cd "$TB"
 
-    # Same EXACT resolution block
-    cat > resolve.sh <<'RESOLVE'
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix --dry-run --diff
+	setup_linter_repo .
+
+	# Create a conforming PHP file (PSR-12, strict types, proper RCS header
+	# so the RCS auto-add section doesn't flag or modify it).
+	cat > good.php <<'PHP'
+<?php
+
+declare(strict_types=1);
+
+
+echo "hello";
+
+PHP
+
+	git add good.php
+
+	set +e
+	output=$(bash "$HOOK" 2>&1)
+	ret=$?
+	set -e
+
+	fails=0
+
+	# The hook should NOT produce a CS-fixer diff
+	CS_OUTPUT=$(echo "$output" | sed -n '/→ php-cs-fixer/,/Found/p' || true)
+	if echo "$output" | grep -q "→ php-cs-fixer"; then
+		if echo "$CS_OUTPUT" | grep -qE '^\-|^\+'; then
+			echo "  conforming PHP produced unexpected diff"
+			fails=1
+		fi
+	fi
+
+	[ "$fails" -eq 0 ]
+); then
+	pass "Hook passes on conforming PHP"
 else
-	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
+	fail "Hook flagged conforming PHP"
 fi
-RESOLVE
-    chmod +x resolve.sh
-
-    # shellcheck disable=SC2030,SC2031  # intentional subshell PATH isolation
-    PATH="$T2/global-bin:$PATH"
-    export PATH
-
-    set +e
-    output=$(bash resolve.sh 2>&1)
-    ret=$?
-    set -e
-
-    if [ "$ret" -eq 0 ] && echo "$output" | grep -q "global"; then
-        pass "Falls back to PATH when vendor/bin absent (got 'global')"
-    else
-        fail "Expected 'global', got (exit=$ret): $output"
-    fi
-)
-rm -rf "$T2"
-
-# ── Test 3: SKIPPED notice when php-cs-fixer not found ─────────────────────
-
-echo ""
-echo "── Test 3: SKIPPED when php-cs-fixer not found ──"
-T3=$(mktemp -d)
-TEMP_DIRS="$TEMP_DIRS $T3"
-BASH_PATH=$(command -v bash)
-(
-    cd "$T3"
-
-    # Same EXACT resolution block
-    cat > resolve.sh <<'RESOLVE'
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix --dry-run --diff
-else
-	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
-fi
-RESOLVE
-    chmod +x resolve.sh
-
-    # shellcheck disable=SC2031  # intentional: reads PATH inside isolated test subshell
-    OLD_PATH="$PATH"
-    # shellcheck disable=SC2123  # intentional: empty PATH exercises the not-found branch
-    PATH=""
-    export PATH
-
-    set +e
-    output=$("$BASH_PATH" resolve.sh 2>&1)
-    ret=$?
-    set -e
-
-    PATH="$OLD_PATH"
-    export PATH
-
-    if [ "$ret" -eq 0 ] && echo "$output" | grep -q "SKIPPED"; then
-        pass "SKIPPED notice when php-cs-fixer not found"
-    else
-        fail "Expected SKIPPED, got (exit=$ret): $output"
-    fi
-)
-rm -rf "$T3"
-
-# ── Test 4: mktemp produces unique filenames ───────────────────────────────
-
-echo ""
-echo "── Test 4: mktemp produces unique filenames ──"
-TMP1=$(mktemp)
-TMP2=$(mktemp)
-if [ "$TMP1" != "$TMP2" ]; then
-    pass "mktemp produces unique filenames"
-else
-    fail "mktemp returned same name twice: $TMP1"
-fi
-rm -f "$TMP1" "$TMP2"
 
 # ── Summary ────────────────────────────────────────────────────────────────
 
-total_pass=$(grep -c "PASS" "$RESULT_FILE" 2>/dev/null || true)
-total_fail=$(grep -c "FAIL" "$RESULT_FILE" 2>/dev/null || true)
-: "${total_pass:=0}"
-: "${total_fail:=0}"
+print_summary "check_resolution_test.sh"
+exit $?
 
-echo ""
-echo "═══════════════════════════════════════════════════════"
-if [ "$total_fail" -eq 0 ]; then
-    echo "✓ check resolution tests PASSED — $total_pass assertion(s), 0 failures"
-    echo "═══════════════════════════════════════════════════════"
-    exit 0
-else
-    echo "✗ check resolution tests FAILED — $total_pass passed, $total_fail failure(s)"
-    echo "═══════════════════════════════════════════════════════"
-    exit 1
-fi
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
