@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 it('run-eval.php exists', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
     expect(file_exists($script))->toBeTrue();
@@ -36,7 +39,7 @@ it('run-eval.php with --dry-run prints the command', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
     $output = [];
     $exitCode = 0;
-    exec("php {$script} {$caseFile} --dry-run 2>&1", $output, $exitCode);
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($caseFile) . " --dry-run 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
     expect($joined)->toContain('opencode run');
@@ -60,7 +63,7 @@ it('run-eval.php produces INVALID JSON for wrong-typed case fields', function ()
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
     $output = [];
     $exitCode = 0;
-    exec("php {$script} {$caseFile} --dry-run 2>&1", $output, $exitCode);
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($caseFile) . " --dry-run 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
     expect($exitCode)->not->toBe(255);
@@ -80,6 +83,7 @@ it('run-eval.php header documents UNDETERMINED in exit codes', function () {
     $contents = file_get_contents($script);
     expect($contents)->toContain('UNDETERMINED');
 });
+
 
 
 

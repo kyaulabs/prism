@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-suite.php kyau@nova 2026/07/12 -0700 Exp $
+# $KYAULabs: run-suite.php kyau@nova 2026/07/13 -0700 Exp $
+
+
+
 
 
 
@@ -106,7 +109,7 @@ if ($dryRun) {
         $total = count($cases);
         echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
 
-        $cmd = "php {$runEvalScript} " . escapeshellarg($caseInfo['file']) .
+        $cmd = "php " . escapeshellarg($runEvalScript) . " " . escapeshellarg($caseInfo['file']) .
             " --timeout {$timeout} --dry-run 2>&1";
         $output = [];
         $exitCode = 0;
@@ -125,7 +128,7 @@ foreach ($cases as $i => $caseInfo) {
     $total = count($cases);
     echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
 
-    $cmd = "php {$runEvalScript} " . escapeshellarg($caseInfo['file']) .
+    $cmd = "php " . escapeshellarg($runEvalScript) . " " . escapeshellarg($caseInfo['file']) .
         " --timeout {$timeout} 2>&1";
     $output = [];
     $exitCode = 0;
@@ -190,7 +193,8 @@ if (!is_dir($resultsDir)) {
 }
 
 $timestamp = date('Y-m-d\THis');
-$resultsFile = $resultsDir . "/{$timestamp}.json";
+$suffix = substr(uniqid('', true), -6);
+$resultsFile = $resultsDir . "/{$timestamp}-{$suffix}.json";
 file_put_contents(
     $resultsFile,
     json_encode(['timestamp' => $timestamp, 'results' => $results], JSON_PRETTY_PRINT),
@@ -215,6 +219,7 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
 
 
 

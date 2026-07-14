@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 it('run-suite.php exists', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
     expect(file_exists($script))->toBeTrue();
@@ -37,7 +40,7 @@ it('run-suite.php discovers JSON files in a directory', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
     $output = [];
     $exitCode = 0;
-    exec("php {$script} {$tmpDir} --timeout 5 2>&1", $output, $exitCode);
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($tmpDir) . " --timeout 5 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
     expect($exitCode)->not->toBe(255);
@@ -68,7 +71,7 @@ it('run-suite.php handles case file with string tags without crashing', function
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
     $output = [];
     $exitCode = 0;
-    exec("php {$script} {$tmpDir} --tag smoke --timeout 5 2>&1", $output, $exitCode);
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($tmpDir) . " --tag smoke --timeout 5 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
     expect($exitCode)->not->toBe(255);
@@ -96,7 +99,7 @@ it('run-suite.php --dry-run streams verbatim and exits 0', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
     $output = [];
     $exitCode = 0;
-    exec("php {$script} {$tmpDir} --dry-run --timeout 5 2>&1", $output, $exitCode);
+    exec("php " . escapeshellarg($script) . " " . escapeshellarg($tmpDir) . " --dry-run --timeout 5 2>&1", $output, $exitCode);
 
     $joined = implode("\n", $output);
 
@@ -134,6 +137,7 @@ it('run-suite.php summary line includes undetermined count', function () {
     $contents = file_get_contents($script);
     expect($contents)->toContain('undetermined');
 });
+
 
 
 
