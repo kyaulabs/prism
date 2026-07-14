@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RulesPackTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: RulesPackTest.php kyau@nova 2026/07/14 -0700 Exp $
+
+
+
 
 
 
@@ -199,7 +202,7 @@ function semgrepRulesProvider(): array
         ['dir' => 'XssEchoRequestSink',      'rule' => 'kyaulabs-xss-echo-request-sink',      'positive' => 3],
         ['dir' => 'UnserializeRequestData',   'rule' => 'kyaulabs-unserialize-request-data',   'positive' => 3],
         ['dir' => 'MissingCsrfToken',        'rule' => 'kyaulabs-missing-csrf-token',         'positive' => 1],
-        ['dir' => 'HardcodedDisplayErrors',  'rule' => 'kyaulabs-hardcoded-display-errors-on', 'positive' => 1],
+        ['dir' => 'HardcodedDisplayErrors',  'rule' => 'kyaulabs-hardcoded-display-errors-on', 'positive' => 10],
     ];
 }
 
@@ -350,6 +353,7 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
+
 
 
 
