@@ -6,6 +6,9 @@
 
 
 
+
+
+
 # This file intentionally contains POST forms without a token hidden
 # input, in various attribute-order, case, and quote variants. The
 # kyaulabs-missing-csrf-token rule must fire once per form (5 findings).

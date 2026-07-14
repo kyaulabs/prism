@@ -6,10 +6,13 @@
 
 
 
+
+
+
 # This file contains POST forms WITH token hidden inputs in various
 # attribute-order, case, and quote variants. The
 # kyaulabs-missing-csrf-token rule must NOT fire because the file
-# contains the suppress word (pattern-not-regex is file-level).
+# contains the suppress word (pattern-not-regex checks the matched region).
 
 $csrf = bin2hex(random_bytes(32));
 $_SESSION['csrf'] = $csrf;
