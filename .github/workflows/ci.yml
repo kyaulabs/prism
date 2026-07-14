@@ -120,7 +120,7 @@ jobs:
         run: npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
 
       - name: ESLint
-        if: hashFiles('cdn/js/**/*.js') != ''
+        if: hashFiles('cdn/js/**/*.js', '.github/scripts/**/*.js') != ''
         run: npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 
       - name: Start PHP dev server
