@@ -16,6 +16,12 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | --- | --- |
 | <Term> | <definition> |
 
+### Verdict
+Terminal outcome of a single eval case. One of six case-level values
+represented by the `KYAULabs\Eval\Verdict` backed enum: `Pass`, `Fail`,
+`Timeout`, `Invalid`, `Skipped`, `Undetermined`. Behavior-level strings
+(`YES`, `NO`, `UNCLEAR`) are separate and live only in behavior arrays.
+
 ## Entities & Invariants
 
 Core domain objects and the rules that always hold for them.
@@ -26,6 +32,11 @@ Core domain objects and the rules that always hold for them.
   - <rule that must always be true>
   - <rule that must always be true>
 - **Lifecycle:** <created when… / transitions… / archived when…>
+
+### EvalResult
+Immutable result object produced by the eval runner for a single case.
+**Invariant:** `verdict` is always a `Verdict` enum case (never a raw
+string).
 
 ## System Boundaries
 
