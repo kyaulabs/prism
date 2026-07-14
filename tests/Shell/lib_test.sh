@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: lib_test.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: lib_test.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
@@ -78,11 +79,21 @@ test_pass_fail_helpers() {
 	pass "pass/fail helpers wrote to RESULT_FILE"
 }
 
+# Test 4: YELLOW color variable is defined
+test_yellow_color_defined() {
+	if [ "${YELLOW:-}" != "" ] && [ "${YELLOW:0:3}" = $'\033[1' ]; then
+		pass "YELLOW color variable defined"
+	else
+		fail "YELLOW color variable not defined (got: ${YELLOW:-<unset>})"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
 test_make_file_stale_30
 test_pass_fail_helpers
+test_yellow_color_defined
 
 # Summary
 total=$(wc -l < "$RESULT_FILE")
@@ -95,5 +106,6 @@ echo "Results: ${passes} passed, ${fails} failed"
 if [ "$fails" -gt 0 ]; then
 	exit 1
 fi
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

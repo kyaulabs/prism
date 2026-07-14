@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@akira.kyaulabs 2026/07/12 -0700 Exp $
+# $KYAULabs: test_helpers.sh kyau@nova 2026/07/13 -0700 Exp $
+
 
 
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
@@ -18,6 +19,7 @@ export REPO_ROOT
 
 RED=$'\033[1;31m'
 GREEN=$'\033[1;32m'
+YELLOW=$'\033[1;33m'
 RESET=$'\033[0m'
 
 pass() { echo "  ${GREEN}PASS${RESET} $*"; echo "PASS" >> "$RESULT_FILE"; }
@@ -33,5 +35,6 @@ make_file_stale() {
 	old_ts=$(date -v-"${days}"d +%Y%m%d%H%M 2>/dev/null || date -d "${days} days ago" +%Y%m%d%H%M)
 	touch -t "$old_ts" "$file"
 }
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
