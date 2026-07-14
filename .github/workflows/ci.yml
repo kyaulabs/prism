@@ -131,7 +131,7 @@ jobs:
           timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
       - name: Install Semgrep
-        run: python3 -m pip install --quiet semgrep
+        run: python3 -m pip install --quiet semgrep==1.168.0
 
       - name: Pest (coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
@@ -140,7 +140,7 @@ jobs:
           php vendor/bin/pest --coverage --min=80
           # Per-changed-file gate (mechanized, same script as /check)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${{ github.event.pull_request.base.ref }}"
+            BASE="origin/${BASE_REF}"
           else
             BEFORE="${{ github.event.before }}"
             case "$BEFORE" in
@@ -151,6 +151,7 @@ jobs:
           git diff --name-only "$BASE...HEAD" -- '*.php' \
             | php .github/scripts/coverage-gate.php tests/coverage.xml
         env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           PEST_BROWSER_BASE_URL: http://localhost:8080
 
       - name: Stop PHP dev server
@@ -182,9 +183,11 @@ jobs:
 
       - name: Commitlint
         if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
-          npx commitlint --from="origin/${{ github.event.pull_request.base.ref }}" --to="HEAD" --verbose
+          git fetch origin "${BASE_REF}"
+          npx commitlint --from="origin/${BASE_REF}" --to="HEAD" --verbose
 
   check-macos:
     name: macOS Eval & Shell
