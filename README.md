@@ -597,7 +597,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
-| `/work-issue` | Analyze an existing GitHub issue, plan the fix, and halt for approval before dispatching to @tdd |
+
 
 OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
 `/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
