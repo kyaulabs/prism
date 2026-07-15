@@ -31,6 +31,13 @@ PHP pages include Aurora, output HTML directly, and interact with the DB via raw
 - `CONTEXT.md` (root) — domain glossary, entities, invariants, boundaries, non-goals. Read before domain-coupled work (see `domain-context` skill). Draft or refresh it via `/prime`.
 - `adr/` — Architecture Decision Records (Nygard format). Write one for hard-to-reverse or cross-cutting decisions (see `adr` skill).
 
+## Labels
+
+Issue labels use a two-axis vocabulary — **type** (GitHub issue-type field)
+and **progress** (GitHub Progress field) — with optional **wayfinder** and
+**meta** labels. The full vocabulary is documented in
+`docs/agents/labels.md`.
+
 ## Directory Structure
 
 ```text
