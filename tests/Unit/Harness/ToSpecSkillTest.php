@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Asserts the to-spec skill (issue #133) meets its acceptance criteria:
  * exists with derived-from metadata, declares no-interview synthesis, uses
@@ -16,7 +19,7 @@ declare(strict_types=1);
  * enforced separately by validate-harness.sh.
  */
 
-test('to-spec skill file exists with required frontmatter', function () {
+test('to-spec skill file exists with required frontmatter', function (): void {
     $skillPath = __DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md';
     expect(file_exists($skillPath))->toBeTrue("to-spec SKILL.md not found at {$skillPath}");
 
@@ -30,7 +33,7 @@ test('to-spec skill file exists with required frontmatter', function () {
     expect($content)->toContain('derived-from: mattpocock/skills');
 });
 
-test('to-spec skill declares no-interview synthesis', function () {
+test('to-spec skill declares no-interview synthesis', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     // Acceptance criterion: "no interview performed".
@@ -38,14 +41,14 @@ test('to-spec skill declares no-interview synthesis', function () {
     expect($content)->toContain('No interview');
 });
 
-test('to-spec skill uses CONTEXT.md vocabulary and cites ADRs', function () {
+test('to-spec skill uses CONTEXT.md vocabulary and cites ADRs', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     expect($content)->toContain('CONTEXT.md');
     expect($content)->toMatch('/\bADRs?\b/');
 });
 
-test('to-spec skill sketches test seams with a confirmation gate', function () {
+test('to-spec skill sketches test seams with a confirmation gate', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     expect($content)->toMatch('/\bseam\b/i');
@@ -54,7 +57,7 @@ test('to-spec skill sketches test seams with a confirmation gate', function () {
     expect($content)->toMatch('/confirm/i');
 });
 
-test('to-spec skill defines a spec template targeting docs/specs/', function () {
+test('to-spec skill defines a spec template targeting docs/specs/', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     expect($content)->toContain('docs/specs/');
@@ -62,11 +65,12 @@ test('to-spec skill defines a spec template targeting docs/specs/', function () 
     expect($content)->toContain('Out of Scope');
 });
 
-test('to-spec skill has a Gotchas section', function () {
+test('to-spec skill has a Gotchas section', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     expect($content)->toContain('## Gotchas');
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
