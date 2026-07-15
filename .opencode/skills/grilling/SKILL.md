@@ -7,7 +7,7 @@ derived-from: mattpocock/skills (MIT, © Matt Pocock)
 # Grilling: One-Question-at-a-Time Interview Protocol
 
 A reusable interview primitive for agents that need human input. Consumer
-skills (brainstorming, @consult, @from-issue) invoke this skill when they need
+skills (brainstorming, @consult (planned), @from-issue (planned)) invoke this skill when they need
 to ask the user questions — it governs *how* to ask, not *what* to ask about.
 
 ## When to use
@@ -17,7 +17,7 @@ Load this skill when:
 - You are gathering requirements or constraints from the user.
 - You are presenting options and need a decision.
 - You are gate-keeping: the user must approve before you proceed.
-- A consumer skill (brainstorming, @consult, @from-issue) instructs you to
+- A consumer skill (brainstorming, @consult (planned), @from-issue (planned)) instructs you to
   interview the user.
 
 Do NOT load this skill for tasks that are already unambiguous — execute
