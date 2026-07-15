@@ -64,6 +64,8 @@ lifecycle flags.
 | `help wanted` | `#db2780` | Assistance requested from contributors |
 | `good first issue` | `#4e3cb2` | Suitable for new contributors |
 | `plan` | `#0ea5e9` | Work from a `docs/plans/` implementation plan |
+| `needs-info` | `#fbca04` | Triage: issue lacks detail to proceed (awaiting reporter) |
+| `ready-for-agent` | `#0e8a16` | Triage: classified and routed, ready for an agent to pick up |
 | `duplicate` | `#cfd3d7` | Duplicate of another issue |
 | `invalid` | `#cfd3d7` | Not a valid issue |
 | `on hold` | `#cfd3d7` | Temporarily paused |

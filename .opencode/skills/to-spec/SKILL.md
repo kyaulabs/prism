@@ -1,6 +1,6 @@
 ---
 name: to-spec
-description: "Use when you need to turn the current conversation and codebase understanding into a spec WITHOUT interviewing the user — synthesis only. Produces a docs/specs/ file using CONTEXT.md vocabulary and relevant ADRs, sketches test seams for confirmation, then finalizes. Exit path for @consult, @from-issue (planned), or any session where the design is already clear from discussion."
+description: "Use when you need to turn the current conversation and codebase understanding into a spec WITHOUT interviewing the user — synthesis only. Produces a docs/specs/ file using CONTEXT.md vocabulary and relevant ADRs, sketches test seams for confirmation, then finalizes. Exit path for @consult, @from-issue, or any session where the design is already clear from discussion."
 derived-from: mattpocock/skills (MIT, © Matt Pocock)
 ---
 
@@ -14,7 +14,7 @@ idea through grilling, to-spec captures a design that is already settled.
 ## When to use
 
 Load this skill when:
-- The design has emerged from a conversation (@consult, @from-issue (planned),
+- The design has emerged from a conversation (@consult, @from-issue,
   or an exploratory session) and you need to record it as a spec.
 - The user says "write this up as a spec" / "turn this into a spec".
 - You have enough context to write a spec and the user does NOT want another
