@@ -500,6 +500,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@semgrep` | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
 | `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
+| `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 
 ### Model Configuration
 

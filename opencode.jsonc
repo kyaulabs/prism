@@ -113,6 +113,11 @@
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "temperature": 0.1
     },
+    "consult": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
     "debug": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
