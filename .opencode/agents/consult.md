@@ -104,8 +104,8 @@ Respond with:
 >
 > - If this is a feature: run `/feature "description"` to start the
 >   brainstorming → spec → plan → @tdd pipeline.
-> - If this is an existing issue: run `/work-issue #NN` to analyze and plan
->   it.
+> - If this is an existing issue: run `@from-issue #NN` to analyze, plan, and
+>   execute it.
 > - If you just have a rough idea: say "brainstorm" and I can hand you off
 >   to the brainstorming flow.
 >

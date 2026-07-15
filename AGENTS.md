@@ -278,6 +278,7 @@ Load these on demand when the task requires them:
 | `@debug` | subagent | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
+| `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
 
 ## Commands
 
@@ -298,4 +299,4 @@ Load these on demand when the task requires them:
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` with issue types, custom fields, and labels aligned to `/issue` |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
-| `/work-issue` | Analyze an existing GitHub issue, plan the fix, and halt for approval before dispatching to @tdd |
+

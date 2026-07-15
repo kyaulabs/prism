@@ -78,7 +78,8 @@
           "architect": "allow",
           "explore": "allow",
           "scout": "allow",
-          "docs-writer": "allow"
+          "docs-writer": "allow",
+          "from-issue": "allow"
         }
       }
     },
@@ -116,6 +117,11 @@
     "consult": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
+    "from-issue": {
+      "model": "{env:OPENCODE_MODEL_PLANNER}",
+      "variant": "{env:OPENCODE_VARIANT_PLANNER}",
       "temperature": 0.1
     },
     "debug": {

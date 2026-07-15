@@ -16,7 +16,7 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 | Tier | Model env var | Variant env var | Default model | Default variant | Agents |
 | --- | --- | --- | --- | --- | --- |
 | PRIMARY | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
-| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan |
+| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
 | JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 

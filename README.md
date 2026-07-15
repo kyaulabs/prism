@@ -501,6 +501,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
+| `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
 
 ### Model Configuration
 
@@ -511,7 +512,7 @@ Four tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, from-issue |
 | Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
@@ -596,7 +597,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
-| `/work-issue` | Analyze an existing GitHub issue, plan the fix, and halt for approval before dispatching to @tdd |
+
 
 OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
 `/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
