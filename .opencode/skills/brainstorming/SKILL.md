@@ -45,11 +45,18 @@ exception defined in the HARD-GATE above.
 Complete these in order:
 
 1. **Explore project context** — check files, docs, recent commits, `CONTEXT.md`.
-2. **Ask clarifying questions** — one at a time, understand purpose/constraints/
-   success criteria.
+2. **Gather requirements via grilling** — load the `grilling` skill and
+   interview the user one question at a time. Focus on purpose, constraints,
+   and success criteria. Grilling governs *how* to ask (one-at-a-time,
+   facts-vs-decisions, reassess, recommend, confirm); this skill governs
+   *what* to ask about.
 3. **Propose 2–3 approaches** — with trade-offs and your recommendation.
-4. **Present design** — in sections scaled to their complexity, get user
-   approval after each section.
+   Present these following grilling's Recommended answer behavior (lead with
+   your recommendation, explain the trade-off you're making and what
+   alternative you're rejecting).
+4. **Present design** — in sections scaled to their complexity. Use grilling's
+   Confirmation gate: present each section, ask "Does this look right so far?",
+   and wait for explicit approval before moving to the next section.
 5. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md` and commit.
 6. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
@@ -70,26 +77,29 @@ Complete these in order:
   order should they be built? Then brainstorm the first sub-project through
   the normal design flow. Each sub-project gets its own spec → plan →
   implementation cycle.
-- For appropriately-scoped changes, ask questions **one at a time**. Prefer
-  multiple choice when possible; open-ended is fine too. Only one question
-  per message — if a topic needs more exploration, break it into multiple
-  questions.
-- Focus on understanding: purpose, constraints, success criteria.
+- For appropriately-scoped changes, load the `grilling` skill for the
+  interview. Grilling handles the mechanics — one question at a time,
+  facts-vs-decisions checking, reassessment after each answer, recommendations
+  when presenting options, and confirmation gating. This skill defines the
+  domain: focus questions on purpose, constraints, and success criteria.
 
 **Exploring approaches:**
 
 - Propose 2–3 different approaches with trade-offs.
-- Present options conversationally with your recommendation and reasoning.
-- Lead with your recommended option and explain why.
+- Present them following grilling's Recommended answer behavior: lead with
+  your recommended option, explain the trade-off you're making, and what
+  alternative you're rejecting.
 
 **Presenting the design:**
 
 - Once you believe you understand what you're building, present the design.
 - Scale each section to its complexity: a few sentences if straightforward,
   up to 200–300 words if nuanced.
-- Ask after each section whether it looks right so far.
+- Use grilling's Confirmation gate after each section: "Does this look right
+  so far?" Wait for explicit approval before moving to the next.
 - Cover: architecture, components, data flow, error handling, testing.
-- Be ready to go back and clarify if something doesn't make sense.
+- Be ready to go back and clarify if something doesn't make sense (grilling's
+  reassess loop handles this).
 
 **Design for isolation and clarity:**
 
@@ -157,16 +167,19 @@ the spec review. Only proceed once the user approves.
 
 ## Key principles
 
-- **One question at a time** — don't overwhelm with multiple questions.
-- **Multiple choice preferred** — easier to answer than open-ended when
-  possible.
+- **Interview via grilling** — load the `grilling` skill for all user
+  interviews. Grilling provides the mechanics (one-at-a-time, facts-vs-decisions,
+  reassess, recommend, confirm); this skill provides the domain.
 - **YAGNI ruthlessly** — remove unnecessary features from all designs.
 - **Explore alternatives** — always propose 2–3 approaches before settling.
-- **Incremental validation** — present design, get approval before moving on.
+- **Incremental validation** — present design, gate on confirmation before
+  moving on.
 - **Be flexible** — go back and clarify when something doesn't make sense.
 
 ## Cross-refs
 
+- `grilling` skill — the interview primitive consumed during requirements
+  gathering. Governs *how* to ask; brainstorming governs *what* to ask about.
 - `writing-plans` skill — the next step after design approval.
 - `domain-context` skill — read `CONTEXT.md` before designing; update it with
   new terms.
@@ -185,7 +198,9 @@ causes a preventable mistake.
   design can be short, but it must be presented and approved. Trivial
   zero-behavior-delta work (typos, docs, headers, style, patch deps, test-only
   fixes) follows the fast-path — that's the explicit exception, not a loophole.
-- *Asking multiple questions in one message* — overwhelms the user and
-  produces lower-quality answers. One question at a time, always.
+- *Conducting interviews without loading grilling* — brainstorming delegates
+  interview mechanics to the `grilling` skill. Load it before asking questions,
+  or the one-at-a-time, facts-vs-decisions, and confirmation-gate behaviors
+  will be missing. Grilling is the authoritative source for interview protocol.
 - *Jumping to implementation before spec is written* — the hard-gate exists
   for a reason. No code until the design is approved and the spec is saved.
