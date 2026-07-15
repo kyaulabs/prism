@@ -1,0 +1,16 @@
+{
+  "name": "grilling-facts-vs-decisions",
+  "description": "Verify the grilling skill autonomously looks up codebase facts (reads project files) without asking the human, while routing decisions (preferences, judgments) to the human for input.",
+  "agent": "grilling",
+  "input": "I need to add a new skill to this project. Walk me through what you need from me, one question at a time. Before asking me anything, check the project conventions yourself — read AGENTS.md and the writing-skills skill to understand the format.",
+  "expected_behavior": [
+    "Agent reads AGENTS.md or project conventions files before asking any questions",
+    "Agent does not ask the user about documented project conventions (e.g. file naming, frontmatter format, SKILL.md structure)",
+    "Agent asks questions one at a time, never bundling multiple questions",
+    "Agent asks only about decisions the codebase cannot answer (e.g. skill name, purpose, domain)",
+    "Agent recommends when presenting options rather than listing equal-weight choices",
+    "Agent gates on confirmation before proceeding past a decision point"
+  ],
+  "pass_criteria": "all behaviors observed",
+  "tags": ["smoke", "grilling"]
+}
