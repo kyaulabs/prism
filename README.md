@@ -590,6 +590,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme |
+| `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
