@@ -4,7 +4,7 @@ Date: 2026-07-14
 
 ## Status
 
-Accepted
+Accepted (partially superseded by ADR-0020 — mapping-source and command-consolidation clauses)
 
 ## Context
 
