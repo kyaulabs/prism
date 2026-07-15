@@ -287,3 +287,4 @@ Load these on demand when the task requires them:
 | `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` with issue types, custom fields, and labels aligned to `/issue` |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
+| `/work-issue` | Analyze an existing GitHub issue, plan the fix, and halt for approval before dispatching to @tdd |
