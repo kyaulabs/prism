@@ -57,11 +57,13 @@ mattpocock/skills
   Copyright: Copyright (c) Matt Pocock
   License: MIT
   What was adapted: The one-question-at-a-time grilling pattern for
-    collaborative design refinement and the three-branch throwaway
-    prototype pattern (logic, UI, integration).
+    collaborative design refinement, the three-branch throwaway prototype
+    pattern (logic, UI, integration), and the no-interview spec-synthesis
+    pattern (explore → test-seam sketch → spec template).
   Used in:
     - .opencode/skills/brainstorming/SKILL.md (grilling pattern)
     - .opencode/skills/prototype/SKILL.md (prototype pattern)
+    - .opencode/skills/to-spec/SKILL.md (spec synthesis pattern)
 
 anthropics/skills
   URL: https://github.com/anthropics/skills

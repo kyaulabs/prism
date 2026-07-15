@@ -241,6 +241,7 @@ Load these on demand when the task requires them:
 | `brainstorming` | Before any creative work — features, components, behavior changes. Grilling → design → spec |
 | `grilling` | Interviewing a user one question at a time — facts-vs-decisions, reassess loop, recommended answer, confirmation gate. Loaded by brainstorming, @consult (planned), @from-issue (planned) |
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
+| `to-spec` | Turning the current conversation into a spec WITHOUT interviewing — synthesis only. Sketches test seams, uses CONTEXT.md + ADRs, writes docs/specs/ |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
 | `executing-plans` | After writing-plans — dispatches tasks to @tdd with two-mode execution (inline or dispatch), per-task review gates, and halt/re-plan policy |
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
