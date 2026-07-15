@@ -232,6 +232,7 @@ Load these on demand when the task requires them:
 | Skill | When to use |
 | --- | --- |
 | `brainstorming` | Before any creative work — features, components, behavior changes. Grilling → design → spec |
+| `grilling` | Interviewing a user one question at a time — facts-vs-decisions, reassess loop, recommended answer, confirmation gate. Loaded by brainstorming, @consult, @from-issue |
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
 | `executing-plans` | After writing-plans — dispatches tasks to @tdd with two-mode execution (inline or dispatch), per-task review gates, and halt/re-plan policy |
