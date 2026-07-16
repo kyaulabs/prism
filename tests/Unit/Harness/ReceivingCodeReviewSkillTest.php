@@ -12,6 +12,12 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 /**
  * Asserts the receiving-code-review skill (issue #138) extends its triage to
  * consume the 4-axis @code-review report (ocr / standards / spec / sast).
@@ -21,7 +27,11 @@ declare(strict_types=1);
  */
 
 test('skill documents normalization across the 4 axes', function (): void {
-    $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/receiving-code-review/SKILL.md');
+    $skillPath = __DIR__ . '/../../../.opencode/skills/receiving-code-review/SKILL.md';
+    expect(file_exists($skillPath))->toBeTrue("receiving-code-review SKILL.md not found at {$skillPath}");
+
+    $content = file_get_contents($skillPath);
+    expect($content)->not->toBeFalse("Could not read {$skillPath}");
     expect($content)->toMatch('/4[-\s]?axes/i');
     expect($content)->toContain('standards');
     expect($content)->toContain('spec');
@@ -62,6 +72,8 @@ test('skill notes the standards producer/consumer divergence as deferred cleanup
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/receiving-code-review/SKILL.md');
     expect($content)->toMatch('/deferred cleanup/i');
 });
+
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
