@@ -84,3 +84,11 @@ feat/kyau-<hash>-router-command
   ├─ feat(docs): add /router + /feature commands (GREEN)
   └─ feat(docs): tighten router prose (REFACTOR)
 ```
+
+## Notes
+
+- REFACTOR commit skipped — router signal heuristics were correct on first
+  pass, no prose tightening needed. Branch shipped with 3 commits instead of 4.
+- Commit `fix(agents)` body has long lines due to `$'...'` bash quoting
+  issue with embedded single-quote. Content is correct; commitlint warning
+  is cosmetic only.
