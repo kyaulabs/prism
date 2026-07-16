@@ -594,9 +594,11 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
-| `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
-| `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
+| `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks |
+| `/ticket` | Alias of `/issue` (singular mode) |
+| `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
+| `/tickets` | Alias of `/issues` (from-spec decomposition) |
 
 
 OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
@@ -608,7 +610,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 | Category | Skills |
 | --- | --- |
-| Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `verification-before-completion` |
+| Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `verification-before-completion` |
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
 | Architecture hygiene | `systems-design`, `finding-duplicate-functions` |

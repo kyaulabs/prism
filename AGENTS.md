@@ -244,6 +244,7 @@ Load these on demand when the task requires them:
 | `to-spec` | Turning the current conversation into a spec WITHOUT interviewing — synthesis only. Sketches test seams, uses CONTEXT.md + ADRs, writes docs/specs/ |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
 | `executing-plans` | After writing-plans — dispatches tasks to @tdd with two-mode execution (inline or dispatch), per-task review gates, and halt/re-plan policy |
+| `ticketing` | Creating a GitHub issue/ticket or decomposing a plan or spec into an epic with vertical-slice task sub-issues — single source of the commit-type→issue-type mapping, custom fields, labels, gh pattern, mode auto-detection, vertical-slice decomposition with native blocking edges |
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
 | `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
@@ -296,7 +297,9 @@ Load these on demand when the task requires them:
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders across the harness, sets accent theme |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/doctor` | Toolchain health check — verifies dev tools are installed at version floors; reports PASS/FAIL/SKIPPED table + go/no-go summary |
-| `/plan-to-issues` | Parse a plan from `docs/plans/` and create a GitHub epic + task issues via `gh` with issue types, custom fields, and labels aligned to `/issue` |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
-| `/issue` | Interactive issue creation — describe the issue, AI generates conventional-commit title and body, sets org issue type/fields/labels |
+| `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Auto-detects mode from the argument. Aliases: `/ticket` (singular), `/issues`, `/tickets` (plural = from-spec only) |
+| `/ticket` | Alias of `/issue` — create a single issue, or decompose a plan/spec (singular mode) |
+| `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges. Alias: `/tickets` |
+| `/tickets` | Alias of `/issues` — from-spec decomposition into epic + vertical-slice tasks |
 

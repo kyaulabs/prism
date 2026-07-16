@@ -76,6 +76,8 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0016-eval-case-dual-validation.md` — schema.json canonical, validate() hand-rolled mirror guarded by parity test; runtime schema validation deferred due to worktree vendor/ constraint
 - `adr/0017-command-only-template-features.md` — $ARGUMENTS and !`command` shell injection are command-only; agents use invocation-message references
 - `adr/0018-shell-test-helper-library.md` — Consolidate duplicated shell-test boilerplate into tests/Shell/lib/test_helpers.sh as the single source of truth
+- `adr/0019-issue-command-conventional-commit-mapping.md` — Auto-derive org-level issue types from conventional commit types; two-phase Plan + @explore architecture for gh CLI execution
+- `adr/0020-unified-issue-command-architecture.md` — Unify /issue + /plan-to-issues into four aliases backed by a shared ticketing skill; vertical-slice decomposition with native blocking edges
 
 ## When to update this file
 
