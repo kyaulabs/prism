@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PipelineConsistencyTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: PipelineConsistencyTest.php kyau@nova 2026/07/16 -0700 Exp $
+
+
+
 
 
 
@@ -61,11 +64,11 @@ function harness_read_file(string $path): string
     return $contents;
 }
 
-test('every canonical doc places @architect before writing-plans', function (): void {
+test('every canonical doc places @architect after spec and before ticketing/planning', function (): void {
     foreach (harness_pipeline_files() as $label => $path) {
         $contents = harness_read_file($path);
         expect($contents)
-            ->toContain('insert `@architect` before `writing-plans`');
+            ->toContain('`@architect` after the spec and before ticketing/planning');
     }
 });
 
@@ -76,6 +79,7 @@ test('no canonical doc uses the stale before-step-4 placement', function (): voi
             ->not->toContain('insert `@architect` before step 4');
     }
 });
+
 
 
 

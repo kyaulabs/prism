@@ -42,5 +42,5 @@ to do the task; skipping it means you are guessing.
 brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-For non-trivial or cross-cutting changes, insert `@architect` before `writing-plans`.
+For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.
 For bugs, prepend `@debug` before `@tdd` on the fix.
