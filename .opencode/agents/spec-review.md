@@ -1,7 +1,6 @@
 ---
 description: Read-only review agent that checks requirement coverage — finds the spec for the current branch and reports whether acceptance criteria are covered by the diff. Reports findings; does not auto-fix anything. Supplements ocr (PSR-12/style) and @standards-review (structural smells) with requirement-traceability analysis.
 mode: subagent
-model: {env:OPENCODE_MODEL_PRIMARY}
 temperature: 0.1
 permission:
   edit: deny

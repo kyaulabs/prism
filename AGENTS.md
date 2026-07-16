@@ -115,6 +115,19 @@ behavior delta. Purely trivial changes with no behavior delta (typos, docs,
 RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
+Three on-ramps start the pipeline depending on where the request enters:
+
+- `@consult` (questions / exploration)
+- `/feature` (new idea → brainstorm)
+- `@from-issue #NN` (existing issue)
+- `@debug` (bug / regression)
+
+→  brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+
+`/router` maps a free-form request to the right on-ramp. Trivial
+zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
+test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
+
 ```text
 brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
@@ -147,7 +160,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
 - Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.json`), `Acked-by:` (sourced from `agent.build.model` in `opencode.json`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
-- Model selection: all `model` and `variant` fields in `opencode.json` and `.opencode/agents/*.md` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Defaults ship in `.opencode/models.default.env`, sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Four tiers: PRIMARY, PLANNER, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). Subagents keep explicit `model:` lines with `{env:VAR}` references for deterministic tier assignment. See ADR-0012, ADR-0013, and ADR-0014. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
+- Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `.opencode/models.default.env`, sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Four tiers: PRIMARY, PLANNER, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via @tdd, a direct fix, an issue
@@ -291,6 +304,8 @@ Load these on demand when the task requires them:
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | git-cliff changelog + signed tag + `gh release` command |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
+| `/feature` | Start a new feature from an idea through the brainstorming → spec → plan → @tdd pipeline |
+| `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
 | `/build-assets` | Rebuild minified CSS and JS from source |
 | `/security` | SAST scan + dependency CVE audit in one pass |

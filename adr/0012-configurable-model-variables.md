@@ -4,7 +4,7 @@ Date: 2026-07-10
 
 ## Status
 
-Accepted (partially superseded by ADR-0013 — variant clause only)
+Accepted (partially superseded by ADR-0013 — variant clause only; and ADR-0022 — model-location clause)
 
 ## Context
 
