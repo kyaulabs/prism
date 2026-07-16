@@ -2,6 +2,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
 import { classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
 
 describe("classifyCommand — baseline", () => {
@@ -86,6 +89,54 @@ describe("classifyCommand — rm -rf safe zones", () => {
 
     it("blocks rm -rf in a piped segment", () => {
         assert.equal(classifyCommand("echo hi | rm -rf src", opts).severity, "block");
+    });
+});
+
+describe("PreToolUse plugin hook", () => {
+    const load = async (client: any) => {
+        const mod = await import("../../.opencode/plugins/pre-tool-use.ts");
+        return mod.PreToolUse({ directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any);
+    };
+    const noopClient = { app: { log: async () => {} } };
+    const capturingClient = () => {
+        const logs: any[] = [];
+        return { client: { app: { log: async (b: any) => { logs.push(b); } } }, logs };
+    };
+
+    it("returns a tool.execute.before hook", async () => {
+        const hooks = await load(noopClient);
+        assert.equal(typeof hooks["tool.execute.before"], "function");
+    });
+
+    it("blocks unsafe rm -rf by throwing", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "rm -rf /etc/passwd" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("warns (logs) but allows git reset --hard", async () => {
+        const { client, logs } = capturingClient();
+        const hooks = await load(client);
+        await hooks["tool.execute.before"]!({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "git reset --hard" } });
+        assert.equal(logs.length, 1);
+        assert.equal(logs[0].body.level, "warn");
+    });
+
+    it("ignores non-bash tools", async () => {
+        const { client, logs } = capturingClient();
+        const hooks = await load(client);
+        await hooks["tool.execute.before"]!({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: "x" } });
+        assert.equal(logs.length, 0);
+    });
+
+    it("allows benign bash (no throw, no log)", async () => {
+        const { client, logs } = capturingClient();
+        const hooks = await load(client);
+        await hooks["tool.execute.before"]!({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "ls -la" } });
+        assert.equal(logs.length, 0);
     });
 });
 

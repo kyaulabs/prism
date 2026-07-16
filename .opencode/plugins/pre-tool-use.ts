@@ -150,8 +150,48 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
     }
 }
 
-// No-op plugin shell; real hook wired in Task 4. Keeps the file a valid
-// auto-discovered plugin throughout development.
-export const PreToolUse: Plugin = async () => ({});
+// Compile-time guard: abort build if the SDK ever drops this hook key.
+const _assertToolExecuteBeforeValid: "tool.execute.before" extends keyof Hooks
+    ? true
+    : never = true;
+void _assertToolExecuteBeforeValid;
+
+/**
+ * PreToolUse safety hook plugin. Intercepts bash tool calls and blocks or
+ * warns on destructive commands. Fails open: a classifier error never
+ * blocks all bash. See ADR-0023.
+ */
+export const PreToolUse: Plugin = async ({ directory, client }) => {
+    const hooks: Hooks = {
+        "tool.execute.before": async (input, output) => {
+            if (input.tool !== "bash") return;
+            const command: string = output.args?.command ?? "";
+            let finding: Finding;
+            try {
+                finding = classifyCommand(command, { projectDir: directory });
+            } catch {
+                return; // fail open
+            }
+            if (finding.severity === "block") {
+                throw new Error(
+                    `[pre-tool-use] BLOCKED: ${finding.reason}`,
+                );
+            }
+            if (finding.severity === "warn") {
+                // Best-effort log; fire-and-forget, suppress rejections.
+                client.app
+                    .log({
+                        body: {
+                            service: "pre-tool-use",
+                            level: "warn",
+                            message: `WARNING: ${finding.reason}`,
+                        },
+                    })
+                    .catch(() => {});
+            }
+        },
+    };
+    return hooks;
+};
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
