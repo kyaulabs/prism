@@ -220,6 +220,8 @@ context management across long plans.
 - `brainstorming` skill — the step before this one (produces the spec).
 - `@explore` agent — delegate spec reading, codebase exploration, and file discovery (Plan agent cannot read files directly).
 - `@scout` agent — delegate web research and external dependency inspection.
+  (Built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` — see
+  `ADR-0024`.)
 - `@docs-writer` agent — delegate writing the plan file to disk if the user requests it.
 - `executing-plans` skill — the step after this one (executes the plan).
 - `@tdd` agent — executes each task in Red → Green → Refactor cycles.

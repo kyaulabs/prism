@@ -485,7 +485,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | Agent | Purpose |
 | --- | --- |
 | `@explore` | Read-only codebase exploration — file patterns, keyword search |
-| `@scout` | External docs + dependency research (clones upstream repos) |
+| `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
 | `@general` | Multi-step research, full tool access |
 
 ### Custom agents
@@ -590,7 +590,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/feature` | Start a new feature from an idea through the brainstorming pipeline |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
-| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
+| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (experimental, gated). |
 | `/build-assets` | Rebuild minified CSS and JS from SCSS/JS sources |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
@@ -621,7 +621,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 | Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
 | Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
 | Testing | `pest-browser` |
-| Docs & process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `opencode-docs` |
+| Docs & process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `opencode-docs`, `research-background` |
 
 ### Project context — living docs
 
