@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -227,35 +230,6 @@ function load_opencode_config(): array
 }
 
 /**
- * Read the frontmatter (YAML between --- delimiters) of an agent definition.
- *
- * @param  string             $name Agent name (filename without .md extension).
- * @return string             The frontmatter as a raw string (including --- delimiters).
- * @throws RuntimeException   If the agent file is missing or unreadable.
- */
-function agent_frontmatter(string $name): string
-{
-    $path = __DIR__ . '/../.opencode/agents/' . $name . '.md';
-
-    if (! file_exists($path)) {
-        throw new RuntimeException("Agent file not found: {$path}");
-    }
-
-    $contents = file_get_contents($path);
-
-    if ($contents === false) {
-        throw new RuntimeException("Failed to read agent file: {$path}");
-    }
-
-    // Extract frontmatter: everything between the first two --- lines.
-    if (! preg_match('/^---\s*\n(.*?)\n---/s', $contents, $matches)) {
-        throw new RuntimeException("No valid YAML frontmatter found in: {$path}");
-    }
-
-    return $matches[0];
-}
-
-/**
  * Read the full contents of an agent definition file.
  *
  * @param  string             $name Agent name (filename without .md extension).
@@ -264,6 +238,9 @@ function agent_frontmatter(string $name): string
  */
 function agent_contents(string $name): string
 {
+    // Guard against path traversal.
+    $name = basename($name);
+
     $path = __DIR__ . '/../.opencode/agents/' . $name . '.md';
 
     if (! file_exists($path)) {
@@ -278,6 +255,26 @@ function agent_contents(string $name): string
 
     return $contents;
 }
+
+/**
+ * Read the frontmatter (YAML between --- delimiters) of an agent definition.
+ *
+ * @param  string             $name Agent name (filename without .md extension).
+ * @return string             The frontmatter as a raw string (including --- delimiters).
+ * @throws RuntimeException   If the agent file is missing or unreadable.
+ */
+function agent_frontmatter(string $name): string
+{
+    $contents = agent_contents($name);
+
+    // Extract frontmatter: everything between the first two --- lines.
+    if (! preg_match('/^---\s*\n(.*?)\n---/s', $contents, $matches)) {
+        throw new RuntimeException("No valid YAML frontmatter found in agent: {$name}");
+    }
+
+    return $matches[0];
+}
+
 
 
 

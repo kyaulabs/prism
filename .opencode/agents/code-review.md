@@ -1,6 +1,7 @@
 ---
 description: Multi-axis coordinator that runs 4 parallel review axes — ocr (PSR-12/style/lint), @standards-review (Fowler 12-smell baseline), @spec-review (requirement coverage), and @semgrep (SAST). Assembles findings into 4 separate sections with no cross-axis reranking. Reports only; does not auto-fix anything.
 mode: subagent
+model: {env:OPENCODE_MODEL_PRIMARY}
 temperature: 0.1
 permission:
   edit: deny
