@@ -45,4 +45,48 @@ describe("classifyCommand — baseline", () => {
     });
 });
 
+describe("classifyCommand — rm -rf safe zones", () => {
+    const opts = { projectDir: "/home/user/project" };
+
+    it("allows rm -rf inside node_modules", () => {
+        assert.equal(classifyCommand("rm -rf node_modules", opts).severity, null);
+    });
+
+    it("allows rm -rf inside vendor", () => {
+        assert.equal(classifyCommand("rm -rf vendor", opts).severity, null);
+    });
+
+    it("allows rm -rf in /tmp", () => {
+        assert.equal(classifyCommand("rm -rf /tmp/build-cache", opts).severity, null);
+    });
+
+    it("blocks rm -rf on project root (.)", () => {
+        assert.equal(classifyCommand("rm -rf .", opts).severity, "block");
+    });
+
+    it("blocks rm -rf on src", () => {
+        assert.equal(classifyCommand("rm -rf src", opts).severity, "block");
+    });
+
+    it("blocks rm -fr (combined flags)", () => {
+        assert.equal(classifyCommand("rm -fr src", opts).severity, "block");
+    });
+
+    it("blocks rm --recursive --force", () => {
+        assert.equal(classifyCommand("rm --recursive --force src", opts).severity, "block");
+    });
+
+    it("blocks when any target is unsafe among safe ones", () => {
+        assert.equal(classifyCommand("rm -rf node_modules src", opts).severity, "block");
+    });
+
+    it("blocks unresolvable glob target", () => {
+        assert.equal(classifyCommand("rm -rf *.log", opts).severity, "block");
+    });
+
+    it("blocks rm -rf in a piped segment", () => {
+        assert.equal(classifyCommand("echo hi | rm -rf src", opts).severity, "block");
+    });
+});
+
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

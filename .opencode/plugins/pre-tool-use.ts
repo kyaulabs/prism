@@ -1,6 +1,8 @@
 // $KYAULabs: pre-tool-use.ts kyau@nova 2026/07/16 -0700 Exp $
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
+import { resolve as resolvePath, normalize } from "node:path";
+import { tmpdir } from "node:os";
 
 export type Severity = "block" | "warn" | null;
 
@@ -11,6 +13,87 @@ export interface Finding {
 
 export interface ClassifyOptions {
     projectDir: string;
+}
+
+/** Project-relative directories where rm -rf is permitted. */
+const SAFE_REL_DIRS: readonly string[] = [
+    "node_modules",
+    ".opencode/node_modules",
+    "vendor",
+    "cdn/css",
+    "cdn/javascript",
+];
+
+/** OS-level temp directories where rm -rf is permitted. */
+const SAFE_ABS_DIRS: readonly string[] = [
+    normalize("/tmp"),
+    normalize("/var/tmp"),
+    normalize(tmpdir()),
+];
+
+interface ParsedRm {
+    recursive: boolean;
+    force: boolean;
+    operands: string[];
+}
+
+function parseRm(segment: string): ParsedRm | null {
+    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+    let i = 0;
+    if (tokens[i] === "sudo") i++;
+    if (tokens[i] !== "rm") return null;
+    i++;
+    let recursive = false;
+    let force = false;
+    const operands: string[] = [];
+    let onlyOperands = false;
+    for (; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (!onlyOperands && t === "--") {
+            onlyOperands = true;
+            continue;
+        }
+        if (!onlyOperands && t.startsWith("-") && t.length > 1) {
+            if (t.startsWith("--")) {
+                if (t === "--recursive") recursive = true;
+                else if (t === "--force") force = true;
+            } else {
+                const chars = t.slice(1);
+                if (chars.includes("r") || chars.includes("R")) recursive = true;
+                if (chars.includes("f")) force = true;
+            }
+            continue;
+        }
+        operands.push(t);
+    }
+    return { recursive, force, operands };
+}
+
+function resolveTarget(token: string, projectDir: string, home: string): string | null {
+    let p = token.trim();
+    if (
+        (p.startsWith('"') && p.endsWith('"')) ||
+        (p.startsWith("'") && p.endsWith("'"))
+    ) {
+        p = p.slice(1, -1);
+    }
+    if (p.startsWith("~")) {
+        p = home + p.slice(1);
+    }
+    if (/[*?$`(<]/.test(p)) {
+        return null;
+    }
+    return normalize(resolvePath(projectDir, p));
+}
+
+function isWithinSafeZone(absPath: string, projectDir: string): boolean {
+    if (SAFE_ABS_DIRS.some((d) => absPath === d || absPath.startsWith(d + "/"))) {
+        return true;
+    }
+    return SAFE_REL_DIRS.some((rel) => {
+        const safeAbs = normalize(resolvePath(projectDir, rel));
+        return absPath === safeAbs || absPath.startsWith(safeAbs + "/");
+    });
 }
 
 /**
@@ -25,6 +108,23 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
     const projectDir = opts.projectDir;
 
     try {
+        // BLOCK: rm -rf outside safe zones
+        const home = process.env.HOME ?? "/";
+        const segments = command.split(/[;&|\n]/);
+        for (const segment of segments) {
+            const parsed = parseRm(segment);
+            if (!parsed || !(parsed.recursive && parsed.force)) continue;
+            if (parsed.operands.length === 0) continue;
+            for (const operand of parsed.operands) {
+                const abs = resolveTarget(operand, projectDir, home);
+                if (abs === null || !isWithinSafeZone(abs, projectDir)) {
+                    return {
+                        severity: "block",
+                        reason: `rm -rf targets path outside safe zones: ${operand}`,
+                    };
+                }
+            }
+        }
         // WARN: destructive SQL drops
         if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
             return { severity: "warn", reason: "SQL DROP statement destroys data" };
