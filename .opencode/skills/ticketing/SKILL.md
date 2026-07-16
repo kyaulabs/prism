@@ -197,6 +197,25 @@ If a plan has horizontal decomposition (e.g., "Task 1: all models", "Task
 2: all views"), warn the user and suggest re-slicing vertically before
 proceeding.
 
+### Step 3.5: ADR pre-check (architect-required)
+
+If the spec — or a prior `@architect` review of it — carries an
+`ADR-required:` line listing ADR numbers other than `none`, verify each
+exists in `adr/` before slicing:
+
+```bash
+# Parse the ADR-required: line from the spec/review, then:
+for n in 0021 0022; do
+    ls adr/${n}-*.md 2>/dev/null \
+        || echo "WARN: ADR ${n} listed as required but not found in adr/"
+done
+```
+
+If any required ADR is missing, **WARN** the user and suggest writing it
+(via `@architect` or the `adr` skill) before proceeding. This is
+non-blocking — warn and continue, consistent with the non-critical-warn
+pattern. If the spec has no `ADR-required:` line, skip this check silently.
+
 ### Step 4: Derive epic issue type
 
 Apply the commit-type to issue-type mapping to the Goal text. Present the
@@ -274,6 +293,7 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
 
 - `/issue`, `/ticket` (singular aliases), `/issues`, `/tickets` (plural
   aliases) — thin command wrappers that load this skill
+- `@architect` agent — emits the `ADR-required:` contract this step consumes
 - `writing-plans` skill — produces the plan files this skill decomposes
 - `docs/agents/labels.md` — label vocabulary
 - ADR-0019 — original mapping decision (partially superseded by ADR-0020)

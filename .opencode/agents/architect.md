@@ -67,6 +67,8 @@ Answer these explicitly:
 
 **Verdict:** GO / NO-GO / GO-WITH-CONDITIONS
 
+**ADR-required:** <comma-separated ADR numbers, e.g. 0021,0022 — or "none">
+
 **CONTEXT.md alignment:**
 - <findings, or "aligned">
 
@@ -97,3 +99,13 @@ Answer these explicitly:
   question rather than guessing.
 - A GO does not waive the `@tdd` requirement for the implementation phase —
   it only clears the architectural bar.
+
+## ADR-required contract
+
+The `ADR-required:` line in the output is machine-parseable. Consumers grep
+for `ADR-required:` and read the value:
+
+- `none` → no ADRs blocking implementation.
+- `NNNN,NNNN` → the listed ADR numbers should exist in `adr/` before
+  proceeding. The ticketing skill (`/issue`) checks this before slicing a
+  spec into tasks.

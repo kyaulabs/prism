@@ -21,7 +21,7 @@ brainstorming → prototype (if needed) → writing-plans → executing-plans �
 7. **Gate** with `/check` (lint + coverage 80%).
 8. **Review** with `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before `writing-plans`.
+For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 
 ## Where things live

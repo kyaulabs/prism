@@ -49,6 +49,14 @@ Do NOT load this skill when:
    — that is `/issue`'s job. to-spec produces the spec file; the user routes it
    to planning (`writing-plans`) or ticketing (`/issue`) afterwards.
 
+4. **Suggest @architect for cross-cutting specs.** After finalizing the spec,
+   if the change is non-trivial or cross-cutting (spans multiple modules,
+   introduces a hard-to-reverse decision, or touches a system boundary),
+   recommend running `@architect` before ticketing/planning. @architect emits
+   an `ADR-required:` line that the ticketing skill (`/issue`) consumes before
+   slicing. For localized, low-risk specs, skip straight to `writing-plans` or
+   `/issue`.
+
 ## Spec template
 
 ```markdown
@@ -116,6 +124,7 @@ Anything else relevant.
 - `writing-plans` skill — consumes the spec to-spec produces
 - `domain-context` skill — `CONTEXT.md` vocabulary sourcing
 - `@consult` agent — a consumer that exits via to-spec
+- `@architect` agent — run for cross-cutting specs before ticketing
 
 ## Gotchas
 
