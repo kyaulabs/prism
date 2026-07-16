@@ -1,7 +1,6 @@
 ---
 description: "Read-only review agent applying Fowler's 12 code smells as a structural-review baseline against the diff. Reports findings by severity; does NOT auto-fix anything. Complements ocr (PSR-12/style) and @spec-review (requirement coverage) with distinct structural analysis. De-duplication contract: do NOT re-report PSR-12, style, or lint findings already covered by ocr or /check — focus on structural design smells."
 mode: subagent
-model: {env:OPENCODE_MODEL_PRIMARY}
 temperature: 0.1
 permission:
   edit: deny

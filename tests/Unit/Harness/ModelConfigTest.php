@@ -148,6 +148,35 @@ it('uses env var substitution for model in all agent md files', function () {
     }
 });
 
+it('agent md files do not define model or variant in frontmatter', function () {
+    $agentDir = __DIR__ . '/../../../.opencode/agents';
+    $files = glob($agentDir . '/*.md');
+
+    Assert::assertNotEmpty($files, 'Agent .md files must exist');
+
+    foreach ($files as $file) {
+        $content = file_get_contents($file);
+        $basename = basename($file);
+
+        // Extract frontmatter
+        if (!preg_match('/^---\n(.*?)\n---/s', $content, $matches)) {
+            continue;
+        }
+        $frontmatter = $matches[1];
+
+        Assert::assertDoesNotMatchRegularExpression(
+            '/^model:/m',
+            $frontmatter,
+            "Agent '{$basename}' frontmatter must not define model (model lives in opencode.jsonc agent section — ADR-0022)",
+        );
+        Assert::assertDoesNotMatchRegularExpression(
+            '/^variant:/m',
+            $frontmatter,
+            "Agent '{$basename}' frontmatter must not define variant (variant lives in opencode.jsonc agent section — ADR-0022)",
+        );
+    }
+});
+
 it('has consistent env var names between defaults and config', function () {
     $defaultsPath = __DIR__ . '/../../../.opencode/models.default.env';
     $configPath = opencode_config_path();

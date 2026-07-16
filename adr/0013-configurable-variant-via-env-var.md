@@ -7,6 +7,7 @@ Date: 2026-07-10
 Accepted
 
 Partially supersedes ADR-0012 (variant clause only).
+Partially superseded by ADR-0022 (variant-location clause).
 
 ## Context
 
