@@ -588,6 +588,8 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | git-cliff changelog + signed tag + `gh release` command |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
+| `/feature` | Start a new feature from an idea through the brainstorming pipeline |
+| `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
 | `/build-assets` | Rebuild minified CSS and JS from SCSS/JS sources |
 | `/security` | SAST scan + dependency CVE audit in one pass |

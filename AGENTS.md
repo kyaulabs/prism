@@ -115,6 +115,19 @@ behavior delta. Purely trivial changes with no behavior delta (typos, docs,
 RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
+Three on-ramps start the pipeline depending on where the request enters:
+
+- `@consult` (questions / exploration)
+- `/feature` (new idea → brainstorm)
+- `@from-issue #NN` (existing issue)
+- `@debug` (bug / regression)
+
+→  brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+
+`/router` maps a free-form request to the right on-ramp. Trivial
+zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
+test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
+
 ```text
 brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
@@ -291,6 +304,8 @@ Load these on demand when the task requires them:
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | git-cliff changelog + signed tag + `gh release` command |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
+| `/feature` | Start a new feature from an idea through the brainstorming → spec → plan → @tdd pipeline |
+| `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
 | `/build-assets` | Rebuild minified CSS and JS from source |
 | `/security` | SAST scan + dependency CVE audit in one pass |
