@@ -31,6 +31,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -126,6 +129,33 @@ it('spec-review body includes acceptance-criteria and diff instructions', functi
     Assert::assertStringContainsString('diff', $body);
     Assert::assertStringContainsString('fuzzy', $body);
 });
+
+it('code-review coordinator has scoped task allowlist for its 3 axes', function (): void {
+    $fm = agent_frontmatter('code-review');
+    Assert::assertStringContainsString('task:', $fm);
+    Assert::assertStringContainsString('"standards-review": allow', $fm);
+    Assert::assertStringContainsString('"spec-review": allow', $fm);
+    Assert::assertStringContainsString('"semgrep": allow', $fm);
+});
+
+it('code-review coordinator retains edit: deny and read-only bash', function (): void {
+    $fm = agent_frontmatter('code-review');
+    Assert::assertStringContainsString('edit: deny', $fm);
+    Assert::assertStringContainsString('"*": deny', $fm);
+    Assert::assertStringContainsString('ocr', $fm);
+});
+
+it('code-review body documents empty-diff guard, 4 axes, de-dup, and read-only posture', function (): void {
+    $body = agent_contents('code-review');
+    Assert::assertStringContainsString('standards-review', $body);
+    Assert::assertStringContainsString('spec-review', $body);
+    Assert::assertStringContainsString('semgrep', $body);
+    Assert::assertMatchesRegularExpression('/empty.*diff/i', $body);
+    Assert::assertMatchesRegularExpression('/4.*(section|axis)/i', $body);
+    Assert::assertMatchesRegularExpression('/de-?dup/i', $body);
+    Assert::assertStringContainsString('does not auto-fix', $body);
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
