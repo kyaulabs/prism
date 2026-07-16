@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── ADR-required contract test ────────────────────────────────────────────────
@@ -25,14 +26,18 @@ TOSPEC="$REPO_ROOT/.opencode/skills/to-spec/SKILL.md"
 AGENTS="$REPO_ROOT/AGENTS.md"
 
 # Test 1: @architect agent emits a parseable ADR-required: line
-if grep -qE 'ADR-required:' "$ARCHITECT"; then
+if [ ! -f "$ARCHITECT" ]; then
+	fail "architect agent file missing: $ARCHITECT"
+elif grep -qE 'ADR-required:' "$ARCHITECT"; then
 	pass "@architect emits ADR-required: line"
 else
 	fail "@architect is missing ADR-required: line in $ARCHITECT"
 fi
 
 # Test 2: ticketing skill references the ADR-required contract
-if grep -q 'ADR-required' "$TICKETING"; then
+if [ ! -f "$TICKETING" ]; then
+	fail "ticketing skill file missing: $TICKETING"
+elif grep -q 'ADR-required' "$TICKETING"; then
 	pass "ticketing skill references ADR-required contract"
 else
 	fail "ticketing skill is missing ADR-required reference in $TICKETING"
@@ -40,7 +45,9 @@ fi
 
 # ── Test 3: to-spec suggests @architect for cross-cutting specs ───────────────
 echo "── Test 3: to-spec skill references @architect ──"
-if grep -q '@architect' "$TOSPEC"; then
+if [ ! -f "$TOSPEC" ]; then
+	fail "to-spec skill file missing: $TOSPEC"
+elif grep -q '@architect' "$TOSPEC"; then
 	pass "to-spec skill references @architect"
 else
 	fail "to-spec skill does not reference @architect"
@@ -48,16 +55,21 @@ fi
 
 # ── Test 4: AGENTS.md pipeline shows spec -> @architect -> tickets on-ramp ────
 echo "── Test 4: AGENTS.md Engineering Pipeline shows @architect on-ramp ──"
-SECTION=$(sed -n '/^## Engineering Pipeline/,/^## Linting/p' "$AGENTS")
-if echo "$SECTION" | grep -q '@architect' \
-   && echo "$SECTION" | grep -qE 'to-spec|/issue|tickets'; then
-	pass "AGENTS.md pipeline shows spec -> @architect -> tickets on-ramp"
+if [ ! -f "$AGENTS" ]; then
+	fail "AGENTS.md file missing: $AGENTS"
 else
-	fail "AGENTS.md pipeline missing spec -> @architect -> tickets on-ramp"
+	SECTION=$(sed -n '/^## Engineering Pipeline/,/^## Linting & Enforcement/p' "$AGENTS")
+	if echo "$SECTION" | grep -q '@architect' \
+	   && echo "$SECTION" | grep -qE 'to-spec|/issue|tickets'; then
+		pass "AGENTS.md pipeline shows spec -> @architect -> tickets on-ramp"
+	else
+		fail "AGENTS.md pipeline missing spec -> @architect -> tickets on-ramp"
+	fi
 fi
 
 print_summary "architect-adr-contract"
 exit $?
+
 
 
 
