@@ -78,6 +78,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0018-shell-test-helper-library.md` — Consolidate duplicated shell-test boilerplate into tests/Shell/lib/test_helpers.sh as the single source of truth
 - `adr/0019-issue-command-conventional-commit-mapping.md` — Auto-derive org-level issue types from conventional commit types; two-phase Plan + @explore architecture for gh CLI execution
 - `adr/0020-unified-issue-command-architecture.md` — Unify /issue + /plan-to-issues into four aliases backed by a shared ticketing skill; vertical-slice decomposition with native blocking edges
+- `adr/0021-code-review-coordinator-permission-model.md` — Scoped `task: allow` carve-out from ADR-0006 for the @code-review multi-axis coordinator
 
 ## When to update this file
 
