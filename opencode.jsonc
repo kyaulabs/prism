@@ -139,6 +139,11 @@
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "temperature": 0.1
     },
+    "spec-review": {
+      "model": "{env:OPENCODE_MODEL_PRIMARY}",
+      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "temperature": 0.1
+    },
     "test-audit": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",

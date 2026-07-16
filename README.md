@@ -499,6 +499,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
 | `@semgrep` | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
 | `@standards-review` | Read-only review agent applying Fowler's 12 code smells as a structural-review baseline against the diff |
+| `@spec-review` | Read-only review agent that checks requirement coverage against acceptance criteria from the matching spec |
 | `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |

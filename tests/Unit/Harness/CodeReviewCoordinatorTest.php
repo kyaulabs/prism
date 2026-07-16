@@ -28,6 +28,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -84,6 +87,45 @@ it('standards-review body documents Fowler 12 smells and de-dup contract', funct
     Assert::assertStringContainsString('does not auto-fix', $body);
 });
 
+it('spec-review agent exists with read-only frontmatter', function (): void {
+    $fm = agent_frontmatter('spec-review');
+    Assert::assertMatchesRegularExpression('/^mode:\s*subagent/m', $fm);
+    Assert::assertStringContainsString('edit: deny', $fm);
+    Assert::assertStringContainsString('task: deny', $fm);
+    Assert::assertStringContainsString('"*": deny', $fm);
+});
+
+it('spec-review is registered in opencode.jsonc at PRIMARY tier', function (): void {
+    $cfg = load_opencode_config();
+    Assert::assertSame('{env:OPENCODE_MODEL_PRIMARY}', $cfg['agent']['spec-review']['model']);
+});
+
+it('AGENTS.md and README.md index @spec-review', function (): void {
+    Assert::assertStringContainsString(
+        '| `@spec-review`',
+        file_get_contents(__DIR__ . '/../../../AGENTS.md')
+    );
+    Assert::assertStringContainsString(
+        '| `@spec-review`',
+        file_get_contents(__DIR__ . '/../../../README.md')
+    );
+});
+
+it('spec-review body documents branch-name spec discovery and coverage reporting', function (): void {
+    $body = agent_contents('spec-review');
+    Assert::assertStringContainsString('branch', $body);
+    Assert::assertStringContainsString('docs/specs', $body);
+    Assert::assertMatchesRegularExpression('/Covered|Omitted|Deliberately-?omitted/i', $body);
+    Assert::assertStringContainsString('no spec found', $body);
+    Assert::assertStringContainsString('does not auto-fix', $body);
+});
+
+it('spec-review body includes acceptance-criteria and diff instructions', function (): void {
+    $body = agent_contents('spec-review');
+    Assert::assertMatchesRegularExpression('/acceptance criteria/i', $body);
+    Assert::assertStringContainsString('diff', $body);
+    Assert::assertStringContainsString('fuzzy', $body);
+});
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
