@@ -116,10 +116,10 @@ RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
 ```text
-brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`.
+1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
 2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
 4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.
@@ -128,7 +128,7 @@ brainstorming → prototype (if needed) → writing-plans → executing-plans �
 7. **Gate** with `/check` (lint + coverage 80%).
 8. **Review** with `@code-review` before push.
 
-For non-trivial or cross-cutting changes, insert `@architect` before `writing-plans`.
+For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.
 For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 For architectural entropy, run `/improve-architecture` on a cadence.
 

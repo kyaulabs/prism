@@ -4,6 +4,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── ADR-required contract test ────────────────────────────────────────────────
@@ -20,6 +21,8 @@ setup_result_file
 
 ARCHITECT="$REPO_ROOT/.opencode/agents/architect.md"
 TICKETING="$REPO_ROOT/.opencode/skills/ticketing/SKILL.md"
+TOSPEC="$REPO_ROOT/.opencode/skills/to-spec/SKILL.md"
+AGENTS="$REPO_ROOT/AGENTS.md"
 
 # Test 1: @architect agent emits a parseable ADR-required: line
 if grep -qE 'ADR-required:' "$ARCHITECT"; then
@@ -35,8 +38,27 @@ else
 	fail "ticketing skill is missing ADR-required reference in $TICKETING"
 fi
 
+# ── Test 3: to-spec suggests @architect for cross-cutting specs ───────────────
+echo "── Test 3: to-spec skill references @architect ──"
+if grep -q '@architect' "$TOSPEC"; then
+	pass "to-spec skill references @architect"
+else
+	fail "to-spec skill does not reference @architect"
+fi
+
+# ── Test 4: AGENTS.md pipeline shows spec -> @architect -> tickets on-ramp ────
+echo "── Test 4: AGENTS.md Engineering Pipeline shows @architect on-ramp ──"
+SECTION=$(sed -n '/^## Engineering Pipeline/,/^## Linting/p' "$AGENTS")
+if echo "$SECTION" | grep -q '@architect' \
+   && echo "$SECTION" | grep -qE 'to-spec|/issue|tickets'; then
+	pass "AGENTS.md pipeline shows spec -> @architect -> tickets on-ramp"
+else
+	fail "AGENTS.md pipeline missing spec -> @architect -> tickets on-ramp"
+fi
+
 print_summary "architect-adr-contract"
 exit $?
+
 
 
 
