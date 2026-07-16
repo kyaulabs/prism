@@ -276,6 +276,7 @@ Load these on demand when the task requires them:
 | `@architect` | subagent | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
 | `@resolve-merge-conflicts` | subagent | Resolving in-progress git merge/rebase conflicts |
 | `@semgrep` | subagent | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
+| `@standards-review` | subagent | Read-only review agent applying Fowler's 12 code smells as a structural-review baseline against the diff; reports by severity, does not auto-fix |
 | `@debug` | subagent | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
