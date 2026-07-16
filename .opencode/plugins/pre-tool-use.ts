@@ -109,7 +109,7 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
 
     try {
         // BLOCK: rm -rf outside safe zones
-        const home = process.env.HOME ?? "/";
+        const home = process.env.HOME || "/";
         const segments = command.split(/[;&|\n]/);
         for (const segment of segments) {
             const parsed = parseRm(segment);
@@ -137,8 +137,9 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
         if (/\bgit\s+push\s+(?:[-\w]+\s+)*--delete\b/.test(command)) {
             return { severity: "warn", reason: "git push --delete removes a remote ref" };
         }
-        // BLOCK: git push --force / -f (not --force-with-lease)
-        if (/\bgit\s+push\b/.test(command) && !/--force-with-lease/.test(command)) {
+        // BLOCK: git push --force / -f
+        // tokens.includes does exact matching, so --force won't match --force-with-lease
+        if (/\bgit\s+push\b/.test(command)) {
             const tokens = command.split(/\s+/);
             if (tokens.includes("-f") || tokens.includes("--force")) {
                 return { severity: "block", reason: "git push --force rewrites published history" };
@@ -165,7 +166,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     const hooks: Hooks = {
         "tool.execute.before": async (input, output) => {
             if (input.tool !== "bash") return;
-            const command: string = output.args?.command ?? "";
+            const command: string = output?.args?.command ?? "";
             let finding: Finding;
             try {
                 finding = classifyCommand(command, { projectDir: directory });

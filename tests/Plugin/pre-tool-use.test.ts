@@ -43,6 +43,10 @@ describe("classifyCommand — baseline", () => {
         assert.equal(classifyCommand("git push --force-with-lease origin main", opts).severity, null);
     });
 
+    it("blocks git push --force-with-lease --force (--force overrides lease)", () => {
+        assert.equal(classifyCommand("git push --force-with-lease --force origin main", opts).severity, "block");
+    });
+
     it("passes empty command without throwing", () => {
         assert.deepEqual(classifyCommand("", opts), { severity: null, reason: "" });
     });
