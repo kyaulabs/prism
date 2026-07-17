@@ -42,6 +42,10 @@ severities:
     not guess.
   - `git push --force` / `git push -f` as standalone tokens (but NOT
     `--force-with-lease`).
+  - `git commit --no-verify` / `git commit -n`, and `--no-verify` on any git
+    command — bypasses the pre-commit/commit-msg/pre-push hooks. `-n` is blocked
+    only on `git commit` (on other commands it is `--dry-run`/`--no-commit`/
+    max-count and must not be blocked). See ADR-0025.
 
 - **WARN** (`client.app.log({level:"warn"})`, then allow execution):
   - `git push --delete` (removes a remote ref).
@@ -103,6 +107,7 @@ variants plus the non-push patterns that permissions cannot express.
 ## Related
 
 - ADR-0008: experimental hook dependency precedent and type-guard pattern.
+- ADR-0025: CI-local check parity — the `--no-verify` block extends this hook.
 - GitHub epic #127 ("KYAULabs Harness Process Upgrade"), sub-issue #140.
 - `.opencode/plugins/session-bootstrap.ts` — sole existing plugin; authoritative
   structure template.

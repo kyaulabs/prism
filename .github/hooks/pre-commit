@@ -110,7 +110,15 @@ if [ -n "$STAGED_SH" ]; then
 			checkout_staged "$f"
 			SH_TMPFILES+=("$TMPF")
 		done <<< "$STAGED_SH"
-		shellcheck "${SH_TMPFILES[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
+		# Fail on non-empty output at warning+ severity, not just exit code:
+		# some local shellcheck builds exit 0 while printing warnings (version
+		# skew vs CI, whose default severity is also warning). ADR-0025.
+		SH_OUT=$(shellcheck --severity=warning "${SH_TMPFILES[@]}" 2>&1 || true)
+		if [ -n "$SH_OUT" ]; then
+			printf '%s\n' "$SH_OUT" | sed "s|$LINT_TMPDIR/||g"
+			echo "✗ shellcheck found issues (CI parity — local binary may differ from CI)" >&2
+			exit 1
+		fi
 	else
 		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
 	fi
@@ -305,6 +313,27 @@ if [ -n "$STAGED_SRC" ]; then
 
 		rm -f "$TMP" "$CLEAN" "$MOD"
 	done <<< "$STAGED_SRC"
+fi
+
+# ── Skill frontmatter check (CI parity: validate-harness.sh) ────────────────
+# Block commits that add/modify a skill SKILL.md missing the required name
+# field, whose name != directory, or missing description. Staged blobs are
+# checked out to LINT_TMPDIR preserving .opencode/skills/<name>/SKILL.md so
+# dirname is correct (ADR-0015). See ADR-0025.
+STAGED_SKILLS=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -E '^\.opencode/skills/[^/]+/SKILL\.md$' || true)
+if [ -n "$STAGED_SKILLS" ]; then
+	echo "→ skill frontmatter check"
+	SKILL_FILES=()
+	while IFS= read -r f; do
+		[ -z "$f" ] && continue
+		checkout_staged "$f"
+		SKILL_FILES+=("$TMPF")
+	done <<< "$STAGED_SKILLS"
+	FM_OUT=$(bash .github/scripts/check-skill-frontmatter.sh "${SKILL_FILES[@]}" 2>&1 || true)
+	if [ -n "$FM_OUT" ]; then
+		printf '%s\n' "$FM_OUT" | sed "s|$LINT_TMPDIR/||g"
+		exit 1
+	fi
 fi
 
 echo "✓ pre-commit passed"

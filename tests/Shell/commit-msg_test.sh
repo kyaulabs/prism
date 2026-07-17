@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@nova 2026/07/16 -0700 Exp $
+
 
 
 
@@ -8,8 +9,8 @@
 
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
-#   - Guard: skip with a visible notice when commitlint is not installed
-#     (fresh clone without `npm install`). CI enforces commitlint on PRs.
+#   - Guard: fail-closed when commitlint is not installed (ADR-0025).
+#     CI enforces commitlint on every PR; local parity requires it here too.
 #   - Merge/revert exemption + regression tests (added in Task 2).
 
 set -euo pipefail
@@ -39,7 +40,7 @@ COMMITLINT_AVAILABLE=$([ -d "$REPO_ROOT/node_modules/commitlint" ] && echo true 
 # npx is ever reached.
 
 echo ""
-echo "── Test 1: Guard skips when commitlint not installed ──"
+echo "── Test 1: Guard fails closed when commitlint not installed ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
@@ -62,10 +63,10 @@ STUB
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 0 ] && echo "$output" | grep -qi 'commitlint' && echo "$output" | grep -qi 'skipping'; then
-		pass "Guard skips with notice when commitlint absent (exit 0)"
+	if [ "$ret" -eq 1 ] && echo "$output" | grep -qi "commitlint is not installed"; then
+		pass "Guard fails closed when commitlint absent (exit 1)"
 	else
-		fail "Guard did not skip (exit=$ret): $output"
+		fail "Guard did not fail closed (exit=$ret): $output"
 	fi
 )
 
@@ -447,6 +448,7 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
+
 
 
 

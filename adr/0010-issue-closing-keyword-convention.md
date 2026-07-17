@@ -52,7 +52,9 @@ and in CI on pull requests (`npx commitlint --from ... --to ... --verbose`).
 - **Neutral:** `Refs:` remains available for references that should not
   close an issue. The rule is local-only when `node_modules/commitlint`
   is absent (fresh clone without `npm install`), but CI enforces on
-  every PR commit regardless.
+  every PR commit regardless. *(Note: the local-only fail-open behavior
+  described here is **deprecated by ADR-0025** — the `commit-msg` hook is
+  now fail-closed, so commitlint is enforced locally as well.)*
 
 ## Alternatives Considered
 

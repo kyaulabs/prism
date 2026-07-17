@@ -1,16 +1,41 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg kyau@nova 2026/07/07 -0700 Exp $
+# $KYAULabs: commit-msg kyau@nova 2026/07/16 -0700 Exp $
 
 set -euo pipefail
 
-# Guard: skip with a visible notice when commitlint is not installed
-# (fresh clone without `npm install`, or a nodeless environment).
-# CI enforces commitlint on every PR commit, so skipping locally is safe.
-if [ ! -d node_modules/commitlint ]; then
-	echo "⚠ commitlint not installed — skipping commit-msg check (run: npm install)" >&2
-	exit 0
+MSG_FILE="${1:?commit-msg: message file path required}"
+
+# ── Literal backslash-n guard (pure bash, no deps) ───────────────────────────
+# Reject messages containing the two-char sequence '\' + 'n'. These come from
+# `git commit -m "...\n..."` in regular quotes; bash interprets \n only inside
+# $'...'. commitlint's body-max-line-length / trailers-exist would also catch
+# the fallout, but this guard yields a targeted, actionable error. See ADR-0025.
+if grep -qF '\n' "$MSG_FILE"; then
+	cat >&2 <<'EOF'
+✗ Commit message contains a literal '\n' (backslash-n) sequence.
+  This usually means the message was passed via -m "...\n..." in regular
+  quotes. Use a single -m with $'...\n...' so bash interprets newlines:
+
+      git commit -S -m $'type[scope]: subject\n\nBody line.\n\nPlan-by: model\nAcked-by: model\nSigned-off-by: user <email>'
+
+  Never use multiple -m flags (they insert blank lines that break trailers).
+EOF
+	exit 1
 fi
 
-npx commitlint --edit "${1}"
+# ── commitlint (fail-closed: CI parity requires local enforcement) ───────────
+# A missing node_modules/commitlint is a broken dev environment. CI enforces
+# commitlint on every PR; for local parity the commit must block until the
+# toolchain is installed. See ADR-0025.
+if [ ! -d node_modules/commitlint ]; then
+	cat >&2 <<'EOF'
+✗ commitlint is not installed — cannot validate the commit message locally.
+  Run 'npm install' to install the toolchain, then re-run the commit.
+  (CI enforces commitlint on every PR; local parity requires it here too.)
+EOF
+	exit 1
+fi
+
+npx commitlint --edit "$MSG_FILE"
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

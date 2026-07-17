@@ -20,6 +20,8 @@ is_zero_oid() {
 	esac
 }
 
+BRANCH_COUNT=0
+
 while read -r local_ref local_oid _ remote_oid; do
 	# Skip tag pushes — tags are not branches and should not trigger
 	# history-protection or no-squash checks.
@@ -31,6 +33,7 @@ while read -r local_ref local_oid _ remote_oid; do
 	if is_zero_oid "$local_oid"; then
 		continue
 	fi
+	BRANCH_COUNT=$((BRANCH_COUNT + 1))
 
 	# ── Non-fast-forward check (hard gate) ─────────────────────────────────
 	# Block pushes that would rewrite published history. amend, rebase, or
@@ -93,6 +96,36 @@ ${YELLOW}╰──────────────────────�
 EOF
 	fi
 done
+
+if [ "$BRANCH_COUNT" -ge 1 ] && [ -x .github/scripts/validate-harness.sh ]; then
+	# ── CI-parity gate (validate-harness) ────────────────────────────────
+	# Run validate-harness.sh BEFORE the push leaves the machine. The
+	# script-existence guard above skips this entire block in test repos
+	# and minimal checkouts. See ADR-0025.
+	echo "→ pre-push CI-parity gate (validate-harness)"
+	HLOG=$(mktemp)
+	if ! bash .github/scripts/validate-harness.sh >"$HLOG" 2>&1; then
+		cat "$HLOG" >&2
+		echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
+		rm -f "$HLOG"
+		exit 1
+	fi
+	rm -f "$HLOG"
+	# ── shellcheck (CI parity) ────────────────────────────────────────────
+	# Same scan CI runs, at CI's default severity (warning+). Fail on
+	# non-empty output — also gated by the harness-script check above.
+	if command -v shellcheck > /dev/null 2>&1; then
+		echo "→ shellcheck (CI parity)"
+		SH_OUT=$(find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
+			-not -path './vendor/*' -not -path '*/node_modules/*' -not -path './aurora/*' \
+			-print0 | xargs -0 shellcheck --severity=warning 2>&1 || true)
+		if [ -n "$SH_OUT" ]; then
+			printf '%s\n' "$SH_OUT" >&2
+			echo "✗ pre-push: shellcheck found issues." >&2
+			exit 1
+		fi
+	fi
+fi
 
 exit 0
 

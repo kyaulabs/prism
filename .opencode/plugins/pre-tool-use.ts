@@ -1,5 +1,6 @@
 // $KYAULabs: pre-tool-use.ts kyau@nova 2026/07/16 -0700 Exp $
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -145,6 +146,22 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
                 return { severity: "block", reason: "git push --force rewrites published history" };
             }
         }
+        // BLOCK: --no-verify / scoped -n — prevents bypassing pre-commit,
+        // commit-msg, and pre-push hooks. --no-verify is never legitimate for
+        // agent work, so block it on any git command. -n means --no-verify ONLY
+        // on `git commit` (on other commands -n is --dry-run/--no-commit/
+        // max-count and must not be blocked). See ADR-0025.
+        {
+            const gitMatch = command.match(/\bgit\s+([a-z-]+)/);
+            const subcmd = gitMatch ? gitMatch[1] : "";
+            const tokens = command.split(/\s+/);
+            if (tokens.includes("--no-verify") || (subcmd === "commit" && tokens.includes("-n"))) {
+                return {
+                    severity: "block",
+                    reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
+                };
+            }
+        }
         return { severity: null, reason: "" };
     } catch {
         return { severity: null, reason: "" };
@@ -194,5 +211,6 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
