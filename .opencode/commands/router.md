@@ -20,7 +20,7 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 | Build a NEW feature or behavior from an idea | `/feature "description"` (brainstorming → spec → plan → @tdd) |
 | Work an EXISTING GitHub issue | `@from-issue #NN` |
 | Investigate a BUG or regression | `@debug "repro steps"` |
-| Build something HUGE (multiple independent subsystems) | Decompose first — see the wayfinder skill (#142, planned) or brainstorming's decomposition guidance |
+| Build something HUGE (multiple independent subsystems) | Decompose first — chart it with the wayfinder skill, or use brainstorming's decomposition guidance |
 | Make a trivial zero-behavior-delta change (typo, docs, RCS header, style, patch deps, test-only) | fast-path — implement directly, then verification-before-completion + /check |
 
 ## Signal heuristics
