@@ -54,15 +54,20 @@ Read `docs/agents/labels.md`. If the file does not exist, stop and tell the
 user to update their branch: the vocabulary was created by issue #128 (PR
 #143) and is present on `origin/develop`.
 
-The label vocabulary defines 12 actual labels — 2 Wayfinder + 10 Meta. Type
+The label vocabulary defines 17 actual labels — 7 Wayfinder + 10 Meta. Type
 and Progress are GitHub native fields and are NOT labels.
 
-Wayfinder labels (2):
+Wayfinder labels (7):
 
 | Label | Color | Description |
 | :--- | :---: | --- |
 | `epic` | `5319e7` | Parent epic tracking multiple sub-issues |
 | `task` | `5319e7` | Sub-issue linked to an epic |
+| `wayfinder:map` | `5319e7` | The wayfinder decision-map issue (canonical artifact) |
+| `wayfinder:research` | `5319e7` | Wayfinder ticket: AFK research / doc reading |
+| `wayfinder:prototype` | `5319e7` | Wayfinder ticket: HITL prototype via the prototype skill |
+| `wayfinder:grilling` | `5319e7` | Wayfinder ticket: HITL grilling, one question at a time |
+| `wayfinder:task` | `5319e7` | Wayfinder ticket: manual work unblocking a decision |
 
 Meta labels (10):
 
@@ -95,7 +100,7 @@ existing set. Report back:
 
 ## 4. Create or update each label
 
-For each of the 12 labels from Step 2, delegate to `@explore`:
+For each of the 17 labels from Step 2, delegate to `@explore`:
 
 **Label does not exist** → create:
 ```bash
@@ -126,6 +131,11 @@ Label                  Status      Notes
 ---------------------  ----------  ------------------------------
 epic                   Created
 task                   Created
+wayfinder:map          Created
+wayfinder:research     Created
+wayfinder:prototype    Created
+wayfinder:grilling     Created
+wayfinder:task         Created
 brainstorming          Updated     color was db2780, description changed
 research               Updated     color was db2780
 help wanted            Unchanged
@@ -137,17 +147,17 @@ on hold                Created
 won't fix              Created
 request for comments   Error       gh label edit failed: ...
 
-  Created:   6
-  Updated:   2
-  Unchanged: 3
-  Errors:    1
-  Total:    12
+  Created:   11
+  Updated:    2
+  Unchanged:  3
+  Errors:     1
+  Total:     17
 ```
 
-If all 12 labels are Unchanged, print a summary line:
+If all 17 labels are Unchanged, print a summary line:
 
 ```text
-All 12 labels already present and up-to-date. Nothing to do.
+All 17 labels already present and up-to-date. Nothing to do.
 ```
 
 If any labels had errors, print:
