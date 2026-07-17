@@ -614,7 +614,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 
 | Category | Skills |
 | --- | --- |
-| Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `verification-before-completion` |
+| Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `wayfinder`, `verification-before-completion` |
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
 | Architecture hygiene | `systems-design`, `finding-duplicate-functions` |

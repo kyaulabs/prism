@@ -264,6 +264,7 @@ Load these on demand when the task requires them:
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
 | `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
+| `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
 | `rcs-header` | Creating or modifying any source file |
 | `receiving-code-review` | Triaging and responding to @code-review findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `aurora-page` | Creating a new PHP page |

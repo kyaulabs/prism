@@ -44,12 +44,19 @@ Tracked via GitHub's native **Progress** issue field (not labels).
 
 ### Wayfinder — Optional navigation labels
 
-Flat labels with no prefix. Used for epic/task relationship tracking.
+Flat labels with no prefix, used for epic/task relationship tracking, plus the
+colon-prefixed `wayfinder:*` set used by the `wayfinder` skill to mark a
+decision-map and its ticket types.
 
 | Label | Color | Description |
 | :--- | :---: | --- |
-| `epic` | `#5319e7` | Parent epic tracking multiple sub-issues |
-| `task` | `#5319e7` | Sub-issue linked to an epic |
+| `epic` | `#5319e7` | Parent epic tracking multiple sub-issues (non-wayfinder) |
+| `task` | `#5319e7` | Sub-issue linked to an epic (non-wayfinder) |
+| `wayfinder:map` | `#5319e7` | The wayfinder decision-map issue (canonical artifact) |
+| `wayfinder:research` | `#5319e7` | Wayfinder ticket: AFK research / doc reading |
+| `wayfinder:prototype` | `#5319e7` | Wayfinder ticket: HITL prototype via the prototype skill |
+| `wayfinder:grilling` | `#5319e7` | Wayfinder ticket: HITL grilling, one question at a time |
+| `wayfinder:task` | `#5319e7` | Wayfinder ticket: manual work unblocking a decision |
 
 ### Meta — Optional context labels
 
