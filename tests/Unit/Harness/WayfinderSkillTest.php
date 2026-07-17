@@ -12,6 +12,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Asserts the wayfinder skill (issue #142) meets its acceptance criteria:
  * exists with derived-from metadata; produces a wayfinder:map parent plus
@@ -22,11 +25,23 @@ declare(strict_types=1);
  * is enforced separately by .github/scripts/validate-harness.sh.
  */
 
+/**
+ * Returns the absolute path to the wayfinder SKILL.md file.
+ *
+ * @return string
+ */
 function wayfinder_skill_path(): string
 {
     return __DIR__ . '/../../../.opencode/skills/wayfinder/SKILL.md';
 }
 
+/**
+ * Reads and returns the wayfinder SKILL.md content.
+ *
+ * Asserts the file exists and is readable before returning.
+ *
+ * @return string
+ */
 function wayfinder_skill_content(): string
 {
     $path = wayfinder_skill_path();
@@ -113,6 +128,7 @@ test('wayfinder skill has a Gotchas section', function (): void {
 
     expect($content)->toContain('## Gotchas');
 });
+
 
 
 
