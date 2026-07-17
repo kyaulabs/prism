@@ -39,9 +39,11 @@ reaches the remote, and MUST be unbypassable by agents.
 2. **commit-msg** runs commitlint **fail-closed** (a missing `node_modules/
    commitlint` blocks the commit with a "run npm install" message) and adds a
    pure-bash literal-`\n` rejection.
-3. **pre-push** runs the full `validate-harness.sh` + `tests/Shell/*_test.sh`
-   + shellcheck as a CI-parity backstop. A failure blocks the push; the fix is a
-   local amend of an unpushed commit (no force-push needed).
+3. **pre-push** runs `validate-harness.sh` + shellcheck as a CI-parity
+   backstop. A failure blocks the push; the fix is a local amend of an unpushed
+   commit (no force-push needed). The behavioral `tests/Shell/*_test.sh` suite
+   stays CI-only — several tests are incompatible with Windows (where pushes
+   originate), so running them pre-push would block legitimate pushes.
 4. **pre-tool-use** plugin BLOCKs `--no-verify` (any git command) and `-n`
    (only on `git commit`, where it means `--no-verify`; `-n` on other commands
    is `--dry-run`/`--no-commit`/max-count and must NOT be blocked).
@@ -59,8 +61,8 @@ reaches the remote, and MUST be unbypassable by agents.
   force-push, no rebase**. CI↔local parity eliminates the round-trip cycles.
 - **Negative:** Committing without `npm install` is now impossible (was silently
   allowed). `install-hooks.sh` documents the prerequisite; `/doctor` verifies it.
-- **Negative:** pre-push latency increases (~15–20s for harness + shell suite +
-  shellcheck). Acceptable for a push gate that prevents history rewrites.
+- **Negative:** pre-push latency increases (~10–15s for harness + shellcheck).
+  Acceptable for a push gate that prevents history rewrites.
 - **Neutral:** Layered defense — pre-commit (fast, staged frontmatter + shellcheck)
   and pre-push (full harness/shell/shellcheck) deliberately overlap; this mirrors
   the existing `php -l` vs `php-cs-fixer` split (ADR-0015).
