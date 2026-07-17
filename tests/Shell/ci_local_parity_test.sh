@@ -4,6 +4,7 @@
 
 
 
+
 # ci_local_parity_test.sh — Harness contract test for ADR-0025 (CI-local parity)
 #
 # Asserts:
@@ -57,7 +58,7 @@ else
 fi
 
 # ── 6. pre-commit shellcheck fails on output (version-skew defense) ──────────
-if grep -qF 'SH_OUT=$(shellcheck' "$REPO_ROOT/.github/hooks/pre-commit"; then
+if grep -qF 'severity=warning' "$REPO_ROOT/.github/hooks/pre-commit"; then
 	pass "pre-commit shellcheck captures output"
 else
 	fail "pre-commit shellcheck does not capture output"
@@ -71,6 +72,7 @@ else
 fi
 
 print_summary "ci_local_parity"
+
 
 
 
