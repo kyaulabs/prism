@@ -1,8 +1,11 @@
-#!/usr/bin/env node
-// $KYAULabs: frontmatter-parser.js kyau@nova 2026/07/05 -0700 Exp $
+// $KYAULabs: frontmatter-parser.js kyau@nova 2026/07/16 -0700 Exp $
 
-// Extract a YAML frontmatter key's value from a Markdown file.
-// Usage: node frontmatter-parser.js <file> <key>
+#!/usr/bin/env node
+
+// Extract a YAML frontmatter key's value from a Markdown file (or stdin).
+// Usage: node frontmatter-parser.js [--stdin] <file> <key>
+//   <file> <key>     read content from <file>
+//   --stdin <key>    read content from stdin (for staged-blob piping)
 // Prints the value to stdout (empty string if not found).
 // Exits 1 on parse error.
 
@@ -11,19 +14,25 @@
 const fs = require('fs');
 const yaml = require('js-yaml');
 
-const file = process.argv[2];
-const key  = process.argv[3];
+const useStdin = process.argv[2] === '--stdin';
+const file = useStdin ? null : process.argv[2];
+const key  = useStdin ? process.argv[3] : process.argv[3];
 
-if (!file || !key) {
-	console.error('Usage: node frontmatter-parser.js <file> <key>');
+if (useStdin) {
+	if (!key) {
+		console.error('Usage: node frontmatter-parser.js --stdin <key>');
+		process.exit(2);
+	}
+} else if (!file || !key) {
+	console.error('Usage: node frontmatter-parser.js [--stdin] <file> <key>');
 	process.exit(2);
 }
 
 let content;
 try {
-	content = fs.readFileSync(file, 'utf8');
+	content = useStdin ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8');
 } catch (e) {
-	console.error(`Error reading file: ${e.message}`);
+	console.error(`Error reading ${useStdin ? 'stdin' : 'file'}: ${e.message}`);
 	process.exit(1);
 }
 
@@ -77,4 +86,5 @@ if (value === undefined || value === null) {
 }
 
 process.exit(0);
+
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :
