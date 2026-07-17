@@ -148,6 +148,12 @@ notice; CI enforces the policy on every PR commit.
 > newlines. Do **not** use multiple `-m` flags — git inserts blank lines
 > between them, which breaks commitlint's trailer detection (`git interpret-trailers --parse` requires that trailers be contiguous with the body).
 
+> [!WARNING]
+> Never embed a **literal backslash-n** inside `-m "..."` (regular quotes) —
+> bash keeps it as two characters, corrupting the message (over-long lines,
+> broken trailers). The `$'...\n...'` form interprets `\n` as a real newline.
+> The commit-msg hook now rejects literal backslash-n sequences (ADR-0025).
+
 ```bash
 # CORRECT — single -m with $'...\n...' embedded newlines
 git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nPlan-by: model\nAcked-by: model\nSigned-off-by: user <email>'

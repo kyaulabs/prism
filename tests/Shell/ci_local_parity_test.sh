@@ -2,6 +2,7 @@
 # $KYAULabs: ci_local_parity_test.sh kyau@nova 2026/07/16 -0700 Exp $
 
 
+
 # ci_local_parity_test.sh — Harness contract test for ADR-0025 (CI-local parity)
 #
 # Asserts:
@@ -40,6 +41,21 @@ else
 	fail "ADR-0010 does not cross-ref ADR-0025"
 fi
 
+# ── 4. conventional-commits warns about literal backslash-n ──────────────────
+if grep -qi "literal" "$REPO_ROOT/.opencode/skills/conventional-commits/SKILL.md"; then
+	pass "conventional-commits warns about literal backslash-n"
+else
+	fail "conventional-commits missing literal backslash-n warning"
+fi
+
+# ── 5. install-hooks notes the npm prerequisite ──────────────────────────────
+if grep -qF "npm install" "$REPO_ROOT/.github/scripts/install-hooks.sh"; then
+	pass "install-hooks notes npm prerequisite"
+else
+	fail "install-hooks missing npm note"
+fi
+
 print_summary "ci_local_parity"
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
