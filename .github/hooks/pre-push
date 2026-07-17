@@ -97,25 +97,23 @@ EOF
 	fi
 done
 
-if [ "$BRANCH_COUNT" -ge 1 ]; then
+if [ "$BRANCH_COUNT" -ge 1 ] && [ -x .github/scripts/validate-harness.sh ]; then
 	# ── CI-parity gate (validate-harness) ────────────────────────────────
-	# Run validate-harness.sh BEFORE the push leaves the machine. Skip if
-	# the script is absent (test repos, minimal checkouts). See ADR-0025.
-	if [ -x .github/scripts/validate-harness.sh ]; then
-		echo "→ pre-push CI-parity gate (validate-harness)"
-		HLOG=$(mktemp)
-		if ! bash .github/scripts/validate-harness.sh >"$HLOG" 2>&1; then
-			cat "$HLOG" >&2
-			echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
-			rm -f "$HLOG"
-			exit 1
-		fi
+	# Run validate-harness.sh BEFORE the push leaves the machine. The
+	# script-existence guard above skips this entire block in test repos
+	# and minimal checkouts. See ADR-0025.
+	echo "→ pre-push CI-parity gate (validate-harness)"
+	HLOG=$(mktemp)
+	if ! bash .github/scripts/validate-harness.sh >"$HLOG" 2>&1; then
+		cat "$HLOG" >&2
+		echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
 		rm -f "$HLOG"
+		exit 1
 	fi
+	rm -f "$HLOG"
 	# ── shellcheck (CI parity) ────────────────────────────────────────────
 	# Same scan CI runs, at CI's default severity (warning+). Fail on
-	# non-empty output so a lenient local binary cannot let a warning
-	# through. Skip if shellcheck is not installed.
+	# non-empty output — also gated by the harness-script check above.
 	if command -v shellcheck > /dev/null 2>&1; then
 		echo "→ shellcheck (CI parity)"
 		SH_OUT=$(find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
