@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: research_background_scout_test.sh seanbruen@akira.kyaulabs 2026/07/16 -0700 Exp $
+# $KYAULabs: research_background_scout_test.sh kyau@nova 2026/07/16 -0700 Exp $
+
 
 # research_background_scout_test.sh — Harness contract test for Issue #141
 #
@@ -15,13 +16,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-
-HELPERS="$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
-if [ ! -f "$HELPERS" ]; then
-	echo "ERROR: test_helpers.sh not found at $HELPERS" >&2
-	exit 1
-fi
-source "$HELPERS"
+source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
@@ -114,4 +109,5 @@ else
 fi
 
 print_summary "research_background_scout"
+
 # vim: ft=sh sts=4 sw=4 ts=4 et :
