@@ -110,6 +110,19 @@ if ! bash "$REPO_ROOT_PP/.github/scripts/validate-harness.sh" >"$HLOG" 2>&1; the
 fi
 rm -f "$HLOG"
 
+# ── shellcheck (CI parity) ───────────────────────────────────────────────────
+# Same scan CI runs, at CI's default severity (warning+). Fail on non-empty
+# output so a lenient/variant local binary cannot let a warning through.
+echo "→ shellcheck (CI parity)"
+SH_OUT=$(find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
+	-not -path './vendor/*' -not -path '*/node_modules/*' -not -path './aurora/*' \
+	-print0 | xargs -0 shellcheck --severity=warning 2>&1 || true)
+if [ -n "$SH_OUT" ]; then
+	printf '%s\n' "$SH_OUT" >&2
+	echo "✗ pre-push: shellcheck found issues." >&2
+	exit 1
+fi
+
 exit 0
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

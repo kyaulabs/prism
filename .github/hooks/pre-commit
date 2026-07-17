@@ -110,7 +110,15 @@ if [ -n "$STAGED_SH" ]; then
 			checkout_staged "$f"
 			SH_TMPFILES+=("$TMPF")
 		done <<< "$STAGED_SH"
-		shellcheck "${SH_TMPFILES[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
+		# Fail on non-empty output at warning+ severity, not just exit code:
+		# some local shellcheck builds exit 0 while printing warnings (version
+		# skew vs CI, whose default severity is also warning). ADR-0025.
+		SH_OUT=$(shellcheck --severity=warning "${SH_TMPFILES[@]}" 2>&1 || true)
+		if [ -n "$SH_OUT" ]; then
+			printf '%s\n' "$SH_OUT" | sed "s|$LINT_TMPDIR/||g"
+			echo "✗ shellcheck found issues (CI parity — local binary may differ from CI)" >&2
+			exit 1
+		fi
 	else
 		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
 	fi
