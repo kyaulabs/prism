@@ -94,6 +94,22 @@ EOF
 	fi
 done
 
+# ── CI-parity gate (validate-harness) ────────────────────────────────────────
+# Run the same harness validation CI runs, BEFORE the push leaves the machine.
+# A failure blocks the push; the fix is a local amend of an unpushed commit
+# (no force-push/rebase). Behavioral shell tests stay CI-only (some are
+# incompatible with Windows); shellcheck is added in a later task. See ADR-0025.
+echo "→ pre-push CI-parity gate (validate-harness)"
+REPO_ROOT_PP=$(git rev-parse --show-toplevel)
+HLOG=$(mktemp)
+if ! bash "$REPO_ROOT_PP/.github/scripts/validate-harness.sh" >"$HLOG" 2>&1; then
+	cat "$HLOG" >&2
+	echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
+	rm -f "$HLOG"
+	exit 1
+fi
+rm -f "$HLOG"
+
 exit 0
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
