@@ -1,6 +1,5 @@
 // $KYAULabs: frontmatter-parser.js kyau@nova 2026/07/16 -0700 Exp $
 
-#!/usr/bin/env node
 
 // Extract a YAML frontmatter key's value from a Markdown file (or stdin).
 // Usage: node frontmatter-parser.js [--stdin] <file> <key>
@@ -8,6 +7,9 @@
 //   --stdin <key>    read content from stdin (for staged-blob piping)
 // Prints the value to stdout (empty string if not found).
 // Exits 1 on parse error.
+//
+// Note: no shebang — always invoked via `node` (validate-harness.sh, the
+// pre-commit skill-frontmatter check). See ADR-0025.
 
 'use strict';
 
@@ -17,6 +19,7 @@ const yaml = require('js-yaml');
 const useStdin = process.argv[2] === '--stdin';
 const file = useStdin ? null : process.argv[2];
 const key  = useStdin ? process.argv[3] : process.argv[3];
+const label = useStdin ? '<stdin>' : file;
 
 if (useStdin) {
 	if (!key) {
@@ -69,7 +72,7 @@ let doc;
 try {
 	doc = yaml.load(fmText);
 } catch (e) {
-	console.error(`YAML parse error in ${file}: ${e.message}`);
+	console.error(`YAML parse error in ${label}: ${e.message}`);
 	process.exit(1);
 }
 
@@ -86,5 +89,6 @@ if (value === undefined || value === null) {
 }
 
 process.exit(0);
+
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :
