@@ -228,22 +228,25 @@ that write PHP or navigate code semantically (Intelephense premium fills the
 gap left by the absence of `psalm`/`phpstan` in `composer.json`). All other
 agents (`plan`, `@architect`, `@code-review`, `@semgrep`, `@test-audit`,
 `@resolve-merge-conflicts`, `compaction`, `title`, `summary`, `judge`)
-inherit the `deny` default. Requires the
-`OPENCODE_EXPERIMENTAL_LSP_TOOL=true` environment variable — set it before
-launching opencode:
+inherit the `deny` default.
 
-```powershell
-# Windows (PowerShell, persistent)
-[Environment]::SetEnvironmentVariable("OPENCODE_EXPERIMENTAL_LSP_TOOL", "true", "User")
-```
+## Experimental OpenCode Features
 
-```bash
-# Linux/macOS (~/.bashrc or ~/.zshrc)
-export OPENCODE_EXPERIMENTAL_LSP_TOOL=true
-```
+Three experimental opencode features are enabled via environment variables
+auto-sourced from `.opencode/experimental.default.env` (sourced by `.envrc`
+via direnv — see `ADR-0024`). Run `direnv allow` after cloning or after this
+file changes. Users without direnv: add `source /path/to/repo/.envrc` to
+their shell profile.
 
-Restart opencode after setting. See `.opencode/docs/lsp.md` for full
-configuration details, troubleshooting, and server prerequisites.
+| Flag | Purpose | Status |
+| --- | --- | --- |
+| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for six agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
+| `OPENCODE_EXPERIMENTAL_SCOUT=true` | Enables the built-in `@scout` experimental subagent (ADR-0005 delegate — web research, clone upstream deps) | Auto-sourced |
+| `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` | Enables background subagent tasks (see `/research --background`) | Commented — gated on ADR-0024 Phase-0 spike |
+
+See `.opencode/docs/lsp.md` for LSP configuration details, troubleshooting,
+and server prerequisites. See `.opencode/docs/research.md` for `@scout` usage
+and `/research --background` semantics.
 
 ## Skills Available
 
@@ -278,6 +281,7 @@ Load these on demand when the task requires them:
 | `pest-browser` | Writing browser tests |
 | `audit-deps` | Scanning PHP/JS dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, agents, commands, or docs in `.opencode/` |
+| `research-background` | Load when `/research --background` is invoked — documents the background-subagent contract and the ADR-0024 Phase-0 gating spike |
 
 ## Agents Available
 
@@ -306,7 +310,7 @@ Load these on demand when the task requires them:
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/feature` | Start a new feature from an idea through the brainstorming → spec → plan → @tdd pipeline |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
-| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`) |
+| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (requires Phase-0 spike). |
 | `/build-assets` | Rebuild minified CSS and JS from source |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |

@@ -14,7 +14,8 @@ UI copy, and conversation. When a term is introduced, add it here first.
 
 | Term | Definition |
 | --- | --- |
-| <Term> | <definition> |
+| scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in `.opencode/experimental.default.env` (ADR-0024). |
+| background subagent | OpenCode experimental feature (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) — enables dispatching subagent tasks asynchronously. Feasibility gated on a manual spike (ADR-0024). |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -79,6 +80,9 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0019-issue-command-conventional-commit-mapping.md` — Auto-derive org-level issue types from conventional commit types; two-phase Plan + @explore architecture for gh CLI execution
 - `adr/0020-unified-issue-command-architecture.md` — Unify /issue + /plan-to-issues into four aliases backed by a shared ticketing skill; vertical-slice decomposition with native blocking edges
 - `adr/0021-code-review-coordinator-permission-model.md` — Scoped `task: allow` carve-out from ADR-0006 for the @code-review multi-axis coordinator
+- `adr/0022-sub-agent-model-config-opencode-jsonc.md` — Sub-agent model/variant config must live in opencode.jsonc (not .md frontmatter) per runtime limitation; temperature stays literal
+- `adr/0023-safety-hook-for-bash-tool-interception.md` — Harness-wide safety guardrail for bash tool calls
+- `adr/0024-experimental-subagent-dependencies.md` — Enable @scout (built-in experimental), consolidate all experimental opencode-process flags into auto-sourced .opencode/experimental.default.env, defer background subagents to Phase-0 spike
 
 ## When to update this file
 

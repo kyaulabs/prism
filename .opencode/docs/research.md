@@ -3,6 +3,16 @@
 Loaded by the `/research` command. Defines source trust and citation format
 for codebase-adjacent research done via `@scout`, `websearch`, and `webfetch`.
 
+## Prerequisites
+
+- `@scout` is a built-in experimental subagent — requires
+  `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced via
+  `.opencode/experimental.default.env` per `ADR-0024`). If `@scout` is not
+  available, verify the flag is set in the environment.
+- `/research --background` requires `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`
+  (gated on `ADR-0024` Phase-0 spike). See
+  `.opencode/skills/research-background/SKILL.md` for the full contract.
+
 ## Source trust hierarchy
 
 Prefer higher-trust sources. Cite the highest-trust source you found; do not
