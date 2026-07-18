@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@nova 2026/07/17 -0700 Exp $
+
 
 
 
@@ -27,7 +28,8 @@ fi
 # script's --root will relativize it back). Pass "$T1", "$T2", etc.
 build_clover() {
 	local out="$1"; shift
-	local base_dir="$1"; shift
+	local base_dir
+	base_dir="$(native_path "$1")"; shift
 	{
 		echo '<?xml version="1.0" encoding="UTF-8"?>'
 		echo '<coverage generated="1234567890">'
@@ -242,30 +244,35 @@ register_temp_dir "$T10"
 # realpath() on the Clover path to relativize correctly.
 echo ""
 echo "── Test 11: symlinked root relativizes correctly ──"
-T11_REAL=$(mktemp -d)
-register_temp_dir "$T11_REAL"
-T11_LINK_DIR=$(mktemp -d)
-register_temp_dir "$T11_LINK_DIR"
-T11_LINK="$T11_LINK_DIR/root"
-ln -s "$T11_REAL" "$T11_LINK"
-(
-	cd "$T11_LINK"
-	mkdir -p backend
-	echo '<?php' > backend/env.php
-	CLOVER=$(mktemp)
-	build_clover "$CLOVER" "$T11_LINK" "backend/env.php:5:10"
-	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T11_LINK" >out.txt 2>&1 || rc=$?
-	if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
-		pass "symlinked root still fails under-threshold file (exit 1)"
-	else
-		fail "expected exit 1 + FAIL under symlinked root, got rc=${rc:-0}"
-	fi
-)
+if ! can_symlink; then
+	skip "symlinks not supported on this platform"
+else
+	T11_REAL=$(mktemp -d)
+	register_temp_dir "$T11_REAL"
+	T11_LINK_DIR=$(mktemp -d)
+	register_temp_dir "$T11_LINK_DIR"
+	T11_LINK="$T11_LINK_DIR/root"
+	ln -s "$T11_REAL" "$T11_LINK"
+	(
+		cd "$T11_LINK"
+		mkdir -p backend
+		echo '<?php' > backend/env.php
+		CLOVER=$(mktemp)
+		build_clover "$CLOVER" "$T11_LINK" "backend/env.php:5:10"
+		printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T11_LINK" >out.txt 2>&1 || rc=$?
+		if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
+			pass "symlinked root still fails under-threshold file (exit 1)"
+		else
+			fail "expected exit 1 + FAIL under symlinked root, got rc=${rc:-0}"
+		fi
+	)
+fi
 
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 
