@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/17 -0700 Exp $
+
 
 
 
@@ -467,10 +468,59 @@ PHPEOF
 )
 rm -rf "$T8"
 
+# ── Test 9: Shebang .js — auto-add preserves shebang on line 1 (#157) ───────
+
+echo "── Test 9: Shebang .js preserves shebang on auto-add ──"
+T9=$(mktemp -d)
+register_temp_dir "$T9"
+(
+	cd "$T9"
+	git_init_test_repo .
+
+	# Shebang .js file WITHOUT an RCS header, fully staged
+	cat > bin.js <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+console.log('hello');
+JSEOF
+	git add bin.js
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ]; then
+		pass "Shebang .js commit proceeds (exit 0)"
+	else
+		fail "Shebang .js blocked unexpectedly (exit $ret)"
+	fi
+
+	# Bug #157: the normalizer's else branch emitted the header on line 1,
+	# pushing the shebang to line 2. After the fix, line 1 must still be
+	# the shebang.
+	LINE1=$(git show ":bin.js" 2>/dev/null | head -1)
+	if [ "$LINE1" = '#!/usr/bin/env node' ]; then
+		pass "Shebang preserved on line 1"
+	else
+		fail "Shebang NOT on line 1 (got: $LINE1) — normalizer moved it"
+	fi
+
+	# The RCS header must be present (on line 2, after the shebang).
+	# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
+	if git show ":bin.js" 2>/dev/null | head -5 | grep -qF '$KYAULabs:'; then
+		pass "RCS header added to staged blob"
+	else
+		fail "RCS header NOT added (missing from staged blob)"
+	fi
+)
+rm -rf "$T9"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "rcs_header_autoadd_test.sh"
 exit $?
+
 
 
 
