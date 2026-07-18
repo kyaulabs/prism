@@ -281,7 +281,11 @@ if [ -n "$STAGED_SRC" ]; then
 				else
 					tail -n +2 "$CLEAN"
 				fi
-			elif [ "$EXT" = "sh" ]; then
+			else
+				# Non-PHP source (.sh/.js/.ts/.scss). Preserve a leading shebang
+				# on line 1 — emitting the header first would push it off line 1
+				# and break node/tsx/etc. Merged from the former .sh-only branch
+				# so all non-PHP extensions share the same dance. (#157)
 				LINE1=$(head -1 "$CLEAN")
 				if echo "$LINE1" | grep -q '^#!/'; then
 					echo "$LINE1"
@@ -293,10 +297,6 @@ if [ -n "$STAGED_SRC" ]; then
 					echo ""
 					cat "$CLEAN"
 				fi
-			else
-				echo "$HDR"
-				echo ""
-				cat "$CLEAN"
 			fi
 			if $APPEND_ML; then
 				echo ""
