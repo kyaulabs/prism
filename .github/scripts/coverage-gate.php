@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: coverage-gate.php kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+# $KYAULabs: coverage-gate.php kyau@nova 2026/07/17 -0700 Exp $
+
+
+
 
 
 
@@ -74,7 +77,10 @@ $rootReal = realpath($root);
 if ($rootReal === false) {
     $rootReal = $root;
 }
-$rootPrefix = rtrim($rootReal, '/') . '/';
+// Normalize to forward slashes for cross-platform path comparison.
+// On Windows, realpath() returns backslash paths (C:\...) which would
+// never str_starts_with-match Clover paths that use forward slashes.
+$rootPrefix = rtrim(str_replace('\\', '/', $rootReal), '/') . '/';
 
 $coverage = [];
 $files = $xml->xpath('//file');
@@ -159,25 +165,35 @@ exit(0);
 /**
  * Convert an absolute filesystem path to one relative to the project root.
  *
+ * Normalizes backslashes to forward slashes before comparison so that
+ * Windows paths from realpath() (C:\...) match Clover XML paths and the
+ * forward-slash rootPrefix. Falls back to realpath() for symlink-resolution
+ * mismatches (e.g. macOS /tmp -> /private/tmp).
+ *
  * @param string $absPath
  * @param string $rootPrefix
  * @return string
  */
 function relativize_path(string $absPath, string $rootPrefix): string
 {
-    if (str_starts_with($absPath, $rootPrefix)) {
-        return substr($absPath, strlen($rootPrefix));
+    $normalized = str_replace('\\', '/', $absPath);
+    if (str_starts_with($normalized, $rootPrefix)) {
+        return substr($normalized, strlen($rootPrefix));
     }
     // Handle symlink-resolution mismatch (e.g. macOS /tmp -> /private/tmp):
     // the Clover XML may carry the unresolved form while --root is realpath'd,
     // or vice-versa. Clover paths always reference executed (existing) files,
     // so realpath() is safe here.
     $resolved = realpath($absPath);
-    if ($resolved !== false && str_starts_with($resolved, $rootPrefix)) {
-        return substr($resolved, strlen($rootPrefix));
+    if ($resolved !== false) {
+        $resolved = str_replace('\\', '/', $resolved);
+        if (str_starts_with($resolved, $rootPrefix)) {
+            return substr($resolved, strlen($rootPrefix));
+        }
     }
-    return $absPath;
+    return $normalized;
 }
+
 
 
 
