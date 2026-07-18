@@ -1,4 +1,5 @@
-// $KYAULabs: pre-tool-use.test.ts kyau@nova 2026/07/16 -0700 Exp $
+// $KYAULabs: pre-tool-use.test.ts kyau@nova 2026/07/17 -0700 Exp $
+
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -6,6 +7,11 @@ import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
+
+// POSIX platforms where /tmp is a real filesystem path. On Windows,
+// path.resolve() turns "/tmp" into a drive-relative path that doesn't
+// match the safe-zone allowlist, so the /tmp test is skipped there.
+const isPosix = process.platform === "linux" || process.platform === "darwin";
 
 describe("classifyCommand — baseline", () => {
     const opts = { projectDir: "/home/user/project" };
@@ -63,8 +69,12 @@ describe("classifyCommand — rm -rf safe zones", () => {
         assert.equal(classifyCommand("rm -rf vendor", opts).severity, null);
     });
 
-    it("allows rm -rf in /tmp", () => {
+    it("allows rm -rf in /tmp", { skip: !isPosix }, () => {
         assert.equal(classifyCommand("rm -rf /tmp/build-cache", opts).severity, null);
+    });
+
+    it("allows rm -rf in OS temp directory", () => {
+        assert.equal(classifyCommand(`rm -rf ${tmpdir()}`, opts).severity, null);
     });
 
     it("blocks rm -rf on project root (.)", () => {
@@ -143,5 +153,6 @@ describe("PreToolUse plugin hook", () => {
         assert.equal(logs.length, 0);
     });
 });
+
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
