@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: lib_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: lib_test.sh kyau@nova 2026/07/17 -0700 Exp $
+
 
 
 
@@ -174,6 +175,39 @@ test_setup_linter_repo() {
 	fi
 }
 
+# Test 11: skip() prints SKIP and writes to RESULT_FILE
+test_skip_helper() {
+	local rf
+	rf=$(mktemp)
+	RESULT_FILE="$rf" skip "platform not supported"
+	if grep -q "SKIP" "$rf"; then
+		pass "skip() wrote SKIP to RESULT_FILE"
+	else
+		fail "skip() did not write SKIP to RESULT_FILE"
+	fi
+	rm -f "$rf"
+}
+
+# Test 12: can_symlink returns a valid exit code (0 or 1) without error
+test_can_symlink() {
+	if can_symlink; then
+		pass "can_symlink works (symlinks supported on this platform)"
+	else
+		pass "can_symlink works (symlinks NOT supported on this platform)"
+	fi
+}
+
+# Test 13: native_path returns a non-empty normalized path
+test_native_path() {
+	local result
+	result=$(native_path "/tmp")
+	if [ -n "$result" ]; then
+		pass "native_path returned non-empty result: $result"
+	else
+		fail "native_path returned empty string"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
@@ -186,10 +220,14 @@ test_print_summary_pass_only
 test_print_summary_with_fail
 test_git_init_test_repo
 test_setup_linter_repo
+test_skip_helper
+test_can_symlink
+test_native_path
 
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

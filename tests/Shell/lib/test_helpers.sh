@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: test_helpers.sh kyau@nova 2026/07/17 -0700 Exp $
+
 
 
 
@@ -18,9 +19,12 @@
 #   - REPO_ROOT: absolute path to repository root
 #   - pass <msg>: print green PASS, append to $RESULT_FILE
 #   - fail <msg>: print red FAIL, append to $RESULT_FILE
+#   - skip <msg>: print yellow SKIP, append to $RESULT_FILE (not counted as fail)
 #   - setup_result_file: create RESULT_FILE, install EXIT trap
 #   - register_temp_dir <dir>: track dir for EXIT-trap cleanup
 #   - make_file_stale <file> <days>: set file mtime to N days ago (portable)
+#   - can_symlink: return 0 if symlinks work, 1 if not (Windows guard)
+#   - native_path <path>: convert MSYS path to Windows path (no-op on POSIX)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 export REPO_ROOT
@@ -122,6 +126,38 @@ setup_linter_repo() {
 		[ -f "$REPO_ROOT/.stylelintrc.json" ] && cp "$REPO_ROOT/.stylelintrc.json" .stylelintrc.json
 	)
 }
+
+# skip <msg> — print a yellow SKIP notice and record it in RESULT_FILE.
+# SKIP lines are ignored by print_summary's PASS/FAIL tally. Use this for
+# platform-incompatible or tool-absent test cases that should not count as
+# failures.
+skip() { echo "  ${YELLOW}SKIP${RESET} $*" >&2; echo "SKIP" >> "$RESULT_FILE"; }
+
+# can_symlink — probe whether the current platform supports symbolic links.
+# Returns 0 (true) if a symlink can be created and is reported as a link by
+# [ -L ]; returns 1 (false) otherwise (e.g. Windows without Developer Mode).
+# Cleans up its probe directory regardless of outcome.
+can_symlink() {
+	local probe_dir probe_link rc
+	probe_dir=$(mktemp -d)
+	probe_link="${probe_dir}/link"
+	if ln -s "$probe_dir" "$probe_link" 2>/dev/null && [ -L "$probe_link" ]; then
+		rc=0
+	else
+		rc=1
+	fi
+	rm -rf "$probe_dir"
+	return "$rc"
+}
+
+# native_path <path> — convert an MSYS/Git-Bash path to a native Windows
+# path (mixed slashes via cygpath -m) for consumption by native binaries
+# (PHP, Node). No-op on Linux/macOS where cygpath is absent. Precedent:
+# composer_validate_test.sh:47-49.
+native_path() {
+	cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+}
+
 
 
 
