@@ -130,6 +130,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0024-experimental-subagent-dependencies.md` — Enable @scout (built-in experimental), consolidate all experimental opencode-process flags into auto-sourced .opencode/experimental.default.env, defer background subagents to Phase-0 spike
 - `adr/0025-ci-local-parity-principle.md` — CI ↔ local check parity for pre-remote enforcement; fail-closed commitlint, harness + shellcheck pre-push, agent bypass blocked
 - `adr/0026-project-scaffolding.md` — Dual-mode /setup subfolder scaffold with manifest-driven quality surface, split setup_version 2→3 migration, and additive --target-dir flag
+- `adr/0027-plans-specs-lifecycle.md` — Plans/specs are development artifacts: commit on create, delete on branch completion, git history is canonical
 
 ## When to update this file
 
