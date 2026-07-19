@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: ci_local_parity_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: ci_local_parity_test.sh kyau@nova 2026/07/18 -0700 Exp $
+
 
 
 
@@ -71,7 +72,22 @@ else
 	fail "pre-push missing shellcheck"
 fi
 
+# ── 8. writing-plans commit example uses the canonical $'...' form ──────────
+if grep -qF "git commit -S -m \$'" "$REPO_ROOT/.opencode/skills/writing-plans/SKILL.md"; then
+	pass "writing-plans uses canonical \$'...' commit form"
+else
+	fail "writing-plans commit example not reconciled to \$'...' form"
+fi
+
+# ── 9. doctor verifies local node_modules/commitlint (commit-msg fail-closed) ─
+if grep -qF "[ -d node_modules/commitlint ]" "$REPO_ROOT/.opencode/commands/doctor.md"; then
+	pass "doctor checks node_modules/commitlint presence"
+else
+	fail "doctor missing node_modules/commitlint check"
+fi
+
 print_summary "ci_local_parity"
+
 
 
 
