@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/14 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@nova 2026/07/19 -0700 Exp $
+
 
 
 
@@ -777,6 +778,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

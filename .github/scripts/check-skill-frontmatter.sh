@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: check-skill-frontmatter.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: check-skill-frontmatter.sh kyau@nova 2026/07/19 -0700 Exp $
+
 
 
 # Validate skill SKILL.md frontmatter: require name + description, and
@@ -42,5 +43,6 @@ for file in "$@"; do
 done
 
 exit "$FAILED"
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

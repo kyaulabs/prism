@@ -6,6 +6,7 @@
 .github/hooks/pre-push
 .github/hooks/prepare-commit-msg
 .github/workflows/ci.yml
+.github/scripts/check-script-executable-bits.sh
 .github/scripts/coverage-gate.php
 .github/scripts/frontmatter-parser.js
 .github/scripts/install-hooks.sh
