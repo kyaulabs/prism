@@ -18,7 +18,9 @@
 .semgrep/kyaulabs.yml
 .opencodereview/rule.json
 composer.json
+composer.lock
 package.json
+package-lock.json
 phpunit.xml
 .php-cs-fixer.dist.php
 .stylelintrc.json

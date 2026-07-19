@@ -4,6 +4,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -31,6 +32,7 @@ while [ $# -gt 0 ]; do
 done
 
 MANIFEST="${MANIFEST_OVERRIDE:-$SCRIPT_DIR/quality-surface.manifest}"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -49,6 +51,47 @@ guard_no_overwrite() {
 	fi
 }
 
+# read_manifest_entries
+# Populates the global manifest_entries array from MANIFEST.
+# Skips blank lines and #-comments. Exits non-zero if manifest is missing
+# or empty (architect condition #4: manifest does not exist → hard failure).
+read_manifest_entries() {
+	if [ ! -f "$MANIFEST" ]; then
+		echo "Error: manifest not found: $MANIFEST" >&2
+		exit 1
+	fi
+
+	manifest_entries=()
+	while IFS= read -r line; do
+		line="${line%$'\r'}"
+		[[ -z "$line" || "$line" == \#* ]] && continue
+		manifest_entries+=("$line")
+	done < "$MANIFEST"
+
+	if [ ${#manifest_entries[@]} -eq 0 ]; then
+		echo "Error: manifest is empty (no non-comment entries): $MANIFEST" >&2
+		exit 1
+	fi
+}
+
+# copy_quality_surface <target>
+# Copies every manifest entry from REPO_ROOT into <target>, creating parent
+# directories as needed. Fails loudly if a source file is missing (should
+# never happen — forward parity guarantees it — but defensive).
+copy_quality_surface() {
+	local target="$1"
+	local entry
+
+	for entry in "${manifest_entries[@]}"; do
+		if [ ! -f "$REPO_ROOT/$entry" ]; then
+			echo "Error: source file not found (manifest forward parity broken): $entry" >&2
+			exit 1
+		fi
+		mkdir -p "$target/$(dirname "$entry")"
+		cp "$REPO_ROOT/$entry" "$target/$entry"
+	done
+}
+
 # ── Subcommand dispatch ─────────────────────────────────────────────────────
 
 subcommand="${1:-}"
@@ -58,24 +101,9 @@ case "$subcommand" in
 	--check-only|check-only|check)
 		target="${1:-}"
 
-		# ── Manifest validation (architect condition #4) ───────────────────
+		# ── Shared manifest read (architect condition #4) ──────────────────
 
-		if [ ! -f "$MANIFEST" ]; then
-			echo "Error: manifest not found: $MANIFEST" >&2
-			exit 1
-		fi
-
-		manifest_entries=()
-		while IFS= read -r line; do
-			line="${line%$'\r'}"
-			[[ -z "$line" || "$line" == \#* ]] && continue
-			manifest_entries+=("$line")
-		done < "$MANIFEST"
-
-		if [ ${#manifest_entries[@]} -eq 0 ]; then
-			echo "Error: manifest is empty (no non-comment entries): $MANIFEST" >&2
-			exit 1
-		fi
+		read_manifest_entries
 
 		# ── Target required ────────────────────────────────────────────────
 
@@ -122,6 +150,37 @@ CLONE_USAGE
 			echo "Error: gh repo clone failed (auth or network) — see gh output above" >&2
 			exit 2
 		}
+
+		# Copy the quality surface on top of the cloned template (ADR-0026)
+		read_manifest_entries
+		copy_quality_surface "$target"
+		echo "Cloned $owner_repo to $target and copied ${#manifest_entries[@]} quality-surface files."
+		;;
+
+	new)
+		target="${1:-}"
+
+		if [ -z "$target" ]; then
+			echo "Error: target path required" >&2
+			exit 1
+		fi
+
+		# AC-2: No-overwrite guard
+		guard_no_overwrite "$target"
+
+		# Read manifest now so file count is available for summary
+		read_manifest_entries
+
+		# Create the target directory and init a fresh git repo.
+		# Trap: on any error during mkdir + git init, remove the partial dir.
+		mkdir -p "$target"
+		trap 'rm -rf "$target"; exit 1' ERR
+		git -C "$target" init
+		trap - ERR  # git init succeeded — disable cleanup trap
+
+		# Copy the quality surface into the fresh repo (ADR-0026)
+		copy_quality_surface "$target"
+		echo "Scaffolded new project at $target with ${#manifest_entries[@]} quality-surface files."
 		;;
 
 	*)
@@ -132,10 +191,12 @@ Commands:
   check-only <target>  Preview what would be copied (read-only, no changes)
   clone <owner/repo> <target>
                        Clone quality-surface template via gh repo clone
+  new <target>         Create directory, git init, copy quality surface
 USAGE
 		exit 1
 		;;
 esac
+
 
 
 

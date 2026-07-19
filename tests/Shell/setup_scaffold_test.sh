@@ -6,6 +6,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -44,7 +45,9 @@ SCOPE_DIRS=(
 # ── Root config files checked individually ──────────────────────────────────
 ROOT_CONFIGS=(
 	"composer.json"
+	"composer.lock"
 	"package.json"
+	"package-lock.json"
 	"phpunit.xml"
 	".php-cs-fixer.dist.php"
 	".stylelintrc.json"
@@ -583,10 +586,275 @@ echo ""
 echo "── Test 12: clone honors no-overwrite guard (AC-2) ──"
 test_clone_no_overwrite
 
+# ── Test 13: new <target> creates a git repo (AC-4) ──────────────────────────
+
+test_new_creates_git_repo() {
+	local temp_target exit_code output
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"  # target must NOT exist
+
+	exit_code=0
+	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "new git repo — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# Target must exist and be a directory
+	if [ ! -d "$temp_target" ]; then
+		fail "new git repo — target directory was not created"
+		return
+	fi
+
+	# Must be a git repo
+	if ! git -C "$temp_target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+		fail "new git repo — target is not a git repository"
+		return
+	fi
+
+	# .git must exist
+	if [ ! -d "$temp_target/.git" ]; then
+		fail "new git repo — .git directory missing"
+		return
+	fi
+
+	pass "new git repo — directory created, git init ran, .git present"
+}
+
+echo ""
+echo "── Test 13: new <target> creates a git repo (AC-4) ──"
+test_new_creates_git_repo
+
+# ── Test 14: every manifest entry is copied (AC-5) ──────────────────────────
+
+test_new_copies_all_manifest_entries() {
+	local temp_target exit_code output entry missing=()
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"  # target must NOT exist
+
+	exit_code=0
+	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "manifest copy — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# Iterate manifest entries and assert each exists in the copy
+	while IFS= read -r line; do
+		line="${line%$'\r'}"
+		[[ -z "$line" || "$line" == \#* ]] && continue
+		entry="$line"
+		if [ ! -f "$temp_target/$entry" ]; then
+			missing+=("$entry")
+		elif [ ! -s "$temp_target/$entry" ]; then
+			missing+=("$entry (empty)")
+		fi
+	done < "$MANIFEST"
+
+	if [ ${#missing[@]} -ne 0 ]; then
+		fail "manifest copy — ${#missing[@]} entries missing or empty:"
+		for m in "${missing[@]}"; do
+			echo "         $m" >&2
+		done
+		return
+	fi
+
+	pass "manifest copy — all $(wc -l < "$MANIFEST" | tr -d ' ') entries present and non-empty"
+}
+
+echo ""
+echo "── Test 14: every manifest entry is copied (AC-5) ──"
+test_new_copies_all_manifest_entries
+
+# ── Test 15: standalone checks in the temp copy (AC-6) ──────────────────────
+
+test_standalone_checks() {
+	local temp_target exit_code output smoke_test
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"
+
+	exit_code=0
+	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "standalone — scaffolding failed with exit $exit_code"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# ── 1. Assert test_helpers.sh is present in the copy ───────────────────
+	if [ ! -f "$temp_target/tests/Shell/lib/test_helpers.sh" ]; then
+		fail "standalone — test_helpers.sh missing from copy"
+		return
+	fi
+
+	# ── 2. Minimal smoke test that sources the COPIED lib ───────────────────
+	smoke_test="$temp_target/tests/Shell/smoke_test.sh"
+	mkdir -p "$(dirname "$smoke_test")"
+	cat > "$smoke_test" <<'SMOKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Source the COPIED test_helpers.sh using a path relative to this script
+SMOKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SMOKE_DIR/lib/test_helpers.sh"
+setup_result_file
+
+pass "smoke test harness works standalone"
+
+print_summary "smoke"
+SMOKE
+	chmod +x "$smoke_test"
+
+	exit_code=0
+	output=$(bash "$smoke_test" 2>&1) || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "standalone — smoke test exited $exit_code"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q "PASS.*smoke test harness works standalone"; then
+		fail "standalone — smoke test did not pass"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# ── 3. Lockfiles present (avoid network calls; just check presence) ───
+	if [ -f "$REPO_ROOT/composer.lock" ] && [ ! -f "$temp_target/composer.lock" ]; then
+		fail "standalone — composer.lock missing from copy"
+		return
+	fi
+	if [ -f "$REPO_ROOT/package-lock.json" ] && [ ! -f "$temp_target/package-lock.json" ]; then
+		fail "standalone — package-lock.json missing from copy"
+		return
+	fi
+
+	# ── 4. install-hooks.sh runs standalone in the copy ────────────────────
+	if [ -f "$temp_target/.github/scripts/install-hooks.sh" ]; then
+		exit_code=0
+		output=$(bash "$temp_target/.github/scripts/install-hooks.sh" 2>&1) || exit_code=$?
+		if [ "$exit_code" -ne 0 ]; then
+			fail "standalone — install-hooks.sh failed in copy (exit $exit_code)"
+			echo "  output: $output" >&2
+			return
+		fi
+	fi
+
+	pass "standalone — harness works outside template tree"
+}
+
+echo ""
+echo "── Test 15: standalone checks in the temp copy (AC-6) ──"
+test_standalone_checks
+
+# ── Test 16: trap cleanup on git init failure (architect safety rail) ────────
+
+test_trap_cleanup_on_git_failure() {
+	local fake_bin temp_target exit_code output
+	# Create a fake git that exits non-zero (simulating git init failure)
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	cat > "$fake_bin/git" <<'GIT_FAIL'
+#!/usr/bin/env bash
+exit 1
+GIT_FAIL
+	chmod +x "$fake_bin/git"
+
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"  # target must NOT exist
+
+	exit_code=0
+	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -eq 0 ]; then
+		fail "trap cleanup — exit code 0 (expected non-zero for git init failure)"
+		return
+	fi
+
+	# The trap must have removed the partial target directory
+	if [ -d "$temp_target" ]; then
+		fail "trap cleanup — partial target directory was NOT removed by trap"
+		ls -la "$temp_target" >&2 || true
+		return
+	fi
+
+	pass "trap cleanup — partial directory removed on git init failure"
+}
+
+echo ""
+echo "── Test 16: trap cleanup on git init failure (architect safety rail) ──"
+test_trap_cleanup_on_git_failure
+
+# ── Test 17: clone path ALSO copies the quality surface (ADR-0026 wiring) ────
+
+test_clone_copies_quality_surface() {
+	local fake_bin temp_target fake_log exit_code output recorded
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+
+	fake_gh_setup "$fake_bin" 0
+
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "clone copies surface — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG
+		return
+	fi
+
+	# Fake gh was invoked
+	recorded=$(cat "$fake_log")
+	if ! echo "$recorded" | grep -q "repo clone"; then
+		fail "clone copies surface — fake gh not invoked"
+		unset FAKE_GH_LOG
+		return
+	fi
+
+	# Key manifest entries must be present in the target (spot-check)
+	local missing=()
+	for entry in ".github/scripts/setup-scaffold.sh" "tests/Shell/lib/test_helpers.sh" "composer.json"; do
+		if [ ! -f "$temp_target/$entry" ]; then
+			missing+=("$entry")
+		fi
+	done
+	if [ ${#missing[@]} -ne 0 ]; then
+		fail "clone copies surface — ${#missing[@]} entries missing: ${missing[*]}"
+		unset FAKE_GH_LOG
+		return
+	fi
+
+	unset FAKE_GH_LOG
+	pass "clone copies surface — quality surface wired into clone path"
+}
+
+echo ""
+echo "── Test 17: clone path ALSO copies the quality surface (ADR-0026 wiring) ──"
+test_clone_copies_quality_surface
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
