@@ -30,7 +30,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 | --- | --- |
 | `AGENTS.md` | Stack, boundaries, directory structure, skills/agents/commands index (authoritative) |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
-| `opencode.json` | Wires instructions + agent definitions + permissions |
+| `opencode.jsonc` | Wires instructions + agent definitions + permissions |
 | `adr/` | Architecture Decision Records (Nygard format) |
 | `.opencode/agents/` | Custom subagent definitions |
 | `.opencode/commands/` | Custom slash commands |
