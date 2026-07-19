@@ -43,7 +43,7 @@ and **progress** (GitHub Progress field) — with optional **wayfinder** and
 ```text
 ├── AGENTS.md              ← Stack, boundaries, pointers (loaded every session)
 ├── CONTEXT.md             ← Domain glossary, entities, invariants, non-goals
-├── opencode.json          ← Wires instructions + agent definitions + permissions
+├── opencode.jsonc         ← Wires instructions + agent definitions + permissions
 ├── adr/                   ← Architecture Decision Records (Nygard format)
 ├── aurora/                ← Aurora PHP Framework (git submodule)
 ├── backend/               ← Backend PHP logic (not web-accessible)
@@ -159,7 +159,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 - Features: `feat/<username>-<hash>-<description>`
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.json`), `Acked-by:` (sourced from `agent.build.model` in `opencode.json`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
+- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.jsonc`), `Acked-by:` (sourced from `agent.build.model` in `opencode.jsonc`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
 - Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `.opencode/models.default.env`, sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Four tiers: PRIMARY, PLANNER, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
@@ -222,7 +222,7 @@ LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
 hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
-default in `opencode.json`. Six agents explicitly opt in with `lsp: "allow"`:
+default in `opencode.jsonc`. Six agents explicitly opt in with `lsp: "allow"`:
 `build`, `explore`, `general`, `@tdd`, `@debug`, and `@docs-writer` — agents
 that write PHP or navigate code semantically (Intelephense premium fills the
 gap left by the absence of `psalm`/`phpstan` in `composer.json`). All other

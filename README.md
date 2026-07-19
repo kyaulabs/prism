@@ -1,24 +1,17 @@
-﻿# 📘 template
+﻿# <img src=".github/media/prism-icon.svg" alt="Prism Icon" height="32px" style="position:relative;top:0.2em;"/> Prism
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
-[![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=gnu)](LICENSE)
-[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/template?include_prereleases&logo=semver&sort=semver)](https://semver.org)
+[![GitHub](https://img.shields.io/github/license/kyaulabs/prism?logo=gnu)](LICENSE)
+[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/prism?include_prereleases&logo=semver&sort=semver)](https://semver.org)
 [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
 ## About
 
-This repository is the basis for all other repositories created here at KYAU Labs.
-
-* GitHub limits repositories to 10GB of cache space for actions.
-* GitHub limits users/organizations to 0.5GB of artifact storage.
-
-Keep these factors in mind when setting up repositories.
-
-![GitHub Flow](.github/media/github-flow.svg)
+Prism is a coding harness for [OpenCode](https://opencode.ai) (an AI coding agent), built for developing PHP-based websites the test-driven way. It codifies an end-to-end engineering pipeline — brainstorm → plan → implement → verify → review — into a layered system of skills, agents, and slash commands. Mandatory TDD (Red → Green → Refactor), an 80% line-coverage gate, Conventional Commits with signed atomic history, and ADR-driven documentation keep every change small, verifiable, and ship-ready.
 
 * [About](#about)
 * [Dependencies](#dependencies)
@@ -26,27 +19,9 @@ Keep these factors in mind when setting up repositories.
   * [Gitleaks](#gitleaks)
   * [Harness tools](#harness-tools)
   * [Test setup](#test-setup)
-* [New Repository](#new-repository)
-  * [Clone](#clone)
-  * [Initialize Repository](#init)
-  * [Add Aurora Submodule](#add-aurora-submodule)
-  * [Add License](#add-license)
-  * [Add `.gitignore`](#add-gitignore)
-  * [Update `README.md`](#update-readmemd)
-  * [Configuration Files](#configuration-files)
-  * [Add Actions](#add-actions)
 * [Git Hooks](#git-hooks)
   * [Configuration](#configuration)
   * [Install Script](#install-script)
-* [Initial Commit](#initial-commit)
-  * [Stage All](#stage-all)
-  * [Commit](#commit)
-  * [Push](#push)
-* [Repository Settings](#repository-settings)
-  * [General](#general)
-  * [Collaborators and Teams](#collaborators-and-teams)
-  * [Branches](#branches)
-  * [Webhooks](#webhooks)
 * [Issue Labels](#issue-labels)
 * [Coding Harness](#coding-harness)
   * [Quick-start loop](#quick-start-loop)
@@ -171,95 +146,6 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 > for `/release`; `new`/`skip` scaffold options and all other features work
 > without it.
 
-## New Repository
-
-Base the repository off of the organization template repository.
-
-### Clone
-
-Clone the template and remove its git history. The `aurora/` directory is
-shipped as an uninitialized submodule placeholder; remove it too so it can be
-re-registered cleanly in the new repository.
-
-```text
-git clone https://github.com/kyaulabs/template <REPOSITORY_NAME>
-cd <REPOSITORY_NAME>
-rm -rf .git aurora
-```
-
-### Init
-
-Initialize your new repository.
-
-```text
-git init
-```
-
-### Add Aurora Submodule
-
-The Aurora PHP Framework is a required submodule. The template ships a
-pre-registered `.gitmodules` entry for `aurora` (including its `branch = main`
-tracking directive), so a plain `git submodule add` reconciles the existing
-entry rather than creating a new one:
-
-```text
-git submodule add https://github.com/kyaulabs/aurora aurora
-```
-
-> **Note:** If you cloned the template to contribute to it directly (rather
-> than basing a new repository on it), do not re-init. Instead run
-> `git submodule update --init` after cloning to check out the pre-registered
-> submodule at its committed revision.
-
-### Add `LICENSE`
-
-Add in a `LICENSE` of choice, using the filename `LICENSE.txt`, `LICENSE.md` or `LICENSE.rst`. There are two main repositories of licenses to choose from:
-
-* GNU: [GNU APGLv3](https://choosealicense.com/licenses/agpl-3.0/) / [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.0/) / [GNU LGPLv3](https://choosealicense.com/licenses/lgpl-3.0/)
-* General: [Apache License 2.0](https://choosealicense.com/licenses/apache-2.0/) / [MIT License](https://choosealicense.com/licenses/mit/) / [Mozilla Public License 2.0](https://choosealicense.com/licenses/mpl-2.0/)
-* CC: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) / [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) / [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0) / [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0) / [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0) / [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0)
-
-### Add `.gitignore`
-
-Add a  `.gitignore` template from [@github/gitignore](https://github.com/github/gitignore) (modification required).
-
-### Update `README.md`
-
-Take this time to update the `README.md` with at least basic repository information and a hopeful table of contents. It is okay if most sections are blank.
-
-### Configuration Files
-
-Several files reference `kyaulabs/template` and must be updated to reflect your new repository:
-
-| File | What to update |
-| --- | --- |
-| `cliff.toml` | All `github.com/kyaulabs/template` URLs → new repo location |
-| `composer.json` | `name`, `description`, and `license` fields |
-| `package.json` | `name` and `description` fields |
-| `opencode.json` | `build` agent prompt references the project; update repo-specific pointers |
-| `CONTEXT.md` | Fill in the domain glossary, entities, invariants, and non-goals (or run `/prime` to draft) |
-| `commitlint.config.js` | Remove any unused types from `type-enum` if needed |
-| `phpunit.xml` | Add `<app>/` and new source directories to the `<source>` block so they enter the coverage denominator |
-
-### Add Actions
-
-The template ships with a base CI workflow (`.github/workflows/ci.yml`) —
-lint, test, SAST, and commitlint. Add supplementary workflows from
-[@kyaulabs/template-workflows](https://github.com/kyaulabs/template-workflows)
-as your project requires.
-
-Edit each workflow after adding it — workflows from template-workflows ship
-with manual activation set and automatic activation commented out.
-
-```yaml
-on:
-  workflow_dispatch: {}
-#on:
-#  push:
-#    branches: [ "main", "develop" ]
-#  workflow_dispatch:
-```
-
 ## Git Hooks
 
 ### Configuration
@@ -300,151 +186,52 @@ Six hooks are activated:
 | `post-checkout` | `git submodule update --init --recursive`. |
 | `post-merge` | `git submodule update --init --recursive`. |
 
-## Initial Commit
-
-### Stage All
-
-Add all files to the repository. The first command utilizing the dry-run switch to make sure you do not need any last minute additions to `.gitignore`.
-
-```text
-git add -A -n
-git add -A
-```
-
-### Commit
-
-Push the initial commit with (non-commitlint verified message).
-
-```text
-git commit -S -a -m "ignore: here be dragons"
-```
-
-The `ignore` type is project-specific (defined in `commitlint.config.js`) and excluded from the changelog. It exists for the initial repository commit and is otherwise unused — do not adopt it for normal commits.
-
-Finally set the main branch name.
-
-```text
-git branch -M main
-```
-
-### Push
-
-Add the remote origin and push the branch to origin.
-
-```text
-git remote add origin git@github.com:kyaulabs/<REPOSITORY_NAME>.git
-git push -u origin main
-```
-
-## Repository Settings
-
-In order to have proper repository security, some settings need to change. Open up the repository settings by clicking on the `Settings` tab at the top of the repository.
-
-### General
-
-Upload an image to customize the repository's social media preview.
-
-* Image should be 1280×640px
-
-Under the `Features` section enable `Sponsorships` and then disable anything that is not being using.
-
-### Collaborators and Teams
-
-Under manage access click on `Add people`. In the search box enter and select `@kyaulabs-bot` then change the role to `Write`.
-
-<img src="https://avatars.githubusercontent.com/u/135310113?s=42&v=4" style="vertical-align:middle;margin-left:4ch" alt="@kyaulabs-bot" /> @kyaulabs-bot
-
-### Branches
-
-Create a new branch protection rule by clicking `Add branch protection rule`.
-
-* Branch name pattern: `main`
-* Protect matching branches:
-  * `Require a pull request before merging`
-  * `Require approvals (1)`
-  * `Require status checks to pass before merging` — add `Lint, Test & Security` (the CI workflow job's display name)
-  * `Require signed commits`
-
-Click `Create`.
-
-Create another branch protection rule with the following:
-
-* Branch name pattern: `**/**`
-* Protect matching branches:
-  * `Require signed commits`
-
-### Webhooks
-
-If you would like this repository to output to a channel on Discord you will need to create a webhook on both ends.
-
-In Discord goto the `Server Settings > Apps > Integrations` and click `New Webhook`. Give it an avatar, name and select a channel for it to output to.
-
-Back on GitHub on the `Settings > Webhooks` page, create a new hook by clicking `Add webhook`.
-
-* Payload URL: Click on `Copy Webhook URL` in Discord to get this URL.
-* Content type: `application/json`
-* Let me select individual events:
-  * `Commit comments` `Forks` `Issues` `Page builds` `Pull requests` `Pushes` `Releases` `Statuses` `Wiki`
-
-Click on `Add webhook`.
-
 ## Issue Labels
 
-Organization level issue labels work in conjunction with conventional commits. We use a modified version of the [TIPS](https://www.fat.codes/articles/tips-issue-labeling-system/) system called TPS or Type, Priority and Status as a way to label issues such that they can be organized and assigned accordingly.
+Issue labels use a two-axis vocabulary built on GitHub's native fields, supplemented by optional navigation and context labels. The canonical reference is [`docs/agents/labels.md`](docs/agents/labels.md).
 
-In order to properly label something be sure to include at least one type, a single priority and it's current status. Optional labels may be added at your discretion.
+Every issue carries **exactly one** value on each primary axis:
 
-**T - Type:** Directly corresponds to the conventional commits [type](#type).
+### Type — what the issue is
 
-| Group | Label | Color | Description |
-| :---: | :---: | :---: | --- |
-| Type | `feature` | <span style="color:#41d6c3">#41d6c3</span> | 🚀 Feature |
-| Type | `patch` | <span style="color:#41d6c3">#41d6c3</span> | 🩹 Patches |
-| Type | `bug` | <span style="color:#ff5050">#ff5050</span> | 🐛 Bug |
-| Type | `documentation` | <span style="color:#c0e6ff">#c0e6ff</span> | 📝 Documentation |
-| Type | `performance` | <span style="color:#41d6c3">#41d6c3</span> | ⚡️ Performance |
-| Type | `refactor` | <span style="color:#ffa572">#ffa572</span> | ♻️ Refactor |
-| Type | `style` | <span style="color:#ffa572">#ffa572</span> | 💄 Styling |
-| Type | `test` | <span style="color:#ffd791">#ffd791</span> | ⚗️ Testing |
-| Type | `ci/cd` | <span style="color:#ffd791">#ffd791</span> | 👷 CI/CD |
-| Type | `chore` | <span style="color:#ffd791">#ffd791</span> | 🔮 Misc |
-| Type | `security` | <span style="color:#ff5050">#ff5050</span> | 🔒️ Security |
+Tracked via GitHub's native **issue-type** field (not labels). Types mirror Conventional Commits so an issue and its resolving commit share a vocabulary.
 
-**P - Priority:** The urgency of the issue/task.
+| Type | Description | Commit |
+| :--- | --- | :---: |
+| `Bug` | Unexpected problem or unintended behavior | `fix` |
+| `Feature` | New feature, capability, or enhancement | `feat` |
+| `Patch` | Small, incremental fix or update | `patch` |
+| `Documentation` | Additions or changes to documentation | `docs` |
+| `Performance` | Speed or efficiency improvement | `perf` |
+| `Refactor` | Restructuring with no behavior change | `refactor` |
+| `Style` | Formatting or styling, no logic impact | `style` |
+| `Test` | Adding or updating tests | `test` |
+| `CI/CD` | Build, CI, or deployment pipeline changes | `ci` |
+| `Chore` | Miscellaneous maintenance | `chore` |
+| `Security` | Security vulnerability or related fix | `fix` |
 
-| Group | Label | Color | Description |
-| :---: | :---: | :---: | --- |
-| Priority | `critical` | <span style="color:#800000">#800000</span> | Security-related/Project-breaking |
-| Priority | `high` | <span style="color:#c11c00">#c11c00</span> | Foundational / Important |
-| Priority | `medium` | <span style="color:#f39a4d">#f39a4d</span> | Basic / Normal |
-| Priority | `low` | <span style="color:#8cd211">#8cd211</span> | Additional / Polish |
+### Progress — where the issue is in its lifecycle
 
-**S - Status:** Current progress.
+Tracked via GitHub's native **Progress** field (not labels).
 
-| Group | Label | Color | Description |
-| :---: | :---: | :---: | --- |
-| Status | `done` | <span style="color:#0e8a16">#0e8a16</span> | Complete |
-| Status | `in progress` | <span style="color:#fbca04">#fbca04</span> | Currently Working On |
-| Status | `testing` | <span style="color:#fbca04">#fbca04</span> | Testing Ideas / Methods |
-| Status | `under construction` | <span style="color:#fbca04">#fbca04</span> | Beginning Stages |
+| Value | Description |
+| :--- | --- |
+| `Under Construction` | Beginning stages |
+| `In Progress` | Actively being worked on |
+| `Testing` | Testing ideas or methods |
+| `Complete` | Complete |
 
-**Optional:** Two other groups are included for convinience.
+### Optional labels
 
-| Group | Label | Color | Description |
-| :---: | :---: | :---: | --- |
-| Feedback | `brainstorming` | <span style="color:#db2780">#db2780</span> | Coming Up w/ New &lt;Type&gt; |
-| Feedback | `help wanted` | <span style="color:#db2780">#db2780</span> | Help Requested on &lt;Type&gt; |
-| Feedback | `research` | <span style="color:#db2780">#db2780</span> | &lt;Type&gt; Needs Research |
-| Feedback | `request for comments` | <span style="color:#db2780">#db2780</span> | External Opinions Needed on &lt;Type&gt; |
-| Other | `good first issue` | <span style="color:#4e3cb2">#4e3cb2</span> | Good Issue for First Time Contributor |
-| Other | `duplicate` | <span style="color:#cfd3d7">#cfd3d7</span> | Duplicate &lt;Type&gt; |
-| Other | `invalid` | <span style="color:#cfd3d7">#cfd3d7</span> | Invalid &lt;Type&gt; |
-| Other | `on hold` | <span style="color:#cfd3d7">#cfd3d7</span> | Currently On Hold |
-| Other | `won't fix` | <span style="color:#cfd3d7">#cfd3d7</span> | This Will Not Be Fixed |
+**Wayfinder** labels (`epic`, `task`, `wayfinder:map`, `wayfinder:research`, `wayfinder:prototype`, `wayfinder:grilling`, `wayfinder:task`) track epic/task relationships and the `wayfinder` skill's decision-map tickets.
+
+**Meta** labels (`brainstorming`, `research`, `request for comments`, `help wanted`, `good first issue`, `plan`, `needs-info`, `ready-for-agent`, `duplicate`, `invalid`, `on hold`, `won't fix`) provide context and workflow signals.
+
+See [`docs/agents/labels.md`](docs/agents/labels.md) for the full vocabulary with colors, additional `Priority` / `Effort` / `Start date` / `Target date` fields, and the invariants that govern the system.
 
 ## Coding Harness
 
-This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development. The harness lives under `.opencode/` and is wired into OpenCode via `opencode.json`.
+This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development. The harness lives under `.opencode/` and is wired into OpenCode via `opencode.jsonc`.
 
 **Reference docs:**
 
@@ -452,7 +239,7 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 * **`CODING_HARNESS.md`** — Orientation guide: built-in features, pipeline overview, and pointers (agents load `AGENTS.md` as the authoritative source)
 * **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
 * **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
-* **`opencode.json`** — Wires instructions + agent definitions + permissions into the coding agent
+* **`opencode.jsonc`** — Wires instructions + agent definitions + permissions into the coding agent
 * **`docs/POSITIONING.md`** — Why this stack and harness exist (design rationale, differentiators)
 * **`NOTICE`** — Third-party attribution and provenance
 
@@ -512,8 +299,12 @@ Press `Tab` to switch between Build and Plan during a session.
 ### Model Configuration
 
 Models are assigned via environment variable substitution (`{env:VAR}`) in
-`opencode.json` and `.opencode/agents/*.md` — no hard-coded model IDs.
-Four tiers, each mapped to a different `OPENCODE_MODEL_*` env var:
+`opencode.jsonc` — no hard-coded model IDs. Per-agent `model`, `variant`,
+and `temperature` values live in the `agent` section of `opencode.jsonc`; the
+`.opencode/agents/*.md` files carry only `description`, `mode`, `temperature`
+(hard-coded literal), and `permission` (see ADR-0022 — the runtime rejects
+`model:`/`variant:` in sub-agent frontmatter). Four tiers, each mapped to a
+different `OPENCODE_MODEL_*` env var:
 
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
@@ -565,7 +356,7 @@ earlier ones):
 1. Remote config (`.well-known/opencode`)
 2. Global config (`~/.config/opencode/opencode.json`)
 3. `OPENCODE_CONFIG` custom path
-4. **Project config (`opencode.json`)** ← `{env:VAR}` references live here
+4. **Project config (`opencode.jsonc`)** ← `{env:VAR}` references live here
 5. `.opencode/` directories (agents, commands, etc.)
 6. `OPENCODE_CONFIG_CONTENT` (inline, runtime)
 7. Managed settings (admin-controlled, MDM, mobileconfig)
@@ -717,8 +508,8 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Plan-by',            # Required — the planning model from opencode.json (e.g., glm-5.2)
-  'Acked-by',           # Required — the build model from opencode.json, falling back to top-level `model` (e.g., deepseek-v4-pro)
+  'Plan-by',            # Required — the planning model from opencode.jsonc (e.g., glm-5.2)
+  'Acked-by',           # Required — the build model from opencode.jsonc, falling back to top-level `model` (e.g., deepseek-v4-pro)
   'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
@@ -732,7 +523,7 @@ token (Sentence-case) = {
 Every commit must include `Plan-by`, `Acked-by`, and `Signed-off-by` footers. If
 no user is explicitly named, the default `Signed-off-by` is `kyau
 <git@kyaulabs.com>`. `Plan-by` and `Acked-by` are sourced from `agent.plan.model`
-and `agent.build.model` in `opencode.json`, falling back to the top-level
+and `agent.build.model` in `opencode.jsonc`, falling back to the top-level
 `model` — the segment after the last `/`.
 e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
