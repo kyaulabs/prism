@@ -4,6 +4,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -47,12 +48,14 @@ register_temp_dir "$T1"
   }
 }
 JSON
-    ORIG_MD5=$(md5sum setup.json | awk '{print $1}')
+    # Idempotency: compare canonical jq output before/after (portable across
+    # platforms — avoids md5sum/shasum availability differences).
+    ORIG_CANON=$(jq -S . setup.json)
     set +e
     bash "$SCRIPT" setup.json >/dev/null 2>&1
     set -e
-    AFTER_MD5=$(md5sum setup.json | awk '{print $1}')
-    if [ "$ORIG_MD5" = "$AFTER_MD5" ]; then
+    AFTER_CANON=$(jq -S . setup.json)
+    if [ "$ORIG_CANON" = "$AFTER_CANON" ]; then
         pass "v4 file unchanged (idempotent)"
     else
         fail "v4 file was modified — idempotency broken"
@@ -255,6 +258,7 @@ register_temp_dir "$T6"
 
 print_summary "migrate_setup_test.sh"
 exit $?
+
 
 
 

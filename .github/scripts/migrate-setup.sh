@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # $KYAULabs: migrate-setup.sh kyau@nova 2026/07/19 -0700 Exp $
 
+
 # migrate-setup.sh — One-way v1→v4 setup.json schema migration (ADR-0029).
 # Idempotent: safe to run on already-v4 files.
 
@@ -24,7 +25,7 @@ if [ "$CURRENT_VERSION" -ge 4 ] 2>/dev/null; then
     exit 0  # already migrated
 fi
 
-TMP=$(mktemp)
+TMP=$(mktemp "${SETUP}.tmp.XXXXXX")
 jq '
     .setup_version = 4
     | .accent = (.accent // "sky-blue")
@@ -50,6 +51,7 @@ jq '
 ' "$SETUP" > "$TMP"
 mv "$TMP" "$SETUP"
 echo "✓ Migrated $SETUP to setup_version 4" >&2
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
