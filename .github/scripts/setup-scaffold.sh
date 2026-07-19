@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-scaffold.sh kyau@nova 2026/07/18 -0700 Exp $
+# $KYAULabs: setup-scaffold.sh kyau@nova 2026/07/19 -0700 Exp $
+
 
 
 
@@ -242,6 +243,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 
