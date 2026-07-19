@@ -23,10 +23,10 @@ description: Use when writing or reviewing commit messages. Covers the required 
 Every commit message must end with three footers:
 
 - **`Plan-by:`** — the planning model, in kebab-case. Sourced from
-  `agent.plan.model` in `opencode.json` (the segment after the last `/`).
+  `agent.plan.model` in `opencode.jsonc` (the segment after the last `/`).
   Example: `openrouter/z-ai/glm-5.2` → `glm-5.2`.
 - **`Acked-by:`** — the build model, in kebab-case. Sourced from
-  `agent.build.model` in `opencode.json`, falling back to the top-level
+  `agent.build.model` in `opencode.jsonc`, falling back to the top-level
   `model` — the segment after the last `/`.
   Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
@@ -39,7 +39,7 @@ Every commit message must end with three footers:
   `kyau <git@kyaulabs.com>`.
 
 These are mandatory for traceability. The agent writes them automatically by
-reading `agent.plan.model` and `agent.build.model` from `opencode.json` —
+reading `agent.plan.model` and `agent.build.model` from `opencode.jsonc` —
 falling back to the top-level `model` if the agent-specific key is absent —
 and taking the segment after the last `/`.
 
