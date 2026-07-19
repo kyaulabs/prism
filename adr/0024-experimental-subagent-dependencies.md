@@ -6,6 +6,8 @@ Date: 2026-07-16
 
 Accepted
 
+Sourcing clause superseded by ADR-0029 (experimental flags moved from .opencode/experimental.default.env to setup.json experimental key).
+
 ## Context
 
 The harness currently has an inconsistent posture toward experimental opencode

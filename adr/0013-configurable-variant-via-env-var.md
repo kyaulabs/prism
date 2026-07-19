@@ -9,6 +9,8 @@ Accepted
 Partially supersedes ADR-0012 (variant clause only).
 Partially superseded by ADR-0022 (variant-location clause).
 
+Sourcing clauses superseded by ADR-0029 (delivery mechanism changed from shell-sourced .env files to jq-parsed setup.json). {env:VAR} substitution pattern preserved.
+
 ## Context
 
 ADR-0012 established `{env:VAR}` substitution for model IDs across three tiers
