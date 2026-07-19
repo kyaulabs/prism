@@ -93,6 +93,26 @@ The commit pipeline has three links that must all be intact:
 
 Diagnostic: if commits are blocked and the summary table shows `commitlint (local) NOT_INSTALLED`, run `npm install`. If `hooksPath` is also wrong, run `bash .github/scripts/install-hooks.sh`.
 
+## 8. Scaffold prerequisite (GitHub CLI)
+
+```bash
+# gh — required only for /setup scaffold clone mode (ADR-0026)
+if command -v gh >/dev/null 2>&1; then
+    if gh auth status >/dev/null 2>&1; then
+        echo "INSTALLED + AUTHENTICATED"
+    else
+        echo "INSTALLED but NOT AUTHENTICATED — run 'gh auth login'"
+    fi
+else
+    echo "NOT_FOUND — only needed for /setup scaffold clone mode"
+fi
+```
+
+Floor: `gh` any recent (`gh auth status` is stable across versions). This is a
+**soft-fail** prerequisite — missing or unauthenticated `gh` only blocks the
+`clone` option of `/setup`'s scaffold mode (§2.5). The `new` and `skip`
+options, and all other harness features, work without it.
+
 ## Output
 
 Group results by section. For each tool, report:
@@ -132,8 +152,9 @@ bash-ls       PASS     auto-install    —            —
 yaml-ls       PASS     auto-install    —            —
 stylelint-ls  PASS     1.1.1           any          npm i -D @stylelint/language-server
 deno-lsp      PASS     DISABLED        —            —
+gh            PASS     INSTALLED+AUTH  any recent   gh auth login
 
-GO: 12 pass, 1 warn, 2 fail, 1 skipped. Unblocked for writing code.
+GO: 12 pass, 1 warn, 2 fail, 1 skipped, 1 soft-fail pass. Unblocked for writing code.
 NO-GO for CI: fail items must be fixed before CI runs (git-cliff needed for
 changelog generation).
 ```
@@ -164,3 +185,8 @@ changelog generation).
 - LSP server checks are "soft" — a FAIL does not block writing code, but the
   agent will not receive diagnostics from that language server. Report and
   continue.
+- `gh` (GitHub CLI) is a **soft-fail** prerequisite — it is only required for
+  the `clone` option of `/setup`'s scaffold mode (§2.5, ADR-0026). The `new`
+  and `skip` scaffold options, and every other harness feature, work without
+  it. A missing or unauthenticated `gh` is reported as FAIL/SKIPPED but never
+  blocks writing, committing, or pushing code.

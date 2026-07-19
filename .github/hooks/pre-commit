@@ -124,6 +124,15 @@ if [ -n "$STAGED_SH" ]; then
 	fi
 fi
 
+# ── Script executable-bit guard (CI parity) ───────────────────────────────────
+# Assert every .sh under .github/scripts/ carries the executable bit in the
+# git index. Guards the Windows core.fileMode=false blind spot that hides
+# missing +x until CI. See check-script-executable-bits.sh.
+if [ -n "$STAGED_SH" ] && [ -f .github/scripts/check-script-executable-bits.sh ]; then
+	echo "→ script executable-bit guard"
+	bash .github/scripts/check-script-executable-bits.sh
+fi
+
 # ── Gitleaks ──────────────────────────────────────────────────────────────────
 if command -v gitleaks > /dev/null 2>&1; then
 	echo "→ gitleaks"

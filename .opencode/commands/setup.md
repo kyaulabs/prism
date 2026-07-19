@@ -1,5 +1,5 @@
 ---
-description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then rewrites template defaults (<app>, <domain>, kyau <git@kyaulabs.com>, kyaulabs/template) across the harness. Idempotent — re-runnable to update values.
+description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then rewrites template defaults (<app>, <domain>, kyau <git@kyaulabs.com>, kyaulabs/template) across the harness. Idempotent — re-runnable to update values. Offers an optional scaffold step (clone an existing template via gh, or init a new subfolder) for spinning up standalone projects.
 agent: build
 ---
 
@@ -13,7 +13,13 @@ If `.opencode/setup.json` exists, read it to pre-fill the interview with
 current values and enter re-run mode (old-value → new-value substitution).
 If `setup_version` is absent or `< 2`, treat variant fields as unset —
 prompt for them as new values using defaults from `.opencode/models.default.env`.
+If `setup_version` is absent or `< 3`, the scaffold prompt (§2.5) fires.
 If absent, enter first-run mode (placeholder → value substitution).
+
+Before §2.5, run `bash .github/scripts/setup-scaffold.sh should-prompt`.
+If it exits non-zero (short-circuit), skip §2.5 — the project was already
+scaffolded and the recorded `project_folder` still exists. If it exits 0,
+proceed with §2.5.
 
 ## 2. Interview
 
@@ -39,6 +45,48 @@ When the user selects an accent color, show the palette:
 
 - **sky-blue:** accent `#38bdf8`, soft `#87ceeb`, hover `#0ea5e9`
 - **light-purple:** accent `#a78bfa`, soft `#c4b5fd`, hover `#8b5cf6`
+
+## 2.5. Scaffold (clone / new / skip)
+
+If §1's short-circuit check returns "skip," go directly to §3.
+
+Otherwise, present the scaffold prompt:
+
+> The `/setup` command can scaffold a standalone project subfolder with a
+> portable quality surface (git hooks, CI, linters, shell-test harness).
+> Choose a mode:
+> 1. **skip** — configure the template in place (no scaffold)
+> 2. **clone** an existing quality-surface template
+> 3. **new** — init a fresh subfolder from the template's quality surface
+
+Prompt for the mode. Default to **skip** if the user presses Enter.
+
+**clone** — ask for the owner/repo of an existing quality-surface template
+(e.g. `kyaulabs/template`), then a target directory name. Run:
+
+```bash
+bash .github/scripts/setup-scaffold.sh clone <owner/repo> <target>
+```
+
+The clone subcommand requires `gh` (GitHub CLI) on `PATH` and authenticated
+(`gh auth login`). Missing or unauthenticated `gh` causes an exit-2 error.
+
+**new** — ask for a target directory name (a subfolder). Run:
+
+```bash
+bash .github/scripts/setup-scaffold.sh new <target>
+```
+
+This creates the directory, runs `git init`, and copies every quality-surface
+file from the manifest into the target directory.
+
+Both `clone` and `new` enforce a no-overwrite guard (AC-2): if the target
+already exists, the script halts with a clear error. The user must pick a
+different name or remove the existing target first.
+
+Record the answers as `scaffold_mode` (`skip`, `clone`, or `new`) and
+`project_folder` (the target path, or `null` for `skip`) for the manifest
+(§8).
 
 ## 3. Model and variant configuration
 
@@ -192,7 +240,18 @@ Ask: "Proceed with rewrites? (y/n)"
 For each file in the sweep list:
 
 1. Skip if the file does not exist (some may not apply to every project).
-2. Run the substitution script:
+2. Run the substitution script.
+
+   When `scaffold_mode` is `clone` or `new` (i.e. a `project_folder` was
+   recorded this run), pass `--target-dir "$project_folder"` so substitution
+   lands in the scaffolded subfolder:
+
+   ```bash
+   bash .github/scripts/setup-substitute.sh --target-dir "$project_folder" <file> "{name}" "{email}" "{app}" "{domain}" "{org}" "{repo}"
+   ```
+
+   When `scaffold_mode` is `skip` (or absent — legacy first-run), omit
+   `--target-dir` entirely (existing in-place behavior):
 
    ```bash
    bash .github/scripts/setup-substitute.sh <file> "{name}" "{email}" "{app}" "{domain}" "{org}" "{repo}"
@@ -259,7 +318,7 @@ Write `.opencode/setup.json`:
 
 ```json
 {
-  "setup_version": 2,
+  "setup_version": 3,
   "setup_date": "<ISO 8601 timestamp>",
   "app": "<app>",
   "domain": "<domain>",
@@ -267,6 +326,8 @@ Write `.opencode/setup.json`:
   "signed_off_by_name": "<name>",
   "signed_off_by_email": "<email>",
   "accent": "<sky-blue | light-purple>",
+  "scaffold_mode": "<skip | clone | new>",
+  "project_folder": "<path-or-null>",
   "models": {
     "primary": "<primary model ID>",
     "planner": "<planner model ID>",
