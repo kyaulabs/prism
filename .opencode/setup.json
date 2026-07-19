@@ -1,0 +1,30 @@
+{
+  "setup_version": 4,
+  "configured": true,
+  "timestamp": "2026-07-06T23:44:00Z",
+  "app": "template",
+  "domain": "kyaulabs",
+  "repo": "kyaulabs/template",
+  "signed_off_by_name": "kyau",
+  "signed_off_by_email": "git@kyaulabs.com",
+  "accent": "sky-blue",
+  "scaffold_mode": "skip",
+  "project_folder": null,
+  "models": {
+    "primary": "deepseek/deepseek-v4-pro",
+    "planner": "openrouter/z-ai/glm-5.2",
+    "judge": "openrouter/z-ai/glm-5.2",
+    "utility": "deepseek/deepseek-v4-flash"
+  },
+  "variants": {
+    "primary": "max",
+    "planner": "high",
+    "judge": "medium",
+    "utility": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  }
+}
