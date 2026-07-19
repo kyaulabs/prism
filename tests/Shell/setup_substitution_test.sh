@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/18 -0700 Exp $
+
 
 
 
@@ -289,10 +290,70 @@ echo ""
 echo "── Test 11: runs under BSD-style sed (no GNU -i) ──"
 test_runs_under_bsd_sed
 
+# ── Test 12: --target-dir redirects file resolution ───────────────────────────
+
+echo ""
+echo "── Test 12: --target-dir redirects file resolution ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+        mkdir -p "$T12/subdir"
+        printf 'Signed-off-by: kyau <git@kyaulabs.com>\n' > "$T12/subdir/file.md"
+        cd "$T12"
+        bash "$SCRIPT" --target-dir "$T12/subdir" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+        result=$(cat "$T12/subdir/file.md")
+        expected="Signed-off-by: ${T_NAME} <${T_EMAIL}>"
+        if [ "$result" = "$expected" ]; then
+                pass "composite identity replaced in target dir"
+        else
+                fail "expected: $expected, got: $result"
+        fi
+        if [ ! -f "$T12/file.md" ]; then
+                pass "no file.md created in invocation dir"
+        else
+                fail "file.md leaked into invocation dir"
+        fi
+)
+
+# ── Test 13: AC-9 regression (byte-identical without flag) ───────────────────
+
+echo ""
+echo "── Test 13: AC-9 — byte-identical with and without --target-dir ──"
+T13A=$(mktemp -d)
+T13B=$(mktemp -d)
+register_temp_dir "$T13A"
+register_temp_dir "$T13B"
+(
+        # Multi-token input exercising all 7 tokens (same as Test 9)
+        cat > "$T13A/file.md" <<'EOF'
+# Project: <app>
+Domain: <domain>
+Repo: kyaulabs/template
+Author: kyau <git@kyaulabs.com>
+Abuse: git+abuse@kyaulabs.com
+Branch: feat/<username>-hash
+EOF
+        cp "$T13A/file.md" "$T13B/file.md"
+
+        # Run WITHOUT --target-dir (legacy path)
+        cd "$T13A"
+        bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+
+        # Run WITH --target-dir (pointer path)
+        bash "$SCRIPT" --target-dir "$T13B" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+
+        if cmp -s "$T13A/file.md" "$T13B/file.md"; then
+                pass "output byte-identical with and without --target-dir"
+        else
+                fail "output differs — --target-dir is not byte-identical"
+        fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "setup substitution"
 exit $?
+
 
 
 
