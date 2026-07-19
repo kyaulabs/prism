@@ -21,6 +21,9 @@ permission:
     "git diff*": allow
     "git branch*": allow
     "git checkout*": allow
+    "bash .github/scripts/new-branch.sh*": allow
+    "bash .github/scripts/resolve-identity.sh*": allow
+    "bash .github/scripts/validate-branch-name.sh*": allow
     "git switch*": allow
     "gh issue view*": allow
     "gh issue list*": allow
@@ -193,7 +196,12 @@ approves.** This is the single hard gate between planning and execution.
 
 On approval:
 
-1. Create the feature branch: `git checkout -b feat/<username>-<hash>-<description>`.
+1. Create the feature branch using the issue's classified commit type as the
+   `<type>` prefix:
+   `bash .github/scripts/new-branch.sh <type> <description>`
+   The helper resolves the username via `resolve-identity.sh`, generates the
+   hash via `openssl rand -hex 2`, and creates the branch off `develop` (or
+   `main` for hotfix-type issues). See ADR-0028.
 2. Load the `executing-plans` skill and dispatch tasks to `@tdd` (Red → Green →
    Refactor, per task, with review between tasks).
 
