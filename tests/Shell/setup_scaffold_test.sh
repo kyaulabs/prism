@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_scaffold_test.sh kyau@nova 2026/07/18 -0700 Exp $
+# $KYAULabs: setup_scaffold_test.sh kyau@nova 2026/07/19 -0700 Exp $
+
 
 
 
@@ -122,7 +123,7 @@ test_manifest_reverse_parity() {
 		fi
 		for entry in "$REPO_ROOT/$dir"/*; do
 			[ -e "$entry" ] || continue
-			full_path="${entry#$REPO_ROOT/}"
+			full_path="${entry#"$REPO_ROOT"/}"
 			# Skip if excluded
 			[ -n "${REVERSE_EXCLUSIONS[$full_path]:-}" ] && continue
 			# Skip if in manifest
@@ -1061,6 +1062,7 @@ test_new_leading_dash_target
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
