@@ -10,6 +10,7 @@
 .github/scripts/frontmatter-parser.js
 .github/scripts/install-hooks.sh
 .github/scripts/quality-surface.manifest
+.github/scripts/setup-scaffold.sh
 .github/scripts/setup-substitute.sh
 .github/scripts/validate-harness.sh
 .github/ISSUE_TEMPLATE/01_ISSUE.md
