@@ -82,6 +82,22 @@ BREAKING CHANGE: existing session tokens are invalidated on deploy.
 Scope is optional but recommended for larger projects. Use the affected module,
 directory, or feature area: `feat(aurora)`, `fix(db)`, `test(auth)`.
 
+## Branch Naming
+
+Branch names follow Conventional Commit type prefixes per ADR-0028. See
+`.github/scripts/new-branch.sh` for the canonical creator and
+`.github/scripts/validate-branch-name.sh` for the regex.
+
+- `<type>/<username>-<hash>-<description>` — feature/standard work
+  (`<type>` ∈ feat, fix, patch, docs, style, refactor, perf, test, build, ci,
+  chore, revert)
+- `hotfix/<username>-<hash>-<description>` — emergency fixes off `main`
+- `release/<major>.<minor>.<patch>[-<prerelease>]` — release prep off `develop`
+
+Exempt from validation: `main`, `develop`, detached HEAD.
+
+The `prepare-commit-msg` hook rejects commits on non-conforming branches.
+
 ## Issue References
 
 - **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing

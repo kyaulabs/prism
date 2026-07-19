@@ -30,9 +30,10 @@ with requirement-traceability analysis.
 
 1. Resolve the current branch name (`git branch --show-current`).
 2. Extract the `<description>` segment from the branch name. Branch pattern:
-   `feat/<username>-<hash>-<description>` (e.g.
+   `<type>/<username>-<hash>-<description>` (e.g.
    `feat/kyau-e27316-code-review-coordinator` → description is
-   `code-review-coordinator`).
+   `code-review-coordinator`). `hotfix/` and `release/` branches follow their own
+   patterns; see ADR-0028.
 3. fuzzy-match the description against `docs/specs/*.md` filenames:
    - Strip the `YYYY-MM-DD-` date prefix from each spec filename.
    - Strip the `-spec` suffix if present.
