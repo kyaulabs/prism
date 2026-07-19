@@ -35,8 +35,10 @@ Every commit message must end with three footers:
 > model ID. The Plan-by and Acked-by footers track which configured models
 > planned and built the change, not which agent role orchestrated it.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
-  `username <email>`. Default when no user is specified:
-  `kyau <git@kyaulabs.com>`.
+  `Name <email>`. **Resolved dynamically** via
+  `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
+  user-level `~/.config/opencode/setup.json` → project-level
+  `.opencode/setup.json` → `git config user.name`/`user.email`).
 
 These are mandatory for traceability. The agent writes them automatically by
 reading `agent.plan.model` and `agent.build.model` from `opencode.jsonc` —
@@ -97,7 +99,7 @@ feat(auth): add remember-me cookie to login flow
 
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
@@ -106,7 +108,7 @@ fix(db): prevent SQL injection in user search query
 Fixes: #42
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
@@ -114,7 +116,7 @@ test(auth): add boundary cases for empty credentials
 
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
