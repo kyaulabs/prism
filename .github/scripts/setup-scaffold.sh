@@ -6,6 +6,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -88,8 +89,10 @@ copy_quality_surface() {
 			echo "Error: source file not found (manifest forward parity broken): $entry" >&2
 			exit 1
 		fi
-		mkdir -p "$target/$(dirname "$entry")"
-		cp "$REPO_ROOT/$entry" "$target/$entry"
+		# '--' sentinels guard against a $target whose name starts with '-'
+		# (SAST: mkdir/cp option-injection hardening).
+		mkdir -p -- "$target/$(dirname "$entry")"
+		cp -- "$REPO_ROOT/$entry" "$target/$entry"
 	done
 }
 
@@ -174,9 +177,11 @@ CLONE_USAGE
 
 		# Create the target directory and init a fresh git repo.
 		# Trap: on any error during mkdir + git init, remove the partial dir.
-		mkdir -p "$target"
-		trap 'rm -rf "$target"; exit 1' ERR
-		git -C "$target" init
+		# The '--' sentinels guard against $target names starting with '-'
+		# (SAST: mkdir/git/rm option-injection hardening).
+		mkdir -p -- "$target"
+		trap 'rm -rf -- "$target"; exit 1' ERR
+		git init -- "$target"
 		trap - ERR  # git init succeeded — disable cleanup trap
 
 		# Copy the quality surface into the fresh repo (ADR-0026)
@@ -237,6 +242,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 

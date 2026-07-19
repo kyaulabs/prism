@@ -8,6 +8,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -1030,10 +1031,37 @@ echo ""
 echo "── Test 23: should-prompt — v3 + mode clone + folder exists → exit 1 ──"
 test_should_prompt_v3_clone_exists
 
+# ── Test 24: new handles leading-dash target (SAST: git/mkdir option injection) ──
+
+test_new_leading_dash_target() {
+	local parent
+	parent=$(mktemp -d)
+	register_temp_dir "$parent"
+
+	(
+		cd "$parent"
+		# Target basename starts with '-'. Without the '--' sentinel on
+		# mkdir/git/rm, these commands parse the path as an option flag
+		# (mkdir: "unknown option"). Exercises the SAST hardening.
+		rc=0
+		bash "$SCRIPT" new "-dash-target" >/dev/null 2>&1 || rc=$?
+		if [ "$rc" -eq 0 ] && [ -d "-dash-target/.git" ]; then
+			pass "new handles leading-dash target (git/mkdir option injection hardened)"
+		else
+			fail "new failed for leading-dash target (rc=$rc) — -- sentinel missing?"
+		fi
+	)
+}
+
+echo ""
+echo "── Test 24: new — leading-dash target name (SAST hardening) ──"
+test_new_leading_dash_target
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
