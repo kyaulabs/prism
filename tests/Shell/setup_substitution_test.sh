@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/18 -0700 Exp $
+# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/19 -0700 Exp $
 
 
 
 
-# ── Tests for setup-substitute.sh identity/token substitution ────────────────
-# Verifies that the substitution script correctly replaces template default
-# identity tokens with user-provided values, with correct longest-match-first
-# ordering to prevent partial replacement.
+
+# ── Tests for setup-substitute.sh scaffolding token substitution ────────────
+# Verifies that the substitution script correctly replaces template scaffolding
+# tokens (abuse contact, org/repo, app, domain, username) with user-provided
+# values. Identity tokens (composite `kyau <git@kyaulabs.com>` and bare
+# `git@kyaulabs.com`) are no longer substituted by this script — they are
+# resolved at runtime by resolve-identity.sh per ADR-0029.
+#
+# Script signature (5 args, no identity args):
+#   setup-substitute.sh <file> <app> <domain> <org> <repo>
 
 set -euo pipefail
 
@@ -24,42 +30,30 @@ if [ ! -f "$SCRIPT" ]; then
 fi
 
 # Test values
-T_NAME="Test User"
-T_EMAIL="test@example.org"
 T_APP="myapp"
 T_DOMAIN="example.org"
 T_ORG="myorg"
 T_REPO="myrepo"
+T_USER="Test User"
 
-# ── Test 1: Composite identity replacement ──────────────────────────────────
+# Helper: initialise a sandbox git repo so `git config user.name` (used by the
+# script for <username> substitution) returns a deterministic value.
+init_sandbox_repo() {
+	git init --quiet >/dev/null
+	git config user.name "$T_USER"
+	git config user.email "test@example.org"
+}
+
+# ── Test 1: Abuse contact replacement ────────────────────────────────────────
 
 echo ""
-echo "── Test 1: Composite identity (kyau <git@kyaulabs.com>) replaced ──"
+echo "── Test 1: Abuse contact (git+abuse@kyaulabs.com) replaced ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
 	cd "$T1"
-	printf 'Signed-off-by: kyau <git@kyaulabs.com>\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-	result=$(cat file.md)
-	expected="Signed-off-by: ${T_NAME} <${T_EMAIL}>"
-	if [ "$result" = "$expected" ]; then
-		pass "composite identity replaced correctly"
-	else
-		fail "expected: $expected, got: $result"
-	fi
-)
-
-# ── Test 2: Abuse contact replacement ────────────────────────────────────────
-
-echo ""
-echo "── Test 2: Abuse contact (git+abuse@kyaulabs.com) replaced ──"
-T2=$(mktemp -d)
-register_temp_dir "$T2"
-(
-	cd "$T2"
 	printf 'Contact: git+abuse@kyaulabs.com for issues.\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
 	expected="Contact: abuse@${T_DOMAIN} for issues."
 	if [ "$result" = "$expected" ]; then
@@ -69,35 +63,16 @@ register_temp_dir "$T2"
 	fi
 )
 
-# ── Test 3: Bare email replacement ──────────────────────────────────────────
+# ── Test 2: GitHub org/repo replacement ──────────────────────────────────────
 
 echo ""
-echo "── Test 3: Bare email (git@kyaulabs.com) replaced ──"
-T3=$(mktemp -d)
-register_temp_dir "$T3"
+echo "── Test 2: GitHub org/repo (kyaulabs/template) replaced ──"
+T2=$(mktemp -d)
+register_temp_dir "$T2"
 (
-	cd "$T3"
-	printf 'Email git@kyaulabs.com for details.\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-	result=$(cat file.md)
-	expected="Email ${T_EMAIL} for details."
-	if [ "$result" = "$expected" ]; then
-		pass "bare email replaced correctly"
-	else
-		fail "expected: $expected, got: $result"
-	fi
-)
-
-# ── Test 4: GitHub org/repo replacement ──────────────────────────────────────
-
-echo ""
-echo "── Test 4: GitHub org/repo (kyaulabs/template) replaced ──"
-T4=$(mktemp -d)
-register_temp_dir "$T4"
-(
-	cd "$T4"
+	cd "$T2"
 	printf 'Repo: kyaulabs/template\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
 	expected="Repo: ${T_ORG}/${T_REPO}"
 	if [ "$result" = "$expected" ]; then
@@ -107,16 +82,16 @@ register_temp_dir "$T4"
 	fi
 )
 
-# ── Test 5: App name placeholder replacement ────────────────────────────────
+# ── Test 3: App name placeholder replacement ─────────────────────────────────
 
 echo ""
-echo "── Test 5: App name (<app>) replaced ──"
-T5=$(mktemp -d)
-register_temp_dir "$T5"
+echo "── Test 3: App name (<app>) replaced ──"
+T3=$(mktemp -d)
+register_temp_dir "$T3"
 (
-	cd "$T5"
+	cd "$T3"
 	printf 'Webroot: <app>\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
 	expected="Webroot: ${T_APP}"
 	if [ "$result" = "$expected" ]; then
@@ -126,16 +101,16 @@ register_temp_dir "$T5"
 	fi
 )
 
-# ── Test 6: Domain placeholder replacement ───────────────────────────────────
+# ── Test 4: Domain placeholder replacement ───────────────────────────────────
 
 echo ""
-echo "── Test 6: Domain (<domain>) replaced ──"
-T6=$(mktemp -d)
-register_temp_dir "$T6"
+echo "── Test 4: Domain (<domain>) replaced ──"
+T4=$(mktemp -d)
+register_temp_dir "$T4"
 (
-	cd "$T6"
+	cd "$T4"
 	printf 'Server: <domain>\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
 	expected="Server: ${T_DOMAIN}"
 	if [ "$result" = "$expected" ]; then
@@ -145,71 +120,47 @@ register_temp_dir "$T6"
 	fi
 )
 
-# ── Test 7: Username placeholder replacement ─────────────────────────────────
+# ── Test 5: Username placeholder replacement (auto-detected from git config) ─
 
 echo ""
-echo "── Test 7: Username (<username>) replaced ──"
-T7=$(mktemp -d)
-register_temp_dir "$T7"
+echo "── Test 5: Username (<username>) auto-detected from git config ──"
+T5=$(mktemp -d)
+register_temp_dir "$T5"
 (
-	cd "$T7"
+	cd "$T5"
+	init_sandbox_repo
 	printf 'Branch: feat/<username>-abc123-desc\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
-	expected="Branch: feat/${T_NAME}-abc123-desc"
+	expected="Branch: feat/${T_USER}-abc123-desc"
 	if [ "$result" = "$expected" ]; then
-		pass "username placeholder replaced correctly"
+		pass "username placeholder replaced from git config"
 	else
 		fail "expected: $expected, got: $result"
 	fi
 )
 
-# ── Test 8: Ordering — composite fires before bare email ────────────────────
+# ── Test 6: Multiple scaffolding tokens in one file ──────────────────────────
 
 echo ""
-echo "── Test 8: Ordering — composite identity not partially replaced ──"
-T8=$(mktemp -d)
-register_temp_dir "$T8"
+echo "── Test 6: Multiple scaffolding tokens all replaced ──"
+T6=$(mktemp -d)
+register_temp_dir "$T6"
 (
-	cd "$T8"
-	# File with BOTH composite identity and bare email on different lines
-	printf 'Signed-off-by: kyau <git@kyaulabs.com>\nEmail: git@kyaulabs.com\n' > file.md
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-	line1=$(sed -n '1p' file.md)
-	line2=$(sed -n '2p' file.md)
-	exp1="Signed-off-by: ${T_NAME} <${T_EMAIL}>"
-	exp2="Email: ${T_EMAIL}"
-	if [ "$line1" = "$exp1" ] && [ "$line2" = "$exp2" ]; then
-		pass "ordering correct — composite fully replaced, bare email caught separately"
-	else
-		fail "line1 expected: $exp1 got: $line1; line2 expected: $exp2 got: $line2"
-	fi
-)
-
-# ── Test 9: Multiple tokens in one file ──────────────────────────────────────
-
-echo ""
-echo "── Test 9: Multiple tokens in one file all replaced ──"
-T9=$(mktemp -d)
-register_temp_dir "$T9"
-(
-	cd "$T9"
+	cd "$T6"
+	init_sandbox_repo
 	cat > file.md <<EOF
 # Project: <app>
 Domain: <domain>
 Repo: kyaulabs/template
-Author: kyau <git@kyaulabs.com>
 Abuse: git+abuse@kyaulabs.com
 Branch: feat/<username>-hash
 EOF
-	bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-	# Verify NO old identity strings remain
-	if grep -qF 'kyau <git@kyaulabs.com>' file.md; then
-		fail "composite identity still present after substitution"
-	elif grep -qF 'git+abuse@kyaulabs.com' file.md; then
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	# Verify NO old scaffolding tokens remain (identity tokens are NOT
+	# substituted by this script — they live in setup.json now per ADR-0029).
+	if grep -qF 'git+abuse@kyaulabs.com' file.md; then
 		fail "abuse contact still present after substitution"
-	elif grep -qF 'git@kyaulabs.com' file.md; then
-		fail "bare email still present after substitution"
 	elif grep -qF 'kyaulabs/template' file.md; then
 		fail "GitHub org/repo still present after substitution"
 	elif grep -qF '<app>' file.md; then
@@ -219,39 +170,11 @@ EOF
 	elif grep -qF '<username>' file.md; then
 		fail "username placeholder still present after substitution"
 	else
-		pass "all tokens replaced, no old identity strings remain"
+		pass "all scaffolding tokens replaced"
 	fi
 )
 
-# ── Test 10: Post-run verification grep pattern ──────────────────────────────
-
-echo ""
-echo "── Test 10: Post-run verification grep excludes LICENSE/NOTICE ──"
-T10=$(mktemp -d)
-register_temp_dir "$T10"
-(
-	cd "$T10"
-	# Create files with old identity
-	printf 'Signed-off-by: kyau <git@kyaulabs.com>\n' > swept.md
-	printf 'Copyright (C) 2026 kyau <git@kyaulabs.com>\n' > LICENSE
-	printf 'Copyright (C) 2026 kyau <git@kyaulabs.com>\n' > NOTICE
-	bash "$SCRIPT" swept.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-	# Post-run grep: should find old identity ONLY in LICENSE and NOTICE
-	remaining=$(grep -rnF 'kyau <git@kyaulabs.com>' . --exclude=LICENSE --exclude=NOTICE 2>/dev/null || true)
-	if [ -z "$remaining" ]; then
-		pass "post-run grep clean — old identity only in LICENSE/NOTICE"
-	else
-		fail "old identity found outside LICENSE/NOTICE: $remaining"
-	fi
-	# Verify LICENSE and NOTICE still have the old identity (not swept)
-	if grep -qF 'kyau <git@kyaulabs.com>' LICENSE && grep -qF 'kyau <git@kyaulabs.com>' NOTICE; then
-		pass "LICENSE and NOTICE correctly preserved"
-	else
-		fail "LICENSE or NOTICE was incorrectly modified"
-	fi
-)
-
-# ── Test 11: runs under BSD-style sed (no GNU -i) ─────────────────────────────
+# ── Test 7: runs under BSD-style sed (no GNU -i) ─────────────────────────────
 
 test_runs_under_bsd_sed() {
 	local tmp_bin
@@ -275,9 +198,10 @@ SHIM
 
 	local f
 	f=$(mktemp -d)/file.md
-	printf 'kyau <git@kyaulabs.com>\n' > "$f"
+	printf 'Repo: kyaulabs/template\n' > "$f"
 
-	PATH="$tmp_bin:$PATH" bash "$SCRIPT" "$f" "Jane" "jane@example.com" "org" "repo" "myapp" "example.com" "Jane" >/dev/null 2>&1
+	# 5-arg signature; the script does not use -i (uses sed_edit helper)
+	PATH="$tmp_bin:$PATH" bash "$SCRIPT" "$f" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1
 	local rc=$?
 	if [ "$rc" -ne 0 ]; then
 		fail "script failed under BSD sed (rc=$rc)"
@@ -287,76 +211,74 @@ SHIM
 }
 
 echo ""
-echo "── Test 11: runs under BSD-style sed (no GNU -i) ──"
+echo "── Test 7: runs under BSD-style sed (no GNU -i) ──"
 test_runs_under_bsd_sed
 
-# ── Test 12: --target-dir redirects file resolution ───────────────────────────
+# ── Test 8: --target-dir redirects file resolution ───────────────────────────
 
 echo ""
-echo "── Test 12: --target-dir redirects file resolution ──"
-T12=$(mktemp -d)
-register_temp_dir "$T12"
+echo "── Test 8: --target-dir redirects file resolution ──"
+T8=$(mktemp -d)
+register_temp_dir "$T8"
 (
-        mkdir -p "$T12/subdir"
-        printf 'Signed-off-by: kyau <git@kyaulabs.com>\n' > "$T12/subdir/file.md"
-        cd "$T12"
-        bash "$SCRIPT" --target-dir "$T12/subdir" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
-        result=$(cat "$T12/subdir/file.md")
-        expected="Signed-off-by: ${T_NAME} <${T_EMAIL}>"
-        if [ "$result" = "$expected" ]; then
-                pass "composite identity replaced in target dir"
-        else
-                fail "expected: $expected, got: $result"
-        fi
-        if [ ! -f "$T12/file.md" ]; then
-                pass "no file.md created in invocation dir"
-        else
-                fail "file.md leaked into invocation dir"
-        fi
+	cd "$T8"
+	mkdir -p "$T8/subdir"
+	printf 'Repo: kyaulabs/template\n' > "$T8/subdir/file.md"
+	bash "$SCRIPT" --target-dir "$T8/subdir" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	result=$(cat "$T8/subdir/file.md")
+	expected="Repo: ${T_ORG}/${T_REPO}"
+	if [ "$result" = "$expected" ]; then
+		pass "org/repo replaced in target dir"
+	else
+		fail "expected: $expected, got: $result"
+	fi
+	if [ ! -f "$T8/file.md" ]; then
+		pass "no file.md created in invocation dir"
+	else
+		fail "file.md leaked into invocation dir"
+	fi
 )
 
-# ── Test 13: AC-9 regression (byte-identical without flag) ───────────────────
+# ── Test 9: AC-9 regression (byte-identical without --target-dir) ───────────
 
 echo ""
-echo "── Test 13: AC-9 — byte-identical with and without --target-dir ──"
-T13A=$(mktemp -d)
-T13B=$(mktemp -d)
-register_temp_dir "$T13A"
-register_temp_dir "$T13B"
+echo "── Test 9: AC-9 — byte-identical with and without --target-dir ──"
+T9A=$(mktemp -d)
+T9B=$(mktemp -d)
+register_temp_dir "$T9A"
+register_temp_dir "$T9B"
 (
-        # Multi-token input exercising all 7 tokens (same as Test 9)
-        cat > "$T13A/file.md" <<'EOF'
+	# Multi-token input exercising all 5 scaffolding tokens (no identity tokens)
+	cat > "$T9A/file.md" <<'EOF'
 # Project: <app>
 Domain: <domain>
 Repo: kyaulabs/template
-Author: kyau <git@kyaulabs.com>
 Abuse: git+abuse@kyaulabs.com
 Branch: feat/<username>-hash
 EOF
-        cp "$T13A/file.md" "$T13B/file.md"
+	cp "$T9A/file.md" "$T9B/file.md"
 
-        # Run WITHOUT --target-dir (legacy path)
-        cd "$T13A"
-        bash "$SCRIPT" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	# Run WITHOUT --target-dir (legacy path) — needs to be a git repo for <username>
+	cd "$T9A"
+	init_sandbox_repo
+	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 
-        # Run WITH --target-dir (pointer path)
-        bash "$SCRIPT" --target-dir "$T13B" file.md "$T_NAME" "$T_EMAIL" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
+	# Run WITH --target-dir (pointer path)
+	cd "$T9B"
+	init_sandbox_repo
+	bash "$SCRIPT" --target-dir "$T9B" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 
-        if cmp -s "$T13A/file.md" "$T13B/file.md"; then
-                pass "output byte-identical with and without --target-dir"
-        else
-                fail "output differs — --target-dir is not byte-identical"
-        fi
+	if cmp -s "$T9A/file.md" "$T9B/file.md"; then
+		pass "output byte-identical with and without --target-dir"
+	else
+		fail "output differs — --target-dir is not byte-identical"
+	fi
 )
 
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "setup substitution"
 exit $?
-
-
-
-
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
