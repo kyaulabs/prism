@@ -10,6 +10,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -426,9 +427,10 @@ test_clone_missing_gh() {
 	rmdir "$temp_target"  # target must NOT exist
 
 	exit_code=0
-	# PATH=/usr/bin provides dirname (needed by SCRIPT_DIR resolution) but
-	# excludes /ucrt64/bin/gh. No fake gh is created.
-	output=$(env PATH="/usr/bin" bash "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
+	# PATH=/usr/bin:/bin provides dirname (needed by SCRIPT_DIR resolution)
+	# and locates bash on macOS (where /usr/bin/bash does not exist — bash
+	# lives at /bin/bash), while still excluding gh. No fake gh is created.
+	output=$(env PATH="/usr/bin:/bin" bash "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
 
 	if [ "$exit_code" -ne 2 ]; then
 		fail "clone missing gh — exit code $exit_code (expected 2)"
@@ -1062,6 +1064,7 @@ test_new_leading_dash_target
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
