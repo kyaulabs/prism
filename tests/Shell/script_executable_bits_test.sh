@@ -4,6 +4,7 @@
 
 
 
+
 # ── Tests for check-script-executable-bits.sh ─────────────────────────────────
 # Verifies the guard catches .sh scripts under .github/scripts/ that lack the
 # executable bit in the git index — the Windows core.fileMode=false blind spot
@@ -87,7 +88,7 @@ test_missing_scripts_dir_passes() {
 test_error_message_names_remediation() {
 	local repo out
 	repo=$(make_fixture 100644)
-	out=$(cd "$repo" && bash "$CHECKER" 2>&1 || true)
+	out=$(cd "$repo" && bash "$CHECKER" 2>&1) || true
 	if ! echo "$out" | grep -q "git update-index --chmod=+x"; then
 		fail "error message — missing 'git update-index --chmod=+x' remediation hint"
 		echo "  output: $out" >&2
@@ -102,6 +103,7 @@ test_missing_scripts_dir_passes
 test_error_message_names_remediation
 
 print_summary "script_executable_bits_test.sh"
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
