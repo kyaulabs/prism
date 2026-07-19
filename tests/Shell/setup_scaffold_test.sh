@@ -5,6 +5,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -331,10 +332,262 @@ echo ""
 echo "── Test 7: template .git untouched after check-only (AC-12) ──"
 test_check_only_no_git_mutation
 
+# ── Helpers for clone tests ────────────────────────────────────────────────────
+# fake_gh_setup <fake_bin_dir> [exit_code]
+# Creates a fake `gh` script in <fake_bin_dir> that records its args to a log
+# file ($FAKE_GH_LOG) and exits with <exit_code> (default 0). On success
+# (exit_code=0), also creates the target directory to simulate `gh repo clone`.
+fake_gh_setup() {
+	local bin_dir="$1"
+	local exit_code="${2:-0}"
+	local fake_gh="$bin_dir/gh"
+
+	# Record invocation args regardless of exit code
+	cat > "$fake_gh" <<GH_SCRIPT
+#!/usr/bin/env bash
+echo "\$@" >> "\${FAKE_GH_LOG:?FAKE_GH_LOG not set}"
+GH_SCRIPT
+
+	# Only simulate directory creation on success (non-zero exit means failure)
+	if [ "$exit_code" -eq 0 ]; then
+		cat >> "$fake_gh" <<'GH_SCRIPT'
+mkdir -p "${4:-}" 2>/dev/null || true
+GH_SCRIPT
+	fi
+
+	cat >> "$fake_gh" <<GH_SCRIPT
+exit $exit_code
+GH_SCRIPT
+
+	chmod +x "$fake_gh"
+}
+
+# ── Test 8: clone success path ──────────────────────────────────────────────
+
+test_clone_success() {
+	local fake_bin temp_target fake_log exit_code output recorded repo
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+
+	fake_gh_setup "$fake_bin" 0
+
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"  # target must NOT exist
+
+	repo="testowner/testrepo"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "$repo" "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "clone success — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# Fake gh must have been invoked with correct subcommand + args
+	recorded=$(cat "$fake_log")
+	if ! echo "$recorded" | grep -q "repo clone $repo $temp_target"; then
+		fail "clone success — fake gh not invoked with expected args: got '$recorded'"
+		return
+	fi
+
+	# Target must have been created
+	if [ ! -d "$temp_target" ]; then
+		fail "clone success — target directory was not created"
+		return
+	fi
+
+	unset FAKE_GH_LOG
+	pass "clone success — gh repo clone invoked with correct args, target created"
+}
+
+echo ""
+echo "── Test 8: clone success path ──"
+test_clone_success
+
+# ── Test 9: missing gh on PATH → exit 2 ─────────────────────────────────────
+
+test_clone_missing_gh() {
+	local temp_target exit_code output
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"  # target must NOT exist
+
+	exit_code=0
+	# PATH=/usr/bin provides dirname (needed by SCRIPT_DIR resolution) but
+	# excludes /ucrt64/bin/gh. No fake gh is created.
+	output=$(env PATH="/usr/bin" bash "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "clone missing gh — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# Clear error message mentioning gh / GitHub CLI
+	if ! echo "$output" | grep -qi "gh"; then
+		fail "clone missing gh — error message doesn't mention gh/GitHub CLI"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# No partial state — target must NOT have been created
+	if [ -d "$temp_target" ]; then
+		fail "clone missing gh — partial state left at $temp_target"
+		return
+	fi
+
+	pass "clone missing gh — exit 2, clear error, no partial state"
+}
+
+echo ""
+echo "── Test 9: missing gh on PATH → exit 2 ──"
+test_clone_missing_gh
+
+# ── Test 10: gh auth failure → exit 2, no partial state ─────────────────────
+
+test_clone_auth_failure() {
+	local fake_bin temp_target fake_log exit_code output
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+
+	fake_gh_setup "$fake_bin" 1  # exit 1 = auth failure
+
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	rmdir "$temp_target"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "clone auth failure — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+
+	# No partial state left at target
+	if [ -d "$temp_target" ]; then
+		fail "clone auth failure — partial state left at $temp_target"
+		return
+	fi
+
+	# Fake gh was invoked (it ran and then exited non-zero)
+	if [ ! -s "$fake_log" ]; then
+		fail "clone auth failure — fake gh was not invoked (empty log)"
+		return
+	fi
+
+	unset FAKE_GH_LOG
+	pass "clone auth failure — exit 2, no partial state"
+}
+
+echo ""
+echo "── Test 10: gh auth failure → exit 2, no partial state ──"
+test_clone_auth_failure
+
+# ── Test 11: no git clone fallback (ADR-0026 hard rule) ─────────────────────
+
+test_no_git_clone_fallback() {
+	local matches
+	# grep -c returns count; grep without -c returns matching lines.
+	# Use grep -c for a clean numeric test.
+	matches=$(grep -c 'git[[:space:]]clone' "$SCRIPT" 2>/dev/null || true)
+	if [ "$matches" -ne 0 ]; then
+		fail "no git clone fallback — found $matches 'git clone' invocation(s) in setup-scaffold.sh"
+		grep -n 'git[[:space:]]clone' "$SCRIPT" >&2 || true
+		return
+	fi
+
+	pass "no git clone fallback — zero 'git clone' invocations (ADR-0026)"
+}
+
+echo ""
+echo "── Test 11: no git clone fallback (ADR-0026 hard rule) ──"
+test_no_git_clone_fallback
+
+# ── Test 12: clone honors no-overwrite guard (AC-2) ──────────────────────────
+
+test_clone_no_overwrite() {
+	local fake_bin temp_target sentinel fake_log exit_code output checksum_before
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+
+	fake_gh_setup "$fake_bin" 0
+
+	temp_target=$(mktemp -d)
+	register_temp_dir "$temp_target"
+	# temp_target EXISTS (pre-created by mktemp) — this exercises the guard
+
+	sentinel="$temp_target/sentinel.txt"
+	echo "do not overwrite me" > "$sentinel"
+	checksum_before=$(sha256sum "$sentinel" | awk '{print $1}')
+
+	exit_code=0
+	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -eq 0 ]; then
+		fail "clone no-overwrite — exit code 0 (expected non-zero)"
+		return
+	fi
+
+	# Must NOT be exit 2 — the guard fires before the gh check
+	if [ "$exit_code" -eq 2 ]; then
+		fail "clone no-overwrite — exit code 2 (guard should fire before gh check)"
+		return
+	fi
+
+	# Error message must name the target
+	if ! echo "$output" | grep -q "$temp_target"; then
+		fail "clone no-overwrite — error doesn't name the target"
+		return
+	fi
+
+	# Sentinel must be unchanged
+	if [ ! -f "$sentinel" ]; then
+		fail "clone no-overwrite — sentinel file was removed"
+		return
+	fi
+	local checksum_after
+	checksum_after=$(sha256sum "$sentinel" | awk '{print $1}')
+	if [ "$checksum_before" != "$checksum_after" ]; then
+		fail "clone no-overwrite — sentinel file was mutated"
+		return
+	fi
+
+	# Fake gh must NOT have been invoked (guard short-circuits)
+	if [ -s "$fake_log" ]; then
+		fail "clone no-overwrite — fake gh was invoked (guard should short-circuit)"
+		return
+	fi
+
+	unset FAKE_GH_LOG
+	pass "clone no-overwrite — halts before gh, no mutation"
+}
+
+echo ""
+echo "── Test 12: clone honors no-overwrite guard (AC-2) ──"
+test_clone_no_overwrite
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
