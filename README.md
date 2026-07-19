@@ -164,8 +164,12 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
 | [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
+| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 
-> Recommended floor versions, not hard pins — refresh on each release.
+> Recommended floor versions, not hard pins — refresh on each release. `gh` is
+> optional — only needed for the `clone` option of `/setup`'s scaffold mode and
+> for `/release`; `new`/`skip` scaffold options and all other features work
+> without it.
 
 ## New Repository
 
@@ -595,7 +599,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme |
+| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme, offers optional scaffold (clone an existing template via `gh`, or init a new subfolder) |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
@@ -604,6 +608,21 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
 | `/tickets` | Alias of `/issues` (from-spec decomposition) |
 
+
+**`/setup` scaffold mode** — `/setup` offers an optional scaffold step (§2.5)
+for spinning up standalone projects from the template's quality surface (git
+hooks, CI, linters, shell-test harness):
+
+- **skip** (default) — configure the template in place; no scaffold.
+- **clone** `<owner/repo>` — clone an existing quality-surface template via
+  `gh repo clone`, then overlay the current quality surface. Requires `gh`
+  installed and authenticated (`gh auth login`).
+- **new** `<target>` — create a fresh subfolder, `git init`, and copy the
+  quality-surface manifest into it. No `gh` required.
+
+The scaffold is idempotent: re-running `/setup` short-circuits the prompt when
+a scaffold was already completed and the recorded `project_folder` still
+exists (drift — missing folder — re-prompts). See `adr/0026-project-scaffolding.md`.
 
 OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
 `/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
