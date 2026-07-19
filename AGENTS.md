@@ -156,10 +156,18 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 ## Git Workflow
 
 - Branches: `main` (production), `develop` (integration)
-- Features: `feat/<username>-<hash>-<description>`
+- Feature/work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
+  created via `bash .github/scripts/new-branch.sh <type> <desc>`. Allowed types
+  mirror commitlint vocabulary (minus `ignore`): feat, fix, patch, docs, style,
+  refactor, perf, test, build, ci, chore, revert. Plus `release/<semver>` and
+  `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.jsonc`), `Acked-by:` (sourced from `agent.build.model` in `opencode.jsonc`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. Default Signed-off-by: `kyau <git@kyaulabs.com>`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
+- Every commit must include `Plan-by:` (sourced from `agent.plan.model` in `opencode.jsonc`), `Acked-by:` (sourced from `agent.build.model` in `opencode.jsonc`, falling back to the top-level `model` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. `Signed-off-by:` is resolved dynamically via
+`bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
+user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json`
+→ `git config user.name`/`user.email`). The `setup.json` default ships as
+`kyau <git@kyaulabs.com>` until a user runs `/setup`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
 - Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `.opencode/setup.json` (models section), sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Four tiers: PRIMARY, PLANNER, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
