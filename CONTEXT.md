@@ -83,6 +83,8 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0022-sub-agent-model-config-opencode-jsonc.md` — Sub-agent model/variant config must live in opencode.jsonc (not .md frontmatter) per runtime limitation; temperature stays literal
 - `adr/0023-safety-hook-for-bash-tool-interception.md` — Harness-wide safety guardrail for bash tool calls
 - `adr/0024-experimental-subagent-dependencies.md` — Enable @scout (built-in experimental), consolidate all experimental opencode-process flags into auto-sourced .opencode/experimental.default.env, defer background subagents to Phase-0 spike
+- `adr/0025-ci-local-parity-principle.md` — CI ↔ local check parity for pre-remote enforcement; fail-closed commitlint, harness + shellcheck pre-push, agent bypass blocked
+- `adr/0026-project-scaffolding.md` — Dual-mode /setup subfolder scaffold with manifest-driven quality surface, split setup_version 2→3 migration, and additive --target-dir flag
 
 ## When to update this file
 
