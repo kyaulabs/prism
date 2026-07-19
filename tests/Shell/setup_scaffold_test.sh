@@ -7,6 +7,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -850,10 +851,190 @@ echo ""
 echo "── Test 17: clone path ALSO copies the quality surface (ADR-0026 wiring) ──"
 test_clone_copies_quality_surface
 
+# ── Test 18: should-prompt — no setup.json → exit 0 ─────────────────────────
+
+test_should_prompt_no_file() {
+	local json rc
+	json=$(mktemp -d)
+	register_temp_dir "$json"
+	json="$json/nonexistent.json"
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 0 ]; then
+		fail "should-prompt no file — exit code $rc (expected 0)"
+		return
+	fi
+	pass "should-prompt no file → exit 0 (first run, prompt)"
+}
+
+echo ""
+echo "── Test 18: should-prompt — no setup.json → exit 0 ──"
+test_should_prompt_no_file
+
+# ── Test 19: should-prompt — setup_version 2 → exit 0 (case a) ──────────────
+
+test_should_prompt_v2() {
+	local json dir rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	json="$dir/setup.json"
+
+	cat > "$json" <<'JSON'
+{
+  "setup_version": 2,
+  "app": "testapp",
+  "domain": "example.com"
+}
+JSON
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 0 ]; then
+		fail "should-prompt v2 — exit code $rc (expected 0)"
+		return
+	fi
+	pass "should-prompt v2 → exit 0 (case a, prompt for scaffold)"
+}
+
+echo ""
+echo "── Test 19: should-prompt — setup_version 2 → exit 0 (case a) ──"
+test_should_prompt_v2
+
+# ── Test 20: should-prompt — v3 + scaffold_mode skip → exit 0 (case b) ───────
+
+test_should_prompt_v3_skip() {
+	local json dir rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	json="$dir/setup.json"
+
+	cat > "$json" <<'JSON'
+{
+  "setup_version": 3,
+  "app": "testapp",
+  "scaffold_mode": "skip"
+}
+JSON
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 0 ]; then
+		fail "should-prompt v3 skip — exit code $rc (expected 0)"
+		return
+	fi
+	pass "should-prompt v3 skip → exit 0 (case b, re-prompt)"
+}
+
+echo ""
+echo "── Test 20: should-prompt — v3 + scaffold_mode skip → exit 0 (case b) ──"
+test_should_prompt_v3_skip
+
+# ── Test 21: should-prompt — v3 + mode new + folder exists → exit 1 (case c) ─
+
+test_should_prompt_v3_new_exists() {
+	local json dir folder rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	json="$dir/setup.json"
+	folder="$dir/my-project"
+	mkdir -p "$folder"
+
+	cat > "$json" <<JSON
+{
+  "setup_version": 3,
+  "app": "testapp",
+  "scaffold_mode": "new",
+  "project_folder": "$folder"
+}
+JSON
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 1 ]; then
+		fail "should-prompt mode new + folder exists — exit code $rc (expected 1)"
+		return
+	fi
+	pass "should-prompt mode new + folder exists → exit 1 (case c, short-circuit)"
+}
+
+echo ""
+echo "── Test 21: should-prompt — v3 + mode new + folder exists → exit 1 (case c) ──"
+test_should_prompt_v3_new_exists
+
+# ── Test 22: should-prompt — v3 + mode new + folder missing → exit 0 (case d) ─
+
+test_should_prompt_v3_new_missing() {
+	local json dir rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	json="$dir/setup.json"
+
+	cat > "$json" <<'JSON'
+{
+  "setup_version": 3,
+  "app": "testapp",
+  "scaffold_mode": "new",
+  "project_folder": "/nonexistent/project/path"
+}
+JSON
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 0 ]; then
+		fail "should-prompt mode new + folder missing — exit code $rc (expected 0)"
+		return
+	fi
+	pass "should-prompt mode new + folder missing → exit 0 (case d, drift)"
+}
+
+echo ""
+echo "── Test 22: should-prompt — v3 + mode new + folder missing → exit 0 (case d) ──"
+test_should_prompt_v3_new_missing
+
+# ── Test 23: should-prompt — v3 + mode clone + folder exists → exit 1 ─────────
+
+test_should_prompt_v3_clone_exists() {
+	local json dir folder rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	json="$dir/setup.json"
+	folder="$dir/cloned-project"
+	mkdir -p "$folder"
+
+	cat > "$json" <<JSON
+{
+  "setup_version": 3,
+  "app": "testapp",
+  "scaffold_mode": "clone",
+  "project_folder": "$folder"
+}
+JSON
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 1 ]; then
+		fail "should-prompt mode clone + folder exists — exit code $rc (expected 1)"
+		return
+	fi
+	pass "should-prompt mode clone + folder exists → exit 1 (short-circuit)"
+}
+
+echo ""
+echo "── Test 23: should-prompt — v3 + mode clone + folder exists → exit 1 ──"
+test_should_prompt_v3_clone_exists
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 

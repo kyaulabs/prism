@@ -5,6 +5,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -183,6 +184,44 @@ CLONE_USAGE
 		echo "Scaffolded new project at $target with ${#manifest_entries[@]} quality-surface files."
 		;;
 
+	should-prompt)
+		json="${1:-$REPO_ROOT/.opencode/setup.json}"
+
+		# No setup.json → first run → prompt
+		if [ ! -f "$json" ]; then
+			exit 0
+		fi
+
+		# Extract setup_version (number) — dependency-free sed parse (no jq)
+		ver=$(sed -n 's/.*"setup_version"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$json" | head -1)
+		ver="${ver:-0}"
+		if [ "$ver" -lt 3 ]; then
+			exit 0   # case a — version < 3, prompt for scaffold
+		fi
+
+		# Extract scaffold_mode (string)
+		mode=$(sed -n 's/.*"scaffold_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$json" | head -1)
+		if [ "$mode" != "new" ] && [ "$mode" != "clone" ]; then
+			exit 0   # case b — mode absent, skip, or unrecognized → re-prompt
+		fi
+
+		# Extract project_folder (string)
+		folder=$(sed -n 's/.*"project_folder"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$json" | head -1)
+		if [ -z "$folder" ]; then
+			exit 0   # no folder recorded → incomplete record, re-prompt
+		fi
+
+		# Resolve relative to REPO_ROOT unless absolute
+		case "$folder" in
+			/*) check_path="$folder" ;;
+			*)  check_path="$REPO_ROOT/$folder" ;;
+		esac
+		if [ -e "$check_path" ] || [ -L "$check_path" ]; then
+			exit 1   # case c — folder exists, short-circuit
+		fi
+		exit 0       # case d — drift, folder missing, re-prompt
+		;;
+
 	*)
 		cat >&2 <<'USAGE'
 Usage: setup-scaffold.sh [--manifest <path>] <command> [<target>]
@@ -190,12 +229,15 @@ Usage: setup-scaffold.sh [--manifest <path>] <command> [<target>]
 Commands:
   check-only <target>  Preview what would be copied (read-only, no changes)
   clone <owner/repo> <target>
-                       Clone quality-surface template via gh repo clone
+                        Clone quality-surface template via gh repo clone
   new <target>         Create directory, git init, copy quality surface
+  should-prompt [<setup.json>]
+                        Test whether scaffold prompt should fire
 USAGE
 		exit 1
 		;;
 esac
+
 
 
 
