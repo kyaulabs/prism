@@ -13,8 +13,8 @@ verification).
 ## Prerequisite
 
 `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true` must be set in the
-environment. The flag is commented-out in `.opencode/experimental.default.env`
-(Auto-sourced by `.envrc`) pending the Phase-0 spike.
+environment. The flag is defined in `.opencode/setup.json` (experimental section)
+(auto-sourced by `.envrc`) pending the Phase-0 spike.
 
 ## Background-dispatch mechanism (gated on Phase-0 spike — see below)
 
@@ -88,6 +88,6 @@ opencode with a new env var):
 ## Cross-refs
 
 - `ADR-0024` — Experimental Subagent Dependencies (full decision context)
-- `.opencode/experimental.default.env` — flag location
+- `.opencode/setup.json` experimental section — flag location
 - `.opencode/commands/research.md` — `/research` command definition
 - `.opencode/docs/research.md` — research source-trust heuristics

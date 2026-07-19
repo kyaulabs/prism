@@ -2,9 +2,6 @@
 .php-cs-fixer.cache
 .phpunit.cache
 
-# Coding Harness Setup
-.opencode/setup.json
-
 # Eval suite artifacts (see .opencode/evals/README.md)
 .opencode/evals/results/*
 !.opencode/evals/results/.gitkeep

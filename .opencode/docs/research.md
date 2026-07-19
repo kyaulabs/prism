@@ -7,7 +7,7 @@ for codebase-adjacent research done via `@scout`, `websearch`, and `webfetch`.
 
 - `@scout` is a built-in experimental subagent — requires
   `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced via
-  `.opencode/experimental.default.env` per `ADR-0024`). If `@scout` is not
+  `.opencode/setup.json` experimental section per `ADR-0024`). If `@scout` is not
   available, verify the flag is set in the environment.
 - `/research --background` requires `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`
   (gated on `ADR-0024` Phase-0 spike). See
