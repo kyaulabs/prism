@@ -90,6 +90,21 @@ jobs:
       - name: Harness validation
         run: bash .github/scripts/validate-harness.sh
 
+      # Pin shellcheck to a specific version for local/CI parity. The runner
+      # image's bundled shellcheck lags upstream stable and its exit-code
+      # behavior differs from 0.11.0 (which decoupled info/style from the exit
+      # code), causing info-level findings (SC2295, SC2015) to fail CI while
+      # passing locally. Keep this version in sync with what developers run.
+      - name: Install shellcheck 0.11.0
+        env:
+          SC_VERSION: "0.11.0"
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ -C /tmp
+          sudo mv "/tmp/shellcheck-v${SC_VERSION}/shellcheck" /usr/local/bin/
+          shellcheck --version
+
       - name: Shellcheck
         run: |
           find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
