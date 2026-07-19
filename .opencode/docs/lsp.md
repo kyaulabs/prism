@@ -66,7 +66,7 @@ After setting the env var, restart opencode. Alternatively, `OPENCODE_EXPERIMENT
 
 ### Agent Permissions
 
-The top-level `permission.lsp` is set to `"deny"` in `opencode.json` — agents
+The top-level `permission.lsp` is set to `"deny"` in `opencode.jsonc` — agents
 must explicitly opt in to LSP access. The guiding principle: LSP `allow`
 belongs on agents that **write PHP or navigate code semantically**
 (Intelephense premium fills the gap left by the absence of `psalm`/`phpstan`
@@ -79,13 +79,13 @@ analyzer CLI** (`@code-review`→`ocr`, `@semgrep`→`semgrep`,
 
 | Agent | LSP | Defined in | Rationale |
 |---|---|---|---|
-| `build` | `allow` | `opencode.json` | Primary implementer; Intelephense provides the only PHP static analysis (no psalm/phpstan) |
-| `explore` | `allow` | `opencode.json` | Codebase navigation is its core job |
-| `general` | `allow` | `opencode.json` | Catch-all with full tool access; occasional code work justifies it |
+| `build` | `allow` | `opencode.jsonc` | Primary implementer; Intelephense provides the only PHP static analysis (no psalm/phpstan) |
+| `explore` | `allow` | `opencode.jsonc` | Codebase navigation is its core job |
+| `general` | `allow` | `opencode.jsonc` | Catch-all with full tool access; occasional code work justifies it |
 | `@tdd` | `allow` | `.opencode/agents/tdd.md` | Workhorse implementer; Red→Green `pest` loop is the deterministic truth source that overrides stale LSP diagnostics |
 | `@debug` | `allow` | `.opencode/agents/debug.md` | `incomingCalls`/`outgoingCalls`/`findReferences` answer "who calls this buggy function" that `grep` can't |
 | `@docs-writer` | `allow` | `.opencode/agents/docs-writer.md` | Intelephense hover gives accurate param/return types for PHPDoc generation |
-| `plan` | `deny` | `opencode.json` | Read-only by design; delegates LSP queries to `@explore` |
+| `plan` | `deny` | `opencode.jsonc` | Read-only by design; delegates LSP queries to `@explore` |
 | `@architect` | `deny` (inherited) | — | Focused on `CONTEXT.md` + ADRs; live-code spelunking is `@explore`'s job |
 | `@code-review` | `deny` (inherited) | — | Delegates all analysis to the `ocr` CLI tool |
 | `@semgrep` | `deny` (inherited) | — | Delegates all analysis to the `semgrep` CLI |
@@ -127,7 +127,7 @@ The `tsconfig.json` has `checkJs: false` and `strict: false` to minimize noise. 
 
 ### Deno LSP starting despite being disabled
 
-Ensure the `deno` server is explicitly disabled in `opencode.json` as shown in the Configuration section. Since `deno` is globally installed, opencode may auto-start it without this override.
+Ensure the `deno` server is explicitly disabled in `opencode.jsonc` as shown in the Configuration section. Since `deno` is globally installed, opencode may auto-start it without this override.
 
 ## Intelephense License (Optional)
 

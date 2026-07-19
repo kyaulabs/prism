@@ -1,6 +1,6 @@
 ---
 name: opencode-docs
-description: Use when writing or editing opencode.json, agent/skill/command frontmatter, plugin hooks, or permission rules — before guessing or calling /research. Vendors opencode.ai/docs locally for fast, cited reference.
+description: Use when writing or editing opencode.jsonc, agent/skill/command frontmatter, plugin hooks, or permission rules — before guessing or calling /research. Vendors opencode.ai/docs locally for fast, cited reference.
 derived-from: obra/superpowers-developing-for-claude-code (MIT, © Jesse Vincent)
 ---
 
@@ -20,7 +20,7 @@ Common questions → which doc file to read:
 
 | Question | Doc file |
 |---|---|
-| What keys are valid in opencode.json? | `config.mdx` |
+| What keys are valid in opencode.jsonc? | `config.mdx` |
 | How do I define a custom agent? | `agents.mdx` |
 | How do I define a custom command? | `commands.mdx` |
 | How do I write a skill? | `skills.mdx` |
@@ -76,7 +76,7 @@ etc.). Manual refresh — no watchers (per AGENTS.md build policy).
 
 ## Rules
 
-- Always load this skill when writing or editing `opencode.json`, agent
+- Always load this skill when writing or editing `opencode.jsonc`, agent
   frontmatter, command frontmatter, skill frontmatter, plugin code, or
   permission rules.
 - When the answer comes from a vendored doc, cite it by filename.

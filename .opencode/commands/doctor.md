@@ -76,8 +76,8 @@ echo "yaml-language-server auto-installs on first .yaml/.yml file"
 # Stylelint (custom — requires @stylelint/language-server)
 npx @stylelint/language-server --version 2>/dev/null || echo "NOT_FOUND"
 
-# Deno (should be disabled in opencode.json)
-node -e "const c=require('./opencode.json'); console.log(c.lsp?.deno?.disabled === true ? 'DISABLED (correct)' : 'ENABLED (should be disabled)')" 2>/dev/null || echo "CHECK_MANUALLY"
+# Deno (should be disabled in opencode.jsonc)
+node -e "const c=require('./opencode.jsonc'); console.log(c.lsp?.deno?.disabled === true ? 'DISABLED (correct)' : 'ENABLED (should be disabled)')" 2>/dev/null || echo "CHECK_MANUALLY"
 ```
 
 Floor: `typescript` any (LSP only, no compilation); `eslint` >= 10;

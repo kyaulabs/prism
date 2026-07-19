@@ -1,6 +1,6 @@
 # Coding Conventions
 
-Referenced by `opencode.json`. Loaded alongside AGENTS.md in every session. This file is the canonical source for file naming, indentation, and code style. AGENTS.md defers here.
+Referenced by `opencode.jsonc`. Loaded alongside AGENTS.md in every session. This file is the canonical source for file naming, indentation, and code style. AGENTS.md defers here.
 
 ## File Naming
 

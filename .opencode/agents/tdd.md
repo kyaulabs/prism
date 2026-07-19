@@ -142,8 +142,8 @@ and produce a commit message in the required format:
 - Type and optional scope from the work performed (feat, fix, test, docs,
   chore, etc.)
 - Subject: lowercase, no period, ≤ 100 chars, describes what changed
-- Footer: `Plan-by:` with `agent.plan.model` from `opencode.json`, segment after the last `/` (e.g. `openrouter/z-ai/glm-5.2` → `glm-5.2`)
-- Footer: `Acked-by:` with `agent.build.model` from `opencode.json`, falling back to the top-level `model` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
+- Footer: `Plan-by:` with `agent.plan.model` from `opencode.jsonc`, segment after the last `/` (e.g. `openrouter/z-ai/glm-5.2` → `glm-5.2`)
+- Footer: `Acked-by:` with `agent.build.model` from `opencode.jsonc`, falling back to the top-level `model` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
 - Footer: `Signed-off-by: kyau <git@kyaulabs.com>`
 
 If the task already provided a commit message in the plan, validate it —

@@ -126,7 +126,7 @@ Before merging a new skill/agent/command:
 - Commands run in the build agent context — their content is read at
   invocation time.
 - The only always-loaded files are `AGENTS.md` and `.opencode/docs/conventions.md`
-  (via `opencode.json` instructions). Keep these minimal — everything else
+  (via `opencode.jsonc` instructions). Keep these minimal — everything else
   should be on-demand.
 
 ## Cross-ref conventions
