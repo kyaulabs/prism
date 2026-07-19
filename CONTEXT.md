@@ -5,7 +5,14 @@
 
 ## Purpose
 
-<one-to-three sentences: what this application does and for whom>
+Prism is a coding harness for [OpenCode](https://opencode.ai) that codifies a
+disciplined, test-driven approach to building PHP-based websites. Its primary
+deliverable is the harness itself — skills, agents, commands, git hooks, and
+ADRs that enforce a defined engineering pipeline (brainstorm → plan →
+implement → verify → review) with mandatory TDD (Red → Green → Refactor), an
+80% line-coverage gate, and Conventional Commits with signed atomic history.
+Prism also ships an eval framework (`.opencode/evals/`) for measuring AI agent
+behavior against expected-behavior specifications.
 
 ## Domain Glossary
 
@@ -27,12 +34,27 @@ represented by the `KYAULabs\Eval\Verdict` backed enum: `Pass`, `Fail`,
 
 Core domain objects and the rules that always hold for them.
 
-### <Entity>
-- **Shape:** <key fields / columns>
+### EvalCase
+Parsed eval case from a JSON file (`.opencode/evals/smoke/*.json`).
+Schema-validated by `.opencode/evals/schema.json` and mirrored by
+`EvalCase::validate()` (ADR-0016 — parity enforced by
+`tests/Unit/Eval/EvalCaseSchemaParityTest.php`).
+
+- **Shape:** `name` (kebab-case), `description`, `agent` (kebab-case,
+  optional `@`-prefix), `input`, `expectedBehavior` (non-empty `string[]`),
+  `passCriteria` (one of 5 enum-like values), optional `tags`, optional
+  `expectedString` (required only when `passCriteria` is
+  `'output contains expected string'`).
 - **Invariants:**
-  - <rule that must always be true>
-  - <rule that must always be true>
-- **Lifecycle:** <created when… / transitions… / archived when…>
+  - `name` matches `^[a-z][a-z0-9-]*$`
+  - `agent` matches `^@?[a-z][a-z0-9_-]*$`
+  - `passCriteria` ∈ {`'all behaviors observed'`, `'no errors in output'`,
+    `'exit code zero'`, `'output contains expected string'`,
+    `'manual inspection required'`}
+  - `expectedString` is set IFF `passCriteria` is `'output contains expected
+    string'`
+- **Lifecycle:** Authored as JSON → loaded via `EvalCase::fromFile()` →
+  validated → executed by `Runner` → produces an `EvalResult`.
 
 ### EvalResult
 Immutable result object produced by the eval runner for a single case.
@@ -41,18 +63,41 @@ string).
 
 ## System Boundaries
 
-What this system owns vs. what it delegates to external services.
+What Prism owns vs. what it delegates to external services.
 
-- **Owns:** <list>
-- **Delegates:** <external APIs, services, the Aurora framework, etc.>
-- **Boundary interfaces:** <where mocking is permitted — see `.opencode/docs/mocking.md`>
+- **Owns:**
+  - **Harness configuration** — `opencode.jsonc`, `.opencode/{agents,commands,skills,docs,evals}/`
+  - **Git hooks** — `.github/hooks/` (pre-commit, commit-msg, prepare-commit-msg, pre-push, post-checkout, post-merge), installed via `.github/scripts/install-hooks.sh`
+  - **CI workflow** — `.github/workflows/ci.yml` (lint, test, SAST, commitlint)
+  - **Quality gates** — `.github/scripts/coverage-gate.php` (ADR-0009) + the `/check` command
+  - **Eval framework** — `.opencode/evals/bin/` (case parser, runner, judge integration, worktree isolation)
+  - **Documentation** — `AGENTS.md`, `CONTEXT.md`, `CODING_HARNESS.md`, `adr/`, `docs/`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
+  - **Harness tests** — `tests/Unit/Harness/`, `tests/Unit/Eval/`, `tests/Integration/Eval/`, `tests/Shell/`, `tests/Semgrep/`
+
+- **Delegates:**
+  - **OpenCode runtime** — model inference, tool dispatch, plugin hooks (`experimental.chat.system.transform` per ADR-0008), slash-command runtime, permission enforcement. Prism configures it; OpenCode executes it.
+  - **Aurora PHP Framework** — the no-MVC PHP stack shipped as a submodule at `aurora/`. Prism assumes its patterns; Aurora implements them.
+  - **PHP/JS toolchain** — Composer, php-cs-fixer, Pest, npm, Dart Sass, uglify-js, ESLint, Stylelint. Prism wires them into hooks and `/check`; the tools themselves are upstream.
+  - **External security/review tools** — Semgrep, gitleaks, OpenCodeReview (`ocr`), git-cliff, commitlint, Shellcheck. Prism invokes them; their rule packs and heuristics are upstream.
+  - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution.
+  - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference.
+
+- **Boundary interfaces:** Mockable surfaces include the OpenCode plugin hook layer (ADR-0008), the coverage-gate script's input (Clover XML via `phpunit.xml` `<source>` block), the eval runner's subprocess boundary (exec'd `opencode run`), and the Aurora SQL handler. Mocking of live model inference is not supported — agents and the eval judge run against real providers.
 
 ## Non-Goals
 
 Explicit things this project will **not** do. Prevents scope creep and
 spurious "features" during implementation.
 
-- <non-goal>
+- **Not a PHP application** — Prism ships no application code in an `<app>/` webroot or under `backend/` beyond `env.php`. The harness is the deliverable; an application built *using* Prism would be a separate project.
+- **Not a framework** — no MVC, no router, no templating engine, no ORM (per `AGENTS.md`). Aurora provides the PHP stack; Prism does not duplicate it.
+- **No push/merge automation** — every agent is denied `git push`. Humans push, humans merge, humans review releases.
+- **No bundled LSP servers** — Prism configures LSP usage (Intelephense, TypeScript, Stylelint, ESLint, Bash, YAML; Deno explicitly disabled) but expects them system-installed.
+- **No CI provider lock-in** — the lint/test/SAST surface uses GitHub Actions, but the underlying scripts (`coverage-gate.php`, `install-hooks.sh`, etc.) are CI-agnostic.
+- **No model fine-tuning or hosting** — Prism configures upstream models per tier via `{env:VAR}` substitution (ADR-0012 through ADR-0014) but does not train, fine-tune, host, or proxy inference.
+- **No dynamic per-task variant switching** — opencode's architecture resolves model and variant statically at startup (ADR-0011). The Plan Agent Complexity Assessment is prompt-driven, not variant-driven.
+- **No bundled migration tooling** — `backend/migrations/` holds timestamp-prefixed forward-only SQL files; no migration framework is provided.
+- **No eval execution inside the source tree** — every eval case runs in a disposable git worktree (`Runner::createWorktree()`) so an agent under test cannot mutate the source working tree.
 
 ## Architectural Decisions
 

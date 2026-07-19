@@ -30,7 +30,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 | --- | --- |
 | `AGENTS.md` | Stack, boundaries, directory structure, skills/agents/commands index (authoritative) |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
-| `opencode.json` | Wires instructions + agent definitions + permissions |
+| `opencode.jsonc` | Wires instructions + agent definitions + permissions |
 | `adr/` | Architecture Decision Records (Nygard format) |
 | `.opencode/agents/` | Custom subagent definitions |
 | `.opencode/commands/` | Custom slash commands |
@@ -84,7 +84,7 @@ in `.opencode/models.default.env`:
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
 | --- | --- | --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, test-audit, general, explore |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, spec-review, standards-review, test-audit, general, explore |
 | Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
 | Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |

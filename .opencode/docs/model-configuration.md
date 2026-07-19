@@ -21,8 +21,11 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 
 **`{env:VAR}` substitution:** Both `model` and `variant` fields in
-`opencode.json` and `.opencode/agents/*.md` use `{env:OPENCODE_MODEL_*}` and
-`{env:OPENCODE_VARIANT_*}` references. These resolve at startup from the
+`opencode.jsonc` use `{env:OPENCODE_MODEL_*}` and
+`{env:OPENCODE_VARIANT_*}` references (per ADR-0022, `model:`/`variant:`
+are rejected in `.opencode/agents/*.md` frontmatter — those files carry
+only `description`, `mode`, `temperature` (literal), and `permission`).
+These resolve at startup from the
 environment.
 
 **`temperature` is a literal:** Unlike model and variant, `temperature`
@@ -150,7 +153,7 @@ editing the repo, use `OPENCODE_CONFIG_CONTENT` inline JSON:
 OPENCODE_CONFIG_CONTENT='{"agent":{"title":{"temperature":0.3}}}' opencode
 ```
 
-Or edit the agent entry directly in `opencode.json` / `.opencode/agents/*.md`.
+Or edit the agent entry directly in `opencode.jsonc` (per ADR-0022, the `.opencode/agents/*.md` file carries only `description`/`mode`/`temperature`/`permission` — not `model` or `variant`).
 
 ## 6. Verifying a configuration
 
