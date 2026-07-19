@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: Lint, Test & Security
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     timeout-minutes: 15
     env:
       SEMGREP_TOKEN_PRESENT: ${{ secrets.SEMGREP_APP_TOKEN != '' }}
