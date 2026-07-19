@@ -152,12 +152,10 @@ Expected: PASS
 
 ```bash
 git add tests/path/to/Test.php backend/path/to/file.php
-git commit -S -m "feat(scope): concise subject describing the change
-
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>"
+git commit -S -m $'feat(scope): concise subject describing the change\n\nPlan-by: glm-5.2\nAcked-by: deepseek-v4-pro\nSigned-off-by: kyau <git@kyaulabs.com>'
 ```
+
+> *Use the canonical `$'...\n...'` ANSI-C quoting form — see the `conventional-commits` skill. The `commit-msg` hook rejects literal `\n` sequences (ADR-0025).*
 ````
 
 ## No placeholders

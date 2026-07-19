@@ -33,6 +33,7 @@ php vendor/bin/pest --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 npx eslint --version 2>/dev/null || echo "NOT_FOUND"
 npx stylelint --version 2>/dev/null || echo "NOT_FOUND"
 npx commitlint --version 2>/dev/null | head -1 || echo "NOT_FOUND"
+[ -d node_modules/commitlint ] && echo "commitlint (local) INSTALLED" || echo "commitlint (local) NOT_INSTALLED — run 'npm install' (commit-msg fails closed — ADR-0025)"
 ```
 
 Floor: `php-cs-fixer` checks any installed version (same as `php-cs-fixer fix --dry-run` gate); `pest` >= 4; `eslint` >= 10; `stylelint` >= 17; `commitlint` >= 21.
@@ -82,6 +83,16 @@ node -e "const c=require('./opencode.json'); console.log(c.lsp?.deno?.disabled =
 Floor: `typescript` any (LSP only, no compilation); `eslint` >= 10;
 `@stylelint/language-server` any; `deno` must be disabled in config.
 
+## 7. Commit pipeline
+
+The commit pipeline has three links that must all be intact:
+
+- **commitlint (local)** — `[ -d node_modules/commitlint ]` (checked in Section 3). This is the local dependency the `commit-msg` hook loads. When absent, the hook cannot find `@commitlint/config-conventional` and will **fail-closed**, blocking every commit.
+- **hooksPath** — `git config core.hooksPath` must be `.github/hooks` (checked in Section 5). Without this, the `commit-msg` and `pre-commit` hooks never fire, and the commit pipeline has no enforcement.
+- **commit-msg fail-closed** (ADR-0025) — The `.github/hooks/commit-msg` script checks for `node_modules/commitlint` before running commitlint. If the directory is missing, the hook exits non-zero, blocking **all** commits. There is no fallback or bypass: fix the install (`npm install`), then retry the commit.
+
+Diagnostic: if commits are blocked and the summary table shows `commitlint (local) NOT_INSTALLED`, run `npm install`. If `hooksPath` is also wrong, run `bash .github/scripts/install-hooks.sh`.
+
 ## Output
 
 Group results by section. For each tool, report:
@@ -108,6 +119,7 @@ pest         WARN     3.9.2           4.0          composer update pestphp/pest
 eslint       PASS     9.1.0           9.0          —
 stylelint    SKIPPED  —               —            no SCSS in this project yet
 commitlint   PASS     19.0.0          19.0         —
+commitlint (local)  PASS  INSTALLED  —  npm install
 semgrep      PASS     1.168.0         1.168        —
 ocr          PASS     1.7.1           1.7          —
 gitleaks     FAIL     NOT_FOUND       8.30         go install github.com/gitleaks/gitleaks/v8@latest
@@ -137,6 +149,12 @@ changelog generation).
   tools (`semgrep`, `ocr`, `gitleaks`) are "soft-fail" — they gate the
   `@semgrep` / `@code-review` / pre-commit agents but do not block writing
   or pushing code without them.
+- Missing `node_modules/commitlint` is a **HARD NO-GO for committing** — not a
+  soft-fail or WARN. ADR-0025 makes the `commit-msg` hook fail-closed: if
+  `node_modules/commitlint` is absent, the hook blocks EVERY commit. The
+  toolchain otherwise works (lint, test, build), but no commit can succeed
+  until `npm install` restores the local dependency. Treat this as blocking
+  as `php` or `npm` being missing.
 - `pest` floor is 4.0 (Pest v4 on PHPUnit 12 per AGENTS.md). If every changed
   test file still passes the old version, warn but don't block.
 - Version parsing: extract the semantic version from whatever `--version`
