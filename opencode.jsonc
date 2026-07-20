@@ -194,6 +194,7 @@
     "judge": {
       "description": "Read-only LLM judge for the eval runner. Receives an eval case and an agent's captured output, returns a JSON verdict array (YES/NO/UNCLEAR per expected behavior). Does not modify files or run shell commands.",
       "mode": "primary",
+      "hidden": true,
       "model": "{env:OPENCODE_MODEL_JUDGE}",
       "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.0,

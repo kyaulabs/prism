@@ -304,13 +304,14 @@ Models are assigned via environment variable substitution (`{env:VAR}`) in
 and `temperature` values live in the `agent` section of `opencode.jsonc`; the
 `.opencode/agents/*.md` files carry only `description`, `mode`, `temperature`
 (hard-coded literal), and `permission` (see ADR-0022 — the runtime rejects
-`model:`/`variant:` in sub-agent frontmatter). Four tiers, each mapped to a
+`model:`/`variant:` in sub-agent frontmatter). Five tiers, each mapped to a
 different `OPENCODE_MODEL_*` env var:
 
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, spec-review, standards-review, test-audit, general, explore |
 | Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, from-issue |
+| Design | `OPENCODE_MODEL_DESIGN` | `openrouter/z-ai/glm-5.2` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 

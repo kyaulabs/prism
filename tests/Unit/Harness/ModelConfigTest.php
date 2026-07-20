@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/20 -0700 Exp $
+
+
+
 
 
 
@@ -309,12 +312,10 @@ it('judge agent has a description', function () {
         ->not->toBeEmpty();
 });
 
-it('judge agent is a primary agent (eval runner needs --agent CLI access)', function () {
+it('judge agent is primary but hidden from TUI — eval-only; eval runner invokes by name', function () {
     $json = load_opencode_config();
     expect($json['agent']['judge']['mode'])->toBe('primary');
-    // hidden must NOT be set — subagent-only; primary agents ignore it but
-    // its presence would be misleading
-    expect(array_key_exists('hidden', $json['agent']['judge']))->toBeFalse();
+    expect($json['agent']['judge']['hidden'] ?? false)->toBeTrue('judge must be hidden from TUI (eval-only per ADR-0030)');
 });
 
 it('design agent exists with the DESIGN-tier contract (ADR-0030)', function () {
@@ -373,6 +374,7 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
 
 
 

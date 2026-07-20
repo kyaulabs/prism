@@ -99,14 +99,17 @@ Read the current defaults from `.opencode/setup.json`:
 ```bash
 OPENCODE_MODEL_PRIMARY=$(jq -r '.models.primary' .opencode/setup.json)
 OPENCODE_MODEL_PLANNER=$(jq -r '.models.planner' .opencode/setup.json)
+OPENCODE_MODEL_DESIGN=$(jq -r '.models.design // .models.planner' .opencode/setup.json)
 OPENCODE_MODEL_JUDGE=$(jq -r '.models.judge' .opencode/setup.json)
 OPENCODE_MODEL_UTILITY=$(jq -r '.models.utility' .opencode/setup.json)
 OPENCODE_VARIANT_PRIMARY=$(jq -r '.variants.primary' .opencode/setup.json)
 OPENCODE_VARIANT_PLANNER=$(jq -r '.variants.planner' .opencode/setup.json)
+OPENCODE_VARIANT_DESIGN=$(jq -r '.variants.design // .variants.planner' .opencode/setup.json)
 OPENCODE_VARIANT_JUDGE=$(jq -r '.variants.judge' .opencode/setup.json)
 OPENCODE_VARIANT_UTILITY=$(jq -r '.variants.utility' .opencode/setup.json)
 echo "Primary  model:   $OPENCODE_MODEL_PRIMARY    variant: $OPENCODE_VARIANT_PRIMARY"
 echo "Planner  model:   $OPENCODE_MODEL_PLANNER    variant: $OPENCODE_VARIANT_PLANNER"
+echo "Design   model:   $OPENCODE_MODEL_DESIGN     variant: $OPENCODE_VARIANT_DESIGN"
 echo "Judge    model:   $OPENCODE_MODEL_JUDGE      variant: $OPENCODE_VARIANT_JUDGE"
 echo "Utility  model:   $OPENCODE_MODEL_UTILITY    variant: $OPENCODE_VARIANT_UTILITY"
 ```
@@ -120,6 +123,7 @@ Model & Variant Configuration
 ├──────────┼─────────────────────────────────┼─────────┼────────────────────────────────────────────────────┤
 │ Primary  │ deepseek/deepseek-v4-pro        │ max     │ Code generation, TDD, arch, CR, debug, resolve      │
 │ Planner  │ openrouter/z-ai/glm-5.2         │ high    │ Planning (plan agent only)                          │
+│ Design   │ openrouter/z-ai/glm-5.2         │ high    │ Brainstorming/design workflow (design agent only)   │
 │ Judge    │ openrouter/z-ai/glm-5.2         │ medium  │ Read-only evaluation (judge agent only)             │
 │ Utility  │ deepseek/deepseek-v4-flash      │ medium  │ Compaction, titles, docs, scanning                  │
 └──────────┴─────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
@@ -128,19 +132,21 @@ Model & Variant Configuration
 Prompt for each tier one at a time. Press Enter at any prompt to accept
 the default shown in brackets.
 
-**Model prompts (4 tiers):**
+**Model prompts (5 tiers):**
 
 1. **Primary** model [deepseek/deepseek-v4-pro] — the main coding engine.
    Used by: build, tdd, architect, code-review, debug, resolve-merge-conflicts,
    test-audit, general, explore.
 2. **Planner** model [openrouter/z-ai/glm-5.2] — reasoning/planning
    engine. Used by: plan.
-3. **Judge** model [openrouter/z-ai/glm-5.2] — evaluation engine for
+3. **Design** model [openrouter/z-ai/glm-5.2] — brainstorming/design
+   workflow engine. Used by: design.
+4. **Judge** model [openrouter/z-ai/glm-5.2] — evaluation engine for
    read-only assessment. Used by: judge.
-4. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
+5. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
    for routine tasks. Used by: compaction, title, summary, docs-writer, semgrep.
 
-**Variant prompts (4 tiers):**
+**Variant prompts (5 tiers):**
 
 5. **Primary** variant [max] — variant for PRIMARY-tier agents.
    Common values: max, high, medium, low.
@@ -148,14 +154,17 @@ the default shown in brackets.
 6. **Planner** variant [high] — variant for plan agent.
    Common values: high, max, medium, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
-7. **Judge** variant [medium] — variant for judge agent.
+7. **Design** variant [high] — variant for design agent.
+   Common values: high, max, medium, low.
+   (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
+8. **Judge** variant [medium] — variant for judge agent.
    Common values: medium, high, max, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
-8. **Utility** variant [medium] — variant for UTILITY-tier agents.
+9. **Utility** variant [medium] — variant for UTILITY-tier agents.
    Common values: medium, high, max, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 
-If the user pressed Enter for all eight prompts (accepted all defaults), skip
+If the user pressed Enter for all ten prompts (accepted all defaults), skip
 the write step — the committed `.opencode/setup.json` already provides
 defaults. Instruct the user:
 
@@ -169,15 +178,17 @@ If the user changed any model or variant, write `~/.config/opencode/setup.json`:
 mkdir -p ~/.config/opencode
 jq -n \
   --arg p "$OPENCODE_MODEL_PRIMARY" --arg pl "$OPENCODE_MODEL_PLANNER" \
-  --arg j "$OPENCODE_MODEL_JUDGE" --arg u "$OPENCODE_MODEL_UTILITY" \
+  --arg d "$OPENCODE_MODEL_DESIGN" --arg j "$OPENCODE_MODEL_JUDGE" \
+  --arg u "$OPENCODE_MODEL_UTILITY" \
   --arg pv "$OPENCODE_VARIANT_PRIMARY" --arg plv "$OPENCODE_VARIANT_PLANNER" \
-  --arg jv "$OPENCODE_VARIANT_JUDGE" --arg uv "$OPENCODE_VARIANT_UTILITY" \
+  --arg dv "$OPENCODE_VARIANT_DESIGN" --arg jv "$OPENCODE_VARIANT_JUDGE" \
+  --arg uv "$OPENCODE_VARIANT_UTILITY" \
   --arg name "$SIGNED_OFF_BY_NAME" --arg email "$SIGNED_OFF_BY_EMAIL" \
   '{
     signed_off_by_name: $name,
     signed_off_by_email: $email,
-    models: {primary: $p, planner: $pl, judge: $j, utility: $u},
-    variants: {primary: $pv, planner: $plv, judge: $jv, utility: $uv}
+    models: {primary: $p, planner: $pl, design: $d, judge: $j, utility: $u},
+    variants: {primary: $pv, planner: $plv, design: $dv, judge: $jv, utility: $uv}
   }' > ~/.config/opencode/setup.json
 ```
 
@@ -337,12 +348,14 @@ Write `.opencode/setup.json`:
   "models": {
     "primary": "<primary model ID>",
     "planner": "<planner model ID>",
+    "design": "<design model ID>",
     "judge": "<judge model ID>",
     "utility": "<utility model ID>"
   },
   "variants": {
     "primary": "<primary variant>",
     "planner": "<planner variant>",
+    "design": "<design variant>",
     "judge": "<judge variant>",
     "utility": "<utility variant>"
   },

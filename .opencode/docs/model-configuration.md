@@ -21,6 +21,10 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 | JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 
+The **judge** agent is `hidden: true` — it does not appear as a TUI tab.
+It is eval-only (invocable by the eval runner by agent name, same mechanism
+as the built-in hidden `compaction`/`title`/`summary` agents). See ADR-0030.
+
 **`{env:VAR}` substitution:** Both `model` and `variant` fields in
 `opencode.jsonc` use `{env:OPENCODE_MODEL_*}` and
 `{env:OPENCODE_VARIANT_*}` references (per ADR-0022, `model:`/`variant:`
