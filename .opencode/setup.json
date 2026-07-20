@@ -13,12 +13,14 @@
   "models": {
     "primary": "deepseek/deepseek-v4-pro",
     "planner": "openrouter/z-ai/glm-5.2",
+    "design": "openrouter/z-ai/glm-5.2",
     "judge": "openrouter/z-ai/glm-5.2",
     "utility": "deepseek/deepseek-v4-flash"
   },
   "variants": {
     "primary": "max",
     "planner": "high",
+    "design": "high",
     "judge": "medium",
     "utility": "medium"
   },

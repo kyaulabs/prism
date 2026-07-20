@@ -28,6 +28,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -40,13 +43,13 @@ function setup_json(): array
     return json_decode(file_get_contents(__DIR__ . '/../../../.opencode/setup.json'), true);
 }
 
-it('has a setup.json with four tier model values', function () {
+it('has a setup.json with five tier model values', function () {
     $setup = setup_json();
 
     Assert::assertArrayHasKey('models', $setup, 'setup.json must have a models section');
     Assert::assertIsArray($setup['models'], 'setup.json models must be an object');
 
-    $tiers = ['primary', 'planner', 'judge', 'utility'];
+    $tiers = ['primary', 'planner', 'design', 'judge', 'utility'];
     foreach ($tiers as $tier) {
         Assert::assertArrayHasKey($tier, $setup['models'], "setup.json models must define '{$tier}'");
         Assert::assertIsString($setup['models'][$tier], "setup.json models.{$tier} must be a string");
@@ -197,7 +200,7 @@ it('has consistent model keys between setup.json and opencode.json', function ()
     $setup = setup_json();
     $config = file_get_contents(opencode_config_path());
 
-    $modelKeys = ['primary', 'planner', 'judge', 'utility'];
+    $modelKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
 
     foreach ($modelKeys as $key) {
         Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must define '{$key}'");
@@ -264,7 +267,7 @@ it('uses env var substitution for variant, keeps temperature as literal', functi
 
 it('has all required model and variant keys in setup.json', function () {
     $setup = setup_json();
-    $expectedKeys = ['primary', 'planner', 'judge', 'utility'];
+    $expectedKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
     foreach ($expectedKeys as $key) {
         Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must have key '{$key}'");
         Assert::assertArrayHasKey($key, $setup['variants'], "setup.json variants must have key '{$key}'");
@@ -275,6 +278,7 @@ it('has correct default variant values', function () {
     $setup = setup_json();
     expect($setup['variants']['primary'])->toBe('max');
     expect($setup['variants']['planner'])->toBe('high');
+    expect($setup['variants']['design'])->toBe('high');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
 });
@@ -313,6 +317,27 @@ it('judge agent is a primary agent (eval runner needs --agent CLI access)', func
     expect(array_key_exists('hidden', $json['agent']['judge']))->toBeFalse();
 });
 
+it('design agent exists with the DESIGN-tier contract (ADR-0030)', function () {
+    $json = load_opencode_config();
+    Assert::assertArrayHasKey('design', $json['agent'], 'opencode.jsonc must define a design agent');
+
+    $design = $json['agent']['design'];
+    expect($design['mode'])->toBe('primary', 'design agent must be primary (TUI tab)');
+    expect($design['model'])->toBe('{env:OPENCODE_MODEL_DESIGN}', 'design agent must use DESIGN tier model');
+    expect($design['variant'])->toBe('{env:OPENCODE_VARIANT_DESIGN}', 'design agent must use DESIGN tier variant');
+    expect($design['temperature'])->toBe(0.3, 'design agent temperature must be 0.3 (creative exploration per ADR-0030)');
+
+    // Permission block mirrors build (self-contained workspace) — see ADR-0030.
+    expect($design['permission']['bash']['*'])->toBe('allow', 'design agent bash must be allow (exploration + spec writing + new-branch.sh)');
+    expect($design['permission']['bash']['git add*'])->toBe('ask', 'design agent git add must be ask-gated');
+    expect($design['permission']['bash']['git commit*'])->toBe('ask', 'design agent git commit must be ask-gated');
+    expect($design['permission']['bash']['git push*'])->toBe('deny', 'design agent git push must be denied (humans push)');
+    expect($design['permission']['lsp'])->toBe('allow', 'design agent must allow LSP (navigate code semantically)');
+
+    // Prompt must load the brainstorming skill (hybrid split, ADR-0030).
+    Assert::assertStringContainsString('brainstorming', $design['prompt'], 'design agent prompt must reference the brainstorming skill');
+});
+
 it('every agent has an explicit temperature — no silent default inheritance', function () {
     // opencode.json agents
     $config = load_opencode_config();
@@ -348,6 +373,7 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
 
 
 
