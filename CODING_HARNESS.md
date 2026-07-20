@@ -45,6 +45,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 | --- | --- |
 | **Build** | Default mode — full tool access for development; enforces mandatory `@tdd` + hard boundaries |
 | **Plan** | Restricted mode — analysis and planning, no file changes |
+| **Design** | Brainstorming front door — grilling → spec → commit → feature-branch creation; hands off to Plan |
 
 Plan mode is restricted from invoking code-modifying subagents (`@tdd`,
 `@resolve-merge-conflicts`, `@docs-writer`) — it can only invoke
@@ -79,13 +80,14 @@ the system prompt, not the model variant.
 ### Model Configuration
 
 Models and variants are assigned via environment variable substitution
-(`{env:VAR}`) rather than hard-coded values. Four tiers with committed defaults
+(`{env:VAR}`) rather than hard-coded values. Five tiers with committed defaults
 in `.opencode/setup.json` (models section):
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
 | --- | --- | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, spec-review, standards-review, test-audit, general, explore |
 | Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
+| Design | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openrouter/z-ai/glm-5.2` | `high` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 

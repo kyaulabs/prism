@@ -24,8 +24,8 @@ unknowns you can't yet phrase as sharp questions**. It is the entry point the
 
 Do NOT use this skill when a smaller on-ramp fits:
 
-- A single, brainstormable new feature → `/feature` (brainstorming → spec →
-  plan → @tdd) — one session can hold it.
+- A single, brainstormable new feature → **design** tab (brainstorming →
+  spec → branch → plan → @tdd) — one session can hold it.
 - An **existing** GitHub issue small enough to plan and execute in one pass →
   `@from-issue #NN`.
 - A question or domain exploration → `@consult`.

@@ -115,10 +115,10 @@ behavior delta. Purely trivial changes with no behavior delta (typos, docs,
 RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
-Three on-ramps start the pipeline depending on where the request enters:
+Four on-ramps start the pipeline depending on where the request enters:
 
 - `@consult` (questions / exploration)
-- `/feature` (new idea → brainstorm)
+- **design** tab (new idea → brainstorm)
 - `@from-issue #NN` (existing issue)
 - `@debug` (bug / regression)
 
@@ -168,7 +168,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json`
 → `git config user.name`/`user.email`). The `setup.json` default ships as
 `kyau <git@kyaulabs.com>` until a user runs `/setup`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Plan-by:`. Use `Refs: #NN` for non-closing references.
-- Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `.opencode/setup.json` (models section), sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Four tiers: PRIMARY, PLANNER, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
+- Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `.opencode/setup.json` (models section), sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Five tiers: PRIMARY, PLANNER, DESIGN, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via @tdd, a direct fix, an issue
@@ -317,7 +317,6 @@ Load these on demand when the task requires them:
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | git-cliff changelog + signed tag + `gh release` command |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
-| `/feature` | Start a new feature from an idea through the brainstorming → spec → plan → @tdd pipeline |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (requires Phase-0 spike). |
 | `/build-assets` | Rebuild minified CSS and JS from source |

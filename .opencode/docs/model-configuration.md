@@ -10,15 +10,20 @@ env var), and ADR-0014 (model default rebalancing).
 
 ## 1. How the harness assigns models
 
-The harness uses a **four-tier** system. Each tier maps to a model and a
+The harness uses a **five-tier** system. Each tier maps to a model and a
 variant, both driven by environment variable substitution (`{env:VAR}`):
 
 | Tier | Model env var | Variant env var | Default model | Default variant | Agents |
 | --- | --- | --- | --- | --- | --- |
 | PRIMARY | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
 | PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
+| DESIGN | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openrouter/z-ai/glm-5.2` | `high` | design |
 | JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
+
+The **judge** agent is `hidden: true` — it does not appear as a TUI tab.
+It is eval-only (invocable by the eval runner by agent name, same mechanism
+as the built-in hidden `compaction`/`title`/`summary` agents). See ADR-0030.
 
 **`{env:VAR}` substitution:** Both `model` and `variant` fields in
 `opencode.jsonc` use `{env:OPENCODE_MODEL_*}` and
@@ -104,7 +109,7 @@ supported variants, context window, max output tokens, and pricing:
 
 ## 4. Choosing a variant per tier
 
-The task-type &rarr; variant decision frame (applies within the four-tier
+The task-type &rarr; variant decision frame (applies within the five-tier
 constraint — all agents in a tier share one variant):
 
 | Task profile | Example agents | Recommended variant |
@@ -113,6 +118,7 @@ constraint — all agents in a tier share one variant):
 | Read-only architectural analysis | architect, code-review, test-audit | `high` |
 | Read-only exploration / search | general, explore | `medium` (`high` if cross-file reasoning needed) |
 | Planning / decomposition | plan | `high` (matches ADR-0011 complexity assessment) |
+| Creative design / approach exploration | design | `high` (warmer temperature `0.3` differentiates from plan) |
 | Deterministic evaluation | judge | `medium` |
 | Routine summarisation | compaction, title, summary | `low`&ndash;`medium` |
 | Doc generation / tool interpretation | docs-writer, semgrep | `medium` |
@@ -140,6 +146,7 @@ these values:
 | `0.0` | Deterministic grading / judgement | judge |
 | `0.1` | Read-only analysis, search, audits | architect, code-review, test-audit, general, explore, plan, debug, docs-writer, semgrep, resolve-merge-conflicts |
 | `0.2` | Structured output / faithful summarisation | build, tdd, compaction, summary |
+| `0.3` | Creative design / approach exploration | design |
 | `0.4` | Short-form natural generation | title |
 
 **Why temperature can't be `{env:VAR}`:** See ADR-0013 prototype result —

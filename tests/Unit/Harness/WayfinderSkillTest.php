@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: WayfinderSkillTest.php kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: WayfinderSkillTest.php kyau@nova 2026/07/20 -0700 Exp $
+
+
+
 
 
 
@@ -109,10 +112,10 @@ test('AC4 merges to a spec via the to-spec skill', function (): void {
     expect($content)->toMatch('/\bmerge\b/i');
 });
 
-test('skill contrasts its boundary with /feature and @from-issue', function (): void {
+test('skill contrasts its boundary with the design tab and @from-issue', function (): void {
     $content = wayfinder_skill_content();
 
-    expect($content)->toContain('/feature');
+    expect($content)->toContain('design');
     expect($content)->toContain('@from-issue');
 });
 
@@ -128,6 +131,7 @@ test('wayfinder skill has a Gotchas section', function (): void {
 
     expect($content)->toContain('## Gotchas');
 });
+
 
 
 

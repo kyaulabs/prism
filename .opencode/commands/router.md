@@ -1,5 +1,5 @@
 ---
-description: "Route a request to the right entry point. Reads the user's intent and points them at @consult, /feature, @from-issue, @debug, the wayfinder, or the fast-path. Routes and stops — does not do the work."
+description: "Route a request to the right entry point. Reads the user's intent and points them at @consult, the design tab, @from-issue, @debug, the wayfinder, or the fast-path. Routes and stops — does not do the work."
 mode: subagent
 temperature: 0.1
 permission:
@@ -17,7 +17,7 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 | If the user wants to... | Route to |
 | --- | --- |
 | Ask a question / explore the codebase / think through a domain idea | `@consult "question"` |
-| Build a NEW feature or behavior from an idea | `/feature "description"` (brainstorming → spec → plan → @tdd) |
+| Build a NEW feature or behavior from an idea | switch to the **design** tab (brainstorming → spec → branch → plan → @tdd) |
 | Work an EXISTING GitHub issue | `@from-issue #NN` |
 | Investigate a BUG or regression | `@debug "repro steps"` |
 | Build something HUGE (multiple independent subsystems) | Decompose first — chart it with the wayfinder skill, or use brainstorming's decomposition guidance |
@@ -27,7 +27,7 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 
 - "#NN" / a number / "existing issue" → `@from-issue`
 - "bug" / "broken" / "crash" / "regression" / repro steps → `@debug`
-- a concrete new-feature description → `/feature`
+- a concrete new-feature description → **design** tab
 - "how does X work" / "what should I consider" / a question → `@consult`
 - spans multiple subsystems / "huge" / "platform" → decompose (wayfinder)
 - typo / docs-only / header / lint fix / dep bump / test-only → fast-path

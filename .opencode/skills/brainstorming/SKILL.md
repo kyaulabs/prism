@@ -61,8 +61,11 @@ Complete these in order:
 6. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
 7. **User reviews written spec** — ask the user to review before proceeding.
-8. **Transition to implementation** — invoke the `writing-plans` skill to create
-   an implementation plan.
+8. **Create feature branch** — `bash .github/scripts/new-branch.sh <type> <desc>`
+   off `develop` (or `main` for hotfixes). See ADR-0028.
+9. **Transition** — direct the user to the `plan` tab for implementation
+   planning. Do NOT invoke `writing-plans` or dispatch `@tdd` from the design
+   tab (per ADR-0030).
 
 ## The process
 
@@ -154,16 +157,32 @@ Fix any issues inline. No need to re-review — just fix and move on.
 After the spec review passes, ask the user to review the written spec:
 
 > "Spec written and committed to `<path>`. Please review it and let me know
-> if you want to make any changes before we start writing out the
-> implementation plan."
+> if you want to make any changes before we create the feature branch."
 
 Wait for the user's response. If they request changes, make them and re-run
 the spec review. Only proceed once the user approves.
 
-**Implementation:**
+**Create feature branch:**
 
-- Invoke the `writing-plans` skill to create a detailed implementation plan.
-- Do NOT invoke any other skill. `writing-plans` is the next step.
+After the user approves the spec, create the feature branch off `develop`
+(or `main` for hotfixes):
+
+```bash
+bash .github/scripts/new-branch.sh <type> <description>
+```
+
+Where `<type>` reflects the work type (`feat` for new features, `fix` for
+bugs, `docs` for documentation, etc. — full vocabulary per ADR-0028) and
+`<description>` is a short kebab-case summary. The helper script handles base
+branch selection, identity resolution, hash generation, and the checkout.
+See ADR-0028.
+
+**Transition:**
+
+The design cycle is complete. Direct the user to the `plan` tab for
+implementation planning. Do NOT invoke the `writing-plans` skill or dispatch
+`@tdd` from the design tab — those belong to the plan agent and the
+execution phase respectively.
 
 ## Key principles
 
@@ -180,13 +199,16 @@ the spec review. Only proceed once the user approves.
 
 - `grilling` skill — the interview primitive consumed during requirements
   gathering. Governs *how* to ask; brainstorming governs *what* to ask about.
-- `writing-plans` skill — the next step after design approval.
+- `writing-plans` skill — the implementation-planning phase that follows
+  design; loaded by the `plan` agent. The `design` tab directs the user to
+  the plan tab rather than invoking `writing-plans` directly (per ADR-0030).
 - `domain-context` skill — read `CONTEXT.md` before designing; update it with
   new terms.
 - `systems-design` skill — ADR vs RFC decision, deep-modules heuristic,
   interface-design checklist.
 - `@architect` agent — for non-trivial or cross-cutting changes, suggest an
-  architect review before `writing-plans`.
+  architect review after the spec is written and before the plan tab loads
+  `writing-plans` (per AGENTS.md).
 
 ## Gotchas
 
