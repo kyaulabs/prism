@@ -5,6 +5,7 @@
 
 
 
+
 # ── Tests for setup-substitute.sh scaffolding token substitution ────────────
 # Verifies that the substitution script correctly replaces template scaffolding
 # tokens (abuse contact, org/repo, app, domain, username) with user-provided
@@ -40,6 +41,7 @@ T_USER="Test User"
 # script for <username> substitution) returns a deterministic value.
 init_sandbox_repo() {
 	git init --quiet >/dev/null
+	git config commit.gpgsign false
 	git config user.name "$T_USER"
 	git config user.email "test@example.org"
 }
@@ -279,6 +281,7 @@ EOF
 
 print_summary "setup substitution"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
