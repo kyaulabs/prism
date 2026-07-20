@@ -10,36 +10,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -408,6 +378,8 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
+
 
 
 

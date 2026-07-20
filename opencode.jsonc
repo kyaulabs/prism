@@ -9,6 +9,7 @@
     },
     "lsp": "deny"
   },
+  "subagent_depth": 2,
   "plugin": ["@slkiser/opencode-quota"],
   "provider": {
     "openrouter": {
