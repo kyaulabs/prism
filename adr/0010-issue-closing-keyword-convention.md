@@ -6,11 +6,14 @@ Date: 2026-07-09
 
 Accepted
 
+Amended by ADR-0031 (2026-07-20): `Plan-by:` renamed to `Authored-by:`.
+All references to `Plan-by:` in this ADR should be read as `Authored-by:`.
+
 ## Context
 
 Issue-closing references in commit messages were inconsistent: `Refs #xx`,
 `Closes #xx`, and `Fixes: #xx` all appeared; placement varied between
-top-of-footer (above `Plan-by:`) and after `Signed-off-by:`. GitHub
+top-of-footer (above `Authored-by:`) and after `Signed-off-by:`. GitHub
 recognizes many closing keywords — close, closes, closed, fix, fixes,
 fixed, resolve, resolves, resolved — so there was no machine feedback
 when the wrong keyword was chosen.
@@ -27,7 +30,7 @@ Enforce `Fixes: #NN` (Sentence-case, with colon) as the sole
 issue-closing keyword via a custom commitlint rule `issue-ref-convention`
 in `commitlint.config.js`. Reject all other GitHub closing keywords
 (close, closes, closed, resolve, resolves, resolved, fix, fixed).
-Require `Fixes:`/`Refs:` trailers to precede `Plan-by:` in the footer
+Require `Fixes:`/`Refs:` trailers to precede `Authored-by:` in the footer
 block. Retain `Refs: #NN` for non-closing references, in the same
 top-of-footer block.
 
@@ -42,7 +45,7 @@ and in CI on pull requests (`npx commitlint --from ... --to ... --verbose`).
 ## Consequences
 
 - **Positive:** Consistent footer ordering — issue references are always
-  grouped at the top, followed by `Plan-by:`, `Acked-by:`, and
+  grouped at the top, followed by `Authored-by:`, `Tested-by:`, and
   `Signed-off-by:`. Deterministic GitHub auto-close behavior (only
   `Fixes: #NN` closes). Keyword drift is impossible — the commitlint hook
   blocks non-conforming messages with a corrective message.
