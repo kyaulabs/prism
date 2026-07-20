@@ -3,7 +3,7 @@
 > **Source:** https://github.com/Graphify-Labs/graphify/blob/master/graphify/skill-opencode.md
 > **Vendored:** 2026-07-20. Check upstream for updates if Graphify behavior
 > changes after a version bump.
-> **Purpose:** Full reference for humans running `/graphify build` or
+> **Purpose:** Full reference for humans running `/graph build` or
 > debugging the build pipeline. The concise `SKILL.md` covers daily
 > `@explore` usage; this file covers everything else.
 

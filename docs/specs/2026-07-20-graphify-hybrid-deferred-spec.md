@@ -64,7 +64,7 @@ iterate on Phase 1 or pivot.
       codebase. Specifically: prose/domain queries (skills, ADRs,
       `CONTEXT.md` content) either work via AST + host-LLM semantic
       extraction, OR the gap is documented and accepted
-- [ ] Build cadence solution identified — manual `/graphify build` is too
+- [ ] Build cadence solution identified — manual `/graph build` is too
       painful for daily use; the post-commit hook is justified by observed
       staleness, not hypothetical staleness
 - [ ] Graphify version is stable enough that the MCP contract won't shift
@@ -186,7 +186,7 @@ Before falling back to glob/grep/read:
 
 Do NOT rebuild the graph yourself — the post-commit hook keeps it fresh. If
 you suspect staleness, note it in your answer; the user can run
-`/graphify update` manually if needed.
+`/graph update` manually if needed.
 
 `AGENTS.md` is loaded every session — do not restate its rules.
 ```
@@ -197,7 +197,7 @@ New hook for incremental graph rebuild. Constraints:
 
 - **Must not block the commit** — failure is warn-only, never non-zero exit
 - **Must be fast** — target <5s wall-clock; if `graphify --update` exceeds
-  that, warn and skip (the next `/graphify update` will catch up)
+  that, warn and skip (the next `/graph update` will catch up)
 - **Must handle missing prerequisites gracefully** — if `graphify` is not
   installed or `graphify-out/graph.json` doesn't exist, exit 0 silently
   (the hook is opt-in via having built a graph at least once)
@@ -225,14 +225,14 @@ exit 0
 
 Register in `.github/scripts/install-hooks.sh` (the existing hook installer).
 
-### 3.5 `/build-graph` command (or `/graphify` extension)
+### 3.5 `/build-graph` command (or `/graph` extension)
 
-Phase 1's `/graphify` command already has `build` and `update` modes. Phase
+Phase 1's `/graph` command already has `build` and `update` modes. Phase
 2 has two options:
 
-- **Option A (preferred):** keep `/graphify` as the single entry point; the
+- **Option A (preferred):** keep `/graph` as the single entry point; the
   post-commit hook calls `graphify --update` directly (no command
-  indirection). `/graphify update` remains the manual catch-up command.
+  indirection). `/graph update` remains the manual catch-up command.
 - **Option B:** add a separate `/build-graph` command for explicit rebuild
   workflows (CI, fresh-clone setup).
 
@@ -274,11 +274,11 @@ slot). Status: `Accepted` when Phase 2 lands.
 
 - **Phase 1:** primary integration surface (bash-driven)
 - **Phase 2:** fallback path when MCP is unavailable + human-driven
-  `/graphify` command reference
+  `/graph` command reference
 
 Add a note to the skill's header: *"Primary integration is the MCP server
 (see ADR-00NN). This skill documents the CLI fallback path and the
-human-driven `/graphify` command."*
+human-driven `/graph` command."*
 
 ---
 
@@ -340,7 +340,7 @@ Phase 2 is more entangled than Phase 1 but still revertible in layers:
 3. Restore `ModelConfigTest.php` (git revert the test commit)
 4. Disable post-commit hook (`chmod -x .github/hooks/post-commit`)
 5. Restore `@explore.prompt` to Phase 1 wording (bash-first)
-6. Phase 1 skill + `/graphify` command remain — `@explore` falls back to
+6. Phase 1 skill + `/graph` command remain — `@explore` falls back to
    bash invocation automatically
 
 Phase 1 functionality is fully preserved. The graph itself is unaffected

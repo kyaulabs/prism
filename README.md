@@ -399,6 +399,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/ticket` | Alias of `/issue` (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
 | `/tickets` | Alias of `/issues` (from-spec decomposition) |
+| `/graph` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 
 
 **`/setup` scaffold mode** — `/setup` offers an optional scaffold step (§2.5)
@@ -428,7 +429,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 | Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `wayfinder`, `verification-before-completion` |
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
-| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
+| Architecture hygiene | `systems-design`, `finding-duplicate-functions`, `graphify` |
 | Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
 | Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
 | Testing | `pest-browser` |

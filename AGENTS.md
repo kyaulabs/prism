@@ -332,5 +332,5 @@ Load these on demand when the task requires them:
 | `/ticket` | Alias of `/issue` — create a single issue, or decompose a plan/spec (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges. Alias: `/tickets` |
 | `/tickets` | Alias of `/issues` — from-spec decomposition into epic + vertical-slice tasks |
-| `/graphify` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
+| `/graph` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 

@@ -40,7 +40,7 @@ Parse the first argument from `$ARGUMENTS` (or `$1`):
 | `--help`, `-h` | **help** | Print this usage section and stop |
 
 For `query`, `path`, `explain`: verify `graphify-out/graph.json` exists first.
-If absent, print: "No graph found. Run `/graphify build` first." and stop.
+If absent, print: "No graph found. Run `/graph build` first." and stop.
 
 ## Build mode
 
@@ -70,15 +70,15 @@ graphify --update
 Requires `graphify-out/graph.json`. Usage:
 
 ```
-/graphify query <question>
-/graphify query <question> --dfs
-/graphify query <question> --budget 1500
+/graph query <question>
+/graph query <question> --dfs
+/graph query <question> --budget 1500
 ```
 
 Run:
 
 ```bash
-test -f graphify-out/graph.json || { echo "No graph. Run /graphify build first."; exit 1; }
+test -f graphify-out/graph.json || { echo "No graph. Run /graph build first."; exit 1; }
 graphify query "$REST"
 ```
 
@@ -87,13 +87,13 @@ graphify query "$REST"
 Shortest path between two concepts:
 
 ```
-/graphify path EvalCase Runner
+/graph path EvalCase Runner
 ```
 
 Run:
 
 ```bash
-test -f graphify-out/graph.json || { echo "No graph. Run /graphify build first."; exit 1; }
+test -f graphify-out/graph.json || { echo "No graph. Run /graph build first."; exit 1; }
 graphify path "$2" "$3"
 ```
 
@@ -102,13 +102,13 @@ graphify path "$2" "$3"
 Deep inspection of a single node:
 
 ```
-/graphify explain EvalCase
+/graph explain EvalCase
 ```
 
 Run:
 
 ```bash
-test -f graphify-out/graph.json || { echo "No graph. Run /graphify build first."; exit 1; }
+test -f graphify-out/graph.json || { echo "No graph. Run /graph build first."; exit 1; }
 graphify explain "$2"
 ```
 
@@ -118,7 +118,7 @@ Report graph freshness without modifying anything:
 
 ```bash
 if [ ! -f graphify-out/graph.json ]; then
-    echo "No graph exists. Run /graphify build to create one."
+    echo "No graph exists. Run /graph build to create one."
     exit 0
 fi
 

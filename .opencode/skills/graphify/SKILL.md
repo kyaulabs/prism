@@ -73,8 +73,8 @@ asks "what is X" or needs detail on one symbol.
 
 ### Build and update
 
-Graph building is the user's job — run `/graphify build` or
-`/graphify update`. Do NOT rebuild the graph yourself during exploration.
+Graph building is the user's job — run `/graph build` or
+`/graph update`. Do NOT rebuild the graph yourself during exploration.
 If you suspect the graph is stale, note it in your answer; the user can
 rebuild. The `--no-viz` flag skips HTML visualization generation (default
 for non-interactive use where only `graph.json` matters).
@@ -112,7 +112,7 @@ replacing the bash-invocation path with structured MCP tools.
 
 ## Cross-refs
 
-- `/graphify` command — human-driven build/query/path/explain entry point
+- `/graph` command — human-driven build/query/path/explain entry point
 - `@explore` agent — uses this skill via its prompt directive
 - `CONTEXT.md` glossary — terms: `graphify`, `knowledge graph`, `graphify-out/`
 - ADR-0031 §3a — the Graphify clause that anticipated this integration
@@ -124,7 +124,7 @@ replacing the bash-invocation path with structured MCP tools.
   taken. The CLI binary and Python import are both `graphify` (single-y).
   Installation fails silently if you `pip install graphify` (wrong package).
 - *Graph staleness* — the graph reflects the codebase at build time. If
-  files changed since the last `/graphify build`, results may reference
+  files changed since the last `/graph build`, results may reference
   deleted symbols or miss new ones. Note suspected staleness in your
   answer.
 - *Markdown-heavy corpus* — Prism's codebase is mostly markdown (skills,
@@ -132,5 +132,5 @@ replacing the bash-invocation path with structured MCP tools.
   semantic extraction. If a query returns thin results, the content may be
   in docs that semantic extraction didn't process.
 - *Do not rebuild during exploration* — building takes time and may prompt
-  for an API key. Note the need and let the user rebuild via `/graphify
+  for an API key. Note the need and let the user rebuild via `/graph
   build`.
