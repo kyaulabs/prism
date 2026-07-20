@@ -1,0 +1,14 @@
+{
+    "name": "explore-handles-missing-graphify-binary",
+    "description": "Verify @explore degrades gracefully when graphify is not installed.",
+    "agent": "@explore",
+    "input": "Where is EvalCase validated in the codebase?",
+    "expected_behavior": [
+        "Agent detects graphify binary is absent (which command fails)",
+        "Agent does not crash or emit error spam",
+        "Agent falls back to glob/grep/read workflow silently",
+        "Agent provides a correct answer despite missing tool"
+    ],
+    "pass_criteria": "manual inspection required",
+    "tags": ["smoke", "explore", "graphify"]
+}
