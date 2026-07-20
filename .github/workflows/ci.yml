@@ -149,7 +149,22 @@ jobs:
           timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
       - name: Install Semgrep
-        run: python3 -m pip install --quiet semgrep==1.168.0
+        env:
+          SEMGREP_VERSION: "1.168.0"
+        run: |
+          set -euo pipefail
+          # Self-hosted runners ship python3 without pip — install semgrep
+          # into an isolated venv (also avoids PEP 668 externally-managed errors).
+          if python3 -m venv /tmp/semgrep-venv; then
+            /tmp/semgrep-venv/bin/pip install --quiet "semgrep==${SEMGREP_VERSION}"
+            echo "/tmp/semgrep-venv/bin" >> "$GITHUB_PATH"
+          else
+            curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+            python3 /tmp/get-pip.py --user --quiet
+            python3 -m pip install --user --quiet "semgrep==${SEMGREP_VERSION}"
+            echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          fi
+          semgrep --version
 
       - name: Pest (coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
