@@ -1,4 +1,5 @@
-// $KYAULabs: commitlint.config.js kyau@akira.kyaulabs 2026/07/09 -0700 Exp $
+// $KYAULabs: commitlint.config.js kyau@nova 2026/07/20 -0700 Exp $
+
 
 
 
@@ -17,7 +18,7 @@ const CLOSING_RE = new RegExp(
 // Colon is required (Fixes #42 or refs: #42 are rejected/mis-cased earlier by
 // the CLOSING_RE checks). The /i flag catches lowercase `refs:` as well.
 const ISSUE_REF_RE = /^\s*(Fixes|Refs):\s*#\d+\s*$/i;
-const PLAN_BY_RE = /^\s*Plan-by:\s/;
+const AUTHORED_BY_RE = /^\s*Authored-by:\s/;
 
 const isMergeOrRevert = (parsed) => {
 	const isMerge =
@@ -31,7 +32,7 @@ const isMergeOrRevert = (parsed) => {
 const trailersExist = (parsed, when, trailers) => {
 	// Exempt merge commits and reverts from trailer enforcement.
 	// `git merge --no-ff` and `git revert` produce auto-generated messages
-	// that cannot carry Plan-by/Acked-by/Signed-off-by trailers. CI applies
+	// that cannot carry Authored-by/Tested-by/Signed-off-by trailers. CI applies
 	// the same exemption via this config, so merges/reverts pass everywhere.
 	if (isMergeOrRevert(parsed)) {
 		return [true, ''];
@@ -64,7 +65,7 @@ const issueRefConvention = (parsed, when) => {
 	const lines = (parsed.raw || '').split('\n');
 	const violations = [];
 	const issueRefIdxs = [];
-	let planByIdx = -1;
+	let authoredByIdx = -1;
 
 	lines.forEach((line, i) => {
 		const m = line.match(CLOSING_RE);
@@ -91,14 +92,14 @@ const issueRefConvention = (parsed, when) => {
 		if (ISSUE_REF_RE.test(line)) {
 			issueRefIdxs.push(i);
 		}
-		if (PLAN_BY_RE.test(line) && planByIdx === -1) {
-			planByIdx = i;
+		if (AUTHORED_BY_RE.test(line) && authoredByIdx === -1) {
+			authoredByIdx = i;
 		}
 	});
 
-	if (planByIdx !== -1 && issueRefIdxs.some((idx) => idx > planByIdx)) {
+	if (authoredByIdx !== -1 && issueRefIdxs.some((idx) => idx > authoredByIdx)) {
 		violations.push(
-			'issue-reference trailers (`Fixes:`, `Refs:`) must appear before `Plan-by:`'
+			'issue-reference trailers (`Fixes:`, `Refs:`) must appear before `Authored-by:`'
 		);
 	}
 
@@ -133,11 +134,12 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
-		'trailers-exist': [2, 'always', ['Plan-by:', 'Acked-by:', 'Signed-off-by:']],
+		'trailers-exist': [2, 'always', ['Authored-by:', 'Tested-by:', 'Signed-off-by:']],
 		'issue-ref-convention': [2, 'always'],
 		'signed-off-by': [0],
 	},
 };
+
 
 
 
