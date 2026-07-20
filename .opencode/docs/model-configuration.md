@@ -6,7 +6,7 @@ This guide explains how the KYAULabs harness assigns models, variants, and
 temperatures — and how to look up the correct values when swapping in a
 non-default model. For the architectural decisions behind this system, see
 ADR-0012 (configurable model variables), ADR-0013 (configurable variant via
-env var), and ADR-0014 (model default rebalancing).
+env var), and ADR-0031 (model rebalance for z.ai Pro plan).
 
 ## 1. How the harness assigns models
 
@@ -15,10 +15,10 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 
 | Tier | Model env var | Variant env var | Default model | Default variant | Agents |
 | --- | --- | --- | --- | --- | --- |
-| PRIMARY | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, debug, resolve-merge-conflicts, test-audit, general, explore |
-| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
-| DESIGN | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openrouter/z-ai/glm-5.2` | `high` | design |
-| JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
+| PRIMARY | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `zai-coding-plan/glm-5.2` | `max` | build, tdd, debug, resolve-merge-conflicts, general |
+| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `zai-coding-plan/glm-5.2` | `max` | plan, from-issue, architect, consult |
+| DESIGN | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `zai-coding-plan/glm-5.2` | `max` | design |
+| JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
 
 The **judge** agent is `hidden: true` — it does not appear as a TUI tab.
@@ -71,7 +71,7 @@ reasoning / "thinking" models — a plain chat model will ignore or reject it.
 | OpenAI | Reasoning effort (`minimal` / `low` / `medium` / `high`) |
 | Google | Thinking budget |
 | DeepSeek | `reasoning_effort` parameter. **Note:** in thinking mode, `low` and `medium` are mapped to `high`; only `high` (default) and `max` produce distinct behavior. |
-| Z.ai (GLM) | Thinking mode + effort level |
+| Z.ai (GLM) | Thinking mode + effort level. **Note:** `max` maps to ExtraHigh (equivalent to OpenAI's `xhigh`) — the highest reasoning GLM offers, but not an absolute maximum across providers. DeepSeek's `max` is its true maximum. Variant values are provider-relative, not absolute. |
 | OpenRouter | Passes through to the underlying provider |
 | Ollama | Usually n/a (local, non-reasoning unless running a reasoning model) |
 
@@ -114,12 +114,12 @@ constraint — all agents in a tier share one variant):
 
 | Task profile | Example agents | Recommended variant |
 | --- | --- | --- |
-| Complex code generation | build, tdd, debug, resolve-merge-conflicts | `high` (or `max` if budget allows and quality is paramount) |
-| Read-only architectural analysis | architect, code-review, test-audit | `high` |
-| Read-only exploration / search | general, explore | `medium` (`high` if cross-file reasoning needed) |
-| Planning / decomposition | plan | `high` (matches ADR-0011 complexity assessment) |
-| Creative design / approach exploration | design | `high` (warmer temperature `0.3` differentiates from plan) |
-| Deterministic evaluation | judge | `medium` |
+| Complex code generation | build, tdd, debug, resolve-merge-conflicts | `max` |
+| General research | general | `max` (feeds coding with no Graphify-style tool backing) |
+| Planning / decomposition | plan, from-issue, architect, consult | `max` (planning quality directly determines code quality downstream) |
+| Creative design / approach exploration | design | `max` (warmer temperature `0.3` differentiates from PLANNER) |
+| Cross-model review | code-review, standards-review, spec-review, test-audit, judge | `medium` (functionally `high` on DeepSeek per variant collapse) |
+| Codebase exploration | explore | `medium` (pre-Graphify bridge; post-Graphify synthesizes graph output) |
 | Routine summarisation | compaction, title, summary | `low`&ndash;`medium` |
 | Doc generation / tool interpretation | docs-writer, semgrep | `medium` |
 

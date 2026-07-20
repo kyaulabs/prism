@@ -11,16 +11,16 @@
   "scaffold_mode": "skip",
   "project_folder": null,
   "models": {
-    "primary": "deepseek/deepseek-v4-pro",
-    "planner": "openrouter/z-ai/glm-5.2",
-    "design": "openrouter/z-ai/glm-5.2",
-    "judge": "openrouter/z-ai/glm-5.2",
+    "primary": "zai-coding-plan/glm-5.2",
+    "planner": "zai-coding-plan/glm-5.2",
+    "design": "zai-coding-plan/glm-5.2",
+    "judge": "deepseek/deepseek-v4-pro",
     "utility": "deepseek/deepseek-v4-flash"
   },
   "variants": {
     "primary": "max",
-    "planner": "high",
-    "design": "high",
+    "planner": "max",
+    "design": "max",
     "judge": "medium",
     "utility": "medium"
   },

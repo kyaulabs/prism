@@ -34,6 +34,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -280,15 +283,15 @@ it('has all required model and variant keys in setup.json', function () {
 it('has correct default variant values', function () {
     $setup = setup_json();
     expect($setup['variants']['primary'])->toBe('max');
-    expect($setup['variants']['planner'])->toBe('high');
-    expect($setup['variants']['design'])->toBe('high');
+    expect($setup['variants']['planner'])->toBe('max');
+    expect($setup['variants']['design'])->toBe('max');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
 });
 
 it('has OPENCODE_MODEL_JUDGE with correct default in setup.json', function () {
     $setup = setup_json();
-    expect($setup['models']['judge'])->toBe('openrouter/z-ai/glm-5.2');
+    expect($setup['models']['judge'])->toBe('deepseek/deepseek-v4-pro');
 });
 
 it('uses {env:VAR} for variant in all opencode.json agents', function () {
@@ -374,6 +377,7 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
 
 
 
