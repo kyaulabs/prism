@@ -139,6 +139,7 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
 | [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
+| [jq](https://jqlang.github.io/jq/) | JSON extraction from setup.json (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
 | [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
@@ -313,8 +314,8 @@ different `OPENCODE_MODEL_*` env var:
 | Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
 
-**Default delivery:** A direnv `.envrc` automatically sources the committed
-`.opencode/models.default.env` when you `cd` into the project.
+**Default delivery:** A direnv `.envrc` automatically extracts the committed
+`.opencode/setup.json` models section (via jq) when you `cd` into the project.
 
 1. **Install the direnv shell hook** (one-time, per-shell):
 
@@ -343,7 +344,7 @@ different `OPENCODE_MODEL_*` env var:
 
 Without direnv, add to your shell profile:
 ```bash
-source /path/to/repo/.opencode/models.default.env
+source /path/to/repo/.envrc
 ```
 
 **Customizing via /setup:** Run `/setup` to interactively choose models for
@@ -364,13 +365,13 @@ earlier ones):
 **Override mechanisms** (in order of escalation):
 
 - **Change models in /setup** — writes user choices to `~/.config/opencode/models.env`
-- **Edit `.opencode/models.default.env`** — change defaults committed to the repo
+- **Edit `.opencode/setup.json` models section** — change defaults committed to the repo
 - **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
   top-level; per-agent `{env:VAR}` references still resolve from env vars)
 - **Inline config** — `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
 
 **Choosing a model and variant:** The defaults are tuned for the three
-models shipped in `.opencode/models.default.env`. To use a different
+models shipped in `.opencode/setup.json`. To use a different
 model — or to confirm which `variant` values it accepts, what its context
 window is, and how to map a task onto a `variant` + `temperature` pair —
 see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).

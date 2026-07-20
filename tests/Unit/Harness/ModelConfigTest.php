@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/14 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/19 -0700 Exp $
+
+
+
 
 
 
@@ -27,23 +30,36 @@ declare(strict_types=1);
 
 use PHPUnit\Framework\Assert;
 
-it('has a models default env file with four tier model exports', function () {
-    $path = __DIR__ . '/../../../.opencode/models.default.env';
-    Assert::assertFileExists($path, '.opencode/models.default.env must exist');
+/**
+ * Load and return the project setup.json (v4 schema) as an associative array.
+ *
+ * @return array<string, mixed>
+ */
+function setup_json(): array
+{
+    return json_decode(file_get_contents(__DIR__ . '/../../../.opencode/setup.json'), true);
+}
 
-    $content = file_get_contents($path);
-    Assert::assertStringContainsString('export OPENCODE_MODEL_PRIMARY=', $content);
-    Assert::assertStringContainsString('export OPENCODE_MODEL_PLANNER=', $content);
-    Assert::assertStringContainsString('export OPENCODE_MODEL_JUDGE=', $content);
-    Assert::assertStringContainsString('export OPENCODE_MODEL_UTILITY=', $content);
+it('has a setup.json with four tier model values', function () {
+    $setup = setup_json();
+
+    Assert::assertArrayHasKey('models', $setup, 'setup.json must have a models section');
+    Assert::assertIsArray($setup['models'], 'setup.json models must be an object');
+
+    $tiers = ['primary', 'planner', 'judge', 'utility'];
+    foreach ($tiers as $tier) {
+        Assert::assertArrayHasKey($tier, $setup['models'], "setup.json models must define '{$tier}'");
+        Assert::assertIsString($setup['models'][$tier], "setup.json models.{$tier} must be a string");
+        Assert::assertNotEmpty($setup['models'][$tier], "setup.json models.{$tier} must not be empty");
+    }
 });
 
-it('has an envrc file that sources the defaults', function () {
+it('has an envrc file that reads setup.json via jq', function () {
     $path = __DIR__ . '/../../../.envrc';
     Assert::assertFileExists($path, '.envrc must exist in project root');
 
     $content = file_get_contents($path);
-    Assert::assertStringContainsString('models.default.env', $content);
+    Assert::assertStringContainsString('setup.json', $content);
 });
 
 it('uses env var substitution for all model fields in opencode.json', function () {
@@ -177,18 +193,16 @@ it('agent md files do not define model or variant in frontmatter', function () {
     }
 });
 
-it('has consistent env var names between defaults and config', function () {
-    $defaultsPath = __DIR__ . '/../../../.opencode/models.default.env';
-    $configPath = opencode_config_path();
+it('has consistent model keys between setup.json and opencode.json', function () {
+    $setup = setup_json();
+    $config = file_get_contents(opencode_config_path());
 
-    $defaults = file_get_contents($defaultsPath);
-    $config = file_get_contents($configPath);
+    $modelKeys = ['primary', 'planner', 'judge', 'utility'];
 
-    $expectedVars = ['OPENCODE_MODEL_PRIMARY', 'OPENCODE_MODEL_PLANNER', 'OPENCODE_MODEL_UTILITY'];
-
-    foreach ($expectedVars as $var) {
-        Assert::assertStringContainsString($var, $defaults, "Default env file must define {$var}");
-        Assert::assertStringContainsString($var, $config, "opencode.jsonc must reference {$var}");
+    foreach ($modelKeys as $key) {
+        Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must define '{$key}'");
+        $varName = 'OPENCODE_MODEL_' . strtoupper($key);
+        Assert::assertStringContainsString($varName, $config, "opencode.jsonc must reference {$varName}");
     }
 });
 
@@ -248,29 +262,26 @@ it('uses env var substitution for variant, keeps temperature as literal', functi
     }
 });
 
-it('has all required env var exports in models.default.env', function () {
-    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
-    $expectedVars = [
-        'OPENCODE_MODEL_PRIMARY', 'OPENCODE_MODEL_PLANNER', 'OPENCODE_MODEL_JUDGE', 'OPENCODE_MODEL_UTILITY',
-        'OPENCODE_VARIANT_PRIMARY', 'OPENCODE_VARIANT_PLANNER', 'OPENCODE_VARIANT_JUDGE', 'OPENCODE_VARIANT_UTILITY',
-    ];
-    foreach ($expectedVars as $var) {
-        expect($content)->toContain("export {$var}=");
+it('has all required model and variant keys in setup.json', function () {
+    $setup = setup_json();
+    $expectedKeys = ['primary', 'planner', 'judge', 'utility'];
+    foreach ($expectedKeys as $key) {
+        Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must have key '{$key}'");
+        Assert::assertArrayHasKey($key, $setup['variants'], "setup.json variants must have key '{$key}'");
     }
 });
 
 it('has correct default variant values', function () {
-    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
-    expect($content)
-        ->toContain("export OPENCODE_VARIANT_PRIMARY='max'")
-        ->and($content)->toContain("export OPENCODE_VARIANT_PLANNER='high'")
-        ->and($content)->toContain("export OPENCODE_VARIANT_JUDGE='medium'")
-        ->and($content)->toContain("export OPENCODE_VARIANT_UTILITY='medium'");
+    $setup = setup_json();
+    expect($setup['variants']['primary'])->toBe('max');
+    expect($setup['variants']['planner'])->toBe('high');
+    expect($setup['variants']['judge'])->toBe('medium');
+    expect($setup['variants']['utility'])->toBe('medium');
 });
 
-it('has OPENCODE_MODEL_JUDGE with correct default', function () {
-    $content = file_get_contents(__DIR__ . '/../../../.opencode/models.default.env');
-    expect($content)->toContain("export OPENCODE_MODEL_JUDGE='openrouter/z-ai/glm-5.2'");
+it('has OPENCODE_MODEL_JUDGE with correct default in setup.json', function () {
+    $setup = setup_json();
+    expect($setup['models']['judge'])->toBe('openrouter/z-ai/glm-5.2');
 });
 
 it('uses {env:VAR} for variant in all opencode.json agents', function () {
@@ -337,6 +348,7 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
 
 
 

@@ -80,7 +80,7 @@ the system prompt, not the model variant.
 
 Models and variants are assigned via environment variable substitution
 (`{env:VAR}`) rather than hard-coded values. Four tiers with committed defaults
-in `.opencode/models.default.env`:
+in `.opencode/setup.json` (models section):
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
 | --- | --- | --- | --- | --- | --- |
@@ -91,8 +91,7 @@ in `.opencode/models.default.env`:
 
 **Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
 commands), then `cd` into the project and run `direnv allow` to trust the
-`.envrc`. Without direnv, add `source /path/to/repo/.opencode/models.default.env`
-to your shell profile.
+`.envrc`. Without direnv, add `source /path/to/repo/.envrc` to your shell profile.
 
 **Customize:** Run `/setup` and follow the Model and Variant Configuration prompts.
 Choices are written to `~/.config/opencode/models.env` — user overrides take

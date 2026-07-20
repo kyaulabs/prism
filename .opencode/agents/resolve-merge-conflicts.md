@@ -25,8 +25,9 @@ Run `git status` and `git log --oneline -20`. Report:
 For each conflicted file, read the conflict markers to see what each side changed. Read the commit
 messages on both branches to understand intent. This project uses Conventional Commits
 (`feat(scope):`, `fix(scope):`, etc.) — look for the type and scope to understand what each
-side was doing. Branch names follow `feat/<username>-<hash>-<description>` — the description may
-provide intent.
+side was doing. Branch names follow `<type>/<username>-<hash>-<description>` per ADR-0028 — the description may
+provide intent. Allowed `<type>` values: feat, fix, patch, docs, style, refactor, perf, test, build, ci,
+chore, revert. Plus `release/<semver>` and `hotfix/<username>-<hash>-<description>`.
 
 Identify the merge's goal: the branch being merged in (the "from" branch) and the target branch
 (`main` or `develop`). When choices must be made, prefer the change that aligns with the merge's

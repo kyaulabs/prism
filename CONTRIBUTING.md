@@ -18,16 +18,21 @@ We use Github to host code, to track issues and feature requests, as well as acc
 
 All code changes happen through pull requests and are the best way to propose changes to the codebase. We actively welcome your pull requests:
 
-1. Fork the repo and create your own branch off of the `develop` branch.
-2. Name your branch `feat/<name>-<hash>-<desc>` where:
-   * `<name>` is your Github username
-   * `<hash>` is equal to `openssl rand hex 2`
-   * `<desc>` is a short description using hyphen as a separator
-3. If you have added code that should be tested, add tests.
-4. If you have changed APIs, update the documentation.
-5. Ensure it passes whatever tests are being used.
-6. Make sure your code lints.
-7. Issue the pull request!
+1. Fork the repo. From the `develop` branch, create a feature branch:
+   ```bash
+   bash .github/scripts/new-branch.sh <type> <description>
+   ```
+   The helper resolves your username, generates the hash via `openssl rand -hex 2`,
+   and creates the branch off `develop` (or `main` for hotfixes). See ADR-0028
+   for the full naming convention.
+
+   Allowed `<type>` values: `feat`, `fix`, `patch`, `docs`, `style`, `refactor`,
+   `perf`, `test`, `build`, `ci`, `chore`, `revert`, plus `hotfix` and `release`.
+2. If you have added code that should be tested, add tests.
+3. If you have changed APIs, update the documentation.
+4. Ensure it passes whatever tests are being used.
+5. Make sure your code lints.
+6. Issue the pull request!
 
 ## Commit Message Policy
 
@@ -39,7 +44,10 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 - `Plan-by:` — the planning model (from `agent.plan.model` in `opencode.json`)
 - `Acked-by:` — the build model (from `agent.build.model`, falling back to `model`)
-- `Signed-off-by:` — the human approver (default `kyau <git@kyaulabs.com>`)
+- `Signed-off-by:` — the human approver, resolved dynamically via
+  `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
+  `~/.config/opencode/setup.json` → `.opencode/setup.json` → `git config`).
+  Ships as `kyau <git@kyaulabs.com>` until a user runs `/setup`.
 
 **Exemptions:**
 

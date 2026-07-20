@@ -14,4 +14,19 @@ Redirect instead of starting when the entry is wrong: an existing issue ->
 `@from-issue #NN`; a bug -> `@debug`; an already-approved spec -> skip to
 `writing-plans`.
 
+## Create feature branch
+
+After spec approval and before dispatching tasks to `@tdd`, create the feature
+branch off `develop`:
+
+```bash
+bash .github/scripts/new-branch.sh <type> <description>
+```
+
+Where `<type>` reflects the work type (`feat` for new features, `fix` for bugs,
+`docs` for documentation, etc. — full vocabulary per ADR-0028) and
+`<description>` is a short kebab-case summary. The helper script handles base
+branch selection (develop for everything except `hotfix`, which uses main),
+identity resolution, hash generation, and the checkout. See ADR-0028.
+
 Arguments: $ARGUMENTS

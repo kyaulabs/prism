@@ -9,7 +9,7 @@ format before writing the summary.
 
 Prerequisites:
 - `@scout` requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced via
-  `.opencode/experimental.default.env` — see `ADR-0024`).
+  `.opencode/setup.json` experimental section — see `ADR-0024`).
 - `--background` requires `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`
   (gated on ADR-0024 Phase-0 spike — currently experimental).
 
@@ -26,8 +26,8 @@ If `$ARGUMENTS` starts with or contains the token `--background`:
 - Check if `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` is set to `true` in
   the environment.
 - **If the env var is NOT set:** output a note that background subagents are
-  experimental and gated — tell the user to uncomment the flag in
-  `.opencode/experimental.default.env` and restart opencode. Load
+  experimental and gated — tell the user to enable the flag in
+  `.opencode/setup.json` (experimental section) and restart opencode. Load
   `.opencode/skills/research-background/SKILL.md` for the full contract.
 - **If the env var IS set:** load `.opencode/skills/research-background/SKILL.md`
   and follow the background-dispatch instructions for your opencode version.

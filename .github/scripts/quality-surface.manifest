@@ -10,9 +10,13 @@
 .github/scripts/coverage-gate.php
 .github/scripts/frontmatter-parser.js
 .github/scripts/install-hooks.sh
+.github/scripts/migrate-setup.sh
+.github/scripts/new-branch.sh
 .github/scripts/quality-surface.manifest
+.github/scripts/resolve-identity.sh
 .github/scripts/setup-scaffold.sh
 .github/scripts/setup-substitute.sh
+.github/scripts/validate-branch-name.sh
 .github/scripts/validate-harness.sh
 .github/ISSUE_TEMPLATE/01_ISSUE.md
 .github/ISSUE_TEMPLATE/config.yml

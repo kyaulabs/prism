@@ -8,6 +8,7 @@ permission:
     "git commit*": "allow"
     "git push*": "deny"
     "git tag*": "deny"
+    "bash .github/scripts/resolve-identity.sh*": allow
   lsp: allow
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
@@ -144,7 +145,11 @@ and produce a commit message in the required format:
 - Subject: lowercase, no period, ≤ 100 chars, describes what changed
 - Footer: `Plan-by:` with `agent.plan.model` from `opencode.jsonc`, segment after the last `/` (e.g. `openrouter/z-ai/glm-5.2` → `glm-5.2`)
 - Footer: `Acked-by:` with `agent.build.model` from `opencode.jsonc`, falling back to the top-level `model` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
-- Footer: `Signed-off-by: kyau <git@kyaulabs.com>`
+- Footer: `Signed-off-by:` — resolved dynamically via
+  `bash .github/scripts/resolve-identity.sh` (the resolver reads
+  `~/.config/opencode/setup.json` first, then project-level
+  `.opencode/setup.json`, falling back to `git config user.name`/`user.email`.
+  See ADR-0029.)
 
 If the task already provided a commit message in the plan, validate it —
 ensure valid type, ≤ 100 char subject, and required footers. Correct if

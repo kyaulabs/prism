@@ -6,6 +6,8 @@ Date: 2026-07-10
 
 Accepted (partially superseded by ADR-0013 — variant clause only; and ADR-0022 — model-location clause)
 
+Sourcing clauses superseded by ADR-0029 (delivery mechanism changed from shell-sourced .env files to jq-parsed setup.json). {env:VAR} substitution pattern and tier model preserved.
+
 ## Context
 
 GitHub issue #111 proposed refactoring the coding harness to support

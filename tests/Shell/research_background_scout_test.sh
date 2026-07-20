@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: research_background_scout_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: research_background_scout_test.sh kyau@nova 2026/07/19 -0700 Exp $
+
 
 
 # research_background_scout_test.sh — Harness contract test for Issue #141
@@ -7,8 +8,8 @@
 # Asserts:
 #   1. adr/0024-experimental-subagent-dependencies.md exists, Status: Accepted
 #   2. CONTEXT.md defines `scout` and `background subagent`
-#   3. .opencode/experimental.default.env exports LSP + scout flags
-#   4. .envrc sources .opencode/experimental.default.env
+#   3. .opencode/setup.json experimental.lsp_tool and experimental.scout are true
+#   4. .envrc reads from .opencode/setup.json (via jq)
 #   5. AGENTS.md documents all three experimental opencode flags
 #   6. .opencode/commands/research.md handles --background
 #   7. .opencode/skills/research-background/SKILL.md exists
@@ -44,32 +45,22 @@ else
 	fail "CONTEXT.md missing scout or background subagent glossary entry"
 fi
 
-# ── 3. .opencode/experimental.default.env ──────────────────────────────────
+# ── 3. .opencode/setup.json experimental section ────────────────────────────
 
-if [ -f "$REPO_ROOT/.opencode/experimental.default.env" ]; then
-	has_lsp=false
-	has_scout=false
-	if grep -q 'OPENCODE_EXPERIMENTAL_LSP_TOOL.*=.*true' "$REPO_ROOT/.opencode/experimental.default.env"; then
-		has_lsp=true
-	fi
-	if grep -q 'OPENCODE_EXPERIMENTAL_SCOUT.*=.*true' "$REPO_ROOT/.opencode/experimental.default.env"; then
-		has_scout=true
-	fi
-	if $has_lsp && $has_scout; then
-		pass ".opencode/experimental.default.env exports LSP and scout flags"
-	else
-		fail ".opencode/experimental.default.env missing LSP or scout export (LSP=$has_lsp SCOUT=$has_scout)"
-	fi
+LSP=$(jq -r '.experimental.lsp_tool' "$REPO_ROOT/.opencode/setup.json")
+SCOUT=$(jq -r '.experimental.scout' "$REPO_ROOT/.opencode/setup.json")
+if [ "$LSP" = "true" ] && [ "$SCOUT" = "true" ]; then
+	pass "setup.json experimental.lsp_tool and experimental.scout are true"
 else
-	fail ".opencode/experimental.default.env does not exist"
+	fail "setup.json missing LSP or scout experimental flag (LSP=$LSP SCOUT=$SCOUT)"
 fi
 
-# ── 4. .envrc sources experimental.default.env ─────────────────────────────
+# ── 4. .envrc sources .opencode/setup.json ─────────────────────────────────
 
-if grep -q 'experimental\.default\.env' "$REPO_ROOT/.envrc"; then
-	pass ".envrc sources .opencode/experimental.default.env"
+if grep -q 'setup\.json' "$REPO_ROOT/.envrc"; then
+	pass ".envrc sources .opencode/setup.json"
 else
-	fail ".envrc does not source .opencode/experimental.default.env"
+	fail ".envrc does not source .opencode/setup.json"
 fi
 
 # ── 5. AGENTS.md documents experimental flags ──────────────────────────────
@@ -109,5 +100,6 @@ else
 fi
 
 print_summary "research_background_scout"
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

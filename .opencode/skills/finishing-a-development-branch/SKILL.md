@@ -129,8 +129,12 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
   an outdated base.
 - Never auto-merge. Never auto-push. The user drives integration.
 - Do not delete branches the user hasn't confirmed merging.
-- Respect the `feat/<username>-<hash>-<description>` convention and the
-  no-squash policy from `AGENTS.md`.
+- Respect the `<type>/<username>-<hash>-<description>` convention per ADR-0028.
+  Allowed `<type>` values mirror commitlint vocabulary (minus `ignore`):
+  feat, fix, patch, docs, style, refactor, perf, test, build, ci, chore, revert.
+  Plus two special prefix families: `release/<semver>` and
+  `hotfix/<username>-<hash>-<description>`.
+- Enforce the no-squash policy from `AGENTS.md`.
 
 ## Cross-refs
 

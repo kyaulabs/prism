@@ -23,6 +23,8 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | --- | --- |
 | scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in `.opencode/experimental.default.env` (ADR-0024). |
 | background subagent | OpenCode experimental feature (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) — enables dispatching subagent tasks asynchronously. Feasibility gated on a manual spike (ADR-0024). |
+| identity resolution order | The three-tier fallback chain for `Signed-off-by` identity: user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json` → `git config user.name`/`user.email`. Implemented by `.github/scripts/resolve-identity.sh`. See ADR-0029. |
+| setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, and experimental flag configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029. |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values

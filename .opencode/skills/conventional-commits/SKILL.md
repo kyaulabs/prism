@@ -35,8 +35,10 @@ Every commit message must end with three footers:
 > model ID. The Plan-by and Acked-by footers track which configured models
 > planned and built the change, not which agent role orchestrated it.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
-  `username <email>`. Default when no user is specified:
-  `kyau <git@kyaulabs.com>`.
+  `Name <email>`. **Resolved dynamically** via
+  `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
+  user-level `~/.config/opencode/setup.json` → project-level
+  `.opencode/setup.json` → `git config user.name`/`user.email`).
 
 These are mandatory for traceability. The agent writes them automatically by
 reading `agent.plan.model` and `agent.build.model` from `opencode.jsonc` —
@@ -80,6 +82,22 @@ BREAKING CHANGE: existing session tokens are invalidated on deploy.
 Scope is optional but recommended for larger projects. Use the affected module,
 directory, or feature area: `feat(aurora)`, `fix(db)`, `test(auth)`.
 
+## Branch Naming
+
+Branch names follow Conventional Commit type prefixes per ADR-0028. See
+`.github/scripts/new-branch.sh` for the canonical creator and
+`.github/scripts/validate-branch-name.sh` for the regex.
+
+- `<type>/<username>-<hash>-<description>` — feature/standard work
+  (`<type>` ∈ feat, fix, patch, docs, style, refactor, perf, test, build, ci,
+  chore, revert)
+- `hotfix/<username>-<hash>-<description>` — emergency fixes off `main`
+- `release/<major>.<minor>.<patch>[-<prerelease>]` — release prep off `develop`
+
+Exempt from validation: `main`, `develop`, detached HEAD.
+
+The `prepare-commit-msg` hook rejects commits on non-conforming branches.
+
 ## Issue References
 
 - **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing
@@ -97,7 +115,7 @@ feat(auth): add remember-me cookie to login flow
 
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
@@ -106,7 +124,7 @@ fix(db): prevent SQL injection in user search query
 Fixes: #42
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
@@ -114,7 +132,7 @@ test(auth): add boundary cases for empty credentials
 
 Plan-by: glm-5.2
 Acked-by: deepseek-v4-pro
-Signed-off-by: kyau <git@kyaulabs.com>
+Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```

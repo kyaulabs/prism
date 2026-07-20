@@ -4,7 +4,7 @@ Date: 2026-07-09
 
 ## Status
 
-Accepted
+Accepted (partially superseded by ADR-0029 — model delivery mechanism only; token-substitution strategy survives)
 
 ## Context
 
