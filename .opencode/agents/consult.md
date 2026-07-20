@@ -102,12 +102,10 @@ Respond with:
 > This is where exploration ends and implementation begins. I don't write
 > source code, specs, or plans. To proceed:
 >
-> - If this is a feature: run `/feature "description"` to start the
->   brainstorming → spec → plan → @tdd pipeline.
+> - If this is a feature or a rough idea: switch to the **design** tab to
+>   start the brainstorming → spec → branch → plan → @tdd pipeline.
 > - If this is an existing issue: run `@from-issue #NN` to analyze, plan, and
 >   execute it.
-> - If you just have a rough idea: say "brainstorm" and I can hand you off
->   to the brainstorming flow.
 >
 > I'll be here if you have more questions about the domain or architecture.
 

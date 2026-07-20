@@ -118,7 +118,7 @@ see the brainstorming skill for the full definition.
 Three on-ramps start the pipeline depending on where the request enters:
 
 - `@consult` (questions / exploration)
-- `/feature` (new idea → brainstorm)
+- **design** tab (new idea → brainstorm)
 - `@from-issue #NN` (existing issue)
 - `@debug` (bug / regression)
 
@@ -317,7 +317,6 @@ Load these on demand when the task requires them:
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | git-cliff changelog + signed tag + `gh release` command |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
-| `/feature` | Start a new feature from an idea through the brainstorming → spec → plan → @tdd pipeline |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (requires Phase-0 spike). |
 | `/build-assets` | Rebuild minified CSS and JS from source |
