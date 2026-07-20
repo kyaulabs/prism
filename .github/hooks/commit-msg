@@ -16,7 +16,7 @@ if grep -qF '\n' "$MSG_FILE"; then
   This usually means the message was passed via -m "...\n..." in regular
   quotes. Use a single -m with $'...\n...' so bash interprets newlines:
 
-      git commit -S -m $'type[scope]: subject\n\nBody line.\n\nPlan-by: model\nAcked-by: model\nSigned-off-by: user <email>'
+      git commit -S -m $'type[scope]: subject\n\nBody line.\n\nAuthored-by: model\nTested-by: model\nSigned-off-by: user <email>'
 
   Never use multiple -m flags (they insert blank lines that break trailers).
 EOF
