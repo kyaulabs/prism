@@ -26,6 +26,9 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | identity resolution order | The three-tier fallback chain for `Signed-off-by` identity: user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json` → `git config user.name`/`user.email`. Implemented by `.github/scripts/resolve-identity.sh`. See ADR-0029. |
 | setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, and experimental flag configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029. |
 | design agent | Primary OpenCode agent (TUI tab) that owns the brainstorming workflow front door: grilling → exploration → design → spec → commit → feature-branch creation. Cycle ends at spec + branch; hands off to the `plan` tab. Runs on the DESIGN model tier. Defined inline in `opencode.jsonc`. See ADR-0030. |
+| graphify | External Python tool ([Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify)) that builds a codebase knowledge graph via tree-sitter AST + Leiden clustering. PyPI package is `graphifyy` (double-y). Opt-in; not a Prism hard-dependency. `@explore` prefers it when a graph exists. See ADR-0031 §3a. |
+| knowledge graph | The build output at `graphify-out/graph.json` — nodes (symbols, files, concepts) and edges (calls, imports, semantic relationships). Consumed by `@explore` via `graphify query/path/explain`. Gitignored; rebuildable from source. |
+| graphify-out/ | Build artifact directory for Graphify outputs (`graph.json`, `GRAPH_REPORT.md`, cost tracker, manifest). Gitignored. Lives at repo root. |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -84,6 +87,7 @@ What Prism owns vs. what it delegates to external services.
   - **External security/review tools** — Semgrep, gitleaks, OpenCodeReview (`ocr`), git-cliff, commitlint, Shellcheck. Prism invokes them; their rule packs and heuristics are upstream.
   - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution.
   - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference.
+  - **Graphify (code-graph intelligence)** — external Python tool that builds a knowledge graph from the codebase. Prism documents its usage (`.opencode/skills/graphify/`) and wires it into `@explore`'s prompt; the tool itself is user-installed and opt-in. AST extraction is free; semantic extraction optionally uses Gemini.
 
 - **Boundary interfaces:** Mockable surfaces include the OpenCode plugin hook layer (ADR-0008), the coverage-gate script's input (Clover XML via `phpunit.xml` `<source>` block), the eval runner's subprocess boundary (exec'd `opencode run`), and the Aurora SQL handler. Mocking of live model inference is not supported — agents and the eval judge run against real providers.
 
