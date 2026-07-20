@@ -19,8 +19,8 @@
   },
   "variants": {
     "primary": "max",
-    "planner": "max",
-    "design": "max",
+    "planner": "high",
+    "design": "high",
     "judge": "medium",
     "utility": "medium"
   },

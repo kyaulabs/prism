@@ -5,7 +5,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://www.conventionalcommits.org/en/v1.0.0/)
 [![GitHub](https://img.shields.io/github/license/kyaulabs/prism?logo=gnu)](LICENSE)
-[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/prism?include_prereleases&logo=semver&sort=semver)](https://semver.org)
+[![Semantic Versioning](https://img.shields.io/github/v/release/kyaulabs/prism?include_prereleases&logo=semver&sort=semver)](https://semver.org)\
 [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 [![Discord](https://img.shields.io/discord/88713030895943680?logo=discord&color=blue&logoColor=white)](https://discord.gg/DSvUNYm)
 
@@ -276,7 +276,7 @@ Press `Tab` to switch between Build and Plan during a session.
 
 | Agent | Purpose |
 | --- | --- |
-| `@explore` | Read-only codebase exploration — file patterns, keyword search |
+| `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
 | `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
 | `@general` | Multi-step research, full tool access |
 
@@ -399,6 +399,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/ticket` | Alias of `/issue` (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
 | `/tickets` | Alias of `/issues` (from-spec decomposition) |
+| `/graph` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 
 
 **`/setup` scaffold mode** — `/setup` offers an optional scaffold step (§2.5)
@@ -428,7 +429,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 | Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `wayfinder`, `verification-before-completion` |
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
-| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
+| Architecture hygiene | `systems-design`, `finding-duplicate-functions`, `graphify` |
 | Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
 | Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
 | Testing | `pest-browser` |

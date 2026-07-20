@@ -35,6 +35,9 @@ tests/Browser/Screenshots/
 prototypes/
 prototype_*
 
+# Graphify knowledge graph build artifacts (see .opencode/skills/graphify/)
+graphify-out/
+
 # Editor files
 *.swp
 *.swo
