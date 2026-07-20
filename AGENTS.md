@@ -115,7 +115,7 @@ behavior delta. Purely trivial changes with no behavior delta (typos, docs,
 RCS headers, style-only, patch deps, test-only fixes) follow a fast-path —
 see the brainstorming skill for the full definition.
 
-Three on-ramps start the pipeline depending on where the request enters:
+Four on-ramps start the pipeline depending on where the request enters:
 
 - `@consult` (questions / exploration)
 - **design** tab (new idea → brainstorm)

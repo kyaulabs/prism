@@ -207,8 +207,8 @@ execution phase respectively.
 - `systems-design` skill — ADR vs RFC decision, deep-modules heuristic,
   interface-design checklist.
 - `@architect` agent — for non-trivial or cross-cutting changes, suggest an
-  architect review before the spec is finalized (i.e., before the plan tab
-  loads `writing-plans`).
+  architect review after the spec is written and before the plan tab loads
+  `writing-plans` (per AGENTS.md).
 
 ## Gotchas
 
