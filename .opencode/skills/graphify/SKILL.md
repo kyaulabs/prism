@@ -76,7 +76,8 @@ asks "what is X" or needs detail on one symbol.
 Graph building is the user's job — run `/graphify build` or
 `/graphify update`. Do NOT rebuild the graph yourself during exploration.
 If you suspect the graph is stale, note it in your answer; the user can
-rebuild.
+rebuild. The `--no-viz` flag skips HTML visualization generation (default
+for non-interactive use where only `graph.json` matters).
 
 ## Graceful degradation
 
@@ -101,10 +102,19 @@ The commands above cover exploration queries. For the full build pipeline
 `reference/upstream-pipeline.md` — the vendored upstream skill. Humans
 building or rebuilding the graph should consult that reference.
 
+## Phase 2 note
+
+The `--mcp` flag starts an MCP stdio server for agent access. This is
+documented for awareness but NOT wired in Phase 1. Phase 2 (see
+`docs/specs/2026-07-20-graphify-hybrid-deferred-spec.md`) will add MCP
+server config to `opencode.jsonc` with per-agent permission gating,
+replacing the bash-invocation path with structured MCP tools.
+
 ## Cross-refs
 
 - `/graphify` command — human-driven build/query/path/explain entry point
 - `@explore` agent — uses this skill via its prompt directive
+- `CONTEXT.md` glossary — terms: `graphify`, `knowledge graph`, `graphify-out/`
 - ADR-0031 §3a — the Graphify clause that anticipated this integration
 - Phase 1 spec — `docs/specs/2026-07-20-graphify-skill-driven-spec.md`
 
