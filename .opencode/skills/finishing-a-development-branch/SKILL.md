@@ -29,7 +29,7 @@ Run every item; do not skip:
 - [ ] No merge conflicts after rebase. If conflicts exist, suggest
       `@resolve-merge-conflicts` or manual resolution.
 - [ ] All commits follow Conventional Commits format and include
-      `Plan-by:` + `Acked-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
+      `Authored-by:` + `Tested-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
 - [ ] Plan and spec files deleted from `docs/plans/` and `docs/specs/`
       (unless branch is being kept for further work — see post-disposal
       cleanup below).

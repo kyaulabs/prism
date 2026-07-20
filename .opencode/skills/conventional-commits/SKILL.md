@@ -16,24 +16,30 @@ description: Use when writing or reviewing commit messages. Covers the required 
 - Subject line: lowercase, no period at end, max 100 characters
 - Body: wrap at 72 characters, explain *why* not *what*
 - Signed commits required (`git commit -S`)
-- Every commit must include `Plan-by:`, `Acked-by:`, and `Signed-off-by:` footers
+- Every commit must include `Authored-by:`, `Tested-by:`, and `Signed-off-by:` footers
 
 ## Required Footers
 
 Every commit message must end with three footers:
 
-- **`Plan-by:`** — the planning model, in kebab-case. Sourced from
+- **`Authored-by:`** — the authoring model, in kebab-case. Sourced from
   `agent.plan.model` in `opencode.jsonc` (the segment after the last `/`).
-  Example: `openrouter/z-ai/glm-5.2` → `glm-5.2`.
-- **`Acked-by:`** — the build model, in kebab-case. Sourced from
-  `agent.build.model` in `opencode.jsonc`, falling back to the top-level
-  `model` — the segment after the last `/`.
+  Example: `zai-coding-plan/glm-5.2` → `glm-5.2`.
+  Covers the full creation pipeline: design (spec), plan, and build (code).
+- **`Tested-by:`** — the verification model, in kebab-case. Sourced from
+  `agent.code-review.model` in `opencode.jsonc` — the segment after the
+  last `/`.
   Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
+  Covers the verification pipeline: code review, standards review, spec
+  review, test audit, judge (eval), and explore (pre-Graphify).
 
 > [!CAUTION]
 > Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
-> model ID. The Plan-by and Acked-by footers track which configured models
-> planned and built the change, not which agent role orchestrated it.
+> model ID. The Authored-by and Tested-by footers track which configured models
+> authored and verified the change, not which agent role orchestrated it.
+>
+> `Tested-by:` extends the Linux kernel convention ("I ran the tests") to cover
+> the full verification pipeline (review, audit, judge, explore). See ADR-0031.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. **Resolved dynamically** via
   `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
@@ -41,9 +47,8 @@ Every commit message must end with three footers:
   `.opencode/setup.json` → `git config user.name`/`user.email`).
 
 These are mandatory for traceability. The agent writes them automatically by
-reading `agent.plan.model` and `agent.build.model` from `opencode.jsonc` —
-falling back to the top-level `model` if the agent-specific key is absent —
-and taking the segment after the last `/`.
+reading `agent.plan.model` and `agent.code-review.model` from `opencode.jsonc` —
+taking the segment after the last `/`.
 
 ## Valid Types
 
@@ -102,7 +107,7 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 
 - **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing
   keyword. Place it at the **top of the footer block**, immediately above
-  `Plan-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
+  `Authored-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
   `Resolves`, `Resolved`, `Fix`, `Fixed`, and colon-less forms (`Fixes #42`).
 - **`Refs: #NN`** — references an issue *without* closing it. Same footer
   block, above `Plan-by:`.
@@ -113,8 +118,8 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 ```
 feat(auth): add remember-me cookie to login flow
 
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
+Authored-by: glm-5.2
+Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
@@ -122,16 +127,16 @@ Signed-off-by: <resolved via resolve-identity.sh>
 fix(db): prevent SQL injection in user search query
 
 Fixes: #42
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
+Authored-by: glm-5.2
+Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
 test(auth): add boundary cases for empty credentials
 
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
+Authored-by: glm-5.2
+Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
@@ -155,7 +160,7 @@ standard set.
 
 Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
 exempt from trailer enforcement — their auto-generated messages cannot carry
-`Plan-by:`/`Acked-by:`/`Signed-off-by:` trailers. If `commitlint` is not
+`Authored-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
 installed (fresh clone without `npm install`), the hook skips with a visible
 notice; CI enforces the policy on every PR commit.
 
@@ -174,10 +179,10 @@ notice; CI enforces the policy on every PR commit.
 
 ```bash
 # CORRECT — single -m with $'...\n...' embedded newlines
-git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nPlan-by: model\nAcked-by: model\nSigned-off-by: user <email>'
+git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nAuthored-by: model\nTested-by: model\nSigned-off-by: user <email>'
 
 # WRONG — multiple -m flags insert blank lines between each, breaking trailers
-git commit -S -m "type[scope]: subject" -m "Body." -m "Plan-by: model" -m "Acked-by: model"
+git commit -S -m "type[scope]: subject" -m "Body." -m "Authored-by: model" -m "Tested-by: model"
 ```
 
 If the commit fails due to the commit-msg hook, the commit was **not created**.

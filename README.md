@@ -509,8 +509,8 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Plan-by',            # Required — the planning model from opencode.jsonc (e.g., glm-5.2)
-  'Acked-by',           # Required — the build model from opencode.jsonc, falling back to top-level `model` (e.g., deepseek-v4-pro)
+  'Authored-by',        # Required — the authoring model from opencode.jsonc (e.g., glm-5.2)
+  'Tested-by',          # Required — the verification model from agent.code-review.model (e.g., deepseek-v4-pro)
   'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
@@ -521,15 +521,15 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Plan-by`, `Acked-by`, and `Signed-off-by` footers. If
+Every commit must include `Authored-by`, `Tested-by`, and `Signed-off-by` footers. If
 no user is explicitly named, the default `Signed-off-by` is `kyau
-<git@kyaulabs.com>`. `Plan-by` and `Acked-by` are sourced from `agent.plan.model`
-and `agent.build.model` in `opencode.jsonc`, falling back to the top-level
-`model` — the segment after the last `/`.
+<git@kyaulabs.com>`. `Authored-by` is sourced from `agent.plan.model`
+and `Tested-by` is sourced from `agent.code-review.model` in `opencode.jsonc` —
+the segment after the last `/`.
 e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
-placed at the top of the footer block immediately above `Plan-by:`.
+placed at the top of the footer block immediately above `Authored-by:`.
 commitlint rejects all other GitHub closing keywords (`Closes`, `Resolve`,
 `Fix`, `Fixed`, etc.) and no-colon forms (`Fixes #42`). Use `Refs: #NN` for
 non-closing references, in the same top-of-footer block.
@@ -549,8 +549,8 @@ Basic movement added.
 
 Refs: #123
 Refs: 676104e, a215868
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
+Authored-by: glm-5.2
+Tested-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
 
@@ -559,8 +559,8 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
-Plan-by: glm-5.2
-Acked-by: deepseek-v4-pro
+Authored-by: glm-5.2
+Tested-by: deepseek-v4-pro
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>
 ```

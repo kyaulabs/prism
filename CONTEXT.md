@@ -116,7 +116,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0007-setup-token-strategy.md` — Find literal template defaults instead of non-existent [EMAIL] placeholders; extract substitution logic into testable shell script
 - `adr/0008-experimental-hook-dependency.md` — Continue using experimental.chat.system.transform for session-bootstrap enforcement with type-level guard tests
 - `adr/0009-mechanized-changed-file-coverage-gate.md` — Mechanize per-changed-file coverage gate via Clover XML + git diff; single script invoked by both CI and /check
-- `adr/0010-issue-closing-keyword-convention.md` — Enforce `Fixes: #NN` as the sole issue-closing keyword via commitlint, placed above `Plan-by:`; reject all other GitHub closing keywords
+- `adr/0010-issue-closing-keyword-convention.md` — Enforce `Fixes: #NN` as the sole issue-closing keyword via commitlint, placed above `Authored-by:`; reject all other GitHub closing keywords
 - `adr/0011-plan-agent-complexity-assessment.md` — Plan agent uses `high` variant + prompt-based complexity heuristics; dynamic variant switching ruled infeasible (opencode architecture limitation)
 - `adr/0012-configurable-model-variables.md` — Replace hard-coded model IDs with `{env:VAR}` substitution across three tiers; direnv-delivered defaults with /setup integration
 - `adr/0013-configurable-variant-via-env-var.md` — Extend `{env:VAR}` substitution to `variant` field; add JUDGE tier (4 tiers total); temperature stays literal per prototype findings

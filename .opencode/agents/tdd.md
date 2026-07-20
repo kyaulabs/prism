@@ -143,8 +143,8 @@ and produce a commit message in the required format:
 - Type and optional scope from the work performed (feat, fix, test, docs,
   chore, etc.)
 - Subject: lowercase, no period, ≤ 100 chars, describes what changed
-- Footer: `Plan-by:` with `agent.plan.model` from `opencode.jsonc`, segment after the last `/` (e.g. `openrouter/z-ai/glm-5.2` → `glm-5.2`)
-- Footer: `Acked-by:` with `agent.build.model` from `opencode.jsonc`, falling back to the top-level `model` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
+- Footer: `Authored-by:` with `agent.plan.model` from `opencode.jsonc`, segment after the last `/` (e.g. `zai-coding-plan/glm-5.2` → `glm-5.2`)
+- Footer: `Tested-by:` with `agent.code-review.model` from `opencode.jsonc` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
 - Footer: `Signed-off-by:` — resolved dynamically via
   `bash .github/scripts/resolve-identity.sh` (the resolver reads
   `~/.config/opencode/setup.json` first, then project-level
