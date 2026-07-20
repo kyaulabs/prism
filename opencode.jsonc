@@ -109,8 +109,8 @@
       }
     },
     "explore": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.1,
       "permission": {
         "lsp": "allow"
@@ -122,18 +122,18 @@
       "temperature": 0.2
     },
     "architect": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_PLANNER}",
+      "variant": "{env:OPENCODE_VARIANT_PLANNER}",
       "temperature": 0.1
     },
     "code-review": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.1
     },
     "consult": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_PLANNER}",
+      "variant": "{env:OPENCODE_VARIANT_PLANNER}",
       "temperature": 0.1
     },
     "from-issue": {
@@ -152,18 +152,18 @@
       "temperature": 0.1
     },
     "standards-review": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.1
     },
     "spec-review": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.1
     },
     "test-audit": {
-      "model": "{env:OPENCODE_MODEL_PRIMARY}",
-      "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
+      "model": "{env:OPENCODE_MODEL_JUDGE}",
+      "variant": "{env:OPENCODE_VARIANT_JUDGE}",
       "temperature": 0.1
     },
     "docs-writer": {
