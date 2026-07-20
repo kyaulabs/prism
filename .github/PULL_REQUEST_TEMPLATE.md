@@ -18,7 +18,7 @@
   3. Three config files consolidated into setup.json..."
 -->
 
-## Changes by Phase
+## 📦 Changes by Phase
 
 <!--
   Group your changes logically, often by feature area or phase.
@@ -30,7 +30,7 @@
   - Tests: `suite` (X cases)
 -->
 
-## ADRs
+## 📜 ADRs
 
 <!--
   List any Architecture Decision Records that are new, amended, or superseded.
@@ -55,7 +55,7 @@
   | @code-review | GO |
 -->
 
-## Architect Conditions (if applicable)
+## 🏗️ Architect Conditions (if applicable)
 
 <!--
   If this PR was pre‑validated by an architect (e.g., via @architect),
@@ -66,7 +66,7 @@
   Leave blank or delete this section if not applicable.
 -->
 
-## Commits (<# total>)
+## 📝 Commits (<# total>)
 
 <!--
   Optionally list the commit SHAs and subjects, or just mention the count.
@@ -75,7 +75,7 @@
   Total: 17 commits (list them if helpful)
 -->
 
-## Test Plan
+## 🧪 Test Plan
 
 <!--
   Provide a clear, step‑by‑step list of commands or actions 
