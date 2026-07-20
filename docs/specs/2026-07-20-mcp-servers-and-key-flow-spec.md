@@ -1,11 +1,13 @@
 # Optional MCP Servers & Unified Key-Flow Spec
 
 > **Date:** 2026-07-20
-> **Status:** Approved (design phase)
+> **Status:** Approved (design phase; architect-reviewed)
 > **Target repo:** `kyaulabs/prism` (branch off `develop`)
 > **Related:** ADR-0024 (experimental feature delivery), ADR-0029 (unified
-> `setup.json` config), ADR-0031 (Graphify clause)
-> **Will produce:** ADR-0032 (Optional MCP Server Onboarding Pattern)
+> `setup.json` config — amended by ADR-0032), ADR-0030 (jq-fallback-over-
+> schema-bump precedent — followed), ADR-0031 (Graphify clause)
+> **Will produce:** ADR-0032 (Optional MCP Server Onboarding Pattern; amends
+> ADR-0029)
 > **Upstream:**
 > - https://github.com/kyaulabs/deepseek-websearch-mcp
 > - https://github.com/ihor-sokoliuk/mcp-searxng
@@ -38,6 +40,15 @@ feature.
   Renaming would break three consumers for the benefit of two commented
   examples. Commented examples live in `opencode.jsonc` (already JSONC) and
   `mcp.md` instead.
+- **No `setup_version` bump (adopt ADR-0030's jq-fallback pattern)** — ADR-0030
+  set the precedent that an additive, backward-compatible key (`.models.design`)
+  is added via the `// fallback` jq pattern, NOT a schema-version bump + migration
+  script. The new `env` key is the same shape (additive, backward-compatible;
+  the `// ""` fallback handles pre-existing files without it). So `setup_version`
+  stays at 4; the committed `setup.json` gets the `env` section edited in
+  directly (self-documenting empty defaults), and no `migrate-setup.sh` change is
+  needed. ADR-0032 records this as an explicit alignment with ADR-0030. (The
+  schema-bump alternative was considered and rejected — see ADR-0032 §Alternatives.)
 - **`/doctor` not extended** — its contract is "all *required* dev-toolchain
   tools." MCP is optional; folding optional checks into a go/no-go gate muddies
   the signal. `mcp.md` points users to opencode's purpose-built `opencode mcp
@@ -147,17 +158,21 @@ grouping with other tooling integration). Both servers fully commented out:
   },
 ```
 
-### 3.2 `.opencode/setup.json` — new `env` section + version bump
+### 3.2 `.opencode/setup.json` — new `env` section (no version bump)
 
 Add a new top-level `env` section (generic name — carries keys for MCP *and*
-Graphify). Bump `setup_version` 4 → 5.
+Graphify). **`setup_version` stays at 4** — per ADR-0030, an additive,
+backward-compatible key is added via the `// fallback` jq pattern, not a
+schema bump. The committed file gets the `env` section edited in directly;
+pre-existing files without it are handled by the `// ""` fallback in `.envrc`
+(§3.3).
 
 **Committed project default** (always empty values — `/setup` never prompts
 for these):
 
 ```json
 {
-  "setup_version": 5,
+  "setup_version": 4,
   "configured": true,
   "timestamp": "...",
   "app": "prism",
@@ -196,9 +211,10 @@ or overwrite the `env` section — it is user-managed.
 
 ### 3.3 `.envrc` — export the two keys
 
-Add two lines to the existing `jq` eval block (lines 43–57) and two `export`
-statements. The `// ""` fallback ensures pre-v5 files without the `env`
-section export empty strings instead of erroring:
+Add two lines to the existing `jq` eval block (lines 43–57) and add the two
+vars to the existing `export` statement. The `// ""` fallback ensures files
+without the `env` section (pre-existing project files, or user-level files
+from before this change) export empty strings instead of erroring:
 
 ```bash
     "DEEPSEEK_API_KEY=\(.env.deepseek_api_key // \"\"|@sh)",
@@ -209,37 +225,23 @@ section export empty strings instead of erroring:
 export DEEPSEEK_API_KEY SEARXNG_URL
 ```
 
-Also bump the migration-trigger threshold from `< 4` to `< 5` (line 28) so v4
-files get backfilled to v5 on direnv entry:
+**No other `.envrc` change.** The migration-trigger threshold stays at `< 4`
+(ADR-0030 alignment — no schema bump, no migration step). The `// ""` fallback
+is the entire backward-compatibility mechanism.
 
-```bash
-   [ "$(jq -r '.setup_version // 0' "$PROJECT_SETUP" 2>/dev/null)" -lt 5 ] 2>/dev/null; then
-```
+### 3.4 `.github/scripts/migrate-setup.sh` — no change
 
-### 3.4 `.github/scripts/migrate-setup.sh` — v4→v5 step
+No migration step is added. Per ADR-0030's jq-fallback-over-schema-bump
+precedent, the `env` key is additive and backward-compatible; the `// ""`
+fallback in `.envrc` handles every existing file (project or user-level)
+without a migration script. This avoids breaking the existing
+`tests/Shell/migrate_setup_test.sh` assertions (which would otherwise need
+rewriting for a v4→v5 step).
 
-Add an idempotent v4→v5 migration step (mirroring the existing v1→v4 steps):
+### 3.5 `.opencode/commands/setup.md` — two edits
 
-- **Gate:** `setup_version < 5`
-- **Action:** set `setup_version = 5`; add `env: {deepseek_api_key: "",
-  searxng_url: ""}` **only if `env` is absent** (preserve any user values
-  already present)
-- Idempotent: re-running on a v5 file is a no-op
-- Atomic write (temp file + rename) matching the existing pattern
-
-Reference jq (implementer to adapt to the script's existing structure):
-
-```bash
-jq '.setup_version = 5 | (if has("env") then . else .env = {deepseek_api_key: "", searxng_url: ""} end)'
-```
-
-### 3.5 `.opencode/commands/setup.md` — three edits
-
-1. **§1** — add a version-gate line mirroring the existing pattern:
-   > If `setup_version` is `< 5`, run `bash .github/scripts/migrate-setup.sh .opencode/setup.json` before reading values. The migration is idempotent.
-
-2. **§8** (Save manifest) — the schema example gains `setup_version: 5` and the
-   `env` block (always empty defaults):
+1. **§8** (Save manifest) — the schema example gains the `env` block (always
+   empty defaults). `setup_version` stays at 4 (no bump per §3.2):
 
    ```json
    "env": {
@@ -248,7 +250,7 @@ jq '.setup_version = 5 | (if has("env") then . else .env = {deepseek_api_key: ""
    }
    ```
 
-3. **§9** (Report) — add a static informational one-liner to every run's
+2. **§9** (Report) — add a static informational one-liner to every run's
    reminders:
    > Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`; the same `DEEPSEEK_API_KEY` also powers Graphify's `--backend deepseek`. Set keys in `~/.config/opencode/setup.json` (`env` section). See `.opencode/docs/mcp.md`.
 
@@ -270,17 +272,24 @@ RCS header + vim modeline (matches `lsp.md` sibling). Sections:
    user-level override wins.
 5. **Tool inventory** — what each server exposes (table from §2.1).
 6. **Choosing a search tool** — the overlap callout. When to use: built-in
-   `websearch` (quick lookups), built-in `webfetch` (known URL),
-   `@scout` (clone + inspect upstream source), MCP `web_search` (synthesized
-   answer with citations), searxng `searxng_web_search` (private, self-hosted,
-   free). Note tool-name collisions are absent (each server uses distinct
-   names) so both can run simultaneously.
+   `websearch` (quick lookups, official-site discovery), built-in `webfetch`
+   (pulling a known URL), `@scout` (clones an upstream dep to inspect its
+   actual source — right when the answer needs *source-code inspection* of a
+   library/framework), MCP `web_search` (synthesized answer with citations —
+   right when the answer needs *synthesis over live web content*), searxng
+   `searxng_web_search` (private, self-hosted, free, no key). The `@scout` vs
+   MCP `web_search` distinction is the sharpest: scout answers "what does the
+   upstream code actually do", `web_search` answers "what is the current state
+   of the web on this topic". Note tool-name collisions are absent (each server
+   uses distinct names) so both can run simultaneously.
 7. **Graphify + `DEEPSEEK_API_KEY`** — the shared-key subsection. Documents
    that the native `--backend deepseek` reads `DEEPSEEK_API_KEY` directly (no
    extra install). The 8-backend reference table (env key → `--backend` flag →
-   extra). The caveat: keys only needed for **headless `graphify extract`**;
-   inside the `/graphify` skill the IDE session provides the model. Cross-ref
-   the deferred vendored-skill refresh.
+   extra). Auto-detect priority (Gemini → Kimi → Claude → OpenAI → DeepSeek →
+   Azure → Bedrock → Ollama). The caveat: keys only needed for **headless
+   `graphify extract`**; inside the `/graphify` skill the IDE session provides
+   the model. Cross-ref the deferred vendored-skill refresh (§5) and note the
+   routing breadcrumb on `SKILL.md` (§3.8) that points back here.
 8. **Optional tuning vars** — deepseek-websearch's `WEBSEARCH_MODEL`
    (`deepseek-v4-flash` / `deepseek-v4-pro`), `WEBSEARCH_THINKING`,
    `WEBSEARCH_MAX_TOKENS`; link mcp-searxng's upstream `CONFIGURATION.md` for
@@ -298,36 +307,63 @@ RCS header + vim modeline (matches `lsp.md` sibling). Sections:
 Nygard format (matches `adr/` house style). Records:
 
 - **Status:** Accepted
+- **Supersedes / Amends:** Amends ADR-0029 (adds the `env` key to the
+  `setup.json` schema; same `jq`+`.envrc` delivery chain and user-override-wins
+  precedence). Follows ADR-0030's jq-fallback-over-schema-bump precedent for
+  additive backward-compatible keys.
 - **Context:** two optional MCP servers + Graphify's `DEEPSEEK_API_KEY`
   reuse; need an opt-in onboarding pattern that keeps secrets out of committed
   files and reuses the ADR-0029 delivery chain.
-- **Decision:** the 9 points from §1.1 above (servers commented in
-  `opencode.jsonc`; keys via `setup.json` `env` → `.envrc`; `setup_version`
-  4→5; `/setup` doesn't interview; `/doctor` not extended; `setup.json` stays
-  JSON).
+- **Decision:** the points from §1.1 above (servers commented in
+  `opencode.jsonc`; keys via `setup.json` `env` → `.envrc` with `// ""`
+  fallback; **no `setup_version` bump** — ADR-0030 alignment; `/setup` doesn't
+  interview for `env`; `/doctor` not extended; `setup.json` stays JSON).
 - **Consequences:** positive (consistent pattern, secrets uncommitted, reuses
-  ADR-0029, one canonical key); neutral (`direnv allow` needed after setting
-  keys; two-place lookup — `opencode.jsonc` for defs, `setup.json` for keys —
-  mitigated by `mcp.md` cross-refs); negative (relies on `npx` fetching
-  upstream packages; user-level v4 files need migration or rely on `// ""`
-  fallback).
+  ADR-0029, one canonical key, no migration-script maintenance burden);
+  neutral (`direnv allow` needed after setting keys; two-place lookup —
+  `opencode.jsonc` for defs, `setup.json` for keys — mitigated by `mcp.md`
+  cross-refs); negative (relies on `npx` fetching upstream packages).
+  **User-level v4 setup files are never auto-migrated** — `migrate-setup.sh`
+  only runs against `$PROJECT_SETUP` per `.envrc`; user files at
+  `~/.config/opencode/setup.json` are user-managed (per ADR-0029) and the
+  `// ""` fallback covers the absent-`env` case transparently.
 - **Alternatives considered:** `setup.json` → `setup.jsonc` (rejected: breaks
-  `jq`); manage all Graphify/searxng tuning vars in `setup.json` (rejected:
-  YAGNI); `/doctor` MCP checks (rejected: muddies required-toolchain gate);
-  the `[openai]`-pointed-at-DeepSeek path as primary (rejected: native
-  `deepseek` backend is cleaner; documented as alternative).
+  `jq`); **schema-bump to v5 + `migrate-setup.sh` v4→v5 step** (rejected:
+  ADR-0030 established the jq-fallback-over-schema-bump precedent for additive
+  backward-compatible keys; the `// ""` fallback is the entire
+  backward-compat mechanism, and bumping would have broken the existing
+  `tests/Shell/migrate_setup_test.sh` assertions); manage all Graphify/searxng
+  tuning vars in `setup.json` (rejected: YAGNI); `/doctor` MCP checks
+  (rejected: muddies required-toolchain gate); the `[openai]`-pointed-at-DeepSeek
+  path as primary (rejected: native `deepseek` backend is cleaner; documented
+  as alternative).
 - **Flagged follow-up:** the vendored Graphify skill (`SKILL.md` +
   `upstream-pipeline.md`) is stale (Gemini-only); its multi-backend refresh is
-  a separate spec.
+  a separate spec. This spec adds a one-line routing breadcrumb at the top of
+  `SKILL.md` (§3.8) so readers landing there are sent to accurate data — that
+  breadcrumb is not a refresh.
 
-### 3.8 `AGENTS.md` — new subsection
+### 3.8 `.opencode/skills/graphify/SKILL.md` — stale-routing breadcrumb
+
+Add a **one-line breadcrumb** immediately below the existing RCS header:
+
+```markdown
+> ⚠ The backend list below is stale (Gemini-only). For the accurate 8-backend
+> reference and `DEEPSEEK_API_KEY` reuse, see `.opencode/docs/mcp.md` §7.
+```
+
+This is **not** the deferred skill refresh (§5) — it is a routing breadcrumb
+that sends a reader landing on the stale skill to the accurate interim data
+in `mcp.md`. One line, no content rewrite.
+
+### 3.9 `AGENTS.md` — new subsection
 
 Add an **"MCP Servers"** subsection adjacent to "Experimental OpenCode
 Features" (the LSP/scout/background-flags section). One short paragraph:
 MCP servers are optional, commented out in `opencode.jsonc`, keys flow via
 `setup.json` `env` + `.envrc`, full guide in `.opencode/docs/mcp.md`.
 
-### 3.9 `/doctor` — untouched
+### 3.10 `/doctor` — untouched
 
 No changes. Rationale recorded in ADR-0032 and `mcp.md` §10.
 
@@ -338,13 +374,15 @@ No changes. Rationale recorded in ADR-0032 and `mcp.md` §10.
 | File | Change |
 |---|---|
 | `opencode.jsonc` | New `mcp` key (commented out), inserted between `lsp` and `agent` |
-| `.opencode/setup.json` | New `env` section; `setup_version` 4→5 |
-| `.envrc` | Two `jq` eval lines + two `export`s; migration threshold `< 4` → `< 5` |
-| `.github/scripts/migrate-setup.sh` | New v4→v5 idempotent backfill step |
-| `.opencode/commands/setup.md` | §1 version-gate; §8 manifest schema; §9 one-liner |
+| `.opencode/setup.json` | New `env` section (empty defaults). `setup_version` stays at 4 (ADR-0030 alignment) |
+| `.envrc` | Two `jq` eval lines + add two vars to the existing `export`. No threshold change |
+| `.opencode/commands/setup.md` | §8 manifest schema gains `env` block; §9 one-liner. No version-gate change |
 | `.opencode/docs/mcp.md` | **New file** (mirrors `lsp.md`) |
-| `adr/0032-optional-mcp-server-onboarding.md` | **New ADR** |
+| `adr/0032-optional-mcp-server-onboarding.md` | **New ADR** (amends ADR-0029; follows ADR-0030) |
+| `.opencode/skills/graphify/SKILL.md` | One-line stale-routing breadcrumb (not a refresh) |
 | `AGENTS.md` | New "MCP Servers" subsection |
+| `CONTEXT.md` | New "MCP server" glossary row; refresh `setup.json` row; add ADR-0032 to architectural-decisions list |
+| `.github/scripts/migrate-setup.sh` | **Untouched** (no migration — ADR-0030 jq-fallback pattern) |
 | `.github/scripts/doctor.md` | **Untouched** (rationale in ADR-0032) |
 
 ---
@@ -358,7 +396,8 @@ incorrect. Refreshing them to the 8-backend reality is a distinct doc-accuracy
 concern that deserves its own grilling round (which backends to surface
 prominently, how to restructure the semantic-extraction dispatch logic, etc.).
 ADR-0032 flags this as a follow-up. This spec's `mcp.md` carries the accurate
-interim Graphify documentation.
+interim Graphify documentation, and §3.8 adds a one-line routing breadcrumb to
+the stale `SKILL.md` so readers landing there are sent to the accurate data.
 
 ---
 
@@ -370,30 +409,32 @@ production code. Verification is largely structural:
 1. **`opencode.jsonc` valid JSONC** — the file parses (comments stripped) as
    valid JSON. The `mcp` key is present with both server blocks commented out.
 2. **`setup.json` valid JSON** — `jq .opencode/setup.json` succeeds;
-   `setup_version` is 5; `env` section present with two empty-string keys.
+   `setup_version` is still 4 (unchanged); `env` section present with two
+   empty-string keys.
 3. **`.envrc` exports** — after `direnv allow`, `echo $DEEPSEEK_API_KEY` and
    `echo $SEARXNG_URL` are set (empty by default, populated when user-level
    override exists).
-4. **Migration idempotent** — running `migrate-setup.sh` on a v4 file produces
-   a v5 file with `env`; running it again on the v5 file is a no-op; running
-   on a v5 file that already has user `env` values preserves them.
-5. **Pre-v5 `.envrc` fallback** — a v4 `setup.json` (no `env` section) does
-   NOT break `.envrc` (the `// ""` fallback exports empty strings).
-6. **`/setup` manifest** — after running `/setup`, the written `setup.json`
-   includes `setup_version: 5` and the `env` block with empty defaults,
+4. **`// ""` fallback** — a `setup.json` without an `env` section (e.g. a
+   pre-existing user-level file) does NOT break `.envrc`; both vars export as
+   empty strings.
+5. **`/setup` manifest** — after running `/setup`, the written `setup.json`
+   includes the `env` block with empty defaults (and `setup_version` stays 4),
    regardless of whether the user set keys.
-7. **`mcp.md`** — renders; all internal links resolve; RCS header + vim
+6. **`mcp.md`** — renders; all internal links resolve; RCS header + vim
    modeline present.
-8. **ADR-0032** — Nygard format; status Accepted; follows `adr/README.md`
-   numbering (next number is 0032).
+7. **ADR-0032** — Nygard format; status Accepted; "Supersedes / Amends" lists
+   ADR-0029; follows `adr/README.md` numbering (next number is 0032).
+8. **Graphify breadcrumb** — `.opencode/skills/graphify/SKILL.md` has the
+   one-line stale-routing pointer immediately below its RCS header.
 9. **Arch tests** — `tests/Unit/Harness/ArchTest.php` still passes (no new PHP
    files, so strict-types/debug-function vacuity guards are unaffected).
-10. **`/check`** — php-cs-fixer + stylelint + eslint + pest all green (no
+10. **`migrate_setup_test.sh` still green** — the existing shell test is
+    untouched and still passes (no v4→v5 migration step was added).
+11. **`/check`** — php-cs-fixer + stylelint + eslint + pest all green (no
     source code changed, but the gate runs regardless).
 
 No new Pest tests are required — there is no production code with behavior to
-test. If the implementer adds a shell test for the migration script's
-idempotence, it lives in `tests/Shell/`.
+test, and no migration script was added.
 
 ---
 
@@ -401,39 +442,49 @@ idempotence, it lives in `tests/Shell/`.
 
 - [ ] `opencode.jsonc` has a top-level `mcp` key between `lsp` and `agent`
       with both servers commented out per the verified local-MCP schema.
-- [ ] `.opencode/setup.json` has `setup_version: 5` and an `env` section with
-      `deepseek_api_key: ""` and `searxng_url: ""`.
+- [ ] `.opencode/setup.json` has an `env` section with `deepseek_api_key: ""`
+      and `searxng_url: ""`. `setup_version` is still 4 (no bump — ADR-0030
+      alignment).
 - [ ] `.envrc` exports `DEEPSEEK_API_KEY` and `SEARXNG_URL` via `jq` with
-      `// ""` fallback; the migration-trigger threshold is `< 5`.
-- [ ] `migrate-setup.sh` has an idempotent v4→v5 step that backfills `env`
-      only when absent and preserves existing user values.
-- [ ] `/setup` §1 has the `< 5` version-gate; §8 manifest schema includes
-      `env`; §9 has the MCP+Graphify pointer one-liner. `/setup` does not
-      interview for or overwrite `env`.
+      `// ""` fallback. The migration-trigger threshold stays `< 4` (unchanged).
+- [ ] `migrate-setup.sh` is unchanged (no v4→v5 step).
+- [ ] `/setup` §8 manifest schema includes the `env` block; §9 has the
+      MCP+Graphify pointer one-liner. No §1 version-gate change. `/setup` does
+      not interview for or overwrite `env`.
 - [ ] `.opencode/docs/mcp.md` exists, mirrors `lsp.md` structure, documents
       both servers + the Graphify `DEEPSEEK_API_KEY` shared-key story + the
-      8-backend reference + the choosing-a-search-tool guidance + the
-      `/doctor` note.
-- [ ] `adr/0032-optional-mcp-server-onboarding.md` exists in Nygard format
-      and records the decision + flagged Graphify-skill-staleness follow-up.
+      8-backend reference + the choosing-a-search-tool guidance (incl. the
+      `@scout` vs `web_search` distinction) + the `/doctor` note.
+- [ ] `adr/0032-optional-mcp-server-onboarding.md` exists in Nygard format;
+      its "Supersedes / Amends" lists ADR-0029; its Alternatives record the
+      rejected schema-bump and cite ADR-0030 as the jq-fallback precedent
+      followed; it flags the Graphify-skill-staleness follow-up.
+- [ ] `.opencode/skills/graphify/SKILL.md` has the one-line stale-routing
+      breadcrumb immediately below its RCS header.
 - [ ] `AGENTS.md` has an "MCP Servers" subsection pointing to `mcp.md`.
+- [ ] `CONTEXT.md` has a new "MCP server" glossary row, a refreshed
+      `setup.json` row mentioning the `env` section, and ADR-0032 in its
+      architectural-decisions list.
 - [ ] `/doctor` is unchanged.
+- [ ] `tests/Shell/migrate_setup_test.sh` is unchanged and still green.
 - [ ] `/check` passes.
 - [ ] A user can uncomment a server block, set a key in
       `~/.config/opencode/setup.json`, run `direnv allow`, restart opencode,
       and the server starts (manually verified at least once per server, or
-      documented as unverified if no key is available during implementation).
+      documented as unverified if no key is available — prefer searxng for
+      verification since it is free/self-hostable).
 
 ---
 
 ## 8. Rollout
 
-Single feature branch, single PR. No migration drama — the `// ""` fallback
-means existing clones keep working even before users run
-`migrate-setup.sh`/`/setup`. Users who want to enable a server follow the
-`mcp.md` guide; everyone else notices nothing.
+Single feature branch, single PR. No migration at all — the `// ""` fallback
+in `.envrc` means every existing clone (project or user-level `setup.json`)
+keeps working with zero action; the committed project file simply gains the
+`env` section with empty defaults. Users who want to enable a server follow
+the `mcp.md` guide; everyone else notices nothing.
 
-**Suggested next step after spec approval:** an `@architect` pass — this is
-cross-cutting config plumbing across `.envrc` + `setup.json` + `/setup` +
-`opencode.jsonc`, and an architect review before the plan tab is warranted per
-AGENTS.md. Then the `plan` tab for implementation planning.
+**Architect review:** complete (GO-WITH-CONDITIONS → conditions folded in:
+ADR-0030 alignment adopted, ADR-0029 amend recorded, CONTEXT.md added,
+Graphify breadcrumb added, scout/web_search distinction sharpened). Clear for
+the **plan** tab.
