@@ -273,6 +273,7 @@ Load these on demand when the task requires them:
 | `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
+| `graphify` | Exploring codebase structure, call paths, or symbol relationships via Graphify's knowledge graph — especially when `graphify-out/graph.json` exists |
 | `rcs-header` | Creating or modifying any source file |
 | `receiving-code-review` | Triaging and responding to @code-review findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `aurora-page` | Creating a new PHP page |
@@ -331,4 +332,5 @@ Load these on demand when the task requires them:
 | `/ticket` | Alias of `/issue` — create a single issue, or decompose a plan/spec (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges. Alias: `/tickets` |
 | `/tickets` | Alias of `/issues` — from-spec decomposition into epic + vertical-slice tasks |
+| `/graphify` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 

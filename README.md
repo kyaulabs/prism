@@ -276,7 +276,7 @@ Press `Tab` to switch between Build and Plan during a session.
 
 | Agent | Purpose |
 | --- | --- |
-| `@explore` | Read-only codebase exploration — file patterns, keyword search |
+| `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
 | `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
 | `@general` | Multi-step research, full tool access |
 
