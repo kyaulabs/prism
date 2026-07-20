@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: CodeReviewCoordinatorTest.php kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: CodeReviewCoordinatorTest.php kyau@nova 2026/07/20 -0700 Exp $
+
+
+
 
 
 
@@ -38,9 +41,9 @@ it('standards-review agent exists with read-only frontmatter', function (): void
     Assert::assertStringContainsString('"*": deny', $fm);
 });
 
-it('standards-review is registered in opencode.jsonc at PRIMARY tier', function (): void {
+it('standards-review is registered in opencode.jsonc at JUDGE tier', function (): void {
     $cfg = load_opencode_config();
-    Assert::assertSame('{env:OPENCODE_MODEL_PRIMARY}', $cfg['agent']['standards-review']['model']);
+    Assert::assertSame('{env:OPENCODE_MODEL_JUDGE}', $cfg['agent']['standards-review']['model']);
 });
 
 it('AGENTS.md and README.md index @standards-review', function (): void {
@@ -71,9 +74,9 @@ it('spec-review agent exists with read-only frontmatter', function (): void {
     Assert::assertStringContainsString('"*": deny', $fm);
 });
 
-it('spec-review is registered in opencode.jsonc at PRIMARY tier', function (): void {
+it('spec-review is registered in opencode.jsonc at JUDGE tier', function (): void {
     $cfg = load_opencode_config();
-    Assert::assertSame('{env:OPENCODE_MODEL_PRIMARY}', $cfg['agent']['spec-review']['model']);
+    Assert::assertSame('{env:OPENCODE_MODEL_JUDGE}', $cfg['agent']['spec-review']['model']);
 });
 
 it('AGENTS.md and README.md index @spec-review', function (): void {
@@ -128,6 +131,7 @@ it('code-review body documents empty-diff guard, 4 axes, de-dup, and read-only p
     Assert::assertMatchesRegularExpression('/de-?dup/i', $body);
     Assert::assertStringContainsString('does not auto-fix', $body);
 });
+
 
 
 
