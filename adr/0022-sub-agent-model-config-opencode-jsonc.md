@@ -82,7 +82,10 @@ field using `{env:OPENCODE_MODEL_*}` references.
   of this ADR.
 - The `opencode.json` vs `opencode.jsonc` naming inconsistency in AGENTS.md
   (line 149 — `opencode.json`) is a pre-existing issue in a comment about
-  `Plan-by:` derivation, not addressed here.
+  `Plan-by:` derivation, not addressed here. **Update (ADR-0031):** The
+  footer is now `Authored-by:` (renamed from `Plan-by:`). The verification
+  footer `Tested-by:` is sourced from `agent.code-review.model` (was
+  `agent.build.model`). See ADR-0031.
 
 ## Alternatives Considered
 

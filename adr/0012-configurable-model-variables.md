@@ -140,6 +140,10 @@ script, or build step is required.
   ("segment after the last `/`"). With `{env:VAR}` references, the
   resolved model name depends on the runtime environment. The footer
   derivation logic may need updating; this is a known limitation
+  addressed in ADR-0022. **Update (ADR-0031):** These footers are now
+  `Authored-by:` (sourced from `agent.plan.model`) and `Tested-by:`
+  (sourced from `agent.code-review.model`). See ADR-0031 for the model
+  rebalance that reassigned tier membership.
   documented here for a follow-up issue.
 
 ### Neutral

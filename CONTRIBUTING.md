@@ -42,8 +42,12 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 **Required trailers** (every non-merge, non-revert commit):
 
-- `Plan-by:` — the planning model (from `agent.plan.model` in `opencode.json`)
-- `Acked-by:` — the build model (from `agent.build.model`, falling back to `model`)
+- `Authored-by:` — the authoring model (from `agent.plan.model` in `opencode.jsonc`)
+- `Tested-by:` — the verification model (from `agent.code-review.model` in `opencode.jsonc`)
+
+> **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer
+> names until a separate upstream PR lands. Aurora commits may need manual
+> footer adjustment until then. See ADR-0031.
 - `Signed-off-by:` — the human approver, resolved dynamically via
   `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
   `~/.config/opencode/setup.json` → `.opencode/setup.json` → `git config`).

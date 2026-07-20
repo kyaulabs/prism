@@ -10,30 +10,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -280,15 +256,15 @@ it('has all required model and variant keys in setup.json', function () {
 it('has correct default variant values', function () {
     $setup = setup_json();
     expect($setup['variants']['primary'])->toBe('max');
-    expect($setup['variants']['planner'])->toBe('high');
-    expect($setup['variants']['design'])->toBe('high');
+    expect($setup['variants']['planner'])->toBe('max');
+    expect($setup['variants']['design'])->toBe('max');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
 });
 
 it('has OPENCODE_MODEL_JUDGE with correct default in setup.json', function () {
     $setup = setup_json();
-    expect($setup['models']['judge'])->toBe('openrouter/z-ai/glm-5.2');
+    expect($setup['models']['judge'])->toBe('deepseek/deepseek-v4-pro');
 });
 
 it('uses {env:VAR} for variant in all opencode.json agents', function () {
@@ -339,6 +315,34 @@ it('design agent exists with the DESIGN-tier contract (ADR-0030)', function () {
     Assert::assertStringContainsString('brainstorming', $design['prompt'], 'design agent prompt must reference the brainstorming skill');
 });
 
+it('architect and consult use PLANNER tier', function () {
+    $json = load_opencode_config();
+    expect($json['agent']['architect']['model'])->toBe('{env:OPENCODE_MODEL_PLANNER}');
+    expect($json['agent']['architect']['variant'])->toBe('{env:OPENCODE_VARIANT_PLANNER}');
+    expect($json['agent']['consult']['model'])->toBe('{env:OPENCODE_MODEL_PLANNER}');
+    expect($json['agent']['consult']['variant'])->toBe('{env:OPENCODE_VARIANT_PLANNER}');
+});
+
+it('explore code-review standards-review spec-review test-audit use JUDGE tier', function () {
+    $json = load_opencode_config();
+    foreach (['explore', 'code-review', 'standards-review', 'spec-review', 'test-audit'] as $agent) {
+        expect($json['agent'][$agent]['model'])->toBe('{env:OPENCODE_MODEL_JUDGE}', "Agent '{$agent}' must use JUDGE tier model");
+        expect($json['agent'][$agent]['variant'])->toBe('{env:OPENCODE_VARIANT_JUDGE}', "Agent '{$agent}' must use JUDGE tier variant");
+    }
+});
+
+it('general stays on PRIMARY tier', function () {
+    $json = load_opencode_config();
+    expect($json['agent']['general']['model'])->toBe('{env:OPENCODE_MODEL_PRIMARY}');
+    expect($json['agent']['general']['variant'])->toBe('{env:OPENCODE_VARIANT_PRIMARY}');
+});
+
+it('from-issue stays on PLANNER tier', function () {
+    $json = load_opencode_config();
+    expect($json['agent']['from-issue']['model'])->toBe('{env:OPENCODE_MODEL_PLANNER}');
+    expect($json['agent']['from-issue']['variant'])->toBe('{env:OPENCODE_VARIANT_PLANNER}');
+});
+
 it('every agent has an explicit temperature — no silent default inheritance', function () {
     // opencode.json agents
     $config = load_opencode_config();
@@ -374,6 +378,10 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
+
+
+
 
 
 
