@@ -157,11 +157,13 @@ jobs:
           # into an isolated venv (also avoids PEP 668 externally-managed errors).
           if python3 -m venv /tmp/semgrep-venv; then
             /tmp/semgrep-venv/bin/pip install --quiet "semgrep==${SEMGREP_VERSION}"
+            export PATH="/tmp/semgrep-venv/bin:$PATH"
             echo "/tmp/semgrep-venv/bin" >> "$GITHUB_PATH"
           else
             curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
             python3 /tmp/get-pip.py --user --quiet
             python3 -m pip install --user --quiet "semgrep==${SEMGREP_VERSION}"
+            export PATH="${HOME}/.local/bin:$PATH"
             echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
           fi
           semgrep --version
