@@ -28,5 +28,9 @@
     "lsp_tool": true,
     "scout": true,
     "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
   }
 }

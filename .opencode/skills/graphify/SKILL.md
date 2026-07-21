@@ -3,6 +3,9 @@ name: graphify
 description: Use when exploring codebase structure, call paths, or symbol relationships via Graphify's knowledge graph — especially when graphify-out/graph.json exists. Provides query, path, and explain commands for deterministic code-graph traversal.
 ---
 
+> ⚠ The backend list below is stale (Gemini-only). For the accurate 8-backend
+> reference and `DEEPSEEK_API_KEY` reuse, see `.opencode/docs/mcp.md` §7.
+
 Graphify turns the codebase into a navigable knowledge graph. When a graph
 exists at `graphify-out/graph.json`, prefer it over manual `glob`/`grep`/`read`
 for structural and relational queries.

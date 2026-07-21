@@ -24,9 +24,10 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in `.opencode/experimental.default.env` (ADR-0024). |
 | background subagent | OpenCode experimental feature (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) — enables dispatching subagent tasks asynchronously. Feasibility gated on a manual spike (ADR-0024). |
 | identity resolution order | The three-tier fallback chain for `Signed-off-by` identity: user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json` → `git config user.name`/`user.email`. Implemented by `.github/scripts/resolve-identity.sh`. See ADR-0029. |
-| setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, and experimental flag configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029. |
+| setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, experimental flag, and optional integration-key (`env`) configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029, ADR-0032. |
 | design agent | Primary OpenCode agent (TUI tab) that owns the brainstorming workflow front door: grilling → exploration → design → spec → commit → feature-branch creation. Cycle ends at spec + branch; hands off to the `plan` tab. Runs on the DESIGN model tier. Defined inline in `opencode.jsonc`. See ADR-0030. |
 | graphify | External Python tool ([Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify)) that builds a codebase knowledge graph via tree-sitter AST + Leiden clustering. PyPI package is `graphifyy` (double-y). Opt-in; not a Prism hard-dependency. `@explore` prefers it when a graph exists. See ADR-0031 §3a. |
+| MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `setup.json` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves both the `deepseek-websearch` MCP and Graphify's native `--backend deepseek`. See `.opencode/docs/mcp.md` and ADR-0032. |
 | knowledge graph | The build output at `graphify-out/graph.json` — nodes (symbols, files, concepts) and edges (calls, imports, semantic relationships). Consumed by `@explore` via `graphify query/path/explain`. Gitignored; rebuildable from source. |
 | graphify-out/ | Build artifact directory for Graphify outputs (`graph.json`, `GRAPH_REPORT.md`, cost tracker, manifest). Gitignored. Lives at repo root. |
 
@@ -141,6 +142,8 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0028-git-flow-branch-naming-enforcement.md` — Mechanically enforce Git Flow branch naming via `new-branch.sh` + `prepare-commit-msg` hook; allowed commit types plus `hotfix`/`release`
 - `adr/0029-unified-setup-json-config.md` — Consolidate model + experimental `.env` files into unified `setup.json` (schema v4) with `jq`-sourced direnv export and 3-tier identity fallback
 - `adr/0030-design-primary-agent-and-tier.md` — Add `design` primary agent (TUI tab) on a new DESIGN model tier; delete `/feature`; move branch creation into the brainstorming skill
+- `adr/0031-model-rebalance-and-footer-rename.md` — z.ai Pro plan rebalance (GLM-5.2 max for plan/code/design, DeepSeek-Pro for cross-model review) + commit footer rename (Authored-by/Tested-by); supersedes ADR-0014, amends ADR-0010
+- `adr/0032-mcp-server-onboarding.md` — Optional MCP servers (commented-out in `opencode.jsonc`) + unified `env` key-flow via `setup.json`/`.envrc` (no version bump; ADR-0030 jq-fallback pattern); amends ADR-0029
 
 ## When to update this file
 

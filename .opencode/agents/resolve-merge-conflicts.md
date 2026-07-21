@@ -62,7 +62,7 @@ git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; d
 
 ### PHP code style
 ```bash
-php-cs-fixer fix . --dry-run --diff
+php-cs-fixer fix --dry-run --diff
 ```
 
 ### SCSS lint
