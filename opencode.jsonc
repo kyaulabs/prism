@@ -106,9 +106,7 @@
           "semgrep": "allow",
           "architect": "allow",
           "explore": "allow",
-          "scout": "allow",
-          "docs-writer": "allow",
-          "from-issue": "allow"
+          "scout": "allow"
         }
       }
     },
