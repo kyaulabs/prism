@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -34,7 +37,7 @@ it('chat agent runs on the UTILITY model tier', function () {
 
     Assert::assertSame('{env:OPENCODE_MODEL_UTILITY}', $chat['model'], 'chat model must use UTILITY tier');
     Assert::assertSame('{env:OPENCODE_VARIANT_UTILITY}', $chat['variant'], 'chat variant must use UTILITY tier');
-    Assert::assertIsFloat($chat['temperature'], 'chat temperature must be a literal float');
+    Assert::assertSame(0.2, $chat['temperature'], 'chat temperature must be pinned to 0.2 (low-cost conversational tier)');
 });
 
 it('chat agent is read-only: edit, bash, and task are denied', function () {
@@ -94,6 +97,22 @@ it('AGENTS.md documents the chat agent in the LSP section', function () {
     Assert::assertStringContainsString('chat', $m[0], 'AGENTS.md LSP section must list chat among lsp-enabled agents');
 });
 
+it('chat agent prompt is defined inline in opencode.jsonc — no .opencode/agents/chat.md file', function () {
+    // ADR-0034 §Rationale: primary agents inline their prompt in opencode.jsonc
+    // (same pattern as build/plan/design/general/judge). A chat.md file would
+    // also fail validate-harness.sh:193-196 (mode must be subagent for .md).
+    Assert::assertFalse(
+        file_exists(__DIR__ . '/../../../.opencode/agents/chat.md'),
+        '.opencode/agents/chat.md must NOT exist — chat prompt is inline in opencode.jsonc (ADR-0034)',
+    );
+});
+
+it('.opencode/docs/lsp.md indexes the chat agent in the LSP permissions table', function () {
+    $lspDoc = file_get_contents(__DIR__ . '/../../../.opencode/docs/lsp.md');
+
+    Assert::assertStringContainsString('chat', $lspDoc, '.opencode/docs/lsp.md must list chat in the LSP-enabled agents table');
+});
+
 it('README.md indexes the chat agent', function () {
     $readme = file_get_contents(__DIR__ . '/../../../README.md');
 
@@ -109,6 +128,7 @@ it('CONTEXT.md glossary defines chat agent', function () {
 it('ADR-0034 records the chat agent decision', function () {
     Assert::assertFileExists(__DIR__ . '/../../../adr/0034-chat-primary-agent.md');
 });
+
 
 
 
