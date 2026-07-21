@@ -230,8 +230,8 @@ LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
 hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
-default in `opencode.jsonc`. Six agents explicitly opt in with `lsp: "allow"`:
-`build`, `explore`, `general`, `@tdd`, `@debug`, and `@docs-writer` — agents
+default in `opencode.jsonc`. Seven agents explicitly opt in with `lsp: "allow"`:
+`build`, `explore`, `general`, `chat`, `@tdd`, `@debug`, and `@docs-writer` — agents
 that write PHP or navigate code semantically (Intelephense premium fills the
 gap left by the absence of `psalm`/`phpstan` in `composer.json`). All other
 agents (`plan`, `@architect`, `@code-review`, `@semgrep`, `@test-audit`,
