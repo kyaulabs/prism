@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/21 -0700 Exp $
+
 
 
 
@@ -40,6 +41,7 @@ setup_validator_env() {
 	mkdir -p .github/scripts
 	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
 	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
 	ln -s "$REPO_ROOT/node_modules" node_modules
 }
 
@@ -1191,10 +1193,125 @@ EOF
 	fi
 )
 
+# ── Test 28: Inline agent claiming read-only without edit: deny is caught ────
+
+echo "── Test 28: Inline read-only contract — agent in opencode.jsonc lacks edit: deny ──"
+T28=$(mktemp -d)
+register_temp_dir "$T28"
+git_init_test_repo "$T28"
+(
+	cd "$T28"
+
+	mkdir -p .opencode/agents .github/scripts
+	setup_validator_env
+
+	# opencode.jsonc with an inline agent whose description claims read-only
+	# but whose permission block omits edit: deny entirely.
+	cat > opencode.jsonc <<'EOF'
+{
+  "agent": {
+    "rogue-inline": {
+      "description": "Audit tests and produce a report only; makes no code changes.",
+      "mode": "primary",
+      "permission": {
+        "bash": { "*": "deny" }
+      }
+    }
+  }
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "claims read-only" && echo "$output" | grep -qF "rogue-inline"; then
+		pass "Caught inline read-only agent missing edit: deny"
+	elif echo "$output" | grep -qF "claims read-only" && echo "$output" | grep -qF "rogue-inline"; then
+		fail "Detected inline read-only violation but exited 0"
+	else
+		fail "Did not detect inline read-only agent missing edit: deny"
+	fi
+)
+
+# ── Test 29: Inline agent with edit: deny but no bash restriction is caught ──
+
+echo "── Test 29: Inline read-only contract — agent has edit: deny but no bash restriction ──"
+T29=$(mktemp -d)
+register_temp_dir "$T29"
+git_init_test_repo "$T29"
+(
+	cd "$T29"
+
+	mkdir -p .opencode/agents .github/scripts
+	setup_validator_env
+
+	cat > opencode.jsonc <<'EOF'
+{
+  "agent": {
+    "leaky-inline": {
+      "description": "Review code; does not auto-fix anything.",
+      "mode": "primary",
+      "permission": {
+        "edit": "deny"
+      }
+    }
+  }
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "leaky-inline"; then
+		pass "Caught inline read-only agent missing bash restriction"
+	elif echo "$output" | grep -qF "claims read-only" && echo "$output" | grep -qF "leaky-inline"; then
+		pass "Caught inline read-only agent missing bash restriction (no ERROR prefix)"
+	else
+		fail "Did not detect inline read-only agent missing bash restriction"
+	fi
+)
+
+# ── Test 30: Properly locked-down inline agent passes ─────────────────────────
+
+echo "── Test 30: Inline read-only contract — properly locked-down inline agent passes ──"
+T30=$(mktemp -d)
+register_temp_dir "$T30"
+git_init_test_repo "$T30"
+(
+	cd "$T30"
+
+	mkdir -p .opencode/agents .github/scripts
+	setup_validator_env
+
+	cat > opencode.jsonc <<'EOF'
+{
+  "agent": {
+    "safe-inline": {
+      "description": "Read-only evaluation; does not modify files.",
+      "mode": "primary",
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "deny", "ls*": "allow" },
+        "webfetch": "deny",
+        "task": "deny"
+      }
+    }
+  }
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "safe-inline" | grep -qF "claims read-only"; then
+		fail "Properly locked-down inline agent was flagged as read-only violation"
+	else
+		pass "Properly locked-down inline agent not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

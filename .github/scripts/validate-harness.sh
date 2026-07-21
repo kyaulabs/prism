@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@nova 2026/07/21 -0700 Exp $
+
 
 
 
@@ -685,6 +686,45 @@ else
 	ok "${RO_CHECKED} read-only agent(s) checked, ${RO_VIOLATIONS} violation(s)"
 fi
 
+# ── Check inline read-only agent permission contract (opencode.jsonc) ─────────
+
+echo "── Checking inline agent permission contracts (opencode.jsonc) ──"
+INLINE_RO_CHECKED=0
+INLINE_RO_VIOLATIONS=0
+
+INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
+OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
+
+if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
+	while IFS=$'\t' read -r agent_name desc edit_val bash_restricted; do
+		[ -z "$agent_name" ] && continue
+
+		# Skip if description doesn't claim read-only
+		if [ -z "$desc" ] || ! echo "$desc" | grep -qiE "$RO_KEYWORDS"; then
+			continue
+		fi
+
+		INLINE_RO_CHECKED=$((INLINE_RO_CHECKED + 1))
+
+		if [ "$edit_val" != "deny" ]; then
+			err "opencode.jsonc: inline agent '${agent_name}' claims read-only but edit is '${edit_val:-<unset>}' (must be deny)"
+			INLINE_RO_VIOLATIONS=$((INLINE_RO_VIOLATIONS + 1))
+			continue
+		fi
+
+		if [ "$bash_restricted" != "true" ]; then
+			err "opencode.jsonc: inline agent '${agent_name}' claims read-only but bash is not restricted (needs '\"*\": deny' catch-all or 'bash: deny')"
+			INLINE_RO_VIOLATIONS=$((INLINE_RO_VIOLATIONS + 1))
+		fi
+	done < <(node "$INLINE_HELPERS" "$OPENCODE_JSONC")
+fi
+
+if [ "$INLINE_RO_CHECKED" -eq 0 ]; then
+	warn "No inline read-only agents found in opencode.jsonc — keyword detection may need updating"
+else
+	ok "${INLINE_RO_CHECKED} inline read-only agent(s) checked, ${INLINE_RO_VIOLATIONS} violation(s)"
+fi
+
 # ── Check git add/git stage verdict parity ────────────────────────────────────
 
 echo "── Checking git add/git stage verdict parity ──"
@@ -778,6 +818,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
