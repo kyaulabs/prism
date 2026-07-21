@@ -147,6 +147,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0032-mcp-server-onboarding.md` — Optional MCP servers (commented-out in `opencode.jsonc`) + unified `env` key-flow via `setup.json`/`.envrc` (no version bump; ADR-0030 jq-fallback pattern); amends ADR-0029
 - `adr/0033-compaction-prune-enablement.md` — Enable `compaction.prune` to cut cache_read token burn (the dominant cost component, 10–17× input tokens; variant is second-order); amends ADR-0031/0014 cost model, names context-economization follow-ups
 - `adr/0034-chat-primary-agent.md` — Add `chat` primary agent on the UTILITY tier (read-only conversational tab for Q&A, code explanation, brainstorming); self-sufficient read-only posture, forward-looking `graphify_*` permission
+- `adr/0035-ci-runner-fork-isolation.md` — Migrate CI `check` job from self-hosted to GitHub-hosted ephemeral runner (`ubuntu-latest`) for fork-PR isolation; eliminate workflow-source `sudo`, set `persist-credentials: false`, add composer `--no-scripts`; clarifies that ADR-0025 parity is gate-equivalence, not runner-equivalence
 
 ## When to update this file
 
