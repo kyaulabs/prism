@@ -16,7 +16,7 @@ elif command -v php-cs-fixer > /dev/null 2>&1; then
 	CS_FIXER=php-cs-fixer
 fi
 if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix . --dry-run --diff
+	"$CS_FIXER" fix --dry-run --diff
 else
 	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
 fi

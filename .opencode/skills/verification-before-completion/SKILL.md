@@ -60,7 +60,7 @@ grep -rn '\[DEBUG-' . --include='*.php' --include='*.js' --include='*.scss'
 ### 4. Lint passes
 
 ```bash
-php-cs-fixer fix . --dry-run --diff
+php-cs-fixer fix --dry-run --diff
 npx stylelint "cdn/sass/**/*.scss"
 npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
 ```
