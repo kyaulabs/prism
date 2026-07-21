@@ -144,6 +144,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0030-design-primary-agent-and-tier.md` — Add `design` primary agent (TUI tab) on a new DESIGN model tier; delete `/feature`; move branch creation into the brainstorming skill
 - `adr/0031-model-rebalance-and-footer-rename.md` — z.ai Pro plan rebalance (GLM-5.2 max for plan/code/design, DeepSeek-Pro for cross-model review) + commit footer rename (Authored-by/Tested-by); supersedes ADR-0014, amends ADR-0010
 - `adr/0032-mcp-server-onboarding.md` — Optional MCP servers (commented-out in `opencode.jsonc`) + unified `env` key-flow via `setup.json`/`.envrc` (no version bump; ADR-0030 jq-fallback pattern); amends ADR-0029
+- `adr/0033-compaction-prune-enablement.md` — Enable `compaction.prune` to cut cache_read token burn (the dominant cost component, 10–17× input tokens; variant is second-order); amends ADR-0031/0014 cost model, names context-economization follow-ups
 
 ## When to update this file
 
