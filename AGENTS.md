@@ -256,6 +256,15 @@ See `.opencode/docs/lsp.md` for LSP configuration details, troubleshooting,
 and server prerequisites. See `.opencode/docs/research.md` for `@scout` usage
 and `/research --background` semantics.
 
+## MCP Servers
+
+Optional, opt-in. Two MCP servers are defined commented-out under the `mcp`
+key in `opencode.jsonc` (deepseek-websearch, mcp-searxng). Keys flow via
+`setup.json`'s `env` section → `.envrc` → `{env:VAR}`; `DEEPSEEK_API_KEY`
+serves both the deepseek-websearch MCP and Graphify's native `--backend
+deepseek`. Full setup guide, backend reference, and troubleshooting:
+`.opencode/docs/mcp.md`. Decision record: ADR-0032.
+
 ## Skills Available
 
 Load these on demand when the task requires them:
