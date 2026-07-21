@@ -82,6 +82,7 @@ analyzer CLI** (`@code-review`→`ocr`, `@semgrep`→`semgrep`,
 | `build` | `allow` | `opencode.jsonc` | Primary implementer; Intelephense provides the only PHP static analysis (no psalm/phpstan) |
 | `explore` | `allow` | `opencode.jsonc` | Codebase navigation is its core job |
 | `general` | `allow` | `opencode.jsonc` | Catch-all with full tool access; occasional code work justifies it |
+| `chat` | `allow` | `opencode.jsonc` | Read-only conversational tab; LSP aids code explanation and Q&A on the UTILITY tier |
 | `@tdd` | `allow` | `.opencode/agents/tdd.md` | Workhorse implementer; Red→Green `pest` loop is the deterministic truth source that overrides stale LSP diagnostics |
 | `@debug` | `allow` | `.opencode/agents/debug.md` | `incomingCalls`/`outgoingCalls`/`findReferences` answer "who calls this buggy function" that `grep` can't |
 | `@docs-writer` | `allow` | `.opencode/agents/docs-writer.md` | Intelephense hover gives accurate param/return types for PHPDoc generation |

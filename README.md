@@ -279,6 +279,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
 | `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
 | `@general` | Multi-step research, full tool access |
+| `chat` | Read-only conversational tab on the UTILITY tier — general Q&A, code explanation, brainstorming |
 
 ### Custom agents
 
@@ -313,7 +314,7 @@ different `OPENCODE_MODEL_*` env var:
 | Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, from-issue |
 | Design | `OPENCODE_MODEL_DESIGN` | `openrouter/z-ai/glm-5.2` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
-| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep |
+| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |
 
 **Default delivery:** A direnv `.envrc` automatically extracts the committed
 `.opencode/setup.json` models section (via jq) when you `cd` into the project.
