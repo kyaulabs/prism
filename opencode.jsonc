@@ -24,7 +24,7 @@
   ],
   "compaction": {
     "auto": true,
-    "prune": false,
+    "prune": true,
     "reserved": 20000
   },
   "lsp": {
