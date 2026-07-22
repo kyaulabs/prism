@@ -13,6 +13,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -49,6 +50,7 @@ HARNESS_DIR="${REPO_ROOT}/.opencode"
 SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
+OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
 
 ERRORS=0
 WARNINGS=0
@@ -621,11 +623,11 @@ fi
 
 echo "── Checking bash permission patterns ──"
 
-# Check opencode.json for bash permission keys ending in " *"
-JSON_BAD=$(grep -noE '"[^"]* \*"[[:space:]]*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
+# Check opencode.jsonc for bash permission keys ending in " *"
+JSON_BAD=$(grep -noE '"[^"]* \*"[[:space:]]*:' "$OPENCODE_JSONC" 2>/dev/null) || true
 if [ -n "$JSON_BAD" ]; then
 	while IFS= read -r line; do
-		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
+		err "opencode.jsonc:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
 	done <<< "$JSON_BAD"
 fi
 
@@ -709,7 +711,6 @@ INLINE_RO_CHECKED=0
 INLINE_RO_VIOLATIONS=0
 
 INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
-OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
 
 if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
 	while IFS=$'\t' read -r agent_name desc edit_val bash_restricted; do
@@ -855,6 +856,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

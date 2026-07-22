@@ -14,6 +14,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1417,10 +1418,53 @@ EOF
 	fi
 )
 
+# ── Test 34: bash " *" pattern inside opencode.jsonc is caught ────────────────
+
+echo ""
+echo "── Test 34: bash ' *' pattern in opencode.jsonc is caught ──"
+T34=$(mktemp -d)
+register_temp_dir "$T34"
+git_init_test_repo "$T34"
+(
+	cd "$T34"
+	mkdir -p .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: A valid placeholder skill so the vacuous-pass guard stays happy.
+---
+EOF
+	setup_validator_env
+
+	# Bad pattern lives in the INLINE config (opencode.jsonc), not an agent .md.
+	cat > opencode.jsonc <<'EOF'
+{
+	"agents": {
+		"build": {
+			"permission": {
+				"bash": {
+					"git status *": "allow"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "pattern ends in ' *'"; then
+		pass "Caught ' *' bash pattern inside opencode.jsonc"
+	else
+		fail "Did not detect ' *' bash pattern inside opencode.jsonc (validator may be reading the wrong filename)"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
