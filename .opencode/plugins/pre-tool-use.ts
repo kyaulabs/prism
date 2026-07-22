@@ -4,6 +4,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -135,6 +136,66 @@ function findRmAnywhere(tokens: string[]): number {
         if (basename(tokens[i]) === "rm") return i;
     }
     return -1;
+}
+
+/** Git global options that take a value (consume the next token). */
+const GIT_VALUE_GLOBALS = new Set([
+    "-C", "-c", "--git-dir", "--work-tree", "--namespace",
+    "--super-prefix", "--config-env", "--exec-path",
+]);
+
+/** Git global options that do NOT take a value. */
+const GIT_VALUELESS_GLOBALS = new Set([
+    "--bare", "--no-replace-objects", "-p", "-P", "--paginate",
+    "--no-pager", "-l", "--literal-pathspecs", "--no-literal-pathspecs",
+    "--version", "--help",
+]);
+
+/**
+ * Advance past `git` and any global options to find the subcommand.
+ * Returns the subcommand and the remaining tokens (after the subcommand).
+ */
+function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] } | null {
+    let i = 0;
+    if (tokens[i] !== "git") return null;
+    i++; // skip "git"
+
+    while (i < tokens.length) {
+        const t = tokens[i];
+        // Value-taking global: consume this token + next as value
+        if (GIT_VALUE_GLOBALS.has(t)) {
+            i += 2; // skip option + its value
+            continue;
+        }
+        // Handle --opt=value form
+        const eqIdx = t.indexOf("=");
+        if (eqIdx > 0 && GIT_VALUE_GLOBALS.has(t.slice(0, eqIdx))) {
+            i++; // value is inline, skip one token
+            continue;
+        }
+        // Value-less global: consume only this token
+        if (GIT_VALUELESS_GLOBALS.has(t)) {
+            i++;
+            continue;
+        }
+        // Not a recognized global option → this is the subcommand
+        break;
+    }
+
+    if (i >= tokens.length) return null;
+    return { subcmd: tokens[i], rest: tokens.slice(i + 1) };
+}
+
+/**
+ * Expand short-flag bundles like `-uf` into individual flags.
+ * Long flags (`--*`) pass through unchanged.
+ */
+function expandShortFlags(token: string): string[] {
+    if (token.startsWith("--")) return [token];
+    if (/^-[a-zA-Z]+$/.test(token)) {
+        return token.slice(1).split("").map((c) => "-" + c);
+    }
+    return [token];
 }
 
 function resolveTarget(token: string, projectDir: string, home: string): string | null {
@@ -293,11 +354,17 @@ function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Fi
             return { severity: "warn", reason: "git push --delete removes a remote ref" };
         }
         // BLOCK: git push --force / -f
-        // tokens.includes does exact matching, so --force won't match --force-with-lease
-        if (/\bgit\s+push\b/.test(command)) {
+        // Uses findGitSubcommand to skip global options and expandShortFlags
+        // to catch bundled flags like -uf. --force won't match --force-with-lease
+        // because expandShortFlags leaves long flags intact.
+        {
             const tokens = tokenizeCommand(command);
-            if (tokens.includes("-f") || tokens.includes("--force")) {
-                return { severity: "block", reason: "git push --force rewrites published history" };
+            const gitInfo = findGitSubcommand(tokens);
+            if (gitInfo && gitInfo.subcmd === "push") {
+                const expanded = gitInfo.rest.flatMap(expandShortFlags);
+                if (expanded.includes("-f") || expanded.includes("--force")) {
+                    return { severity: "block", reason: "git push --force rewrites published history" };
+                }
             }
         }
         // BLOCK: --no-verify / scoped -n — prevents bypassing pre-commit,
@@ -306,14 +373,19 @@ function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Fi
         // on `git commit` (on other commands -n is --dry-run/--no-commit/
         // max-count and must not be blocked). See ADR-0025.
         {
-            const gitMatch = command.match(/\bgit\s+([a-z-]+)/);
-            const subcmd = gitMatch ? gitMatch[1] : "";
             const tokens = tokenizeCommand(command);
-            if (tokens.includes("--no-verify") || (subcmd === "commit" && tokens.includes("-n"))) {
-                return {
-                    severity: "block",
-                    reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
-                };
+            const gitInfo = findGitSubcommand(tokens);
+            if (gitInfo) {
+                const expanded = gitInfo.rest.flatMap(expandShortFlags);
+                if (
+                    expanded.includes("--no-verify") ||
+                    (gitInfo.subcmd === "commit" && expanded.includes("-n"))
+                ) {
+                    return {
+                        severity: "block",
+                        reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
+                    };
+                }
             }
         }
         return { severity: null, reason: "" };
@@ -365,6 +437,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 

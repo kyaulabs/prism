@@ -66,6 +66,20 @@ describe("classifyCommand — wrapper unwrapping", () => {
     });
 });
 
+describe("classifyCommand — git bundled flags + global options", () => {
+    const opts = { projectDir: "/home/user/project" };
+
+    it("blocks git push -uf (bundled -f)", () => {
+        assert.equal(classifyCommand("git push -uf origin main", opts).severity, "block");
+    });
+    it("still does NOT block git push --force-with-lease (regression guard)", () => {
+        assert.equal(classifyCommand("git push --force-with-lease origin main", opts).severity, null);
+    });
+    it("blocks git -C repo push -uf (global skip + bundled)", () => {
+        assert.equal(classifyCommand("git -C repo push -uf", opts).severity, "block");
+    });
+});
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
