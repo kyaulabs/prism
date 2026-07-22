@@ -96,15 +96,24 @@ jobs:
       # behavior differs from 0.11.0 (which decoupled info/style from the exit
       # code), causing info-level findings (SC2295, SC2015) to fail CI while
       # passing locally. Keep this version in sync with what developers run.
+      # Issue #182: verify the pinned SHA-256 before extraction (eliminate
+      # curl-to-tar pipe) and download to a mktemp path to defeat /tmp TOCTOU
+      # pre-planting.
       - name: Install shellcheck 0.11.0
         env:
           SC_VERSION: "0.11.0"
+          SC_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
         run: |
           set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          archive="shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL -o "$tmpdir/${archive}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/${archive}"
+          echo "${SC_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
+          tar -xJ -C "$tmpdir" -f "$tmpdir/${archive}"
           mkdir -p "$HOME/.local/bin"
-          curl -sSL "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz" \
-            | tar -xJ -C /tmp
-          mv "/tmp/shellcheck-v${SC_VERSION}/shellcheck" "$HOME/.local/bin/"
+          mv "$tmpdir/shellcheck-v${SC_VERSION}/shellcheck" "$HOME/.local/bin/"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/bin:$PATH"
           shellcheck --version
@@ -164,19 +173,16 @@ jobs:
           SEMGREP_VERSION: "1.168.0"
         run: |
           set -euo pipefail
-          # Install semgrep into an isolated venv to avoid PEP 668
-          # externally-managed-environment errors on the runner image.
-          if python3 -m venv /tmp/semgrep-venv; then
-            /tmp/semgrep-venv/bin/pip install --quiet "semgrep==${SEMGREP_VERSION}"
-            export PATH="/tmp/semgrep-venv/bin:$PATH"
-            echo "/tmp/semgrep-venv/bin" >> "$GITHUB_PATH"
-          else
-            curl -sSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
-            python3 /tmp/get-pip.py --user --quiet
-            python3 -m pip install --user --quiet "semgrep==${SEMGREP_VERSION}"
-            export PATH="${HOME}/.local/bin:$PATH"
-            echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-          fi
+          # Install semgrep into an isolated venv under a mktemp path to avoid
+          # PEP 668 externally-managed-environment errors on the runner image
+          # and to defeat /tmp TOCTOU pre-planting (Issue #182). pip verifies
+          # package hashes from PyPI over TLS, so no separate checksum gate is
+          # needed here — only the curl-based downloads above require it.
+          venv="$(mktemp -d)/semgrep-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --quiet "semgrep==${SEMGREP_VERSION}"
+          echo "$venv/bin" >> "$GITHUB_PATH"
+          export PATH="$venv/bin:$PATH"
           semgrep --version
 
       - name: Pest (coverage >= 80%)
@@ -225,14 +231,24 @@ jobs:
       # as the shellcheck pin above). Binary install avoids the Docker
       # dependency that gitleaks-action@v3 required — Docker just for a secrets
       # scan is absurd overhead on the runner.
+      # Issue #182: verify the pinned SHA-256 before extraction (eliminate
+      # curl-to-tar pipe) and download to a mktemp path to defeat /tmp TOCTOU
+      # pre-planting.
       - name: Install gitleaks 8.30.1
         env:
           GL_VERSION: "8.30.1"
+          GL_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         run: |
           set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          archive="gitleaks_${GL_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$tmpdir/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/${archive}"
+          echo "${GL_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
+          tar -xz -C "$tmpdir" -f "$tmpdir/${archive}"
           mkdir -p "$HOME/.local/bin"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C "$HOME/.local/bin" gitleaks
+          mv "$tmpdir/gitleaks" "$HOME/.local/bin/"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/bin:$PATH"
           gitleaks version
