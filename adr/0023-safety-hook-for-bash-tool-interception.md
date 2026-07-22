@@ -4,7 +4,7 @@ Date: 2026-07-16
 
 ## Status
 
-Accepted
+Accepted. Fail-open clause superseded by ADR-0036 (2026-07-21).
 
 ## Context
 

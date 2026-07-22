@@ -6,6 +6,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -274,25 +275,30 @@ function tryUnwrapSegment(tokens: string[]): string | null {
 }
 
 /**
- * Classify a bash command string for safety. Pure and side-effect free;
- * never throws (returns a PASS finding on any internal error so the
- * harness fails open). See ADR-0023.
+ * Classify a bash command string for safety. Pure and side-effect free.
+ * Fails closed on any internal error — returns a BLOCK finding when the
+ * classifier cannot evaluate a command it was asked to evaluate.
+ * See ADR-0023, ADR-0036.
  */
 export function classifyCommand(command: string, opts: ClassifyOptions): Finding {
-    return classifyImpl(command, opts, 0);
-}
-
-function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
-    if (typeof command !== "string" || command.length === 0) {
+    // Empty command = nothing to evaluate (preserved from original fail-open contract)
+    if (typeof command === "string" && command.length === 0) {
         return { severity: null, reason: "" };
     }
+    try {
+        return classifyCommandImpl(command, opts, 0);
+    } catch {
+        return { severity: "block", reason: "safety classifier internal error — failing closed per #178 / ADR-0036" };
+    }
+}
+
+function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
     const projectDir = opts.projectDir;
 
-    try {
-        // BLOCK: rm -rf outside safe zones
+    // BLOCK: rm -rf outside safe zones
         const home = process.env.HOME || "/";
         const segments = command.split(/[;&|\n]/);
         for (const segment of segments) {
@@ -302,7 +308,7 @@ function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Fi
             // Try wrapper unwrapping first
             const innerCmd = tryUnwrapSegment(segTokens);
             if (innerCmd !== null) {
-                const innerFinding = classifyImpl(innerCmd, opts, depth + 1);
+                const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
                 if (innerFinding.severity !== null) return innerFinding;
                 continue;
             }
@@ -418,9 +424,6 @@ function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Fi
             }
         }
         return { severity: null, reason: "" };
-    } catch {
-        return { severity: null, reason: "" };
-    }
 }
 
 // Compile-time guard: abort build if the SDK ever drops this hook key.
@@ -431,8 +434,8 @@ void _assertToolExecuteBeforeValid;
 
 /**
  * PreToolUse safety hook plugin. Intercepts bash tool calls and blocks or
- * warns on destructive commands. Fails open: a classifier error never
- * blocks all bash. See ADR-0023.
+ * warns on destructive commands. Fails closed: a classifier error blocks
+ * the command. See ADR-0023, ADR-0036.
  */
 export const PreToolUse: Plugin = async ({ directory, client }) => {
     const hooks: Hooks = {
@@ -442,8 +445,11 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
             let finding: Finding;
             try {
                 finding = classifyCommand(command, { projectDir: directory });
-            } catch {
-                return; // fail open
+            } catch (e) {
+                throw new Error(
+                    "[pre-tool-use] BLOCKED: classifier failure — failing closed per #178/ADR-0036: " +
+                    (e instanceof Error ? e.message : String(e)),
+                );
             }
             if (finding.severity === "block") {
                 throw new Error(
@@ -466,6 +472,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 

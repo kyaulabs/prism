@@ -149,6 +149,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0033-compaction-prune-enablement.md` — Enable `compaction.prune` to cut cache_read token burn (the dominant cost component, 10–17× input tokens; variant is second-order); amends ADR-0031/0014 cost model, names context-economization follow-ups
 - `adr/0034-chat-primary-agent.md` — Add `chat` primary agent on the UTILITY tier (read-only conversational tab for Q&A, code explanation, brainstorming); self-sufficient read-only posture, forward-looking `graphify_*` permission
 - `adr/0035-ci-runner-fork-isolation.md` — Migrate CI `check` job from self-hosted to GitHub-hosted ephemeral runner (`ubuntu-latest`) for fork-PR isolation; eliminate workflow-source `sudo`, set `persist-credentials: false`, add composer `--no-scripts`; clarifies that ADR-0025 parity is gate-equivalence, not runner-equivalence
+- `adr/0036-safety-hook-fail-closed-block-rules.md` — Reverse ADR-0023 fail-open posture on block-level rule evaluation; classifier errors now BLOCK rather than silently pass; documented known minimal-tokenizer limitation
 
 ## When to update this file
 
