@@ -17,6 +17,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1495,10 +1496,116 @@ EOF
 	fi
 )
 
+# ── Test 36: Write-capable agent with absent edit is flagged ─────────────────
+
+echo ""
+echo "── Test 36: Write-capable agent (absent edit) flagged as unscoped ──"
+T36=$(mktemp -d)
+register_temp_dir "$T36"
+git_init_test_repo "$T36"
+(
+	cd "$T36"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Non-read-only agent with a permission block but NO edit key
+	# (the docs-writer drift class). Must be flagged.
+	cat > .opencode/agents/doc-bot.md <<'EOF'
+---
+description: Generates documentation and headers for source files.
+mode: subagent
+permission:
+  bash: deny
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "unscoped edit"; then
+		pass "Caught write-capable agent with absent edit (unscoped)"
+	elif echo "$output" | grep -qF "unscoped edit"; then
+		fail "Detected unscoped edit but exited 0"
+	else
+		fail "Did not detect write-capable agent with absent edit"
+	fi
+)
+
+# ── Test 37: Write-capable agent with scoped edit (catch-all deny) passes ────
+
+echo "── Test 37: Write-capable agent with scoped edit not flagged ──"
+T37=$(mktemp -d)
+register_temp_dir "$T37"
+git_init_test_repo "$T37"
+(
+	cd "$T37"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Same agent but with a properly scoped edit (catch-all deny + allows).
+	cat > .opencode/agents/doc-bot.md <<'EOF'
+---
+description: Generates documentation and headers for source files.
+mode: subagent
+permission:
+  edit:
+    "*": deny
+    "*.php": allow
+    "docs/**": allow
+  bash: deny
+  webfetch: deny
+  task: deny
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "doc-bot" | grep -qF "unscoped edit"; then
+		fail "Scoped write-capable agent was falsely flagged as unscoped"
+	else
+		pass "Scoped write-capable agent not flagged"
+	fi
+)
+
+# ── Test 38: Allowlisted general-write agent (tdd) with absent edit passes ───
+
+echo "── Test 38: Allowlisted general-write agent (tdd) not flagged ──"
+T38=$(mktemp -d)
+register_temp_dir "$T38"
+git_init_test_repo "$T38"
+(
+	cd "$T38"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# tdd is a general-purpose write agent — intentionally unscoped (allowlisted).
+	cat > .opencode/agents/tdd.md <<'EOF'
+---
+description: Write tests first, then implement. Edits arbitrary source files.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "allow"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "tdd.md" | grep -qF "unscoped edit"; then
+		fail "Allowlisted general-write agent (tdd) was falsely flagged"
+	else
+		pass "Allowlisted general-write agent (tdd) not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
