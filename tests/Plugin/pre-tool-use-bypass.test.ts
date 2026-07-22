@@ -2,7 +2,6 @@
 
 
 
-
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { tokenizeCommand, classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
@@ -39,6 +38,31 @@ describe("classifyCommand — rm basename + scan-anywhere", () => {
     });
     it("blocks rm -rf appearing after a pipe in one segment via wrapper", () => {
         assert.equal(classifyCommand("echo hi | xargs rm -rf", opts).severity, "block");
+    });
+});
+
+describe("classifyCommand — wrapper unwrapping", () => {
+    const opts = { projectDir: "/home/user/project" };
+
+    it('blocks bash -c "rm -rf /etc"', () => {
+        assert.equal(classifyCommand('bash -c "rm -rf /etc"', opts).severity, "block");
+    });
+    it('blocks sh -c "git push --force origin main"', () => {
+        assert.equal(classifyCommand('sh -c "git push --force origin main"', opts).severity, "block");
+    });
+    it("blocks env rm -rf /etc", () => {
+        assert.equal(classifyCommand("env rm -rf /etc", opts).severity, "block");
+    });
+    it('blocks eval "git push -f"', () => {
+        assert.equal(classifyCommand('eval "git push -f"', opts).severity, "block");
+    });
+    it("blocks command git push --force", () => {
+        assert.equal(classifyCommand("command git push --force", opts).severity, "block");
+    });
+    it("blocks deeply nested wrappers past depth cap", () => {
+        // command chaining: each "command" prefix strips one layer.
+        // 4 levels > MAX_UNWRAP_DEPTH (3) → BLOCK
+        assert.equal(classifyCommand("command command command command rm -rf /etc", opts).severity, "block");
     });
 });
 

@@ -3,6 +3,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -75,6 +76,12 @@ const SAFE_ABS_DIRS: readonly string[] = [
     normalize("/var/tmp"),
     normalize(tmpdir()),
 ];
+
+/** Shell interpreters whose `-c` flag wraps a command string. */
+const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
+
+/** Maximum recursion depth for wrapper unwrapping. */
+const MAX_UNWRAP_DEPTH = 3;
 
 interface ParsedRm {
     recursive: boolean;
@@ -158,13 +165,67 @@ function isWithinSafeZone(absPath: string, projectDir: string): boolean {
 }
 
 /**
+ * If `tokens` starts with a known wrapper, unwrap one layer and return
+ * the inner command string. Returns null if the segment is not a wrapper.
+ */
+function tryUnwrapSegment(tokens: string[]): string | null {
+    if (tokens.length === 0) return null;
+
+    const head = tokens[0];
+
+    // Shell -c wrapper: bash -c "..."
+    if (SHELL_WRAPPERS.has(head) && tokens[1] === "-c" && tokens.length >= 3) {
+        return tokens[2]; // the script string (quote-stripped by tokenizer)
+    }
+
+    // xargs is NOT unwrapped here — the rm detection in the main loop
+    // already handles xargs + rm via findRmAnywhere with the xargs check
+    // for unresolvable operands.
+
+    // env: drop env and any NAME=VALUE leading tokens, join rest as command
+    if (head === "env") {
+        let i = 1;
+        while (i < tokens.length && tokens[i].includes("=")) i++;
+        if (i < tokens.length) {
+            return tokens.slice(i).join(" ");
+        }
+        return null;
+    }
+
+    // command / exec: drop head, join rest as command
+    if (head === "command" || head === "exec") {
+        if (tokens.length > 1) {
+            return tokens.slice(1).join(" ");
+        }
+        return null;
+    }
+
+    // eval: join all remaining tokens as the command string
+    if (head === "eval") {
+        if (tokens.length > 1) {
+            return tokens.slice(1).join(" ");
+        }
+        return null;
+    }
+
+    return null;
+}
+
+/**
  * Classify a bash command string for safety. Pure and side-effect free;
  * never throws (returns a PASS finding on any internal error so the
  * harness fails open). See ADR-0023.
  */
 export function classifyCommand(command: string, opts: ClassifyOptions): Finding {
+    return classifyImpl(command, opts, 0);
+}
+
+function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
     if (typeof command !== "string" || command.length === 0) {
         return { severity: null, reason: "" };
+    }
+    if (depth > MAX_UNWRAP_DEPTH) {
+        return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
     const projectDir = opts.projectDir;
 
@@ -175,6 +236,14 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
         for (const segment of segments) {
             const segTokens = tokenizeCommand(segment);
             if (segTokens.length === 0) continue;
+
+            // Try wrapper unwrapping first
+            const innerCmd = tryUnwrapSegment(segTokens);
+            if (innerCmd !== null) {
+                const innerFinding = classifyImpl(innerCmd, opts, depth + 1);
+                if (innerFinding.severity !== null) return innerFinding;
+                continue;
+            }
 
             // Try rm at head (with basename matching, sudo skip)
             let parsed = parseRmTokens(segTokens, 0);
@@ -296,6 +365,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 
