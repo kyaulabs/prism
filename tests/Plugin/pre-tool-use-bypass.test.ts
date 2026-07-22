@@ -80,6 +80,26 @@ describe("classifyCommand — git bundled flags + global options", () => {
     });
 });
 
+describe("classifyCommand — find -delete / -exec rm", () => {
+    const opts = { projectDir: "/home/user/project" };
+
+    it("blocks find . -delete", () => {
+        assert.equal(classifyCommand("find . -delete", opts).severity, "block");
+    });
+    it("blocks find /etc -type f -delete", () => {
+        assert.equal(classifyCommand("find /etc -type f -delete", opts).severity, "block");
+    });
+    it("blocks find . -exec rm -rf {} +", () => {
+        assert.equal(classifyCommand("find . -exec rm -rf {} +", opts).severity, "block");
+    });
+    it("blocks find . -execdir rm -f {} ;", () => {
+        assert.equal(classifyCommand("find . -execdir rm -f {} ;", opts).severity, "block");
+    });
+    it("does NOT block find . -name x -exec chmod 644 {} + (non-rm exec)", () => {
+        assert.equal(classifyCommand("find . -name x -exec chmod 644 {} +", opts).severity, null);
+    });
+});
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

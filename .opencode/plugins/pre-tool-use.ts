@@ -5,6 +5,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -341,6 +342,34 @@ function classifyImpl(command: string, opts: ClassifyOptions, depth: number): Fi
                 }
             }
         }
+        // BLOCK: find -delete / find -exec rm — unconditional block.
+        // Inserted before warn-level checks so block wins over any warning.
+        {
+            const segments = command.split(/[;&|\n]/);
+            for (const segment of segments) {
+                const segTokens = tokenizeCommand(segment);
+                if (segTokens.length === 0) continue;
+                if (basename(segTokens[0]) !== "find") continue;
+
+                for (let i = 0; i < segTokens.length; i++) {
+                    const t = segTokens[i];
+                    if (t === "-delete") {
+                        return {
+                            severity: "block",
+                            reason: "find -delete removes files; destructive action blocked",
+                        };
+                    }
+                    if ((t === "-exec" || t === "-execdir") && i + 1 < segTokens.length) {
+                        if (basename(segTokens[i + 1]) === "rm") {
+                            return {
+                                severity: "block",
+                                reason: "find -exec/-execdir rm removes files; destructive action blocked",
+                            };
+                        }
+                    }
+                }
+            }
+        }
         // WARN: destructive SQL drops
         if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
             return { severity: "warn", reason: "SQL DROP statement destroys data" };
@@ -437,6 +466,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 
