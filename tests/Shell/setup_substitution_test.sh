@@ -7,6 +7,7 @@
 
 
 
+
 # ── Tests for setup-substitute.sh scaffolding token substitution ────────────
 # Verifies that the substitution script correctly replaces template scaffolding
 # tokens (abuse contact, org/repo, app, domain, username) with user-provided
@@ -362,10 +363,48 @@ register_temp_dir "$T11"
 	fi
 )
 
+# ── Test 12: --validate-only accepts clean values, no file touched ───────────
+
+echo ""
+echo "── Test 12: --validate-only accepts clean values ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	# No file argument is required in validate-only mode.
+	if bash "$SCRIPT" --validate-only "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1; then
+		pass "--validate-only exits 0 for clean values"
+	else
+		fail "--validate-only rejected clean values"
+	fi
+	# Confirm no file was created in the working directory.
+	if [ ! -e file.md ] && [ ! -e "$T_APP" ]; then
+		pass "--validate-only wrote no files"
+	else
+		fail "--validate-only created unexpected files"
+	fi
+)
+
+# ── Test 13: --validate-only rejects a dirty manifest value ──────────────────
+
+echo ""
+echo "── Test 13: --validate-only rejects dirty value ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+	cd "$T13"
+	if bash "$SCRIPT" --validate-only "$T_APP" 'evil|domain' "$T_ORG" "$T_REPO" >/dev/null 2>&1; then
+		fail "--validate-only accepted a pipe in the domain"
+	else
+		pass "--validate-only rejected a dirty domain"
+	fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "setup substitution"
 exit $?
+
 
 
 

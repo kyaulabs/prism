@@ -5,6 +5,7 @@
 
 
 
+
 # ── Template token substitution script for /setup ───────────────────────────
 # Replaces the template's scaffolding placeholder tokens with user-provided
 # values in a single file. Identity tokens are resolved at runtime by
@@ -20,12 +21,17 @@ set -euo pipefail
 
 # Parse leading optional flags (--target-dir <dir>) before positionals.
 TARGET_DIR=""
+VALIDATE_ONLY=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--target-dir)
 			[ $# -ge 2 ] || { echo "Error: --target-dir requires an argument" >&2; exit 2; }
 			TARGET_DIR="$2"
 			shift 2
+			;;
+		--validate-only)
+			VALIDATE_ONLY=1
+			shift
 			;;
 		--)
 			shift
@@ -70,6 +76,21 @@ validate_token_value() {
 	return 1
 }
 
+# --validate-only: check the four manifest values and exit without touching
+# any file. Used by /setup re-run mode to pre-validate setup.json values
+# before they are spliced into sed programs. See issue #181 (AC-3).
+if [ "$VALIDATE_ONLY" -eq 1 ]; then
+	app="${1:?Error: app name required}"
+	domain="${2:?Error: domain required}"
+	org="${3:?Error: GitHub org required}"
+	repo="${4:?Error: GitHub repo required}"
+	validate_token_value "$app"    "app"    || exit 1
+	validate_token_value "$domain" "domain" || exit 1
+	validate_token_value "$org"    "org"    || exit 1
+	validate_token_value "$repo"   "repo"   || exit 1
+	exit 0
+fi
+
 file="${1:?Error: file path required}"
 app="${2:?Error: app name required}"
 domain="${3:?Error: domain required}"
@@ -110,6 +131,7 @@ sed_edit "s|<domain>|${domain}|g" "$file"
 
 # Token #5: username placeholder (feature branch names, etc.)
 sed_edit "s|<username>|${username}|g" "$file"
+
 
 
 
