@@ -95,6 +95,19 @@ with a scoped read-only allowlist, `webfetch: deny`, and `task: deny`.
 
 ## Amendments
 
+- **2026-07-22 (issue #183):** Decision point 2 granted `code-review` the
+  `npm install -g*` bash permission and `semgrep` the `pip install semgrep*`
+  permission, intending to let each agent auto-provision its toolchain. A
+  six-model security review (issue #183, 6/6 consensus) flagged these as
+  standing supply-chain RCE primitives — global npm/pip installs run
+  third-party pre/postinstall scripts outside the repo boundary, so a
+  prompt-injected diff could nudge a read-only agent to install an
+  attacker-named package. Both grants are withdrawn; the agents now verify
+  tool presence (`command -v`) and STOP with install instructions if the
+  tool is missing instead of installing autonomously. The harness validator
+  was extended to fail on any `npm install*` / `pip install*` grant above
+  `ask`. The read-only contract (edit: deny + bash catch-all deny) is
+  unchanged — only the toolchain auto-provision carve-out is withdrawn.
 - **2026-07-21 (issue #184):** `@explore` was belatedly brought under this
   contract. Originally shipped as an inline-only agent in `opencode.jsonc`
   with only `lsp: allow`, it inherited the permissive top-level defaults and

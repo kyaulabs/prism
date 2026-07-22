@@ -13,7 +13,6 @@ permission:
     "grep*": allow
     "find*": allow
     "command -v*": allow
-    "npm install -g*": allow
     "ocr*": allow
     "git log*": allow
     "git show*": allow
@@ -64,10 +63,18 @@ one message turn):
 #### Axis 1 — Ocr (PSR-12, style, lint)
 
 Run `ocr` inline. Same flags and behaviour as before:
-- Verify `command -v ocr` first; install via `npm install -g @alibaba-group/open-code-review` if missing.
+- Verify `command -v ocr` first; if missing, STOP and report the install
+  command to the user (`npm install -g @alibaba-group/open-code-review`).
+  Do NOT install autonomously — global npm installs execute third-party
+  pre/postinstall scripts (supply-chain RCE risk; issue #183).
 - Choose `ocr review` (diff) or `ocr scan` (full scan) based on scope.
 - Use `--audience agent --format json`.
 - If `ocr` fails, report the error and stop — do not fall back to manual review.
+
+> **Data egress:** `ocr` transmits diff content to its cloud backend for
+> analysis — reviewed code leaves the repo boundary via a third-party AI
+> service. Acceptable for review (no secrets should be staged), but the
+> coordinator does not control where `ocr` sends data.
 
 #### Axis 2 — @standards-review (Fowler 12-smell baseline)
 
