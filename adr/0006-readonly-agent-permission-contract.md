@@ -117,3 +117,18 @@ with a scoped read-only allowlist, `webfetch: deny`, and `task: deny`.
   inline-defined agents so this drift class cannot recur. No change to the
   Decision text above — `@explore` always *should* have been compliant; this
   amendment records that the contract is now actually enforced.
+- **2026-07-22 (issue #198):** The Decision's rejected alternative "Lock down
+  docs-writer itself (add `edit: deny`)" is partially superseded. docs-writer
+  remains write-capable, but its `edit` permission is now a **scoped object** —
+  a catch-all `"*": deny` plus explicit allows for the five source extensions
+  the rcs-header skill governs (`.php`, `.js`, `.scss`, `.sh`, `.ts`) and
+  `docs/**`. This closes the unconstrained-edit gap (the agent previously
+  inherited the permissive default and could rewrite any file) without breaking
+  its PHPDoc/RCS-header function. The blanket `edit: deny` rejection still
+  holds for any agent whose job is to edit source broadly; the general-purpose
+  write agents `@tdd` and `@resolve-merge-conflicts` remain intentionally
+  unscoped (allowlisted) because they must edit arbitrary files. The
+  validate-harness check was extended (Decision point 4) to flag any
+  non-allowlisted, non-read-only agent that ships an unscoped `edit` (absent,
+  flat `allow`, or an object lacking a `"*": deny`/`"*": ask` catch-all) so
+  this drift class cannot recur.

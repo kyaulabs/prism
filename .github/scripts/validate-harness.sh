@@ -16,6 +16,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -712,6 +713,52 @@ else
 	ok "${RO_CHECKED} read-only agent(s) checked, ${RO_VIOLATIONS} violation(s)"
 fi
 
+# ── Check write-capable agent edit scoping ───────────────────────────────────
+
+echo "── Checking write-capable agent edit scoping ──"
+WEDIT_CHECKED=0
+WEDIT_VIOLATIONS=0
+
+# General-purpose write agents that must edit arbitrary files (allowlisted).
+# Not subject to the scoped-edit requirement.
+WRITE_ALLOWLIST='tdd|resolve-merge-conflicts'
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	agent_name=$(basename "$agent_file" .md)
+
+	# Skip allowlisted general-purpose write agents.
+	if printf '%s' "$agent_name" | grep -qE "^($WRITE_ALLOWLIST)$"; then
+		continue
+	fi
+
+	# Extract frontmatter text (between first two --- delimiters).
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+
+	# Controlled = flat deny, flat ask, or an object with a "*" catch-all
+	# (deny or ask). Everything else is unscoped (absent / flat allow /
+	# object without catch-all).
+	controlled=0
+	if printf '%s\n' "$fm" | grep -qE '^[[:space:]]*edit:[[:space:]]*"?(deny|ask)"?[[:space:]]*$'; then
+		controlled=1
+	fi
+	if printf '%s\n' "$fm" | grep -qE '"\*"[[:space:]]*:[[:space:]]*"?(deny|ask)"?'; then
+		controlled=1
+	fi
+
+	# Only write-capable agents (NOT controlled) are in scope for this check.
+	[ "$controlled" -eq 1 ] && continue
+
+	WEDIT_CHECKED=$((WEDIT_CHECKED + 1))
+	err "${agent_file}: agent '${agent_name}' is write-capable but has an unscoped edit permission — add a scoped object with a '\"*\": deny' catch-all (or 'edit: deny')"
+	WEDIT_VIOLATIONS=$((WEDIT_VIOLATIONS + 1))
+done
+
+if [ "$WEDIT_CHECKED" -eq 0 ]; then
+	ok "No unscoped write-capable agents found"
+else
+	ok "${WEDIT_CHECKED} unscoped write-capable agent(s) found, ${WEDIT_VIOLATIONS} flagged"
+fi
+
 # ── Check inline read-only agent permission contract (opencode.jsonc) ─────────
 
 echo "── Checking inline agent permission contracts (opencode.jsonc) ──"
@@ -864,6 +911,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
