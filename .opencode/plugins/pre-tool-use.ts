@@ -1,9 +1,52 @@
-// $KYAULabs: pre-tool-use.ts kyau@nova 2026/07/16 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@nova 2026/07/21 -0700 Exp $
+
 
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
+
+/**
+ * Tokenize a command segment on whitespace outside quotes.
+ * Strips one layer of surrounding matching quotes from each token.
+ * Returns [] for blank input.
+ */
+export function tokenizeCommand(segment: string): string[] {
+    const trimmed = segment.trim();
+    if (trimmed.length === 0) return [];
+
+    const tokens: string[] = [];
+    let i = 0;
+    while (i < trimmed.length) {
+        // Skip leading whitespace
+        while (i < trimmed.length && /\s/.test(trimmed[i])) i++;
+        if (i >= trimmed.length) break;
+
+        let token = "";
+        if (trimmed[i] === '"' || trimmed[i] === "'") {
+            const quote = trimmed[i];
+            i++; // consume opening quote
+            while (i < trimmed.length && trimmed[i] !== quote) {
+                if (trimmed[i] === "\\" && i + 1 < trimmed.length) {
+                    // Consume escape + next char literally
+                    token += trimmed[i + 1];
+                    i += 2;
+                } else {
+                    token += trimmed[i];
+                    i++;
+                }
+            }
+            i++; // consume closing quote
+        } else {
+            while (i < trimmed.length && !/\s/.test(trimmed[i])) {
+                token += trimmed[i];
+                i++;
+            }
+        }
+        tokens.push(token);
+    }
+    return tokens;
+}
 
 export type Severity = "block" | "warn" | null;
 
@@ -39,7 +82,7 @@ interface ParsedRm {
 }
 
 function parseRm(segment: string): ParsedRm | null {
-    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+    const tokens = tokenizeCommand(segment);
     let i = 0;
     if (tokens[i] === "sudo") i++;
     if (tokens[i] !== "rm") return null;
@@ -141,7 +184,7 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
         // BLOCK: git push --force / -f
         // tokens.includes does exact matching, so --force won't match --force-with-lease
         if (/\bgit\s+push\b/.test(command)) {
-            const tokens = command.split(/\s+/);
+            const tokens = tokenizeCommand(command);
             if (tokens.includes("-f") || tokens.includes("--force")) {
                 return { severity: "block", reason: "git push --force rewrites published history" };
             }
@@ -154,7 +197,7 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
         {
             const gitMatch = command.match(/\bgit\s+([a-z-]+)/);
             const subcmd = gitMatch ? gitMatch[1] : "";
-            const tokens = command.split(/\s+/);
+            const tokens = tokenizeCommand(command);
             if (tokens.includes("--no-verify") || (subcmd === "commit" && tokens.includes("-n"))) {
                 return {
                     severity: "block",
@@ -211,6 +254,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
