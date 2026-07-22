@@ -16,6 +16,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -824,6 +825,10 @@ git_init_test_repo "$T19"
 	mkdir -p .opencode/commands .opencode/agents .opencode/skills
 	setup_validator_env
 
+	# Minimal valid config — {} is valid JSON, contains no '*' patterns,
+	# no git add*/git stage* entries; every config-based check passes cleanly.
+	echo '{}' > opencode.jsonc
+
 	# Create one command, one agent, one skill
 	cat > .opencode/commands/my-cmd.md <<'EOF'
 ---
@@ -1461,10 +1466,40 @@ EOF
 	fi
 )
 
+# ── Test 35: absent opencode.jsonc is a loud error ────────────────────────────
+
+echo ""
+echo "── Test 35: absent opencode.jsonc fails loud ──"
+T35=$(mktemp -d)
+register_temp_dir "$T35"
+git_init_test_repo "$T35"
+(
+	cd "$T35"
+	# Minimal valid harness so the vacuous-pass guard does not fire first; but
+	# deliberately NO opencode.jsonc.
+	mkdir -p .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "opencode.jsonc not found"; then
+		pass "Absent opencode.jsonc produces a loud error"
+	else
+		fail "Absent opencode.jsonc did not error (false-clean pass)"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

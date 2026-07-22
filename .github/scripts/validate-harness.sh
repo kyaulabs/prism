@@ -15,6 +15,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -62,6 +63,12 @@ declare -A NAME_REGISTRY  # key=name, value="file:category"
 err() { echo "  ERROR: $*" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "  WARN:  $*" >&2; WARNINGS=$((WARNINGS + 1)); }
 ok() { echo "  OK:    $*"; }
+
+# Fail loud if the opencode config is absent — the bash-permission and
+# git add/stage-parity checks below would otherwise pass vacuously (issue #197).
+if [ ! -f "$OPENCODE_JSONC" ]; then
+	err "opencode.jsonc not found at ${OPENCODE_JSONC} — cannot validate inline permission patterns (issue #197)"
+fi
 
 # Scan a content string for autonomous package-install grants at 'allow'.
 # Usage: check_install_grants <label> <content>
@@ -857,6 +864,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
