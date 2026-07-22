@@ -13,7 +13,6 @@ permission:
     "grep*": allow
     "find*": allow
     "command -v*": allow
-    "pip install semgrep*": allow
     "semgrep*": allow
     "git log*": allow
     "git show*": allow
@@ -29,8 +28,11 @@ fix anything — report only.
 
 ## Prerequisites
 
-Verify `command -v semgrep` before running. Install via `pip install semgrep`
-or from [semgrep/releases](https://github.com/semgrep/semgrep/releases).
+Verify `command -v semgrep` before running. If missing, STOP and report the
+install command to the user (`pip install semgrep` or a release from
+[semgrep/releases](https://github.com/semgrep/semgrep/releases)). Do NOT
+install autonomously — global pip installs execute third-party setup scripts
+(supply-chain RCE risk; issue #183).
 
 A `.semgrepignore` exists at the project root excluding `vendor/`,
 `node_modules/`, `aurora/`, and generated minified assets. Rely on it — no

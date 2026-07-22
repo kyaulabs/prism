@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@nova 2026/07/21 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
 
 
 
@@ -1307,10 +1308,120 @@ EOF
 	fi
 )
 
+# ── Test 31: Autonomous npm install grant at 'allow' is caught ───────────────
+
+echo ""
+echo "── Test 31: Autonomous npm install grant at 'allow' is caught ──"
+T31=$(mktemp -d)
+register_temp_dir "$T31"
+git_init_test_repo "$T31"
+(
+	cd "$T31"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/installer-agent.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "npm install -g*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "package-install grant"; then
+		pass "Caught autonomous npm install grant at 'allow'"
+	elif echo "$output" | grep -qF "package-install grant"; then
+		fail "Detected npm install grant but exited 0"
+	else
+		fail "Did not detect autonomous npm install grant"
+	fi
+)
+
+# ── Test 32: Autonomous pip install grant at 'allow' is caught ───────────────
+
+echo "── Test 32: Autonomous pip install grant at 'allow' is caught ──"
+T32=$(mktemp -d)
+register_temp_dir "$T32"
+git_init_test_repo "$T32"
+(
+	cd "$T32"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/installer-agent.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "pip install semgrep*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "package-install grant"; then
+		pass "Caught autonomous pip install grant at 'allow'"
+	else
+		fail "Did not detect autonomous pip install grant"
+	fi
+)
+
+# ── Test 33: npm/pip install grant at 'ask' is not flagged ───────────────────
+
+echo "── Test 33: npm/pip install grant at 'ask' is not flagged ──"
+T33=$(mktemp -d)
+register_temp_dir "$T33"
+git_init_test_repo "$T33"
+(
+	cd "$T33"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/gated-installer.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+    "npm install -g*": "ask"
+    "pip install*": "ask"
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "gated-installer" | grep -qF "package-install grant"; then
+		fail "npm/pip install at 'ask' was falsely flagged"
+	else
+		pass "npm/pip install grant at 'ask' not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

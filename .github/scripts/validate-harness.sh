@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/21 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
+
 
 
 
@@ -57,6 +59,20 @@ declare -A NAME_REGISTRY  # key=name, value="file:category"
 err() { echo "  ERROR: $*" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "  WARN:  $*" >&2; WARNINGS=$((WARNINGS + 1)); }
 ok() { echo "  OK:    $*"; }
+
+# Scan a content string for autonomous package-install grants at 'allow'.
+# Usage: check_install_grants <label> <content>
+# The label prefixes the error message (e.g., file path).
+check_install_grants() {
+	local label="$1" content="$2"
+	local matches
+	matches=$(echo "$content" | grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' 2>/dev/null) || true
+	if [ -n "$matches" ]; then
+		while IFS= read -r line; do
+			err "${label}:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
+		done <<< "$matches"
+	fi
+}
 
 # Extract a YAML frontmatter key's value from a file.
 # Usage: frontmatter_key <file> <key>
@@ -785,6 +801,27 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	fi
 done
 
+# ── Check for autonomous package-install grants (npm/pip) ─────────────────────
+
+echo "── Checking for autonomous package-install grants (npm install*/pip install*) ──"
+
+# Global npm/pip installs execute third-party pre/postinstall scripts = arbitrary
+# code execution outside the repo boundary. A prompt-injected diff could nudge a
+# read-only agent to install an attacker-named package (supply-chain RCE). No
+# agent may grant 'npm install*' or 'pip install*' above 'ask'. See issue #183
+# and ADR-0006 (amendment).
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	check_install_grants "$agent_file" "$fm"
+done
+
+# Inline agents defined in opencode.jsonc
+OPENCODE_CFG="${REPO_ROOT}/opencode.jsonc"
+if [ -f "$OPENCODE_CFG" ]; then
+	check_install_grants "opencode.jsonc" "$(cat "$OPENCODE_CFG")"
+fi
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -818,6 +855,8 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 
 
