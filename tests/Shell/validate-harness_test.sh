@@ -18,6 +18,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -841,6 +842,8 @@ EOF
 ---
 description: An agent.
 mode: subagent
+permission:
+  edit: deny
 ---
 EOF
 
@@ -1605,6 +1608,7 @@ EOF
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
