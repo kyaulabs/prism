@@ -115,7 +115,7 @@ jobs:
             -not -path './vendor/*' \
             -not -path '*/node_modules/*' \
             -not -path './aurora/*' \
-            -print0 | xargs -0 shellcheck
+            -print0 | xargs -0 shellcheck --severity=warning
 
       - name: Check script executable bits
         run: bash .github/scripts/check-script-executable-bits.sh

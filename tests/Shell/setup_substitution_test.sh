@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/21 -0700 Exp $
+
+
 
 
 
@@ -35,7 +37,7 @@ T_APP="myapp"
 T_DOMAIN="example.org"
 T_ORG="myorg"
 T_REPO="myrepo"
-T_USER="Test User"
+T_USER="TestUser"
 
 # Helper: initialise a sandbox git repo so `git config user.name` (used by the
 # script for <username> substitution) returns a deterministic value.
@@ -54,6 +56,7 @@ T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
 	cd "$T1"
+	init_sandbox_repo
 	printf 'Contact: git+abuse@kyaulabs.com for issues.\n' > file.md
 	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
@@ -73,6 +76,7 @@ T2=$(mktemp -d)
 register_temp_dir "$T2"
 (
 	cd "$T2"
+	init_sandbox_repo
 	printf 'Repo: kyaulabs/template\n' > file.md
 	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
@@ -92,6 +96,7 @@ T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
 	cd "$T3"
+	init_sandbox_repo
 	printf 'Webroot: <app>\n' > file.md
 	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
@@ -111,6 +116,7 @@ T4=$(mktemp -d)
 register_temp_dir "$T4"
 (
 	cd "$T4"
+	init_sandbox_repo
 	printf 'Server: <domain>\n' > file.md
 	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	result=$(cat file.md)
@@ -198,18 +204,22 @@ exec /usr/bin/sed "$@"
 SHIM
 	chmod +x "$tmp_bin/sed"
 
-	local f
-	f=$(mktemp -d)/file.md
-	printf 'Repo: kyaulabs/template\n' > "$f"
+	local d
+	d=$(mktemp -d)
+	(
+		cd "$d"
+		init_sandbox_repo
+		printf 'Repo: kyaulabs/template\n' > file.md
 
-	# 5-arg signature; the script does not use -i (uses sed_edit helper)
-	PATH="$tmp_bin:$PATH" bash "$SCRIPT" "$f" "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1
-	local rc=$?
-	if [ "$rc" -ne 0 ]; then
-		fail "script failed under BSD sed (rc=$rc)"
-		return 1
-	fi
-	pass "runs under BSD sed"
+		# 5-arg signature; the script does not use -i (uses sed_edit helper)
+		PATH="$tmp_bin:$PATH" bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1
+		local rc=$?
+		if [ "$rc" -ne 0 ]; then
+			fail "script failed under BSD sed (rc=$rc)"
+			return 1
+		fi
+		pass "runs under BSD sed"
+	)
 }
 
 echo ""
@@ -224,6 +234,7 @@ T8=$(mktemp -d)
 register_temp_dir "$T8"
 (
 	cd "$T8"
+	init_sandbox_repo
 	mkdir -p "$T8/subdir"
 	printf 'Repo: kyaulabs/template\n' > "$T8/subdir/file.md"
 	bash "$SCRIPT" --target-dir "$T8/subdir" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
@@ -277,10 +288,124 @@ EOF
 	fi
 )
 
+# ── Test 10: crafted injection payloads are rejected (AC-1, AC-2) ─────────────
+
+echo ""
+echo "── Test 10: crafted payloads rejected for every arg position ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+	cd "$T10"
+	init_sandbox_repo
+
+	# Payloads that corrupt or enable command execution when spliced unescaped
+	# into s|...|VALUE|g: | (delimiter), & (whole match), \ (escape),
+	# quotes/backtick (shell), whitespace. The GNU sed `e`-flag payload
+	# (value = "X|e") turns s|<app>|X|e|g into an execute command — must reject.
+	payloads=(
+		'a|b'
+		'a&b'
+		'a\b'
+		'a"b'
+		"a'b"
+		'a`b'
+		'a b'
+		'a	b'
+		'X|e'
+	)
+
+	rejected=0
+	total=0
+	for p in "${payloads[@]}"; do
+		# Each forbidden payload is tried in each of the 4 arg positions.
+		for pos in app domain org repo; do
+			total=$((total + 1))
+			printf 'Token: <app> <domain> kyaulabs/template\n' > file.md
+			case "$pos" in
+				app)    set -- "$p" "$T_DOMAIN" "$T_ORG" "$T_REPO" ;;
+				domain) set -- "$T_APP" "$p"    "$T_ORG" "$T_REPO" ;;
+				org)    set -- "$T_APP" "$T_DOMAIN" "$p"    "$T_REPO" ;;
+				repo)   set -- "$T_APP" "$T_DOMAIN" "$T_ORG" "$p"    ;;
+			esac
+			if bash "$SCRIPT" file.md "$@" >/dev/null 2>&1; then
+				fail "payload '$p' in $pos was NOT rejected"
+			else
+				rejected=$((rejected + 1))
+			fi
+		done
+	done
+	if [ "$rejected" -eq "$total" ]; then
+		pass "all ${total} crafted payloads rejected"
+	else
+		fail "only ${rejected}/${total} payloads rejected"
+	fi
+)
+
+# ── Test 11: file is byte-identical after a rejection (no partial write) ──────
+
+echo ""
+echo "── Test 11: file untouched on rejection ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+	cd "$T11"
+	init_sandbox_repo
+	original='Token: <app> is the placeholder'
+	printf '%s\n' "$original" > file.md
+	cp file.md file.md.bak
+	# Pipe in app position must be rejected; file must not change.
+	if bash "$SCRIPT" file.md 'evil|payload' "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1; then
+		fail "pipe payload was accepted (should have been rejected)"
+	elif cmp -s file.md file.md.bak; then
+		pass "file byte-identical after rejection"
+	else
+		fail "file was modified despite rejection"
+	fi
+)
+
+# ── Test 12: --validate-only accepts clean values, no file touched ───────────
+
+echo ""
+echo "── Test 12: --validate-only accepts clean values ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	# No file argument is required in validate-only mode.
+	if bash "$SCRIPT" --validate-only "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO" >/dev/null 2>&1; then
+		pass "--validate-only exits 0 for clean values"
+	else
+		fail "--validate-only rejected clean values"
+	fi
+	# Confirm no file was created in the working directory.
+	if [ ! -e file.md ] && [ ! -e "$T_APP" ]; then
+		pass "--validate-only wrote no files"
+	else
+		fail "--validate-only created unexpected files"
+	fi
+)
+
+# ── Test 13: --validate-only rejects a dirty manifest value ──────────────────
+
+echo ""
+echo "── Test 13: --validate-only rejects dirty value ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+	cd "$T13"
+	if bash "$SCRIPT" --validate-only "$T_APP" 'evil|domain' "$T_ORG" "$T_REPO" >/dev/null 2>&1; then
+		fail "--validate-only accepted a pipe in the domain"
+	else
+		pass "--validate-only rejected a dirty domain"
+	fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "setup substitution"
 exit $?
+
+
 
 
 

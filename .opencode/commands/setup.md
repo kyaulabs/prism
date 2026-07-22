@@ -217,8 +217,23 @@ by `resolve-identity.sh` and are no longer substituted by this script.
 | 5 | `<username>` | `{name}` (auto-detected from git config)
 
 In **re-run mode**, use the values from the existing manifest as the find
-strings instead of the literal defaults. For example, if a prior run
-set app to `myapp`, the find string for token #3 is `myapp`, not `<app>`.
+strings instead of the literal defaults. For example, if a prior run set app
+to `myapp`, the find string for token #3 is `myapp`, not `<app>`.
+
+**Validate manifest values before use (issue #181, AC-3).** Manifest values
+flow from the committed `.opencode/setup.json` and are spliced into sed
+programs, so they are untrusted. Before constructing any find/replace pair in
+re-run mode, validate the four manifest values with the same rules the
+substitution script enforces:
+
+```bash
+bash .github/scripts/setup-substitute.sh --validate-only "{app}" "{domain}" "{org}" "{repo}"
+```
+
+If this exits non-zero, STOP: a manifest value contains a forbidden character
+(`|`, `&`, `\`, quotes, backtick, or whitespace). Do not proceed with the
+sweep; report the rejected value to the user and ask how to correct the
+manifest.
 
 ## 5. Verify
 
