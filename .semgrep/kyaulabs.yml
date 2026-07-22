@@ -39,19 +39,22 @@ rules:
         - https://cwe.mitre.org/data/definitions/209.html
         - adr/0002-first-party-semgrep-rules-pack.md
 
-  # --- SQL injection: request-reachable data in query() (taint mode) ---
+  # --- SQL injection: request-reachable data in the SQL string of
+  # query() (taint mode) ---
   # Mirrors kyaulabs-xss-echo-request-sink and
   # kyaulabs-unserialize-request-data: sources are request superglobals,
-  # sink is $DB->query(...). Taint propagates through assignment,
+  # sink is the SQL-string (first) argument of $DB->query($SQL, ...),
+  # narrowed via focus-metavariable so tainted data in the bound-params
+  # array (arg 2) does NOT fire. Taint propagates through assignment,
   # concatenation, sprintf, and heredoc interpolation, so indirect flows
   # like $id = $_GET[...]; $sql = "..." . $id; $db->query($sql); are
-  # caught. execute() and prepare() are simply not sinks — the old
-  # pattern-not-regex over-suppression is eliminated.
+  # caught. Safe paths: bound parameters via $DB->query("...?", [$var]),
+  # and intval()/(int) integer casts.
   - id: kyaulabs-sqli-interpolated-query
     message: >-
-      Request-reachable data flows into a raw query() call.
-      Use parameterized queries with bound parameters:
-      $db->execute("SELECT ... WHERE x = ?", [$var]).
+      Request-reachable data flows into the SQL string argument of a
+      query() call. Use bound parameters:
+      $DB->query("SELECT ... WHERE x = ?", [$var]).
     severity: ERROR
     languages: [php]
     mode: taint
@@ -62,11 +65,21 @@ rules:
       - pattern: $_COOKIE
       - pattern: $_FILES
       - pattern: $_SERVER
-    # Sanitizers: none. The safe path is $DB->execute() with bound
-    # parameters, not escape-then-query(). Suppress genuine exceptions
-    # via // nosemgrep: kyaulabs-sqli-interpolated-query -- <justification>.
+    # Sanitizers: intval() and (int) integer casts neutralize taint for
+    # integer contexts. The primary safe path — bound parameters passed
+    # as query()'s second array argument — is already excluded by the
+    # arg-1-focused sink. Suppress genuine exceptions via
+    # // nosemgrep: kyaulabs-sqli-interpolated-query -- <justification>.
+    pattern-sanitizers:
+      - pattern-either:
+          - pattern: intval($X)
+          - pattern: (int) $X
     pattern-sinks:
-      - pattern: $DB->query(...)
+      - patterns:
+          - pattern-either:
+              - pattern: $DB->query($SQL)
+              - pattern: $DB->query($SQL, ...)
+          - focus-metavariable: $SQL
     metadata:
       category: security
       cwe:
