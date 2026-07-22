@@ -92,3 +92,15 @@ with a scoped read-only allowlist, `webfetch: deny`, and `task: deny`.
 - **Lock down docs-writer itself (add `edit: deny`)** — rejected: docs-writer
   is a write-capable agent by design. Adding `edit: deny` would break its
   core function of writing PHPDoc and RCS headers to source files.
+
+## Amendments
+
+- **2026-07-21 (issue #184):** `@explore` was belatedly brought under this
+  contract. Originally shipped as an inline-only agent in `opencode.jsonc`
+  with only `lsp: allow`, it inherited the permissive top-level defaults and
+  could edit files and run shell commands despite its "focused exploration"
+  mandate. The fix moves `@explore` to `.opencode/agents/explore.md` with the
+  full read-only permission block. The validator was also extended to scan
+  inline-defined agents so this drift class cannot recur. No change to the
+  Decision text above — `@explore` always *should* have been compliant; this
+  amendment records that the contract is now actually enforced.

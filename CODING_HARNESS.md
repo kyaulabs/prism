@@ -54,7 +54,10 @@ read-only/audit agents (`@test-audit`, `@code-review`, `@semgrep`,
 subagent (requires `OPENCODE_EXPERIMENTAL_SCOUT=true` — auto-sourced per
 `ADR-0024`). `@debug` is a build-mode investigation
 agent with scoped write access (repro tests, throwaway harnesses, `[DEBUG-]`
-instrumentation) and is not invocable from Plan mode.
+instrumentation) and is not invocable from Plan mode. Issue on-ramp via
+`@from-issue #NN` happens from the Build tab, not Plan — `@from-issue` can
+branch, commit, and dispatch `@tdd`, which is incompatible with Plan's
+read-only contract (issue #184, ADR-0006 Decision #3).
 
 ### Plan Agent Complexity Assessment
 

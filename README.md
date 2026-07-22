@@ -276,7 +276,6 @@ Press `Tab` to switch between Build and Plan during a session.
 
 | Agent | Purpose |
 | --- | --- |
-| `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
 | `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
 | `@general` | Multi-step research, full tool access |
 | `chat` | Read-only conversational tab on the UTILITY tier — general Q&A, code explanation, brainstorming |
@@ -297,6 +296,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
+| `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
 
 ### Model Configuration
 

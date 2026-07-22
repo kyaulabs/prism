@@ -318,6 +318,7 @@ Load these on demand when the task requires them:
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
+| `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; Graphify-first when a knowledge graph exists, falls back to glob/grep/read + LSP. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
 
 ## Commands
 
