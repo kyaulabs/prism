@@ -15,6 +15,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -992,7 +993,7 @@ git_init_test_repo "$T22"
 	mkdir -p .opencode/agents
 	setup_validator_env
 
-	cat > opencode.json <<'EOF'
+	cat > opencode.jsonc <<'EOF'
 {
 	"agents": {
 		"build": {
@@ -1011,7 +1012,7 @@ EOF
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
 	if echo "$output" | grep -qF "git synonyms with different verdicts"; then
-		pass "Caught git add/stage verdict mismatch in opencode.json"
+		pass "Caught git add/stage verdict mismatch in opencode.jsonc"
 	else
 		fail "Did not detect git add/stage verdict mismatch"
 	fi
@@ -1029,7 +1030,7 @@ git_init_test_repo "$T23"
 	mkdir -p .opencode/agents
 	setup_validator_env
 
-	cat > opencode.json <<'EOF'
+	cat > opencode.jsonc <<'EOF'
 {
 	"agents": {
 		"build": {
@@ -1464,6 +1465,7 @@ EOF
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

@@ -14,6 +14,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -749,11 +750,11 @@ echo "── Checking git add/git stage verdict parity ──"
 # git add and git stage are synonyms. Where both patterns coexist, their
 # verdicts must match — a mismatch is a latent bypass or false-deny.
 
-# opencode.json (inline agent permission blocks)
-add_v=$(grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
-stage_v=$(grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+# opencode.jsonc (inline agent permission blocks)
+add_v=$(grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "$OPENCODE_JSONC" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+stage_v=$(grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "$OPENCODE_JSONC" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
 if [ -n "$add_v" ] && [ -n "$stage_v" ] && [ "$add_v" != "$stage_v" ]; then
-	err "opencode.json: 'git add*' ($add_v) and 'git stage*' ($stage_v) are git synonyms with different verdicts"
+	err "opencode.jsonc: 'git add*' ($add_v) and 'git stage*' ($stage_v) are git synonyms with different verdicts"
 fi
 
 # Agent .md frontmatter
@@ -856,6 +857,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
