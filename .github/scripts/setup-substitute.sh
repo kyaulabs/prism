@@ -6,6 +6,7 @@
 
 
 
+
 # ── Template token substitution script for /setup ───────────────────────────
 # Replaces the template's scaffolding placeholder tokens with user-provided
 # values in a single file. Identity tokens are resolved at runtime by
@@ -66,7 +67,7 @@ validate_token_value() {
 		*[[:space:]]*) ;;   # space, tab, newline, CR, etc.
 		*'|'*)         ;;   # sed delimiter (closes s|...|)
 		*'&'*)         ;;   # whole-match backreference
-		*'\'*)         ;;   # escape introducer
+		*"\\"*)        ;;   # escape introducer
 		*'"'*)         ;;   # double quote
 		*"'"*)         ;;   # single quote
 		*'`'*)         ;;   # backtick (command substitution)
@@ -131,6 +132,7 @@ sed_edit "s|<domain>|${domain}|g" "$file"
 
 # Token #5: username placeholder (feature branch names, etc.)
 sed_edit "s|<username>|${username}|g" "$file"
+
 
 
 
