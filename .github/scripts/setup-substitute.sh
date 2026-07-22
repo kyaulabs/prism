@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-substitute.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: setup-substitute.sh kyau@nova 2026/07/21 -0700 Exp $
+
 
 
 
@@ -42,6 +43,33 @@ sed_edit() {
 	sed "$expr" "$file" > "$file.tmp.$$" && mv "$file.tmp.$$" "$file"
 }
 
+# validate_token_value <value> <label>
+# Reject values containing sed-active or shell-dangerous characters. Spliced
+# unescaped into s|...|VALUE|g, these corrupt output (| closes the delimiter,
+# & means whole match, \ is an escape) or enable command execution on GNU sed
+# (a crafted value appends the `e` flag). Quotes, backtick, and whitespace
+# are rejected as defense-in-depth. See issue #181.
+#
+# Returns 0 if the value is clean; otherwise prints an error to stderr and
+# returns 1. Uses portable case globbing (no [[ =~ ]], no external regex).
+validate_token_value() {
+	local value="$1" label="$2"
+	# Every forbidden pattern has an empty body and falls through to the
+	# error below; the catch-all *) returns 0 for clean values.
+	case "$value" in
+		*[[:space:]]*) ;;   # space, tab, newline, CR, etc.
+		*'|'*)         ;;   # sed delimiter (closes s|...|)
+		*'&'*)         ;;   # whole-match backreference
+		*'\'*)         ;;   # escape introducer
+		*'"'*)         ;;   # double quote
+		*"'"*)         ;;   # single quote
+		*'`'*)         ;;   # backtick (command substitution)
+		*)             return 0 ;;
+	esac
+	echo "Error: $label contains a forbidden character (|, &, \\, quote, backtick, or whitespace): $value" >&2
+	return 1
+}
+
 file="${1:?Error: file path required}"
 app="${2:?Error: app name required}"
 domain="${3:?Error: domain required}"
@@ -50,6 +78,14 @@ repo="${5:?Error: GitHub repo required}"
 
 # Auto-detect username from git config for <username> token (branch names, etc.)
 username=$(git config user.name 2>/dev/null || echo "developer")
+
+# Reject values that would corrupt or inject through the sed programs below.
+# Validated before any file is touched so a bad value leaves files unchanged.
+validate_token_value "$app"      "app"      || exit 1
+validate_token_value "$domain"   "domain"   || exit 1
+validate_token_value "$org"      "org"      || exit 1
+validate_token_value "$repo"     "repo"     || exit 1
+validate_token_value "$username" "username" || exit 1
 
 if [ -n "$TARGET_DIR" ]; then
 	file="$TARGET_DIR/$file"
@@ -74,6 +110,7 @@ sed_edit "s|<domain>|${domain}|g" "$file"
 
 # Token #5: username placeholder (feature branch names, etc.)
 sed_edit "s|<username>|${username}|g" "$file"
+
 
 
 
