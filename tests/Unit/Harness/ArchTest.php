@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ArchTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: ArchTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -153,6 +159,55 @@ test('agent files do not use command-only template features', function (): void 
     }
 });
 
+test('agent files do not grant allow for gh issue mutation commands', function (): void {
+    $files = harness_arch_discover_agent_files();
+    $repoRoot = dirname(__DIR__, 3);
+    $failures = [];
+
+    $patterns = [
+        'gh issue edit*'    => '/^\s*"gh issue edit\*":\s*(\S+)/m',
+        'gh issue comment*' => '/^\s*"gh issue comment\*":\s*(\S+)/m',
+    ];
+
+    foreach ($files as $path) {
+        $relative = substr($path, strlen($repoRoot) + 1);
+        $content = file_get_contents($path);
+
+        if ($content === false) {
+            continue;
+        }
+        $parts = explode('---', $content, 3);
+        $frontmatter = $parts[1] ?? '';
+
+        foreach ($patterns as $permissionName => $pattern) {
+            if (preg_match($pattern, $frontmatter, $matches)) {
+                $value = trim($matches[1], '"\'');
+                if ($value === 'allow') {
+                    $failures[] = sprintf(
+                        '  %s: "%s" is allow — must be ask or deny',
+                        $relative,
+                        $permissionName,
+                    );
+                }
+            }
+        }
+    }
+
+    if ($failures !== []) {
+        $message = sprintf(
+            "Found %d agent file(s) with over-permissive gh issue mutation grants:\n\n%s\n\n"
+            . 'gh issue edit* and gh issue comment* are mutation-capable commands '
+            . 'that must never be granted at allow for any agent. '
+            . 'Use ask (prompts user approval) or deny.',
+            count($failures),
+            implode("\n", $failures),
+        );
+        expect($failures)->toBeEmpty($message);
+    } else {
+        expect($failures)->toBeEmpty();
+    }
+});
+
 test('no debug functions in source code', function (): void {
     $files = harness_arch_discover_php_files();
     $repoRoot = dirname(__DIR__, 3);
@@ -286,6 +341,8 @@ test('test files referencing aurora submodule guard with markTestSkipped', funct
         expect($failures)->toBeEmpty();
     }
 });
+
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
