@@ -3,7 +3,17 @@ description: Generate and update PHPDoc, RCS headers, and project documentation 
 mode: subagent
 temperature: 0.1
 permission:
+  edit:
+    "*": deny
+    "*.php": allow
+    "*.js": allow
+    "*.scss": allow
+    "*.sh": allow
+    "*.ts": allow
+    "docs/**": allow
   bash: deny
+  webfetch: deny
+  task: deny
   lsp: allow
 ---
 
