@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@nova 2026/07/21 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
 
 
 
@@ -785,6 +786,37 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	fi
 done
 
+# ── Check for autonomous package-install grants (npm/pip) ─────────────────────
+
+echo "── Checking for autonomous package-install grants (npm install*/pip install*) ──"
+
+# Global npm/pip installs execute third-party pre/postinstall scripts = arbitrary
+# code execution outside the repo boundary. A prompt-injected diff could nudge a
+# read-only agent to install an attacker-named package (supply-chain RCE). No
+# agent may grant 'npm install*' or 'pip install*' above 'ask'. See issue #183
+# and ADR-0006 (amendment).
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	pkg=$(echo "$fm" | grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' 2>/dev/null) || true
+	if [ -n "$pkg" ]; then
+		while IFS= read -r line; do
+			err "${agent_file}:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
+		done <<< "$pkg"
+	fi
+done
+
+# Inline agents defined in opencode.jsonc
+OPENCODE_CFG="${REPO_ROOT}/opencode.jsonc"
+if [ -f "$OPENCODE_CFG" ]; then
+	inline_pkg=$(grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' "$OPENCODE_CFG" 2>/dev/null) || true
+	if [ -n "$inline_pkg" ]; then
+		while IFS= read -r line; do
+			err "opencode.jsonc:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
+		done <<< "$inline_pkg"
+	fi
+fi
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -818,6 +850,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
