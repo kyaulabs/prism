@@ -13,6 +13,9 @@
 
 
 
+
+
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -49,6 +52,7 @@ HARNESS_DIR="${REPO_ROOT}/.opencode"
 SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
+OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
 
 ERRORS=0
 WARNINGS=0
@@ -59,6 +63,12 @@ declare -A NAME_REGISTRY  # key=name, value="file:category"
 err() { echo "  ERROR: $*" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "  WARN:  $*" >&2; WARNINGS=$((WARNINGS + 1)); }
 ok() { echo "  OK:    $*"; }
+
+# Fail loud if the opencode config is absent — the bash-permission and
+# git add/stage-parity checks below would otherwise pass vacuously (issue #197).
+if [ ! -f "$OPENCODE_JSONC" ]; then
+	err "opencode.jsonc not found at ${OPENCODE_JSONC} — cannot validate inline permission patterns (issue #197)"
+fi
 
 # Scan a content string for autonomous package-install grants at 'allow'.
 # Usage: check_install_grants <label> <content>
@@ -621,11 +631,11 @@ fi
 
 echo "── Checking bash permission patterns ──"
 
-# Check opencode.json for bash permission keys ending in " *"
-JSON_BAD=$(grep -noE '"[^"]* \*"[[:space:]]*:' "${REPO_ROOT}/opencode.json" 2>/dev/null) || true
+# Check opencode.jsonc for bash permission keys ending in " *"
+JSON_BAD=$(grep -noE '"[^"]* \*"[[:space:]]*:' "$OPENCODE_JSONC" 2>/dev/null) || true
 if [ -n "$JSON_BAD" ]; then
 	while IFS= read -r line; do
-		err "opencode.json:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
+		err "opencode.jsonc:${line%%:*}: bash permission pattern ends in ' *' (cannot match bare command): ${line#*:}"
 	done <<< "$JSON_BAD"
 fi
 
@@ -709,7 +719,6 @@ INLINE_RO_CHECKED=0
 INLINE_RO_VIOLATIONS=0
 
 INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
-OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
 
 if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
 	while IFS=$'\t' read -r agent_name desc edit_val bash_restricted; do
@@ -748,11 +757,11 @@ echo "── Checking git add/git stage verdict parity ──"
 # git add and git stage are synonyms. Where both patterns coexist, their
 # verdicts must match — a mismatch is a latent bypass or false-deny.
 
-# opencode.json (inline agent permission blocks)
-add_v=$(grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
-stage_v=$(grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "${REPO_ROOT}/opencode.json" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+# opencode.jsonc (inline agent permission blocks)
+add_v=$(grep -oE '"git add\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "$OPENCODE_JSONC" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+stage_v=$(grep -oE '"git stage\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' "$OPENCODE_JSONC" 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
 if [ -n "$add_v" ] && [ -n "$stage_v" ] && [ "$add_v" != "$stage_v" ]; then
-	err "opencode.json: 'git add*' ($add_v) and 'git stage*' ($stage_v) are git synonyms with different verdicts"
+	err "opencode.jsonc: 'git add*' ($add_v) and 'git stage*' ($stage_v) are git synonyms with different verdicts"
 fi
 
 # Agent .md frontmatter
@@ -855,6 +864,9 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 
