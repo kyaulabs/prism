@@ -12,6 +12,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -58,6 +59,20 @@ declare -A NAME_REGISTRY  # key=name, value="file:category"
 err() { echo "  ERROR: $*" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "  WARN:  $*" >&2; WARNINGS=$((WARNINGS + 1)); }
 ok() { echo "  OK:    $*"; }
+
+# Scan a content string for autonomous package-install grants at 'allow'.
+# Usage: check_install_grants <label> <content>
+# The label prefixes the error message (e.g., file path).
+check_install_grants() {
+	local label="$1" content="$2"
+	local matches
+	matches=$(echo "$content" | grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' 2>/dev/null) || true
+	if [ -n "$matches" ]; then
+		while IFS= read -r line; do
+			err "${label}:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
+		done <<< "$matches"
+	fi
+}
 
 # Extract a YAML frontmatter key's value from a file.
 # Usage: frontmatter_key <file> <key>
@@ -798,23 +813,13 @@ echo "── Checking for autonomous package-install grants (npm install*/pip in
 
 for agent_file in "${AGENT_MD_FILES[@]}"; do
 	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
-	pkg=$(echo "$fm" | grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' 2>/dev/null) || true
-	if [ -n "$pkg" ]; then
-		while IFS= read -r line; do
-			err "${agent_file}:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
-		done <<< "$pkg"
-	fi
+	check_install_grants "$agent_file" "$fm"
 done
 
 # Inline agents defined in opencode.jsonc
 OPENCODE_CFG="${REPO_ROOT}/opencode.jsonc"
 if [ -f "$OPENCODE_CFG" ]; then
-	inline_pkg=$(grep -noE '"(npm|pip) install[^"]*"[[:space:]]*:[[:space:]]*"?allow"?' "$OPENCODE_CFG" 2>/dev/null) || true
-	if [ -n "$inline_pkg" ]; then
-		while IFS= read -r line; do
-			err "opencode.jsonc:${line%%:*}: autonomous package-install grant at 'allow' is a supply-chain RCE risk (issue #183) — remove or downgrade to 'ask'"
-		done <<< "$inline_pkg"
-	fi
+	check_install_grants "opencode.jsonc" "$(cat "$OPENCODE_CFG")"
 fi
 
 # ── Checking for stale plan files ─────────────────────────────────────────────
@@ -850,6 +855,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
