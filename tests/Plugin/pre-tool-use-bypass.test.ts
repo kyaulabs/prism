@@ -2,9 +2,10 @@
 
 
 
+
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { tokenizeCommand } from "../../.opencode/plugins/pre-tool-use.ts";
+import { tokenizeCommand, classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
 
 describe("tokenizeCommand", () => {
     it("splits plain whitespace tokens", () => {
@@ -21,6 +22,23 @@ describe("tokenizeCommand", () => {
     });
     it("returns [] for blank input", () => {
         assert.deepEqual(tokenizeCommand("   "), []);
+    });
+});
+
+describe("classifyCommand — rm basename + scan-anywhere", () => {
+    const opts = { projectDir: "/home/user/project" };
+
+    it("blocks /bin/rm -rf (basename match)", () => {
+        assert.equal(classifyCommand("/bin/rm -rf /etc", opts).severity, "block");
+    });
+    it("blocks sudo /usr/bin/rm -rf (basename + sudo-strip)", () => {
+        assert.equal(classifyCommand("sudo /usr/bin/rm -rf src", opts).severity, "block");
+    });
+    it("blocks xargs rm -rf (rm not at head)", () => {
+        assert.equal(classifyCommand("xargs rm -rf", opts).severity, "block");
+    });
+    it("blocks rm -rf appearing after a pipe in one segment via wrapper", () => {
+        assert.equal(classifyCommand("echo hi | xargs rm -rf", opts).severity, "block");
     });
 });
 

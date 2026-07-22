@@ -2,6 +2,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -81,11 +82,20 @@ interface ParsedRm {
     operands: string[];
 }
 
+function basename(token: string): string {
+    const lastSlash = token.lastIndexOf("/");
+    return lastSlash === -1 ? token : token.slice(lastSlash + 1);
+}
+
 function parseRm(segment: string): ParsedRm | null {
     const tokens = tokenizeCommand(segment);
-    let i = 0;
+    return parseRmTokens(tokens, 0);
+}
+
+function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
+    let i = startIdx;
     if (tokens[i] === "sudo") i++;
-    if (tokens[i] !== "rm") return null;
+    if (i >= tokens.length || basename(tokens[i]) !== "rm") return null;
     i++;
     let recursive = false;
     let force = false;
@@ -111,6 +121,13 @@ function parseRm(segment: string): ParsedRm | null {
         operands.push(t);
     }
     return { recursive, force, operands };
+}
+
+function findRmAnywhere(tokens: string[]): number {
+    for (let i = 0; i < tokens.length; i++) {
+        if (basename(tokens[i]) === "rm") return i;
+    }
+    return -1;
 }
 
 function resolveTarget(token: string, projectDir: string, home: string): string | null {
@@ -156,9 +173,34 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
         const home = process.env.HOME || "/";
         const segments = command.split(/[;&|\n]/);
         for (const segment of segments) {
-            const parsed = parseRm(segment);
+            const segTokens = tokenizeCommand(segment);
+            if (segTokens.length === 0) continue;
+
+            // Try rm at head (with basename matching, sudo skip)
+            let parsed = parseRmTokens(segTokens, 0);
+
+            // If not at head, scan anywhere in the token stream
+            let foundIdx = -1;
+            if (!parsed) {
+                foundIdx = findRmAnywhere(segTokens);
+                if (foundIdx > 0) {
+                    parsed = parseRmTokens(segTokens, foundIdx);
+                }
+            }
+
             if (!parsed || !(parsed.recursive && parsed.force)) continue;
-            if (parsed.operands.length === 0) continue;
+
+            // rm -rf with no operands: if rm was not at head (wrapper like xargs)
+            // or the head is xargs, block conservatively (operands from stdin)
+            if (parsed.operands.length === 0) {
+                if (foundIdx > 0 || segTokens[0] === "xargs") {
+                    return {
+                        severity: "block",
+                        reason: "rm -rf detected with unresolvable targets (likely piped/stdin input)",
+                    };
+                }
+                continue;
+            }
             for (const operand of parsed.operands) {
                 const abs = resolveTarget(operand, projectDir, home);
                 if (abs === null || !isWithinSafeZone(abs, projectDir)) {
@@ -254,6 +296,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 
