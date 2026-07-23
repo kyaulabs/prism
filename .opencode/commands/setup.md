@@ -175,22 +175,26 @@ defaults. Instruct the user:
 If the user changed any model or variant, write `~/.config/opencode/setup.json`:
 
 ```bash
-mkdir -p ~/.config/opencode
-jq -n \
-  --arg p "$OPENCODE_MODEL_PRIMARY" --arg pl "$OPENCODE_MODEL_PLANNER" \
-  --arg d "$OPENCODE_MODEL_DESIGN" --arg j "$OPENCODE_MODEL_JUDGE" \
-  --arg u "$OPENCODE_MODEL_UTILITY" \
-  --arg pv "$OPENCODE_VARIANT_PRIMARY" --arg plv "$OPENCODE_VARIANT_PLANNER" \
-  --arg dv "$OPENCODE_VARIANT_DESIGN" --arg jv "$OPENCODE_VARIANT_JUDGE" \
-  --arg uv "$OPENCODE_VARIANT_UTILITY" \
-  --arg name "$SIGNED_OFF_BY_NAME" --arg email "$SIGNED_OFF_BY_EMAIL" \
-  '{
-    signed_off_by_name: $name,
-    signed_off_by_email: $email,
-    models: {primary: $p, planner: $pl, design: $d, judge: $j, utility: $u},
-    variants: {primary: $pv, planner: $plv, design: $dv, judge: $jv, utility: $uv}
-  }' > ~/.config/opencode/setup.json
+SIGNED_OFF_BY_NAME="$SIGNED_OFF_BY_NAME" \
+SIGNED_OFF_BY_EMAIL="$SIGNED_OFF_BY_EMAIL" \
+OPENCODE_MODEL_PRIMARY="$OPENCODE_MODEL_PRIMARY" \
+OPENCODE_MODEL_PLANNER="$OPENCODE_MODEL_PLANNER" \
+OPENCODE_MODEL_DESIGN="$OPENCODE_MODEL_DESIGN" \
+OPENCODE_MODEL_JUDGE="$OPENCODE_MODEL_JUDGE" \
+OPENCODE_MODEL_UTILITY="$OPENCODE_MODEL_UTILITY" \
+OPENCODE_VARIANT_PRIMARY="$OPENCODE_VARIANT_PRIMARY" \
+OPENCODE_VARIANT_PLANNER="$OPENCODE_VARIANT_PLANNER" \
+OPENCODE_VARIANT_DESIGN="$OPENCODE_VARIANT_DESIGN" \
+OPENCODE_VARIANT_JUDGE="$OPENCODE_VARIANT_JUDGE" \
+OPENCODE_VARIANT_UTILITY="$OPENCODE_VARIANT_UTILITY" \
+bash .github/scripts/setup-write-user-config.sh
 ```
+
+The script deep-merges the user-scoped fields (identity, models, variants)
+onto any existing `~/.config/opencode/setup.json`, preserving unrelated keys
+such as `env.deepseek_api_key` and `env.searxng_url` (#187). It writes
+atomically (tmp + mv), creates the parent directory, and refuses to clobber on
+a missing value or a corrupt existing file.
 
 After writing, instruct:
 
