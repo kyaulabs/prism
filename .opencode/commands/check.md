@@ -118,8 +118,12 @@ cat "$CHANGED" | php .github/scripts/coverage-gate.php tests/coverage.xml
 
 - Gate: **≥ 80% line coverage** on each changed file that is in the
   coverage source set (`<source>` in `phpunit.xml`).
-- Files outside the source set, deleted files, and files with no
-  executable lines are SKIPped (non-blocking).
+- A changed file that exists but is **outside `<source>` and contains
+  executable code emits a WARN** (non-blocking by default; FAILs under
+  `--strict`). Deleted files and files with no executable lines are
+  SKIPped. An empty/degenerate Clover report fails with exit 2.
+- This command and CI both run the gate **without** `--strict` (ADR-0025
+  parity); `--strict` is an available opt-in for stricter local checks.
 - If the script exits non-zero, report the failing files and the specific
   uncovered lines (from the coverage HTML report at `tests/coverage/`).
 - Flag (non-blocking) if overall coverage is below 80% but every changed
