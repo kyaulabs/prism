@@ -20,6 +20,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1710,10 +1711,98 @@ EOF
 	fi
 )
 
+# ── Test 39: SDK version parity — mismatched manifests ERROR ──────────────────
+
+echo ""
+echo "── Test 39: SDK version parity — mismatched versions ERROR ──"
+T39=$(mktemp -d)
+register_temp_dir "$T39"
+git_init_test_repo "$T39"
+(
+	cd "$T39"
+	mkdir -p .opencode .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	# Root package.json pins 1.17.15
+	cat > package.json <<'EOF'
+{
+	"devDependencies": {
+		"@opencode-ai/plugin": "1.17.15"
+	}
+}
+EOF
+
+	# .opencode/package.json pins 1.18.4
+	cat > .opencode/package.json <<'EOF'
+{
+	"dependencies": {
+		"@opencode-ai/plugin": "1.18.4"
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "SDK version mismatch"; then
+		pass "Caught SDK version mismatch between manifests"
+	else
+		fail "Did not detect SDK version mismatch (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test 40: SDK version parity — matched manifests PASS ──────────────────────
+
+echo "── Test 40: SDK version parity — matched versions PASS ──"
+T40=$(mktemp -d)
+register_temp_dir "$T40"
+git_init_test_repo "$T40"
+(
+	cd "$T40"
+	mkdir -p .opencode .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	# Both pin the same version
+	cat > package.json <<'EOF'
+{
+	"devDependencies": {
+		"@opencode-ai/plugin": "1.18.4"
+	}
+}
+EOF
+	cat > .opencode/package.json <<'EOF'
+{
+	"dependencies": {
+		"@opencode-ai/plugin": "1.18.4"
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -qF "SDK version mismatch"; then
+		fail "False positive — matched versions flagged as mismatch"
+	else
+		pass "Matched SDK versions not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
