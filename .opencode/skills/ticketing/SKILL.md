@@ -98,7 +98,18 @@ OWNER=$(gh repo view --json owner -q .owner.login)
 NAME=$(gh repo view --json name -q .name)
 
 # 2. Create the issue — capture issue number from output URL
-gh issue create --repo "$REPO" --title "<title>" --body "<body>"
+# Write title and body to temp files via single-quoted heredoc (no expansion).
+# gh issue create lacks --title-file, so read the title into a shell variable.
+# Double-quoted variable expansion ("$TITLE") does NOT re-parse the value for
+# quotes, $(), or backticks — the content is inert data, not executable code.
+cat > /tmp/issue-title.txt <<'HEREDOC'
+<title>
+HEREDOC
+cat > /tmp/issue-body.md <<'HEREDOC'
+<body>
+HEREDOC
+TITLE=$(cat /tmp/issue-title.txt)
+gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/issue-body.md
 
 # 3. Get the issue's GraphQL node ID
 gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <N>) { id } } }'

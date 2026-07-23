@@ -4,6 +4,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
@@ -47,6 +48,22 @@ else
 		fail "ticketing/SKILL.md: graphql query has shell variable inside single-quoted string"
 	else
 		pass "ticketing/SKILL.md: no shell variables inside single-quoted graphql strings"
+	fi
+
+	# Check 5: No gh issue create with inline --title "<literal>" or --body "<literal>"
+	# Bug:   --title "<title>" or --body "<body>"   (inline interpolation)
+	# Safe:  --title "$TITLE" and --body-file FILE   (variable + file)
+	if grep -Pn 'issue create.*--title\s+"[^$]' "$TICKETING" > /dev/null 2>&1; then
+		fail "ticketing/SKILL.md: gh issue create uses inline --title (should use heredoc + variable)"
+	else
+		pass "ticketing/SKILL.md: gh issue create uses safe title pattern (variable)"
+	fi
+
+	# Check 6: gh issue create must use --body-file, not inline --body
+	if grep -Pn 'issue create.*--body\s+"' "$TICKETING" > /dev/null 2>&1; then
+		fail "ticketing/SKILL.md: gh issue create uses inline --body (should use --body-file)"
+	else
+		pass "ticketing/SKILL.md: gh issue create uses --body-file"
 	fi
 fi
 
@@ -134,8 +151,39 @@ else
 	fail "active injection test: malicious content was modified or expanded"
 fi
 
+# ── Active injection test: issue-create title via variable ───────────────────
+# Demonstrate that a malicious title written to a file via quoted heredoc,
+# read into a variable via $(cat), and passed as --title "$TITLE" does NOT
+# execute embedded commands. This is the safe pattern for gh issue create
+# (which lacks --title-file).
+SENTINEL3="/tmp/issue_pwn_test"
+rm -f "$SENTINEL3"
+
+# Write malicious title via quoted-heredoc (no expansion inside the body)
+cat > "$TMPDIR/issue-title.txt" <<'HEREDOC'
+fix: bug"; rm -rf /tmp/issue_pwn_test; # injected
+HEREDOC
+
+# Read into variable — command substitution reads file content as DATA
+ISSUE_TITLE=$(cat "$TMPDIR/issue-title.txt")
+
+# Double-quoted variable expansion does NOT re-parse for rm, $(), or backticks
+if [ -f "$SENTINEL3" ]; then
+	fail "active injection test: issue-title variable assignment executed rm"
+	rm -f "$SENTINEL3"
+else
+	pass "active injection test: issue-title via variable did NOT execute embedded command"
+fi
+
+# Verify the malicious pattern is preserved literally in the variable
+case "$ISSUE_TITLE" in
+	*rm\ -rf*) pass "active injection test: malicious pattern preserved literally in variable" ;;
+	*)         fail "active injection test: malicious pattern missing from variable" ;;
+esac
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 
