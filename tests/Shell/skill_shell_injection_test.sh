@@ -6,6 +6,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
@@ -167,6 +168,7 @@ fi
 # (which lacks --title-file).
 SENTINEL3="/tmp/issue_pwn_test"
 rm -f "$SENTINEL3"
+touch "$SENTINEL3"
 
 # Write malicious title via quoted-heredoc (no expansion inside the body)
 cat > "$TMPDIR/issue-title.txt" <<'HEREDOC'
@@ -176,13 +178,14 @@ HEREDOC
 # Read into variable — command substitution reads file content as DATA
 ISSUE_TITLE=$(cat "$TMPDIR/issue-title.txt")
 
-# Double-quoted variable expansion does NOT re-parse for rm, $(), or backticks
+# Verify sentinel still exists — reading file content into a variable via
+# $(cat) must NOT execute embedded commands (rm -rf in this case).
 if [ -f "$SENTINEL3" ]; then
-	fail "active injection test: issue-title variable assignment executed rm"
-	rm -f "$SENTINEL3"
-else
 	pass "active injection test: issue-title via variable did NOT execute embedded command"
+else
+	fail "active injection test: issue-title variable assignment executed rm"
 fi
+rm -f "$SENTINEL3"
 
 # Verify the malicious pattern is preserved literally in the variable
 case "$ISSUE_TITLE" in
@@ -192,6 +195,7 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 
