@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ExploreAgentTest.php kyau@nova 2026/07/21 -0700 Exp $
+# $KYAULabs: ExploreAgentTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
+
+
 
 
 
@@ -118,6 +121,18 @@ it('explore is registered in opencode.jsonc at the JUDGE tier (model/variant/tem
         'explore permission block must live in .opencode/agents/explore.md (not inline in opencode.jsonc)',
     );
 });
+
+it('explore agent allows LSP for semantic code navigation', function (): void {
+    $fm = agent_frontmatter('explore');
+
+    Assert::assertStringContainsString(
+        'lsp: allow',
+        $fm,
+        'explore must allow LSP — its prompt expects an LSP workflow and it '
+        . 'navigates code semantically (read-only contract per ADR-0006 preserved)',
+    );
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

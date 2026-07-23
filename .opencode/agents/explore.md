@@ -23,6 +23,7 @@ permission:
     "graphify explain*": allow
   webfetch: deny
   task: deny
+  lsp: allow
 ---
 
 You are the @explore agent for a KYAULabs PHP project. Your job is focused
