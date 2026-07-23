@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: coverage-gate.php kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: coverage-gate.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -34,6 +37,10 @@ declare(strict_types=1);
  * @param array<int,string> $argv
  * @return int
  */
+
+if (defined('COVERAGE_GATE_AS_LIBRARY')) {
+    return;
+}
 
 $min = 80;
 $root = getcwd();
@@ -193,6 +200,40 @@ function relativize_path(string $absPath, string $rootPrefix): string
     }
     return $normalized;
 }
+
+/**
+ * Heuristic: does a PHP source string contain executable code?
+ *
+ * Tokenizes $source and returns true if any token is an unambiguous
+ * executable-statement indicator (control structures, echo/print, return,
+ * throw, yield, inline HTML, etc.). These tokens never appear inside a
+ * declaration header, so no brace-depth tracking is required.
+ *
+ * Used by classify_changed_files() to decide whether an out-of-<source>
+ * changed file should WARN (has code) or SKIP (pure declarations/config).
+ *
+ * Known limitation: assignment-only bodies without a control structure are
+ * not detected. The WARN is a nudge, not a measurement — the Clover XML is
+ * authoritative for in-source files.
+ *
+ * @param string $source
+ * @return bool
+ */
+function has_executable_code(string $source): bool
+{
+    $executable = [
+        T_IF, T_ELSEIF, T_ELSE, T_WHILE, T_DO, T_FOR, T_FOREACH, T_SWITCH,
+        T_MATCH, T_RETURN, T_THROW, T_YIELD, T_YIELD_FROM, T_TRY, T_CATCH,
+        T_FINALLY, T_BREAK, T_CONTINUE, T_GOTO, T_ECHO, T_PRINT, T_INLINE_HTML,
+    ];
+    foreach (PhpToken::tokenize($source) as $token) {
+        if (in_array($token->id, $executable, true)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 
 
