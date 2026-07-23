@@ -98,13 +98,24 @@ OWNER=$(gh repo view --json owner -q .owner.login)
 NAME=$(gh repo view --json name -q .name)
 
 # 2. Create the issue — capture issue number from output URL
-gh issue create --repo "$REPO" --title "<title>" --body "<body>"
+# Write title and body to temp files via single-quoted heredoc (no expansion).
+# gh issue create lacks --title-file, so read the title into a shell variable.
+# Double-quoted variable expansion ("$TITLE") does NOT re-parse the value for
+# quotes, $(), or backticks — the content is inert data, not executable code.
+cat > /tmp/issue-title.txt <<'HEREDOC'
+<title>
+HEREDOC
+cat > /tmp/issue-body.md <<'HEREDOC'
+<body>
+HEREDOC
+TITLE=$(cat /tmp/issue-title.txt)
+gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/issue-body.md
 
 # 3. Get the issue's GraphQL node ID
-gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <N>) { id } } }'
+gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<N> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }'
 
 # 4. Set the issue type via GraphQL mutation
-gh api graphql -f query='mutation { updateIssue(input: { id: "<NODE_ID>", issueTypeId: "<TYPE_NODE_ID>" }) { issue { number issueType { name } } } }'
+gh api graphql -F nodeId="<NODE_ID>" -F typeId="<TYPE_NODE_ID>" -f query='mutation($nodeId:ID!,$typeId:ID!) { updateIssue(input: { id: $nodeId, issueTypeId: $typeId }) { issue { number issueType { name } } } }'
 
 # 5. Set custom field values via REST POST
 gh api "repos/$REPO/issues/<N>/issue-field-values" -X POST \
@@ -267,8 +278,8 @@ If `gh --version` < 2.94.0, fall back to GraphQL:
 
 ```bash
 # Get node IDs for both issues
-TASK_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <TASK_NUM>) { id } } }' -q '.data.repository.issue.id')
-PREREQ_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <PREREQ_NUM>) { id } } }' -q '.data.repository.issue.id')
+TASK_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<TASK_NUM> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }' -q '.data.repository.issue.id')
+PREREQ_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<PREREQ_NUM> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }' -q '.data.repository.issue.id')
 
 # Wire via GraphQL
 gh api graphql -F taskId="$TASK_NODE" -F prereqId="$PREREQ_NODE" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
@@ -316,6 +327,12 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
 - Label application failure is non-critical — warn and continue.
 - All field IDs and type node IDs must be queried dynamically, never
   hard-coded.
+- Never interpolate user content (issue titles, bodies, PR descriptions, label
+  names) into shell command strings. Use a single-quoted heredoc
+  (`<<'HEREDOC'`) to write payloads to temp files, read them into shell
+  variables via `$(cat)`, and pass via `--title "$VAR"` / `--body-file FILE`.
+  For GraphQL, always use `-F` variable bindings — never inline `<placeholder>`
+  text inside a query string.
 - No forced linear blocking edges — sequential tasks are not necessarily
   dependent.
 
