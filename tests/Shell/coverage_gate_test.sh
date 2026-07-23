@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
 
 
 
@@ -268,10 +269,31 @@ else
 	)
 fi
 
+# ── Test 12: Empty Clover (no <file> nodes) → exit 2 ────────────────────────
+echo ""
+echo "── Test 12: empty clover → exit 2 ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	CLOVER=$(mktemp)
+	{
+		echo '<?xml version="1.0" encoding="UTF-8"?>'
+		echo '<coverage generated="1"><project></project></coverage>'
+	} > "$CLOVER"
+	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T12" >out.txt 2>&1 || rc=$?
+	if [ "${rc:-2}" -eq 2 ] && grep -q '<source>' out.txt; then
+		pass "empty clover exits 2 with <source> remediation"
+	else
+		fail "expected exit 2 + <source> hint, got rc=${rc:-0}"
+	fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 

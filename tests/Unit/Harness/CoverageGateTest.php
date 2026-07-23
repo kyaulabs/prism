@@ -20,6 +20,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Unit tests for the executable-code heuristic extracted from
  * coverage-gate.php. Pure string inputs — no filesystem.
@@ -121,6 +124,18 @@ test('exit_code_for: failures exit 1; strict+warned exits 1; else 0', function (
         ->and(exit_code_for($warn, true))->toBe(1);
 });
 
+test('empty clover (no file nodes) exits 2', function (): void {
+    $dir = sys_get_temp_dir() . '/cg_' . bin2hex(random_bytes(4));
+    mkdir($dir, 0777, true);
+    $clover = $dir . '/empty.xml';
+    file_put_contents($clover, '<?xml version="1.0"?><coverage><project></project></coverage>');
+    $cmd = sprintf('printf %s | php %s %s --root=%s 2>&1', escapeshellarg('backend/a.php'), escapeshellarg(getcwd() . '/.github/scripts/coverage-gate.php'), escapeshellarg($clover), escapeshellarg($dir));
+    exec($cmd, $out, $rc);
+    expect($rc)->toBe(2);
+    expect(implode("\n", $out))->toContain('<source>');
+    unlink($clover);
+    rmdir($dir);
+});
 
 
-// vim: ft=php sts=4 sw=4 ts=4 et :
+

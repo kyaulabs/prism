@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -37,7 +40,7 @@ declare(strict_types=1);
  * Exit codes:
  *   0  All changed files meet the threshold (or none are in the source set).
  *   1  One or more changed files are below the threshold.
- *   2  Usage error or unreadable clover file.
+ *   2  Usage error, unreadable clover file, or empty/degenerate clover (no instrumented files).
  *
  * @param int    $argc
  * @param array<int,string> $argv
@@ -276,6 +279,14 @@ function main(int $argc, array $argv): int
     $rootPrefix = rtrim(str_replace('\\', '/', $rootReal !== false ? $rootReal : $root), '/') . '/';
     $coverage = build_coverage_map($xml, $rootPrefix);
 
+    if ($coverage === []) {
+        fwrite(STDERR, "ERROR: Clover report '{$cloverPath}' contains no <file> entries.\n");
+        fwrite(STDERR, "       No source files are instrumented. Register instrumented\n");
+        fwrite(STDERR, "       directories in phpunit.xml <source><include>, then re-run\n");
+        fwrite(STDERR, "       `pest --coverage` to regenerate tests/coverage.xml.\n");
+        return 2;
+    }
+
     $result = classify_changed_files($changedFiles, $coverage, $rootPrefix, $min);
 
     echo "Changed-file coverage gate (min {$min}%):\n\n";
@@ -307,6 +318,7 @@ function main(int $argc, array $argv): int
     }
     return $code;
 }
+
 
 
 
