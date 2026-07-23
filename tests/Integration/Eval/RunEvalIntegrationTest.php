@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunEvalIntegrationTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: RunEvalIntegrationTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -66,6 +69,59 @@ it('runs tdd-red-green smoke case through full pipeline', function () {
         . ' — SKIPPED/INVALID indicate a broken or misconfigured runner'
     );
 })->group('slow');
+
+/**
+ * @group slow
+ *
+ * Regression for #188: a dirty source tree made run-eval emit a STDERR
+ * NOTICE that, pre-fix, was merged into stdout and broke json_decode.
+ * Requires opencode in PATH. Excluded from default runs; run manually:
+ *   vendor/bin/pest --group slow
+ */
+it('run-eval on a dirty tree emits parseable JSON with the NOTICE on stderr only', function () {
+    $repoRoot = dirname(__DIR__, 3);
+    $caseFile = $repoRoot . '/.opencode/evals/smoke/tdd-red-green.json';
+    $script = $repoRoot . '/.opencode/evals/bin/run-eval.php';
+
+    if (!file_exists($caseFile) || !file_exists($script)) {
+        $this->markTestSkipped('eval smoke case or runner not found.');
+    }
+
+    $check = [];
+    exec('command -v opencode 2>&1', $check, $checkExit);
+    if ($checkExit !== 0) {
+        $this->markTestSkipped('opencode not available in PATH — integration test skipped.');
+    }
+
+    // Dirty the source tree with a throwaway untracked file — the exact
+    // condition that makes run-eval emit the STDERR NOTICE.
+    $dirtyFile = $repoRoot . '/.eval-dirty-' . bin2hex(random_bytes(4));
+    file_put_contents($dirtyFile, "dirty\n");
+
+    try {
+        $before = shell_exec('git -C ' . escapeshellarg($repoRoot) . ' status --porcelain');
+
+        // Capture stdout and stderr SEPARATELY (the property #188 restores).
+        $cmd = 'php ' . escapeshellarg($script) . ' ' . escapeshellarg($caseFile) . ' --timeout 180';
+        $proc = \KYAULabs\Eval\Runner::captureOutput($cmd);
+
+        $after = shell_exec('git -C ' . escapeshellarg($repoRoot) . ' status --porcelain');
+        expect($after)->toBe($before, 'eval run mutated the source working tree');
+
+        $result = json_decode($proc['stdout'], true);
+        expect($result)->toBeArray('run-eval stdout was not parseable JSON');
+        expect($result)->toHaveKey('verdict');
+
+        // The dirty-tree NOTICE must live on stderr, never in the JSON stream.
+        expect($proc['stderr'])->toContain('NOTICE');
+        expect($proc['stdout'])->not->toContain('NOTICE');
+    } finally {
+        if (file_exists($dirtyFile)) {
+            unlink($dirtyFile);
+        }
+    }
+})->group('slow');
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
