@@ -86,11 +86,20 @@ git branch -d <branch-name>
 Prepare the `gh pr create` command:
 
 ```bash
-gh pr create --base develop --head <branch-name> --title "<subject>" --body "<body>"
+cat > /tmp/pr-title.txt <<'HEREDOC'
+<subject>
+HEREDOC
+cat > /tmp/pr-body.md <<'HEREDOC'
+<body>
+HEREDOC
+gh pr create --base develop --head <branch-name> \
+    --title-file /tmp/pr-title.txt \
+    --body-file /tmp/pr-body.md
 ```
 
 Use the branch description and commit subjects to construct the title and body.
-Present the exact command for user approval.
+Write each to a temp file via heredoc (`<<'HEREDOC'`) so no shell expansion
+occurs inside the payload. Present the exact command for user approval.
 
 ### Keep / Discard
 

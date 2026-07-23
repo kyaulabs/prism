@@ -101,7 +101,7 @@ NAME=$(gh repo view --json name -q .name)
 gh issue create --repo "$REPO" --title "<title>" --body "<body>"
 
 # 3. Get the issue's GraphQL node ID
-gh api graphql -f query='{ repository(owner: "$OWNER", name: "$NAME") { issue(number: <N>) { id } } }'
+gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <N>) { id } } }'
 
 # 4. Set the issue type via GraphQL mutation
 gh api graphql -f query='mutation { updateIssue(input: { id: "<NODE_ID>", issueTypeId: "<TYPE_NODE_ID>" }) { issue { number issueType { name } } } }'
@@ -267,11 +267,11 @@ If `gh --version` < 2.94.0, fall back to GraphQL:
 
 ```bash
 # Get node IDs for both issues
-TASK_NODE=$(gh api graphql -f query='{ repository(owner: "$OWNER", name: "$NAME") { issue(number: <TASK_NUM>) { id } } }' -q '.data.repository.issue.id')
-PREREQ_NODE=$(gh api graphql -f query='{ repository(owner: "$OWNER", name: "$NAME") { issue(number: <PREREQ_NUM>) { id } } }' -q '.data.repository.issue.id')
+TASK_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <TASK_NUM>) { id } } }' -q '.data.repository.issue.id')
+PREREQ_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -f query='query($owner:String!,$name:String!){ repository(owner: $owner, name: $name) { issue(number: <PREREQ_NUM>) { id } } }' -q '.data.repository.issue.id')
 
 # Wire via GraphQL
-gh api graphql -f query='mutation { addBlockedBy(input: {issueId: "$TASK_NODE", blockingIssueId: "$PREREQ_NODE"}) { clientMutationId } }'
+gh api graphql -F taskId="$TASK_NODE" -F prereqId="$PREREQ_NODE" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
 ```
 
 ### Step 11: Report
