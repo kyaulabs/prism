@@ -17,6 +17,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -768,7 +769,7 @@ INLINE_RO_VIOLATIONS=0
 INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
 
 if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
-	while IFS=$'\t' read -r agent_name desc edit_val bash_restricted; do
+	while IFS='|' read -r agent_name desc edit_val bash_restricted _git_commit _has_perm; do
 		[ -z "$agent_name" ] && continue
 
 		# Skip if description doesn't claim read-only
@@ -795,6 +796,53 @@ if [ "$INLINE_RO_CHECKED" -eq 0 ]; then
 	warn "No inline read-only agents found in opencode.jsonc — keyword detection may need updating"
 else
 	ok "${INLINE_RO_CHECKED} inline read-only agent(s) checked, ${INLINE_RO_VIOLATIONS} violation(s)"
+fi
+
+# ── Check inline agent git-commit gating (opencode.jsonc) ─────────────────────
+
+echo "── Checking inline agent git-commit gating ──"
+INLINE_GC_CHECKED=0
+INLINE_GC_VIOLATIONS=0
+
+# Any inline agent whose bash is NOT a full deny (bash: deny OR {"*": deny})
+# must explicitly gate "git commit*" with ask or deny. An agent that inherits
+# the top-level default (only git push* denied) can commit with no gate — the
+# exact drift class of issue #202 (general). bash_restricted == 'true' agents
+# (plan, chat, judge) are skipped; build/design/general carry the ask gate.
+
+	if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
+	while IFS='|' read -r agent_name desc edit_val bash_restricted git_commit has_perm; do
+		[ -z "$agent_name" ] && continue
+
+		# Skip built-in agents with no project-level permission block.
+		[ "$has_perm" != "true" ] && continue
+
+		# Skip agents that have a corresponding .md file (their real
+		# permissions, including git-commit gate, are in the .md frontmatter
+		# — covered by the agent-file validation path above).
+		if [ -f "${REPO_ROOT}/.opencode/agents/${agent_name}.md" ]; then
+			continue
+		fi
+
+		# Skip agents whose bash is fully denied (no commit possible anyway).
+		[ "$bash_restricted" = "true" ] && continue
+
+		INLINE_GC_CHECKED=$((INLINE_GC_CHECKED + 1))
+
+		case "$git_commit" in
+			ask|deny) : ;;  # explicitly gated — OK
+			*)
+				err "opencode.jsonc: inline agent '${agent_name}' can git commit without a gate (issue #202) — add '\"git commit*\": \"ask\"' (or deny). bash is not fully denied but 'git commit*' is '${git_commit:-<unset>}'"
+				INLINE_GC_VIOLATIONS=$((INLINE_GC_VIOLATIONS + 1))
+				;;
+		esac
+	done < <(node "$INLINE_HELPERS" "$OPENCODE_JSONC")
+fi
+
+if [ "$INLINE_GC_CHECKED" -eq 0 ]; then
+	warn "No non-denied inline agents found — git-commit gate check did not run"
+else
+	ok "${INLINE_GC_CHECKED} inline agent(s) checked for git-commit gating, ${INLINE_GC_VIOLATIONS} violation(s)"
 fi
 
 # ── Check git add/git stage verdict parity ────────────────────────────────────
@@ -911,6 +959,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
