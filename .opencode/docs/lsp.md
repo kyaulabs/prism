@@ -80,6 +80,7 @@ analyzer CLI** (`@code-review`→`ocr`, `@semgrep`→`semgrep`,
 | Agent | LSP | Defined in | Rationale |
 |---|---|---|---|
 | `build` | `allow` | `opencode.jsonc` | Primary implementer; Intelephense provides the only PHP static analysis (no psalm/phpstan) |
+| `design` | `allow` | `opencode.jsonc` | Write-capable primary agent (ADR-0030); gathers live-code context during spec authorship and prototype exploration |
 | `explore` | `allow` | `opencode.jsonc` | Codebase navigation is its core job |
 | `general` | `allow` | `opencode.jsonc` | Catch-all with full tool access; occasional code work justifies it |
 | `chat` | `allow` | `opencode.jsonc` | Read-only conversational tab; LSP aids code explanation and Q&A on the UTILITY tier |

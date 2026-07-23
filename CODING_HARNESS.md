@@ -61,10 +61,10 @@ read-only contract (issue #184, ADR-0006 Decision #3).
 
 ### Plan Agent Complexity Assessment
 
-The plan agent uses the `high` variant by default (configurable via
-`OPENCODE_VARIANT_PLANNER`) as a cost/quality balance —
-more capable than `medium` for reasoning, but without the full token cost of
-`max`. A **Complexity Assessment Protocol** in the agent's system prompt
+The plan agent uses the `max` variant by default (configurable via
+`OPENCODE_VARIANT_PLANNER`) — with abundant GLM quota, planning and design
+quality feeds downstream coding, so the variant is bumped to `max`
+(ADR-0031 §2). A **Complexity Assessment Protocol** in the agent's system prompt
 instructs it to classify task complexity and adjust reasoning depth:
 
 - **Complex tasks** (architecture, security, DB schema, cross-cutting refactors,
@@ -88,11 +88,11 @@ in `.opencode/setup.json` (models section):
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
 | --- | --- | --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `deepseek/deepseek-v4-pro` | `max` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, spec-review, standards-review, test-audit, general, explore |
-| Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openrouter/z-ai/glm-5.2` | `high` | plan, from-issue |
-| Design | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openrouter/z-ai/glm-5.2` | `high` | design |
-| Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `openrouter/z-ai/glm-5.2` | `medium` | judge |
-| Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `zai-coding-plan/glm-5.2` | `max` | build, tdd, debug, resolve-merge-conflicts, general |
+| Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `zai-coding-plan/glm-5.2` | `max` | plan, from-issue, architect, consult |
+| Design | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `zai-coding-plan/glm-5.2` | `max` | design |
+| Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
+| Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep, chat |
 
 **Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
 commands), then `cd` into the project and run `direnv allow` to trust the

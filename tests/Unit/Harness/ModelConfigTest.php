@@ -2,7 +2,19 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@nova 2026/07/20 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23,6 +35,33 @@ use PHPUnit\Framework\Assert;
 function setup_json(): array
 {
     return json_decode(file_get_contents(__DIR__ . '/../../../.opencode/setup.json'), true);
+}
+
+/**
+ * Compute the canonical set of agents granted `lsp: allow`, combining inline
+ * primary agents (opencode.jsonc) and subagent frontmatter (.opencode/agents).
+ *
+ * @return list<string>
+ */
+function lsp_enabled_agents(): array
+{
+    $agents = [];
+
+    foreach (load_opencode_config()['agent'] as $name => $def) {
+        if ((($def['permission'] ?? [])['lsp'] ?? null) === 'allow') {
+            $agents[] = $name;
+        }
+    }
+
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    foreach (is_array($agentFiles) ? $agentFiles : [] as $file) {
+        $frontmatter = file_get_contents($file);
+        if (preg_match('/^\s*lsp:\s*allow/m', $frontmatter)) {
+            $agents[] = basename($file, '.md');
+        }
+    }
+
+    return array_values(array_unique($agents));
 }
 
 it('has a setup.json with five tier model values', function () {
@@ -259,8 +298,8 @@ it('has all required model and variant keys in setup.json', function () {
 it('has correct default variant values', function () {
     $setup = setup_json();
     expect($setup['variants']['primary'])->toBe('max');
-    expect($setup['variants']['planner'])->toBe('high');
-    expect($setup['variants']['design'])->toBe('high');
+    expect($setup['variants']['planner'])->toBe('max');
+    expect($setup['variants']['design'])->toBe('max');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
 });
@@ -381,6 +420,82 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
+it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', function (): void {
+    $enabled = lsp_enabled_agents();
+    sort($enabled);
+
+    // After granting explore lsp:allow, eight agents carry the tool.
+    expect($enabled)->toHaveCount(8);
+    expect($enabled)->toBe([
+        'build', 'chat', 'debug', 'design', 'docs-writer',
+        'explore', 'general', 'tdd',
+    ]);
+
+    $agentsMd = file_get_contents(__DIR__ . '/../../../AGENTS.md');
+
+    // Stale counts must be gone.
+    Assert::assertStringNotContainsString('six agents', $agentsMd);
+    Assert::assertStringNotContainsString('Seven agents', $agentsMd);
+    // Current count is stated.
+    Assert::assertStringContainsString('Eight agents', $agentsMd);
+    // Every enabled agent is named in the LSP sentence.
+    foreach (['build', 'design', 'explore', 'general', 'chat', '@tdd', '@debug', '@docs-writer'] as $name) {
+        Assert::assertStringContainsString(
+            $name,
+            $agentsMd,
+            "AGENTS.md LSP section must name '{$name}' among the opt-in agents",
+        );
+    }
+});
+
+it('README and CODING_HARNESS tier tables match setup.json defaults', function (): void {
+    $setup = setup_json();
+
+    foreach (['README.md', 'CODING_HARNESS.md'] as $doc) {
+        $text = file_get_contents(__DIR__ . '/../../../' . $doc);
+
+        // Each tier's shipped default model must appear in the table.
+        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+            Assert::assertStringContainsString(
+                $setup['models'][$tier],
+                $text,
+                "{$doc} must list the setup.json default model for the '{$tier}' tier",
+            );
+        }
+
+        // The stale OpenRouter provider prefix must be gone (drifted form was
+        // openrouter/z-ai/glm-5.2; shipped default is zai-coding-plan/glm-5.2).
+        Assert::assertStringNotContainsString(
+            'openrouter/z-ai/glm-5.2',
+            $text,
+            "{$doc} must not use the stale openrouter/z-ai provider prefix",
+        );
+    }
+});
+
+it('README install verify comment matches the shipped Primary default', function (): void {
+    $setup = setup_json();
+    $readme = file_get_contents(__DIR__ . '/../../../README.md');
+
+    Assert::assertMatchesRegularExpression(
+        '/verify:\s*' . preg_quote($setup['models']['primary'], '/') . '/',
+        $readme,
+        'README verify comment must echo the actual Primary default',
+    );
+});
+
+it('CODING_HARNESS variant column reflects the max bump for planner and design', function (): void {
+    $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
+
+    // Planner and Design are now `max` (ADR-0031 §2); the old `high` rows for
+    // these tiers must not remain. (Judge/Utility legitimately stay medium.)
+    Assert::assertStringNotContainsString('`high`', $harness);
+});
+
+
+
+
 
 
 

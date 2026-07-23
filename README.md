@@ -310,10 +310,10 @@ different `OPENCODE_MODEL_*` env var:
 
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `deepseek/deepseek-v4-pro` | build, tdd, architect, code-review, consult, debug, resolve-merge-conflicts, spec-review, standards-review, test-audit, general, explore |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openrouter/z-ai/glm-5.2` | plan, from-issue |
-| Design | `OPENCODE_MODEL_DESIGN` | `openrouter/z-ai/glm-5.2` | design |
-| Judge | `OPENCODE_MODEL_JUDGE` | `openrouter/z-ai/glm-5.2` | judge |
+| Primary | `OPENCODE_MODEL_PRIMARY` | `zai-coding-plan/glm-5.2` | build, tdd, debug, resolve-merge-conflicts, general |
+| Planner | `OPENCODE_MODEL_PLANNER` | `zai-coding-plan/glm-5.2` | plan, from-issue, architect, consult |
+| Design | `OPENCODE_MODEL_DESIGN` | `zai-coding-plan/glm-5.2` | design |
+| Judge | `OPENCODE_MODEL_JUDGE` | `deepseek/deepseek-v4-pro` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |
 
 **Default delivery:** A direnv `.envrc` automatically extracts the committed
@@ -341,7 +341,7 @@ different `OPENCODE_MODEL_*` env var:
    ```bash
    cd /path/to/repo
    direnv allow
-   echo $OPENCODE_MODEL_PRIMARY      # verify: deepseek/deepseek-v4-pro
+   echo $OPENCODE_MODEL_PRIMARY      # verify: zai-coding-plan/glm-5.2
    ```
 
 Without direnv, add to your shell profile:

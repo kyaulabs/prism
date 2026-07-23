@@ -231,13 +231,11 @@ LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
 hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
-default in `opencode.jsonc`. Seven agents explicitly opt in with `lsp: "allow"`:
-`build`, `explore`, `general`, `chat`, `@tdd`, `@debug`, and `@docs-writer` — agents
-that write PHP or navigate code semantically (Intelephense premium fills the
-gap left by the absence of `psalm`/`phpstan` in `composer.json`). All other
-agents (`plan`, `@architect`, `@code-review`, `@semgrep`, `@test-audit`,
-`@resolve-merge-conflicts`, `compaction`, `title`, `summary`, `judge`)
-inherit the `deny` default.
+default in `opencode.jsonc`. Eight agents explicitly opt in with `lsp: "allow"`:
+`build`, `design`, `explore`, `general`, `chat`, `@tdd`, `@debug`, and
+`@docs-writer` — agents that write PHP or navigate code semantically
+(Intelephense premium fills the gap left by the absence of `psalm`/`phpstan`
+in `composer.json`). All other agents inherit the `deny` default.
 
 ## Experimental OpenCode Features
 
@@ -249,7 +247,7 @@ their shell profile.
 
 | Flag | Purpose | Status |
 | --- | --- | --- |
-| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for six agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
+| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for eight agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
 | `OPENCODE_EXPERIMENTAL_SCOUT=true` | Enables the built-in `@scout` experimental subagent (ADR-0005 delegate — web research, clone upstream deps) | Auto-sourced |
 | `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` | Enables background subagent tasks (see `/research --background`) | Commented — gated on ADR-0024 Phase-0 spike |
 
