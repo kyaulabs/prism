@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -26,6 +29,32 @@ use PHPUnit\Framework\Assert;
 function setup_json(): array
 {
     return json_decode(file_get_contents(__DIR__ . '/../../../.opencode/setup.json'), true);
+}
+
+/**
+ * Compute the canonical set of agents granted `lsp: allow`, combining inline
+ * primary agents (opencode.jsonc) and subagent frontmatter (.opencode/agents).
+ *
+ * @return list<string>
+ */
+function lsp_enabled_agents(): array
+{
+    $agents = [];
+
+    foreach (load_opencode_config()['agent'] as $name => $def) {
+        if (($def['permission']['lsp'] ?? null) === 'allow') {
+            $agents[] = $name;
+        }
+    }
+
+    foreach (glob(__DIR__ . '/../../../.opencode/agents/*.md') as $file) {
+        $frontmatter = file_get_contents($file);
+        if (preg_match('/^\s*lsp:\s*allow/m', $frontmatter)) {
+            $agents[] = basename($file, '.md');
+        }
+    }
+
+    return array_values(array_unique($agents));
 }
 
 it('has a setup.json with five tier model values', function () {
@@ -384,6 +413,35 @@ it('every agent has an explicit temperature — no silent default inheritance', 
         );
     }
 });
+
+it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', function (): void {
+    $enabled = lsp_enabled_agents();
+    sort($enabled);
+
+    // After granting explore lsp:allow, eight agents carry the tool.
+    expect($enabled)->toHaveCount(8);
+    expect($enabled)->toBe([
+        'build', 'chat', 'debug', 'design', 'docs-writer',
+        'explore', 'general', 'tdd',
+    ]);
+
+    $agentsMd = file_get_contents(__DIR__ . '/../../../AGENTS.md');
+
+    // Stale counts must be gone.
+    Assert::assertStringNotContainsString('six agents', $agentsMd);
+    Assert::assertStringNotContainsString('Seven agents', $agentsMd);
+    // Current count is stated.
+    Assert::assertStringContainsString('Eight agents', $agentsMd);
+    // Every enabled agent is named in the LSP sentence.
+    foreach (['build', 'design', 'explore', 'general', 'chat', '@tdd', '@debug', '@docs-writer'] as $name) {
+        Assert::assertStringContainsString(
+            $name,
+            $agentsMd,
+            "AGENTS.md LSP section must name '{$name}' among the opt-in agents",
+        );
+    }
+});
+
 
 
 
