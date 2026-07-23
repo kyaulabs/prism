@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -45,12 +48,13 @@ function lsp_enabled_agents(): array
     $agents = [];
 
     foreach (load_opencode_config()['agent'] as $name => $def) {
-        if (($def['permission']['lsp'] ?? null) === 'allow') {
+        if ((($def['permission'] ?? [])['lsp'] ?? null) === 'allow') {
             $agents[] = $name;
         }
     }
 
-    foreach (glob(__DIR__ . '/../../../.opencode/agents/*.md') as $file) {
+    $agentFiles = glob(__DIR__ . '/../../../.opencode/agents/*.md');
+    foreach (is_array($agentFiles) ? $agentFiles : [] as $file) {
         $frontmatter = file_get_contents($file);
         if (preg_match('/^\s*lsp:\s*allow/m', $frontmatter)) {
             $agents[] = basename($file, '.md');
@@ -488,6 +492,7 @@ it('CODING_HARNESS variant column reflects the max bump for planner and design',
     // these tiers must not remain. (Judge/Utility legitimately stay medium.)
     Assert::assertStringNotContainsString('`high`', $harness);
 });
+
 
 
 

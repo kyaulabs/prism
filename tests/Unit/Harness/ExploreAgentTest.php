@@ -7,15 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -132,6 +123,7 @@ it('explore agent allows LSP for semantic code navigation', function (): void {
         . 'navigates code semantically (read-only contract per ADR-0006 preserved)',
     );
 });
+
 
 
 
