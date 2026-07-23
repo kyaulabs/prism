@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
@@ -64,6 +65,14 @@ else
 		fail "ticketing/SKILL.md: gh issue create uses inline --body (should use --body-file)"
 	else
 		pass "ticketing/SKILL.md: gh issue create uses --body-file"
+	fi
+
+	# Check 7: No <UPPERCASE_PLACEHOLDER> inside single-quoted graphql queries
+	# All values must be -F variables, not inline-interpolated placeholders
+	if grep -Pn "query='[^']*<[A-Z][A-Z_]*>[^']*'" "$TICKETING" > /dev/null 2>&1; then
+		fail "ticketing/SKILL.md: graphql query has inline <PLACEHOLDER> (should use -F variables)"
+	else
+		pass "ticketing/SKILL.md: graphql queries use -F variables for all placeholders"
 	fi
 fi
 
@@ -183,6 +192,7 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 
