@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -441,6 +444,51 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
         );
     }
 });
+
+it('README and CODING_HARNESS tier tables match setup.json defaults', function (): void {
+    $setup = setup_json();
+
+    foreach (['README.md', 'CODING_HARNESS.md'] as $doc) {
+        $text = file_get_contents(__DIR__ . '/../../../' . $doc);
+
+        // Each tier's shipped default model must appear in the table.
+        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+            Assert::assertStringContainsString(
+                $setup['models'][$tier],
+                $text,
+                "{$doc} must list the setup.json default model for the '{$tier}' tier",
+            );
+        }
+
+        // The stale OpenRouter provider prefix must be gone (drifted form was
+        // openrouter/z-ai/glm-5.2; shipped default is zai-coding-plan/glm-5.2).
+        Assert::assertStringNotContainsString(
+            'openrouter/z-ai/glm-5.2',
+            $text,
+            "{$doc} must not use the stale openrouter/z-ai provider prefix",
+        );
+    }
+});
+
+it('README install verify comment matches the shipped Primary default', function (): void {
+    $setup = setup_json();
+    $readme = file_get_contents(__DIR__ . '/../../../README.md');
+
+    Assert::assertMatchesRegularExpression(
+        '/verify:\s*' . preg_quote($setup['models']['primary'], '/') . '/',
+        $readme,
+        'README verify comment must echo the actual Primary default',
+    );
+});
+
+it('CODING_HARNESS variant column reflects the max bump for planner and design', function (): void {
+    $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
+
+    // Planner and Design are now `max` (ADR-0031 §2); the old `high` rows for
+    // these tiers must not remain. (Judge/Utility legitimately stay medium.)
+    Assert::assertStringNotContainsString('`high`', $harness);
+});
+
 
 
 
