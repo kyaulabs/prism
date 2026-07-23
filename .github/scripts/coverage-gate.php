@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -42,27 +45,14 @@ if (defined('COVERAGE_GATE_AS_LIBRARY')) {
     return;
 }
 
-$min = 80;
-$root = getcwd();
-$cloverPath = null;
-
-for ($i = 1; $i < $argc; $i++) {
-    $arg = $argv[$i];
-    if ($arg === '--min' && $i + 1 < $argc) {
-        $min = (int) $argv[++$i];
-    } elseif (str_starts_with($arg, '--min=')) {
-        $min = (int) substr($arg, 6);
-    } elseif ($arg === '--root' && $i + 1 < $argc) {
-        $root = $argv[++$i];
-    } elseif (str_starts_with($arg, '--root=')) {
-        $root = substr($arg, 7);
-    } elseif (!str_starts_with($arg, '--') && $cloverPath === null) {
-        $cloverPath = $arg;
-    }
-}
+$args = parse_args($argv);
+$min = $args['min'];
+$root = $args['root'];
+$cloverPath = $args['clover'];
+$strict = $args['strict'];
 
 if ($cloverPath === null || !is_file($cloverPath)) {
-    fwrite(STDERR, "Usage: coverage-gate.php <clover.xml> [--min=N] [--root=DIR]\n");
+    fwrite(STDERR, "Usage: coverage-gate.php <clover.xml> [--min=N] [--root=DIR] [--strict]\n");
     fwrite(STDERR, "       Pipe changed file paths (one per line) via stdin.\n");
     exit(2);
 }
@@ -233,6 +223,36 @@ function has_executable_code(string $source): bool
     }
     return false;
 }
+
+/**
+ * Parse CLI arguments.
+ *
+ * @param array<int,string> $argv
+ * @return array{clover:?string, min:int, root:string, strict:bool}
+ */
+function parse_args(array $argv): array
+{
+    $cfg = ['clover' => null, 'min' => 80, 'root' => getcwd(), 'strict' => false];
+    $n = count($argv);
+    for ($i = 1; $i < $n; $i++) {
+        $arg = $argv[$i];
+        if ($arg === '--min' && $i + 1 < $n) {
+            $cfg['min'] = (int) $argv[++$i];
+        } elseif (str_starts_with($arg, '--min=')) {
+            $cfg['min'] = (int) substr($arg, 6);
+        } elseif ($arg === '--root' && $i + 1 < $n) {
+            $cfg['root'] = $argv[++$i];
+        } elseif (str_starts_with($arg, '--root=')) {
+            $cfg['root'] = substr($arg, 7);
+        } elseif ($arg === '--strict') {
+            $cfg['strict'] = true;
+        } elseif (!str_starts_with($arg, '--') && $cfg['clover'] === null) {
+            $cfg['clover'] = $arg;
+        }
+    }
+    return $cfg;
+}
+
 
 
 
