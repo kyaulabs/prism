@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -134,9 +135,24 @@ set -e
 if [ "$EXIT_CODE" -ne 0 ]; then pass "corrupt JSON exits non-zero ($EXIT_CODE)"; else fail "expected non-zero, got $EXIT_CODE"; fi
 if [ "$(cat "$CFG")" = "not valid json {{{" ]; then pass "corrupt file untouched"; else fail "corrupt file was modified"; fi
 
+# ── Test 7: /setup §3 invokes the script (regression guard) ──────────────
+echo "── Test 7: setup.md wires the merge script ──"
+SETUP_MD="$REPO_ROOT/.opencode/commands/setup.md"
+if grep -qF 'bash .github/scripts/setup-write-user-config.sh' "$SETUP_MD"; then
+    pass "setup.md invokes the merge script"
+else
+    fail "setup.md does not invoke setup-write-user-config.sh"
+fi
+if grep -qF "}' > ~/.config/opencode/setup.json" "$SETUP_MD"; then
+    fail "setup.md still contains destructive full-file overwrite of user config"
+else
+    pass "no destructive bare overwrite of user config in setup.md"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print_summary "setup_write_user_config_test.sh"
 exit $?
+
 
 
 
