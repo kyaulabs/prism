@@ -127,8 +127,24 @@ with a scoped read-only allowlist, `webfetch: deny`, and `task: deny`.
   its PHPDoc/RCS-header function. The blanket `edit: deny` rejection still
   holds for any agent whose job is to edit source broadly; the general-purpose
   write agents `@tdd` and `@resolve-merge-conflicts` remain intentionally
-  unscoped (allowlisted) because they must edit arbitrary files. The
-  validate-harness check was extended (Decision point 4) to flag any
-  non-allowlisted, non-read-only agent that ships an unscoped `edit` (absent,
-  flat `allow`, or an object lacking a `"*": deny`/`"*": ask` catch-all) so
-  this drift class cannot recur.
+   unscoped (allowlisted) because they must edit arbitrary files. The
+   validate-harness check was extended (Decision point 4) to flag any
+   non-allowlisted, non-read-only agent that ships an unscoped `edit` (absent,
+   flat `allow`, or an object lacking a `"*": deny`/`"*": ask` catch-all) so
+   this drift class cannot recur.
+- **2026-07-22 (issue #202):** The read-only contract (Decision points 1–4)
+  guards agents that claim read-only in their *description*, but the inline
+  primary agent `general` carries no description at all — so it fell through
+  every guard. `general` set only `lsp: allow` and inherited the top-level
+  permissive `permission.bash` (only `git push*` denied), leaving the most-
+  invoked default agent able to `git add`/`stage`/`commit` with no gate. The
+  fix gives `general` the same `bash` block as `build`/`design`
+  (`"*": "allow"` + `git add*/stage*/commit*: ask` + `git push*: deny`): it
+  remains a general-purpose agent, **not** read-only, so the scoped-edit and
+  catch-all-bash-deny requirements do not apply — only the git-mutation gate
+  was missing. (Unrestricted non-git bash is already mitigated harness-wide by
+  the safety hook of ADR-0023/0036 for the destructive commands that matter:
+  `rm -rf`, `DROP DATABASE`, `git push --force`, `--no-verify`.) The
+  validate-harness check was extended to flag any inline agent whose `bash` is
+  not a full deny but that lacks an explicit `git commit*` gate (ask/deny), so
+  the inherited-default drift class cannot recur.
