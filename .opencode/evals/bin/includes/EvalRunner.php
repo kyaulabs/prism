@@ -402,6 +402,7 @@ class Runner
 
         $stdout = '';
         $stderr = '';
+        $consecutiveErrors = 0;
 
         while (!feof($pipes[1]) || !feof($pipes[2])) {
             $read = [];
@@ -415,8 +416,12 @@ class Runner
             $except = null;
 
             if (stream_select($read, $write, $except, 0, 200_000) === false) {
+                if (++$consecutiveErrors >= 3) {
+                    break;
+                }
                 continue;
             }
+            $consecutiveErrors = 0;
 
             foreach ($read as $pipe) {
                 $chunk = fread($pipe, 65536);
@@ -1208,6 +1213,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
