@@ -2,6 +2,7 @@
 # $KYAULabs: plugin_supply_chain_test.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
 
 
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -45,8 +46,39 @@ else
 	fail "Quota plugin NOT in .opencode/package-lock.json (run npm install in .opencode/)"
 fi
 
+# ── Test 3: tui.jsonc has no plugin key ────────────────────────────────────────
+
+echo ""
+echo "── Test 3: tui.jsonc contains no plugin key ──"
+
+TUI_JSONC="$REPO_ROOT/tui.jsonc"
+if [ ! -f "$TUI_JSONC" ]; then
+	fail "tui.jsonc not found"
+elif grep -q '"plugin"' "$TUI_JSONC" 2>/dev/null; then
+	fail "tui.jsonc still contains a 'plugin' key (dead duplicate of opencode.jsonc)"
+else
+	pass "tui.jsonc has no plugin key"
+fi
+
+# ── Test 4: maintainerAnnouncements.enabled is false ──────────────────────────
+
+echo "── Test 4: maintainerAnnouncements.enabled is false ──"
+
+QUOTA_TOAST="$REPO_ROOT/opencode-quota/quota-toast.json"
+announcements=$(node -e "
+	const p = require('$QUOTA_TOAST');
+	process.stdout.write(String(p.maintainerAnnouncements?.enabled ?? 'undefined'));
+" 2>/dev/null || echo "error")
+
+if [ "$announcements" = "false" ]; then
+	pass "maintainerAnnouncements.enabled is false"
+else
+	fail "maintainerAnnouncements.enabled is '$announcements' (expected false)"
+fi
+
 print_summary "plugin_supply_chain"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

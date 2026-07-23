@@ -8,7 +8,7 @@
     "enabled": false
   },
   "maintainerAnnouncements": {
-    "enabled": true,
+    "enabled": false,
     "home": false
   }
 }
