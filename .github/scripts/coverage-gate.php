@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -45,119 +48,7 @@ if (defined('COVERAGE_GATE_AS_LIBRARY')) {
     return;
 }
 
-$args = parse_args($argv);
-$min = $args['min'];
-$root = $args['root'];
-$cloverPath = $args['clover'];
-$strict = $args['strict'];
-
-if ($cloverPath === null || !is_file($cloverPath)) {
-    fwrite(STDERR, "Usage: coverage-gate.php <clover.xml> [--min=N] [--root=DIR] [--strict]\n");
-    fwrite(STDERR, "       Pipe changed file paths (one per line) via stdin.\n");
-    exit(2);
-}
-
-$changedRaw = file_get_contents('php://stdin');
-if ($changedRaw === false) {
-    $changedRaw = '';
-}
-$changedFiles = array_filter(array_map('trim', explode("\n", $changedRaw)));
-$changedFiles = array_values(array_unique($changedFiles));
-
-$xml = @simplexml_load_file($cloverPath);
-if ($xml === false) {
-    fwrite(STDERR, "ERROR: could not parse clover XML at {$cloverPath}\n");
-    exit(2);
-}
-
-$rootReal = realpath($root);
-if ($rootReal === false) {
-    $rootReal = $root;
-}
-// Normalize to forward slashes for cross-platform path comparison.
-// On Windows, realpath() returns backslash paths (C:\...) which would
-// never str_starts_with-match Clover paths that use forward slashes.
-$rootPrefix = rtrim(str_replace('\\', '/', $rootReal), '/') . '/';
-
-$coverage = [];
-$files = $xml->xpath('//file');
-if ($files === false) {
-    $files = [];
-}
-foreach ($files as $file) {
-    $absPath = (string) $file['name'];
-    $relPath = relativize_path($absPath, $rootPrefix);
-    $covered = 0;
-    $total = 0;
-    foreach ($file->line as $line) {
-        if ((string) $line['type'] !== 'stmt') {
-            continue;
-        }
-        $total++;
-        if ((int) $line['count'] > 0) {
-            $covered++;
-        }
-    }
-    $coverage[$relPath] = [$covered, $total];
-}
-
-$failures = [];
-$skipped = [];
-$passed = [];
-
-foreach ($changedFiles as $changed) {
-    if ($changed === '') {
-        continue;
-    }
-    $fullChanged = $rootPrefix . $changed;
-    if (!is_file($fullChanged) && !is_file($changed)) {
-        $skipped[] = [$changed, 'deleted/not found'];
-        continue;
-    }
-    if (!isset($coverage[$changed])) {
-        $skipped[] = [$changed, 'not in coverage source'];
-        continue;
-    }
-    [$covered, $total] = $coverage[$changed];
-    if ($total === 0) {
-        $skipped[] = [$changed, 'no executable lines'];
-        continue;
-    }
-    $pct = ($covered / $total) * 100;
-    if ($pct >= $min) {
-        $passed[] = [$changed, $pct, $covered, $total];
-    } else {
-        $failures[] = [$changed, $pct, $covered, $total];
-    }
-}
-
-echo "Changed-file coverage gate (min {$min}%):\n\n";
-printf("  %-55s %8s   %s\n", 'File', 'Coverage', 'Gate');
-foreach ($passed as [$f, $pct, $c, $t]) {
-    printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'PASS', $c, $t);
-}
-foreach ($failures as [$f, $pct, $c, $t]) {
-    printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'FAIL', $c, $t);
-}
-foreach ($skipped as [$f, $reason]) {
-    printf("  %-55s %8s   %s  (%s)\n", $f, '-', 'SKIP', $reason);
-}
-
-echo "\n";
-if (count($failures) > 0) {
-    fwrite(STDERR, sprintf(
-        "FAIL — %d file(s) below %d%% coverage\n",
-        count($failures),
-        $min
-    ));
-    exit(1);
-}
-echo sprintf(
-    "PASS — %d file(s) checked, %d skipped, 0 failures\n",
-    count($passed),
-    count($skipped)
-);
-exit(0);
+exit(main($argc, $argv));
 
 /**
  * Convert an absolute filesystem path to one relative to the project root.
@@ -253,8 +144,169 @@ function parse_args(array $argv): array
     return $cfg;
 }
 
+/**
+ * Build the relPath => [covered,total] map from a parsed Clover document.
+ *
+ * @param SimpleXMLElement $xml
+ * @param string $rootPrefix
+ * @return array<string,array{0:int,1:int}>
+ */
+function build_coverage_map(SimpleXMLElement $xml, string $rootPrefix): array
+{
+    $coverage = [];
+    $files = $xml->xpath('//file');
+    if ($files === false) {
+        $files = [];
+    }
+    foreach ($files as $file) {
+        $absPath = (string) $file['name'];
+        $relPath = relativize_path($absPath, $rootPrefix);
+        $covered = 0;
+        $total = 0;
+        foreach ($file->line as $line) {
+            if ((string) $line['type'] !== 'stmt') {
+                continue;
+            }
+            $total++;
+            if ((int) $line['count'] > 0) {
+                $covered++;
+            }
+        }
+        $coverage[$relPath] = [$covered, $total];
+    }
+    return $coverage;
+}
 
+/**
+ * Classify each changed file into passed/failed/warned/skipped buckets.
+ *
+ * @param list<string>                     $changedFiles
+ * @param array<string,array{0:int,1:int}> $coverage
+ * @param string                           $rootPrefix
+ * @param int                              $min
+ * @return array{passed:list<mixed>,failed:list<mixed>,warned:list<mixed>,skipped:list<mixed>}
+ */
+function classify_changed_files(array $changedFiles, array $coverage, string $rootPrefix, int $min): array
+{
+    $passed = $failed = $warned = $skipped = [];
+    foreach ($changedFiles as $changed) {
+        if ($changed === '') {
+            continue;
+        }
+        $fullChanged = $rootPrefix . $changed;
+        if (!is_file($fullChanged) && !is_file($changed)) {
+            $skipped[] = [$changed, 'deleted/not found'];
+            continue;
+        }
+        if (isset($coverage[$changed])) {
+            [$covered, $total] = $coverage[$changed];
+            if ($total === 0) {
+                $skipped[] = [$changed, 'no executable lines'];
+                continue;
+            }
+            $pct = ($covered / $total) * 100;
+            if ($pct >= $min) {
+                $passed[] = [$changed, $pct, $covered, $total];
+            } else {
+                $failed[] = [$changed, $pct, $covered, $total];
+            }
+            continue;
+        }
+        // Exists but absent from Clover → outside <source>.
+        $path = is_file($fullChanged) ? $fullChanged : $changed;
+        $source = (string) @file_get_contents($path);
+        if ($source !== '' && has_executable_code($source)) {
+            $warned[] = [$changed, 'outside <source>, has executable code — register in phpunit.xml <source>'];
+        } else {
+            $skipped[] = [$changed, 'outside <source>, no executable code'];
+        }
+    }
+    return ['passed' => $passed, 'failed' => $failed, 'warned' => $warned, 'skipped' => $skipped];
+}
 
+/**
+ * Decide the process exit code from the classification result.
+ *
+ * @param array{passed:list,failed:list,warned:list,skipped:list} $result
+ * @param bool $strict
+ * @return int
+ */
+function exit_code_for(array $result, bool $strict): int
+{
+    if ($result['failed'] !== []) {
+        return 1;
+    }
+    if ($strict && $result['warned'] !== []) {
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * Thin CLI entry — parses args, reads stdin, loads Clover, classifies, prints, exits.
+ *
+ * @param int              $argc
+ * @param array<int,string> $argv
+ * @return int
+ */
+function main(int $argc, array $argv): int
+{
+    $args = parse_args($argv);
+    $cloverPath = $args['clover'];
+    $min = $args['min'];
+    $root = $args['root'];
+    $strict = $args['strict'];
+
+    if ($cloverPath === null || !is_file($cloverPath)) {
+        fwrite(STDERR, "Usage: coverage-gate.php <clover.xml> [--min=N] [--root=DIR] [--strict]\n");
+        fwrite(STDERR, "       Pipe changed file paths (one per line) via stdin.\n");
+        return 2;
+    }
+
+    $changedRaw = (string) file_get_contents('php://stdin');
+    $changedFiles = array_values(array_unique(array_filter(array_map('trim', explode("\n", $changedRaw)))));
+
+    $xml = @simplexml_load_file($cloverPath);
+    if ($xml === false) {
+        fwrite(STDERR, "ERROR: could not parse clover XML at {$cloverPath}\n");
+        return 2;
+    }
+
+    $rootReal = realpath($root);
+    $rootPrefix = rtrim(str_replace('\\', '/', $rootReal !== false ? $rootReal : $root), '/') . '/';
+    $coverage = build_coverage_map($xml, $rootPrefix);
+
+    $result = classify_changed_files($changedFiles, $coverage, $rootPrefix, $min);
+
+    echo "Changed-file coverage gate (min {$min}%):\n\n";
+    printf("  %-55s %8s   %s\n", 'File', 'Coverage', 'Gate');
+    foreach ($result['passed'] as [$f, $pct, $c, $t]) {
+        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'PASS', $c, $t);
+    }
+    foreach ($result['failed'] as [$f, $pct, $c, $t]) {
+        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'FAIL', $c, $t);
+    }
+    foreach ($result['warned'] as [$f, $reason]) {
+        fwrite(STDERR, sprintf("  %-55s %8s   %s  (%s)\n", $f, '-', 'WARN', $reason));
+    }
+    foreach ($result['skipped'] as [$f, $reason]) {
+        printf("  %-55s %8s   %s  (%s)\n", $f, '-', 'SKIP', $reason);
+    }
+    echo "\n";
+
+    $code = exit_code_for($result, $strict);
+    if ($result['failed'] !== []) {
+        fwrite(STDERR, sprintf("FAIL — %d file(s) below %d%% coverage\n", count($result['failed']), $min));
+    } else {
+        echo sprintf(
+            "PASS — %d file(s) checked, %d warned, %d skipped, 0 failures\n",
+            count($result['passed']),
+            count($result['warned']),
+            count($result['skipped']),
+        );
+    }
+    return $code;
+}
 
 
 
