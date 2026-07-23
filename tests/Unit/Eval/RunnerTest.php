@@ -2,7 +2,22 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunnerTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: RunnerTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1073,6 +1088,26 @@ it('createWorktree propagates uncommitted modifications to the worktree', functi
         }
     }
 });
+it('captureOutput separates stdout from stderr', function () {
+    $php = 'fwrite(STDERR, "DIAG"); echo "JSON";';
+    $out = Runner::captureOutput('php -r ' . escapeshellarg($php));
+
+    expect($out['stdout'])->toBe('JSON');
+    expect($out['stderr'])->toBe('DIAG');
+    expect($out['exitCode'])->toBe(0);
+});
+
+it('captureOutput does not deadlock on large stderr before stdout', function () {
+    $php = "fwrite(STDERR, str_repeat('x', 131072)); echo 'done';";
+    $out = Runner::captureOutput('php -r ' . escapeshellarg($php));
+
+    expect($out['stdout'])->toBe('done');
+    expect($out['exitCode'])->toBe(0);
+});
+
+it('captureOutput propagates the child exit code', function () {
+    expect(Runner::captureOutput('php -r "exit(7);"')['exitCode'])->toBe(7);
+});
 
 it('createWorktree propagates untracked files to the worktree', function () {
     $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
@@ -1107,6 +1142,11 @@ it('createWorktree propagates untracked files to the worktree', function () {
         }
     }
 });
+
+
+
+
+
 
 
 

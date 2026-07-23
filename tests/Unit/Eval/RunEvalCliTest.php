@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunEvalCliTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: RunEvalCliTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -82,6 +85,16 @@ it('run-eval.php header documents UNDETERMINED in exit codes', function () {
     $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
     $contents = file_get_contents($script);
     expect($contents)->toContain('UNDETERMINED');
+});
+
+it('run-eval.php catches Throwable so worktree failures emit JSON, not a fatal', function () {
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-eval.php';
+    $contents = file_get_contents($script);
+
+    // A worktree-setup RuntimeException must become a JSON INVALID, not a PHP
+    // fatal that emits no JSON at all (#188).
+    expect($contents)->toContain('catch (\\Throwable');
+    expect($contents)->not->toContain('catch (\\TypeError');
 });
 
 

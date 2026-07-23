@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalRunner.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: EvalRunner.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
 
 
 
@@ -368,6 +368,84 @@ class Runner
         }
 
         return $this->hasSetSid = $this->isBinaryOnPath('setsid');
+    }
+
+    /**
+     * Run a command to completion, capturing stdout and stderr SEPARATELY.
+     *
+     * Unlike executeCommand(), this enforces no wall-clock timeout and performs
+     * no tree-kill: the child is trusted to terminate on its own (run-eval.php
+     * enforces its own agent/judge timeouts internally and always emits JSON).
+     * Pipes are read non-blocking via stream_select so a large stderr cannot
+     * deadlock the reader while it waits on stdout.
+     *
+     * @param  string $cmd  Shell command to execute.
+     * @return array{stdout: string, stderr: string, exitCode: int}
+     */
+    public static function captureOutput(string $cmd): array
+    {
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            return ['stdout' => '', 'stderr' => "Failed to start process: {$cmd}", 'exitCode' => -1];
+        }
+
+        fclose($pipes[0]);
+
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $stdout = '';
+        $stderr = '';
+        $consecutiveErrors = 0;
+
+        while (!feof($pipes[1]) || !feof($pipes[2])) {
+            $read = [];
+            if (!feof($pipes[1])) {
+                $read[] = $pipes[1];
+            }
+            if (!feof($pipes[2])) {
+                $read[] = $pipes[2];
+            }
+            $write = null;
+            $except = null;
+
+            if (stream_select($read, $write, $except, 0, 200_000) === false) {
+                if (++$consecutiveErrors >= 3) {
+                    break;
+                }
+                continue;
+            }
+            $consecutiveErrors = 0;
+
+            foreach ($read as $pipe) {
+                $chunk = fread($pipe, 65536);
+                if ($chunk === false || $chunk === '') {
+                    continue;
+                }
+                if ($pipe === $pipes[1]) {
+                    $stdout .= $chunk;
+                } else {
+                    $stderr .= $chunk;
+                }
+            }
+        }
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($process);
+
+        return [
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'exitCode' => $exitCode,
+        ];
     }
 
     /**
@@ -1135,6 +1213,12 @@ PROMPT;
         }
     }
 }
+
+
+
+
+
+
 
 
 

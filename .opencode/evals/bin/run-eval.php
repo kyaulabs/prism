@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-eval.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: run-eval.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -169,13 +172,13 @@ try {
 
         $result->durationMs += $elapsedMs;
     }
-} catch (\TypeError $e) {
+} catch (\Throwable $e) {
     $result = new EvalResult(
         name: $case->name,
         agent: $case->agent,
         passCriteria: $case->passCriteria,
         verdict: Verdict::Invalid,
-        error: 'Unexpected type error: ' . $e->getMessage(),
+        error: 'Eval run failed: ' . $e->getMessage(),
     );
 } finally {
     if ($worktree !== null) {
@@ -187,6 +190,7 @@ try {
 echo json_encode($result->toArray(), JSON_PRETTY_PRINT) . "\n";
 
 exit($result->isPass() ? 0 : 1);
+
 
 
 
