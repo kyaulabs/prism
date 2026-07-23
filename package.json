@@ -12,7 +12,7 @@
 		"eslint": "^10",
 		"git-cliff": "^2",
 		"js-yaml": "^5.2.1",
-		"playwright": "^1",
+		"playwright": "^1.61.1",
 		"sass": "^1",
 		"stylelint": "^17",
 		"stylelint-config-standard-scss": "^17",
