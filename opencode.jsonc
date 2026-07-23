@@ -132,6 +132,13 @@
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",
       "temperature": 0.1,
       "permission": {
+        "bash": {
+          "*": "allow",
+          "git add*": "ask",
+          "git stage*": "ask",
+          "git commit*": "ask",
+          "git push*": "deny"
+        },
         "lsp": "allow"
       }
     },

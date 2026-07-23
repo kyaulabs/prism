@@ -1,14 +1,20 @@
-// $KYAULabs: inline-agent-permissions.js kyau@nova 2026/07/21 -0700 Exp $
+// $KYAULabs: inline-agent-permissions.js kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+
 
 
 // Walk agent.* in opencode.jsonc and emit TSV rows for each inline agent.
 // Usage: node inline-agent-permissions.js <opencode.jsonc-path>
-// Emits one row per agent (tab-separated):
-//   name \t description \t edit \t bash_restricted
+// Emits one row per agent (pipe-separated):
+//   name | description | edit | bash_restricted | git_commit | has_permission
 // Where:
 //   edit            = the permission.edit value ('deny', 'allow', 'ask', or '')
 //   bash_restricted = 'true' if bash is fully denied OR has a catch-all deny
 //                     entry; 'false' otherwise; '' if bash key is absent.
+//   git_commit      = the 'git commit*' verdict ('allow', 'ask', 'deny'), or
+//                     '' if the key is absent or bash is not an object.
+//   has_permission  = 'true' if the agent defines a permission block (even if
+//                     empty); 'false' if no permission key exists at all
+//                     (built-in agents with no project-level permission cfg).
 // Exits 0 on success, 1 on parse error.
 
 'use strict';
@@ -85,10 +91,21 @@ for (const name of Object.keys(agents)) {
     } else if (perm.bash && typeof perm.bash === 'object') {
         bashRestricted = perm.bash['*'] === 'deny' ? 'true' : 'false';
     }
-    process.stdout.write(`${name}\t${desc}\t${edit}\t${bashRestricted}\n`);
+
+    // git commit* verdict (allow/ask/deny), or '' if absent. Consumed by the
+    // inline git-commit gating check (issue #202): a non-denied agent must
+    // gate git commit explicitly rather than inherit the permissive default.
+    let gitCommit = '';
+    if (perm.bash && typeof perm.bash === 'object') {
+        const v = perm.bash['git commit*'];
+        if (typeof v === 'string') gitCommit = v;
+    }
+
+    process.stdout.write(`${name}|${desc}|${edit}|${bashRestricted}|${gitCommit}|${a.permission !== undefined ? 'true' : 'false'}\n`);
 }
 
 process.exit(0);
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

@@ -19,6 +19,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1604,10 +1605,116 @@ EOF
 	fi
 )
 
+# ── Test: inline agent with no bash (inherits default) flagged (issue #202) ────
+
+echo "── Test: inline agent (no bash) flagged for ungated git commit ──"
+T_GC1=$(mktemp -d)
+register_temp_dir "$T_GC1"
+git_init_test_repo "$T_GC1"
+(
+	cd "$T_GC1"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# general drift class: only lsp set, bash inherited (no git-commit gate).
+	cat > opencode.jsonc <<'EOF'
+{
+	"agent": {
+		"general": {
+			"permission": {
+				"lsp": "allow"
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "git commit without a gate"; then
+		pass "Caught inline agent with inherited/ungated git commit (issue #202)"
+	else
+		fail "Did not detect inline agent with ungated git commit"
+	fi
+)
+
+# ── Test: inline agent with bash allow + git commit ask NOT flagged ────────────
+
+echo "── Test: inline agent (git commit: ask) not flagged ──"
+T_GC2=$(mktemp -d)
+register_temp_dir "$T_GC2"
+git_init_test_repo "$T_GC2"
+(
+	cd "$T_GC2"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# build/design posture: "*" allow + git commit gated at ask.
+	cat > opencode.jsonc <<'EOF'
+{
+	"agent": {
+		"build": {
+			"permission": {
+				"bash": {
+					"*": "allow",
+					"git add*": "ask",
+					"git stage*": "ask",
+					"git commit*": "ask",
+					"git push*": "deny"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -F "build" | grep -qF "git commit without a gate"; then
+		fail "Gated inline agent (git commit: ask) was falsely flagged"
+	else
+		pass "Gated inline agent (git commit: ask) not flagged"
+	fi
+)
+
+# ── Test: inline agent with bash fully denied NOT flagged (skipped) ────────────
+
+echo "── Test: inline agent (bash: deny) not flagged (skipped) ──"
+T_GC3=$(mktemp -d)
+register_temp_dir "$T_GC3"
+git_init_test_repo "$T_GC3"
+(
+	cd "$T_GC3"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# judge posture: bash fully denied — no commit possible, skip the check.
+	cat > opencode.jsonc <<'EOF'
+{
+	"agent": {
+		"judge": {
+			"permission": {
+				"bash": "deny"
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -F "judge" | grep -qF "git commit without a gate"; then
+		fail "Fully-denied inline agent was falsely flagged"
+	else
+		pass "Fully-denied inline agent (bash: deny) not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
