@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: run-suite.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: run-suite.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -147,12 +150,17 @@ if ($dryRun) {
         echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
 
         $cmd = "php " . escapeshellarg($runEvalScript) . " " . escapeshellarg($caseInfo['file']) .
-            " --timeout {$timeout} --dry-run 2>&1";
-        $output = [];
-        $exitCode = 0;
-        exec($cmd, $output, $exitCode);
+            " --timeout {$timeout} --dry-run";
+        $proc = Runner::captureOutput($cmd);
 
-        echo implode("\n", $output) . "\n";
+        echo $proc['stdout'];
+        if ($proc['stdout'] !== '' && !str_ends_with($proc['stdout'], "\n")) {
+            echo "\n";
+        }
+        // Route diagnostics to stderr so they never mingle with dry-run output.
+        if (trim($proc['stderr']) !== '') {
+            fwrite(STDERR, $proc['stderr']);
+        }
     }
     exit(0);
 }
@@ -165,22 +173,24 @@ foreach ($cases as $i => $caseInfo) {
     $total = count($cases);
     echo "Running [{$num}/{$total}] {$caseInfo['name']}...\n";
 
+    // Invoke run-eval with stdout (JSON) and stderr (diagnostics) captured
+    // SEPARATELY. Merging them via 2>&1 corrupted the JSON stream whenever
+    // run-eval wrote a NOTICE/WARNING to stderr (eg. a dirty working tree),
+    // turning every case into a false INVALID. See #188.
     $cmd = "php " . escapeshellarg($runEvalScript) . " " . escapeshellarg($caseInfo['file']) .
-        " --timeout {$timeout} 2>&1";
-    $output = [];
-    $exitCode = 0;
-    exec($cmd, $output, $exitCode);
-
-    $joined = implode("\n", $output);
-    $decoded = json_decode($joined, true);
+        " --timeout {$timeout}";
+    $proc = Runner::captureOutput($cmd);
+    $decoded = json_decode($proc['stdout'], true);
 
     if (is_array($decoded)) {
         $results[] = $decoded;
     } else {
+        // Surface captured stderr so a parse failure is diagnosable, not silent.
+        $hint = trim($proc['stderr']);
         $results[] = [
             'name' => $caseInfo['name'],
             'verdict' => 'INVALID',
-            'error' => 'Failed to parse run-eval output',
+            'error' => 'Failed to parse run-eval output' . ($hint !== '' ? ' — ' . $hint : ''),
         ];
     }
 }
@@ -261,6 +271,7 @@ if ($total > 0 && $skipCount === $total) {
 }
 
 exit($exitCode);
+
 
 
 

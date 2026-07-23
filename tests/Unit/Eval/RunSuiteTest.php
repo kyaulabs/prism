@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunSuiteTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: RunSuiteTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -261,6 +264,19 @@ it('run-suite.php tag filter selects only matching valid cases', function () {
     unlink($tmpDir . '/integration-case.json');
     rmdir($tmpDir);
 });
+
+
+it('run-suite.php captures run-eval stdout and stderr separately (no 2>&1 merge)', function () {
+    $script = dirname(__DIR__, 3) . '/.opencode/evals/bin/run-suite.php';
+    $contents = file_get_contents($script);
+
+    // The run-eval invocation must keep stdout (JSON) and stderr (diagnostics)
+    // separate. Merging via 2>&1 corrupted the JSON stream on dirty trees (#188).
+    expect($contents)->toContain('Runner::captureOutput');
+    expect($contents)->not->toContain(' --timeout {$timeout} 2>&1');
+    expect($contents)->not->toContain(' --timeout {$timeout} --dry-run 2>&1');
+});
+
 
 
 
