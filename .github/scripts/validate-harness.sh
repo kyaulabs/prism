@@ -18,6 +18,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -942,6 +943,40 @@ if [[ -d "$REPO_ROOT/docs/plans" ]]; then
 	fi
 fi
 
+# ── Check @opencode-ai/plugin SDK version parity ──────────────────────────────
+
+# get_sdk_version <package.json path> — prints the @opencode-ai/plugin
+# version from the given manifest (dependencies + devDependencies), or an
+# empty string if not declared / unreadable.
+get_sdk_version() {
+	node -e "
+		const p = require('$1');
+		const deps = { ...(p.dependencies||{}), ...(p.devDependencies||{}) };
+		process.stdout.write(deps['@opencode-ai/plugin'] || '');
+	" 2>/dev/null || echo ""
+}
+
+echo "── Checking @opencode-ai/plugin SDK version parity ──"
+
+ROOT_PKG="${REPO_ROOT}/package.json"
+SUB_PKG="${HARNESS_DIR}/package.json"
+
+if [ -f "$ROOT_PKG" ] && [ -f "$SUB_PKG" ]; then
+	root_ver=$(get_sdk_version "$ROOT_PKG")
+	sub_ver=$(get_sdk_version "$SUB_PKG")
+
+	if [ -z "$root_ver" ] && [ -z "$sub_ver" ]; then
+		# Neither manifest declares the SDK — skip (not all repos use it).
+		ok "Neither manifest declares @opencode-ai/plugin (skipped)"
+	elif [ -z "$root_ver" ] || [ -z "$sub_ver" ]; then
+		err "SDK version mismatch: @opencode-ai/plugin declared in only one manifest (root='${root_ver:-<missing>}', .opencode='${sub_ver:-<missing>}')"
+	elif [ "$root_ver" != "$sub_ver" ]; then
+		err "SDK version mismatch: root package.json pins '${root_ver}', .opencode/package.json pins '${sub_ver}' — type-check and runtime must use the same SDK"
+	else
+		ok "SDK version aligned: @opencode-ai/plugin@${root_ver} in both manifests"
+	fi
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
@@ -959,6 +994,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

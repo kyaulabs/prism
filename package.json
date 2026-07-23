@@ -5,7 +5,7 @@
 	"devDependencies": {
 		"@commitlint/config-conventional": "^21",
 		"@eslint/js": "^10",
-		"@opencode-ai/plugin": "1.17.15",
+		"@opencode-ai/plugin": "1.18.4",
 		"@stylelint/language-server": "^1.1.1",
 		"@types/node": "^24",
 		"commitlint": "^21",
