@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Safely reads a boolean environment variable.
  *
@@ -84,16 +87,50 @@ function parse_env_value(string $raw): string
 }
 
 /**
+ * Reports whether an env var name is dangerous to load from a file.
+ *
+ * These names yield code execution or library/module hijacking in child
+ * processes (dynamic-linker preloads, shell startup files, interpreter
+ * options). If a `.env` file is ever attacker-influenced, blocking them
+ * prevents a file write from becoming remote code execution. Matched
+ * case-sensitively — the real-world vectors use these exact canonical names.
+ * The list is deliberately small and extensible.
+ *
+ * @param  string $key Environment variable name.
+ * @return bool        True if the name must never be loaded from a file.
+ */
+function is_dangerous_env_name(string $key): bool
+{
+    static $dangerous = [
+        'LD_PRELOAD',
+        'LD_AUDIT',
+        'LD_LIBRARY_PATH',
+        'DYLD_INSERT_LIBRARIES',
+        'DYLD_LIBRARY_PATH',
+        'BASH_ENV',
+        'ENV',
+        'ZDOTDIR',
+        'PERL5OPT',
+        'PERL5LIB',
+        'IFS',
+    ];
+
+    return in_array($key, $dangerous, true);
+}
+
+/**
  * Loads environment variables from a .env file.
  *
  * Parses a file with KEY=VALUE pairs (one per line), skipping blank lines
  * and comment lines (starting with # or ;). A leading UTF-8 BOM and an
  * optional `export ` shell prefix are stripped. Key names are validated
- * against `/^[A-Za-z_][A-Za-z0-9_]*$/` (invalid keys are skipped). Values are
- * trimmed, surrounding matching single or double quotes are stripped, and an
- * inline `#` comment on unquoted values is removed (a `#` inside quotes is
- * preserved). Keys that already exist in $_ENV or getenv() are never
- * overwritten — server environment variables take priority over file values.
+ * against `/^[A-Za-z_][A-Za-z0-9_]*$/` (invalid keys are skipped), and
+ * dangerous child-process env names are refused (see
+ * is_dangerous_env_name()). Values are trimmed, surrounding matching single
+ * or double quotes are stripped, and an inline `#` comment on unquoted
+ * values is removed (a `#` inside quotes is preserved). Keys that already
+ * exist in $_ENV or getenv() are never overwritten — server environment
+ * variables take priority over file values.
  *
  * If the file does not exist, this function is a silent no-op (production
  * safety: absent .env means debug stays off).
@@ -145,6 +182,12 @@ function load_env(string $path): void
             continue;
         }
 
+        // Refuse to load names that execute code in child processes if the
+        // file is ever attacker-influenced (issue #192).
+        if (is_dangerous_env_name($key)) {
+            continue;
+        }
+
         $value = parse_env_value(substr($line, $pos + 1));
 
         // Server env wins — never overwrite an already-set key
@@ -156,6 +199,7 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

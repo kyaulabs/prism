@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -22,7 +25,8 @@ beforeEach(function () {
     putenv('EXPORT_KEY');
     putenv('COMMENT_KEY');
     putenv('VALID_KEY');
-    unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY']);
+    putenv('LD_PRELOAD');
+    unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY'], $_ENV['LD_PRELOAD']);
 });
 
 afterEach(restoreEnvVars(
@@ -33,6 +37,7 @@ afterEach(restoreEnvVars(
     'EXPORT_KEY',
     'COMMENT_KEY',
     'VALID_KEY',
+    'LD_PRELOAD',
 ));
 
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
@@ -241,6 +246,31 @@ test('load_env skips lines with invalid key names', function () {
 
     unlink($path);
 });
+
+test('is_dangerous_env_name flags known injection vectors', function () {
+    expect(is_dangerous_env_name('LD_PRELOAD'))->toBeTrue();
+    expect(is_dangerous_env_name('BASH_ENV'))->toBeTrue();
+    expect(is_dangerous_env_name('DYLD_INSERT_LIBRARIES'))->toBeTrue();
+    expect(is_dangerous_env_name('ENV'))->toBeTrue();
+    expect(is_dangerous_env_name('APP_DEBUG'))->toBeFalse();
+    expect(is_dangerous_env_name('DB_HOST'))->toBeFalse();
+});
+
+test('load_env refuses to load dangerous env names from a file', function () {
+    $path = sys_get_temp_dir() . '/test_env_dangerous.env';
+    file_put_contents($path, "LD_PRELOAD=/evil/preload.so\nBASH_ENV=/evil.sh\nAPP_DEBUG=true\n");
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('LD_PRELOAD');
+    expect(getenv('LD_PRELOAD'))->toBeFalse();
+    expect($_ENV)->not->toHaveKey('BASH_ENV');
+    expect(getenv('BASH_ENV'))->toBeFalse();
+    expect(env_bool('APP_DEBUG'))->toBeTrue();
+
+    unlink($path);
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
