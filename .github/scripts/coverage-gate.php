@@ -25,6 +25,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -248,11 +251,13 @@ function exit_code_for(array $result, bool $strict): int
 /**
  * Thin CLI entry — parses args, reads stdin, loads Clover, classifies, prints, exits.
  *
- * @param int              $argc
+ * @param int               $argc
  * @param array<int,string> $argv
+ * @param string            $stdin  Stream/path to read changed-file list from
+ *                                  (default 'php://stdin'); overridable by tests.
  * @return int
  */
-function main(int $argc, array $argv): int
+function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
 {
     $args = parse_args($argv);
     $cloverPath = $args['clover'];
@@ -266,7 +271,7 @@ function main(int $argc, array $argv): int
         return 2;
     }
 
-    $changedRaw = (string) file_get_contents('php://stdin');
+    $changedRaw = (string) file_get_contents($stdin);
     $changedFiles = array_values(array_unique(array_filter(array_map('trim', explode("\n", $changedRaw)))));
 
     $xml = @simplexml_load_file($cloverPath);
@@ -318,6 +323,7 @@ function main(int $argc, array $argv): int
     }
     return $code;
 }
+
 
 
 
