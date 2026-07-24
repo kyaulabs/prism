@@ -5,6 +5,7 @@
 
 
 
+
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
 # (ADR-0025). Pure grep/sed: no commitlint dependency, always runs.
@@ -44,7 +45,19 @@ else
 	fail "build agent does not gate git tag* (release tag ungated)"
 fi
 
+# ── 3. @resolve-merge-conflicts merge subject is Merge-prefixed (exempt) ─────
+# commitlint inspects only the message text (not git parents). A `chore: merge`
+# subject matches neither the Merge-/Revert- exemption nor carries trailers, so
+# the hook rejects it. Use a `Merge `-prefixed subject to trigger the exemption.
+RMC="$REPO_ROOT/.opencode/agents/resolve-merge-conflicts.md"
+if grep -qF 'Merge branch' "$RMC" && ! grep -qF 'chore: merge' "$RMC"; then
+	pass "resolve-merge-conflicts uses Merge-prefixed merge subject"
+else
+	fail "resolve-merge-conflicts merge subject not Merge-prefixed (hook-rejected)"
+fi
+
 print_summary "commit_template_footer"
+
 
 
 

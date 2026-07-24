@@ -92,9 +92,13 @@ Stage the rebuilt minified outputs with `git add`.
 ## Step 5 — Finish the merge/rebase
 
 ### If merging
-Run `git commit -S` (signed commit required). Use a Conventional Commits merge message:
+Run `git commit -S` (signed commit required) to complete the merge. Use a
+`Merge `-prefixed subject so commitlint's merge/revert exemption applies
+(merge commits are exempt from the Authored-by/Tested-by/Signed-off-by rule —
+see `commitlint.config.js`). Do NOT add the three footers to a merge commit:
+
 ```
-chore: merge <branch-name> into <target-branch>
+Merge branch '<from-branch>' into <target-branch>
 
 <list conflicts resolved and trade-offs made>
 ```
