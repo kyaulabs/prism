@@ -224,23 +224,17 @@ if [ -n "$STAGED_SRC" ]; then
 		# visible text in the browser.
 		APPEND_ML=true
 		if [ "$EXT" = "php" ]; then
-			in_php=$(awk '
-				BEGIN { in_php = 0 }
-				{
-					line = $0
-					while (length(line) > 0) {
-						if (!in_php) {
-							if (match(line, /<\?(php|=)?/)) { in_php = 1; line = substr(line, RSTART + RLENGTH) }
-							else { line = "" }
-						} else {
-							if (match(line, /\?>/)) { in_php = 0; line = substr(line, RSTART + 2) }
-							else { line = "" }
-						}
-					}
-				}
-				END { print (in_php ? "1" : "0") }
-			' "$TMP")
-			[ "$in_php" = "1" ] || APPEND_ML=false
+			# Only skip the modeline for PHP files that don't start with
+			# <?php or <?=. Files starting with a PHP opening tag are pure
+			# source files; the modeline will always be inside PHP context
+			# and won't render as visible text. The previous awk-based
+			# context tracker was vulnerable to false negatives from ?>
+			# or <?php inside PHP string literals (e.g. XML in test
+			# strings like '<?xml version="1.0"?>').
+			LINE1=$(head -1 "$TMP")
+			if ! echo "$LINE1" | grep -qE '^<\?(php|=)'; then
+				APPEND_ML=false
+			fi
 		fi
 
 		# Strip ALL existing RCS headers and vim modelines into a cleaned copy.
