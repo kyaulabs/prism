@@ -224,15 +224,29 @@ if [ -n "$STAGED_SRC" ]; then
 		# visible text in the browser.
 		APPEND_ML=true
 		if [ "$EXT" = "php" ]; then
-			# Only skip the modeline for PHP files that don't start with
-			# <?php or <?=. Files starting with a PHP opening tag are pure
-			# source files; the modeline will always be inside PHP context
-			# and won't render as visible text. The previous awk-based
-			# context tracker was vulnerable to false negatives from ?>
-			# or <?php inside PHP string literals (e.g. XML in test
-			# strings like '<?xml version="1.0"?>').
+			# Check whether to append the vim modeline.
+			# Skip the modeline when the file ends outside PHP context
+			# (trailing ?> or HTML output) — a // vim: line would render
+			# as visible text in the browser.
+			#
+			# The previous awk-based context tracker was vulnerable to
+			# false negatives from ?> or <?php inside PHP string literals
+			# (e.g. XML in test strings like '<?xml version="1.0"?>').
+			# Replaced with a two-stage check:
+			#   1. File must start with <?php or <?= (pure PHP source).
+			#   2. Last non-blank line must NOT end with ?> (file is in
+			#      PHP context, not templating HTML output).
 			LINE1=$(head -1 "$TMP")
-			if ! echo "$LINE1" | grep -qE '^<\?(php|=)'; then
+			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
+				# File starts in PHP context. Skip modeline only if
+				# it ends outside PHP context (trailing ?>).
+				LAST_CONTENT=$(grep -v '^[[:space:]]*$' "$TMP" | tail -1)
+				if echo "$LAST_CONTENT" | grep -qE '\?>\s*$'; then
+					APPEND_ML=false
+				fi
+			else
+				# File does not start with <?php — likely a template
+				# or HTML-first file. Do not append the modeline.
 				APPEND_ML=false
 			fi
 		fi
