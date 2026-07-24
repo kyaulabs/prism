@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -271,6 +274,40 @@ test('load_env refuses to load dangerous env names from a file', function () {
     unlink($path);
 });
 
+
+
+test('load_env returns raw value when a quoted value has no closing quote', function () {
+    $path = sys_get_temp_dir() . '/test_env_unterminated_quote.env';
+    file_put_contents($path, "COMMENT_KEY=\"no closing quote\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('no closing quote');
+
+    unlink($path);
+});
+
+test('load_env treats a value starting with # as an empty value', function () {
+    $path = sys_get_temp_dir() . '/test_env_hash_value.env';
+    file_put_contents($path, "COMMENT_KEY=#this is a comment\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('');
+
+    unlink($path);
+});
+
+test('load_env strips a tab-separated inline # comment from an unquoted value', function () {
+    $path = sys_get_temp_dir() . '/test_env_tab_comment.env';
+    file_put_contents($path, "COMMENT_KEY=hello\t# note\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('hello');
+
+    unlink($path);
+});
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
