@@ -101,3 +101,19 @@ We implement a first-party `load_env(string $path): void` function in
   `EnvBoolTest` sets `$_ENV` manually and would be overwritten. An
   explicit load is testable in isolation and makes the file-read cost visible.
 
+## Amendments
+
+- **2026-07-23 (issue #192):** The minimal parser was hardened against
+  malformed and dangerous input. Key names are now validated against
+  `/^[A-Za-z_][A-Za-z0-9_]*$/`; a leading `export ` prefix and a leading
+  UTF-8 BOM are stripped; inline `#` comments are removed from unquoted
+  values (preserved inside quotes) via an extracted `parse_env_value()`.
+  A fixed blocklist (`is_dangerous_env_name()`) refuses to load names that
+  yield code execution in child processes (`LD_PRELOAD`, `BASH_ENV`,
+  `DYLD_INSERT_LIBRARIES`, …) so an attacker-influenced `.env` cannot
+  become RCE. `env_bool()` now treats an empty-string `$_ENV` entry as
+  unset, falling back to `getenv()`, so a file line like `APP_DEBUG=` no
+  longer shadows a server-delivered value. The "never overwrite server env"
+  decision and the "no variable interpolation" invariant are unchanged; the
+  parser still performs no nested expansion.
+

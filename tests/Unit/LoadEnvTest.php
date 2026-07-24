@@ -2,7 +2,16 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: LoadEnvTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: LoadEnvTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -16,9 +25,23 @@ beforeEach(function () {
     putenv('TEST_KEY');
     putenv('QUOTED_KEY');
     putenv('EQUALS_KEY');
+    putenv('EXPORT_KEY');
+    putenv('COMMENT_KEY');
+    putenv('VALID_KEY');
+    putenv('LD_PRELOAD');
+    unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY'], $_ENV['LD_PRELOAD']);
 });
 
-afterEach(restoreEnvVars('APP_DEBUG', 'TEST_KEY', 'QUOTED_KEY', 'EQUALS_KEY'));
+afterEach(restoreEnvVars(
+    'APP_DEBUG',
+    'TEST_KEY',
+    'QUOTED_KEY',
+    'EQUALS_KEY',
+    'EXPORT_KEY',
+    'COMMENT_KEY',
+    'VALID_KEY',
+    'LD_PRELOAD',
+));
 
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
     $path = sys_get_temp_dir() . '/test_env_true.env';
@@ -151,6 +174,137 @@ test('load_env sets both $_ENV and getenv for each key', function () {
 
     expect($_ENV['APP_DEBUG'])->toBe('true');
     expect(getenv('APP_DEBUG'))->toBe('true');
+
+    unlink($path);
+});
+
+
+test('load_env strips a leading `export ` shell prefix', function () {
+    $path = sys_get_temp_dir() . '/test_env_export.env';
+    file_put_contents($path, "export EXPORT_KEY=42\n");
+
+    load_env($path);
+
+    expect($_ENV)->toHaveKey('EXPORT_KEY');
+    expect($_ENV['EXPORT_KEY'])->toBe('42');
+    expect($_ENV)->not->toHaveKey('export EXPORT_KEY');
+
+    unlink($path);
+});
+
+test('load_env strips a leading UTF-8 BOM from the first line', function () {
+    $path = sys_get_temp_dir() . '/test_env_bom.env';
+    file_put_contents($path, "\xEF\xBB\xBFAPP_DEBUG=true\n");
+
+    load_env($path);
+
+    expect($_ENV)->toHaveKey('APP_DEBUG');
+    expect($_ENV['APP_DEBUG'])->toBe('true');
+
+    unlink($path);
+});
+
+test('load_env strips an inline `#` comment from an unquoted value', function () {
+    $path = sys_get_temp_dir() . '/test_env_inline_comment.env';
+    file_put_contents($path, "COMMENT_KEY=hello # a note\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('hello');
+
+    unlink($path);
+});
+
+test('load_env preserves a `#` inside a quoted value', function () {
+    $path = sys_get_temp_dir() . '/test_env_hash_in_quotes.env';
+    file_put_contents($path, 'COMMENT_KEY="a # b"' . "\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('a # b');
+
+    unlink($path);
+});
+
+test('load_env drops a trailing comment after a closing quote', function () {
+    $path = sys_get_temp_dir() . '/test_env_trailing_comment.env';
+    file_put_contents($path, 'COMMENT_KEY="value" # trailing' . "\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('value');
+
+    unlink($path);
+});
+
+test('load_env skips lines with invalid key names', function () {
+    $path = sys_get_temp_dir() . '/test_env_invalid_key.env';
+    file_put_contents($path, "BAD KEY=1\n1LEADING_DIGIT=2\nVALID_KEY=3\n");
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('BAD KEY');
+    expect($_ENV)->not->toHaveKey('1LEADING_DIGIT');
+    expect($_ENV['VALID_KEY'])->toBe('3');
+
+    unlink($path);
+});
+
+test('is_dangerous_env_name flags known injection vectors', function () {
+    expect(is_dangerous_env_name('LD_PRELOAD'))->toBeTrue();
+    expect(is_dangerous_env_name('BASH_ENV'))->toBeTrue();
+    expect(is_dangerous_env_name('DYLD_INSERT_LIBRARIES'))->toBeTrue();
+    expect(is_dangerous_env_name('ENV'))->toBeTrue();
+    expect(is_dangerous_env_name('APP_DEBUG'))->toBeFalse();
+    expect(is_dangerous_env_name('DB_HOST'))->toBeFalse();
+});
+
+test('load_env refuses to load dangerous env names from a file', function () {
+    $path = sys_get_temp_dir() . '/test_env_dangerous.env';
+    file_put_contents($path, "LD_PRELOAD=/evil/preload.so\nBASH_ENV=/evil.sh\nAPP_DEBUG=true\n");
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('LD_PRELOAD');
+    expect(getenv('LD_PRELOAD'))->toBeFalse();
+    expect($_ENV)->not->toHaveKey('BASH_ENV');
+    expect(getenv('BASH_ENV'))->toBeFalse();
+    expect(env_bool('APP_DEBUG'))->toBeTrue();
+
+    unlink($path);
+});
+
+
+
+test('load_env returns raw value when a quoted value has no closing quote', function () {
+    $path = sys_get_temp_dir() . '/test_env_unterminated_quote.env';
+    file_put_contents($path, "COMMENT_KEY=\"no closing quote\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('no closing quote');
+
+    unlink($path);
+});
+
+test('load_env treats a value starting with # as an empty value', function () {
+    $path = sys_get_temp_dir() . '/test_env_hash_value.env';
+    file_put_contents($path, "COMMENT_KEY=#this is a comment\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('');
+
+    unlink($path);
+});
+
+test('load_env strips a tab-separated inline # comment from an unquoted value', function () {
+    $path = sys_get_temp_dir() . '/test_env_tab_comment.env';
+    file_put_contents($path, "COMMENT_KEY=hello\t# note\n");
+
+    load_env($path);
+
+    expect($_ENV['COMMENT_KEY'])->toBe('hello');
 
     unlink($path);
 });
