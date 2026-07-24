@@ -150,6 +150,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0034-chat-primary-agent.md` — Add `chat` primary agent on the UTILITY tier (read-only conversational tab for Q&A, code explanation, brainstorming); self-sufficient read-only posture, forward-looking `graphify_*` permission
 - `adr/0035-ci-runner-fork-isolation.md` — Migrate CI `check` job from self-hosted to GitHub-hosted ephemeral runner (`ubuntu-latest`) for fork-PR isolation; eliminate workflow-source `sudo`, set `persist-credentials: false`, add composer `--no-scripts`; clarifies that ADR-0025 parity is gate-equivalence, not runner-equivalence
 - `adr/0036-safety-hook-fail-closed-block-rules.md` — Reverse ADR-0023 fail-open posture on block-level rule evaluation; classifier errors now BLOCK rather than silently pass; documented known minimal-tokenizer limitation
+- `adr/0037-coverage-gate-empty-clover-and-strict-mode.md` — Empty/degenerate Clover now hard-fails (exit 2); out-of-source executable files WARN by default and FAIL under `--strict`; amends ADR-0009
 
 ## When to update this file
 

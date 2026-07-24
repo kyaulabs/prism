@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
 
 
 
@@ -94,23 +96,23 @@ register_temp_dir "$T2"
 	fi
 )
 
-# ── Test 3: Changed file not in clover → SKIP, exit 0 ───────────────────────
+# ── Test 3: out-of-source executable file → WARN, exit 0 ────────────────────
 echo ""
-echo "── Test 3: file outside coverage source is skipped ──"
+echo "── Test 3: out-of-source executable file warns ──"
 T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
 	cd "$T3"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
-	echo '<?php' > backend/other.php
+	printf '<?php\necho "x";\n' > backend/other.php   # executable, outside <source>
 	CLOVER=$(mktemp)
 	build_clover "$CLOVER" "$T3" "backend/env.php:10:10"
 	printf 'backend/other.php\n' | php "$SCRIPT" "$CLOVER" --root="$T3" >out.txt 2>&1 || rc=$?
-	if [ "${rc:-0}" -eq 0 ] && grep -q 'SKIP' out.txt; then
-		pass "file outside source set is skipped (exit 0)"
+	if [ "${rc:-0}" -eq 0 ] && grep -q 'WARN' out.txt; then
+		pass "out-of-source executable file warns (exit 0)"
 	else
-		fail "expected exit 0 + SKIP, got rc=${rc:-0}"
+		fail "expected exit 0 + WARN, got rc=${rc:-0}"
 	fi
 )
 
@@ -268,10 +270,52 @@ else
 	)
 fi
 
+# ── Test 12: Empty Clover (no <file> nodes) → exit 2 ────────────────────────
+echo ""
+echo "── Test 12: empty clover → exit 2 ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	CLOVER=$(mktemp)
+	{
+		echo '<?xml version="1.0" encoding="UTF-8"?>'
+		echo '<coverage generated="1"><project></project></coverage>'
+	} > "$CLOVER"
+	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T12" >out.txt 2>&1 || rc=$?
+	if [ "${rc:-2}" -eq 2 ] && grep -q '<source>' out.txt; then
+		pass "empty clover exits 2 with <source> remediation"
+	else
+		fail "expected exit 2 + <source> hint, got rc=${rc:-0}"
+	fi
+)
+
+# ── Test 13: --strict promotes out-of-source WARN → FAIL, exit 1 ───────────
+echo ""
+echo "── Test 13: --strict fails out-of-source executable ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+	cd "$T13"
+	mkdir -p backend
+	echo '<?php' > backend/env.php
+	printf '<?php\necho "x";\n' > backend/other.php
+	CLOVER=$(mktemp)
+	build_clover "$CLOVER" "$T13" "backend/env.php:10:10"
+	printf 'backend/other.php\n' | php "$SCRIPT" "$CLOVER" --root="$T13" --strict >out.txt 2>&1 || rc=$?
+	if [ "${rc:-1}" -eq 1 ] && grep -q 'WARN' out.txt; then
+		pass "--strict fails out-of-source executable (exit 1)"
+	else
+		fail "expected exit 1 + WARN under --strict, got rc=${rc:-0}"
+	fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
+
 
 
 

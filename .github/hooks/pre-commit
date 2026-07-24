@@ -224,23 +224,31 @@ if [ -n "$STAGED_SRC" ]; then
 		# visible text in the browser.
 		APPEND_ML=true
 		if [ "$EXT" = "php" ]; then
-			in_php=$(awk '
-				BEGIN { in_php = 0 }
-				{
-					line = $0
-					while (length(line) > 0) {
-						if (!in_php) {
-							if (match(line, /<\?(php|=)?/)) { in_php = 1; line = substr(line, RSTART + RLENGTH) }
-							else { line = "" }
-						} else {
-							if (match(line, /\?>/)) { in_php = 0; line = substr(line, RSTART + 2) }
-							else { line = "" }
-						}
-					}
-				}
-				END { print (in_php ? "1" : "0") }
-			' "$TMP")
-			[ "$in_php" = "1" ] || APPEND_ML=false
+			# Check whether to append the vim modeline.
+			# Skip the modeline when the file ends outside PHP context
+			# (trailing ?> or HTML output) — a // vim: line would render
+			# as visible text in the browser.
+			#
+			# The previous awk-based context tracker was vulnerable to
+			# false negatives from ?> or <?php inside PHP string literals
+			# (e.g. XML in test strings like '<?xml version="1.0"?>').
+			# Replaced with a two-stage check:
+			#   1. File must start with <?php or <?= (pure PHP source).
+			#   2. Last non-blank line must NOT end with ?> (file is in
+			#      PHP context, not templating HTML output).
+			LINE1=$(head -1 "$TMP")
+			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
+				# File starts in PHP context. Skip modeline only if
+				# it ends outside PHP context (trailing ?>).
+				LAST_CONTENT=$(grep -v '^[[:space:]]*$' "$TMP" | tail -1)
+				if echo "$LAST_CONTENT" | grep -qE '\?>\s*$'; then
+					APPEND_ML=false
+				fi
+			else
+				# File does not start with <?php — likely a template
+				# or HTML-first file. Do not append the modeline.
+				APPEND_ML=false
+			fi
 		fi
 
 		# Strip ALL existing RCS headers and vim modelines into a cleaned copy.
