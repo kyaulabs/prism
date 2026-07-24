@@ -4,6 +4,7 @@
 
 
 
+
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
 # (ADR-0025). Pure grep/sed: no commitlint dependency, always runs.
@@ -32,7 +33,19 @@ else
 	fi
 fi
 
+# ── 2. build agent gates git tag* behind confirmation ───────────────────────
+# /release runs as the build agent and creates a signed tag via `git tag -s`.
+# build's bash has "*": "allow", so without an explicit "git tag*": "ask" the
+# tag is created with no confirmation — unlike git add/commit which are "ask".
+build_block=$(sed -n '/"build": {/,/"plan": {/p' "$REPO_ROOT/opencode.jsonc")
+if echo "$build_block" | grep -qF '"git tag*": "ask"'; then
+	pass "build agent gates git tag* at ask"
+else
+	fail "build agent does not gate git tag* (release tag ungated)"
+fi
+
 print_summary "commit_template_footer"
+
 
 
 

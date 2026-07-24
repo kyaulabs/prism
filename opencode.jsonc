@@ -75,6 +75,7 @@
           "git add*": "ask",
           "git stage*": "ask",
           "git commit*": "ask",
+          "git tag*": "ask",
           "git push*": "deny"
         },
         "lsp": "allow"
