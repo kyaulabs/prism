@@ -38,10 +38,14 @@ creates it; otherwise it prepends the new section.
 
 ```bash
 git add CHANGELOG.md
-git commit -S -m "chore(release): vX.Y.Z"
+git commit -S -m $'chore(release): vX.Y.Z\n\nAuthored-by: glm-5.2\nTested-by: deepseek-v4-pro\nSigned-off-by: <resolved via bash .github/scripts/resolve-identity.sh>'
 ```
 
-Signed commit required (see `conventional-commits` skill).
+Signed commit required (see `conventional-commits` skill). The release commit is
+a normal `chore(release):` commit (not a merge/revert), so it carries the three
+required footers: `Authored-by`/`Tested-by` from the configured model tiers and
+`Signed-off-by` resolved via `bash .github/scripts/resolve-identity.sh`. Use a
+single `-m` with `$'...\n...'` quoting (never multiple `-m` flags).
 
 ## 4. Create the signed tag
 
