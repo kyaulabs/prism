@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EnvBoolTest.php kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: EnvBoolTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+
+
+
 
 
 
@@ -119,6 +122,16 @@ test('env_bool returns false for unrecognized string value', function () {
 
     expect($result)->toBeFalse();
 });
+
+test('env_bool falls back to getenv() when the $_ENV value is an empty string', function () {
+    $_ENV['APP_DEBUG'] = '';
+    putenv('APP_DEBUG=true');
+
+    $result = env_bool('APP_DEBUG');
+
+    expect($result)->toBeTrue();
+});
+
 
 
 

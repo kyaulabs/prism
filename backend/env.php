@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Safely reads a boolean environment variable.
  *
@@ -17,7 +20,8 @@ declare(strict_types=1);
  * string values from the environment (e.g., "false" → false),
  * unlike (bool) casts which treat all non-empty strings as true.
  *
- * Reads from $_ENV first, falling back to getenv().
+ * Reads from $_ENV first, falling back to getenv(). An empty-string $_ENV
+ * value is treated as unset so it does not shadow a real getenv() value.
  *
  * @param  string $key      Environment variable name.
  * @param  bool   $default  Default value if the variable is unset or unparseable.
@@ -25,9 +29,16 @@ declare(strict_types=1);
  */
 function env_bool(string $key, bool $default = false): bool
 {
-    $value = $_ENV[$key] ?? getenv($key);
+    $envValue = $_ENV[$key] ?? null;
 
-    if ($value === false || $value === null) {
+    // Treat an empty-string $_ENV entry as unset so getenv() is consulted.
+    // Without this, a `.env` line like `APP_DEBUG=` (empty) shadows a real
+    // server value delivered only via getenv().
+    $value = ($envValue === null || $envValue === '')
+        ? getenv($key)
+        : $envValue;
+
+    if ($value === false || $value === null || $value === '') {
         return $default;
     }
 
@@ -199,6 +210,7 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
 
 
 
