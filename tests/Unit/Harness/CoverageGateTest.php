@@ -26,6 +26,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Unit tests for the executable-code heuristic extracted from
  * coverage-gate.php. Pure string inputs — no filesystem.
@@ -139,5 +142,3 @@ test('empty clover (no file nodes) exits 2', function (): void {
     unlink($clover);
     rmdir($dir);
 });
-
-
