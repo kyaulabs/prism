@@ -12,6 +12,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -42,11 +43,22 @@ MANIFEST="${MANIFEST_OVERRIDE:-$SCRIPT_DIR/quality-surface.manifest}"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Detect realpath -m support (GNU) vs BSD (macOS). On macOS, install coreutils
-# (brew install coreutils) for grealpath which supports -m. (issue #193)
+# (brew install coreutils) for grealpath which supports -m. Check absolute
+# Homebrew paths as fallback — PATH may be stripped (e.g., tests that exclude
+# gh also strip /opt/homebrew/bin). (issue #193)
+find_grealpath() {
+	for candidate in grealpath /opt/homebrew/bin/grealpath /usr/local/bin/grealpath; do
+		if command -v "$candidate" >/dev/null 2>&1; then
+			echo "$candidate"
+			return 0
+		fi
+	done
+	return 1
+}
 if realpath -m / >/dev/null 2>&1; then
 	REALPATH_M="realpath"
-elif command -v grealpath >/dev/null 2>&1; then
-	REALPATH_M="grealpath"
+elif REALPATH_M="$(find_grealpath)"; then
+	:  # REALPATH_M set by command substitution
 else
 	echo "Error: realpath -m not available — install GNU coreutils (brew install coreutils / apt install coreutils)" >&2
 	exit 1
@@ -333,6 +345,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 
