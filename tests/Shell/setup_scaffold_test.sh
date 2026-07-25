@@ -14,6 +14,8 @@
 
 
 
+
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -367,7 +369,7 @@ GH_SCRIPT
 	# Only simulate directory creation on success (non-zero exit means failure)
 	if [ "$exit_code" -eq 0 ]; then
 		cat >> "$fake_gh" <<'GH_SCRIPT'
-mkdir -p "${4:-}" 2>/dev/null || true
+mkdir -p "${@: -1}" 2>/dev/null || true
 GH_SCRIPT
 	fi
 
@@ -1309,6 +1311,8 @@ test_clone_has_double_dash_sentinel
 
 print_summary "setup scaffold"
 exit $?
+
+
 
 
 
