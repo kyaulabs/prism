@@ -12,6 +12,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -1182,10 +1183,92 @@ echo ""
 echo "── Test 30: AC-1 — check-only validates containment ──"
 test_check_only_validates_containment
 
+# ── Test 31: AC-2 — manifest entry with ../ is rejected (source containment) ─
+
+test_reject_manifest_dotdot() {
+	local bad_manifest target exit_code
+	bad_manifest=$(mktemp)
+	register_temp_dir "$bad_manifest"
+	printf '%s\n' "composer.json" "../../etc/passwd" > "$bad_manifest"
+	target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+
+	exit_code=0
+	"$SCRIPT" --manifest "$bad_manifest" new "$target" >/dev/null 2>&1 || exit_code=$?
+	if [ "$exit_code" -eq 0 ]; then
+		fail "AC-2 manifest ../ — accepted an entry that escapes REPO_ROOT"
+		return
+	fi
+	# Source containment rejects at read time (before mkdir). Without it,
+	# forward-parity alone lets mkdir+git init run first, leaving a partial
+	# target. Asserting no target was created proves containment fired early.
+	if [ -d "$REPO_ROOT/$target" ]; then
+		fail "AC-2 manifest ../ — partial target created (containment did not fire at read time)"
+		return
+	fi
+	pass "AC-2 manifest ../ — entry escaping REPO_ROOT rejected before any target creation"
+}
+
+echo ""
+echo "── Test 31: AC-2 — manifest ../ entry rejected ──"
+test_reject_manifest_dotdot
+
+# ── Test 32: AC-2 — manifest entry with absolute path rejected (source) ─────
+
+test_reject_manifest_absolute() {
+	local bad_manifest target exit_code
+	bad_manifest=$(mktemp)
+	register_temp_dir "$bad_manifest"
+	printf '%s\n' "/etc/passwd" > "$bad_manifest"
+	target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+
+	exit_code=0
+	"$SCRIPT" --manifest "$bad_manifest" new "$target" >/dev/null 2>&1 || exit_code=$?
+	if [ "$exit_code" -eq 0 ]; then
+		fail "AC-2 manifest absolute — accepted an absolute manifest entry"
+		return
+	fi
+	if [ -d "$REPO_ROOT/$target" ]; then
+		fail "AC-2 manifest absolute — partial target created (containment did not fire at read time)"
+		return
+	fi
+	pass "AC-2 manifest absolute — absolute entry rejected before any target creation"
+}
+
+echo ""
+echo "── Test 32: AC-2 — manifest absolute entry rejected ──"
+test_reject_manifest_absolute
+
+# ── Test 33: AC-2 — clean manifest still copies successfully ────────────────
+
+test_clean_manifest_copies() {
+	local target exit_code
+	target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+
+	exit_code=0
+	bash "$SCRIPT" new "$target" >/dev/null 2>&1 || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "AC-2 clean manifest — valid manifest rejected ($exit_code)"
+		return
+	fi
+	if [ ! -f "$REPO_ROOT/$target/composer.json" ]; then
+		fail "AC-2 clean manifest — composer.json not copied"
+		return
+	fi
+	pass "AC-2 clean manifest — legitimate entries copy under target"
+}
+
+echo ""
+echo "── Test 33: AC-2 — clean manifest copies successfully ──"
+test_clean_manifest_copies
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 

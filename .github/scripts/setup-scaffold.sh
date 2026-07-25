@@ -9,6 +9,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -141,6 +142,20 @@ read_manifest_entries() {
 		echo "Error: manifest is empty (no non-comment entries): $MANIFEST" >&2
 		exit 1
 	fi
+
+	# AC-2: every entry must resolve inside REPO_ROOT (source containment).
+	# Rejects absolute entries and ../ traversal before any copy happens.
+	local _entry _canon_root
+	_canon_root="$(realpath -- "$REPO_ROOT")"
+	for _entry in "${manifest_entries[@]}"; do
+		case "$_entry" in
+			/*)
+				echo "Error: manifest entry must be relative (absolute rejected): $_entry" >&2
+				exit 1
+				;;
+		esac
+		assert_path_contained "$_canon_root" "$_canon_root/$_entry" "manifest entry"
+	done
 }
 
 # copy_quality_surface <target>
@@ -150,12 +165,17 @@ read_manifest_entries() {
 copy_quality_surface() {
 	local target="$1"
 	local entry
+	local canon_target
+
+	canon_target="$(realpath -m -- "$target")"
 
 	for entry in "${manifest_entries[@]}"; do
 		if [ ! -f "$REPO_ROOT/$entry" ]; then
 			echo "Error: source file not found (manifest forward parity broken): $entry" >&2
 			exit 1
 		fi
+		# AC-2: dest containment — entry must resolve inside the target root.
+		assert_path_contained "$canon_target" "$canon_target/$entry" "manifest destination"
 		# '--' sentinels guard against a $target whose name starts with '-'
 		# (SAST: mkdir/cp option-injection hardening).
 		mkdir -p -- "$target/$(dirname "$entry")"
@@ -300,6 +320,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 
