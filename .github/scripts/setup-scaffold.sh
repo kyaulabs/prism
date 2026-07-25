@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-scaffold.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: setup-scaffold.sh kyau@cosmos.kyaulabs 2026/07/24 -0700 Exp $
+
 
 
 
@@ -52,6 +53,71 @@ guard_no_overwrite() {
 		fi
 		exit 1
 	fi
+}
+
+# assert_path_contained <root> <path> [label]
+# Canonicalizes <path> via realpath -m and exits 1 if it does not resolve
+# inside <root>. <root> is resolved with realpath (must exist). Catches ..
+# traversal, absolute escape, and symlink-escape in one check. (issue #193)
+assert_path_contained() {
+	local root="$1"
+	local path="$2"
+	local label="${3:-path}"
+	local canon_root canon_path
+
+	canon_root="$(realpath -- "$root")" || {
+		echo "Error: cannot resolve containment root for $label: $root" >&2
+		exit 1
+	}
+	canon_path="$(realpath -m -- "$path")" || {
+		echo "Error: cannot resolve $label: $path" >&2
+		exit 1
+	}
+
+	case "$canon_path" in
+		"$canon_root"|"$canon_root"/*)
+			return 0
+			;;
+		*)
+			echo "Error: $label escapes containment root ($canon_root): $path" >&2
+			exit 1
+			;;
+	esac
+}
+
+# validate_target <target>
+# Security gate for user-supplied targets (issue #193, AC-1). Rejects empty,
+# absolute, ..-traversal, and symlink-escape targets. On success, echoes the
+# canonical absolute path under REPO_ROOT for all subsequent operations (so
+# the working directory cannot relocate writes). Exits 1 on rejection.
+validate_target() {
+	local target="$1"
+	local canon_root canon_path
+
+	if [ -z "$target" ]; then
+		echo "Error: target path is empty" >&2
+		exit 1
+	fi
+
+	case "$target" in
+		/*)
+			echo "Error: target must be a relative path (absolute rejected): $target" >&2
+			exit 1
+			;;
+	esac
+
+	canon_root="$(realpath -- "$REPO_ROOT")"
+	canon_path="$(realpath -m -- "$canon_root/$target")"
+
+	case "$canon_path" in
+		"$canon_root"|"$canon_root"/*)
+			echo "$canon_path"
+			;;
+		*)
+			echo "Error: target escapes repository root ($canon_root): $target" >&2
+			exit 1
+			;;
+	esac
 }
 
 # read_manifest_entries
@@ -110,20 +176,14 @@ case "$subcommand" in
 
 		read_manifest_entries
 
-		# ── Target required ────────────────────────────────────────────────
+		# ── AC-1: containment + AC-2: no-overwrite guard ──────────────────
 
-		if [ -z "$target" ]; then
-			echo "Error: target path required" >&2
-			exit 1
-		fi
-
-		# ── AC-2: No-overwrite guard ───────────────────────────────────────
-
-		guard_no_overwrite "$target"
+		canon_target="$(validate_target "$target")"
+		guard_no_overwrite "$canon_target"
 
 		# ── check-only: print plan, touch nothing (AC-1) ───────────────────
 
-		echo "Would copy ${#manifest_entries[@]} files into $target:"
+		echo "Would copy ${#manifest_entries[@]} files into $canon_target:"
 		for entry in "${manifest_entries[@]}"; do
 			echo "  $entry"
 		done
@@ -142,8 +202,9 @@ CLONE_USAGE
 			exit 1
 		fi
 
-		# AC-2: No-overwrite guard
-		guard_no_overwrite "$target"
+		# AC-1: containment + AC-2: no-overwrite guard
+		canon_target="$(validate_target "$target")"
+		guard_no_overwrite "$canon_target"
 
 		# Require gh (GitHub CLI) — ADR-0026 forbids falling back to raw git
 		if ! command -v gh >/dev/null 2>&1; then
@@ -151,43 +212,39 @@ CLONE_USAGE
 			exit 2
 		fi
 
-		gh repo clone "$owner_repo" "$target" || {
+		gh repo clone "$owner_repo" "$canon_target" || {
 			echo "Error: gh repo clone failed (auth or network) — see gh output above" >&2
 			exit 2
 		}
 
 		# Copy the quality surface on top of the cloned template (ADR-0026)
 		read_manifest_entries
-		copy_quality_surface "$target"
-		echo "Cloned $owner_repo to $target and copied ${#manifest_entries[@]} quality-surface files."
+		copy_quality_surface "$canon_target"
+		echo "Cloned $owner_repo to $canon_target and copied ${#manifest_entries[@]} quality-surface files."
 		;;
 
 	new)
 		target="${1:-}"
 
-		if [ -z "$target" ]; then
-			echo "Error: target path required" >&2
-			exit 1
-		fi
-
-		# AC-2: No-overwrite guard
-		guard_no_overwrite "$target"
+		# AC-1: containment + AC-2: no-overwrite guard
+		canon_target="$(validate_target "$target")"
+		guard_no_overwrite "$canon_target"
 
 		# Read manifest now so file count is available for summary
 		read_manifest_entries
 
 		# Create the target directory and init a fresh git repo.
 		# Trap: on any error during mkdir + git init, remove the partial dir.
-		# The '--' sentinels guard against $target names starting with '-'
+		# The '--' sentinels guard against $canon_target names starting with '-'
 		# (SAST: mkdir/git/rm option-injection hardening).
-		mkdir -p -- "$target"
-		trap 'rm -rf -- "$target"; exit 1' ERR
-		git init -- "$target"
+		mkdir -p -- "$canon_target"
+		trap 'rm -rf -- "$canon_target"; exit 1' ERR
+		git init -- "$canon_target"
 		trap - ERR  # git init succeeded — disable cleanup trap
 
 		# Copy the quality surface into the fresh repo (ADR-0026)
-		copy_quality_surface "$target"
-		echo "Scaffolded new project at $target with ${#manifest_entries[@]} quality-surface files."
+		copy_quality_surface "$canon_target"
+		echo "Scaffolded new project at $canon_target with ${#manifest_entries[@]} quality-surface files."
 		;;
 
 	should-prompt)
@@ -243,6 +300,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 

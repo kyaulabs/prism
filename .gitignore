@@ -38,6 +38,9 @@ prototype_*
 # Graphify knowledge graph build artifacts (see .opencode/skills/graphify/)
 graphify-out/
 
+# Scaffold test targets (setup-scaffold.sh containment tests — issue #193)
+/.test-scaffold-tmp/
+
 # Editor files
 *.swp
 *.swo

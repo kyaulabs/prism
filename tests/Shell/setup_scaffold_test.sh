@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_scaffold_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/24 -0700 Exp $
+
 
 
 
@@ -60,6 +61,14 @@ ROOT_CONFIGS=(
 	"tsconfig.json"
 	"cliff.toml"
 )
+
+# ── Containment test helper ─────────────────────────────────────────────────
+# make_test_target — echo a unique REPO_ROOT-relative target path that does
+# NOT yet exist. The script resolves it to $REPO_ROOT/<path>. Register the
+# parent "$REPO_ROOT/.test-scaffold-tmp" for EXIT cleanup. (issue #193)
+make_test_target() {
+	echo ".test-scaffold-tmp/target-${RANDOM}-$$"
+}
 
 # ── Test 1: Manifest forward parity (no stale entries) ──────────────────────
 
@@ -158,9 +167,8 @@ test_manifest_reverse_parity
 
 test_check_only_absent_target() {
 	local temp_target exit_code output
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$("$SCRIPT" --check-only "$temp_target" 2>&1) || exit_code=$?
@@ -199,11 +207,12 @@ test_check_only_absent_target
 
 test_check_only_existing_dir() {
 	local temp_target sentinel exit_code output checksum_before checksum_after
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+	mkdir -p "$REPO_ROOT/$temp_target"
 
 	# Place a sentinel file with known content
-	sentinel="$temp_target/do-not-touch.txt"
+	sentinel="$REPO_ROOT/$temp_target/do-not-touch.txt"
 	echo "pre-existing content" > "$sentinel"
 	checksum_before=$(sha256sum "$sentinel" | awk '{print $1}')
 
@@ -242,14 +251,14 @@ test_check_only_existing_dir
 # ── Test 5: target is an existing FILE → halt, non-zero exit (AC-2 file case) ──
 
 test_check_only_existing_file() {
-	local temp_parent temp_target exit_code output checksum_before checksum_after
-	temp_parent=$(mktemp -d)
-	register_temp_dir "$temp_parent"
+	local temp_target exit_code output checksum_before checksum_after
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+	mkdir -p "$(dirname "$REPO_ROOT/$temp_target")"
 
 	# Create the target as a regular file (not a directory)
-	temp_target="$temp_parent/my-scaffold"
-	echo "i am a file, not a directory" > "$temp_target"
-	checksum_before=$(sha256sum "$temp_target" | awk '{print $1}')
+	echo "i am a file, not a directory" > "$REPO_ROOT/$temp_target"
+	checksum_before=$(sha256sum "$REPO_ROOT/$temp_target" | awk '{print $1}')
 
 	exit_code=0
 	output=$("$SCRIPT" --check-only "$temp_target" 2>&1) || exit_code=$?
@@ -266,7 +275,7 @@ test_check_only_existing_file() {
 	fi
 
 	# File must be unchanged
-	checksum_after=$(sha256sum "$temp_target" | awk '{print $1}')
+	checksum_after=$(sha256sum "$REPO_ROOT/$temp_target" | awk '{print $1}')
 	if [ "$checksum_before" != "$checksum_after" ]; then
 		fail "check-only existing file — file was mutated"
 		return
@@ -283,9 +292,8 @@ test_check_only_existing_file
 
 test_manifest_missing_error() {
 	local temp_target exit_code output
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$("$SCRIPT" --manifest /nonexistent/path/quality-surface.manifest --check-only "$temp_target" 2>&1) || exit_code=$?
@@ -312,9 +320,8 @@ test_manifest_missing_error
 
 test_check_only_no_git_mutation() {
 	local temp_target before after exit_code
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	before=$(git -C "$REPO_ROOT" status --porcelain 2>&1)
 
@@ -382,9 +389,8 @@ test_clone_success() {
 
 	fake_gh_setup "$fake_bin" 0
 
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	repo="testowner/testrepo"
 
@@ -397,15 +403,17 @@ test_clone_success() {
 		return
 	fi
 
-	# Fake gh must have been invoked with correct subcommand + args
+	# Fake gh must have been invoked with correct subcommand + args. The
+	# script now passes the canonical absolute target ($REPO_ROOT/$temp_target)
+	# as arg 4; the -- sentinel assertion is added in Task 3.
 	recorded=$(cat "$fake_log")
-	if ! echo "$recorded" | grep -q "repo clone $repo $temp_target"; then
+	if ! echo "$recorded" | grep -q "repo clone $repo $REPO_ROOT/$temp_target"; then
 		fail "clone success — fake gh not invoked with expected args: got '$recorded'"
 		return
 	fi
 
-	# Target must have been created
-	if [ ! -d "$temp_target" ]; then
+	# Target must have been created (fake gh creates ${4:-} = canonical target)
+	if [ ! -d "$REPO_ROOT/$temp_target" ]; then
 		fail "clone success — target directory was not created"
 		return
 	fi
@@ -422,9 +430,8 @@ test_clone_success
 
 test_clone_missing_gh() {
 	local temp_target exit_code output
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	# PATH=/usr/bin:/bin provides dirname (needed by SCRIPT_DIR resolution)
@@ -446,8 +453,8 @@ test_clone_missing_gh() {
 	fi
 
 	# No partial state — target must NOT have been created
-	if [ -d "$temp_target" ]; then
-		fail "clone missing gh — partial state left at $temp_target"
+	if [ -d "$REPO_ROOT/$temp_target" ]; then
+		fail "clone missing gh — partial state left at $REPO_ROOT/$temp_target"
 		return
 	fi
 
@@ -471,9 +478,8 @@ test_clone_auth_failure() {
 
 	fake_gh_setup "$fake_bin" 1  # exit 1 = auth failure
 
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
@@ -485,8 +491,8 @@ test_clone_auth_failure() {
 	fi
 
 	# No partial state left at target
-	if [ -d "$temp_target" ]; then
-		fail "clone auth failure — partial state left at $temp_target"
+	if [ -d "$REPO_ROOT/$temp_target" ]; then
+		fail "clone auth failure — partial state left at $REPO_ROOT/$temp_target"
 		return
 	fi
 
@@ -537,11 +543,12 @@ test_clone_no_overwrite() {
 
 	fake_gh_setup "$fake_bin" 0
 
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	# temp_target EXISTS (pre-created by mktemp) — this exercises the guard
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+	# Pre-create the target — this exercises the guard
+	mkdir -p "$REPO_ROOT/$temp_target"
 
-	sentinel="$temp_target/sentinel.txt"
+	sentinel="$REPO_ROOT/$temp_target/sentinel.txt"
 	echo "do not overwrite me" > "$sentinel"
 	checksum_before=$(sha256sum "$sentinel" | awk '{print $1}')
 
@@ -595,9 +602,8 @@ test_clone_no_overwrite
 
 test_new_creates_git_repo() {
 	local temp_target exit_code output
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
@@ -609,19 +615,19 @@ test_new_creates_git_repo() {
 	fi
 
 	# Target must exist and be a directory
-	if [ ! -d "$temp_target" ]; then
+	if [ ! -d "$REPO_ROOT/$temp_target" ]; then
 		fail "new git repo — target directory was not created"
 		return
 	fi
 
 	# Must be a git repo
-	if ! git -C "$temp_target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	if ! git -C "$REPO_ROOT/$temp_target" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		fail "new git repo — target is not a git repository"
 		return
 	fi
 
 	# .git must exist
-	if [ ! -d "$temp_target/.git" ]; then
+	if [ ! -d "$REPO_ROOT/$temp_target/.git" ]; then
 		fail "new git repo — .git directory missing"
 		return
 	fi
@@ -637,9 +643,8 @@ test_new_creates_git_repo
 
 test_new_copies_all_manifest_entries() {
 	local temp_target exit_code output entry missing=()
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
@@ -655,9 +660,9 @@ test_new_copies_all_manifest_entries() {
 		line="${line%$'\r'}"
 		[[ -z "$line" || "$line" == \#* ]] && continue
 		entry="$line"
-		if [ ! -f "$temp_target/$entry" ]; then
+		if [ ! -f "$REPO_ROOT/$temp_target/$entry" ]; then
 			missing+=("$entry")
-		elif [ ! -s "$temp_target/$entry" ]; then
+		elif [ ! -s "$REPO_ROOT/$temp_target/$entry" ]; then
 			missing+=("$entry (empty)")
 		fi
 	done < "$MANIFEST"
@@ -681,9 +686,8 @@ test_new_copies_all_manifest_entries
 
 test_standalone_checks() {
 	local temp_target exit_code output smoke_test
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$("$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
@@ -695,13 +699,13 @@ test_standalone_checks() {
 	fi
 
 	# ── 1. Assert test_helpers.sh is present in the copy ───────────────────
-	if [ ! -f "$temp_target/tests/Shell/lib/test_helpers.sh" ]; then
+	if [ ! -f "$REPO_ROOT/$temp_target/tests/Shell/lib/test_helpers.sh" ]; then
 		fail "standalone — test_helpers.sh missing from copy"
 		return
 	fi
 
 	# ── 2. Minimal smoke test that sources the COPIED lib ───────────────────
-	smoke_test="$temp_target/tests/Shell/smoke_test.sh"
+	smoke_test="$REPO_ROOT/$temp_target/tests/Shell/smoke_test.sh"
 	mkdir -p "$(dirname "$smoke_test")"
 	cat > "$smoke_test" <<'SMOKE'
 #!/usr/bin/env bash
@@ -732,19 +736,19 @@ SMOKE
 	fi
 
 	# ── 3. Lockfiles present (avoid network calls; just check presence) ───
-	if [ -f "$REPO_ROOT/composer.lock" ] && [ ! -f "$temp_target/composer.lock" ]; then
+	if [ -f "$REPO_ROOT/composer.lock" ] && [ ! -f "$REPO_ROOT/$temp_target/composer.lock" ]; then
 		fail "standalone — composer.lock missing from copy"
 		return
 	fi
-	if [ -f "$REPO_ROOT/package-lock.json" ] && [ ! -f "$temp_target/package-lock.json" ]; then
+	if [ -f "$REPO_ROOT/package-lock.json" ] && [ ! -f "$REPO_ROOT/$temp_target/package-lock.json" ]; then
 		fail "standalone — package-lock.json missing from copy"
 		return
 	fi
 
 	# ── 4. install-hooks.sh runs standalone in the copy ────────────────────
-	if [ -f "$temp_target/.github/scripts/install-hooks.sh" ]; then
+	if [ -f "$REPO_ROOT/$temp_target/.github/scripts/install-hooks.sh" ]; then
 		exit_code=0
-		output=$(bash "$temp_target/.github/scripts/install-hooks.sh" 2>&1) || exit_code=$?
+		output=$(bash "$REPO_ROOT/$temp_target/.github/scripts/install-hooks.sh" 2>&1) || exit_code=$?
 		if [ "$exit_code" -ne 0 ]; then
 			fail "standalone — install-hooks.sh failed in copy (exit $exit_code)"
 			echo "  output: $output" >&2
@@ -773,9 +777,8 @@ exit 1
 GIT_FAIL
 	chmod +x "$fake_bin/git"
 
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"  # target must NOT exist
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" new "$temp_target" 2>&1) || exit_code=$?
@@ -786,9 +789,9 @@ GIT_FAIL
 	fi
 
 	# The trap must have removed the partial target directory
-	if [ -d "$temp_target" ]; then
+	if [ -d "$REPO_ROOT/$temp_target" ]; then
 		fail "trap cleanup — partial target directory was NOT removed by trap"
-		ls -la "$temp_target" >&2 || true
+		ls -la "$REPO_ROOT/$temp_target" >&2 || true
 		return
 	fi
 
@@ -812,9 +815,8 @@ test_clone_copies_quality_surface() {
 
 	fake_gh_setup "$fake_bin" 0
 
-	temp_target=$(mktemp -d)
-	register_temp_dir "$temp_target"
-	rmdir "$temp_target"
+	temp_target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
 	exit_code=0
 	output=$(env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$temp_target" 2>&1) || exit_code=$?
@@ -837,7 +839,7 @@ test_clone_copies_quality_surface() {
 	# Key manifest entries must be present in the target (spot-check)
 	local missing=()
 	for entry in ".github/scripts/setup-scaffold.sh" "tests/Shell/lib/test_helpers.sh" "composer.json"; do
-		if [ ! -f "$temp_target/$entry" ]; then
+		if [ ! -f "$REPO_ROOT/$temp_target/$entry" ]; then
 			missing+=("$entry")
 		fi
 	done
@@ -1037,33 +1039,154 @@ test_should_prompt_v3_clone_exists
 # ── Test 24: new handles leading-dash target (SAST: git/mkdir option injection) ──
 
 test_new_leading_dash_target() {
-	local parent
-	parent=$(mktemp -d)
-	register_temp_dir "$parent"
+	local target rc
+	# Target basename starts with '-'. Under the containment model the
+	# script resolves it to $REPO_ROOT/.test-scaffold-tmp/-dash-target-*.
+	# The '--' sentinels on mkdir/git/rm still guard against option
+	# injection from a dash-leading path component (SAST hardening).
+	target=".test-scaffold-tmp/-dash-target-$$"
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
 
-	(
-		cd "$parent"
-		# Target basename starts with '-'. Without the '--' sentinel on
-		# mkdir/git/rm, these commands parse the path as an option flag
-		# (mkdir: "unknown option"). Exercises the SAST hardening.
-		rc=0
-		bash "$SCRIPT" new "-dash-target" >/dev/null 2>&1 || rc=$?
-		if [ "$rc" -eq 0 ] && [ -d "-dash-target/.git" ]; then
-			pass "new handles leading-dash target (git/mkdir option injection hardened)"
-		else
-			fail "new failed for leading-dash target (rc=$rc) — -- sentinel missing?"
-		fi
-	)
+	rc=0
+	bash "$SCRIPT" new "$target" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ] && [ -d "$REPO_ROOT/$target/.git" ]; then
+		pass "new handles leading-dash target (git/mkdir option injection hardened)"
+	else
+		fail "new failed for leading-dash target (rc=$rc) — -- sentinel missing?"
+	fi
 }
 
 echo ""
 echo "── Test 24: new — leading-dash target name (SAST hardening) ──"
 test_new_leading_dash_target
 
+# ── Test 25: AC-1 — empty target rejected (all subcommands) ─────────────────
+
+test_reject_empty_target() {
+	local rc
+	rc=0
+	bash "$SCRIPT" new "" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "AC-1 empty target — new accepted empty (expected non-zero)"
+		return
+	fi
+	pass "AC-1 empty target — new rejects empty"
+}
+
+echo ""
+echo "── Test 25: AC-1 — empty target rejected ──"
+test_reject_empty_target
+
+# ── Test 26: AC-1 — absolute target rejected ────────────────────────────────
+
+test_reject_absolute_target() {
+	local rc
+	rc=0
+	bash "$SCRIPT" new "/tmp/should-not-exist-$$" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "AC-1 absolute target — new accepted absolute path"
+		return
+	fi
+	# Must not have created anything
+	if [ -d "/tmp/should-not-exist-$$" ]; then
+		fail "AC-1 absolute target — created the absolute target"
+		return
+	fi
+	pass "AC-1 absolute target — new rejects absolute path, creates nothing"
+}
+
+echo ""
+echo "── Test 26: AC-1 — absolute target rejected ──"
+test_reject_absolute_target
+
+# ── Test 27: AC-1 — ../ traversal target rejected ───────────────────────────
+
+test_reject_dotdot_target() {
+	local rc
+	rc=0
+	bash "$SCRIPT" new "../../escape-attempt-$$" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "AC-1 ../ target — new accepted ../ traversal"
+		return
+	fi
+	pass "AC-1 ../ target — new rejects ../ traversal"
+}
+
+echo ""
+echo "── Test 27: AC-1 — ../ traversal target rejected ──"
+test_reject_dotdot_target
+
+# ── Test 28: AC-1 — symlink-escape target rejected ──────────────────────────
+
+test_reject_symlink_escape_target() {
+	if ! can_symlink; then
+		skip "AC-1 symlink-escape — symlinks unsupported on this platform"
+		return
+	fi
+	local link_dir rc
+	link_dir="$REPO_ROOT/.test-scaffold-tmp"
+	mkdir -p "$link_dir"
+	register_temp_dir "$link_dir"
+	# Symlink that points OUTSIDE REPO_ROOT
+	ln -sfn /tmp "$link_dir/escape-link-$$"
+	rc=0
+	bash "$SCRIPT" new ".test-scaffold-tmp/escape-link-$$/sub" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "AC-1 symlink-escape — new followed symlink outside REPO_ROOT"
+		return
+	fi
+	pass "AC-1 symlink-escape — new rejects symlink that escapes REPO_ROOT"
+}
+
+echo ""
+echo "── Test 28: AC-1 — symlink-escape target rejected ──"
+test_reject_symlink_escape_target
+
+# ── Test 29: AC-1 — valid relative target still works ───────────────────────
+
+test_valid_relative_target_works() {
+	local target exit_code
+	target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+	exit_code=0
+	bash "$SCRIPT" new "$target" >/dev/null 2>&1 || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "AC-1 valid target — new rejected a legitimate relative target ($exit_code)"
+		return
+	fi
+	if [ ! -d "$REPO_ROOT/$target/.git" ]; then
+		fail "AC-1 valid target — .git not created at $REPO_ROOT/$target"
+		return
+	fi
+	pass "AC-1 valid target — relative target scaffolds inside REPO_ROOT"
+}
+
+echo ""
+echo "── Test 29: AC-1 — valid relative target still works ──"
+test_valid_relative_target_works
+
+# ── Test 30: AC-1 — check-only also validates containment ────────────────────
+
+test_check_only_validates_containment() {
+	local rc
+	rc=0
+	bash "$SCRIPT" --check-only "/tmp/absolute-$$" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "AC-1 check-only — accepted absolute target"
+		return
+	fi
+	pass "AC-1 check-only — rejects absolute target"
+}
+
+echo ""
+echo "── Test 30: AC-1 — check-only validates containment ──"
+test_check_only_validates_containment
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
