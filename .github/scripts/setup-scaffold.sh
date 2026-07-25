@@ -10,6 +10,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -232,7 +233,7 @@ CLONE_USAGE
 			exit 2
 		fi
 
-		gh repo clone "$owner_repo" "$canon_target" || {
+		gh repo clone -- "$owner_repo" "$canon_target" || {
 			echo "Error: gh repo clone failed (auth or network) — see gh output above" >&2
 			exit 2
 		}
@@ -320,6 +321,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 

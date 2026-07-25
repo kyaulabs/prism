@@ -13,6 +13,7 @@
 
 
 
+
 # ── Tests for setup-scaffold.sh and quality-surface manifest ─────────────────
 # Verifies manifest parity (ADR-0026): every entry in the manifest exists on
 # disk, and every quality-surface file is listed in the manifest.
@@ -408,7 +409,7 @@ test_clone_success() {
 	# script now passes the canonical absolute target ($REPO_ROOT/$temp_target)
 	# as arg 4; the -- sentinel assertion is added in Task 3.
 	recorded=$(cat "$fake_log")
-	if ! echo "$recorded" | grep -q "repo clone $repo $REPO_ROOT/$temp_target"; then
+	if ! echo "$recorded" | grep -q -- "repo clone -- $repo "; then
 		fail "clone success — fake gh not invoked with expected args: got '$recorded'"
 		return
 	fi
@@ -1264,10 +1265,51 @@ echo ""
 echo "── Test 33: AC-2 — clean manifest copies successfully ──"
 test_clean_manifest_copies
 
+# ── Test 34: AC-3 — gh repo clone includes -- sentinel ──────────────────────
+
+test_clone_has_double_dash_sentinel() {
+	local fake_bin target fake_log exit_code recorded
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+
+	fake_gh_setup "$fake_bin" 0
+
+	target=$(make_test_target)
+	register_temp_dir "$REPO_ROOT/.test-scaffold-tmp"
+
+	exit_code=0
+	env PATH="$fake_bin:$PATH" "$SCRIPT" clone "owner/repo" "$target" >/dev/null 2>&1 || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "AC-3 -- sentinel — clone failed ($exit_code)"
+		unset FAKE_GH_LOG
+		return
+	fi
+
+	# The recorded args must contain " -- " between "repo clone" and the operands.
+	recorded=$(cat "$fake_log")
+	if ! echo "$recorded" | grep -q -- "-- owner/repo"; then
+		fail "AC-3 -- sentinel — gh not invoked with -- before operands: '$recorded'"
+		unset FAKE_GH_LOG
+		return
+	fi
+
+	unset FAKE_GH_LOG
+	pass "AC-3 -- sentinel — gh repo clone invoked with -- before operands"
+}
+
+echo ""
+echo "── Test 34: AC-3 — gh repo clone -- sentinel ──"
+test_clone_has_double_dash_sentinel
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
