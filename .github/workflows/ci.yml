@@ -318,9 +318,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Install Homebrew bash 5
+      - name: Install Homebrew bash 5 + GNU coreutils
         run: |
-          brew install bash
+          brew install bash coreutils
           echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
 
       - name: Check script executable bits

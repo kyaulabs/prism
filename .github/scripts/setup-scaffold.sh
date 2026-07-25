@@ -11,6 +11,7 @@
 
 
 
+
 # ── Quality-surface scaffold tool ────────────────────────────────────────────
 # Copies the quality-surface manifest entries into a new project directory.
 # Supports: check-only (preview), clone (copy from template), new (init fresh).
@@ -39,6 +40,17 @@ done
 
 MANIFEST="${MANIFEST_OVERRIDE:-$SCRIPT_DIR/quality-surface.manifest}"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Detect realpath -m support (GNU) vs BSD (macOS). On macOS, install coreutils
+# (brew install coreutils) for grealpath which supports -m. (issue #193)
+if realpath -m / >/dev/null 2>&1; then
+	REALPATH_M="realpath"
+elif command -v grealpath >/dev/null 2>&1; then
+	REALPATH_M="grealpath"
+else
+	echo "Error: realpath -m not available — install GNU coreutils (brew install coreutils / apt install coreutils)" >&2
+	exit 1
+fi
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -71,7 +83,7 @@ assert_path_contained() {
 		echo "Error: cannot resolve containment root for $label: $root" >&2
 		exit 1
 	}
-	canon_path="$(realpath -m -- "$path")" || {
+	canon_path="$($REALPATH_M -m -- "$path")" || {
 		echo "Error: cannot resolve $label: $path" >&2
 		exit 1
 	}
@@ -109,7 +121,7 @@ validate_target() {
 	esac
 
 	canon_root="$(realpath -- "$REPO_ROOT")"
-	canon_path="$(realpath -m -- "$canon_root/$target")"
+	canon_path="$($REALPATH_M -m -- "$canon_root/$target")"
 
 	case "$canon_path" in
 		"$canon_root"|"$canon_root"/*)
@@ -168,7 +180,7 @@ copy_quality_surface() {
 	local entry
 	local canon_target
 
-	canon_target="$(realpath -m -- "$target")"
+	canon_target="$($REALPATH_M -m -- "$target")"
 
 	for entry in "${manifest_entries[@]}"; do
 		if [ ! -f "$REPO_ROOT/$entry" ]; then
@@ -321,6 +333,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 
