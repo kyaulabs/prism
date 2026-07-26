@@ -7,6 +7,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── check-setup-secrets.sh guard test (issue #194) ──────────────────────────
@@ -160,7 +161,7 @@ test_hook_blocks_staged_poison() {
 	chmod +x "$repo/.github/scripts/check-setup-secrets.sh"
 	cp "$REPO_ROOT/.github/hooks/pre-commit" "$repo/.github/hooks/"
 	git init -q "$repo"
-	git -C "$repo" config commit.gpgsign false
+	( cd "$repo" && git config commit.gpgsign false )
 	git -C "$repo" config user.email "t@example.com"
 	git -C "$repo" config user.name "T"
 	# Poison the file and STAGE it (the index receives the poison — what would commit).
@@ -221,6 +222,7 @@ fi
 
 print_summary "setup_secrets_test (Sections A+B+C+D)"
 exit $?
+
 
 
 
