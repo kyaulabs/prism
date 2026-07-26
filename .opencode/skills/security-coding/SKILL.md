@@ -41,15 +41,29 @@ it through an explicit allowlist sanitizer and note the exception.
 ## CSRF — tokens on every state-changing request
 
 - Every POST/PUT/DELETE form includes a CSRF token rendered as a hidden input.
-- Token is session-scoped, generated with `random_bytes()`, and validated on
-  the server before any state change.
+- Token is session-scoped, generated **once per session** with `random_bytes()`
+  (regenerating on every load breaks multi-tab forms — both tabs must share one
+  token, or tab A's token is invalidated when tab B loads).
+- Validate with `hash_equals()` (constant-time) on the server before any state
+  change; never compare secrets with `==` or `===`.
 - On mismatch, reject with 419 and do not reveal whether the session exists.
 - Same-origin via `SameSite` cookies is a complement, not a replacement.
 
 ```php
-$token = bin2hex(random_bytes(32));
-$_SESSION['csrf'] = $token;
-// in the form: <input type="hidden" name="csrf" value="<?= htmlspecialchars($token) ?>">
+// Generate once per session — reuse across requests so multiple tabs share
+// one token (regenerating every load invalidates tab A after tab B loads).
+if (empty($_SESSION['csrf'])) {
+    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+}
+
+// Render into the form, escaped for the HTML attribute context:
+// <input type="hidden" name="csrf" value="<?= htmlspecialchars($_SESSION['csrf'], ENT_QUOTES | ENT_HTML5, 'UTF-8') ?>">
+
+// Validate on POST with constant-time comparison:
+if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+    http_response_code(419);
+    exit;
+}
 ```
 
 ## Passwords — hash, never store plaintext
