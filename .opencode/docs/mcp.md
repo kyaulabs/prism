@@ -18,7 +18,13 @@ configuration.
 | `deepseek-websearch` | `@kyaulabs/deepseek-websearch` | `DEEPSEEK_API_KEY` | Paid (DeepSeek tokens) | `web_search` (search + fetch + synthesize in one call) |
 | `searxng` | `mcp-searxng` | `SEARXNG_URL` | Free, self-hosted, private | `searxng_web_search`, `searxng_search_suggestions`, `searxng_instance_info`, `web_url_read` |
 
-Both servers run as `type: "local"` MCP servers, spawned via `npx`.
+Both servers run as `type: "local"` MCP servers, spawned via `npx`. Each
+`npx` invocation is version-pinned (`pkg@x.y.z`) and passes `-y` so the
+non-interactive runtime spawn auto-installs the exact pinned version instead
+of hanging on an install prompt — see `opencode.jsonc` for the current
+versions. Pinning closes the supply-chain typosquat / moving-target risk
+(issue #205). The two servers ship commented-out by default; uncommenting a
+block inherits the pinned, `-y`-flagged command (safe-by-default).
 
 ## Enabling a Server
 

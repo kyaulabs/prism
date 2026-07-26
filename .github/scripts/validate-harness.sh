@@ -20,6 +20,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -955,6 +956,34 @@ if [ -f "$OPENCODE_CFG" ]; then
 	check_install_grants "opencode.jsonc" "$(cat "$OPENCODE_CFG")"
 fi
 
+# ── Check for unpinned npx invocations in opencode.jsonc ─────────────────────
+
+echo "── Checking for unpinned npx in opencode.jsonc command arrays ──"
+
+# npx command arrays (lsp.*.command, mcp.*.command) spawn third-party code at
+# runtime with plugin/LSP privileges. Each MUST (a) pass -y so a non-interactive
+# spawn does not hang on the install prompt, and (b) pin the package to an exact
+# version (pkg@x.y.z) so a compromised or typosquatted release cannot execute.
+# See issue #205. Commented-out blocks are checked too — they are the documented
+# opt-in template (mcp.md) and must be safe-by-default when uncommented. The
+# check is line-local (command arrays are single-line per opencode config
+# convention); @[0-9] matches the version pin and ignores the @scope prefix.
+
+NPX_CFG="${REPO_ROOT}/opencode.jsonc"
+if [ -f "$NPX_CFG" ]; then
+	while IFS= read -r hit; do
+		[ -z "$hit" ] && continue
+		lineno="${hit%%:*}"
+		line="${hit#*:}"
+		if ! printf '%s' "$line" | grep -qF '"-y"'; then
+			err "opencode.jsonc:${lineno}: npx command array missing '-y' (issue #205) — add \"-y\" after \"npx\" so the non-interactive spawn does not hang on the install prompt"
+		fi
+		if ! printf '%s' "$line" | grep -qE '@[0-9]'; then
+			err "opencode.jsonc:${lineno}: npx command array unpinned (issue #205) — pin the package as pkg@x.y.z so a compromised/typosquatted release cannot execute"
+		fi
+	done < <(grep -nE '"command"[[:space:]]*:[[:space:]]*\[[[:space:]]*"npx"' "$NPX_CFG" 2>/dev/null)
+fi
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -1022,6 +1051,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

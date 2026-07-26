@@ -22,6 +22,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -1868,10 +1869,120 @@ EOF
 	fi
 )
 
+# ── Test: bare unpinned npx command array (no -y, no pin) is caught ──────────
+
+echo ""
+echo "── Test: bare unpinned npx command array is caught ──"
+T_NPX1=$(mktemp -d)
+register_temp_dir "$T_NPX1"
+git_init_test_repo "$T_NPX1"
+(
+	cd "$T_NPX1"
+	mkdir -p .opencode/agents .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	cat > opencode.jsonc <<'EOF'
+{
+	"lsp": {
+		"stylelint": {
+			"command": ["npx", "@stylelint/language-server", "--stdio"]
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "npx command array"; then
+		pass "Caught bare unpinned npx command array (issue #205)"
+	else
+		fail "Did not detect bare unpinned npx command array"
+	fi
+)
+
+# ── Test: pinned + -y npx command array is NOT flagged ───────────────────────
+
+echo "── Test: pinned -y npx command array not flagged ──"
+T_NPX2=$(mktemp -d)
+register_temp_dir "$T_NPX2"
+git_init_test_repo "$T_NPX2"
+(
+	cd "$T_NPX2"
+	mkdir -p .opencode/agents .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	cat > opencode.jsonc <<'EOF'
+{
+	"mcp": {
+		"searxng": {
+			"command": ["npx", "-y", "mcp-searxng@1.2.3"]
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -F "npx command array" | grep -qF "searxng"; then
+		fail "Pinned -y npx command array was falsely flagged"
+	else
+		pass "Pinned -y npx command array not flagged"
+	fi
+)
+
+# ── Test: pinned but missing -y is caught (the -y axis is independent) ───────
+
+echo "── Test: pinned npx without -y is caught ──"
+T_NPX3=$(mktemp -d)
+register_temp_dir "$T_NPX3"
+git_init_test_repo "$T_NPX3"
+(
+	cd "$T_NPX3"
+	mkdir -p .opencode/agents .opencode/skills/dummy
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+	setup_validator_env
+
+	cat > opencode.jsonc <<'EOF'
+{
+	"mcp": {
+		"deepseek-websearch": {
+			"command": ["npx", "@kyaulabs/deepseek-websearch@4.0.1"]
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "missing '-y'"; then
+		pass "Caught pinned npx missing -y (issue #205)"
+	else
+		fail "Did not detect pinned npx missing -y"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

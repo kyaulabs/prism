@@ -32,7 +32,7 @@
       "disabled": true
     },
     "stylelint": {
-      "command": ["npx", "@stylelint/language-server", "--stdio"],
+      "command": ["npx", "-y", "@stylelint/language-server@1.1.1", "--stdio"],
       "extensions": [".css", ".scss"]
     }
   },
@@ -48,7 +48,7 @@
     // native --backend deepseek. Upstream: kyaulabs/deepseek-websearch-mcp
     // "deepseek-websearch": {
     //   "type": "local",
-    //   "command": ["npx", "@kyaulabs/deepseek-websearch"],
+    //   "command": ["npx", "-y", "@kyaulabs/deepseek-websearch@1.0.4"],
     //   "enabled": true,
     //   "environment": { "DEEPSEEK_API_KEY": "{env:DEEPSEEK_API_KEY}" }
     // },
@@ -59,7 +59,7 @@
     // Upstream: ihor-sokoliuk/mcp-searxng
     // "searxng": {
     //   "type": "local",
-    //   "command": ["npx", "mcp-searxng"],
+    //   "command": ["npx", "-y", "mcp-searxng@1.12.0"],
     //   "enabled": true,
     //   "environment": { "SEARXNG_URL": "{env:SEARXNG_URL}" }
     // }
