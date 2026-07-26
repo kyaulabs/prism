@@ -4,6 +4,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── check-setup-secrets.sh guard test (issue #194) ──────────────────────────
@@ -115,8 +116,71 @@ else
 	fail "tracked .opencode/setup.json should pass (it ships empty env)"
 fi
 
-print_summary "setup_secrets_test (Section A)"
+# ── Section B: pre-commit wiring ────────────────────────────────────────────
+
+echo ""
+echo "── Section B: pre-commit wiring ──"
+HOOK="$REPO_ROOT/.github/hooks/pre-commit"
+
+# B1: hook invokes the guard script
+if grep -qF 'check-setup-secrets.sh' "$HOOK"; then
+	pass "pre-commit invokes check-setup-secrets.sh"
+else
+	fail "pre-commit does not invoke check-setup-secrets.sh"
+fi
+
+# B2: guard sits AFTER the gitleaks block (runs even when gitleaks is absent)
+gl_line=$(grep -nE 'gitleaks git --pre-commit --staged' "$HOOK" | head -1 | cut -d: -f1)
+guard_line=$(grep -nF 'check-setup-secrets.sh "$TMPF"' "$HOOK" | head -1 | cut -d: -f1)
+if [ -n "$gl_line" ] && [ -n "$guard_line" ] && [ "$guard_line" -gt "$gl_line" ]; then
+	pass "guard runs after the gitleaks block (line $guard_line > $gl_line)"
+else
+	fail "guard should run after the gitleaks block (gitleaks=$gl_line guard=$guard_line)"
+fi
+
+# B3: hook runs the guard on the STAGED blob ($TMPF), not the working-tree file
+if grep -qF 'check-setup-secrets.sh "$TMPF"' "$HOOK"; then
+	pass "pre-commit checks the staged setup.json blob (\$TMPF)"
+else
+	fail "pre-commit should run the guard on the staged blob (\$TMPF)"
+fi
+
+# B4: functional — the REAL hook blocks a STAGED poisoned setup.json (the
+# staged-blob repro, automated). Proves the wiring end-to-end. The poison
+# value is the gitleaks-safe placeholder "nonempty".
+test_hook_blocks_staged_poison() {
+	command -v git >/dev/null 2>&1 || { skip "B4: git unavailable"; return; }
+	local repo rc
+	repo=$(mktemp -d)
+	register_temp_dir "$repo"
+	mkdir -p "$repo/.github/scripts" "$repo/.github/hooks" "$repo/.opencode"
+	cp "$REPO_ROOT/.github/scripts/check-setup-secrets.sh" "$repo/.github/scripts/"
+	chmod +x "$repo/.github/scripts/check-setup-secrets.sh"
+	cp "$REPO_ROOT/.github/hooks/pre-commit" "$repo/.github/hooks/"
+	git init -q "$repo"
+	git -C "$repo" config commit.gpgsign false
+	git -C "$repo" config user.email "t@example.com"
+	git -C "$repo" config user.name "T"
+	# Poison the file and STAGE it (the index receives the poison — what would commit).
+	printf '%s' '{"env":{"deepseek_api_key":"nonempty","searxng_url":""}}' > "$repo/.opencode/setup.json"
+	git -C "$repo" add .opencode/setup.json
+	rc=0
+	( cd "$repo" && bash .github/hooks/pre-commit ) >"$repo/.b4out" 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		fail "B4 staged poison — real hook did not block (exit 0)"
+		return
+	fi
+	if ! grep -q "env.deepseek_api_key" "$repo/.b4out"; then
+		fail "B4 staged poison — blocked but output did not name the key"
+		return
+	fi
+	pass "B4 staged poison — real hook blocks the staged blob + names the key"
+}
+test_hook_blocks_staged_poison
+
+print_summary "setup_secrets_test (Sections A+B)"
 exit $?
+
 
 
 
