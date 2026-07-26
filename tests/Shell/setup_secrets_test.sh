@@ -6,6 +6,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── check-setup-secrets.sh guard test (issue #194) ──────────────────────────
@@ -202,8 +203,25 @@ else
 	fail "ci.yml should run the guard in both jobs (found $count)"
 fi
 
-print_summary "setup_secrets_test (Sections A+B+C)"
+
+# ── Section D: documentation (AC-2) ─────────────────────────────────────────
+
+echo ""
+echo "── Section D: documentation (AC-2) ──"
+MCP="$REPO_ROOT/.opencode/docs/mcp.md"
+
+# D1: mcp.md mentions the guard AND directs secrets to the user-level file
+# shellcheck disable=SC2088  # literal ~ matches the doc text; $HOME would be wrong
+if grep -qsiE 'check-setup-secrets|guarded|pre-commit hook' "$MCP" \
+	&& grep -qiF '~/.config/opencode/setup.json' "$MCP"; then
+	pass "mcp.md documents the guard + user-level-file rule (AC-2)"
+else
+	fail "mcp.md should document the guard and the user-level-file rule (AC-2)"
+fi
+
+print_summary "setup_secrets_test (Sections A+B+C+D)"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

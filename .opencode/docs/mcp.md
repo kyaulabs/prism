@@ -39,6 +39,12 @@ Both servers run as `type: "local"` MCP servers, spawned via `npx`.
    }
    ```
 
+   > ⚠️ **Never paste real keys or URLs into the tracked
+   > `.opencode/setup.json`.** A pre-commit hook and CI check
+   > (`check-setup-secrets.sh`) reject **any** non-empty `env.*` value in the
+   > committed file. Secrets belong **exclusively** in the user-level
+   > `~/.config/opencode/setup.json` (ADR-0032, issue #194).
+
 3. **Run `direnv allow`** in the project root to re-evaluate `.envrc` and
    export the new environment variables.
 
