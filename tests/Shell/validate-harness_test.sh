@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/25 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
 
 
 
@@ -1978,10 +1979,65 @@ EOF
 	fi
 )
 
+# ── Test 43: Skill citing a missing references/*.md file ERRORs (issue #207) ──
+
+echo ""
+echo "── Test 43: Skill missing-reference citation ERROR ──"
+T43=$(mktemp -d)
+register_temp_dir "$T43"
+git_init_test_repo "$T43"
+(
+	cd "$T43"
+	mkdir -p .opencode/skills/broken-skill
+	setup_validator_env
+	cat > .opencode/skills/broken-skill/SKILL.md <<'EOF'
+---
+name: broken-skill
+description: A skill citing a reference that does not exist.
+---
+See `references/missing.md` for details.
+EOF
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "references/missing.md" && echo "$output" | grep -qF "broken-skill"; then
+		pass "Caught skill citing missing references/*.md (issue #207)"
+	else
+		fail "Did not detect missing references/*.md citation"
+	fi
+)
+
+# ── Test 44: Skill citing a present references/*.md file passes ──
+
+echo "── Test 44: Skill present-reference citation passes ──"
+T44=$(mktemp -d)
+register_temp_dir "$T44"
+git_init_test_repo "$T44"
+(
+	cd "$T44"
+	mkdir -p .opencode/skills/good-skill/references
+	setup_validator_env
+	cat > .opencode/skills/good-skill/SKILL.md <<'EOF'
+---
+name: good-skill
+description: A skill citing a reference that exists.
+---
+See `references/present.md` for details.
+EOF
+	cat > .opencode/skills/good-skill/references/present.md <<'EOF'
+# present reference
+EOF
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+	if echo "$output" | grep -F "good-skill" | grep -qF "references/present.md"; then
+		fail "Present reference was falsely flagged"
+	else
+		pass "Present reference not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
