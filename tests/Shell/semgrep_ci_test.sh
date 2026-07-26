@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: semgrep_ci_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: semgrep_ci_test.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
 
 
 # -- Regression guard: CI semgrep step structure ----------------------------
@@ -51,18 +52,54 @@ else
     fail "Must include --error (exit 1 on findings, CI enforcement gate)"
 fi
 
-# 5. Must include --metrics off (disable telemetry, mirrors @semgrep agent convention)
-if grep -q -- '--metrics off' "$CI_FILE"; then
-    pass "Includes --metrics off (disable telemetry)"
+# 5. Every semgrep invocation must include --metrics off
+#    Handles both inline `run: semgrep ci` and YAML >- folded `semgrep scan` blocks.
+#    Tracks missing via a variable: awk exit in body still runs END, so we
+#    cannot rely on exit status — set a flag and check in END.
+if awk '
+  /run: >-$/     { in_fold = 1; next }
+  in_fold && /^[[:space:]]{6,}/ {
+    gsub(/^[[:space:]]+/, "")
+    folded = folded " " $0
+    next
+  }
+  in_fold {
+    if (folded ~ /semgrep/ && folded !~ /--metrics off/) missing = 1
+    in_fold = 0
+    folded = ""
+  }
+  /run:.*semgrep/ {
+    if ($0 !~ /--metrics off/) missing = 1
+  }
+  END { exit missing ? 1 : 0 }
+' "$CI_FILE"; then
+    pass "All semgrep invocations include --metrics off"
 else
-    fail "Must include --metrics off (disable telemetry, mirrors @semgrep agent)"
+    fail "Not all semgrep invocations include --metrics off"
 fi
 
-# 6. Must include --disable-version-check (faster exit, mirrors @semgrep agent convention)
-if grep -q -- '--disable-version-check' "$CI_FILE"; then
-    pass "Includes --disable-version-check (faster exit)"
+# 6. Every semgrep invocation must include --disable-version-check
+#    Handles both inline `run: semgrep ci` and YAML >- folded `semgrep scan` blocks.
+if awk '
+  /run: >-$/     { in_fold = 1; next }
+  in_fold && /^[[:space:]]{6,}/ {
+    gsub(/^[[:space:]]+/, "")
+    folded = folded " " $0
+    next
+  }
+  in_fold {
+    if (folded ~ /semgrep/ && folded !~ /--disable-version-check/) missing = 1
+    in_fold = 0
+    folded = ""
+  }
+  /run:.*semgrep/ {
+    if ($0 !~ /--disable-version-check/) missing = 1
+  }
+  END { exit missing ? 1 : 0 }
+' "$CI_FILE"; then
+    pass "All semgrep invocations include --disable-version-check"
 else
-    fail "Must include --disable-version-check (faster exit, mirrors @semgrep agent)"
+    fail "Not all semgrep invocations include --disable-version-check"
 fi
 
 # 7. Never combine `semgrep ci` with `--config` on the same line
@@ -74,6 +111,7 @@ fi
 
 print_summary "semgrep_ci_test"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/25 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
 
 
 
@@ -430,6 +431,33 @@ while IFS= read -r file; do
 done < <(find "${HARNESS_DIR}" -name 'SKILL.md' ! -path '*/node_modules/*' 2>/dev/null)
 
 ok "${CROSSREF_COUNT} cross-reference(s) verified"
+
+# ── Skill reference-path resolution ───────────────────────────────────────────
+# A skill .md may cite sibling reference files as `references/<name>.md` or
+# `reference/<name>.md`. An unresolved citation is an operability defect — an
+# agent following the skill cannot load the cited file (issue #207).
+echo "── Checking skill reference paths ──"
+SKILLREF_COUNT=0
+SKILLREF_ERRORS_BEFORE=$ERRORS
+
+while IFS= read -r file; do
+	[ -z "$file" ] && continue
+	file_dir=$(dirname "$file")
+	# Match citations: references/foo.md or reference/foo.md (path may nest).
+	while IFS= read -r cited; do
+		[ -z "$cited" ] && continue
+		target="${file_dir}/${cited}"
+		if [ -f "$target" ]; then
+			SKILLREF_COUNT=$((SKILLREF_COUNT + 1))
+		else
+			err "${file}: cited reference '${cited}' does not resolve (expected at ${target})"
+		fi
+	done < <(grep -oE '(references|reference)/[A-Za-z0-9_./-]+\.md' "$file" 2>/dev/null || true)
+done < <(find "${SKILLS_DIR}" -name '*.md' ! -path '*/node_modules/*' 2>/dev/null)
+
+if [ "$ERRORS" -eq "$SKILLREF_ERRORS_BEFORE" ]; then
+	ok "${SKILLREF_COUNT} skill reference(s) resolved"
+fi
 
 # ── AGENTS.md index cross-check ──────────────────────────────────────────────
 
@@ -1051,6 +1079,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
