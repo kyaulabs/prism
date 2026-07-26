@@ -64,6 +64,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -1217,6 +1220,67 @@ it('propagateUncommittedChanges throws a recovery hint when the source-tree stas
         }
     }
 });
+
+
+it('propagateUncommittedChanges does not mask the apply exception when both apply and pop fail', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/skill.md', "original content\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Source: uncommitted modification that will be stashed.
+    file_put_contents($repo . '/skill.md', "modified content\n");
+
+    $worktree = null;
+    try {
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+        exec(sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($repo),
+            escapeshellarg($worktree),
+        ));
+
+        // Plant a conflicting uncommitted change IN THE WORKTREE so the real
+        // `git stash apply` conflicts (exit 1) and the apply branch throws —
+        // no apply seam required.
+        file_put_contents($worktree . '/skill.md', "worktree-local conflict\n");
+
+        $runner = new class ($repo) extends Runner {
+            protected function popStashInSource(): array
+            {
+                return ['exit' => 1, 'output' => ['pop conflict']];
+            }
+        };
+
+        $thrown = null;
+        try {
+            $runner->propagateUncommittedChanges($worktree);
+        } catch (\RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        // The APPLY exception must propagate — the pop failure must not
+        // mask it (that would hide the real cause and could lose data).
+        expect($thrown)->not->toBeNull();
+        expect($thrown->getMessage())
+            ->toContain('Failed to apply uncommitted changes to worktree');
+        expect($thrown->getMessage())
+            ->not->toContain('git stash pop failed in source tree');
+    } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
+        exec('git -C ' . escapeshellarg($repo) . ' stash clear 2>/dev/null');
+        if (is_dir($repo)) {
+            exec('rm -rf ' . escapeshellarg($repo));
+        }
+    }
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
