@@ -129,6 +129,9 @@ jobs:
       - name: Check script executable bits
         run: bash .github/scripts/check-script-executable-bits.sh
 
+      - name: Check setup.json secret hygiene
+        run: bash .github/scripts/check-setup-secrets.sh
+
       - name: Shell regression tests
         run: |
           shopt -s nullglob
@@ -326,6 +329,10 @@ jobs:
       - name: Check script executable bits
         shell: bash
         run: bash .github/scripts/check-script-executable-bits.sh
+
+      - name: Check setup.json secret hygiene
+        shell: bash
+        run: bash .github/scripts/check-setup-secrets.sh
 
       - name: Shell regression tests
         shell: bash

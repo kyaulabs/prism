@@ -52,6 +52,10 @@ discoverable.
 ### Positive
 - Consistent opt-in pattern; secrets never enter committed files (user-level
   `~/.config/opencode/setup.json` holds real values).
+- **Empty-default contract enforced** — `check-setup-secrets.sh` (pre-commit +
+  CI, issue #194) rejects any non-empty `env.*` value in the tracked
+  `.opencode/setup.json`, mechanizing the "secrets never enter committed files"
+  consequence above.
 - Reuses the ADR-0029 delivery chain — no new mechanism.
 - One canonical key (`DEEPSEEK_API_KEY`) serves both the deepseek-websearch
   MCP and Graphify's native backend.
