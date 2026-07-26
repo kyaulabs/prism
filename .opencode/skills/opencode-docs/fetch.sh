@@ -3,6 +3,7 @@
 
 
 
+
 # fetch.sh — Refresh vendored OpenCode docs from the anomalyco/opencode repo.
 #
 # Fetches a pinned immutable commit, extracts the English top-level .mdx
@@ -27,7 +28,13 @@ TEMP_DIR="${SCRIPT_DIR}/.temp-clone"
 STAGE_DIR=$(mktemp -d "${SCRIPT_DIR}/.stage-docs.XXXXXX")
 trap 'rm -rf "$STAGE_DIR" "${SCRIPT_DIR}/.docs.old.$$"' EXIT
 
-echo "==> Fetching OpenCode docs pinned at ${PINNED_REF:0:12} (branch: dev)..."
+# Run a command, indenting its output for readability.
+# pipefail propagates the git exit code (sed exits 0 unless write error).
+run_indented() { "$@" 2>&1 | sed 's/^/  /'; }
+
+# first 12 chars = short SHA for log readability
+SHORT_REF="${PINNED_REF:0:12}"
+echo "==> Fetching OpenCode docs pinned at ${SHORT_REF} (branch: dev)..."
 
 # Clean any previous temp clone
 rm -rf "${TEMP_DIR}"
@@ -36,10 +43,10 @@ rm -rf "${TEMP_DIR}"
 git init --quiet "${TEMP_DIR}"
 cd "${TEMP_DIR}"
 git remote add origin "${UPSTREAM_REPO}"
-git fetch --depth 1 origin "${PINNED_REF}" 2>&1 | sed 's/^/  /'
-git checkout FETCH_HEAD 2>&1 | sed 's/^/  /'
-git sparse-checkout init --cone 2>&1 | sed 's/^/  /'
-git sparse-checkout set packages/web/src/content/docs 2>&1 | sed 's/^/  /'
+run_indented git fetch --depth 1 origin "${PINNED_REF}"
+run_indented git checkout FETCH_HEAD
+run_indented git sparse-checkout init --cone
+run_indented git sparse-checkout set packages/web/src/content/docs
 
 # Copy matched .mdx files into the staging directory; count matches.
 # Fail non-zero BEFORE touching DOCS_DIR (zero-match guard — #209).
@@ -71,6 +78,7 @@ rm -rf "${TEMP_DIR}"
 
 file_count=$(find "${DOCS_DIR}" -maxdepth 1 -name '*.mdx' -type f 2>/dev/null | wc -l)
 echo "==> Done. ${file_count} doc files in ${DOCS_DIR}/"
+
 
 
 
