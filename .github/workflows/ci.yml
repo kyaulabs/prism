@@ -215,9 +215,11 @@ jobs:
 
       - name: Semgrep App (findings dashboard)
         if: ${{ env.SEMGREP_TOKEN_PRESENT == 'true' }}
+        timeout-minutes: 5
+        continue-on-error: true
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-        run: semgrep ci
+        run: semgrep ci --metrics off --disable-version-check
 
       - name: Semgrep SAST
         run: >-
