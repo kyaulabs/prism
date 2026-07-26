@@ -24,6 +24,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2033,10 +2034,108 @@ EOF
 	fi
 )
 
+# ── Test 45: --break-system-packages in a skill code block is caught ──────────
+
+echo ""
+echo "── Test 45: --break-system-packages in skill code block is caught ──"
+T45=$(mktemp -d)
+register_temp_dir "$T45"
+git_init_test_repo "$T45"
+(
+	cd "$T45"
+	mkdir -p .opencode/skills/demo
+	setup_validator_env
+
+	cat > .opencode/skills/demo/SKILL.md <<'EOF'
+---
+name: demo
+description: Demo skill.
+---
+## Install
+
+```bash
+pip install graphifyy -q --break-system-packages
+```
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "break-system-packages"; then
+		pass "Caught --break-system-packages in skill code block"
+	elif echo "$output" | grep -qF "break-system-packages"; then
+		fail "Detected --break-system-packages but exited 0"
+	else
+		fail "Did not detect --break-system-packages in skill code block"
+	fi
+)
+
+# ── Test 46: --break-system-packages in prose (outside code blocks) is OK ─────
+
+echo "── Test 46: --break-system-packages in prose not flagged ──"
+T46=$(mktemp -d)
+register_temp_dir "$T46"
+git_init_test_repo "$T46"
+(
+	cd "$T46"
+	mkdir -p .opencode/skills/demo
+	setup_validator_env
+
+	cat > .opencode/skills/demo/SKILL.md <<'EOF'
+---
+name: demo
+description: Demo skill.
+---
+## Policy
+
+Never use the `--break-system-packages` flag — it overrides PEP 668 (issue #208).
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "demo/SKILL.md" | grep -qF "break-system-packages"; then
+		fail "--break-system-packages in prose was falsely flagged"
+	else
+		pass "--break-system-packages in prose not flagged"
+	fi
+)
+
+# ── Test 47: a pinned pip install in a code block is not flagged ──────────────
+
+echo "── Test 47: pinned pip install in code block not flagged ──"
+T47=$(mktemp -d)
+register_temp_dir "$T47"
+git_init_test_repo "$T47"
+(
+	cd "$T47"
+	mkdir -p .opencode/skills/demo
+	setup_validator_env
+
+	cat > .opencode/skills/demo/SKILL.md <<'EOF'
+---
+name: demo
+description: Demo skill.
+---
+## Install
+
+```bash
+pip install 'graphifyy==1.2.3'
+```
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if echo "$output" | grep -F "demo/SKILL.md" | grep -qF "break-system-packages"; then
+		fail "Pinned pip install was falsely flagged"
+	else
+		pass "Pinned pip install not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
