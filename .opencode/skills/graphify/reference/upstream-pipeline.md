@@ -69,9 +69,10 @@ If the path argument starts with `https://github.com/` or `http://github.com/`, 
 
 Follow these steps in order. Do not skip steps.
 
-### Step 0 - GitHub repos and multi-path merge (only if a URL or several paths)
+### Step 0 - GitHub repos and multi-path merge (out of scope: Phase 1)
 
-Only when the path is one or more `https://github.com/...` URLs, or several local subfolders to merge. See `references/github-and-merge.md` for the clone, cross-repo merge, and monorepo flow, then continue with the resolved local path. A plain local path skips this step.
+> Skipped — GitHub-URL clone and multi-repo merge are not Phase 1 use cases.
+  A plain local path skips this step.
 
 ### Step 1 - Ensure graphify is installed
 
@@ -152,9 +153,9 @@ Then act on it:
   - Otherwise rank by count, show the top 5 with file counts, then ask which subfolder to run on. Wait for the user's answer before proceeding.
 - Otherwise: proceed directly to Step 2.5 if video files were detected, or Step 3 if not.
 
-### Step 2.5 - Video and audio (only if video files detected)
+### Step 2.5 - Video and audio (out of scope: Phase 1)
 
-Skip this step entirely if `detect` returned zero `video` files. When the corpus has video or audio, see `references/transcribe.md` to transcribe them to text first, then treat the transcripts as doc files in Step 3.
+> Skipped — Prism has no media corpus; transcription is not used.
 
 ### Step 3 - Extract entities and relationships
 
@@ -540,9 +541,10 @@ graphify export html  # auto-aggregates to community view if graph > 5000 nodes
 # or: graphify export html --no-viz
 ```
 
-### Steps 6b-8 - Wiki, Neo4j, FalkorDB, SVG, GraphML, MCP, benchmark (only on their flags)
+### Steps 6b-8 - Wiki, Neo4j, FalkorDB, SVG, GraphML, MCP, benchmark (out of scope: Phase 1)
 
-These run only when their flag is present (`--wiki`, `--neo4j`/`--neo4j-push`, `--falkordb`/`--falkordb-push`, `--svg`, `--graphml`, `--mcp`) or, for the token-reduction benchmark, when `total_words` exceeds 5,000. A default run with no export flags skips all of them. See `references/exports.md` for each one. Run any `--wiki` export before Step 9 cleanup so `.graphify_labels.json` is still available.
+> Skipped — all export modes (`--wiki`, `--neo4j`, `--falkordb`, `--svg`,
+  `--graphml`, `--mcp`, benchmark) are out of scope for Phase 1.
 
 ---
 
@@ -684,15 +686,16 @@ Before traversal, expand the question against the graph's own vocabulary so a wo
 
 ---
 
-## For /graphify add and --watch
+## For /graphify add and --watch (out of scope: Phase 1)
 
-Neither is part of the default build. When the user runs `/graphify add <url>` to fetch a URL into the corpus, or passes `--watch` to auto-rebuild on file changes, see `references/add-watch.md`.
+> Skipped — URL ingestion (`add`) and auto-rebuild (`--watch`) are deferred.
 
 ---
 
-## For the commit hook and native CLAUDE.md integration
+## For the commit hook and native CLAUDE.md integration (out of scope: Phase 1)
 
-When the user asks to install the post-commit auto-rebuild hook or wire graphify into a project's CLAUDE.md, see `references/hooks.md`.
+> Skipped — post-commit hook is deferred to Phase 2 (see
+  docs/specs/2026-07-20-graphify-hybrid-deferred-spec.md §3.4).
 
 ---
 
