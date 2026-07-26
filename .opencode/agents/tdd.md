@@ -5,7 +5,7 @@ temperature: 0.2
 permission:
   bash:
     "git add*": "allow"
-    "git commit*": "allow"
+    "git commit*": "ask"
     "git push*": "deny"
     "git tag*": "deny"
     "bash .github/scripts/resolve-identity.sh*": allow

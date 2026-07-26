@@ -182,9 +182,7 @@ message should be well-formed before you reach the hook.
 
 ### Commit and push permissions
 
-- **`@tdd`** and **`@resolve-merge-conflicts`** are permitted to `git add` and
-  `git commit` — commits happen inside disciplined cycles where the commit
-  message is presented to the user before execution.
+- **`@tdd`** and **`@resolve-merge-conflicts`** are permitted to `git add`; `git commit` prompts the user before running (`ask`) — the full command and commit message appear in the approval dialog. The agents' prose "present the message before committing" step is retained as belt-and-suspenders. (`git add` stays `allow`: staging is reversible and gating it would throttle the tight Red-Green / merge loops. See ADR-0006 #210.)
 - The **`build`** primary agent prompts (`ask`) before `git add` or
   `git commit` — the user sees the full command including the commit message in
   the approval dialog. Used by `/release`, `/build-assets`, and design-document

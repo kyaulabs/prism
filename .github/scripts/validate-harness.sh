@@ -23,6 +23,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -904,6 +905,64 @@ else
 	ok "${INLINE_GC_CHECKED} inline agent(s) checked for git-commit gating, ${INLINE_GC_VIOLATIONS} violation(s)"
 fi
 
+# ── Check .md agent git-commit gating (.opencode/agents/*.md) ─────────────────
+
+echo "── Checking .md agent git-commit gating ──"
+MD_GC_CHECKED=0
+MD_GC_VIOLATIONS=0
+
+# Any .md agent whose bash is NOT fully denied must explicitly gate "git commit*"
+# with ask or deny. A write-capable .md agent shipping "git commit*": "allow"
+# (or omitting the rule, inheriting the permissive default) can commit with no
+# permission-layer gate — the prose-only drift class of issue #210
+# (@tdd/@resolve-merge-conflicts previously relied on a "present the message"
+# prose step). Read-only agents (bash: deny, or a "*": deny catch-all) are
+# skipped — they cannot commit. Mirrors the inline git-commit gate check above
+# (issue #202) for the .md-defined agent path.
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	agent_name=$(basename "$agent_file" .md)
+
+	# Extract frontmatter only (lines between first and second ---).
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+
+	# Skip agents whose bash is fully denied (read-only — no commit possible).
+	# Matches both "bash: deny" and a "*": deny catch-all, consistent with the
+	# read-only contract check above (validate-harness.sh:755-767).
+	# Also skip agents with flat edit: deny — they cannot write files, so
+	# they effectively cannot commit regardless of bash posture.
+	bash_denied=0
+	if printf '%s\n' "$fm" | grep -qE '^[[:space:]]*bash:[[:space:]]*"?deny"?[[:space:]]*$'; then
+		bash_denied=1
+	fi
+	if printf '%s\n' "$fm" | grep -qE '"\*"[[:space:]]*:[[:space:]]*"?deny"?'; then
+		bash_denied=1
+	fi
+	if printf '%s\n' "$fm" | grep -qE '^[[:space:]]*edit:[[:space:]]*"?deny"?[[:space:]]*$'; then
+		bash_denied=1
+	fi
+	[ "$bash_denied" -eq 1 ] && continue
+
+	MD_GC_CHECKED=$((MD_GC_CHECKED + 1))
+
+	# Extract the "git commit*" verdict (allow/ask/deny), or empty if absent.
+	gc_v=$(printf '%s\n' "$fm" | grep -oE '"git commit\*"[[:space:]]*:[[:space:]]*"?[a-z]+"?' 2>/dev/null | grep -oE '(allow|ask|deny)' | head -1) || true
+
+	case "$gc_v" in
+		ask|deny) : ;;  # explicitly gated — OK
+		*)
+			err "${agent_file}: agent '${agent_name}' can git commit without a gate (issue #210) — add '\"git commit*\": \"ask\"' (or deny). bash is not fully denied but 'git commit*' is '${gc_v:-<unset>}'"
+			MD_GC_VIOLATIONS=$((MD_GC_VIOLATIONS + 1))
+			;;
+	esac
+done
+
+if [ "$MD_GC_CHECKED" -eq 0 ]; then
+	warn "No non-denied .md agents found — .md git-commit gate check did not run"
+else
+	ok "${MD_GC_CHECKED} .md agent(s) checked for git-commit gating, ${MD_GC_VIOLATIONS} violation(s)"
+fi
+
 # ── Check git add/git stage verdict parity ────────────────────────────────────
 
 echo "── Checking git add/git stage verdict parity ──"
@@ -1121,6 +1180,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

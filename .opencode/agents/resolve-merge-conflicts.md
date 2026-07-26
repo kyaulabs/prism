@@ -5,7 +5,7 @@ temperature: 0.1
 permission:
   bash:
     "git add*": "allow"
-    "git commit*": "allow"
+    "git commit*": "ask"
     "git push*": "deny"
     "git tag*": "deny"
 ---
