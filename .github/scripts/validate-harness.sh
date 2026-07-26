@@ -22,6 +22,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1012,6 +1013,47 @@ if [ -f "$NPX_CFG" ]; then
 	done < <(grep -nE '"command"[[:space:]]*:[[:space:]]*\[[[:space:]]*"npx"' "$NPX_CFG" 2>/dev/null)
 fi
 
+# ── Check for --break-system-packages in markdown code blocks ────────────────
+
+echo "── Checking for --break-system-packages in markdown code blocks ──"
+
+# --break-system-packages overrides PEP 668 (externally-managed-environment),
+# force-installing into system Python. With an unpinned, easily-typosquattable
+# package it is a supply-chain foothold (issue #208). Forbidden in executable
+# code blocks anywhere in agent-loaded documentation (.opencode/**). Policy
+# prose that *mentions* the flag to forbid it lives OUTSIDE code blocks
+# (blockquotes), so only fenced ```bash/```sh/```shell blocks are scanned, and
+# comment lines within them are skipped (defense-in-depth).
+
+shopt -s nullglob
+MD_SCAN_FILES=( "${HARNESS_DIR}"/skills/*/SKILL.md "${HARNESS_DIR}"/skills/*/reference/*.md "${HARNESS_DIR}"/skills/*/references/*.md "${HARNESS_DIR}"/agents/*.md "${HARNESS_DIR}"/commands/*.md "${HARNESS_DIR}"/docs/*.md )
+shopt -u nullglob
+
+BSP_HITS=0
+for md_file in "${MD_SCAN_FILES[@]}"; do
+	[ -f "$md_file" ] || continue
+	# Emit "<real_file_lineno>:<line>" for NON-comment lines inside
+	# bash/sh/shell fenced blocks (NR tracks the real file line number), then
+	# filter to lines carrying the forbidden flag.
+	while IFS=: read -r lineno _; do
+		[ -z "$lineno" ] && continue
+		err "${md_file}:${lineno}: '--break-system-packages' in an executable code block overrides PEP 668 (issue #208) — remove it; never force-install into system Python"
+		BSP_HITS=$((BSP_HITS + 1))
+	done < <(awk '
+		/^```(bash|sh|shell)/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block {
+			line = $0
+			sub(/^[[:space:]]+/, "", line)
+			if (line !~ /^#/) print NR ":" $0
+		}
+	' "$md_file" | grep -F -- '--break-system-packages')
+done
+
+if [ "$BSP_HITS" -eq 0 ]; then
+	ok "No --break-system-packages in markdown code blocks"
+fi
+
 # ── Checking for stale plan files ─────────────────────────────────────────────
 
 STALE_PLANS=0
@@ -1079,6 +1121,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
