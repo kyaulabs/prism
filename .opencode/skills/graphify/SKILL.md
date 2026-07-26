@@ -28,11 +28,13 @@ for structural and relational queries.
 
 ## Installation
 
-Graphify is a Python tool. The PyPI package name has a double-y quirk:
+Graphify is a Python tool. The PyPI package name has a double-y quirk. Pin to
+a specific version before installing (issue #208) — an unpinned `graphifyy` is
+a typosquatting target:
 
 ```bash
-uv tool install graphifyy        # preferred
-# or: pip install graphifyy
+uv tool install 'graphifyy>=0.9.27'   # preferred
+# or: pip install 'graphifyy>=0.9.27'
 ```
 
 Requires Python 3.10+. Verify with `graphify --version`.
@@ -126,6 +128,11 @@ replacing the bash-invocation path with structured MCP tools.
 - *Package name is `graphifyy` (double-y)* — the singular PyPI name was
   taken. The CLI binary and Python import are both `graphify` (single-y).
   Installation fails silently if you `pip install graphify` (wrong package).
+- *Pin install versions (issue #208)* — install `graphifyy` with a version
+  specifier (`graphifyy>=X.Y.Z` or `graphifyy==X.Y.Z`). An unpinned install of
+  the double-y package is a typosquatting target; the build pipeline
+  (`reference/upstream-pipeline.md`) never auto-installs and never uses
+  `--break-system-packages`.
 - *Graph staleness* — the graph reflects the codebase at build time. If
   files changed since the last `/graph build`, results may reference
   deleted symbols or miss new ones. Note suspected staleness in your

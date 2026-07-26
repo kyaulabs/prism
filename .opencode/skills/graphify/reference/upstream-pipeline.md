@@ -74,6 +74,16 @@ Follow these steps in order. Do not skip steps.
 > Skipped — GitHub-URL clone and multi-repo merge are not Phase 1 use cases.
   A plain local path skips this step.
 
+> **Local policy override (issue #208):** Upstream Step 1 auto-installs
+> `graphifyy` — unpinned, error-suppressed (`2>/dev/null`), and falling back to
+> `--break-system-packages`, which overrides PEP 668
+> (externally-managed-environment) and force-installs into system Python. With
+> an easily-typosquattable double-y package name this is a supply-chain
+> foothold. Prism replaces the auto-install with a presence check that STOPs
+> with pinned install instructions. Never auto-install from this pipeline;
+> never override PEP 668; installs must be version-pinned. Enforced by
+> `validate-harness.sh` (issue #208).
+
 ### Step 1 - Ensure graphify is installed
 
 ```bash
@@ -95,15 +105,15 @@ if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
 fi
 # 3. Fall back to python3
 if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
+# Prism policy (issue #208): do NOT auto-install. Detect presence and STOP.
 if ! "$PYTHON" -c "import graphify" 2>/dev/null; then
-    if command -v uv >/dev/null 2>&1; then
-        uv tool install --upgrade graphifyy -q 2>&1 | tail -3
-        _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-        if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-    else
-        "$PYTHON" -m pip install graphifyy -q 2>/dev/null \
-          || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
-    fi
+    echo "ERROR: graphify is not importable under $PYTHON." >&2
+    echo "       Prism policy (issue #208): this pipeline does NOT auto-install." >&2
+    echo "       Install it yourself, pinned to a specific version:" >&2
+    echo "         uv tool install 'graphifyy>=0.9.27'   # preferred" >&2
+    echo "         # or: pip install 'graphifyy>=0.9.27'" >&2
+    echo "       See .opencode/skills/graphify/SKILL.md § Installation." >&2
+    exit 1
 fi
 # Write interpreter path for all subsequent steps (persists across invocations)
 mkdir -p graphify-out
