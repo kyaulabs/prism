@@ -25,6 +25,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2131,10 +2132,115 @@ EOF
 	fi
 )
 
+# ── Test: .md agent with ungated git commit flagged (issue #210) ──────────────
+
+echo ""
+echo "── Test: .md agent (git commit: allow) flagged ──"
+T_MGC1=$(mktemp -d)
+register_temp_dir "$T_MGC1"
+git_init_test_repo "$T_MGC1"
+(
+	cd "$T_MGC1"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# tdd/resolve-merge-conflicts drift class: bash open + git commit: allow
+	# (prose-gated, not permission-gated).
+	cat > .opencode/agents/workhorse.md <<'EOF'
+---
+description: A write-capable agent that commits in a tight loop.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "allow"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "git commit without a gate"; then
+		pass "Caught .md agent with ungated git commit (issue #210)"
+	else
+		fail "Did not detect .md agent with ungated git commit"
+	fi
+)
+
+# ── Test: .md agent with git commit: ask NOT flagged ──────────────────────────
+
+echo "── Test: .md agent (git commit: ask) not flagged ──"
+T_MGC2=$(mktemp -d)
+register_temp_dir "$T_MGC2"
+git_init_test_repo "$T_MGC2"
+(
+	cd "$T_MGC2"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/agents/gated-worker.md <<'EOF'
+---
+description: A write-capable agent that gates commits at ask.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -F "gated-worker" | grep -qF "git commit without a gate"; then
+		fail "Gated .md agent (git commit: ask) was falsely flagged"
+	else
+		pass "Gated .md agent (git commit: ask) not flagged"
+	fi
+)
+
+# ── Test: .md agent with bash fully denied NOT flagged (skipped) ──────────────
+
+echo "── Test: .md agent (bash catch-all deny) not flagged (skipped) ──"
+T_MGC3=$(mktemp -d)
+register_temp_dir "$T_MGC3"
+git_init_test_repo "$T_MGC3"
+(
+	cd "$T_MGC3"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# read-only posture: bash catch-all deny — no commit possible, skip.
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -F "auditor" | grep -qF "git commit without a gate"; then
+		fail "Fully-denied .md agent was falsely flagged"
+	else
+		pass "Fully-denied .md agent (catch-all deny) not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
