@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/25 -0700 Exp $
+
 
 
 
@@ -1798,10 +1799,80 @@ EOF
 	fi
 )
 
+# ── Test 41: Command file with invalid frontmatter keys ERRORs (issue #204) ────
+
+echo ""
+echo "── Test 41: Invalid command frontmatter keys ERROR ──"
+T41=$(mktemp -d)
+register_temp_dir "$T41"
+git_init_test_repo "$T41"
+(
+	cd "$T41"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# Command carrying agent-only keys (mode/temperature/permission) — the exact
+	# router.md drift class. These are silently ignored by the command runtime,
+	# so the permission block is a false sandbox claim.
+	cat > .opencode/commands/bad-cmd.md <<'EOF'
+---
+description: A command that falsely claims sandbox isolation.
+mode: subagent
+temperature: 0.1
+permission:
+  edit: deny
+  bash: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "invalid command frontmatter key" && echo "$output" | grep -qF "bad-cmd"; then
+		pass "Caught invalid command frontmatter keys (mode/temperature/permission)"
+	elif echo "$output" | grep -qF "invalid command frontmatter key"; then
+		fail "Detected invalid keys but exited 0"
+	else
+		fail "Did not detect invalid command frontmatter keys"
+	fi
+)
+
+# ── Test 42: Command file with only valid keys is not flagged (issue #204) ─────
+
+echo "── Test 42: Valid command frontmatter keys not flagged ──"
+T42=$(mktemp -d)
+register_temp_dir "$T42"
+git_init_test_repo "$T42"
+(
+	cd "$T42"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# Command using only valid keys: description + agent + subtask.
+	cat > .opencode/commands/good-cmd.md <<'EOF'
+---
+description: A well-formed command.
+agent: build
+subtask: true
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# good-cmd must NOT be flagged for invalid keys. (Other unrelated errors —
+	# e.g. missing AGENTS.md/README.md table rows — may fire and are fine; we
+	# only assert the absence of the invalid-key message for good-cmd.)
+	if echo "$output" | grep -F "good-cmd" | grep -qF "invalid command frontmatter key"; then
+		fail "Valid command keys (agent/subtask) were falsely flagged"
+	else
+		pass "Valid command keys (agent/subtask) not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

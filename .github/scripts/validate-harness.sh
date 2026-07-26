@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/25 -0700 Exp $
+
 
 
 
@@ -145,6 +146,30 @@ check_required_field() {
 	return 0
 }
 
+# Validate that a command file's frontmatter uses only command-legal keys.
+# Markdown command files support: description, agent, model, subtask (per the
+# vendored OpenCode command schema). mode/temperature/permission are agent-only
+# keys that the command runtime silently ignores — a frontmatter block that
+# looks like a security sandbox but does nothing is a correctness defect.
+# Usage: check_command_frontmatter_keys <file>
+check_command_frontmatter_keys() {
+	local file="$1"
+	local fm keys key
+	local allowed=" description agent model subtask "
+	# Extract frontmatter (between first two ---) and collect TOP-LEVEL keys
+	# only — column-1 "key:" lines. Indented block children (e.g. under
+	# permission:) are values of their parent key, not separate keys.
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$file")
+	keys=$(echo "$fm" | grep -oE '^[A-Za-z_][A-Za-z0-9_-]*:' 2>/dev/null) || true
+	while IFS= read -r key; do
+		[ -z "$key" ] && continue
+		key="${key%:}"   # strip trailing colon
+		if ! echo "$allowed" | grep -qF " $key "; then
+			err "${file}: invalid command frontmatter key '${key}' — commands allow only: description, agent, model, subtask (issue #204)"
+		fi
+	done <<< "$keys"
+}
+
 # ── Validate skills ──────────────────────────────────────────────────────────
 
 echo "── Validating skills ──"
@@ -257,6 +282,9 @@ else
 		# Required fields
 		desc=$(frontmatter_key "$cmd_file" "description")
 		check_required_field "$cmd_file" "description" "$desc" || true
+
+		# Validate frontmatter keys against the command allowlist (issue #204)
+		check_command_frontmatter_keys "$cmd_file"
 
 		# Register the command name (filename without .md)
 		cmd_name=$(basename "$cmd_file" .md)
@@ -994,6 +1022,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
