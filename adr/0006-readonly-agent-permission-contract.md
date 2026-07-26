@@ -148,3 +148,26 @@ with a scoped read-only allowlist, `webfetch: deny`, and `task: deny`.
   validate-harness check was extended to flag any inline agent whose `bash` is
   not a full deny but that lacks an explicit `git commit*` gate (ask/deny), so
   the inherited-default drift class cannot recur.
+- **2026-07-26 (issue #210):** The #198 amendment framed `@tdd` and
+  `@resolve-merge-conflicts` as "intentionally unscoped (allowlisted)" write
+  agents whose commits were governed by disciplined prose cycles ("present the
+  message before committing"), not by the permission layer. Issue #210 flagged
+  this as fragile: a model that skips the prose step commits silently, with no
+  `ask` dialog. This amendment partially supersedes that framing. Both agents'
+  `"git commit*"` verdict moves from `"allow"` to `"ask"` — every commit now
+  hits the permission-layer approval dialog (which shows the full command and
+  message), matching `build`/`design`/`general`. The prose message-presentation
+  step is retained as belt-and-suspenders (now redundant with the dialog but
+  harmless). `"git add*"` stays `"allow"`: staging is reversible (`git reset`),
+  does not mutate history, and gating it would throttle the tight Red-Green and
+  conflict-resolution loops that make these agents productive; the #210
+  acceptance criterion is commit-focused. The `edit` scoping of both agents is
+  unchanged (still intentionally unscoped — they edit arbitrary source). The
+  validate-harness check was extended (Decision point 4) with a `.md`-agent
+  git-commit gate check mirroring the inline check added under #202: any `.md`
+  agent whose bash is not fully denied must explicitly gate `"git commit*"` with
+  `ask` or `deny`. This also makes the inline #202 check's comment truthful —
+  it skips inline agents that have a `.md` file, claiming the `.md` path covers
+  them, and that path now exists. (The `general` acceptance criterion of #210
+  was already satisfied by the #202 amendment: `general` carries
+  `"git commit*": "ask"`.)
