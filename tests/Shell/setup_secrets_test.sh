@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── check-setup-secrets.sh guard test (issue #194) ──────────────────────────
@@ -178,10 +179,31 @@ test_hook_blocks_staged_poison() {
 }
 test_hook_blocks_staged_poison
 
-print_summary "setup_secrets_test (Sections A+B)"
+# ── Section C: CI wiring ────────────────────────────────────────────────────
+
+echo ""
+echo "── Section C: CI wiring ──"
+CI="$REPO_ROOT/.github/workflows/ci.yml"
+
+# C1: ci.yml invokes the guard
+if grep -qF 'check-setup-secrets.sh' "$CI"; then
+	pass "ci.yml invokes check-setup-secrets.sh"
+else
+	fail "ci.yml should invoke check-setup-secrets.sh"
+fi
+
+# C2: guard runs in BOTH jobs (linux check + check-macos) — ≥2 occurrences of
+# the script name (the step NAME is "Check setup.json secret hygiene", which
+# does not contain the script name; only each `run:` line does → 2 total).
+count=$(grep -cF 'check-setup-secrets.sh' "$CI" || true)
+if [ "$count" -ge 2 ]; then
+	pass "ci.yml runs the guard in both jobs ($count occurrences)"
+else
+	fail "ci.yml should run the guard in both jobs (found $count)"
+fi
+
+print_summary "setup_secrets_test (Sections A+B+C)"
 exit $?
-
-
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
