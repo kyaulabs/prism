@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunnerTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: RunnerTest.php kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
+
+
 
 
 
@@ -1152,6 +1155,68 @@ it('createWorktree propagates untracked files to the worktree', function () {
 
 
 
+
+
+it('propagateUncommittedChanges throws a recovery hint when the source-tree stash pop fails after a successful apply', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/skill.md', "original content\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Uncommitted modification — triggers a real stash push.
+    file_put_contents($repo . '/skill.md', "modified content\n");
+
+    $worktree = null;
+    try {
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+        exec(sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($repo),
+            escapeshellarg($worktree),
+        ));
+
+        // The anonymous subclass overrides the pop seam to simulate a pop
+        // failure. The real stash push + worktree apply still run, so
+        // $applied is true and the data-loss branch is exercised.
+        $runner = new class ($repo) extends Runner {
+            protected function popStashInSource(): array
+            {
+                return [
+                    'exit' => 1,
+                    'output' => ['CONFLICT (content): Merge conflict in skill.md'],
+                ];
+            }
+        };
+
+        $thrown = null;
+        try {
+            $runner->propagateUncommittedChanges($worktree);
+        } catch (\RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        expect($thrown)->not->toBeNull();
+        expect($thrown->getMessage())->toContain('git stash pop failed in source tree');
+        expect($thrown->getMessage())->toContain('Recover with:');
+        expect($thrown->getMessage())->toContain($repo);
+        // The recovery hint names the stranded stash by its 40-char SHA,
+        // captured from the real repo right after the push.
+        expect($thrown->getMessage())->toMatch('/[0-9a-f]{40}/');
+    } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
+        // The overridden pop never ran, so the stash is still on the stack.
+        exec('git -C ' . escapeshellarg($repo) . ' stash clear 2>/dev/null');
+        if (is_dir($repo)) {
+            exec('rm -rf ' . escapeshellarg($repo));
+        }
+    }
+});
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
