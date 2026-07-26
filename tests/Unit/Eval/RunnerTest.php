@@ -67,6 +67,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -1275,6 +1278,57 @@ it('propagateUncommittedChanges does not mask the apply exception when both appl
             exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
         }
         exec('git -C ' . escapeshellarg($repo) . ' stash clear 2>/dev/null');
+        if (is_dir($repo)) {
+            exec('rm -rf ' . escapeshellarg($repo));
+        }
+    }
+});
+
+
+
+it('propagateUncommittedChanges leaves the source tree and stash stack ref-identical after a successful round-trip', function () {
+    $repo = sys_get_temp_dir() . '/eval-runner-test-' . bin2hex(random_bytes(4));
+    mkdir($repo);
+    exec('git -C ' . escapeshellarg($repo) . ' init -q');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.email t@t');
+    exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
+    file_put_contents($repo . '/skill.md', "original content\n");
+    exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
+    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+
+    // Uncommitted modification to be round-tripped.
+    file_put_contents($repo . '/skill.md', "modified content\n");
+    $headBefore = trim((string) shell_exec('git -C ' . escapeshellarg($repo) . ' rev-parse HEAD'));
+
+    $worktree = null;
+    try {
+        $worktree = sys_get_temp_dir() . '/eval-worktree-' . bin2hex(random_bytes(8));
+        exec(sprintf(
+            'git -C %s worktree add --detach %s 2>&1',
+            escapeshellarg($repo),
+            escapeshellarg($worktree),
+        ));
+
+        $runner = new Runner($repo);
+        $propagated = $runner->propagateUncommittedChanges($worktree);
+
+        expect($propagated)->toBeTrue();
+
+        // Source working tree restored to the uncommitted state (the pop
+        // brought "modified content" back, not the committed original).
+        expect(file_get_contents($repo . '/skill.md'))->toBe("modified content\n");
+
+        // No stash stranded on the stack.
+        $stashList = trim((string) shell_exec('git -C ' . escapeshellarg($repo) . ' stash list'));
+        expect($stashList)->toBe('');
+
+        // HEAD unchanged — no commit was created by the round-trip.
+        $headAfter = trim((string) shell_exec('git -C ' . escapeshellarg($repo) . ' rev-parse HEAD'));
+        expect($headAfter)->toBe($headBefore);
+    } finally {
+        if ($worktree !== null && is_dir($worktree)) {
+            exec('git -C ' . escapeshellarg($repo) . ' worktree remove --force ' . escapeshellarg($worktree) . ' 2>/dev/null');
+        }
         if (is_dir($repo)) {
             exec('rm -rf ' . escapeshellarg($repo));
         }
