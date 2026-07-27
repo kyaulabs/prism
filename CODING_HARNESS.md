@@ -115,7 +115,7 @@ frame — see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-con
 
 | Agent | Purpose |
 | --- | --- |
-| **Explore** | Read-only codebase exploration — file patterns, keyword search via glob/grep/LSP |
+| **Explore** | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
 | **Scout** | External docs + dependency research (clones upstream repos) |
 | **General** | Multi-step research, full tool access |
 

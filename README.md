@@ -296,7 +296,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
-| `@explore` | Read-only codebase exploration — file patterns, keyword search via glob/grep/LSP |
+| `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
 
 ### Model Configuration
 

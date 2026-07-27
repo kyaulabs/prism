@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -128,6 +131,25 @@ it('explore agent allows LSP for semantic code navigation', function (): void {
         . 'navigates code semantically (read-only contract per ADR-0006 preserved)',
     );
 });
+
+it('explore agent prompt steers structural queries to LSP over grep', function (): void {
+    $body = agent_contents('explore');
+
+    // ADR-0038 follow-up: with Graphify removed, LSP is the structural-
+    // navigation tool. The prompt must actively steer structural queries
+    // (callers, references, definitions) to LSP rather than defaulting to grep.
+    Assert::assertStringContainsString(
+        'findReferences',
+        $body,
+        'explore prompt must reference LSP findReferences for "who calls X" queries',
+    );
+    Assert::assertStringContainsString(
+        'callHierarchy',
+        $body,
+        'explore prompt must reference LSP callHierarchy for call-chain queries',
+    );
+});
+
 
 
 
