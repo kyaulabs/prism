@@ -909,6 +909,37 @@ PROMPT;
             );
         }
 
+        // Position-stable one-to-one matching. The judge must assess each
+        // expected behavior in order; a forged, reordered, or duplicate
+        // payload cannot satisfy this. Build a set of expected strings once
+        // to classify each mismatch as unrecognized vs wrong-slot.
+        $expected = array_values($case->expectedBehavior);
+        $expectedSet = [];
+        foreach ($expected as $e) {
+            $expectedSet[$e] = true;
+        }
+
+        foreach ($behaviors as $i => $b) {
+            $actual = is_string($b['behavior'] ?? null) ? $b['behavior'] : '';
+            $want = $expected[$i] ?? null;
+
+            if ($actual !== $want) {
+                $unrecognized = !isset($expectedSet[$actual]);
+                return new EvalResult(
+                    name: $case->name,
+                    agent: $case->agent,
+                    passCriteria: $case->passCriteria,
+                    verdict: Verdict::Invalid,
+                    behaviors: $behaviors,
+                    durationMs: $durationMs,
+                    judgeUsed: true,
+                    error: $unrecognized
+                        ? "unrecognized behavior '{$actual}' at position {$i}"
+                        : "behavior at position {$i} mismatch: expected '{$want}', got '{$actual}'",
+                );
+            }
+        }
+
         $allYes = true;
         foreach ($behaviors as $b) {
             if ($b['verdict'] !== 'YES') {
@@ -1307,6 +1338,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
