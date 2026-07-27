@@ -510,7 +510,8 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Authored-by',        # Required — the authoring model from opencode.jsonc (e.g., glm-5.2)
+  'Authored-by',        # Required — the design/planning model from agent.plan.model (e.g., gpt-5.6-sol)
+  'Implemented-by',     # Required — the coding model from the PRIMARY tier (e.g., glm-5.2)
   'Tested-by',          # Required — the verification model from agent.code-review.model (e.g., deepseek-v4-pro)
   'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
@@ -522,11 +523,12 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Authored-by`, `Tested-by`, and `Signed-off-by` footers. If
+Every commit must include `Authored-by`, `Implemented-by`, `Tested-by`, and `Signed-off-by` footers. If
 no user is explicitly named, the default `Signed-off-by` is `kyau
-<git@kyaulabs.com>`. `Authored-by` is sourced from `agent.plan.model`
-and `Tested-by` is sourced from `agent.code-review.model` in `opencode.jsonc` —
-the segment after the last `/`.
+<git@kyaulabs.com>`. `Authored-by` is sourced from `agent.plan.model`,
+`Implemented-by` from the PRIMARY tier (`agent.tdd.model`), and `Tested-by`
+from `agent.code-review.model` in `opencode.jsonc` — the segment after the
+last `/` (ADR-0040).
 e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
@@ -551,6 +553,7 @@ Basic movement added.
 Refs: #123
 Refs: 676104e, a215868
 Authored-by: glm-5.2
+Implemented-by: glm-5.2
 Tested-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
@@ -561,6 +564,7 @@ fix: array parsing issue
 Fixes: #42
 Cc: Z
 Authored-by: glm-5.2
+Implemented-by: glm-5.2
 Tested-by: deepseek-v4-pro
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>

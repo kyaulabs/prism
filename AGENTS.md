@@ -164,7 +164,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill
 - Signed commits required
-- Every commit must include `Authored-by:` (sourced from `agent.plan.model` in `opencode.jsonc`), `Tested-by:` (sourced from `agent.code-review.model` in `opencode.jsonc` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers. `Signed-off-by:` is resolved dynamically via
+- Every commit must include `Authored-by:` (sourced from `agent.plan.model` in `opencode.jsonc`), `Implemented-by:` (sourced from the PRIMARY tier — `agent.tdd.model`/`agent.build.model` inherit `{env:OPENCODE_MODEL_PRIMARY}`, segment after the last `/`), `Tested-by:` (sourced from `agent.code-review.model` in `opencode.jsonc` — the model ID segment after the last `/`), and `Signed-off-by:` (user) footers, in pipeline order `Authored-by` → `Implemented-by` → `Tested-by` → `Signed-off-by` (ADR-0040). `Signed-off-by:` is resolved dynamically via
 `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
 user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json`
 → `git config user.name`/`user.email`). The `setup.json` default ships as
@@ -176,7 +176,7 @@ After implementing any change — whether via @tdd, a direct fix, an issue
 tracker resolution, or a fast-path trivial change — produce a commit message
 in conventional commits format before committing. Load the
 `conventional-commits` skill and produce: type[scope]: subject + Authored-by +
-Tested-by + Signed-off-by footers. The commit-msg hook blocks invalid messages,
+Implemented-by + Tested-by + Signed-off-by footers. The commit-msg hook blocks invalid messages,
 but the
 message should be well-formed before you reach the hook.
 

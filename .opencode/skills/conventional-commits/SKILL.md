@@ -16,16 +16,21 @@ description: Use when writing or reviewing commit messages. Covers the required 
 - Subject line: lowercase, no period at end, max 100 characters
 - Body: wrap at 72 characters, explain *why* not *what*
 - Signed commits required (`git commit -S`)
-- Every commit must include `Authored-by:`, `Tested-by:`, and `Signed-off-by:` footers
+- Every commit must include `Authored-by:`, `Implemented-by:`, `Tested-by:`, and `Signed-off-by:` footers
 
 ## Required Footers
 
-Every commit message must end with three footers:
+Every commit message must end with four footers:
 
-- **`Authored-by:`** — the authoring model, in kebab-case. Sourced from
+- **`Authored-by:`** — the design/planning model, in kebab-case. Sourced from
   `agent.plan.model` in `opencode.jsonc` (the segment after the last `/`).
+  Example: `openai/gpt-5.6-sol` → `gpt-5.6-sol`.
+  Covers the design (spec) and planning stages of the creation pipeline.
+- **`Implemented-by:`** — the coding model, in kebab-case. Sourced from the
+  PRIMARY tier (`agent.tdd.model` / `agent.build.model` inherit
+  `{env:OPENCODE_MODEL_PRIMARY}`) — the segment after the last `/`.
   Example: `zai-coding-plan/glm-5.2` → `glm-5.2`.
-  Covers the full creation pipeline: design (spec), plan, and build (code).
+  Covers the implementation pipeline: build, tdd, debug, resolve-merge-conflicts.
 - **`Tested-by:`** — the verification model, in kebab-case. Sourced from
   `agent.code-review.model` in `opencode.jsonc` — the segment after the
   last `/`.
@@ -35,11 +40,14 @@ Every commit message must end with three footers:
 
 > [!CAUTION]
 > Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
-> model ID. The Authored-by and Tested-by footers track which configured models
-> authored and verified the change, not which agent role orchestrated it.
+> model ID. The Authored-by / Implemented-by / Tested-by footers track which
+> configured models designed, implemented, and verified the change — not which
+> agent role orchestrated it.
 >
 > `Tested-by:` extends the Linux kernel convention ("I ran the tests") to cover
 > the full verification pipeline (review, audit, judge, explore). See ADR-0031.
+> `Implemented-by:` is a harness addition (ADR-0040) attributing the coding
+> model separately from the planning model.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. **Resolved dynamically** via
   `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
@@ -47,8 +55,9 @@ Every commit message must end with three footers:
   `.opencode/setup.json` → `git config user.name`/`user.email`).
 
 These are mandatory for traceability. The agent writes them automatically by
-reading `agent.plan.model` and `agent.code-review.model` from `opencode.jsonc` —
-taking the segment after the last `/`.
+reading `agent.plan.model` (Authored-by), the PRIMARY tier / `agent.tdd.model`
+(Implemented-by), and `agent.code-review.model` (Tested-by) from `opencode.jsonc`
+— taking the segment after the last `/`.
 
 ## Valid Types
 
@@ -119,6 +128,7 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 feat(auth): add remember-me cookie to login flow
 
 Authored-by: glm-5.2
+Implemented-by: glm-5.2
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
@@ -128,6 +138,7 @@ fix(db): prevent SQL injection in user search query
 
 Fixes: #42
 Authored-by: glm-5.2
+Implemented-by: glm-5.2
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
@@ -136,6 +147,7 @@ Signed-off-by: <resolved via resolve-identity.sh>
 test(auth): add boundary cases for empty credentials
 
 Authored-by: glm-5.2
+Implemented-by: glm-5.2
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
@@ -160,7 +172,7 @@ standard set.
 
 Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
 exempt from trailer enforcement — their auto-generated messages cannot carry
-`Authored-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
+`Authored-by:`/`Implemented-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
 installed (fresh clone without `npm install`), the hook skips with a visible
 notice; CI enforces the policy on every PR commit.
 
@@ -179,10 +191,10 @@ notice; CI enforces the policy on every PR commit.
 
 ```bash
 # CORRECT — single -m with $'...\n...' embedded newlines
-git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nAuthored-by: model\nTested-by: model\nSigned-off-by: user <email>'
+git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nAuthored-by: model\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <email>'
 
 # WRONG — multiple -m flags insert blank lines between each, breaking trailers
-git commit -S -m "type[scope]: subject" -m "Body." -m "Authored-by: model" -m "Tested-by: model"
+git commit -S -m "type[scope]: subject" -m "Body." -m "Authored-by: model" -m "Implemented-by: model" -m "Tested-by: model"
 ```
 
 If the commit fails due to the commit-msg hook, the commit was **not created**.
