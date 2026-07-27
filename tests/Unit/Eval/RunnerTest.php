@@ -63,10 +63,33 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
 use KYAULabs\Eval\Verdict;
+
+/**
+ * Test double for Runner that exposes the protected hasSetSid() method.
+ *
+ * Used by the cache-probe test to verify hasSetSid() is memoized after
+ * the first call. Defined as a named class (rather than an anonymous one)
+ * so Intelephense resolves probeHasSetSid() correctly.
+ */
+class RunnerHasSetSidProbe extends Runner
+{
+    /**
+     * Expose the protected hasSetSid() for test observation.
+     *
+     * @return bool
+     */
+    public function probeHasSetSid(): bool
+    {
+        return $this->hasSetSid();
+    }
+}
 
 it('builds correct opencode run command', function () {
     $runner = new Runner('/path/to/repo');
@@ -429,16 +452,21 @@ it('isOpenCodeAvailable ignores a non-executable opencode on PATH', function () 
 });
 
 it('Runner constructor throws TypeError for non-string repoRoot', function () {
-    new Runner(123);
+    /** @var mixed $nonString */
+    $nonString = 123;
+    new Runner($nonString);
 })->throws(\TypeError::class);
 
 it('Runner constructor throws TypeError for null repoRoot', function () {
-    $null = null;
-    new Runner($null);
+    /** @var mixed $nullValue */
+    $nullValue = null;
+    new Runner($nullValue);
 })->throws(\TypeError::class);
 
 it('EvalCase constructor throws TypeError for non-array expectedBehavior', function () {
-    new EvalCase('test', 'test', '@tdd', 'test', 'not-an-array', 'all behaviors observed');
+    /** @var mixed $nonArray */
+    $nonArray = 'not-an-array';
+    new EvalCase('test', 'test', '@tdd', 'test', $nonArray, 'all behaviors observed');
 })->throws(\TypeError::class);
 
 it('hasSetSid is cached after first probe', function () {
@@ -446,12 +474,7 @@ it('hasSetSid is cached after first probe', function () {
         $this->markTestSkipped('POSIX-only test');
     }
 
-    $runner = new class (__DIR__) extends Runner {
-        public function probeHasSetSid(): bool
-        {
-            return $this->hasSetSid();
-        }
-    };
+    $runner = new RunnerHasSetSidProbe(__DIR__);
     $first = $runner->probeHasSetSid();
     $second = $runner->probeHasSetSid();
 
@@ -1328,6 +1351,7 @@ it('propagateUncommittedChanges leaves the source tree and stash stack ref-ident
         }
     }
 });
+
 
 
 
