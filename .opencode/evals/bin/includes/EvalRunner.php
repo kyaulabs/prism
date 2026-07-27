@@ -147,6 +147,12 @@ class EvalCase
  */
 class EvalResult
 {
+    /** Maximum bytes of `rationale` emitted to the results JSON (results-file trust boundary). */
+    private const MAX_RATIONALE_BYTES = 180;
+
+    /** Maximum bytes of `error` emitted to the results JSON (results-file trust boundary). */
+    private const MAX_ERROR_BYTES = 80;
+
     /** @param array<int, array{behavior: string, verdict: string, rationale: string}> $behaviors */
     /** @param array<string, array<string, mixed>> $deterministicChecks */
     /** @param bool $degradedKill True when a timeout occurred without process-group isolation (no setsid). */
@@ -165,20 +171,44 @@ class EvalResult
     }
 
     /**
+     * Serialize to the results-file form. This is the trust boundary for
+     * downstream readers: `error` and each `behaviors[].rationale` may carry
+     * agent-influenced text, so they are length-bounded here. The in-memory
+     * properties are left intact for CLI debugging.
+     *
      * @return array<string, mixed>
      */
     public function toArray(): array
     {
+        $behaviors = [];
+        foreach ($this->behaviors as $b) {
+            $rationale = is_string($b['rationale'] ?? null) ? $b['rationale'] : '';
+            if (strlen($rationale) > self::MAX_RATIONALE_BYTES) {
+                $rationale = mb_strcut($rationale, 0, self::MAX_RATIONALE_BYTES, 'UTF-8') . '…';
+            }
+            $behaviors[] = [
+                'behavior' => is_string($b['behavior'] ?? null) ? $b['behavior'] : '',
+                'verdict' => is_string($b['verdict'] ?? null) ? $b['verdict'] : '',
+                'rationale' => $rationale,
+            ];
+        }
+
+        $error = $this->error;
+        if ($error !== null && strlen($error) > self::MAX_ERROR_BYTES) {
+            $error = mb_strcut($error, 0, self::MAX_ERROR_BYTES, 'UTF-8')
+                . '…[redacted len=' . strlen($this->error) . ']';
+        }
+
         return [
             'name' => $this->name,
             'agent' => $this->agent,
             'pass_criteria' => $this->passCriteria,
             'verdict' => $this->verdict->value,
-            'behaviors' => $this->behaviors,
+            'behaviors' => $behaviors,
             'deterministic_checks' => $this->deterministicChecks,
             'duration_ms' => $this->durationMs,
             'judge_used' => $this->judgeUsed,
-            'error' => $this->error,
+            'error' => $error,
             'degraded_kill' => $this->degradedKill,
         ];
     }
@@ -1338,6 +1368,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
