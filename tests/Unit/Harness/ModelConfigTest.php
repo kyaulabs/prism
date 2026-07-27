@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -476,11 +479,20 @@ it('README install verify comment matches the shipped Primary default', function
 it('CODING_HARNESS variant column reflects xhigh for planner and design', function (): void {
     $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
 
-    // Planner and Design are now `xhigh` (ADR-0040); the variant column must
-    // show it. (Substring trap: `xhigh` contains `high`, so match the full
-    // backtick-delimited token, not a bare contains('high').)
-    Assert::assertStringContainsString('`xhigh`', $harness);
+    // Assert per tier row, not document-wide: a single `xhigh` (only one
+    // tier updated, or the token appearing in unrelated prose) must not
+    // satisfy this test. Both Planner and Design are `xhigh` per ADR-0040.
+    // Match the full backtick-delimited token to avoid the trap where
+    // `xhigh` contains the substring `high`.
+    preg_match_all('/^\| Planner \|.*$/m', $harness, $planner);
+    preg_match_all('/^\| Design \|.*$/m', $harness, $design);
+
+    Assert::assertCount(1, $planner[0], 'CODING_HARNESS has exactly one Planner tier row');
+    Assert::assertCount(1, $design[0], 'CODING_HARNESS has exactly one Design tier row');
+    Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
+    Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
