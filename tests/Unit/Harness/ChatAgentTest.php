@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ChatAgentTest.php kyau@nova 2026/07/20 -0700 Exp $
+# $KYAULabs: ChatAgentTest.php kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
+
+
 
 
 
@@ -17,7 +20,7 @@ use PHPUnit\Framework\Assert;
  *
  * Asserts the inline agent definition exists in opencode.jsonc with the
  * correct read-only contract: deny edit/bash/task; allow read/glob/grep/
- * list/lsp/webfetch/websearch/graphify_*. Runs on the UTILITY model tier
+ * list/lsp/webfetch/websearch. Runs on the UTILITY model tier
  * to minimize cost. Visible as a user-facing TUI tab (not hidden). The
  * broad compliance sweep (literal temperature, {env:VAR} substitution,
  * no bare model IDs) is already covered by ModelConfigTest.php; these
@@ -56,14 +59,6 @@ it('chat agent can self-serve read-only navigation tools', function () {
     foreach (['read', 'glob', 'grep', 'list', 'lsp', 'webfetch', 'websearch'] as $tool) {
         Assert::assertSame('allow', $permission[$tool], "chat must allow {$tool} (self-sufficient read-only navigation)");
     }
-});
-
-it('chat agent allows graphify_* MCP tools (forward-looking, Phase 2)', function () {
-    $config = load_opencode_config();
-    $permission = $config['agent']['chat']['permission'];
-
-    Assert::assertArrayHasKey('graphify_*', $permission, 'chat permission must include graphify_* wildcard');
-    Assert::assertSame('allow', $permission['graphify_*'], 'chat must allow graphify_* MCP tools');
 });
 
 it('chat agent is not hidden — user-facing TUI tab', function () {
@@ -128,6 +123,7 @@ it('CONTEXT.md glossary defines chat agent', function () {
 it('ADR-0034 records the chat agent decision', function () {
     Assert::assertFileExists(__DIR__ . '/../../../adr/0034-chat-primary-agent.md');
 });
+
 
 
 

@@ -115,11 +115,11 @@ constraint — all agents in a tier share one variant):
 | Task profile | Example agents | Recommended variant |
 | --- | --- | --- |
 | Complex code generation | build, tdd, debug, resolve-merge-conflicts | `max` |
-| General research | general | `max` (feeds coding with no Graphify-style tool backing) |
+| General research | general | `max` (feeds coding with cross-model diversity) |
 | Planning / decomposition | plan, from-issue, architect, consult | `max` (planning quality directly determines code quality downstream) |
 | Creative design / approach exploration | design | `max` (warmer temperature `0.3` differentiates from PLANNER) |
 | Cross-model review | code-review, standards-review, spec-review, test-audit, judge | `medium` (functionally `high` on DeepSeek per variant collapse) |
-| Codebase exploration | explore | `medium` (pre-Graphify bridge; post-Graphify synthesizes graph output) |
+| Codebase exploration | explore | `medium` (JUDGE-tier cross-model diversity before planning) |
 | Routine summarisation | compaction, title, summary | `low`&ndash;`medium` |
 | Doc generation / tool interpretation | docs-writer, semgrep | `medium` |
 
