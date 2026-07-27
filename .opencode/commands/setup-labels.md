@@ -30,7 +30,7 @@ If `gh auth status` fails, stop: "Not authenticated. Run: gh auth login"
 Check the version floor (v2.94.0 required for native sub-issue and blocking-link features):
 
 ```bash
-gh --version 2>&1 | grep -oP '\d+\.\d+\.\d+' | head -1
+gh --version 2>&1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1
 ```
 
 If the version is below 2.94.0, issue a **warning** but continue — label
