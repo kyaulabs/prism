@@ -86,7 +86,7 @@ What Prism owns vs. what it delegates to external services.
   - **PHP/JS toolchain** — Composer, php-cs-fixer, Pest, npm, Dart Sass, uglify-js, ESLint, Stylelint. Prism wires them into hooks and `/check`; the tools themselves are upstream.
   - **External security/review tools** — Semgrep, gitleaks, OpenCodeReview (`ocr`), git-cliff, commitlint, Shellcheck. Prism invokes them; their rule packs and heuristics are upstream.
   - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution.
-  - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference.
+  - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenAI, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference. Provider auth is API-key or, for OpenAI, subscription-OAuth (ChatGPT Plus/Pro) — the binding economic constraint varies by auth path (per-token vs rolling weekly window; ADR-0040).
 
 - **Boundary interfaces:** Mockable surfaces include the OpenCode plugin hook layer (ADR-0008), the coverage-gate script's input (Clover XML via `phpunit.xml` `<source>` block), the eval runner's subprocess boundary (exec'd `opencode run`), and the Aurora SQL handler. Mocking of live model inference is not supported — agents and the eval judge run against real providers.
 
@@ -149,6 +149,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0037-coverage-gate-empty-clover-and-strict-mode.md` — Empty/degenerate Clover now hard-fails (exit 2); out-of-source executable files WARN by default and FAIL under `--strict`; amends ADR-0009
 - `adr/0038-abort-graphify-explore-integration.md` — Abort the Graphify→`@explore` integration: extraction lacks cross-file/reverse-call edges and the NL query layer is imprecise; LSP already serves `@explore`'s structural queries better. Phase 2 §2.4 abort signal. (Manual-only `/graph` retention subsequently reversed by ADR-0039.)
 - `adr/0039-purge-graphify.md` — Purge Graphify entirely (skill, `/graph` command, binary, chat `graphify_*` grant, glossary, docs refs); supersedes ADR-0038's manual-only retention. LSP remains the structural-navigation tool.
+- `adr/0040-gpt-5-6-sol-on-design-planner-tiers.md` — Route GPT-5.6 Sol (ChatGPT-Plus OAuth) to DESIGN+PLANNER at `xhigh`; add `Implemented-by:` commit footer (PRIMARY tier) to attribute all three pipeline models. References ADR-0031/0030.
 
 ## When to update this file
 
