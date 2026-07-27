@@ -1,7 +1,7 @@
 # Graphify Hybrid Integration Spec (Phase 2 — Deferred)
 
 > **Date:** 2026-07-20
-> **Status:** Deferred (gated on Phase 1 success)
+> **Status:** Aborted (Phase 2 §2.4 abort signal triggered 2026-07-26; see ADR-0038. Root cause: Graphify extraction lacks cross-file/reverse-call edges and the NL `query` layer is imprecise; LSP already serves `@explore`'s structural queries better. `/graph` retained as manual-only.)
 > **Target repo:** `kyaulabs/prism` (branch off `develop` when activated)
 > **Gates on:** `docs/specs/2026-07-20-graphify-skill-driven-spec.md` (Phase 1
 > must be in production with eval data before Phase 2 starts)

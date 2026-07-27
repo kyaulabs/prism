@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ExploreAgentTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: ExploreAgentTest.php kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+
+
+
 
 
 
@@ -13,11 +16,12 @@ use PHPUnit\Framework\Assert;
  * Harness tests for the @explore subagent (issue #184).
  *
  * Asserts @explore carries a true read-only permission contract per ADR-0006:
- * edit: deny, bash catch-all deny with a scoped read-only allowlist (incl.
- * Graphify navigation carve-out), webfetch: deny, task: deny. After issue
- * #184, @explore lives in .opencode/agents/explore.md (moved out of inline
- * opencode.jsonc per the 12-subagent precedent) — model/variant/temperature
- * stay inline in opencode.jsonc per ADR-0022.
+ * edit: deny, bash catch-all deny with a scoped read-only allowlist, webfetch:
+ * deny, task: deny. After issue #184, @explore lives in .opencode/agents/
+ * explore.md (moved out of inline opencode.jsonc per the 12-subagent
+ * precedent) — model/variant/temperature stay inline in opencode.jsonc per
+ * ADR-0022. The Graphify-first integration was aborted (ADR-0038); a guard
+ * test below locks that decision in against silent re-introduction.
  */
 
 it('explore agent definition file exists (moved out of opencode.jsonc inline)', function (): void {
@@ -61,16 +65,24 @@ it('explore agent has bash catch-all deny plus read-only allowlist', function ()
     }
 });
 
-it('explore agent preserves Graphify-first navigation carve-out', function (): void {
+it('explore agent has NO Graphify integration (aborted per ADR-0038)', function (): void {
     $fm = agent_frontmatter('explore');
+    $body = agent_contents('explore');
 
-    foreach (['test -f*', 'graphify query*', 'graphify path*', 'graphify explain*'] as $pattern) {
-        Assert::assertStringContainsString(
+    // Graphify carve-out must not be re-added silently.
+    foreach (['graphify query*', 'graphify path*', 'graphify explain*'] as $pattern) {
+        Assert::assertStringNotContainsString(
             "\"{$pattern}\": allow",
             $fm,
-            "explore must allow Graphify navigation pattern '{$pattern}' (primary navigation path)",
+            "explore must NOT carry Graphify pattern '{$pattern}' — @explore integration aborted per ADR-0038",
         );
     }
+    // Graphify-first protocol must not be re-added to the prompt body.
+    Assert::assertStringNotContainsString(
+        'Graphify-first protocol',
+        $body,
+        'explore prompt must NOT contain the Graphify-first protocol — aborted per ADR-0038',
+    );
 });
 
 it('explore agent description claims read-only (validator keyword trigger)', function (): void {
@@ -81,13 +93,6 @@ it('explore agent description claims read-only (validator keyword trigger)', fun
         $fm,
         'explore description must contain a read-only keyword so validate-harness.sh enforces the contract',
     );
-});
-
-it('explore agent preserves the Graphify-first protocol in its prompt body', function (): void {
-    $body = agent_contents('explore');
-
-    Assert::assertStringContainsString('graphify-out/graph.json', $body);
-    Assert::assertStringContainsString('graphify query', $body);
 });
 
 it('explore is registered in opencode.jsonc at the JUDGE tier (model/variant/temperature only)', function (): void {
@@ -123,6 +128,7 @@ it('explore agent allows LSP for semantic code navigation', function (): void {
         . 'navigates code semantically (read-only contract per ADR-0006 preserved)',
     );
 });
+
 
 
 
