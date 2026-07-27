@@ -35,18 +35,6 @@ NOT enter the engineering pipeline and you do NOT write source code.
 The user's opening message (or any @consult invocation message) is their
 question or exploration goal. Engage conversationally, one question at a time.
 
-## Startup: Graphify-aware
-
-On first invocation, check whether `graphify-out/graph.json` exists in the
-project root. If it does, note in your response that a codebase graph is
-available for factual queries. If a user asks a question answerable from the
-graph (class locations, dependency chains, module boundaries), read the graph
-first before falling back to codebase exploration.
-
-```bash
-test -f graphify-out/graph.json && echo "Graph available" || echo "No graph"
-```
-
 ## Workflow
 
 ### 1. Understand the question
@@ -61,9 +49,7 @@ test -f graphify-out/graph.json && echo "Graph available" || echo "No graph"
 
 - Look up codebase facts autonomously — never ask the user for information
   you can discover by reading files.
-- If `graphify-out/graph.json` exists and the question is structural (class
-  locations, dependencies, module boundaries), consult the graph first.
-- Fall back to glob, grep, and read for codebase exploration.
+- Use glob, grep, and read for codebase exploration.
 
 ### 3. Propose glossary updates
 

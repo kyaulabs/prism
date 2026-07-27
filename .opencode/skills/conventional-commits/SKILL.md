@@ -31,7 +31,7 @@ Every commit message must end with three footers:
   last `/`.
   Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
   Covers the verification pipeline: code review, standards review, spec
-  review, test audit, judge (eval), and explore (pre-Graphify).
+  review, test audit, judge (eval), and explore.
 
 > [!CAUTION]
 > Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the

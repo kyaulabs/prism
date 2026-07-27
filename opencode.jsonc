@@ -44,8 +44,7 @@
 
     // deepseek-websearch — server-side web search via DeepSeek's
     // web_search_20250305 tool (search + fetch + synthesize in one call).
-    // Requires DEEPSEEK_API_KEY (paid). The same key also powers Graphify's
-    // native --backend deepseek. Upstream: kyaulabs/deepseek-websearch-mcp
+    // Requires DEEPSEEK_API_KEY (paid). Upstream: kyaulabs/deepseek-websearch-mcp
     // "deepseek-websearch": {
     //   "type": "local",
     //   "command": ["npx", "-y", "@kyaulabs/deepseek-websearch@1.0.4"],

@@ -428,7 +428,7 @@ Remind the user:
 - The aurora/ submodule was NOT touched — it maintains its own copy of
   harness files.
 - Re-run `/setup` to change values; the manifest enables idempotent updates.
-- Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`; the same `DEEPSEEK_API_KEY` also powers Graphify's `--backend deepseek`. Set keys in `~/.config/opencode/setup.json` (`env` section). See `.opencode/docs/mcp.md`.
+- Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`. Set keys in `~/.config/opencode/setup.json` (`env` section). See `.opencode/docs/mcp.md`.
 
 ## Rules
 

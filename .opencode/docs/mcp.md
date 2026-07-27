@@ -125,50 +125,6 @@ These are complementary. If you need to know how a library works, use
 `@scout`. If you need to know what people are saying about it in 2026, use
 `web_search`.
 
-## Graphify + `DEEPSEEK_API_KEY` (Shared Key)
-
-Graphify's semantic extraction (docs, PDFs, images — not code, which is free
-AST) reads `DEEPSEEK_API_KEY` via its native `--backend deepseek` flag. No
-extra pip install is needed (`graphifyy` ships the DeepSeek client built-in).
-No `OPENAI_BASE_URL` override is required.
-
-This means **one exported `DEEPSEEK_API_KEY` serves both the deepseek-websearch
-MCP server and Graphify semantic extraction** — no need to configure a
-separate key.
-
-### 8-Backend Reference
-
-Graphify supports eight backends. The full table (from Graphify's README):
-
-| `--backend` | Env key | Extra to install |
-|---|---|---|
-| `gemini` | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | `graphifyy[gemini]` |
-| `kimi` | `MOONSHOT_API_KEY` | (built-in) |
-| `claude` | `ANTHROPIC_API_KEY` | `graphifyy[anthropic]` |
-| `openai` | `OPENAI_API_KEY` (+ `OPENAI_BASE_URL`, `OPENAI_MODEL`) | `graphifyy[openai]` |
-| `deepseek` | `DEEPSEEK_API_KEY` | (built-in — no extra) |
-| `azure` | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` | `graphifyy[openai]` |
-| `bedrock` | AWS IAM credentials | `graphifyy[bedrock]` |
-| `ollama` | `OLLAMA_BASE_URL` | `graphifyy[ollama]` |
-
-When multiple keys are set, Graphify auto-detects with this priority:
-Gemini → Kimi → Claude → OpenAI → DeepSeek → Azure → Bedrock → Ollama.
-
-### When Keys Are Needed
-
-- **Headless `graphify extract`** (CI, CLI) — requires the key for the chosen
-  backend. If no key is set, extraction falls back to AST-only (code files).
-- **Inside opencode via `/graph` or `/graphify`** — the IDE session provides
-  the model; no key is needed.
-- **Code-only corpora** — no key is needed at all (AST extraction is free).
-
-### Vendored Skill Staleness
-
-The vendored `.opencode/skills/graphify/SKILL.md` documents only the Gemini
-backend (the original integration). It carries a one-line breadcrumb at its
-top pointing readers to this section for the full multi-backend reference.
-A complete refresh of that skill is deferred follow-up (see ADR-0032).
-
 ## Optional Tuning Variables
 
 These are user-managed in the **shell profile** (e.g., `~/.bashrc`,
