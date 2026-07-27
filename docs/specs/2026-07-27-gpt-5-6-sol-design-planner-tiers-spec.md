@@ -407,7 +407,7 @@ ADR-0010 (footer/issue-ref convention). Does not supersede any ADR.
 - [ ] `.opencode/setup.json` `variants.planner`/`variants.design` = `xhigh`
 - [ ] `opencode.jsonc` tier wiring unchanged (no hardcoded model strings introduced)
 - [ ] `.envrc` unchanged (jq reads new values dynamically)
-- [ ] No agent changes tier membership (PRIMARY/PLANNER/DESIGN/JUDGE/UTIlITY rosters intact)
+- [ ] No agent changes tier membership (PRIMARY/PLANNER/DESIGN/JUDGE/UTILITY rosters intact)
 - [ ] `ModelConfigTest.php`: variant-value assertions updated (`max` → `xhigh`); "max bump" test renamed to reflect `xhigh`; new `planner and design default to GPT-5.6 Sol` model-lock test added
 - [ ] `commitlint.config.js` `trailers-exist` rule requires `Implemented-by:` (4 trailers)
 - [ ] `commit-msg_test.sh` all 13 fixtures updated to the 4-trailer set; new "rejects missing Implemented-by" test added
