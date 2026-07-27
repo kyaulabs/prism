@@ -9,6 +9,7 @@
 
 
 
+
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
 #   - Guard: fail-closed when commitlint is not installed (ADR-0025).
@@ -473,13 +474,6 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
-
-
-
-
-
-
-
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
