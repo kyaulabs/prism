@@ -311,8 +311,8 @@ different `OPENCODE_MODEL_*` env var:
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `zai-coding-plan/glm-5.2` | build, tdd, debug, resolve-merge-conflicts, general |
-| Planner | `OPENCODE_MODEL_PLANNER` | `zai-coding-plan/glm-5.2` | plan, from-issue, architect, consult |
-| Design | `OPENCODE_MODEL_DESIGN` | `zai-coding-plan/glm-5.2` | design |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openai/gpt-5.6-sol` | plan, from-issue, architect, consult |
+| Design | `OPENCODE_MODEL_DESIGN` | `openai/gpt-5.6-sol` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `deepseek/deepseek-v4-pro` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |
 
