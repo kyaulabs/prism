@@ -63,13 +63,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -1299,6 +1292,7 @@ it('propagateUncommittedChanges leaves the source tree and stash stack ref-ident
     // Uncommitted modification to be round-tripped.
     file_put_contents($repo . '/skill.md', "modified content\n");
     $headBefore = trim((string) shell_exec('git -C ' . escapeshellarg($repo) . ' rev-parse HEAD'));
+    expect($headBefore)->not->toBeEmpty();
 
     $worktree = null;
     try {
@@ -1334,6 +1328,7 @@ it('propagateUncommittedChanges leaves the source tree and stash stack ref-ident
         }
     }
 });
+
 
 
 
