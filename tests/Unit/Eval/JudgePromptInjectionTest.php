@@ -8,6 +8,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Eval\Runner;
 use KYAULabs\Eval\EvalCase;
 use KYAULabs\Eval\EvalResult;
@@ -49,6 +52,12 @@ it('wraps agent output in untrusted-data framing with injection canary', functio
     expect($prompt)->toMatch(
         '/(untrusted|treat.*as.*data|data.*not.*instruction|ignore.*embedded.*instruction)/i',
     );
+
+    // The prompt SHOULD instruct the judge to return one entry per expected
+    // behavior in the same order, matching the position-stable validator in
+    // buildJudgeResult() — otherwise a well-behaved model that reorders its
+    // JSON response would spuriously trip Verdict::Invalid.
+    expect($prompt)->toMatch('/(same order|one entry per|order as the expected)/i');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +202,7 @@ it('does not leak attacker-steerable rationale content beyond a safe surface', f
     // A reasonable surface would limit rationale to ~200 bytes.
     expect(strlen($array['behaviors'][0]['rationale']))->toBeLessThan(200);
 });
+
 
 
 

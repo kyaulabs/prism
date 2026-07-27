@@ -860,7 +860,10 @@ Expected behaviors:
 {$agentOutput}
 ---
 
-Respond with ONLY a valid JSON array. No prose, no markdown fences.
+Respond with ONLY a valid JSON array — exactly one entry per expected
+behavior, in the same order as the expected behaviors listed above. Use each
+behavior's exact text verbatim as the "behavior" value. No prose, no markdown
+fences.
 [{"behavior": "<exact text>", "verdict": "YES|NO|UNCLEAR", "rationale": "<one sentence>"}, ...]
 PROMPT;
     }
@@ -1368,6 +1371,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
