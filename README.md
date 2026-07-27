@@ -296,7 +296,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
-| `@explore` | Read-only codebase exploration — file patterns, keyword search; Graphify-first when a knowledge graph exists |
+| `@explore` | Read-only codebase exploration — file patterns, keyword search via glob/grep/LSP |
 
 ### Model Configuration
 
@@ -400,7 +400,6 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/ticket` | Alias of `/issue` (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
 | `/tickets` | Alias of `/issues` (from-spec decomposition) |
-| `/graph` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 
 
 **`/setup` scaffold mode** — `/setup` offers an optional scaffold step (§2.5)
@@ -430,7 +429,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 | Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `wayfinder`, `verification-before-completion` |
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
-| Architecture hygiene | `systems-design`, `finding-duplicate-functions`, `graphify` |
+| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
 | Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
 | Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
 | Testing | `pest-browser` |

@@ -258,8 +258,8 @@ and `/research --background` semantics.
 Optional, opt-in. Two MCP servers are defined commented-out under the `mcp`
 key in `opencode.jsonc` (deepseek-websearch, mcp-searxng). Keys flow via
 `setup.json`'s `env` section → `.envrc` → `{env:VAR}`; `DEEPSEEK_API_KEY`
-serves both the deepseek-websearch MCP and Graphify's native `--backend
-deepseek`. Full setup guide, backend reference, and troubleshooting:
+serves the deepseek-websearch MCP. Full setup guide, backend reference, and
+troubleshooting:
 `.opencode/docs/mcp.md`. Decision record: ADR-0032.
 
 ## Skills Available
@@ -279,7 +279,6 @@ Load these on demand when the task requires them:
 | `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
-| `graphify` | Exploring codebase structure, call paths, or symbol relationships via Graphify's knowledge graph — especially when `graphify-out/graph.json` exists |
 | `rcs-header` | Creating or modifying any source file |
 | `receiving-code-review` | Triaging and responding to @code-review findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `aurora-page` | Creating a new PHP page |
@@ -315,7 +314,7 @@ Load these on demand when the task requires them:
 | `@docs-writer` | subagent | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
-| `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; Graphify-first when a knowledge graph exists, falls back to glob/grep/read + LSP. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
+| `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; uses glob/grep/read + LSP. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
 
 ## Commands
 
@@ -339,5 +338,4 @@ Load these on demand when the task requires them:
 | `/ticket` | Alias of `/issue` — create a single issue, or decompose a plan/spec (singular mode) |
 | `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges. Alias: `/tickets` |
 | `/tickets` | Alias of `/issues` — from-spec decomposition into epic + vertical-slice tasks |
-| `/graph` | Build, query, and manage the Graphify knowledge graph (modes: build, query, path, explain, update, status) |
 

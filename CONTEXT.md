@@ -28,10 +28,7 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | chat agent | Primary OpenCode agent (TUI tab) for conversational Q&A, code explanation, and brainstorming on the UTILITY model tier. Read-only posture: denies edit/bash/task; allows read/glob/grep/list/lsp/webfetch/websearch. Defined inline in `opencode.jsonc`. See ADR-0034. |
 | design agent | Primary OpenCode agent (TUI tab) that owns the brainstorming workflow front door: grilling → exploration → design → spec → commit → feature-branch creation. Cycle ends at spec + branch; hands off to the `plan` tab. Runs on the DESIGN model tier. Defined inline in `opencode.jsonc`. See ADR-0030. |
 | explore agent | Subagent for focused codebase exploration on the JUDGE model tier. Read-only posture: denies edit/webfetch/task, bash catch-all deny with a scoped read-only allowlist (ls/cat/tail/head/grep/find, read-only git, lsp). Lives in `.opencode/agents/explore.md` (model/variant/temperature inline in `opencode.jsonc` per ADR-0022). See ADR-0006. |
-| graphify | External Python tool ([Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify)) that builds a codebase knowledge graph via tree-sitter AST + Leiden clustering. PyPI package is `graphifyy` (double-y). Opt-in; not a Prism hard-dependency. **Manual-only via `/graph`** — the `@explore` integration was aborted per ADR-0038 (Graphify lacks cross-file/reverse-call extraction; LSP serves `@explore`'s structural queries better). See ADR-0031 §3a, ADR-0038. |
-| MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `setup.json` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves both the `deepseek-websearch` MCP and Graphify's native `--backend deepseek`. See `.opencode/docs/mcp.md` and ADR-0032. |
-| knowledge graph | The build output at `graphify-out/graph.json` — nodes (symbols, files, concepts) and edges (calls, imports, semantic relationships). Consumed manually via `/graph` (`graphify query/path/explain`). Gitignored; rebuildable from source. Auto-consumption by `@explore` was aborted (ADR-0038). |
-| graphify-out/ | Build artifact directory for Graphify outputs (`graph.json`, `GRAPH_REPORT.md`, cost tracker, manifest). Gitignored. Lives at repo root. |
+| MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `setup.json` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves the `deepseek-websearch` MCP. See `.opencode/docs/mcp.md` and ADR-0032. |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -90,7 +87,6 @@ What Prism owns vs. what it delegates to external services.
   - **External security/review tools** — Semgrep, gitleaks, OpenCodeReview (`ocr`), git-cliff, commitlint, Shellcheck. Prism invokes them; their rule packs and heuristics are upstream.
   - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution.
   - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference.
-  - **Graphify (code-graph intelligence)** — external Python tool that builds a knowledge graph from the codebase. Prism documents its usage (`.opencode/skills/graphify/` + `/graph` command); **manual-only** (the `@explore` integration was aborted — ADR-0038). The tool itself is user-installed and opt-in. AST extraction is free; semantic extraction uses the DeepSeek backend.
 
 - **Boundary interfaces:** Mockable surfaces include the OpenCode plugin hook layer (ADR-0008), the coverage-gate script's input (Clover XML via `phpunit.xml` `<source>` block), the eval runner's subprocess boundary (exec'd `opencode run`), and the Aurora SQL handler. Mocking of live model inference is not supported — agents and the eval judge run against real providers.
 
@@ -151,7 +147,8 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0035-ci-runner-fork-isolation.md` — Migrate CI `check` job from self-hosted to GitHub-hosted ephemeral runner (`ubuntu-latest`) for fork-PR isolation; eliminate workflow-source `sudo`, set `persist-credentials: false`, add composer `--no-scripts`; clarifies that ADR-0025 parity is gate-equivalence, not runner-equivalence
 - `adr/0036-safety-hook-fail-closed-block-rules.md` — Reverse ADR-0023 fail-open posture on block-level rule evaluation; classifier errors now BLOCK rather than silently pass; documented known minimal-tokenizer limitation
 - `adr/0037-coverage-gate-empty-clover-and-strict-mode.md` — Empty/degenerate Clover now hard-fails (exit 2); out-of-source executable files WARN by default and FAIL under `--strict`; amends ADR-0009
-- `adr/0038-abort-graphify-explore-integration.md` — Abort the Graphify→`@explore` integration: extraction lacks cross-file/reverse-call edges and the NL query layer is imprecise; LSP already serves `@explore`'s structural queries better. `/graph` stays manual-only. Phase 2 §2.4 abort signal.
+- `adr/0038-abort-graphify-explore-integration.md` — Abort the Graphify→`@explore` integration: extraction lacks cross-file/reverse-call edges and the NL query layer is imprecise; LSP already serves `@explore`'s structural queries better. Phase 2 §2.4 abort signal. (Manual-only `/graph` retention subsequently reversed by ADR-0039.)
+- `adr/0039-purge-graphify.md` — Purge Graphify entirely (skill, `/graph` command, binary, chat `graphify_*` grant, glossary, docs refs); supersedes ADR-0038's manual-only retention. LSP remains the structural-navigation tool.
 
 ## When to update this file
 

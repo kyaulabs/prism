@@ -6,6 +6,11 @@ Date: 2026-07-26
 
 Accepted
 
+> The manual-only `/graph` retention recorded in this ADR's Decision was
+> subsequently reversed by **ADR-0039** (full purge). The core decision —
+> aborting the `@explore` integration and Phase 2 — stands; only the "keep
+> `/graph` manual-only" consequence was superseded.
+
 ## Context
 
 Phase 1 of the Graphify integration (PR #173 + hardening #207/#208) shipped a
