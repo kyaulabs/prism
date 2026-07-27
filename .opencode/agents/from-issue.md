@@ -162,8 +162,9 @@ this.)
 - **Bug/Security path:** if reproduction is insufficient, leave the issue at
   `needs-info`, post the AI-disclaimer comment (Step 11) requesting the missing
   detail, and STOP. If reproduction is sufficient, RECOMMEND the user run
-  `@debug` (do NOT dispatch — `@debug` is build-mode only and cannot be
-  dispatched from a subagent). Then STOP — `@debug` owns the investigation; the
+  `@debug` (do NOT dispatch — `@debug` is not whitelisted in this agent's
+  `task` permission; the user invokes it directly to stay in the loop during
+  investigation). Then STOP — `@debug` owns the investigation; the
   user re-invokes `@from-issue` (or proceeds to plan) once the root cause is
   known.
 - **Chore path:** describe the fast-path (the `brainstorming` skill defines
@@ -266,7 +267,8 @@ prompt (Step 9).
 - **One question at a time.** Never bundle questions.
 - **Halt before execution.** Never dispatch `@tdd` or create a branch before
   the user approves the plan (Step 9).
-- **@debug is recommended, not dispatched.** `@debug` is build-mode only.
+- **@debug is recommended, not dispatched.** `@debug` is not in this agent's
+  `task` allowlist — the user invokes it directly.
 - **No application source code.** You triage, plan, and orchestrate. The only
   files you write are specs (`docs/specs/*`) and plans (`docs/plans/*`).
 - **AI-disclaimer on every comment.** Never post without it.
@@ -294,7 +296,8 @@ prompt (Step 9).
   auto-answers decisions." Gate even when the answer seems obvious.
 - *Treating needs-info/ready-for-agent as Progress values* — they are meta
   labels. Progress has exactly four values; do not invent a fifth.
-- *Dispatching @debug directly* — it is build-mode only; recommend it and stop.
+- *Dispatching @debug directly* — `debug` is not whitelisted in this agent's
+  `task` permission; recommend it and stop.
 - *Proceeding to execute before plan approval* — Step 9 is a hard gate.
 - *Posting a comment without the AI-disclaimer* — every comment carries it.
 - *Hard-coding repo or type IDs* — always detect via `gh repo view` /
