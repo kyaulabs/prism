@@ -1,4 +1,5 @@
-// $KYAULabs: commitlint.config.js kyau@nova 2026/07/20 -0700 Exp $
+// $KYAULabs: commitlint.config.js kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+
 
 
 
@@ -134,11 +135,12 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
-		'trailers-exist': [2, 'always', ['Authored-by:', 'Tested-by:', 'Signed-off-by:']],
+		'trailers-exist': [2, 'always', ['Authored-by:', 'Implemented-by:', 'Tested-by:', 'Signed-off-by:']],
 		'issue-ref-convention': [2, 'always'],
 		'signed-off-by': [0],
 	},
 };
+
 
 
 
