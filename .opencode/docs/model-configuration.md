@@ -74,7 +74,7 @@ reasoning / "thinking" models — a plain chat model will ignore or reject it.
 | Provider | What `variant` controls |
 | --- | --- |
 | Anthropic | Extended-thinking budget tokens |
-| OpenAI | Reasoning effort (`none` / `low` / `medium` / `high` / `xhigh`). **Note:** the OpenAI API also exposes `max`, but opencode's built-in variants top at `xhigh` (ADR-0040). |
+| OpenAI | Reasoning effort (`none` / `minimal` / `low` / `medium` / `high` / `xhigh`). **Note:** the OpenAI API also exposes `max`, but opencode's built-in variants top at `xhigh` (ADR-0040). |
 | Google | Thinking budget |
 | DeepSeek | `reasoning_effort` parameter. **Note:** in thinking mode, `low` and `medium` are mapped to `high`; only `high` (default) and `max` produce distinct behavior. |
 | Z.ai (GLM) | Thinking mode + effort level. **Note:** `max` maps to ExtraHigh (equivalent to OpenAI's `xhigh`) — the highest reasoning GLM offers, but not an absolute maximum across providers. DeepSeek's `max` is its true maximum. Variant values are provider-relative, not absolute. |
