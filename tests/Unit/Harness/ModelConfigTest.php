@@ -7,27 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -502,24 +481,6 @@ it('CODING_HARNESS variant column reflects xhigh for planner and design', functi
     // backtick-delimited token, not a bare contains('high').)
     Assert::assertStringContainsString('`xhigh`', $harness);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
