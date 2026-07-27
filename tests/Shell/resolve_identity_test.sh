@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve_identity_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: resolve_identity_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+
 
 
 set -euo pipefail
@@ -18,8 +19,10 @@ T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
     cd "$T1"
+    FAKE_HOME="$T1/home"
+    mkdir -p "$FAKE_HOME/.config/opencode"
     git_init_test_repo .
-    OUTPUT=$(bash "$SCRIPT")
+    OUTPUT=$(HOME="$FAKE_HOME" GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT")
     if [ "$OUTPUT" = "Test User <test@example.com>" ]; then
         pass "git config fallback produces Name <email>"
     else
@@ -34,11 +37,13 @@ T2=$(mktemp -d)
 register_temp_dir "$T2"
 (
     cd "$T2"
+    FAKE_HOME="$T2/home"
+    mkdir -p "$FAKE_HOME/.config/opencode"
     git_init_test_repo .
     mkdir -p .opencode
     printf '{"setup_version":4,"signed_off_by_name":"Project","signed_off_by_email":"project@example.com"}\n' \
         > .opencode/setup.json
-    OUTPUT=$(bash "$SCRIPT")
+    OUTPUT=$(HOME="$FAKE_HOME" GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT")
     if [ "$OUTPUT" = "Project <project@example.com>" ]; then
         pass "project setup.json wins over git config"
     else
@@ -53,15 +58,15 @@ T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
     cd "$T3"
+    FAKE_HOME="$T3/home"
     git_init_test_repo .
     mkdir -p .opencode
     printf '{"setup_version":4,"signed_off_by_name":"Project","signed_off_by_email":"project@example.com"}\n' \
         > .opencode/setup.json
-    mkdir -p ~/.config/opencode
+    mkdir -p "$FAKE_HOME/.config/opencode"
     printf '{"signed_off_by_name":"User","signed_off_by_email":"user@example.com"}\n' \
-        > ~/.config/opencode/setup.json
-    OUTPUT=$(bash "$SCRIPT")
-    rm -f ~/.config/opencode/setup.json
+        > "$FAKE_HOME/.config/opencode/setup.json"
+    OUTPUT=$(HOME="$FAKE_HOME" GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT")
     if [ "$OUTPUT" = "User <user@example.com>" ]; then
         pass "user setup.json wins over project"
     else
@@ -115,6 +120,7 @@ register_temp_dir "$T5"
 
 print_summary "resolve_identity_test.sh"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
