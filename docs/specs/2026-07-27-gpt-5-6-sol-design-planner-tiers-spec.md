@@ -1,7 +1,7 @@
 # Prism GPT-5.6 Sol on DESIGN+PLANNER Tiers and `Implemented-by` Commit Footer Spec
 
 > **Date:** 2026-07-27
-> **Status:** Approved (design phase, revised)
+> **Status:** Approved (design phase, revised, reconciled with implementation)
 > **Supersedes:** none
 > **Target repo:** `kyaulabs/prism` (branch off `develop`)
 > **Related:** ADR-0010 (issue-closing keyword/footer convention), ADR-0012
@@ -208,12 +208,15 @@ Every DESIGN/PLANNER agent already references `{env:OPENCODE_MODEL_DESIGN}` /
 `{env:OPENCODE_MODEL_PLANNER}` and the matching variant env vars. The
 `{env:VAR}` indirection means **no tier-wiring edit**.
 
-### 4.5 `opencode.jsonc` agent prompts — EDIT (footer format)
+### 4.5 `opencode.jsonc` agent prompts — NO-OP (reconciled)
 
-Agent prompts that state the footer format (build, tdd, design, debug, etc.) are
-updated to emit `Implemented-by:` in pipeline position. (The footer VALUES stay
-`{env:VAR}`-resolved; this is a prompt-text change documenting the new trailer,
-not a wiring change.)
+> **Post-implementation correction:** exploration found that **no agent prompt
+> in `opencode.jsonc` mentions footer tokens** — they all defer to `AGENTS.md`
+> (loaded every session) and the `conventional-commits` skill. The footer
+> convention therefore lives in `AGENTS.md` + skills + `release.md` +
+> `CONTRIBUTING.md` (see §6), not in agent prompts. This subsection was
+> originally written as an "EDIT"; it is in fact a no-op and was dropped from
+> the implementation (the §11 acceptance item for it is struck through).
 
 ### 4.6 `.envrc` — NO CHANGE
 
@@ -245,16 +248,18 @@ resolve to change. Blast radius is correspondingly smaller.
 ### 5.2 `tests/Shell/commit-msg_test.sh`
 
 The canonical valid-footer fixture `Authored-by: x\nTested-by: x\nSigned-off-by: x <x@x>`
-appears ~15 times across the test cases (l.60, 92, 127, 190, 249, 272, 295, 318,
-341, 364, 387, 410, 433, …). Once commitlint requires `Implemented-by:`, every
+appears **13 times** across the test cases (l.60, 92, 127, 190, 249, 272, 295,
+318, 341, 364, 387, 410, 433). Once commitlint requires `Implemented-by:`, every
 one of these fixtures must insert `Implemented-by: x` in pipeline position
 (between `Authored-by` and `Tested-by`) or the test will fail (commitlint rejects
-messages missing the trailer).
+messages missing the trailer). **Test 5 (l.190, "Valid commit with trailers
+passes") is the critical one** — it actively asserts a 3-trailer message is
+*accepted*, so without the 4th trailer it breaks (not merely cosmetic).
 
 | Change | Detail |
 |---|---|
-| Update all ~15 valid-footer fixtures | Insert `Implemented-by: x` between `Authored-by: x` and `Tested-by: x`. |
-| **New test** | `it rejects a commit missing Implemented-by` — assert a 3-trailer message (Authored/Tested/Signed-off only) is now rejected by the commit-msg hook. |
+| Update all 13 valid-footer fixtures | Insert `Implemented-by: x` between `Authored-by: x` and `Tested-by: x`. |
+| **New test** | "rejects a commit missing Implemented-by" — assert a 3-trailer message (Authored/Tested/Signed-off only) is now rejected by the commit-msg hook (added as Test 16). |
 
 ### 5.3 `tests/Shell/commit_template_footer_test.sh`
 
@@ -272,12 +277,15 @@ Extend the `grep` chain to also require `Implemented-by:`.
 | `.opencode/docs/model-configuration.md` §4 (variant-per-tier) | PLANNER + DESIGN rows: variant guidance `max` → `xhigh`; add weekly-window rationale ("low/medium-frequency tiers; `xhigh` is OpenAI's built-in ceiling, near-peak quality without a custom variant block; chosen over custom `max` per §2.1"). |
 | `.opencode/docs/model-configuration.md` §7 (maintainer checklist) | No structural change; optionally add a note that ChatGPT-Plus-OAuth-backed tiers introduce a weekly-window (not per-token) economic constraint. |
 | `README.md` §Model Configuration (l.314–315) | Planner/Design model values → `openai/gpt-5.6-sol`. |
-| `README.md` footer-convention section (l.168–173, l.513/553/563) | Document the `Implemented-by:` trailer + PRIMARY sourcing + pipeline ordering; update any example commit messages to include `Implemented-by:`. |
+| `README.md` footer-convention section (l.507–529, l.513/553/563) | Document the `Implemented-by:` trailer + PRIMARY sourcing + pipeline ordering; update the token list, required-footers sentence, and example commit messages to include `Implemented-by:`. |
 | `CODING_HARNESS.md` tier table + variant column | Planner/Design model + variant values updated (model → `openai/gpt-5.6-sol`; variant column reflects `xhigh`). |
 | `.opencode/commands/setup.md` | Update the hardcoded summary table (l.124–127) and prompt defaults (l.137–147, l.151–165) for **all tiers**. This file is *already stale from ADR-0031* (still shows Primary=`deepseek/deepseek-v4-pro`, Planner/Design=`openrouter/z-ai/glm-5.2 @ high`, Judge=`glm-5.2`); this change remedies that pre-existing drift AND applies the GPT-5.6 values. **Not covered by the l.452 doc-parity test** (README + CODING_HARNESS only) — manual care required. |
 | `.opencode/commands/release.md` | The release/changelog commit template (l.41) gains `Implemented-by:` in pipeline position; update the example footer block. |
-| `AGENTS.md` (footer paragraph, l.168–173) | Document `Implemented-by:` (sourced from PRIMARY / `agent.tdd.model`), the four-stage pipeline ordering, and uniform application. |
+| `AGENTS.md` (footer paragraph, l.167) | Document `Implemented-by:` (sourced from PRIMARY / `agent.tdd.model`), the four-stage pipeline ordering, and uniform application. |
 | `conventional-commits` skill | Document the `Implemented-by:` trailer, its PRIMARY-tier sourcing, ordering, and uniform-application rule. |
+| `CONTRIBUTING.md` (l.43–53) | Add `Implemented-by:` to the Required trailers section (PRIMARY sourcing). |
+| `finishing-a-development-branch` skill (l.32) | Add `Implemented-by:` to the commit-footer checklist item. |
+| `writing-plans` skill (l.155, l.175) | Add `Implemented-by:` to the example commit command + the no-placeholder rule. |
 | `CONTEXT.md` | **(Required)** Register `adr/0040-…` in the Architectural Decisions list (per the `adr` skill's acceptance step). *(Optional)* Boundary annotation under LLM providers (l.89): provider auth may be API-key *or* subscription-OAuth (ChatGPT-Plus), with the binding economic constraint varying by auth path. |
 
 `AGENTS.md`'s tier-system paragraph (no model values) is otherwise unchanged.
@@ -379,7 +387,7 @@ ADR-0010 (footer/issue-ref convention). Does not supersede any ADR.
    - `echo $OPENCODE_MODEL_PRIMARY` = `zai-coding-plan/glm-5.2` (unchanged)
 4. **Harness tests.** `php vendor/bin/pest tests/Unit/Harness/` — all green,
    including the renamed variant test and the new planner/design model-lock.
-5. **Footer tests.** `bash tests/Shell/commit-msg_test.sh` (all ~15 fixtures
+5. **Footer tests.** `bash tests/Shell/commit-msg_test.sh` (all 13 fixtures
    pass with the 4-trailer set; the new "rejects missing Implemented-by" test
    passes) and `bash tests/Shell/commit_template_footer_test.sh`.
 6. **Commitlint smoke.** `git commit --dry-run` (or a scratch commit) with a
@@ -402,9 +410,9 @@ ADR-0010 (footer/issue-ref convention). Does not supersede any ADR.
 - [ ] No agent changes tier membership (PRIMARY/PLANNER/DESIGN/JUDGE/UTIlITY rosters intact)
 - [ ] `ModelConfigTest.php`: variant-value assertions updated (`max` → `xhigh`); "max bump" test renamed to reflect `xhigh`; new `planner and design default to GPT-5.6 Sol` model-lock test added
 - [ ] `commitlint.config.js` `trailers-exist` rule requires `Implemented-by:` (4 trailers)
-- [ ] `commit-msg_test.sh` all ~15 fixtures updated to the 4-trailer set; new "rejects missing Implemented-by" test added
+- [ ] `commit-msg_test.sh` all 13 fixtures updated to the 4-trailer set; new "rejects missing Implemented-by" test added
 - [ ] `commit_template_footer_test.sh` checks release.md for `Implemented-by:`
-- [ ] `opencode.jsonc` agent prompts that state footer format emit `Implemented-by:` in pipeline position
+- [ ] ~~`opencode.jsonc` agent prompts emit `Implemented-by:` in pipeline position~~ — **dropped (no-op; see §4.5 reconciliation)**
 - [ ] `model-configuration.md` §1 tier table, §2 OpenAI variant ladder, §4 variant-per-tier guidance updated
 - [ ] `README.md` (tier table + footer-convention section) and `CODING_HARNESS.md` tier tables list `openai/gpt-5.6-sol` for planner/design (driven by the l.452 doc-parity test) and document `Implemented-by:`
 - [ ] `.opencode/commands/setup.md` summary table + prompt defaults updated for all tiers (remedies pre-existing ADR-0031 drift + applies GPT-5.6 values)
@@ -444,7 +452,7 @@ ADR-0010 (footer/issue-ref convention). Does not supersede any ADR.
   same fixed-source imprecision the harness already accepts for `Authored-by`/
   `Tested-by` on docs commits; accepted for consistency (§9 documents dynamic
   re-sourcing as out of scope).
-- **Footer-test ripple.** The `commit-msg_test.sh` change touches ~15 fixtures;
+- **Footer-test ripple.** The `commit-msg_test.sh` change touches 13 fixtures;
   a missed fixture will fail noisily (commitlint rejects the 3-trailer message),
   so the risk is detection-easy, not silent. The new "rejects missing
   Implemented-by" test guards the requirement going forward.
