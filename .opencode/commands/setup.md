@@ -121,11 +121,11 @@ Model & Variant Configuration
 ┌──────────┬─────────────────────────────────┬─────────┬────────────────────────────────────────────────────┐
 │ Tier     │ Default Model                   │ Variant │ Description                                        │
 ├──────────┼─────────────────────────────────┼─────────┼────────────────────────────────────────────────────┤
-│ Primary  │ deepseek/deepseek-v4-pro        │ max     │ Code generation, TDD, arch, CR, debug, resolve      │
-│ Planner  │ openrouter/z-ai/glm-5.2         │ high    │ Planning (plan agent only)                          │
-│ Design   │ openrouter/z-ai/glm-5.2         │ high    │ Brainstorming/design workflow (design agent only)   │
-│ Judge    │ openrouter/z-ai/glm-5.2         │ medium  │ Read-only evaluation (judge agent only)             │
-│ Utility  │ deepseek/deepseek-v4-flash      │ medium  │ Compaction, titles, docs, scanning                  │
+│ Primary  │ zai-coding-plan/glm-5.2         │ max     │ Code generation, TDD, debug, resolve, general      │
+│ Planner  │ openai/gpt-5.6-sol              │ xhigh   │ Planning, decomposition, architect, consult        │
+│ Design   │ openai/gpt-5.6-sol              │ xhigh   │ Brainstorming, design, spec workflow               │
+│ Judge    │ deepseek/deepseek-v4-pro        │ medium  │ Cross-model review, audit, eval, explore           │
+│ Utility  │ deepseek/deepseek-v4-flash      │ medium  │ Compaction, titles, summaries, docs, scan          │
 └──────────┴─────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
@@ -134,15 +134,14 @@ the default shown in brackets.
 
 **Model prompts (5 tiers):**
 
-1. **Primary** model [deepseek/deepseek-v4-pro] — the main coding engine.
-   Used by: build, tdd, architect, code-review, debug, resolve-merge-conflicts,
-   test-audit, general, explore.
-2. **Planner** model [openrouter/z-ai/glm-5.2] — reasoning/planning
-   engine. Used by: plan.
-3. **Design** model [openrouter/z-ai/glm-5.2] — brainstorming/design
-   workflow engine. Used by: design.
-4. **Judge** model [openrouter/z-ai/glm-5.2] — evaluation engine for
-   read-only assessment. Used by: judge.
+1. **Primary** model [zai-coding-plan/glm-5.2] — the main coding engine.
+   Used by: build, tdd, debug, resolve-merge-conflicts, general.
+2. **Planner** model [openai/gpt-5.6-sol] — reasoning/planning
+   engine (ChatGPT-Plus OAuth). Used by: plan, from-issue, architect, consult.
+3. **Design** model [openai/gpt-5.6-sol] — brainstorming/design
+   workflow engine (ChatGPT-Plus OAuth). Used by: design.
+4. **Judge** model [deepseek/deepseek-v4-pro] — evaluation engine for
+   read-only assessment. Used by: code-review, standards-review, spec-review, test-audit, judge, explore.
 5. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
    for routine tasks. Used by: compaction, title, summary, docs-writer, semgrep.
 
@@ -151,11 +150,11 @@ the default shown in brackets.
 5. **Primary** variant [max] — variant for PRIMARY-tier agents.
    Common values: max, high, medium, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
-6. **Planner** variant [high] — variant for plan agent.
-   Common values: high, max, medium, low.
+6. **Planner** variant [xhigh] — variant for PLANNER agents (OpenAI/GPT-5.6 Sol).
+   Common values: xhigh, high, medium, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
-7. **Design** variant [high] — variant for design agent.
-   Common values: high, max, medium, low.
+7. **Design** variant [xhigh] — variant for design agent (OpenAI/GPT-5.6 Sol).
+   Common values: xhigh, high, medium, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 8. **Judge** variant [medium] — variant for judge agent.
    Common values: medium, high, max, low.
