@@ -22,16 +22,16 @@ description: Use when writing or reviewing commit messages. Covers the required 
 
 Every commit message must end with four footers:
 
-- **`Authored-by:`** — the design/planning model, in kebab-case. Sourced from
+- **`Authored-by:`** — the design/planning model. Sourced from
   `agent.plan.model` in `opencode.jsonc` (the segment after the last `/`).
   Example: `openai/gpt-5.6-sol` → `gpt-5.6-sol`.
   Covers the design (spec) and planning stages of the creation pipeline.
-- **`Implemented-by:`** — the coding model, in kebab-case. Sourced from the
+- **`Implemented-by:`** — the coding model. Sourced from the
   PRIMARY tier (`agent.tdd.model` / `agent.build.model` inherit
   `{env:OPENCODE_MODEL_PRIMARY}`) — the segment after the last `/`.
   Example: `zai-coding-plan/glm-5.2` → `glm-5.2`.
   Covers the implementation pipeline: build, tdd, debug, resolve-merge-conflicts.
-- **`Tested-by:`** — the verification model, in kebab-case. Sourced from
+- **`Tested-by:`** — the verification model. Sourced from
   `agent.code-review.model` in `opencode.jsonc` — the segment after the
   last `/`.
   Example: `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
