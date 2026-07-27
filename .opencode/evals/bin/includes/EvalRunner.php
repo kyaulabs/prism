@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EvalRunner.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: EvalRunner.php kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
 
 
 
@@ -1055,9 +1055,18 @@ PROMPT;
      * fails. Since the worktree shares the object database and is at the same
      * HEAD, the apply is conflict-free.
      *
+     * If the worktree apply succeeds but the source-tree stash pop fails,
+     * the developer's uncommitted work is stranded on the stash stack — this
+     * method throws a \RuntimeException naming the stranded stash ref and a
+     * recovery command so the run exits non-zero with a recovery hint instead
+     * of silently dropping state. When the apply also fails, the in-flight
+     * apply exception is not masked; a STDERR hint is emitted for the
+     * stranded stash ref.
+     *
      * @param  string $worktree  Absolute path to the worktree directory.
      * @return bool  True if changes were propagated, false if the tree was clean.
-     * @throws \RuntimeException  If stash apply fails in the worktree.
+     * @throws \RuntimeException  If stash apply fails in the worktree, or if the
+     *                           source-tree stash pop fails after a successful apply.
      */
     public function propagateUncommittedChanges(string $worktree): bool
     {
@@ -1085,6 +1094,10 @@ PROMPT;
             return false;
         }
 
+        // Record the stash ref so a failed pop can be recovered from.
+        $stashRef = $this->captureStashRef();
+
+        $applied = false;
         try {
             $applyCmd = sprintf(
                 'git -C %s stash apply 2>&1',
@@ -1101,24 +1114,92 @@ PROMPT;
                     . implode("\n", $applyOutput),
                 );
             }
+            $applied = true;
         } finally {
             // Restore the source working tree even if apply fails.
-            // git stash pop --index applies the stash back and drops it.
-            $popCmd = sprintf(
-                'git -C %s stash pop --index 2>&1',
-                escapeshellarg($this->repoRoot),
-            );
-            $popOutput = [];
-            $popExit = 0;
-            exec($popCmd, $popOutput, $popExit);
-            if ($popExit !== 0) {
-                fwrite(STDERR, "WARNING: git stash pop failed in source tree — "
-                    . "stash may still be on the stack. Output: "
-                    . implode("\n", $popOutput) . "\n");
+            $pop = $this->popStashInSource();
+            if ($pop['exit'] !== 0) {
+                $refHint = $stashRef !== null
+                    ? " at stash {$stashRef}"
+                    : ' (stash ref unavailable)';
+                $recovery = 'Recover with: git -C '
+                    . $this->repoRoot . ' stash pop --index.';
+
+                if (!$applied) {
+                    // An apply exception is already propagating; do not mask
+                    // it. Surface the stranded-stash ref on STDERR so the
+                    // developer can restore manually.
+                    fwrite(STDERR, "WARNING: git stash pop also failed in "
+                        . 'source tree — uncommitted changes preserved'
+                        . $refHint . '. ' . $recovery . ' Pop output: '
+                        . implode("\n", $pop['output']) . "\n");
+                } else {
+                    // Apply succeeded but the source restore failed — the
+                    // developer's uncommitted work is stranded on the stash
+                    // stack. Fail loudly so the run exits non-zero with a
+                    // recovery hint instead of silently dropping state.
+                    throw new \RuntimeException(
+                        'git stash pop failed in source tree — uncommitted '
+                        . 'changes are preserved on the stash stack'
+                        . $refHint . '. ' . $recovery
+                        . ' Pop output: ' . implode("\n", $pop['output']),
+                    );
+                }
             }
         }
 
         return true;
+    }
+
+    /**
+     * Capture the ref of the top stash entry (the one just pushed).
+     *
+     * Used to build a recovery hint when a subsequent stash pop fails, so the
+     * developer can restore their uncommitted work with
+     * `git stash pop --index` against the named ref.
+     *
+     * @return string|null  The stash commit SHA, or null when the ref is
+     *                      unavailable (older git, or the stack is empty).
+     */
+    protected function captureStashRef(): ?string
+    {
+        $cmd = sprintf(
+            'git -C %s rev-parse --quiet --verify refs/stash 2>/dev/null',
+            escapeshellarg($this->repoRoot),
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0 || !isset($output[0]) || $output[0] === '') {
+            return null;
+        }
+
+        return trim($output[0]);
+    }
+
+    /**
+     * Pop the eval-propagation stash back into the source working tree.
+     *
+     * Extracted from propagateUncommittedChanges() as a seam so the pop
+     * failure path can be exercised in tests without fragile mid-execution
+     * git manipulation (the stash push and worktree apply still run for real).
+     *
+     * @return array{exit: int, output: list<string>}
+     */
+    protected function popStashInSource(): array
+    {
+        $popCmd = sprintf(
+            'git -C %s stash pop --index 2>&1',
+            escapeshellarg($this->repoRoot),
+        );
+
+        $output = [];
+        $exit = 0;
+        exec($popCmd, $output, $exit);
+
+        return ['exit' => $exit, 'output' => $output];
     }
 
     /**
@@ -1213,6 +1294,7 @@ PROMPT;
         }
     }
 }
+
 
 
 
