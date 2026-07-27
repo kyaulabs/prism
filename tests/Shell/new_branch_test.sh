@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: new_branch_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: new_branch_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+
+
 
 
 
@@ -194,10 +196,12 @@ T8=$(mktemp -d)
 register_temp_dir "$T8"
 (
 	cd "$T8"
+	FAKE_HOME="$T8/home"
+	mkdir -p "$FAKE_HOME/.config/opencode"
 	setup_repo_with_bases .
 	git config user.name "Jane Q. Public"
 	git config user.email "jane@example.com"
-	BRANCH=$(bash "$SCRIPT" feat "add thing")
+	BRANCH=$(HOME="$FAKE_HOME" GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT" feat "add thing")
 	# Extract the part between type/ and the hash
 	# Pattern: feat/[username]-[hash]-add-thing
 	if echo "$BRANCH" | grep -qE '^feat/jane[-.q]+-public-.+-add-thing$'; then
@@ -227,6 +231,8 @@ register_temp_dir "$T9"
 
 print_summary "new_branch_test.sh"
 exit $?
+
+
 
 
 
