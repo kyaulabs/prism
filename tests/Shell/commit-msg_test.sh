@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@nova 2026/07/20 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+
+
 
 
 
@@ -57,7 +59,7 @@ STUB
 	chmod +x "$T1/bin/npx"
 
 	# Sample valid commit message (content irrelevant — guard fires first)
-	printf 'feat: test\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
+	printf 'feat: test\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
 
 	set +e
 	output=$(PATH="$T1/bin:$PATH" "$REAL_HOOK" msg 2>&1)
@@ -89,7 +91,7 @@ register_temp_dir "$T2"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
-	VALID=$'feat: base commit\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: base commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	git checkout -q -b feature
 	echo b > b; git add b; git commit -q -m "$VALID"
@@ -124,7 +126,7 @@ register_temp_dir "$T3"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
-	VALID=$'feat: original\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: original\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	TARGET=$(git rev-parse HEAD)
 
@@ -187,7 +189,7 @@ register_temp_dir "$T5"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
-	VALID=$'feat: valid commit\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: valid commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a
 	set +e
 	output=$(git commit -q -m "$VALID" 2>&1)
@@ -246,7 +248,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nCloses #40\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nCloses #40\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -269,7 +271,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nResolve: #50\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nResolve: #50\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -292,7 +294,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes #42\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -315,7 +317,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nfixes: #42\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nfixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -338,7 +340,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -361,7 +363,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes: #42\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -384,7 +386,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'feat(db): add index\n\nRefs: #123\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'feat(db): add index\n\nRefs: #123\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -407,7 +409,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -430,7 +432,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -445,16 +447,33 @@ else
 )
 fi
 
+# ── Test 16: Reject messages missing Implemented-by: trailer ──────────────
+
+echo "── Test 16: Missing Implemented-by rejected ──"
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip "Test 16 (missing Implemented-by) — commitlint not installed"
+else
+(
+	MSG=$(mktemp)
+	printf 'feat: missing impl\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	cd "$REPO_ROOT"
+	set +e
+	output=$(npx commitlint --edit "$MSG" 2>&1)
+	ret=$?
+	set -e
+	rm -f "$MSG"
+	if [ "$ret" -ne 0 ]; then
+		pass "Test 16: missing Implemented-by rejected"
+	else
+		fail "Test 16: missing Implemented-by accepted (should be rejected) (exit=$ret): $output"
+	fi
+)
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "commit-msg_test.sh"
 exit $?
-
-
-
-
-
-
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

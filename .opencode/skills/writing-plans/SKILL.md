@@ -152,7 +152,7 @@ Expected: PASS
 
 ```bash
 git add tests/path/to/Test.php backend/path/to/file.php
-git commit -S -m $'feat(scope): concise subject describing the change\n\nAuthored-by: glm-5.2\nTested-by: deepseek-v4-pro\nSigned-off-by: <resolved via resolve-identity.sh>'
+git commit -S -m $'feat(scope): concise subject describing the change\n\nAuthored-by: glm-5.2\nImplemented-by: glm-5.2\nTested-by: deepseek-v4-pro\nSigned-off-by: <resolved via resolve-identity.sh>'
 ```
 
 > *Use the canonical `$'...\n...'` ANSI-C quoting form — see the `conventional-commits` skill. The `commit-msg` hook rejects literal `\n` sequences (ADR-0025).*
@@ -172,7 +172,7 @@ failures** — never write them:
   code steps)
 - References to types, functions, or methods not defined in any task
 - Bare commit messages missing scope or required footers — use the full
-  conventional-commits format (type[scope]: subject + Authored-by + Tested-by + Signed-off-by)
+  conventional-commits format (type[scope]: subject + Authored-by + Implemented-by + Tested-by + Signed-off-by)
 
 ## Self-review
 

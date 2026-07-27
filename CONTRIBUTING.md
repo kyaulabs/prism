@@ -42,7 +42,8 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 **Required trailers** (every non-merge, non-revert commit):
 
-- `Authored-by:` — the authoring model (from `agent.plan.model` in `opencode.jsonc`)
+- `Authored-by:` — the design/planning model (from `agent.plan.model` in `opencode.jsonc`)
+- `Implemented-by:` — the coding model (from the PRIMARY tier / `agent.tdd.model` in `opencode.jsonc`)
 - `Tested-by:` — the verification model (from `agent.code-review.model` in `opencode.jsonc`)
 
 > **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer

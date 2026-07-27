@@ -2,22 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
 
 
 
@@ -298,8 +283,8 @@ it('has all required model and variant keys in setup.json', function () {
 it('has correct default variant values', function () {
     $setup = setup_json();
     expect($setup['variants']['primary'])->toBe('max');
-    expect($setup['variants']['planner'])->toBe('max');
-    expect($setup['variants']['design'])->toBe('max');
+    expect($setup['variants']['planner'])->toBe('xhigh');
+    expect($setup['variants']['design'])->toBe('xhigh');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
 });
@@ -307,6 +292,12 @@ it('has correct default variant values', function () {
 it('has OPENCODE_MODEL_JUDGE with correct default in setup.json', function () {
     $setup = setup_json();
     expect($setup['models']['judge'])->toBe('deepseek/deepseek-v4-pro');
+});
+
+it('has planner and design defaulting to GPT-5.6 Sol', function () {
+    $setup = setup_json();
+    expect($setup['models']['planner'])->toBe('openai/gpt-5.6-sol');
+    expect($setup['models']['design'])->toBe('openai/gpt-5.6-sol');
 });
 
 it('uses {env:VAR} for variant in all opencode.json agents', function () {
@@ -485,29 +476,22 @@ it('README install verify comment matches the shipped Primary default', function
     );
 });
 
-it('CODING_HARNESS variant column reflects the max bump for planner and design', function (): void {
+it('CODING_HARNESS variant column reflects xhigh for planner and design', function (): void {
     $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
 
-    // Planner and Design are now `max` (ADR-0031 §2); the old `high` rows for
-    // these tiers must not remain. (Judge/Utility legitimately stay medium.)
-    Assert::assertStringNotContainsString('`high`', $harness);
+    // Assert per tier row, not document-wide: a single `xhigh` (only one
+    // tier updated, or the token appearing in unrelated prose) must not
+    // satisfy this test. Both Planner and Design are `xhigh` per ADR-0040.
+    // Match the full backtick-delimited token to avoid the trap where
+    // `xhigh` contains the substring `high`.
+    preg_match_all('/^\| Planner \|.*$/m', $harness, $planner);
+    preg_match_all('/^\| Design \|.*$/m', $harness, $design);
+
+    Assert::assertCount(1, $planner[0], 'CODING_HARNESS has exactly one Planner tier row');
+    Assert::assertCount(1, $design[0], 'CODING_HARNESS has exactly one Design tier row');
+    Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
+    Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
