@@ -3,7 +3,7 @@
 > **For agentic workers:** Implement task-by-task. Steps use `- [ ]`. Each task
 > follows Red → Green → Refactor and ends green + committed. Test-driving tasks
 > (T2, T4) go through `@tdd`; docs tasks (T1, T3, T5, T6) are fast-path inline.
-> Branch: `feat/kyau-6480-gpt-5-6-sol-design-planner-tiers`.
+> Branch: `feat/kyau-d257-gpt-5-6-sol-design-planner-tiers`.
 
 **Goal:** Route GPT-5.6 Sol (ChatGPT-Plus OAuth) to DESIGN+PLANNER at `xhigh`, and add an `Implemented-by:` commit footer (PRIMARY tier) so all three pipeline models are attributed.
 
