@@ -57,7 +57,7 @@ fixing failures before proceeding to the next check:
 
 ### PHP syntax
 ```bash
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; do php -l "$f"; done
+git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read -r f; do php -l "$f"; done
 ```
 
 ### PHP code style
@@ -67,12 +67,20 @@ php-cs-fixer fix --dry-run --diff
 
 ### SCSS lint
 ```bash
-npx stylelint "cdn/sass/**/*.scss" 2>/dev/null || echo "stylelint not configured or no SCSS staged"
+if [ -f .stylelintrc.json ] && [ -d node_modules/stylelint ]; then
+    npx stylelint "cdn/sass/**/*.scss"
+else
+    echo "SKIPPED: stylelint not configured (no .stylelintrc.json or stylelint not installed)"
+fi
 ```
 
 ### JS lint
 ```bash
-npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" 2>/dev/null || echo "eslint not configured or no JS staged"
+if [ -f eslint.config.mjs ] && [ -d node_modules/eslint ]; then
+    npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js"
+else
+    echo "SKIPPED: eslint not configured (no eslint.config.mjs or eslint not installed)"
+fi
 ```
 
 ### Tests

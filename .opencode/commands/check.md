@@ -134,7 +134,11 @@ cat "$CHANGED" | php .github/scripts/coverage-gate.php tests/coverage.xml
 ## 5. JS/TS tests
 
 ```bash
-npm run test:plugin 2>&1 || echo "SKIPPED: test:plugin script not found"
+if grep -q '"test:plugin"' package.json 2>/dev/null; then
+    npm run test:plugin
+else
+    echo "SKIPPED: test:plugin script not defined in package.json"
+fi
 ```
 
 Run the Node.js test runner on TS plugin tests. Report PASS if all exit 0,
@@ -144,7 +148,7 @@ missing.
 ## 6. PHP syntax (sanity)
 
 ```bash
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read f; do php -l "$f"; done
+git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read -r f; do php -l "$f"; done
 ```
 
 Run on staged files; if nothing is staged, run on the working tree's modified

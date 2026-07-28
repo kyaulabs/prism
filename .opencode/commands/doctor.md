@@ -8,6 +8,7 @@ Check every tool the coding harness depends on — runtimes, build pipeline, lin
 ## 1. Runtimes
 
 ```bash
+set -o pipefail
 php --version 2>/dev/null | head -1 | sed 's/PHP //' || echo "NOT_FOUND"
 composer --version 2>/dev/null | head -1 | sed 's/Composer version //' || echo "NOT_FOUND"
 npm --version 2>/dev/null || echo "NOT_FOUND"
@@ -18,6 +19,7 @@ Floor: `php` >= 8.5, `composer` >= 2 (any), `npm` >= 9 (any).
 ## 2. Build pipeline
 
 ```bash
+set -o pipefail
 sass --version 2>/dev/null || echo "NOT_FOUND"
 npx uglifyjs --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 npx git-cliff --version 2>/dev/null | head -1 || echo "NOT_FOUND"
@@ -28,6 +30,7 @@ Floor: `sass` >= 1.69 (dart-sass), `uglifyjs` >= 3.17, `git-cliff` >= 2.0.
 ## 3. Lint and test
 
 ```bash
+set -o pipefail
 php-cs-fixer --version 2>/dev/null | head -1 | sed 's/PHP CS Fixer //' || echo "NOT_FOUND"
 php vendor/bin/pest --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 npx eslint --version 2>/dev/null || echo "NOT_FOUND"
@@ -41,6 +44,7 @@ Floor: `php-cs-fixer` checks any installed version (same as `php-cs-fixer fix --
 ## 4. Security and review
 
 ```bash
+set -o pipefail
 semgrep --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 ocr --version 2>/dev/null | head -1 || echo "NOT_FOUND"
 gitleaks version 2>/dev/null | head -1 || echo "NOT_FOUND"
