@@ -76,7 +76,6 @@ When you add new source directories, register them in `phpunit.xml`'s
 | --- | --- | --- |
 | php-cs-fixer | Composer | PHP code style (PSR-12) |
 | pestphp/pest | Composer | Testing framework (TDD) |
-| pestphp/pest-plugin-arch | Composer | Architecture tests |
 | pestphp/pest-plugin-browser | Composer | Browser tests (Playwright) |
 | sass | npm | SCSS → CSS compilation |
 | uglify-js | npm | JavaScript minification |
