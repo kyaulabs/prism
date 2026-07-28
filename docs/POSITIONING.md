@@ -118,7 +118,7 @@ ships to production because nobody had the discipline to throw it away first.
 
 ## How to Contribute
 
-See [`README.md`](README.md) for the full setup guide, including Composer/npm
+See [`README.md`](../README.md) for the full setup guide, including Composer/npm
 installation, git hook setup (`bash .github/scripts/install-hooks.sh`), and the
-first-build workflow. The [`CODING_HARNESS.md`](CODING_HARNESS.md) orientation
+first-build workflow. The [`CODING_HARNESS.md`](../CODING_HARNESS.md) orientation
 doc covers the harness architecture and pipeline flow.

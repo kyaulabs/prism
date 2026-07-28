@@ -21,7 +21,7 @@ UI copy, and conversation. When a term is introduced, add it here first.
 
 | Term | Definition |
 | --- | --- |
-| scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in `.opencode/experimental.default.env` (ADR-0024). |
+| scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in the `experimental` section of `.opencode/setup.json` (auto-sourced by `.envrc`; ADR-0024, consolidated by ADR-0029). |
 | background subagent | OpenCode experimental feature (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) — enables dispatching subagent tasks asynchronously. Feasibility gated on a manual spike (ADR-0024). |
 | identity resolution order | The three-tier fallback chain for `Signed-off-by` identity: user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json` → `git config user.name`/`user.email`. Implemented by `.github/scripts/resolve-identity.sh`. See ADR-0029. |
 | setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, experimental flag, and optional integration-key (`env`) configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029, ADR-0032. |
@@ -133,7 +133,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0021-code-review-coordinator-permission-model.md` — Scoped `task: allow` carve-out from ADR-0006 for the @code-review multi-axis coordinator
 - `adr/0022-sub-agent-model-config-opencode-jsonc.md` — Sub-agent model/variant config must live in opencode.jsonc (not .md frontmatter) per runtime limitation; temperature stays literal
 - `adr/0023-safety-hook-for-bash-tool-interception.md` — Harness-wide safety guardrail for bash tool calls
-- `adr/0024-experimental-subagent-dependencies.md` — Enable @scout (built-in experimental), consolidate all experimental opencode-process flags into auto-sourced .opencode/experimental.default.env, defer background subagents to Phase-0 spike
+- `adr/0024-experimental-subagent-dependencies.md` — Enable @scout (built-in experimental), consolidate all experimental opencode-process flags into a single auto-sourced location, defer background subagents to Phase-0 spike (sourcing clause superseded by ADR-0029: flags moved into `.opencode/setup.json`'s `experimental` key; the original committed env-file location is retained in the ADR record)
 - `adr/0025-ci-local-parity-principle.md` — CI ↔ local check parity for pre-remote enforcement; fail-closed commitlint, harness + shellcheck pre-push, agent bypass blocked
 - `adr/0026-project-scaffolding.md` — Dual-mode /setup subfolder scaffold with manifest-driven quality surface, split setup_version 2→3 migration, and additive --target-dir flag
 - `adr/0027-plans-specs-lifecycle.md` — Plans/specs are development artifacts: commit on create, delete on branch completion, git history is canonical
