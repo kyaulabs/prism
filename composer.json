@@ -1,6 +1,6 @@
 {
-	"name": "kyaulabs/template",
-	"description": "Template — Change This Description",
+	"name": "kyaulabs/prism",
+	"description": "Coding harness for OpenCode that codifies disciplined, test-driven PHP development.",
 	"type": "project",
 	"license": "AGPL-3.0-only",
 	"require": {

@@ -1,4 +1,4 @@
-KYAULabs Template
+KYAULabs Prism
 Copyright (C) 2026 kyau <git@kyaulabs.com>
 
 This project is licensed under the GNU Affero General Public License
@@ -88,7 +88,7 @@ glebis/claude-skills
   Used in:
     - .opencode/skills/writing-skills/SKILL.md (schema documentation)
     - .opencode/agents/tdd.md (TDD agent architecture)
-    - Applied as the structural schema for all 8 agent files under
+    - Applied as the structural schema for all 13 agent files under
       .opencode/agents/
 
 ---
