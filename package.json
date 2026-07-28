@@ -1,7 +1,7 @@
 {
-	"name": "template",
+	"name": "prism",
 	"private": true,
-	"description": "Template — Change This Description",
+	"description": "Coding harness for OpenCode that codifies disciplined, test-driven PHP development.",
 	"devDependencies": {
 		"@commitlint/config-conventional": "^21",
 		"@eslint/js": "^10",
