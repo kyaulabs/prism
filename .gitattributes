@@ -12,4 +12,3 @@
 # Mark generated files
 cdn/css/**/*.min.css linguist-generated
 cdn/javascript/**/*.min.js linguist-generated
-
