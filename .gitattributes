@@ -13,6 +13,3 @@
 cdn/css/**/*.min.css linguist-generated
 cdn/javascript/**/*.min.js linguist-generated
 
-# Reduce lockfile diff noise
-composer.lock -diff
-package-lock.json -diff
