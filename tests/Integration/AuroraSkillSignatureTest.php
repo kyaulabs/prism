@@ -2,16 +2,20 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraSkillSignatureTest.php kyau@nova 2026/07/08 -0700 Exp $
+# $KYAULabs: AuroraSkillSignatureTest.php kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+
+
+
 
 use KYAULabs\Aurora;
 
 /**
- * Asserts that the Aurora constructor signature documented in the
- * aurora-page skill matches the actual source code. Catches the §1.2
- * failure class — hand-written skill documentation drifting from
- * source — at the /check gate on every run. Pairs with the
- * AuroraConstructorStatusTest for the $status sharp edge.
+ * Guards the aurora-page skill against documentation drift. Catches
+ * two failure classes at the /check gate on every run:
+ *  - signature: the Aurora constructor signature drifting from source.
+ *    Pairs with AuroraConstructorStatusTest for the $status sharp edge.
+ *  - env-location: .env guidance in the skill and .env.example
+ *    drifting from ADR-0003's repository-root contract.
  */
 
 test('aurora-page skill constructor signature matches actual source', function () {
@@ -93,5 +97,23 @@ test('aurora-page skill constructor signature matches actual source', function (
         'Fix: update the signature in .opencode/skills/aurora-page/SKILL.md',
     );
 });
+
+test('aurora-page documentation uses repository-root env location', function () {
+    $canonicalCall = "load_env(__DIR__ . '/../.env')";
+
+    $skillPath = __DIR__ . '/../../.opencode/skills/aurora-page/SKILL.md';
+    $skillContent = file_get_contents($skillPath);
+    expect($skillContent)->not->toBeFalse("Could not read aurora-page SKILL.md at {$skillPath}");
+    expect($skillContent)->toContain($canonicalCall);
+    expect($skillContent)->toContain('repository-root `.env`');
+
+    $envExamplePath = __DIR__ . '/../../.env.example';
+    $envExampleContent = file_get_contents($envExamplePath);
+    expect($envExampleContent)->not->toBeFalse("Could not read .env.example at {$envExamplePath}");
+    expect($envExampleContent)->toContain('from the repository-root');
+    expect($envExampleContent)->toContain('to .env in the repository root');
+    expect($envExampleContent)->not->toContain('present in the webroot');
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

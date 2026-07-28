@@ -104,10 +104,12 @@ API change to Aurora is needed.
   present in the page template for the performance footer to render.
 - *`load_env()` must be called explicitly* — `.env` is not loaded
   automatically. The page template calls `load_env(__DIR__ . '/../.env')`
-  after the `require_once` for `backend/env.php`. If debug mode isn't
-  activating, verify that: (a) `.env` exists at the expected path, (b)
-  `load_env()` is called before `env_bool('APP_DEBUG')`, and (c) the file
-  format follows KEY=VALUE with no shell-style `export` prefix.
+  after the `require_once` for `backend/env.php`; from an `<app>/` page, this
+  resolves to the repository-root `.env`, one directory above the webroot. If
+  debug mode isn't activating, verify that: (a) the repository-root `.env`
+  exists and is readable, (b) `load_env()` is called before
+  `env_bool('APP_DEBUG')`, and (c) the file format follows KEY=VALUE with no
+  shell-style `export` prefix.
 - *Absent `.env` is silent* — `load_env()` returns void and produces no
   warning if the file is missing. This is by design for production safety.
   If `env_bool('APP_DEBUG')` returns false unexpectedly, check whether `.env`
