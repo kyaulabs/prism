@@ -57,7 +57,7 @@ Flatten them and group by severity:
 For each finding, show:
 - Affected package, installed version, and vulnerable version range
 - CVE ID or GitHub Advisory ID
-- Suggested fix: `npm update <package>` or `npm install <package>@latest`
+- Suggested fix: `npm install --save-exact <package>@<first-non-vulnerable-version>`
 
 If no vulnerabilities are found, report: "No known vulnerabilities in JavaScript dependencies."
 
@@ -66,6 +66,12 @@ If no vulnerabilities are found, report: "No known vulnerabilities in JavaScript
 ## Rules
 
 - Both tools are read-only — they never modify `composer.lock` or `package-lock.json`.
+- Select the first non-vulnerable version identified by the advisory; never
+  recommend a moving distribution tag.
+- After a human approves dependency remediation, regenerate and commit the
+  corresponding manifest and lockfile together (`composer.json` with
+  `composer.lock`, or `package.json` with `package-lock.json`). The audit
+  itself remains read-only.
 - Skip either check gracefully if the corresponding manifest files don't exist.
 - If a lockfile is missing but the manifest exists, report a warning:
   lockfiles are required for auditing; a fresh clone cannot be audited until
