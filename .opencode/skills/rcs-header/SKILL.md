@@ -5,9 +5,11 @@ description: Use when creating or modifying any source file. Provides the requir
 
 ## RCS-Style Header (REQUIRED on every source file)
 
-Every source file must begin with an RCS-style creation stamp. Write it once when
-the file is first created. Never update it. The pre-commit hook auto-adds the
-header if you miss one.
+Every source file must carry an RCS-style header. The pre-commit hook
+(`.github/hooks/pre-commit`) is an idempotent normalizer: on every commit it
+strips and re-inserts a canonical header using the committer's identity and the
+commit date, plus the vim modeline (see ADR-0041). Authors never hand-edit the
+header — the hook manages it.
 
 Applies to **source files only**: `.php`, `.js`, `.scss`, `.sh`, `.ts`. Markdown, JSON,
 YAML, and other non-source files do not carry RCS headers.
@@ -22,12 +24,14 @@ TS:   // $KYAULabs: filename.ts creator@host YYYY/MM/DD ±TZ Exp $
 
 Use the actual filename (not a path). The fields are:
 
-- `creator@host` — `git config user.name`@`hostname` at creation time.
-- `YYYY/MM/DD ±TZ` — creation date and system timezone offset.
+- `creator@host` — `git config user.email` username @ `hostname`, refreshed by the hook on every commit.
+- `YYYY/MM/DD ±TZ` — commit date and timezone offset, refreshed by the hook on every commit (last-commit marker, not creation date; provenance is in git history).
 
-The header is a one-time creation marker, like a `Signed-off-by` trailer at the
-file level. Version and modification history are tracked by git. Do not bump the
-version, update the timestamp, or otherwise modify the header after creation.
+The header is a provenance marker managed by the pre-commit hook, analogous to a
+`Signed-off-by` trailer at the file level. Version and modification history are
+tracked by git; the in-file date reflects the last commit that touched the file.
+Do not hand-edit the header — the normalizer overwrites manual changes on the
+next commit (see ADR-0041).
 
 ### Placement
 
@@ -38,8 +42,12 @@ version, update the timestamp, or otherwise modify the header after creation.
 
 ### Automation
 
-The `.github/hooks/pre-commit` hook checks staged source files. If a file is
-missing an RCS header, the hook inserts one automatically. Run
+The `.github/hooks/pre-commit` hook is a strip-then-insert idempotent normalizer
+(ADR-0041). For every staged source file it strips all existing `$KYAULabs:`
+headers and `vim: ft=` modelines, rebuilds the file with exactly one canonical
+header (committer identity + commit date) and one modeline, and re-stages if the
+content changed. A placeholder guard blocks commits containing literal
+`creator@host` or `YYYY/MM/DD` template text. Run
 `bash .github/scripts/install-hooks.sh` once after cloning to activate it.
 
 ## Vim Modeline (REQUIRED at end of every source file)
@@ -74,3 +82,10 @@ Document all `@param`, `@return`, and `@throws`. Align the descriptions.
 
 The "no explanatory comments" policy is owned by `AGENTS.md` (Commenting section) and
 `.opencode/docs/conventions.md` (PHP Standards). Refer to those authoritative sources.
+
+## Gotchas
+
+- *Header date changes on every commit* — the hook's normalizer refreshes the
+  `$KYAULabs:` date to the commit date. This is not a bug; the header is a
+  last-commit marker (ADR-0041), not a creation stamp. Creation provenance lives
+  in git history.
