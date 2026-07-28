@@ -12,7 +12,7 @@ agent with god-mode access to your filesystem, shell, and network. They have no
 per-agent permission model, no structural anti-drift enforcement, and no
 pipeline scaffolding — you get raw LLM output and you hope for the best.
 
-OpenCode gives us **per-agent permissions** (`opencode.json`) — the `plan`
+OpenCode gives us **per-agent permissions** (`opencode.jsonc`) — the `plan`
 agent is read-only, the `build` agent can write files but must ask before
 committing, `@tdd` can commit but cannot push, and so on. Every subagent
 (architect, code-review, semgrep, debug) operates within explicit capability
@@ -118,7 +118,7 @@ ships to production because nobody had the discipline to throw it away first.
 
 ## How to Contribute
 
-See [`README.md`](README.md) for the full setup guide, including Composer/npm
+See [`README.md`](../README.md) for the full setup guide, including Composer/npm
 installation, git hook setup (`bash .github/scripts/install-hooks.sh`), and the
-first-build workflow. The [`CODING_HARNESS.md`](CODING_HARNESS.md) orientation
+first-build workflow. The [`CODING_HARNESS.md`](../CODING_HARNESS.md) orientation
 doc covers the harness architecture and pipeline flow.

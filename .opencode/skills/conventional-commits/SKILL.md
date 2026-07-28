@@ -173,8 +173,9 @@ standard set.
 Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
 exempt from trailer enforcement — their auto-generated messages cannot carry
 `Authored-by:`/`Implemented-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
-installed (fresh clone without `npm install`), the hook skips with a visible
-notice; CI enforces the policy on every PR commit.
+installed (fresh clone without `npm install`), the hook fails closed and
+blocks the commit; run `npm install` to restore the local toolchain. CI
+enforces the policy on every PR commit.
 
 ## Passing the Message to Git
 

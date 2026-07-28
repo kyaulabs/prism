@@ -71,7 +71,7 @@ is dirty. This means the before/after authoring workflow (see convention #4
 below) works correctly without committing between runs.
 
 The LLM judge runs as a dedicated **read-only `judge` agent** (see
-`opencode.json`) with `edit` and `bash` denied — it cannot mutate files or
+`opencode.jsonc`) with `edit` and `bash` denied — it cannot mutate files or
 run shell commands even if prompted to.
 
 ## Structure

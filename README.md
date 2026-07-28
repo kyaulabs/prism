@@ -76,7 +76,6 @@ When you add new source directories, register them in `phpunit.xml`'s
 | --- | --- | --- |
 | php-cs-fixer | Composer | PHP code style (PSR-12) |
 | pestphp/pest | Composer | Testing framework (TDD) |
-| pestphp/pest-plugin-arch | Composer | Architecture tests |
 | pestphp/pest-plugin-browser | Composer | Browser tests (Playwright) |
 | sass | npm | SCSS → CSS compilation |
 | uglify-js | npm | JavaScript minification |
@@ -181,7 +180,7 @@ Six hooks are activated:
 | Hook | Behavior |
 | --- | --- |
 | `pre-commit` | PHP syntax check, php-cs-fixer, Stylelint, ESLint, Shellcheck, gitleaks, and an idempotent RCS header normalizer that auto-adds/repairs headers on staged source files. |
-| `commit-msg` | commitlint against the project type-enum. Skips with a notice when `commitlint` is not installed (e.g. before `npm install`). |
+| `commit-msg` | commitlint against the project type-enum. Fails closed — blocks the commit when `commitlint` is not installed; run `npm install` to restore the local toolchain. |
 | `prepare-commit-msg` | Blocks `--amend` of a commit already pushed to a remote. Also blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
 | `pre-push` | **Hard gate:** blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
 | `post-checkout` | `git submodule update --init --recursive`. |
