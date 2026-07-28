@@ -12,7 +12,7 @@ agent with god-mode access to your filesystem, shell, and network. They have no
 per-agent permission model, no structural anti-drift enforcement, and no
 pipeline scaffolding — you get raw LLM output and you hope for the best.
 
-OpenCode gives us **per-agent permissions** (`opencode.json`) — the `plan`
+OpenCode gives us **per-agent permissions** (`opencode.jsonc`) — the `plan`
 agent is read-only, the `build` agent can write files but must ask before
 committing, `@tdd` can commit but cannot push, and so on. Every subagent
 (architect, code-review, semgrep, debug) operates within explicit capability
