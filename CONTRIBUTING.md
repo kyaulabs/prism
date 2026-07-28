@@ -64,9 +64,9 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
   commits for all contributions.
 
 **Local hook behavior:** if `commitlint` is not installed (fresh clone without
-`npm install`), the `commit-msg` hook skips with a visible notice rather than
-blocking the commit. CI enforces the policy on every PR commit, so skipping
-locally is safe — malformed commits are caught upstream.
+`npm install`), the `commit-msg` hook fails closed and blocks the commit. Run
+`npm install` to restore the local toolchain; CI enforces the same policy on
+every PR commit.
 
 ## Reporting Bugs / Feature Requests
 
