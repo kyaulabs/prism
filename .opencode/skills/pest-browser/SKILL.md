@@ -11,10 +11,15 @@ Not for every page. Unit and Feature tests cover everything else.
 ## Installation
 
 ```bash
-composer require pestphp/pest-plugin-browser --dev
-npm install playwright@latest
+composer require pestphp/pest-plugin-browser:4.3.1 --dev
+npm install --save-dev --save-exact playwright@1.61.1
 npx playwright install
 ```
+
+These versions match the repository's committed lockfiles. After changing a
+dependency version, commit each manifest with its regenerated lockfile:
+`composer.json` with `composer.lock`, and `package.json` with
+`package-lock.json`.
 
 Verify `.gitignore` includes:
 ```text
