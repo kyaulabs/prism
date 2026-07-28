@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 beforeEach(function () {
     if (!is_file(dirname(__DIR__, 2) . '/aurora/aurora.inc.php')) {
         $this->markTestSkipped('aurora submodule not initialized — run: git submodule update --init');
@@ -111,9 +114,11 @@ test('temporary display_errors scripts are removed after assertion failures', fu
     } catch (PHPUnit\Framework\ExpectationFailedException) {
     }
 
-    expect($script)->not->toBeNull()
-        ->and(is_file($script))->toBeFalse();
+    expect($script)->not->toBeNull();
+    assert(is_string($script));
+    expect(is_file($script))->toBeFalse();
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

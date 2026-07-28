@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: fetch.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+# $KYAULabs: fetch.sh kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
+
+
+
 
 
 
@@ -26,7 +29,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCS_DIR="${SCRIPT_DIR}/docs"
 TEMP_DIR="${SCRIPT_DIR}/.temp-clone"
 STAGE_DIR=$(mktemp -d "${SCRIPT_DIR}/.stage-docs.XXXXXX")
-trap 'rm -rf "$STAGE_DIR" "${SCRIPT_DIR}/.docs.old.$$"' EXIT
+NEW_DIR=$(mktemp -d "${SCRIPT_DIR}/.docs.new.XXXXXX")
+# EXIT trap removes ONLY transient scratch — never the renamed-aside OLD docs.
+# OLD is the sole copy of the prior docs during the swap window; if the trap
+# removed it, a catchable signal or `set -e` exit between the two mv operations
+# would destroy every copy (#256).
+trap 'rm -rf "$STAGE_DIR" "$NEW_DIR"' EXIT
 
 # Run a command, indenting its output for readability.
 # pipefail propagates the git exit code (sed exits 0 unless write error).
@@ -65,11 +73,20 @@ if [ "$matched" -eq 0 ]; then
 fi
 
 # Atomically swap staged docs into DOCS_DIR (same filesystem).
-# Existing docs are renamed aside for the trap to clean up.
+# Hardlink staged files into NEW_DIR so the new docs share inodes with the
+# staged copies; installing via `mv "$NEW_DIR" "$DOCS_DIR"` leaves DOCS_DIR
+# immune to the EXIT trap's cleanup of STAGE_DIR (shared inodes survive the
+# unlink of their sibling directory entries).
 OLD="${SCRIPT_DIR}/.docs.old.$$"
 rm -rf "$OLD"
+for file in "$STAGE_DIR"/*.mdx; do
+    ln "$file" "${NEW_DIR}/$(basename "$file")"
+done
+# Prior docs become the sole copy at $OLD during the two mv operations below.
+# The EXIT trap never references $OLD, so a catchable signal / set -e exit
+# mid-swap cannot destroy it (#256).
 [ -d "$DOCS_DIR" ] && mv "$DOCS_DIR" "$OLD"
-mv "$STAGE_DIR" "$DOCS_DIR"
+mv "$NEW_DIR" "$DOCS_DIR"
 rm -rf "$OLD"
 
 # Clean up temp clone
@@ -78,6 +95,9 @@ rm -rf "${TEMP_DIR}"
 
 file_count=$(find "${DOCS_DIR}" -maxdepth 1 -name '*.mdx' -type f 2>/dev/null | wc -l)
 echo "==> Done. ${file_count} doc files in ${DOCS_DIR}/"
+
+
+
 
 
 

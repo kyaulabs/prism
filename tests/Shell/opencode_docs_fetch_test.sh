@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: opencode_docs_fetch_test.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+# $KYAULabs: opencode_docs_fetch_test.sh kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
+
+
+
 
 
 
@@ -125,6 +128,19 @@ test_atomic_swap_staging() {
     fi
 }
 
+# ── Test 6: EXIT trap spares the renamed-aside (sole-copy) docs (#256) ────
+# During the rename-aside swap, the prior docs live ONLY at the aside path
+# (.docs.old.$$ / $OLD). The EXIT trap must not rm that path, or a catchable
+# signal / set -e exit mid-swap wipes every copy (#256).
+test_exit_trap_preserves_sole_copy() {
+    test_header "Test 6: EXIT trap spares renamed-aside docs (#256)"
+    if grep -E '^trap\b' "$FETCH_SH" | grep -qE 'rm -rf.*(docs\.old|\$\{?OLD\})'; then
+        fail "EXIT trap removes renamed-aside docs (sole-copy data-loss window, #256)"
+    else
+        pass "EXIT trap spares the renamed-aside docs"
+    fi
+}
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 setup_result_file
@@ -140,9 +156,13 @@ test_branch_comment
 test_clone_pinned
 test_zero_match_guard_ordering
 test_atomic_swap_staging
+test_exit_trap_preserves_sole_copy
 
 print_summary "opencode_docs_fetch_test.sh"
 exit $?
+
+
+
 
 
 

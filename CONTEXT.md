@@ -150,6 +150,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0038-abort-graphify-explore-integration.md` — Abort the Graphify→`@explore` integration: extraction lacks cross-file/reverse-call edges and the NL query layer is imprecise; LSP already serves `@explore`'s structural queries better. Phase 2 §2.4 abort signal. (Manual-only `/graph` retention subsequently reversed by ADR-0039.)
 - `adr/0039-purge-graphify.md` — Purge Graphify entirely (skill, `/graph` command, binary, chat `graphify_*` grant, glossary, docs refs); supersedes ADR-0038's manual-only retention. LSP remains the structural-navigation tool.
 - `adr/0040-gpt-5-6-sol-on-design-planner-tiers.md` — Route GPT-5.6 Sol (ChatGPT-Plus OAuth) to DESIGN+PLANNER at `xhigh`; add `Implemented-by:` commit footer (PRIMARY tier) to attribute all three pipeline models. References ADR-0031/0030.
+- `adr/0041-rcs-header-normalizer-in-pre-commit.md` — Pre-commit hook is an idempotent RCS-header normalizer (strip-then-insert, commit-date refresh); header is a last-commit marker, not creation stamp; rcs-header skill aligned to match
 
 ## When to update this file
 
