@@ -11,10 +11,9 @@ test('tsconfig.json enables strict type-checking', function (): void {
     $repoRoot = dirname(__DIR__, 3);
     $path = $repoRoot . DIRECTORY_SEPARATOR . 'tsconfig.json';
 
-    $contents = file_get_contents($path);
-    expect($contents)->not->toBeFalse("tsconfig.json not found at {$path}");
+    expect(file_exists($path))->toBeTrue("tsconfig.json not found at {$path}");
 
-    $config = json_decode((string) $contents, true, 512, JSON_THROW_ON_ERROR);
+    $config = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 
     expect($config)
         ->toBeArray()
