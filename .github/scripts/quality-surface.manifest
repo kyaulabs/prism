@@ -15,6 +15,8 @@
 .github/scripts/new-branch.sh
 .github/scripts/PrismJsoncDocument.php
 .github/scripts/PrismJsoncException.php
+.github/scripts/PrismManifest.php
+.github/scripts/prism_manifest.php
 .github/scripts/quality-surface.manifest
 .github/scripts/resolve-identity.sh
 .github/scripts/setup-scaffold.sh
