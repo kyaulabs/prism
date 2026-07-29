@@ -29,10 +29,11 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | design agent | Primary OpenCode agent (TUI tab) that owns the brainstorming workflow front door: grilling → exploration → design → spec → commit → feature-branch creation. Cycle ends at spec + branch; hands off to the `plan` tab. Runs on the DESIGN model tier. Defined inline in `opencode.jsonc`. See ADR-0030. |
 | explore agent | Subagent for focused codebase exploration on the JUDGE model tier. Read-only posture: denies edit/webfetch/task, bash catch-all deny with a scoped read-only allowlist (ls/cat/tail/head/grep/find, read-only git); `lsp: allow` with an LSP-first prompt for structural queries (`findReferences`/`callHierarchy`), falling back to glob/grep/read for text and prose (ADR-0038 follow-up). Lives in `.opencode/agents/explore.md` (model/variant/temperature inline in `opencode.jsonc` per ADR-0022). See ADR-0006. |
 | MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `setup.json` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves the `deepseek-websearch` MCP. See `.opencode/docs/mcp.md` and ADR-0032. |
-| denial event | A bash tool invocation that does not produce a successful result (permission-denied or errored). Distinct from a safety-hook *block* (a destructive-command `throw` inside `tool.execute.before`, ADR-0023). The unit the circuit breaker counts. |
-| consecutive-denial state | Per-agent-invocation (`sessionID`) counter of sequential denial events, reset to zero by any successful bash tool use. Held by the `DenialCircuitBreaker` in `.opencode/plugins/denial-circuit-breaker.ts`. |
-| circuit breaker | Harness plugin that escalates (`session.abort` + diagnostic log) once consecutive-denial state reaches threshold 3, halting an agent stuck retrying denied commands. A strict superset of upstream `doom_loop` (which keys on identical input only). See ADR-0042. |
+| denial event | A bash tool invocation that the harness prevents from executing (config-deny, safety-hook block, or ask rejection). Characterized by a `message.part.updated` `state.status: "error"` with no matching `tool.execute.after`. Does NOT include commands that execute and return nonzero — those produce `completed` + `after` and count as success for reset. The unit the circuit breaker counts. See ADR-0042. |
+| consecutive-denial state | Per-agent-invocation (`sessionID`) counter of sequential denial events, reset to zero by any successful bash tool use (matching `tool.execute.after`). Non-bash success does not reset the streak. Held by the `DenialCircuitBreaker` in `.opencode/plugins/denial-circuit-breaker.ts`. Detection locked to before/after callID reconciliation (Option 3a, Probe-3). See ADR-0042. |
+| circuit breaker | Harness plugin that escalates (`session.abort` + redacted diagnostic) once consecutive-denial state reaches threshold 3, halting an agent stuck retrying denied commands. Extends upstream `doom_loop` for the bash-denial variation-retry class (which identical-input keying misses). Detection uses before/after callID reconciliation. See ADR-0042. |
 | agent-invocation identity | The `sessionID` used to isolate per-agent state such as the circuit breaker's counter. Subagent sessions are distinct from their caller's — each `@explore` dispatch is its own invocation. |
+| tool-call identity | The `callID` assigned to each individual tool invocation. Used by the before/after reconciliation layer (ADR-0042 §3) to correlate `message.part.updated` tool-part events and `tool.execute.after` hooks per invocation. Distinct from `sessionID` (agent-invocation identity). |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -77,6 +78,7 @@ What Prism owns vs. what it delegates to external services.
 
 - **Owns:**
   - **Harness configuration** — `opencode.jsonc`, `.opencode/{agents,commands,skills,docs,evals}/`
+  - **Harness plugins** — `.opencode/plugins/` (`pre-tool-use.ts` safety hook ADR-0023/0036, `session-bootstrap.ts` ADR-0008, `denial-circuit-breaker.ts` ADR-0042)
   - **Git hooks** — `.github/hooks/` (pre-commit, commit-msg, prepare-commit-msg, pre-push, post-checkout, post-merge), installed via `.github/scripts/install-hooks.sh`
   - **CI workflow** — `.github/workflows/ci.yml` (lint, test, SAST, commitlint)
   - **Quality gates** — `.github/scripts/coverage-gate.php` (ADR-0009) + the `/check` command
@@ -155,6 +157,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0039-purge-graphify.md` — Purge Graphify entirely (skill, `/graph` command, binary, chat `graphify_*` grant, glossary, docs refs); supersedes ADR-0038's manual-only retention. LSP remains the structural-navigation tool.
 - `adr/0040-gpt-5-6-sol-on-design-planner-tiers.md` — Route GPT-5.6 Sol (ChatGPT-Plus OAuth) to DESIGN+PLANNER at `xhigh`; add `Implemented-by:` commit footer (PRIMARY tier) to attribute all three pipeline models. References ADR-0031/0030.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — Pre-commit hook is an idempotent RCS-header normalizer (strip-then-insert, commit-date refresh); header is a last-commit marker, not creation stamp; rcs-header skill aligned to match
+- `adr/0042-consecutive-denial-circuit-breaker.md` — Consecutive-denial circuit breaker for bash variation-retry hang (config-deny, safety-block, ask-reject); structural outcome inference via before/after callID reconciliation; threshold 3 + session.abort escalation
 
 ## When to update this file
 
