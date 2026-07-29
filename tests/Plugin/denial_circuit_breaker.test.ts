@@ -3,6 +3,7 @@
 
 
 
+
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DenialCircuitBreaker } from "../../.opencode/plugins/denial-circuit-breaker.ts";
@@ -16,22 +17,24 @@ import { DenialCircuitBreaker } from "../../.opencode/plugins/denial-circuit-bre
  * distinct command string as a separate denial (catching syntactic variations
  * that upstream doom_loop's identical-input keying misses).
  *
- * ARCHITECTURE: The pure state machine is DETECTION-AGNOSTIC — `observe()` is
+ * ARCHITECTURE: The pure state machine is DETECTION-AGNOSTIC — observe() is
  * fed a boolean `denied` by the integration layer (the plugin's hook wiring),
- * which is a SEPARATE concern verified manually (see ADR-0042). H2 probe
- * confirmed `tool.execute.before` DOES fire for config-denied bash commands
- * (and `permission.ask` does NOT), so the breaker attaches at
- * `tool.execute.before`. How `denied` is determined (event-stream failure
- * counting via `session.next.tool.success`/`tool.failed`, or before/after
- * callID reconciliation) is the integration decision — locked by a second
- * micro-probe before the wiring task ships. These tests hold for EITHER.
+ * which is a SEPARATE concern verified manually (see ADR-0042). Probe-3
+ * confirmed the structural predicate: a tracked bash ToolPart reaching
+ * state.status == "error" with NO matching tool.execute.after reliably
+ * identifies every non-execution outcome (config-deny, safety-hook block,
+ * ask rejection). Detection is therefore Option 3a (structural outcome
+ * inference); Option 4a (event-stream failure counting) is eliminated
+ * because the plugin event hook sees v1 events only, and permission.ask
+ * never fires in any scenario. These tests hold for the breaker contract
+ * regardless of how the wiring determines `denied`.
  */
 describe("DenialCircuitBreaker — issue #274 contract", () => {
     it("trips at the configured threshold of consecutive denials", () => {
         const b = new DenialCircuitBreaker({ threshold: 3 });
-        assert.equal(b.observe("explore-1", true), false); // 1
-        assert.equal(b.observe("explore-1", true), false); // 2
-        assert.equal(b.observe("explore-1", true), true);  // 3 -> trip
+        assert.equal(b.observe("explore-1", true).tripped, false); // 1
+        assert.equal(b.observe("explore-1", true).tripped, false); // 2
+        assert.equal(b.observe("explore-1", true).tripped, true);  // 3 -> trip
     });
 
     it("catches syntactic variations (the doom_loop gap)", () => {
@@ -46,7 +49,7 @@ describe("DenialCircuitBreaker — issue #274 contract", () => {
         ];
         let tripped = false;
         for (const _cmd of variations) {
-            if (b.observe("explore-1", true)) tripped = true;
+            if (b.observe("explore-1", true).tripped) tripped = true;
         }
         assert.equal(tripped, true);
     });
@@ -59,9 +62,9 @@ describe("DenialCircuitBreaker — issue #274 contract", () => {
         b.observe("explore-1", false); // successful `ls` resets
         assert.equal(b.count("explore-1"), 0);
         // After reset, the full threshold is required again.
-        assert.equal(b.observe("explore-1", true), false);
-        assert.equal(b.observe("explore-1", true), false);
-        assert.equal(b.observe("explore-1", true), true);
+        assert.equal(b.observe("explore-1", true).tripped, false);
+        assert.equal(b.observe("explore-1", true).tripped, false);
+        assert.equal(b.observe("explore-1", true).tripped, true);
     });
 
     it("isolates denial counts per agent invocation (sessionID)", () => {
@@ -75,27 +78,79 @@ describe("DenialCircuitBreaker — issue #274 contract", () => {
 
     it("also catches identical-input retry (superset of doom_loop)", () => {
         const b = new DenialCircuitBreaker({ threshold: 3 });
-        assert.equal(b.observe("explore-1", true), false);
-        assert.equal(b.observe("explore-1", true), false);
-        assert.equal(b.observe("explore-1", true), true);
+        assert.equal(b.observe("explore-1", true).tripped, false);
+        assert.equal(b.observe("explore-1", true).tripped, false);
+        assert.equal(b.observe("explore-1", true).tripped, true);
     });
 
     it("does not trip below the threshold", () => {
         const b = new DenialCircuitBreaker({ threshold: 3 });
-        assert.equal(b.observe("explore-1", true), false);
-        assert.equal(b.observe("explore-1", true), false);
+        assert.equal(b.observe("explore-1", true).tripped, false);
+        assert.equal(b.observe("explore-1", true).tripped, false);
         assert.equal(b.count("explore-1"), 2);
     });
 
-    it("trips exactly once at threshold; further denials hold tripped state", () => {
+    it("isTripped() reports trip state as a pure query without mutating", () => {
+        const b = new DenialCircuitBreaker({ threshold: 3 });
+        assert.equal(b.isTripped("explore-1"), false); // unseen session
+        b.observe("explore-1", true);
+        b.observe("explore-1", true);
+        assert.equal(b.isTripped("explore-1"), false); // below threshold
+        b.observe("explore-1", true);
+        assert.equal(b.isTripped("explore-1"), true);  // at threshold
+        // Querying must not change the counter.
+        assert.equal(b.count("explore-1"), 3);
+        assert.equal(b.isTripped("explore-1"), true);
+        assert.equal(b.count("explore-1"), 3);
+    });
+
+    it("reset() explicitly clears the counter back to a fresh state", () => {
         const b = new DenialCircuitBreaker({ threshold: 3 });
         b.observe("explore-1", true);
         b.observe("explore-1", true);
-        assert.equal(b.observe("explore-1", true), true);
-        // Stays tripped until a success resets.
-        assert.equal(b.observe("explore-1", true), true);
+        b.observe("explore-1", true);
+        assert.equal(b.isTripped("explore-1"), true);
+        b.reset("explore-1");
+        assert.equal(b.count("explore-1"), 0);
+        assert.equal(b.isTripped("explore-1"), false);
+        // After reset the full threshold is required again.
+        b.observe("explore-1", true);
+        b.observe("explore-1", true);
+        assert.equal(b.isTripped("explore-1"), false);
+    });
+
+    it("clearAll() removes every session's state", () => {
+        const b = new DenialCircuitBreaker({ threshold: 3 });
+        b.observe("explore-1", true);
+        b.observe("explore-1", true);
+        b.observe("explore-2", true);
+        b.observe("explore-2", true);
+        b.observe("explore-2", true);
+        assert.equal(b.isTripped("explore-2"), true);
+        b.clearAll();
+        assert.equal(b.count("explore-1"), 0);
+        assert.equal(b.count("explore-2"), 0);
+        assert.equal(b.isTripped("explore-2"), false);
+        // A denial after clearAll starts a fresh count at 1.
+        assert.equal(b.observe("explore-2", true).count, 1);
+    });
+
+    it("trips exactly once at threshold; the transition flag fires once", () => {
+        const b = new DenialCircuitBreaker({ threshold: 3 });
+        b.observe("explore-1", true);
+        b.observe("explore-1", true);
+        const trip = b.observe("explore-1", true); // 2 -> 3: the trip transition
+        assert.equal(trip.tripped, true);
+        assert.equal(trip.transitioned, true);
+        assert.equal(trip.count, 3);
+        // Stays tripped until a success resets; transition does NOT repeat.
+        const again = b.observe("explore-1", true);
+        assert.equal(again.tripped, true);
+        assert.equal(again.transitioned, false);
         b.observe("explore-1", false); // reset
-        assert.equal(b.observe("explore-1", true), false);
+        const reclaim = b.observe("explore-1", true);
+        assert.equal(reclaim.tripped, false);
+        assert.equal(reclaim.transitioned, false);
     });
 });
 
