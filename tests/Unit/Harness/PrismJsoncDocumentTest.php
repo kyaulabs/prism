@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -289,6 +292,50 @@ describe('PrismJsoncDocument::withValues', function (): void {
     });
 });
 
+describe('PrismJsoncDocument::withValues bulk composition', function (): void {
+    it('coalesces two new keys into the same empty object as valid JSONC', function (): void {
+        $patched = PrismJsoncDocument::parse('{}')->withValues(['a' => 1, 'b' => 2]);
+
+        // Re-parsing proves the result is valid JSONC (parse throws on
+        // malformed input); both keys must be present with a separating comma.
+        $root = $patched->root();
+
+        expect($root->a)->toBe(1)
+            ->and($root->b)->toBe(2)
+            ->and($patched->source())->toBe("{\n  \"a\": 1,\n  \"b\": 2\n}");
+    });
+
+    it('coalesces two new nested keys under an existing empty object', function (): void {
+        $patched = PrismJsoncDocument::parse('{"models": {}}')
+            ->withValues(['models.primary' => 'x', 'models.judge' => 'y']);
+
+        $root = $patched->root();
+
+        expect($root->models->primary)->toBe('x')
+            ->and($root->models->judge)->toBe('y');
+    });
+
+    it('folds two shared-ancestor paths into one object, not duplicate keys', function (): void {
+        $patched = PrismJsoncDocument::parse('{}')
+            ->withValues(['x.y' => 1, 'x.z' => 2]);
+
+        $root = $patched->root();
+
+        expect($root->x)->toBeObject()
+            ->and($root->x->y)->toBe(1)
+            ->and($root->x->z)->toBe(2);
+    });
+
+    it('rejects parent/descendant overlapping dot paths in either order', function (array $updates): void {
+        expect(fn (): PrismJsoncDocument => PrismJsoncDocument::parse('{"models": {}}')
+            ->withValues($updates))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'ancestor then descendant' => [['models' => '{"primary":"a"}', 'models.primary' => 'b']],
+        'descendant then ancestor' => [['models.primary' => 'b', 'models' => '{"primary":"a"}']],
+    ]);
+});
+
 describe('PrismJsoncDocument::writeAtomic', function (): void {
     it('writes atomically at the requested mode', function (): void {
         $document = PrismJsoncDocument::parse("{\n  \"v\": 1,\n}\n");
@@ -324,6 +371,7 @@ describe('PrismJsoncDocument::writeAtomic', function (): void {
         }
     });
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

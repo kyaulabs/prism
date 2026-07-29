@@ -23,7 +23,7 @@ namespace KYAULabs\Prism;
  *   patch   FILE project|user OCTAL_MODE < updates.json
  *   migrate-preview LEGACY project|user
  *   migrate LEGACY TARGET project|user OCTAL_MODE
- *   check-secrets FILE
+ *   check-secrets FILE project|user
  *
  * Exit codes: 0 success; 1 malformed/unsafe input, validation failure, secret
  * violation, write failure, or migration conflict; 2 invalid command or arity.
@@ -199,7 +199,7 @@ function cmd_env0(array $argv): PrismCliResult
 
     $resolved = pm_load_resolved($argv[2], $argv[3] ?? '-');
 
-    return new PrismCliResult(0, stdout: implode("\0", pm_env_pairs($resolved)));
+    return new PrismCliResult(0, stdout: pm_nul_pairs(pm_env_pairs($resolved)));
 }
 
 /**
@@ -245,10 +245,10 @@ function cmd_values0(array $argv): PrismCliResult
     for ($i = 4, $n = count($argv); $i < $n; $i++) {
         $dotPath = $argv[$i];
         $pairs[] = $dotPath;
-        $pairs[] = pm_scalar_to_string(pm_resolve_dot($resolved, $dotPath));
+        $pairs[] = pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $dotPath);
     }
 
-    return new PrismCliResult(0, stdout: implode("\0", $pairs));
+    return new PrismCliResult(0, stdout: pm_nul_pairs($pairs));
 }
 
 /**
@@ -280,22 +280,16 @@ function cmd_patch(array $argv, string $stdin): PrismCliResult
     }
 
     try {
-        $updates = json_decode($stdin, true, 512, JSON_THROW_ON_ERROR);
+        $updates = json_decode($stdin, false, 512, JSON_THROW_ON_ERROR);
     } catch (\JsonException $e) {
         throw new PrismJsoncException('patch input is not valid JSON', 0, $e);
     }
 
-    if (!is_array($updates)) {
+    if (!($updates instanceof \stdClass)) {
         throw new PrismJsoncException('patch input must be a JSON object');
     }
 
-    foreach (array_keys($updates) as $key) {
-        if (!is_string($key)) {
-            throw new PrismJsoncException('patch input must be a JSON object');
-        }
-    }
-
-    $patched = PrismJsoncDocument::fromFile($file)->withValues($updates);
+    $patched = PrismJsoncDocument::fromFile($file)->withValues(get_object_vars($updates));
     $root = $patched->root();
 
     if ($mode === 'project') {
@@ -375,8 +369,24 @@ function cmd_migrate(array $argv): PrismCliResult
     $root = PrismJsoncDocument::fromFile($legacy)->root();
     pm_guard_source_version($root);
 
-    $canonical = pm_canonical_v5(pm_project_v5($root));
+    $projection = pm_project_v5($root);
+
+    if ($mode === 'project') {
+        PrismManifest::validateProject($projection);
+    } else {
+        PrismManifest::validateUser($projection);
+    }
+
+    $canonical = pm_canonical_v5($projection);
     PrismJsoncDocument::parse($canonical)->writeAtomic($target, intval($modeString, 8));
+
+    // Re-read the written target and verify it matches the projection before
+    // deleting the legacy source, so a torn write never loses the original.
+    $verified = PrismJsoncDocument::fromFile($target)->root();
+
+    if (!pm_objects_equal($verified, $projection)) {
+        throw new PrismJsoncException('migration target did not verify against its projection');
+    }
 
     if (!@unlink($legacy)) {
         throw new PrismJsoncException('cannot remove legacy file');
@@ -386,25 +396,45 @@ function cmd_migrate(array $argv): PrismCliResult
 }
 
 /**
- * check-secrets FILE — report non-empty committed env values.
+ * check-secrets FILE project|user — report non-empty committed env values.
  *
  * Walks the env section and prints the dotted key path of every value that is
  * not the empty string (a secret invariant violation). Values are never
- * printed. Exits 1 when any violation is found, 0 otherwise.
+ * printed. For project manifests a missing or non-object env is a structural
+ * violation and fails closed; for user manifests env is optional, but a
+ * present non-object env still fails closed. Exits 1 when any violation is
+ * found, 0 otherwise.
  *
  * @param  array<int, string> $argv
  * @return PrismCliResult
  */
 function cmd_check_secrets(array $argv): PrismCliResult
 {
-    if (count($argv) !== 3) {
-        return new PrismCliResult(2, stderr: 'prism_manifest: check-secrets requires one FILE argument');
+    if (count($argv) !== 4) {
+        return new PrismCliResult(2, stderr: 'prism_manifest: check-secrets requires FILE and project|user');
     }
 
-    $root = PrismJsoncDocument::fromFile($argv[2])->root();
+    [, , $file, $mode] = $argv;
+
+    if ($mode !== 'project' && $mode !== 'user') {
+        return new PrismCliResult(2, stderr: 'prism_manifest: check-secrets mode must be project or user');
+    }
+
+    $root = PrismJsoncDocument::fromFile($file)->root();
+    $hasEnv = property_exists($root, 'env');
+    $envIsObject = $hasEnv && $root->env instanceof \stdClass;
+
+    if ($mode === 'project' && !$envIsObject) {
+        throw new PrismJsoncException('project manifest env must be an object');
+    }
+
+    if ($mode === 'user' && $hasEnv && !$envIsObject) {
+        throw new PrismJsoncException('field env must be an object');
+    }
+
     $violations = [];
 
-    if (property_exists($root, 'env') && $root->env instanceof \stdClass) {
+    if ($envIsObject) {
         foreach (get_object_vars($root->env) as $key => $value) {
             if ($value !== '') {
                 $violations[] = 'env.' . $key;
@@ -420,17 +450,43 @@ function cmd_check_secrets(array $argv): PrismCliResult
 }
 
 /**
- * Guard that a source manifest is not a version newer than 5.
+ * Guard that a source manifest version is migratable.
+ *
+ * Accepts only positive integers no greater than 5 (older schemas that the
+ * projection can upgrade, plus 5 for idempotent migration). Rejects missing,
+ * non-integer, zero, negative, and newer-than-5 versions.
  *
  * @param  \stdClass $root
  * @return void
- * @throws PrismJsoncException  When setup_version is an integer greater than 5.
+ * @throws PrismJsoncException  When setup_version is absent or not an integer in [1, 5].
  */
 function pm_guard_source_version(\stdClass $root): void
 {
-    if (property_exists($root, 'setup_version') && is_int($root->setup_version) && $root->setup_version > 5) {
-        throw new PrismJsoncException('refusing source version newer than 5');
+    if (
+        !property_exists($root, 'setup_version')
+        || !is_int($root->setup_version)
+        || $root->setup_version < 1
+        || $root->setup_version > 5
+    ) {
+        throw new PrismJsoncException('setup_version must be a positive integer no greater than 5');
     }
+}
+
+/**
+ * Compare two decoded objects for semantic equality by normalized JSON form.
+ *
+ * Used to verify a freshly written migration target round-trips to the same
+ * tree as the projection computed before writing.
+ *
+ * @param  \stdClass $a
+ * @param  \stdClass $b
+ * @return bool
+ */
+function pm_objects_equal(\stdClass $a, \stdClass $b): bool
+{
+    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+
+    return json_encode($a, $flags) === json_encode($b, $flags);
 }
 
 /**
@@ -483,32 +539,52 @@ function pm_env_pairs(\stdClass $resolved): array
     $pairs = [];
 
     foreach (PRISM_ENV_MAP as $dotPath => $envName) {
-        $value = pm_resolve_dot($resolved, $dotPath);
-        $scalar = pm_scalar_to_string($value);
-
-        if (str_contains($scalar, "\0")) {
-            throw new PrismJsoncException('NUL byte in value for ' . $envName);
-        }
-
         $pairs[] = $envName;
-        $pairs[] = $scalar;
+        $pairs[] = pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $envName);
     }
 
     return $pairs;
 }
 
 /**
+ * Encode interleaved name/value pairs as NUL-delimited transport bytes.
+ *
+ * The trailing NUL terminator is always appended so a shell reader using
+ * paired {@code read -r -d ''} calls completes its final value read.
+ * Centralized so env0 and values0 cannot drift in framing.
+ *
+ * @param  list<string> $pairs  Interleaved [name, value, name, value, ...].
+ * @return string
+ */
+function pm_nul_pairs(array $pairs): string
+{
+    return implode("\0", $pairs) . "\0";
+}
+
+/**
  * Load and resolve a project manifest plus an optional user overlay.
+ *
+ * Both manifests are validated against their tier contract before overlay so
+ * that unsupported schema versions, missing required project fields, or an
+ * invalid user manifest fail closed here rather than reaching shell
+ * consumers downstream.
  *
  * @param  string          $projectFile
  * @param  string          $userDash  User path, or '-' for no user manifest.
  * @return \stdClass       Resolved overlay tree.
- * @throws PrismJsoncException  On a malformed or missing file.
+ * @throws PrismJsoncException  On a malformed/missing file or invalid manifest.
  */
 function pm_load_resolved(string $projectFile, string $userDash): \stdClass
 {
     $project = PrismJsoncDocument::fromFile($projectFile)->root();
-    $user = $userDash === '-' ? null : PrismJsoncDocument::fromFile($userDash)->root();
+    PrismManifest::validateProject($project);
+
+    $user = null;
+
+    if ($userDash !== '-') {
+        $user = PrismJsoncDocument::fromFile($userDash)->root();
+        PrismManifest::validateUser($user);
+    }
 
     return PrismManifest::resolve($project, $user);
 }
@@ -567,6 +643,29 @@ function pm_scalar_to_string(mixed $value): string
 }
 
 /**
+ * Coerce a decoded value to a NUL-safe transport string.
+ *
+ * Delegates to {@see pm_scalar_to_string} and then rejects any NUL byte,
+ * which would corrupt the NUL-delimited framing used by env0 and values0.
+ * Shared so both commands apply identical framing safety.
+ *
+ * @param  mixed  $value
+ * @param  string $label  Field/env name for the diagnostic (never a value).
+ * @return string
+ * @throws PrismJsoncException  When the value is non-scalar or holds a NUL byte.
+ */
+function pm_scalar_to_transport(mixed $value, string $label): string
+{
+    $scalar = pm_scalar_to_string($value);
+
+    if (str_contains($scalar, "\0")) {
+        throw new PrismJsoncException('NUL byte in value for ' . $label);
+    }
+
+    return $scalar;
+}
+
+/**
  * Immutable result of a CLI command: exit code plus captured stdout and stderr.
  */
 final class PrismCliResult
@@ -578,6 +677,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 

@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use KYAULabs\Prism\PrismJsoncException;
 
@@ -71,6 +74,26 @@ function pm_dispatch(array $args, string $stdin = ''): array
     $result = dispatch(array_merge(['script'], $args), $stdin);
 
     return [$result->exit, $result->stdout, $result->stderr];
+}
+
+/**
+ * Parse NUL-delimited pairs the way a bash {@code read -r -d ''} loop does.
+ *
+ * Returns the interleaved [key, value, ...] list, discarding the single
+ * trailing empty element produced by the terminal NUL terminator.
+ *
+ * @param  string $stdout
+ * @return list<string>
+ */
+function pm_parse_nul_pairs(string $stdout): array
+{
+    $parts = explode("\0", $stdout);
+
+    if ($parts !== [] && end($parts) === '') {
+        array_pop($parts);
+    }
+
+    return $parts;
 }
 
 /**
@@ -229,9 +252,10 @@ describe('prism_manifest env0', function (): void {
             [$code, $stdout, $stderr] = pm_dispatch(['env0', $project]);
 
             expect($code)->toBe(0)
-                ->and($stderr)->toBe('');
+                ->and($stderr)->toBe('')
+                ->and(substr($stdout, -1))->toBe("\0");
 
-            $parts = explode("\0", $stdout);
+            $parts = pm_parse_nul_pairs($stdout);
 
             expect($parts)->toHaveCount(30)
                 ->and($parts[0])->toBe('OPENCODE_MODEL_PRIMARY')
@@ -266,7 +290,7 @@ describe('prism_manifest env0', function (): void {
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
-            $parts = explode("\0", $stdout);
+            $parts = pm_parse_nul_pairs($stdout);
 
             expect($code)->toBe(0)
                 ->and($parts[1])->toBe('overridden')
@@ -282,7 +306,7 @@ describe('prism_manifest env0', function (): void {
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project]);
-            $parts = explode("\0", $stdout);
+            $parts = pm_parse_nul_pairs($stdout);
             $names = [];
 
             for ($i = 0; $i < count($parts); $i += 2) {
@@ -300,6 +324,155 @@ describe('prism_manifest env0', function (): void {
         $resolved = (object) ['models' => (object) ['primary' => "ba\0d"]];
 
         expect(fn () => pm_env_pairs($resolved))->toThrow(PrismJsoncException::class);
+    });
+});
+
+describe('prism_manifest resolved-load validation', function (): void {
+    it('env0 fails closed when the project manifest lacks setup_version', function (): void {
+        $project = pm_fixture('{ "app": "prism" }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project]);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('env0 fails closed when the project manifest has an unsupported schema version', function (): void {
+        $project = pm_fixture('{ "setup_version": 4 }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project]);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('env0 fails closed when the user manifest is malformed', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "app": ');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('get fails closed on an invalid project manifest', function (): void {
+        $project = pm_fixture('{ "setup_version": 4 }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['get', $project, '-', 'models.primary']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('values0 fails closed on an invalid project manifest', function (): void {
+        $project = pm_fixture('{ "setup_version": 4 }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['values0', $project, '-', 'setup_version']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('env0 accepts a valid project plus a valid partial user manifest', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "models": { "primary": "partial" } }');
+
+        try {
+            [$code] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(0);
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+});
+
+describe('prism_manifest NUL framing', function (): void {
+    it('env0 output ends with a trailing NUL byte when the last value is non-empty', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(0)
+                ->and(substr($stdout, -1))->toBe("\0");
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('values0 output ends with a trailing NUL byte when the last value is non-empty', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['values0', $project, '-', 'setup_version']);
+
+            expect($code)->toBe(0)
+                ->and(substr($stdout, -1))->toBe("\0");
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('env0 round-trips all fifteen NUL-delimited pairs through a read -d loop', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            // Simulate: while read -r -d '' key && read -r -d '' val
+            $pairs = [];
+            $rest = $stdout;
+
+            while (true) {
+                $kp = strpos($rest, "\0");
+                if ($kp === false) {
+                    break;
+                }
+                $key = substr($rest, 0, $kp);
+                $rest = substr($rest, $kp + 1);
+                $vp = strpos($rest, "\0");
+                if ($vp === false) {
+                    break;
+                }
+                $pairs[$key] = substr($rest, 0, $vp);
+                $rest = substr($rest, $vp + 1);
+            }
+
+            expect($code)->toBe(0)
+                ->and($pairs)->toHaveCount(15)
+                ->and($pairs['OPENCODE_MODEL_PRIMARY'])->toBe('m1')
+                ->and($pairs['SEARXNG_URL'])->toBe('http://x:8080');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
     });
 });
 
@@ -351,7 +524,7 @@ describe('prism_manifest values0', function (): void {
 
         try {
             [$code, $stdout] = pm_dispatch(['values0', $project, '-', 'setup_version', 'models.primary', 'project_folder']);
-            $parts = explode("\0", $stdout);
+            $parts = pm_parse_nul_pairs($stdout);
 
             expect($code)->toBe(0)
                 ->and($parts)->toBe(['setup_version', '5', 'models.primary', 'm1', 'project_folder', '']);
@@ -366,7 +539,7 @@ describe('prism_manifest values0', function (): void {
 
         try {
             [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name', 'signed_off_by_email']);
-            $parts = explode("\0", $stdout);
+            $parts = pm_parse_nul_pairs($stdout);
 
             expect($code)->toBe(0)
                 ->and($parts)->toBe(['signed_off_by_name', 'alice', 'signed_off_by_email', 'git@kyaulabs.com']);
@@ -386,6 +559,21 @@ describe('prism_manifest values0', function (): void {
                 ->and($stdout)->toBe('');
         } finally {
             pm_clean($project);
+        }
+    });
+
+    it('fails closed when a value contains a NUL byte', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "signed_off_by_name": "evil\u0000inject" }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
         }
     });
 });
@@ -507,6 +695,47 @@ describe('prism_manifest patch', function (): void {
         'json scalar' => ['"hello"'],
         'json number' => ['42'],
     ]);
+
+    it('rejects an empty JSON array as patch input', function (): void {
+        $fixture = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code] = pm_dispatch(['patch', $fixture, 'project', '0644'], '[]');
+
+            expect($code)->toBe(1);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+
+    it('preserves an empty nested object as an object through patch', function (): void {
+        $fixture = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code] = pm_dispatch(['patch', $fixture, 'project', '0644'], '{"extras": {}}');
+
+            $root = PrismJsoncDocument::fromFile($fixture)->root();
+
+            expect($code)->toBe(0)
+                ->and($root->extras)->toBeObject()
+                ->and($root->extras)->not->toBeArray();
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+
+    it('accepts an empty patch object as a validating no-op write', function (): void {
+        $fixture = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code] = pm_dispatch(['patch', $fixture, 'project', '0644'], '{}');
+
+            expect($code)->toBe(0)
+                ->and(fileperms($fixture) & 0777)->toBe(0644);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
 });
 
 describe('prism_manifest migrate-preview', function (): void {
@@ -528,6 +757,62 @@ describe('prism_manifest migrate-preview', function (): void {
 });
 
 describe('prism_manifest migrate', function (): void {
+    it('refuses to migrate when the v5 projection fails project validation, preserving the legacy', function (): void {
+        $legacy = pm_fixture('{ "setup_version": 4 }');
+        $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
+
+        try {
+            [$code, $stdout] = pm_dispatch(['migrate', $legacy, $target, 'project', '0644']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('')
+                ->and(file_exists($legacy))->toBeTrue()
+                ->and(file_exists($target))->toBeFalse();
+        } finally {
+            pm_clean($legacy);
+            pm_clean($target);
+        }
+    });
+
+    it('refuses to migrate when the v5 projection fails user validation, preserving the legacy', function (): void {
+        $legacy = pm_fixture('{ "setup_version": 4, "accent": "red" }');
+        $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
+
+        try {
+            [$code, $stdout] = pm_dispatch(['migrate', $legacy, $target, 'user', '0644']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('')
+                ->and(file_exists($legacy))->toBeTrue()
+                ->and(file_exists($target))->toBeFalse();
+        } finally {
+            pm_clean($legacy);
+            pm_clean($target);
+        }
+    });
+
+    it('rejects a source whose setup_version is not a positive integer no greater than 5', function (string $versionPayload): void {
+        $legacy = pm_fixture('{ "setup_version": ' . $versionPayload . ' }');
+        $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
+
+        try {
+            [$code] = pm_dispatch(['migrate', $legacy, $target, 'project', '0644']);
+
+            expect($code)->toBe(1)
+                ->and(file_exists($legacy))->toBeTrue()
+                ->and(file_exists($target))->toBeFalse();
+        } finally {
+            pm_clean($legacy);
+            pm_clean($target);
+        }
+    })->with([
+        'zero' => ['0'],
+        'negative' => ['-1'],
+        'string' => ['"abc"'],
+        'null' => ['null'],
+        'newer than 5' => ['6'],
+    ]);
+
     it('refuses to migrate when the target already exists', function (): void {
         $legacy = pm_fixture('{ "setup_version": 4 }');
         $target = pm_fixture('pre-existing target');
@@ -587,7 +872,7 @@ describe('prism_manifest check-secrets', function (): void {
         $fixture = pm_fixture('{ "env": { "deepseek_api_key": "", "searxng_url": "" } }');
 
         try {
-            [$code, $stdout] = pm_dispatch(['check-secrets', $fixture]);
+            [$code, $stdout] = pm_dispatch(['check-secrets', $fixture, 'project']);
 
             expect($code)->toBe(0)
                 ->and($stdout)->toBe('');
@@ -596,11 +881,11 @@ describe('prism_manifest check-secrets', function (): void {
         }
     });
 
-    it('exits 0 when there is no env section', function (): void {
+    it('exits 0 for a user manifest with no env section', function (): void {
         $fixture = pm_fixture('{ "setup_version": 5 }');
 
         try {
-            [$code] = pm_dispatch(['check-secrets', $fixture]);
+            [$code] = pm_dispatch(['check-secrets', $fixture, 'user']);
 
             expect($code)->toBe(0);
         } finally {
@@ -612,7 +897,7 @@ describe('prism_manifest check-secrets', function (): void {
         $fixture = pm_fixture('{ "env": { "deepseek_api_key": "super-secret-value" } }');
 
         try {
-            [$code, $stdout] = pm_dispatch(['check-secrets', $fixture]);
+            [$code, $stdout] = pm_dispatch(['check-secrets', $fixture, 'project']);
 
             expect($code)->toBe(1)
                 ->and($stdout)->toContain('env.deepseek_api_key')
@@ -626,7 +911,7 @@ describe('prism_manifest check-secrets', function (): void {
         $fixture = pm_fixture('{ "env": { "searxng_url": "http://secret-host:8080" } }');
 
         try {
-            [$code, $stdout, $stderr] = pm_dispatch(['check-secrets', $fixture]);
+            [$code, $stdout, $stderr] = pm_dispatch(['check-secrets', $fixture, 'project']);
 
             expect($code)->toBe(1)
                 ->and($stdout)->toContain('env.searxng_url')
@@ -640,9 +925,64 @@ describe('prism_manifest check-secrets', function (): void {
         $fixture = pm_fixture('{ "env": { "deepseek_api_key": 5 } }');
 
         try {
-            [$code] = pm_dispatch(['check-secrets', $fixture]);
+            [$code] = pm_dispatch(['check-secrets', $fixture, 'project']);
 
             expect($code)->toBe(1);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+});
+
+describe('prism_manifest check-secrets env contract', function (): void {
+    it('fails closed for a project manifest with no env section', function (): void {
+        $fixture = pm_fixture('{ "setup_version": 5 }');
+
+        try {
+            [$code] = pm_dispatch(['check-secrets', $fixture, 'project']);
+
+            expect($code)->toBe(1);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+
+    it('fails closed for a project manifest whose env is not an object', function (string $envJson): void {
+        $fixture = pm_fixture('{ "env": ' . $envJson . ' }');
+
+        try {
+            [$code] = pm_dispatch(['check-secrets', $fixture, 'project']);
+
+            expect($code)->toBe(1);
+        } finally {
+            pm_clean($fixture);
+        }
+    })->with([
+        'string env' => ['"not-an-object"'],
+        'array env' => ['[]'],
+        'number env' => ['5'],
+    ]);
+
+    it('accepts a user manifest with no env section', function (): void {
+        $fixture = pm_fixture('{ "setup_version": 5 }');
+
+        try {
+            [$code] = pm_dispatch(['check-secrets', $fixture, 'user']);
+
+            expect($code)->toBe(0);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+
+    it('accepts a project manifest with an object env of empty values', function (): void {
+        $fixture = pm_fixture('{ "env": { "deepseek_api_key": "", "searxng_url": "" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['check-secrets', $fixture, 'project']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('');
         } finally {
             pm_clean($fixture);
         }
@@ -711,6 +1051,7 @@ describe('prism_manifest process boundary', function (): void {
         'migrate mode' => [['migrate', 'x', 'y', 'bogus', '0644']],
         'migrate octal' => [['migrate', 'x', 'y', 'project', '644']],
         'check-secrets arity' => [['check-secrets']],
+        'check-secrets mode' => [['check-secrets', 'x', 'bogus']],
     ]);
 });
 
@@ -753,6 +1094,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 

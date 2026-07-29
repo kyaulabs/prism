@@ -128,7 +128,7 @@ final class PrismManifest
     public static function validateProject(\stdClass $manifest): void
     {
         self::requireVersion($manifest);
-        self::requireNonEmptyString($manifest, 'timestamp');
+        self::requireTimestamp($manifest, 'timestamp');
         self::requireBoolean($manifest, 'configured');
 
         foreach (['app', 'domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
@@ -147,23 +147,22 @@ final class PrismManifest
     /**
      * Validate a partial schema-v5 user manifest.
      *
-     * Presence is optional for every field except that setup_version, when
-     * supplied, must be exactly 5. Any present field must still carry a
-     * correct type and value (enums, non-empty strings, booleans). Unlike the
-     * project manifest, non-empty env overrides are permitted because the
-     * user manifest is the legitimate secret home.
+     * setup_version is required and must be exactly 5. Every other field is
+     * optional, but any present field must still carry a correct type and
+     * value (enums, non-empty strings, booleans). Unlike the project
+     * manifest, non-empty env overrides are permitted because the user
+     * manifest is the legitimate secret home.
      *
      * @param  \stdClass $manifest
      * @return void
-     * @throws PrismJsoncException  On a wrong-typed or wrong-valued present field.
+     * @throws PrismJsoncException  On a missing or wrong setup_version, or a
+     *                              wrong-typed/wrong-valued present field.
      */
     public static function validateUser(\stdClass $manifest): void
     {
-        if (property_exists($manifest, 'setup_version')) {
-            self::requireVersion($manifest);
-        }
+        self::requireVersion($manifest);
 
-        self::optionalNonEmptyString($manifest, 'timestamp');
+        self::optionalTimestamp($manifest, 'timestamp');
         self::optionalBoolean($manifest, 'configured');
 
         foreach (['app', 'domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
@@ -210,6 +209,23 @@ final class PrismManifest
         }
 
         self::assertNonEmptyString($manifest, $field);
+    }
+
+    /**
+     * Require a present ISO-8601 timestamp field; throw if missing or malformed.
+     *
+     * @param  \stdClass $manifest
+     * @param  string    $field
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function requireTimestamp(\stdClass $manifest, string $field): void
+    {
+        if (!property_exists($manifest, $field)) {
+            throw new PrismJsoncException('missing required field: ' . $field);
+        }
+
+        self::guardTimestamp($manifest->{$field}, $field);
     }
 
     /**
@@ -375,6 +391,21 @@ final class PrismManifest
     }
 
     /**
+     * Validate a present ISO-8601 timestamp field; no-op when absent.
+     *
+     * @param  \stdClass $manifest
+     * @param  string    $field
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function optionalTimestamp(\stdClass $manifest, string $field): void
+    {
+        if (property_exists($manifest, $field)) {
+            self::guardTimestamp($manifest->{$field}, $field);
+        }
+    }
+
+    /**
      * Validate a present boolean field; no-op when absent.
      *
      * @param  \stdClass $manifest
@@ -496,6 +527,59 @@ final class PrismManifest
         if (!is_string($value) || $value === '') {
             throw new PrismJsoncException('field ' . $path . ' must be a non-empty string');
         }
+    }
+
+    /**
+     * Guard that a present value is a non-empty ISO-8601 timestamp string.
+     *
+     * Accepts the date, date-time-with-Z, and date-time-with-offset subsets
+     * (e.g. {@code 2026-07-28}, {@code 2026-07-28T14:30:00Z},
+     * {@code 2026-07-28T14:30:00+00:00}). A well-shaped but impossible date
+     * (e.g. month 13) is rejected via {@see \DateTimeImmutable} overflow
+     * warnings.
+     *
+     * @param  mixed  $value
+     * @param  string $path  Dotted field path for the diagnostic.
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function guardTimestamp(mixed $value, string $path): void
+    {
+        if (!is_string($value) || $value === '') {
+            throw new PrismJsoncException('field ' . $path . ' must be a non-empty string');
+        }
+
+        if (!self::isIso8601($value)) {
+            throw new PrismJsoncException('field ' . $path . ' must be an ISO-8601 timestamp');
+        }
+    }
+
+    /**
+     * Whether a string is a real ISO-8601 timestamp in the accepted subset.
+     *
+     * @param  string $value
+     * @return bool
+     */
+    private static function isIso8601(string $value): bool
+    {
+        if (
+            preg_match(
+                '/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/',
+                $value,
+            ) !== 1
+        ) {
+            return false;
+        }
+
+        $parsed = @date_create_immutable($value);
+
+        if ($parsed === false) {
+            return false;
+        }
+
+        $errors = \DateTimeImmutable::getLastErrors();
+
+        return $errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0);
     }
 
     /**
@@ -634,6 +718,7 @@ final class PrismManifest
         }
     }
 }
+
 
 
 

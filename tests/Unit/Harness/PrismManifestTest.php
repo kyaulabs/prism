@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
 
 use KYAULabs\Prism\PrismJsoncException;
@@ -241,6 +244,26 @@ describe('PrismManifest::validateProject', function (): void {
         'missing experimental flag' => ['experimental.lsp_tool', '__unset'],
         'env value non-string' => ['env.searxng_url', 5],
     ]);
+
+    it('rejects a project manifest whose timestamp is not ISO-8601', function (): void {
+        $manifest = pm_valid_project();
+        $manifest->timestamp = 'not-a-date';
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts ISO-8601 timestamp variants', function (string $timestamp): void {
+        $manifest = pm_valid_project();
+        $manifest->timestamp = $timestamp;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+    })->with([
+        'date-time with Z' => ['2026-07-28T14:30:00Z'],
+        'date-time with offset' => ['2026-07-28T14:30:00+00:00'],
+        'date only' => ['2026-07-28'],
+    ]);
 });
 
 describe('PrismManifest::validateUser', function (): void {
@@ -255,16 +278,18 @@ describe('PrismManifest::validateUser', function (): void {
         expect($validate)->not->toThrow(PrismJsoncException::class);
     });
 
-    it('accepts an empty user manifest', function (): void {
-        $validate = function (): void {
-            PrismManifest::validateUser((object) []);
-        };
-
-        expect($validate)->not->toThrow(PrismJsoncException::class);
+    it('rejects an empty user manifest because setup_version is required', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) []))
+            ->toThrow(PrismJsoncException::class);
     });
 
     it('requires setup_version to be exactly 5 when present', function (): void {
         expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 4]))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('requires setup_version even when other fields are present', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) ['models' => (object) ['primary' => 'x']]))
             ->toThrow(PrismJsoncException::class);
     });
 
@@ -293,6 +318,7 @@ describe('PrismManifest::validateUser', function (): void {
         'env non-string value' => [(object) ['setup_version' => 5, 'env' => (object) ['deepseek_api_key' => 5]]],
     ]);
 });
+
 
 
 

@@ -166,30 +166,36 @@ final class PrismJsoncDocument
     }
 
     /**
-     * Patch owned value spans, preserving every unrelated byte.
+     * Patch owned value spans compositionally, preserving every unrelated byte.
      *
-     * Existing values are replaced right to left so earlier offsets stay
-     * valid. Missing leaves are inserted before the owning object's closing
-     * brace, recursively creating missing object ancestors. Values that
-     * already match are skipped; when every requested value already matches
-     * the source is returned byte-identical. The patched source is reparsed
-     * before being returned.
+     * The flat dot-path map is first folded into a single nested request tree.
+     * Two dot paths where one is an ancestor of the other (e.g. {@code models}
+     * and {@code models.primary}) describe conflicting edits and are rejected
+     * with a {@see PrismJsoncException} rather than silently producing
+     * overlapping or partially-applied edits. The request tree is then walked
+     * alongside the document tree as one cohesive batch: existing leaves are
+     * replaced right to left so earlier offsets stay valid, while every new
+     * property destined for the same container — including shared missing
+     * ancestors — is coalesced into a single comma-separated insertion so the
+     * emitted JSONC is always well-formed. Values that already match are
+     * skipped; when every requested value already matches the source is
+     * returned byte-identical. The patched source is reparsed before return.
      *
      * @param  array<string, mixed> $dotPathValues  Dot-path => replacement value.
      * @return self
-     * @throws PrismJsoncException  On a scalar-ancestor collision or reparsed malformed result.
+     * @throws PrismJsoncException  On overlapping paths, a scalar-ancestor
+     *                              collision, or a reparsed malformed result.
      */
     public function withValues(array $dotPathValues): self
     {
-        $edits = [];
-
-        foreach ($dotPathValues as $dotPath => $value) {
-            $segments = self::parseDotPath($dotPath);
-            $edit = $this->computeEdit($segments, $value);
-            if ($edit !== null) {
-                $edits[] = $edit;
-            }
+        if ($dotPathValues === []) {
+            return self::parse($this->source);
         }
+
+        $request = self::buildRequestTree($dotPathValues);
+
+        $edits = [];
+        $this->collectEdits($this->tree, $this->root, '', $request, $edits);
 
         if ($edits === []) {
             return self::parse($this->source);
@@ -206,98 +212,149 @@ final class PrismJsoncDocument
     }
 
     /**
-     * Compute the source edit (or null for an idempotent no-op) for one path.
+     * Fold the flat dot-path map into a nested request tree.
      *
-     * Walks the node tree, replacing an existing leaf, inserting a missing
-     * leaf (creating missing ancestors), or throwing on a scalar ancestor
-     * that cannot be descended into.
+     * Each node is either {@code ['leaf', $value]} (an atomic replacement) or
+     * {@code ['tree', [segment => node, ...]]} (an object to merge or create).
+     * Parent/descendant overlaps are detected during nesting and rejected: a
+     * path that sets a prefix already claimed as a leaf, or claims a leaf at a
+     * prefix already expanded into a tree, throws.
      *
-     * @param  list<string> $segments
-     * @param  mixed $value
-     * @return array|null  Edit map with 'start', 'end', 'text'; or null.
-     * @throws PrismJsoncException  On a scalar-ancestor collision.
+     * @param  array<string, mixed> $dotPathValues
+     * @return array  Root request node, always a tree node.
+     * @throws PrismJsoncException  On an invalid or overlapping dot path.
      */
-    private function computeEdit(array $segments, mixed $value): ?array
+    private static function buildRequestTree(array $dotPathValues): array
     {
-        $count = \count($segments);
-        $node = $this->tree;
-        $path = '';
+        $root = ['tree', []];
 
-        for ($depth = 0; $depth < $count; $depth++) {
-            $segment = $segments[$depth];
-            $path = ($path === '' ? '' : $path . '.') . $segment;
+        foreach ($dotPathValues as $dotPath => $value) {
+            $segments = self::parseDotPath($dotPath);
+            $lastIndex = \count($segments) - 1;
+            $node = &$root;
 
-            if ($node['kind'] !== 'object') {
-                throw new PrismJsoncException('scalar ancestor collision at ' . $path);
-            }
+            foreach ($segments as $i => $segment) {
+                if ($i === $lastIndex) {
+                    if (\array_key_exists($segment, $node[1])) {
+                        throw new PrismJsoncException('overlapping dot path at ' . $segment);
+                    }
 
-            if (!isset($node['props'][$segment])) {
-                $tail = \array_slice($segments, $depth + 1);
-                $encodedValue = self::encodeObjectPath($tail, $value);
-
-                return $this->buildInsertionEdit($node, $segment, $encodedValue);
-            }
-
-            $childNode = $node['props'][$segment]['value'];
-
-            if ($depth === $count - 1) {
-                if (self::valuesEqual($this->resolveValue($segments), $value)) {
-                    return null;
+                    $node[1][$segment] = ['leaf', $value];
+                    break;
                 }
 
-                return ['start' => $childNode['start'], 'end' => $childNode['end'], 'text' => self::encodeValue($value)];
+                if (!\array_key_exists($segment, $node[1])) {
+                    $node[1][$segment] = ['tree', []];
+                } elseif ($node[1][$segment][0] !== 'tree') {
+                    throw new PrismJsoncException('overlapping dot path at ' . $segment);
+                }
+
+                $node = &$node[1][$segment];
             }
 
-            if ($childNode['kind'] !== 'object') {
-                throw new PrismJsoncException('scalar ancestor collision at ' . $path);
-            }
-
-            $node = $childNode;
+            unset($node);
         }
 
-        return null;
+        return $root;
     }
 
     /**
-     * Encode a chain of missing object segments wrapping the final value.
+     * Walk a request tree against a document container, accumulating edits.
      *
-     * encodeObjectPath([], v) => the encoded value; encodeObjectPath([a,b], v)
-     * => {"a": {"b": <value>}}.
+     * Existing leaves whose decoded value differs are replaced; existing
+     * objects are descended into recursively; descending into a non-object
+     * (scalar/array) ancestor throws. Every new property bound for this one
+     * container is collected and emitted as a single coalesced insertion.
      *
-     * @param  list<string> $segments
-     * @param  mixed $value
+     * @param  array     $container   Document object node.
+     * @param  \stdClass $decoded     Decoded object mirroring $container.
+     * @param  string    $path        Dotted path of $container for diagnostics.
+     * @param  array     $request     Request tree node.
+     * @param  list<array> $edits     Edit list (appended by-ref).
+     * @return void
+     * @throws PrismJsoncException  On a scalar-ancestor collision.
+     */
+    private function collectEdits(array $container, \stdClass $decoded, string $path, array $request, array &$edits): void
+    {
+        $newProps = [];
+
+        foreach ($request[1] as $segment => $childRequest) {
+            $childPath = ($path === '' ? '' : $path . '.') . $segment;
+
+            if (\array_key_exists($segment, $container['props'])) {
+                $docChild = $container['props'][$segment]['value'];
+
+                if ($childRequest[0] === 'leaf') {
+                    if (!self::valuesEqual($decoded->{$segment}, $childRequest[1])) {
+                        $edits[] = [
+                            'start' => $docChild['start'],
+                            'end' => $docChild['end'],
+                            'text' => self::encodeValue($childRequest[1]),
+                        ];
+                    }
+                } elseif ($docChild['kind'] !== 'object') {
+                    throw new PrismJsoncException('scalar ancestor collision at ' . $childPath);
+                } else {
+                    $this->collectEdits($docChild, $decoded->{$segment}, $childPath, $childRequest, $edits);
+                }
+            } else {
+                $newProps[$segment] = $childRequest;
+            }
+        }
+
+        if ($newProps !== []) {
+            $edits[] = $this->buildCoalescedInsertion($container, $newProps);
+        }
+    }
+
+    /**
+     * Encode a request node as the value text of a new property.
+     *
+     * A leaf encodes to its JSON value; a tree encodes to a nested object
+     * literal built recursively, matching the {@code {"a": {"b": v}}} form.
+     *
+     * @param  array $node  Request node (leaf or tree).
      * @return string
      */
-    private static function encodeObjectPath(array $segments, mixed $value): string
+    private static function encodeRequestNode(array $node): string
     {
-        if ($segments === []) {
-            return self::encodeValue($value);
+        if ($node[0] === 'leaf') {
+            return self::encodeValue($node[1]);
         }
 
-        $key = self::encodeKeyString(\array_shift($segments));
+        $parts = [];
+        foreach ($node[1] as $segment => $child) {
+            $parts[] = self::encodeKeyString($segment) . ': ' . self::encodeRequestNode($child);
+        }
 
-        return '{' . $key . ': ' . self::encodeObjectPath($segments, $value) . '}';
+        return '{' . implode(', ', $parts) . '}';
     }
 
     /**
-     * Build the insertion edit for a new property in a container object.
+     * Build one coalesced insertion edit for all new properties of a container.
      *
-     * Non-empty containers append after the last value; empty containers are
-     * expanded to a multi-line form using the closing brace's indentation.
+     * Non-empty containers append after the last existing value; empty
+     * containers expand to a multi-line form using the closing brace's
+     * indentation. Properties are comma-separated so the result is always
+     * well-formed regardless of how many new keys share the container.
      *
-     * @param  array  $container     Object node receiving the property.
-     * @param  string $key           Decoded key of the new property.
-     * @param  string $encodedValue  Already-encoded value (or nested object).
+     * @param  array                $container  Object node receiving the properties.
+     * @param  array<string, array> $newProps   Decoded key => request node.
      * @return array  Edit map with 'start', 'end', 'text'.
      */
-    private function buildInsertionEdit(array $container, string $key, string $encodedValue): array
+    private function buildCoalescedInsertion(array $container, array $newProps): array
     {
-        $propertyText = self::encodeKeyString($key) . ': ' . $encodedValue;
+        $propertyTexts = [];
+        foreach ($newProps as $segment => $childRequest) {
+            $propertyTexts[] = self::encodeKeyString($segment) . ': ' . self::encodeRequestNode($childRequest);
+        }
 
         if ($container['props'] === []) {
             $closeIndent = self::indentBefore($this->source, $container['close']);
+            $innerIndent = $closeIndent . '  ';
             $insertAt = $container['open'] + 1;
-            $text = "\n" . $closeIndent . '  ' . $propertyText . "\n" . $closeIndent;
+            $body = implode(",\n" . $innerIndent, $propertyTexts);
+            $text = "\n" . $innerIndent . $body . "\n" . $closeIndent;
 
             return ['start' => $insertAt, 'end' => $insertAt, 'text' => $text];
         }
@@ -306,7 +363,8 @@ final class PrismJsoncDocument
         $lastProp = $container['props'][$lastKey];
         $keyIndent = self::indentBefore($this->source, $lastProp['keyStart']);
         $insertAt = $lastProp['value']['end'];
-        $text = ",\n" . $keyIndent . $propertyText;
+        $body = implode(",\n" . $keyIndent, $propertyTexts);
+        $text = ",\n" . $keyIndent . $body;
 
         return ['start' => $insertAt, 'end' => $insertAt, 'text' => $text];
     }
@@ -740,26 +798,6 @@ final class PrismJsoncDocument
     }
 
     /**
-     * Resolve a dot path to its decoded value in the root object.
-     *
-     * @param  list<string> $segments
-     * @return mixed  Decoded value, or null if absent.
-     */
-    private function resolveValue(array $segments): mixed
-    {
-        $current = $this->root;
-
-        foreach ($segments as $segment) {
-            if (!($current instanceof \stdClass) || !\property_exists($current, $segment)) {
-                return null;
-            }
-            $current = $current->{$segment};
-        }
-
-        return $current;
-    }
-
-    /**
      * Compare two decoded values for idempotency by normalized JSON form.
      *
      * @param  mixed $a
@@ -852,6 +890,7 @@ final class PrismJsoncDocument
             || $ch === ':' || $ch === ',' || $ch === '/' || $ch === '"';
     }
 }
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
