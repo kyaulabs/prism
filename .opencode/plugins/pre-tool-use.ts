@@ -1,4 +1,5 @@
-// $KYAULabs: pre-tool-use.ts kyau@nova 2026/07/21 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
+
 
 
 
@@ -10,6 +11,7 @@
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
+import { DenialOutcomeTracker, type ToolCallSnapshot } from "./denial-circuit-breaker.ts";
 
 /**
  * Tokenize a command segment on whitespace outside quotes.
@@ -432,14 +434,102 @@ const _assertToolExecuteBeforeValid: "tool.execute.before" extends keyof Hooks
     : never = true;
 void _assertToolExecuteBeforeValid;
 
+// Compile-time guard: abort build if the SDK ever drops the event hook key.
+const _assertEventValid: "event" extends keyof Hooks ? true : never = true;
+void _assertEventValid;
+
+// Compile-time guard: abort build if the SDK ever drops this hook key.
+const _assertToolExecuteAfterValid: "tool.execute.after" extends keyof Hooks
+    ? true
+    : never = true;
+void _assertToolExecuteAfterValid;
+
+// Compile-time guard: abort build if the SDK ever drops the dispose hook key.
+const _assertDisposeValid: "dispose" extends keyof Hooks ? true : never = true;
+void _assertDisposeValid;
+
+/**
+ * Consecutive bash denials required to trip the circuit breaker (ADR-0042 /
+ * issue #274). Matches the upstream doom_loop identical-input threshold. Kept
+ * as a single module-level constant so the breaker config and the redacted
+ * escalation log always report the same value.
+ */
+const TRIP_THRESHOLD = 3;
+
 /**
  * PreToolUse safety hook plugin. Intercepts bash tool calls and blocks or
  * warns on destructive commands. Fails closed: a classifier error blocks
  * the command. See ADR-0023, ADR-0036.
  */
 export const PreToolUse: Plugin = async ({ directory, client }) => {
+    // Consecutive-bash-denial circuit breaker (ADR-0042 / issue #274). One
+    // tracker per plugin instance isolates denial counts per agent invocation.
+    const breaker = new DenialOutcomeTracker({ threshold: TRIP_THRESHOLD });
+
+    /**
+     * Escalate a circuit-breaker trip: emit a redacted diagnostic log, then
+     * abort the offending session.
+     *
+     * The log payload is deliberately minimal — only identity and count
+     * fields. It NEVER includes command text, args, output, title, metadata,
+     * resources, or freeform error messages (ADR-0042 redaction invariant).
+     * The log is best-effort (fire-and-forget); a logging failure must not
+     * prevent the abort.
+     *
+     * The abort MUST succeed to unblock the session. A non-`true` response
+     * body or a network rejection propagates so the caller fails closed per
+     * ADR-0036.
+     *
+     * @param  sessionID  The tripped agent invocation.
+     * @param  callID     The bash call that crossed the threshold.
+     * @param  count      Consecutive-denial count at the trip transition.
+     * @throws Error  When the abort returns an error or a non-true body.
+     */
+    async function escalate(
+        sessionID: string,
+        callID: string,
+        count: number,
+    ): Promise<void> {
+        client.app
+            .log({
+                body: {
+                    service: "denial-circuit-breaker",
+                    level: "error",
+                    message: "Consecutive Bash denial threshold reached",
+                    extra: {
+                        event: "circuit_breaker_tripped",
+                        sessionID,
+                        callID,
+                        tool: "bash",
+                        count,
+                        threshold: TRIP_THRESHOLD,
+                    },
+                },
+            })
+            .catch(() => {});
+
+        const result = await client.session.abort({ path: { id: sessionID } });
+        if (result.error || result.data !== true) {
+            throw new Error(
+                `[pre-tool-use] circuit-breaker abort failed for session ${sessionID} ` +
+                `— fail-closed per ADR-0036`,
+            );
+        }
+    }
+
     const hooks: Hooks = {
         "tool.execute.before": async (input, output) => {
+            // Circuit-breaker tripped guard (ADR-0042): block ALL tool calls
+            // while the session is tripped, before the safety classifier runs.
+            // Runs before the non-bash early-return so a tripped session cannot
+            // make progress through any tool.
+            if (breaker.isTripped(input.sessionID)) {
+                throw new Error(
+                    `[pre-tool-use] BLOCKED: session ${input.sessionID} is tripped ` +
+                    `(${breaker.count(input.sessionID)} consecutive bash denials) — ` +
+                    `circuit breaker active per ADR-0042`,
+                );
+            }
             if (input.tool !== "bash") return;
             const command: string = output?.args?.command ?? "";
             let finding: Finding;
@@ -469,9 +559,41 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
                     .catch(() => {});
             }
         },
+        event: async ({ event }) => {
+            if (event.type === "message.part.updated") {
+                const part = event.properties.part;
+                if (part.type === "tool") {
+                    const snapshot: ToolCallSnapshot = {
+                        sessionID: part.sessionID,
+                        callID: part.callID,
+                        tool: part.tool,
+                        status: part.state.status,
+                    };
+                    const result = breaker.observePart(snapshot);
+                    if (result?.transitioned) {
+                        await escalate(part.sessionID, part.callID, result.count);
+                    }
+                }
+            } else if (event.type === "session.idle") {
+                // Session finished — drop its streak so a later re-run starts fresh.
+                breaker.clearSession(event.properties.sessionID);
+            } else if (event.type === "session.deleted") {
+                breaker.clearSession(event.properties.info.id);
+            }
+        },
+        "tool.execute.after": async (input) => {
+            // A bash `after` means the call executed (exit 0, nonzero exit, or
+            // ask-approved) — not a denial. Settling it resets the streak.
+            breaker.observeAfter(input.sessionID, input.callID, input.tool);
+        },
+        dispose: async () => {
+            // Lifecycle teardown: drop every session's breaker state.
+            breaker.clearAll();
+        },
     };
     return hooks;
 };
+
 
 
 
