@@ -40,4 +40,5 @@ eslint.config.mjs
 commitlint.config.js
 tsconfig.json
 cliff.toml
+prism.jsonc
 tests/Shell/lib/test_helpers.sh
