@@ -1,59 +1,56 @@
 #!/usr/bin/env bash
-# $KYAULabs: check-setup-secrets.sh kyau@cosmos.kyaulabs 2026/07/25 -0700 Exp $
+# $KYAULabs: check-setup-secrets.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
 
 
 
 
 
-# ── Secret-slot guard for tracked .opencode/setup.json (issue #194) ──────────
-# Enforces ADR-0032's contract: the committed project setup.json ships EMPTY
-# env defaults; real API keys/URLs belong in the user-level
-# ~/.config/opencode/setup.json. A non-empty env.* value here means a secret
+# ── Secret-slot guard for tracked prism.jsonc (issue #194, ADR-0043) ────────
+# Enforces the project-tier secret invariant: the committed root prism.jsonc
+# ships EMPTY env defaults; real API keys/URLs belong in the user-level
+# ~/.config/opencode/prism.jsonc. A non-empty env.* value here means a secret
 # is about to be committed.
 #
-# Usage: check-setup-secrets.sh [path]    (path defaults to .opencode/setup.json)
-# Exit 0: every env.* value is empty (or file/env absent).
-# Exit 1: any env.* value is non-empty, jq is missing, the file is not valid
-#         JSON, or the env section has an unexpected schema (fail-closed).
+# JSONC parsing and violation detection are delegated to the dependency-free
+# prism_manifest.php CLI (check-secrets, project mode), which prints only
+# violating key paths — never values — and fails closed on malformed JSONC,
+# duplicate keys, a missing/non-object env, or a missing manifest.
+#
+# Usage: check-setup-secrets.sh [path]    (path defaults to prism.jsonc)
+# Exit 0: every env.* value is empty.
+# Exit 1: any env.* value is non-empty, php is missing, the file is absent or
+#         not valid JSONC, or the env section has an unexpected schema
+#         (fail-closed).
 
 set -euo pipefail
 
-SETUP_JSON="${1:-.opencode/setup.json}"
+# Resolve the script's own directory via bash builtins only (no coreutils),
+# so self-location does not depend on anything else being on PATH.
+SELF="${BASH_SOURCE[0]}"
+case "$SELF" in
+	*/*) DIR=$(cd "${SELF%/*}" && pwd) ;;
+	*)   DIR=$(pwd) ;;
+esac
+CLI="$DIR/prism_manifest.php"
 
-# No file in this checkout — nothing to guard (e.g. scaffold skip mode).
-[ -f "$SETUP_JSON" ] || exit 0
+MANIFEST="${1:-prism.jsonc}"
 
-# jq is a hard prerequisite of .envrc (ADR-0029). Fail closed if absent — a
-# missing dependency must not silently disable a secret guard.
-if ! command -v jq >/dev/null 2>&1; then
-	echo "ERROR: jq required by check-setup-secrets.sh but not found." >&2
+# PHP is the hard prerequisite of the manifest boundary. Fail closed if absent
+# — a missing dependency must not silently disable a secret guard.
+if ! command -v php >/dev/null 2>&1; then
+	echo "ERROR: php required by check-setup-secrets.sh but not found." >&2
 	exit 1
 fi
 
-# Fail closed on malformed JSON: cannot verify hygiene of an unparseable file.
-if ! jq -e . "$SETUP_JSON" >/dev/null 2>&1; then
-	echo "ERROR: $SETUP_JSON is not valid JSON — cannot verify secret hygiene." >&2
-	exit 1
-fi
-
-# Uniform rule (issue #194): ANY non-empty env.* value is a violation. The
-# `if ! VAR=$(...)` form makes a jq schema error (e.g. non-object env) fail
-# closed instead of silently passing.
-if ! VIOLATIONS=$(jq -r '
-	(.env // {})
-	| to_entries[]
-	| select(.value != null and .value != "")
-	| "  env.\(.key)"
-' "$SETUP_JSON" 2>/dev/null); then
-	echo "ERROR: could not evaluate the env section of $SETUP_JSON (unexpected schema)." >&2
-	exit 1
-fi
-
-if [ -n "$VIOLATIONS" ]; then
-	echo "✗ Non-empty secret/env values found in tracked $SETUP_JSON:" >&2
-	printf '%s\n' "$VIOLATIONS" >&2
-	echo "  Real values belong in ~/.config/opencode/setup.json (user-level)," >&2
-	echo "  not the tracked project file (ADR-0032, issue #194)." >&2
+# Delegate to the CLI (project mode). The `if !` form captures the command's
+# combined output even when it fails (a violation OR a structural failure),
+# without toggling set -e. The CLI never emits decoded values, so the captured
+# output stays redacted.
+if ! GUARD_OUT=$(php "$CLI" check-secrets "$MANIFEST" project 2>&1); then
+	echo "✗ Secret hygiene check failed for $MANIFEST:" >&2
+	printf '%s\n' "$GUARD_OUT" >&2
+	echo "  Real values belong in ~/.config/opencode/prism.jsonc (user-level)," >&2
+	echo "  not the tracked project manifest (ADR-0043, issue #194)." >&2
 	echo "  Move them out and re-stage." >&2
 	exit 1
 fi

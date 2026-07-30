@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-scaffold.sh kyau@cosmos.kyaulabs 2026/07/24 -0700 Exp $
+# $KYAULabs: setup-scaffold.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+
 
 
 
@@ -293,41 +294,71 @@ CLONE_USAGE
 		;;
 
 	should-prompt)
-		json="${1:-$REPO_ROOT/.opencode/setup.json}"
+		project="${1:-$REPO_ROOT/prism.jsonc}"
 
-		# No setup.json → first run → prompt
-		if [ ! -f "$json" ]; then
-			exit 0
+		# Missing manifest is a configuration error (exit 2), not a prompt
+		# decision — so /setup can't mistake "not configured yet" for "user
+		# declined scaffolding."
+		if [ ! -f "$project" ]; then
+			echo "Error: project manifest not found: $project" >&2
+			exit 2
 		fi
 
-		# Extract setup_version (number) — dependency-free sed parse (no jq)
-		ver=$(sed -n 's/.*"setup_version"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$json" | head -1)
-		ver="${ver:-0}"
-		if [ "$ver" -lt 3 ]; then
-			exit 0   # case a — version < 3, prompt for scaffold
+		if ! command -v php >/dev/null 2>&1; then
+			echo "Error: php is required to parse the project manifest" >&2
+			exit 2
 		fi
 
-		# Extract scaffold_mode (string)
-		mode=$(sed -n 's/.*"scaffold_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$json" | head -1)
-		if [ "$mode" != "new" ] && [ "$mode" != "clone" ]; then
-			exit 0   # case b — mode absent, skip, or unrecognized → re-prompt
+		# Single atomic snapshot — PROJECT-ONLY. The user manifest is never
+		# consulted for scaffold bookkeeping: the '-' argument prevents user
+		# overlays from changing scaffold decisions (plan lines 252-255).
+		# The NUL-delimited stream is written to a temp file (bash variables
+		# cannot hold NUL bytes) and parsed with paired read -d '' calls.
+		# The CLI exit status is checked BEFORE any byte is consumed, so a
+		# malformed manifest emits no partial scaffold state.
+		_scaffold_tmp=""
+		trap 'rm -f "$_scaffold_tmp" 2>/dev/null || :' EXIT
+		umask 077
+		_scaffold_tmp=$(mktemp)
+		if ! php "$SCRIPT_DIR/prism_manifest.php" values0 "$project" - \
+				setup_version scaffold_mode project_folder > "$_scaffold_tmp" 2>/dev/null; then
+			echo "Error: cannot read scaffold state from manifest: $project" >&2
+			exit 2
 		fi
 
-		# Extract project_folder (string)
-		folder=$(sed -n 's/.*"project_folder"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$json" | head -1)
-		if [ -z "$folder" ]; then
-			exit 0   # no folder recorded → incomplete record, re-prompt
-		fi
+		_ver="" _mode="" _folder=""
+		while IFS= read -r -d '' _label && IFS= read -r -d '' _value; do
+			case "$_label" in
+				setup_version)  _ver="$_value" ;;
+				scaffold_mode)  _mode="$_value" ;;
+				project_folder) _folder="$_value" ;;
+			esac
+		done < "$_scaffold_tmp"
+		rm -f "$_scaffold_tmp"
 
-		# Resolve relative to REPO_ROOT unless absolute
-		case "$folder" in
-			/*) check_path="$folder" ;;
-			*)  check_path="$REPO_ROOT/$folder" ;;
+		# The CLI validates setup_version === 5 and scaffold_mode ∈
+		# {skip, clone, new}; a valid manifest is current. scaffold_mode skip
+		# means the user already declined → short-circuit. clone/new check
+		# project_folder drift (folder deleted since last setup → re-prompt).
+		case "$_mode" in
+			skip)
+				exit 1   # user already declined scaffolding
+				;;
+			new|clone)
+				if [ -z "$_folder" ]; then
+					exit 0   # no folder recorded → incomplete, prompt
+				fi
+				case "$_folder" in
+					/*) _check="$_folder" ;;
+					*)  _check="$REPO_ROOT/$_folder" ;;
+				esac
+				if [ -e "$_check" ] || [ -L "$_check" ]; then
+					exit 1   # folder exists → short-circuit
+				fi
+				exit 0       # drift — folder missing, re-prompt
+				;;
 		esac
-		if [ -e "$check_path" ] || [ -L "$check_path" ]; then
-			exit 1   # case c — folder exists, short-circuit
-		fi
-		exit 0       # case d — drift, folder missing, re-prompt
+		exit 0   # unrecognized mode → re-prompt (unreachable post-validation)
 		;;
 
 	*)
@@ -339,12 +370,13 @@ Commands:
   clone <owner/repo> <target>
                         Clone quality-surface template via gh repo clone
   new <target>         Create directory, git init, copy quality surface
-  should-prompt [<setup.json>]
+  should-prompt [<prism.jsonc>]
                         Test whether scaffold prompt should fire
 USAGE
 		exit 1
 		;;
 esac
+
 
 
 

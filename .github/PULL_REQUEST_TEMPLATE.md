@@ -15,7 +15,7 @@
   in the harness and replace them with mechanical enforcement + runtime resolution:
   1. Git Flow branch naming is now enforced...
   2. Signed-off-by is now resolved dynamically...
-  3. Three config files consolidated into setup.json..."
+  3. Three config files consolidated into prism.jsonc..."
 -->
 
 ## 📦 Changes by Phase

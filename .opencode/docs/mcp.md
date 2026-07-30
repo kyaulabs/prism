@@ -32,9 +32,9 @@ block inherits the pinned, `-y`-flagged command (safe-by-default).
    Remove the `//` comment markers around the server's object, including its
    `enabled: true` and `environment` fields.
 
-2. **Set the key or URL** in `~/.config/opencode/setup.json` under the `"env"`
+2. **Set the key or URL** in `~/.config/opencode/prism.jsonc` under the `"env"`
    section. This is the user-level override (project-level
-   `.opencode/setup.json` ships with empty defaults). Example:
+   `prism.jsonc` ships with empty defaults). Example:
 
    ```json
    {
@@ -46,10 +46,10 @@ block inherits the pinned, `-y`-flagged command (safe-by-default).
    ```
 
    > ⚠️ **Never paste real keys or URLs into the tracked
-   > `.opencode/setup.json`.** A pre-commit hook and CI check
+   > `prism.jsonc`.** A pre-commit hook and CI check
    > (`check-setup-secrets.sh`) reject **any** non-empty `env.*` value in the
    > committed file. Secrets belong **exclusively** in the user-level
-   > `~/.config/opencode/setup.json` (ADR-0032, issue #194).
+   > `~/.config/opencode/prism.jsonc` (ADR-0032, issue #194).
 
 3. **Run `direnv allow`** in the project root to re-evaluate `.envrc` and
    export the new environment variables.
@@ -59,23 +59,22 @@ block inherits the pinned, `-y`-flagged command (safe-by-default).
 ## How Keys Flow
 
 ```
-~/.config/opencode/setup.json (user-level, real values)
+~/.config/opencode/prism.jsonc (user-level, real values)
         OR
-.opencode/setup.json (project, empty defaults)
+prism.jsonc (project, empty defaults)
         │  (user-level wins per ADR-0029 SETUP_FILE pick logic)
         ▼
-.envrc jq eval block — exports DEEPSEEK_API_KEY / SEARXNG_URL
+.envrc prism_manifest.php env0 block — exports DEEPSEEK_API_KEY / SEARXNG_URL
         │  (with // "" fallback for files without the env section)
         ▼
 opencode.jsonc {env:VAR} resolution at server spawn
 ```
 
-- The user-level override at `~/.config/opencode/setup.json` takes precedence
+- The user-level override at `~/.config/opencode/prism.jsonc` takes precedence
   over the checked-in project-level file.
 - Pre-existing `setup.json` files that lack an `"env"` section are handled by
-  the `// ""` jq fallback (exports empty strings — harmless). The actual
-  `.envrc` jq form uses `// ""` (two double-quote characters inside the
-  interpolation — not backslash-escaped).
+  the `// ""` fallback (exports empty strings — harmless). The actual
+  `.envrc` form uses the `prism_manifest.php env0` CLI.
 - Opencode's `{env:DEEPSEEK_API_KEY}` / `{env:SEARXNG_URL}` syntax resolves
   these exported variables at MCP server spawn time.
 
@@ -148,7 +147,7 @@ request routing. See the upstream reference:
 ## Troubleshooting
 
 - **Server fails to start silently** — Check that the key is set and non-empty
-  in `~/.config/opencode/setup.json` under the `"env"` section. Run
+  in `~/.config/opencode/prism.jsonc` under the `"env"` section. Run
   `direnv allow` to re-export variables, then restart opencode.
 - **mcp-searxng returns 403** — The SearXNG instance likely has JSON format
   disabled. Fix: edit `settings.yml` to include `json` in `search.formats`,
@@ -161,7 +160,7 @@ request routing. See the upstream reference:
 ## /doctor
 
 `/doctor` does NOT cover MCP servers — it gates on the required dev-toolchain
-(PHP, Node.js, Composer, jq, etc.) only. For MCP health checks, use
+(PHP, Node.js, Composer, etc.) only. For MCP health checks, use
 `opencode mcp list` to list configured servers and `opencode mcp debug
 <name>` to test connectivity and authentication for a specific server.
 

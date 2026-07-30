@@ -51,8 +51,8 @@ Every commit message must end with four footers:
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. **Resolved dynamically** via
   `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
-  user-level `~/.config/opencode/setup.json` → project-level
-  `.opencode/setup.json` → `git config user.name`/`user.email`).
+  user-level `~/.config/opencode/prism.jsonc` → project-level
+  `prism.jsonc` → `git config user.name`/`user.email`).
 
 These are mandatory for traceability. The agent writes them automatically by
 reading `agent.plan.model` (Authored-by), the PRIMARY tier / `agent.tdd.model`

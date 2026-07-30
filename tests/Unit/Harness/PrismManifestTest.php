@@ -1,0 +1,325 @@
+<?php
+
+declare(strict_types=1);
+
+# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+
+
+
+
+
+
+
+
+
+require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
+
+use KYAULabs\Prism\PrismJsoncException;
+use KYAULabs\Prism\PrismManifest;
+
+/**
+ * Build a complete, valid schema-v5 project manifest for validation tests.
+ *
+ * @return \stdClass
+ */
+function pm_valid_project(): \stdClass
+{
+    return (object) [
+        'setup_version' => 5,
+        'timestamp' => '2026-07-29T10:00:00+00:00',
+        'configured' => true,
+        'app' => 'prism',
+        'domain' => 'prism.test',
+        'repo' => 'kyaulabs/prism',
+        'signed_off_by_name' => 'kyau',
+        'signed_off_by_email' => 'git@kyaulabs.com',
+        'accent' => 'sky-blue',
+        'scaffold_mode' => 'skip',
+        'project_folder' => null,
+        'models' => (object) [
+            'primary' => 'm1', 'planner' => 'm2', 'design' => 'm3', 'judge' => 'm4', 'utility' => 'm5',
+        ],
+        'variants' => (object) [
+            'primary' => 'v1', 'planner' => 'v2', 'design' => 'v3', 'judge' => 'v4', 'utility' => 'v5',
+        ],
+        'experimental' => (object) [
+            'lsp_tool' => true, 'scout' => true, 'background_subagents' => false,
+        ],
+        'env' => (object) ['deepseek_api_key' => '', 'searxng_url' => ''],
+    ];
+}
+
+/**
+ * Set or remove a dotted path on a manifest fixture.
+ *
+ * The sentinel '__unset' removes the leaf key instead of assigning.
+ *
+ * @param  \stdClass $root
+ * @param  string    $dotPath
+ * @param  mixed     $value
+ * @return void
+ */
+function pm_set_dot(\stdClass $root, string $dotPath, mixed $value): void
+{
+    $segments = explode('.', $dotPath);
+    $current = $root;
+    $last = array_pop($segments);
+
+    foreach ($segments as $segment) {
+        $current = $current->{$segment};
+    }
+
+    if ($value === '__unset') {
+        unset($current->{$last});
+    } else {
+        $current->{$last} = $value;
+    }
+}
+
+describe('PrismManifest::resolve', function (): void {
+    it('overlays user fields recursively without erasing project siblings', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) ['setup_version' => 5, 'models' => (object) ['primary' => 'project', 'judge' => 'judge']],
+            (object) ['setup_version' => 5, 'models' => (object) ['primary' => 'user']],
+        );
+
+        expect($resolved->models)->toEqual((object) ['primary' => 'user', 'judge' => 'judge']);
+    });
+
+    it('keeps objects as stdClass and arrays as lists so empty kinds never collapse through overlay', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'kept_obj' => (object) ['a' => 1],
+                'kept_arr' => [2, 3],
+                'empty_obj' => (object) [],
+                'empty_arr' => [],
+            ],
+            (object) [
+                'kept_obj' => (object) ['b' => 4],
+                'empty_obj' => (object) [],
+            ],
+        );
+
+        expect($resolved->kept_obj)->toBeObject()
+            ->and($resolved->kept_obj)->not->toBeArray()
+            ->and($resolved->kept_obj)->toEqual((object) ['a' => 1, 'b' => 4])
+            ->and($resolved->kept_arr)->toBeArray()
+            ->and($resolved->kept_arr)->toBe([2, 3])
+            ->and($resolved->empty_obj)->toBeObject()
+            ->and($resolved->empty_obj)->not->toBeArray()
+            ->and($resolved->empty_arr)->toBeArray()
+            ->and($resolved->empty_arr)->not->toBeObject();
+    });
+
+    it('replaces scalars and arrays atomically without merging', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) ['count' => 1, 'tags' => ['a', 'b'], 'name' => 'project'],
+            (object) ['count' => 9, 'tags' => ['z'], 'name' => 'user'],
+        );
+
+        expect($resolved->count)->toBe(9)
+            ->and($resolved->tags)->toBe(['z'])
+            ->and($resolved->name)->toBe('user');
+    });
+
+    it('returns a deep clone of the project when the user is null and never aliases inputs', function (): void {
+        $project = (object) ['models' => (object) ['primary' => 'p'], 'tags' => ['a']];
+        $resolved = PrismManifest::resolve($project, null);
+
+        expect($resolved)->toEqual($project)
+            ->and($resolved)->not->toBe($project)
+            ->and($resolved->models)->not->toBe($project->models);
+
+        $resolved->models->primary = 'changed';
+        $resolved->tags[] = 'b';
+
+        expect($project->models->primary)->toBe('p')
+            ->and($project->tags)->toBe(['a']);
+    });
+
+    it('inherits project defaults for fields the user omits', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'app' => 'prism',
+                'domain' => 'prism.test',
+                'models' => (object) ['primary' => 'p', 'judge' => 'j'],
+            ],
+            (object) ['app' => 'override'],
+        );
+
+        expect($resolved->app)->toBe('override')
+            ->and($resolved->domain)->toBe('prism.test')
+            ->and($resolved->models->primary)->toBe('p')
+            ->and($resolved->models->judge)->toBe('j');
+    });
+
+    it('merges nested objects recursively at every level', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) ['a' => (object) ['b' => (object) ['c' => (object) ['d' => 1, 'e' => 2]]]],
+            (object) ['a' => (object) ['b' => (object) ['c' => (object) ['e' => 9, 'f' => 10]]]],
+        );
+
+        expect($resolved->a->b->c)->toEqual((object) ['d' => 1, 'e' => 9, 'f' => 10]);
+    });
+});
+
+describe('PrismManifest::validateProject', function (): void {
+    it('accepts a complete schema-v5 project manifest', function (): void {
+        $validate = function (): void {
+            PrismManifest::validateProject(pm_valid_project());
+        };
+
+        expect($validate)->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects a project manifest missing a required field', function (string $field): void {
+        $manifest = pm_valid_project();
+        unset($manifest->{$field});
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'setup_version', 'timestamp', 'configured', 'app', 'domain', 'repo',
+        'signed_off_by_name', 'signed_off_by_email', 'accent', 'scaffold_mode',
+        'project_folder', 'models', 'variants', 'experimental', 'env',
+    ]);
+
+    it('rejects a project manifest with a wrong-typed field', function (string $field, mixed $bad): void {
+        $manifest = pm_valid_project();
+        $manifest->{$field} = $bad;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'setup_version is string' => ['setup_version', '5'],
+        'timestamp is int' => ['timestamp', 123],
+        'configured is string' => ['configured', 'yes'],
+        'app is int' => ['app', 1],
+        'accent is int' => ['accent', 5],
+        'scaffold_mode is int' => ['scaffold_mode', 1],
+        'project_folder is int' => ['project_folder', 7],
+        'models is array' => ['models', ['x']],
+        'env is array' => ['env', ['x']],
+    ]);
+
+    it('rejects a project manifest with an empty required string', function (string $dotPath): void {
+        $manifest = pm_valid_project();
+        pm_set_dot($manifest, $dotPath, '');
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'app', 'domain', 'repo', 'signed_off_by_name', 'signed_off_by_email',
+        'models.primary', 'models.utility', 'variants.judge',
+    ]);
+
+    it('rejects a project manifest with a bad enum value', function (string $field, mixed $bad): void {
+        $manifest = pm_valid_project();
+        $manifest->{$field} = $bad;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'accent wrong' => ['accent', 'red'],
+        'scaffold_mode wrong' => ['scaffold_mode', 'fast'],
+    ]);
+
+    it('rejects a non-empty committed env value as a secret', function (): void {
+        $manifest = pm_valid_project();
+        $manifest->env->deepseek_api_key = 'leaked-secret';
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects nested section violations', function (string $dotPath, mixed $bad): void {
+        $manifest = pm_valid_project();
+        pm_set_dot($manifest, $dotPath, $bad);
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'missing model tier' => ['models.design', '__unset'],
+        'experimental non-bool' => ['experimental.scout', 'yes'],
+        'missing experimental flag' => ['experimental.lsp_tool', '__unset'],
+        'env value non-string' => ['env.searxng_url', 5],
+    ]);
+
+    it('rejects a project manifest whose timestamp is not ISO-8601', function (): void {
+        $manifest = pm_valid_project();
+        $manifest->timestamp = 'not-a-date';
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts ISO-8601 timestamp variants', function (string $timestamp): void {
+        $manifest = pm_valid_project();
+        $manifest->timestamp = $timestamp;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+    })->with([
+        'date-time with Z' => ['2026-07-28T14:30:00Z'],
+        'date-time with offset' => ['2026-07-28T14:30:00+00:00'],
+        'date only' => ['2026-07-28'],
+    ]);
+});
+
+describe('PrismManifest::validateUser', function (): void {
+    it('accepts a minimal partial user manifest', function (): void {
+        $validate = function (): void {
+            PrismManifest::validateUser((object) [
+                'setup_version' => 5,
+                'models' => (object) ['primary' => 'my-model'],
+            ]);
+        };
+
+        expect($validate)->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects an empty user manifest because setup_version is required', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) []))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('requires setup_version to be exactly 5 when present', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 4]))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('requires setup_version even when other fields are present', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) ['models' => (object) ['primary' => 'x']]))
+            ->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts non-empty env overrides in a user manifest', function (): void {
+        $validate = function (): void {
+            PrismManifest::validateUser((object) [
+                'setup_version' => 5,
+                'env' => (object) ['deepseek_api_key' => 'user-secret'],
+            ]);
+        };
+
+        expect($validate)->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects invalid present fields in a user manifest', function (\stdClass $user): void {
+        expect(fn () => PrismManifest::validateUser($user))
+            ->toThrow(PrismJsoncException::class);
+    })->with([
+        'setup_version not 5' => [(object) ['setup_version' => 4]],
+        'configured non-bool' => [(object) ['setup_version' => 5, 'configured' => 'yes']],
+        'accent bad enum' => [(object) ['setup_version' => 5, 'accent' => 'red']],
+        'scaffold_mode bad enum' => [(object) ['setup_version' => 5, 'scaffold_mode' => 'fast']],
+        'app empty' => [(object) ['setup_version' => 5, 'app' => '']],
+        'models.design empty' => [(object) ['setup_version' => 5, 'models' => (object) ['design' => '']]],
+        'experimental non-bool' => [(object) ['setup_version' => 5, 'experimental' => (object) ['scout' => 'yes']]],
+        'env non-string value' => [(object) ['setup_version' => 5, 'env' => (object) ['deepseek_api_key' => 5]]],
+    ]);
+});
+
+
+
+
+// vim: ft=php sts=4 sw=4 ts=4 et :

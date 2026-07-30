@@ -21,14 +21,17 @@ UI copy, and conversation. When a term is introduced, add it here first.
 
 | Term | Definition |
 | --- | --- |
-| scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in the `experimental` section of `.opencode/setup.json` (auto-sourced by `.envrc`; ADR-0024, consolidated by ADR-0029). |
+| scout | Built-in OpenCode experimental subagent (`@scout`) — clones upstream dependencies and inspects source code for research. Disabled by default; enabled via `OPENCODE_EXPERIMENTAL_SCOUT=true` in the `experimental` section of the Prism manifest (auto-sourced by `.envrc`; ADR-0024, consolidated by ADR-0029, superseded by ADR-0043). |
 | background subagent | OpenCode experimental feature (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) — enables dispatching subagent tasks asynchronously. Feasibility gated on a manual spike (ADR-0024). |
-| identity resolution order | The three-tier fallback chain for `Signed-off-by` identity: user-level `~/.config/opencode/setup.json` → project-level `.opencode/setup.json` → `git config user.name`/`user.email`. Implemented by `.github/scripts/resolve-identity.sh`. See ADR-0029. |
-| setup.json | Canonical project configuration manifest at `.opencode/setup.json`. Schema versioned (`setup_version` field). Stores identity, scaffolding, model, variant, experimental flag, and optional integration-key (`env`) configuration. Sourced by `.envrc` via `jq` for environment variable export. See ADR-0029, ADR-0032. |
+| Prism manifest | Canonical configuration manifest. Schema versioned (`setup_version` field, currently v5 per ADR-0043). Stores identity, scaffolding, model, variant, experimental flag, and optional integration-key (`env`) configuration. Exists at two locations (see *project Prism manifest* and *user Prism manifest*). Parsed by a single dependency-free PHP JSONC reader (`PrismJsoncDocument` + `PrismManifest` CLI); no longer `jq`-sourced. Full JSONC (line/trailing `//` + block `/* */` + trailing commas). See ADR-0043 (supersedes ADR-0029, ADR-0032). |
+| project Prism manifest | The `prism.jsonc` file at the **repository root** — the single source of project-level truth. Required. Mode `0644`. Its `env.*` values are always empty (secret-slot invariant enforced by `check-setup-secrets.sh`). Supersedes the legacy `.opencode/setup.json` (removed entirely, no fallback). See ADR-0043. |
+| user Prism manifest | The optional `prism.jsonc` file at `~/.config/opencode/prism.jsonc` — personal overrides that overlay project defaults **field-by-field** (recursive object merge; arrays/scalars replaced atomically). Mode `0600`. Holds real `env.*` secret values (never committed). Migrated from legacy `~/.config/opencode/setup.json` by `/setup`, which emits a deprecation warning if the old file reappears. See ADR-0043. |
+| manifest resolution order | The two-tier resolved-view chain: **project `prism.jsonc`** (defaults) overlaid by **user `~/.config/opencode/prism.jsonc`** (per-field overrides). A missing user manifest is valid; a malformed manifest at either tier fails closed. Identity resolution reads the resolved view, then falls back to `git config user.name`/`user.email` only when the resolved identity pair is incomplete. Implemented by `.github/scripts/resolve-identity.sh` via the `values0` CLI. See ADR-0043. (Supersedes ADR-0029's three-tier `setup.json` fallback.) |
+| setup.json (legacy) | The pre-ADR-0043 configuration manifest at `.opencode/setup.json` (project) and `~/.config/opencode/setup.json` (user). Schema v4, `jq`-parsed, three-tier identity fallback. **Superseded by ADR-0043** — both locations renamed to `prism.jsonc`, schema bumped to v5, project legacy removed entirely, user legacy migrated by `/setup` with a deprecation warning. Referenced by historical ADRs (0024, 0026, 0029–0033, 0040) which remain immutable records. |
 | chat agent | Primary OpenCode agent (TUI tab) for conversational Q&A, code explanation, and brainstorming on the UTILITY model tier. Read-only posture: denies edit/bash/task; allows read/glob/grep/list/lsp/webfetch/websearch. Defined inline in `opencode.jsonc`. See ADR-0034. |
 | design agent | Primary OpenCode agent (TUI tab) that owns the brainstorming workflow front door: grilling → exploration → design → spec → commit → feature-branch creation. Cycle ends at spec + branch; hands off to the `plan` tab. Runs on the DESIGN model tier. Defined inline in `opencode.jsonc`. See ADR-0030. |
 | explore agent | Subagent for focused codebase exploration on the JUDGE model tier. Read-only posture: denies edit/webfetch/task, bash catch-all deny with a scoped read-only allowlist (ls/cat/tail/head/grep/find, read-only git); `lsp: allow` with an LSP-first prompt for structural queries (`findReferences`/`callHierarchy`), falling back to glob/grep/read for text and prose (ADR-0038 follow-up). Lives in `.opencode/agents/explore.md` (model/variant/temperature inline in `opencode.jsonc` per ADR-0022). See ADR-0006. |
-| MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `setup.json` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves the `deepseek-websearch` MCP. See `.opencode/docs/mcp.md` and ADR-0032. |
+| MCP server | Optional Model Context Protocol server registered under the `mcp` key in `opencode.jsonc`. All servers ship commented-out (opt-in). Keys flow via `prism.jsonc` `env` section → `.envrc` → `{env:VAR}`. `DEEPSEEK_API_KEY` serves the `deepseek-websearch` MCP. See `.opencode/docs/mcp.md` and ADR-0032. |
 | denial event | A bash tool invocation that the harness prevents from executing (config-deny, safety-hook block, or ask rejection). Characterized by a `message.part.updated` `state.status: "error"` with no matching `tool.execute.after`. Does NOT include commands that execute and return nonzero — those produce `completed` + `after` and count as success for reset. The unit the circuit breaker counts. See ADR-0042. |
 | consecutive-denial state | Per-agent-invocation (`sessionID`) counter of sequential denial events, reset to zero by any successful bash tool use (matching `tool.execute.after`). Non-bash success does not reset the streak. Held by the `DenialCircuitBreaker` in `.opencode/plugins/denial-circuit-breaker.ts`. Detection locked to before/after callID reconciliation (Option 3a, Probe-3). See ADR-0042. |
 | circuit breaker | Harness plugin that escalates (`session.abort` + redacted diagnostic) once consecutive-denial state reaches threshold 3, halting an agent stuck retrying denied commands. Extends upstream `doom_loop` for the bash-denial variation-retry class (which identical-input keying misses). Detection uses before/after callID reconciliation. See ADR-0042. |
@@ -71,6 +74,39 @@ Schema-validated by `.opencode/evals/schema.json` and mirrored by
 Immutable result object produced by the eval runner for a single case.
 **Invariant:** `verdict` is always a `Verdict` enum case (never a raw
 string).
+
+### Prism manifest
+The unified configuration manifest (ADR-0043). Two on-disk instances share
+one schema and one reader.
+
+- **Locations:** project `prism.jsonc` (repo root, required, mode `0644`)
+  and optional user `~/.config/opencode/prism.jsonc` (mode `0600`).
+- **Schema:** `setup_version: 5`. Fields: `timestamp`, `configured`,
+  `app`/`domain`/`repo`, `signed_off_by_name`/`signed_off_by_email`,
+  `accent`, `scaffold_mode` (`skip`/`clone`/`new`), `project_folder`,
+  `models.*` (5 tiers), `variants.*` (5 tiers), `experimental.*` (3 flags),
+  `env.*` (integration keys). Unknown fields preserved and overlaid.
+- **Format:** full JSONC — full-line `//`, trailing `//`, block `/* */`,
+  and trailing commas. Parsed by `PrismJsoncDocument` (state-machine
+  tokenizer; not a regex stripper) + `PrismManifest` (validation, recursive
+  overlay). No `jq`, no Composer dependency.
+- **Invariants:**
+  - Project `env.*` values are always empty (secret-slot guard enforced at
+    staged-blob and CI).
+  - User `env.*` may be non-empty (real secrets, never committed).
+  - Resolution is a recursive field-by-field overlay (user wins per-field;
+    object keys merge, arrays/scalars replace atomically). A missing user
+    manifest is valid.
+  - Fail-closed: missing project manifest, malformed either-tier manifest,
+    duplicate key, unsupported schema version, unsafe symlink, > 1 MiB, or
+    > 64 nesting levels. No silent fall-through.
+  - `/setup` patches owned fields in place, preserving every comment and
+    unrelated field; byte-idempotent on repeat.
+  - All writes atomic; never follow a symlink write target.
+- **Lifecycle:** `/setup` migrates legacy `setup.json` → `prism.jsonc`
+  (project removed after verify; user removed with deprecation-warning
+  safety net). `migrate-setup.sh` is the idempotent engine; `/setup`
+  invokes it on entry.
 
 ## System Boundaries
 
@@ -158,6 +194,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0040-gpt-5-6-sol-on-design-planner-tiers.md` — Route GPT-5.6 Sol (ChatGPT-Plus OAuth) to DESIGN+PLANNER at `xhigh`; add `Implemented-by:` commit footer (PRIMARY tier) to attribute all three pipeline models. References ADR-0031/0030.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — Pre-commit hook is an idempotent RCS-header normalizer (strip-then-insert, commit-date refresh); header is a last-commit marker, not creation stamp; rcs-header skill aligned to match
 - `adr/0042-consecutive-denial-circuit-breaker.md` — Consecutive-denial circuit breaker for bash variation-retry hang (config-deny, safety-block, ask-reject); structural outcome inference via before/after callID reconciliation; threshold 3 + session.abort escalation
+- `adr/0043-prism-jsonc-manifest-migration.md` — Dual-rename both setup.json manifests to `prism.jsonc` (project root + user home), schema v5, single dependency-free PHP JSONC reader replacing `jq`, recursive field-by-field overlay, full JSONC + trailing commas, in-place comment-preserving `/setup` patching; supersedes ADR-0029 + ADR-0032's JSONC rejection
 
 ## When to update this file
 

@@ -39,7 +39,7 @@
   "mcp": {
     // ── Optional MCP servers (commented out by default) ────────────────────
     // To enable: uncomment a block, set its key/URL in
-    // ~/.config/opencode/setup.json (env.deepseek_api_key / env.searxng_url),
+    // ~/.config/opencode/prism.jsonc (env.deepseek_api_key / env.searxng_url),
     // run `direnv allow`, restart opencode. Full guide: .opencode/docs/mcp.md
 
     // deepseek-websearch — server-side web search via DeepSeek's

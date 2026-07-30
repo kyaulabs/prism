@@ -13,10 +13,15 @@
 .github/scripts/install-hooks.sh
 .github/scripts/migrate-setup.sh
 .github/scripts/new-branch.sh
+.github/scripts/PrismJsoncDocument.php
+.github/scripts/PrismJsoncException.php
+.github/scripts/PrismManifest.php
+.github/scripts/prism_manifest.php
 .github/scripts/quality-surface.manifest
 .github/scripts/resolve-identity.sh
 .github/scripts/setup-scaffold.sh
 .github/scripts/setup-substitute.sh
+.github/scripts/setup-write-project-config.sh
 .github/scripts/setup-write-user-config.sh
 .github/scripts/validate-branch-name.sh
 .github/scripts/inline-agent-permissions.js
@@ -36,4 +41,5 @@ eslint.config.mjs
 commitlint.config.js
 tsconfig.json
 cliff.toml
+prism.jsonc
 tests/Shell/lib/test_helpers.sh
