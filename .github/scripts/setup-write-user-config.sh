@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-write-user-config.sh kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: setup-write-user-config.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
 
 
 
-# setup-write-user-config.sh — Merge user-scoped /setup fields into the
-# user-level ~/.config/opencode/setup.json WITHOUT destroying unrelated keys
-# (env.deepseek_api_key, env.searxng_url, etc.). Replaces the destructive
-# full-file `jq -n ... >` overwrite previously inlined in /setup §3 (#187).
+
+# setup-write-user-config.sh — Write user-scoped /setup fields into the
+# user-level ~/.config/opencode/prism.jsonc (ADR-0043) via the prism manifest
+# CLI `patch` command: JSONC (comment-preserving), atomic, mode 0600,
+# symlink-refusing, fail-closed on malformed input.
 #
-# Reads model/variant/identity values from environment variables, builds the
-# new user-scoped object (identity + models + variants — never `env`), and
-# deep-merges it onto the existing file (missing file → empty base). Atomic
-# write via mktemp + mv. Refuses to clobber on a missing required value, a
-# missing jq, or a corrupt existing file (exits non-zero, leaves file intact).
+# Reads model/variant/identity values from environment variables, builds a
+# strict-JSON object of dot-path => value updates (values escaped by jq, never
+# interpolated into shell), and pipes it to prism_manifest.php `patch`, which
+# delegates to PrismJsoncDocument::withValues() so only the specified spans
+# change — existing comments, env, experimental flags, and unknown fields are
+# preserved byte-for-byte. When no manifest exists, a minimal canonical
+# commented schema-v5 seed (`{"setup_version": 5}`) is written first so the
+# patcher has a valid document to span-patch. Refuses to proceed on a missing
+# required value, a symlink target, a missing php/jq, or a corrupt existing
+# file (exits non-zero, leaves the file intact).
 
 set -euo pipefail
 
-CONFIG="${SETUP_USER_CONFIG:-$HOME/.config/opencode/setup.json}"
+CONFIG="${SETUP_USER_CONFIG:-$HOME/.config/opencode/prism.jsonc}"
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CLI="$SCRIPT_DIR/prism_manifest.php"
 
 REQUIRED_VARS=(
     SIGNED_OFF_BY_NAME SIGNED_OFF_BY_EMAIL
@@ -32,43 +41,62 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
-if ! command -v jq >/dev/null 2>&1; then
-    echo "✗ jq required to merge $CONFIG" >&2
+if ! command -v php >/dev/null 2>&1; then
+    echo "✗ php is required to write $CONFIG" >&2
     exit 1
 fi
 
-# Existing base: read + validate as JSON (refuse to clobber a corrupt file).
-if [ -f "$CONFIG" ]; then
-    if ! EXISTING=$(jq '.' "$CONFIG" 2>/dev/null); then
-        echo "✗ existing $CONFIG is not valid JSON; aborting (no write)" >&2
-        exit 1
-    fi
-else
-    EXISTING='{}'
+if ! command -v jq >/dev/null 2>&1; then
+    echo "✗ jq required to build updates for $CONFIG" >&2
+    exit 1
 fi
 
-# New user-scoped object (identity + models + variants — never env).
-NEW_OBJ=$(jq -n \
+# Refuse a symlink target so the patcher is never pointed through a link.
+if [ -L "$CONFIG" ]; then
+    echo "✗ refusing symlink target: $CONFIG" >&2
+    exit 1
+fi
+
+mkdir -p "$(dirname "$CONFIG")"
+
+# Seed a minimal valid schema-v5 user document when none exists so the
+# span-patcher has a real JSONC document to patch. umask 077 keeps the seed at
+# 0600 for its brief lifetime before the CLI rewrites it explicitly at 0600.
+if [ ! -e "$CONFIG" ]; then
+    ( umask 077; printf '// Prism user manifest (schema v5)\n{\n  "setup_version": 5\n}\n' > "$CONFIG" )
+fi
+
+# Build the dot-path => value updates object. jq --arg escapes every value, so
+# nothing is interpolated into executable shell; the object is piped to the CLI
+# as data on stdin.
+UPDATES=$(jq -n \
     --arg name "$SIGNED_OFF_BY_NAME" --arg email "$SIGNED_OFF_BY_EMAIL" \
-    --arg p "$OPENCODE_MODEL_PRIMARY" --arg pl "$OPENCODE_MODEL_PLANNER" \
-    --arg d "$OPENCODE_MODEL_DESIGN" --arg j "$OPENCODE_MODEL_JUDGE" --arg u "$OPENCODE_MODEL_UTILITY" \
-    --arg pv "$OPENCODE_VARIANT_PRIMARY" --arg plv "$OPENCODE_VARIANT_PLANNER" \
-    --arg dv "$OPENCODE_VARIANT_DESIGN" --arg jv "$OPENCODE_VARIANT_JUDGE" --arg uv "$OPENCODE_VARIANT_UTILITY" \
+    --arg mp "$OPENCODE_MODEL_PRIMARY" --arg mpl "$OPENCODE_MODEL_PLANNER" \
+    --arg md "$OPENCODE_MODEL_DESIGN" --arg mj "$OPENCODE_MODEL_JUDGE" --arg mu "$OPENCODE_MODEL_UTILITY" \
+    --arg vp "$OPENCODE_VARIANT_PRIMARY" --arg vpl "$OPENCODE_VARIANT_PLANNER" \
+    --arg vd "$OPENCODE_VARIANT_DESIGN" --arg vj "$OPENCODE_VARIANT_JUDGE" --arg vu "$OPENCODE_VARIANT_UTILITY" \
     '{
-        signed_off_by_name: $name,
-        signed_off_by_email: $email,
-        models: {primary: $p, planner: $pl, design: $d, judge: $j, utility: $u},
-        variants: {primary: $pv, planner: $plv, design: $dv, judge: $jv, utility: $uv}
+        "signed_off_by_name": $name,
+        "signed_off_by_email": $email,
+        "models.primary": $mp,
+        "models.planner": $mpl,
+        "models.design": $md,
+        "models.judge": $mj,
+        "models.utility": $mu,
+        "variants.primary": $vp,
+        "variants.planner": $vpl,
+        "variants.design": $vd,
+        "variants.judge": $vj,
+        "variants.utility": $vu
     }')
 
-# Deep merge: existing base is preserved for unknown keys (env.*, experimental,
-# custom), new values override the user-scoped fields. Atomic write.
-mkdir -p "$(dirname "$CONFIG")"
-TMP=$(mktemp "${CONFIG}.tmp.XXXXXX")
-jq -n --argjson existing "$EXISTING" --argjson new "$NEW_OBJ" '$existing * $new' > "$TMP"
-mv "$TMP" "$CONFIG"
+# Patch atomically through the CLI: validates the result as a user manifest,
+# writes at mode 0600, preserves comments and unrelated fields, refuses
+# symlinks, and fails closed without clobbering on any error.
+printf '%s' "$UPDATES" | php "$CLI" patch "$CONFIG" user 0600
 
-echo "✓ Merged user-scoped /setup fields into $CONFIG (env preserved)" >&2
+echo "✓ Wrote user-scoped /setup fields into $CONFIG (JSONC, comments preserved)" >&2
+
 
 
 
