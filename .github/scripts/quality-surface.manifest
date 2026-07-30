@@ -21,6 +21,7 @@
 .github/scripts/resolve-identity.sh
 .github/scripts/setup-scaffold.sh
 .github/scripts/setup-substitute.sh
+.github/scripts/setup-write-project-config.sh
 .github/scripts/setup-write-user-config.sh
 .github/scripts/validate-branch-name.sh
 .github/scripts/inline-agent-permissions.js

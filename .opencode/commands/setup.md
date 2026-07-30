@@ -4,23 +4,51 @@ agent: build
 ---
 
 Replace template defaults (`<app>`, `<domain>`, `kyau <git@kyaulabs.com>`,
-`kyaulabs/template`) across the harness with real project values. Stores the
-answers in `.opencode/setup.json` for idempotent re-runs.
+`kyaulabs/template`) across the harness with real project values. Patches the
+answers into the dual-path prism manifests (`prism.jsonc` project tier +
+`~/.config/opencode/prism.jsonc` user tier, ADR-0043) for idempotent re-runs.
 
-## 1. Check for existing manifest
+## 1. Migrate, then read the existing manifest
 
-If `.opencode/setup.json` exists, read it to pre-fill the interview with
-current values and enter re-run mode (old-value → new-value substitution).
-If `setup_version` is absent or `< 2`, treat variant fields as unset —
-prompt for them as new values using defaults from `.opencode/setup.json`
-models/variants sections (auto-migrated from v1 schema by `migrate-setup.sh`
-on direnv entry — see ADR-0029).
-If `setup_version` is absent or `< 3`, the scaffold prompt (§2.5) fires.
-If absent, enter first-run mode (placeholder → value substitution).
-If `setup_version` is `< 4`, run `bash .github/scripts/migrate-setup.sh .opencode/setup.json`
-before reading values. The migration is idempotent.
+**Auto-migrate on entry (ADR-0043).** Before reading any value, run the
+idempotent dual-path migration so both manifests are at schema v5:
 
-Before §2.5, run `bash .github/scripts/setup-scaffold.sh should-prompt`.
+```bash
+bash .github/scripts/migrate-setup.sh
+```
+
+If this exits non-zero, STOP — a migration conflict must be resolved before
+/setup proceeds. Never read or write the legacy `.opencode/setup.json` or
+`~/.config/opencode/setup.json` directly: the migration renames both to their
+`prism.jsonc` successors. The legacy files are deprecated and removed by the
+migration once their verified v5 replacement is in place.
+
+After migration, resolve the manifest paths and read current values through
+the prism manifest CLI (`prism_manifest.php`), never the legacy files and
+never raw file parsing:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PROJECT="$REPO_ROOT/prism.jsonc"
+USER="$HOME/.config/opencode/prism.jsonc"
+USER_ARG="-"
+[ -f "$USER" ] && USER_ARG="$USER"
+```
+
+Read the current project defaults to pre-fill the interview (re-run mode —
+old-value → new-value substitution):
+
+```bash
+APP=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" app)
+DOMAIN=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" domain)
+REPO=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" repo)
+CONFIGURED=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" configured)
+```
+
+If `CONFIGURED` is empty or `false`, enter first-run mode (placeholder →
+value substitution). Otherwise enter re-run mode.
+
+Before §2.5, run `bash .github/scripts/setup-scaffold.sh should-prompt "$PROJECT"`.
 If it exits non-zero (short-circuit), skip §2.5 — the project was already
 scaffolded and the recorded `project_folder` still exists. If it exits 0,
 proceed with §2.5.
@@ -94,19 +122,20 @@ Record the answers as `scaffold_mode` (`skip`, `clone`, or `new`) and
 
 ## 3. Model and variant configuration
 
-Read the current defaults from `.opencode/setup.json`:
+Read the current defaults from the resolved prism manifests through the CLI
+(never read the manifests with a JSON tool directly):
 
 ```bash
-OPENCODE_MODEL_PRIMARY=$(jq -r '.models.primary' .opencode/setup.json)
-OPENCODE_MODEL_PLANNER=$(jq -r '.models.planner' .opencode/setup.json)
-OPENCODE_MODEL_DESIGN=$(jq -r '.models.design // .models.planner' .opencode/setup.json)
-OPENCODE_MODEL_JUDGE=$(jq -r '.models.judge' .opencode/setup.json)
-OPENCODE_MODEL_UTILITY=$(jq -r '.models.utility' .opencode/setup.json)
-OPENCODE_VARIANT_PRIMARY=$(jq -r '.variants.primary' .opencode/setup.json)
-OPENCODE_VARIANT_PLANNER=$(jq -r '.variants.planner' .opencode/setup.json)
-OPENCODE_VARIANT_DESIGN=$(jq -r '.variants.design // .variants.planner' .opencode/setup.json)
-OPENCODE_VARIANT_JUDGE=$(jq -r '.variants.judge' .opencode/setup.json)
-OPENCODE_VARIANT_UTILITY=$(jq -r '.variants.utility' .opencode/setup.json)
+OPENCODE_MODEL_PRIMARY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.primary)
+OPENCODE_MODEL_PLANNER=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.planner)
+OPENCODE_MODEL_DESIGN=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.design)
+OPENCODE_MODEL_JUDGE=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.judge)
+OPENCODE_MODEL_UTILITY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.utility)
+OPENCODE_VARIANT_PRIMARY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.primary)
+OPENCODE_VARIANT_PLANNER=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.planner)
+OPENCODE_VARIANT_DESIGN=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.design)
+OPENCODE_VARIANT_JUDGE=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.judge)
+OPENCODE_VARIANT_UTILITY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.utility)
 echo "Primary  model:   $OPENCODE_MODEL_PRIMARY    variant: $OPENCODE_VARIANT_PRIMARY"
 echo "Planner  model:   $OPENCODE_MODEL_PLANNER    variant: $OPENCODE_VARIANT_PLANNER"
 echo "Design   model:   $OPENCODE_MODEL_DESIGN     variant: $OPENCODE_VARIANT_DESIGN"
@@ -164,14 +193,15 @@ the default shown in brackets.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 
 If the user pressed Enter for all ten prompts (accepted all defaults), skip
-the write step — the committed `.opencode/setup.json` already provides
-defaults. Instruct the user:
+the write step — the committed `prism.jsonc` already provides defaults.
+Instruct the user:
 
-> Using default models and variants from `.opencode/setup.json`.
+> Using default models and variants from `prism.jsonc`.
 > If NOT using direnv, add this to your shell profile:
 >   source .envrc
 
-If the user changed any model or variant, write `~/.config/opencode/setup.json`:
+If the user changed any model or variant, patch the user manifest
+(`~/.config/opencode/prism.jsonc`) in place via the writer at mode 0600:
 
 ```bash
 SIGNED_OFF_BY_NAME="$SIGNED_OFF_BY_NAME" \
@@ -189,15 +219,16 @@ OPENCODE_VARIANT_UTILITY="$OPENCODE_VARIANT_UTILITY" \
 bash .github/scripts/setup-write-user-config.sh
 ```
 
-The script deep-merges the user-scoped fields (identity, models, variants)
-onto any existing `~/.config/opencode/setup.json`, preserving unrelated keys
-such as `env.deepseek_api_key` and `env.searxng_url` (#187). It writes
-atomically (tmp + mv), creates the parent directory, and refuses to clobber on
-a missing value or a corrupt existing file.
+The script patches the user-scoped fields (identity, models, variants) into
+`~/.config/opencode/prism.jsonc` through the prism manifest CLI `patch`
+command (comment-preserving span patching), preserving unrelated keys such as
+`env.deepseek_api_key` and `env.searxng_url` (#187). It writes atomically at
+mode 0600, creates the parent directory, and refuses to clobber on a missing
+value or a corrupt existing file.
 
 After writing, instruct:
 
-> Model and variant preferences written to `~/.config/opencode/setup.json`.
+> Model and variant preferences written to `~/.config/opencode/prism.jsonc`.
 > If using direnv, run `direnv allow` to reload.
 > If NOT using direnv, add this to your shell profile:
 >   `source .envrc`
@@ -224,7 +255,7 @@ strings instead of the literal defaults. For example, if a prior run set app
 to `myapp`, the find string for token #3 is `myapp`, not `<app>`.
 
 **Validate manifest values before use (issue #181, AC-3).** Manifest values
-flow from the committed `.opencode/setup.json` and are spliced into sed
+flow from the committed `prism.jsonc` and are spliced into sed
 programs, so they are untrusted. Before constructing any find/replace pair in
 re-run mode, validate the four manifest values with the same rules the
 substitution script enforces:
@@ -346,48 +377,79 @@ grep -rnF 'git+abuse@kyaulabs.com' . \
 
 This must also return zero matches.
 
-## 8. Save manifest
+## 8. Patch manifests (in place, comment-preserving)
 
-Write `.opencode/setup.json`:
+**Warn before writing.** Before patching anything, show the user the exact
+target paths and state what will change:
 
-```json
-{
-  "setup_version": 4,
-  "setup_date": "<ISO 8601 timestamp>",
-  "configured": true,
-  "app": "<app>",
-  "domain": "<domain>",
-  "repo": "<org>/<repo>",
-  "signed_off_by_name": "<name>",
-  "signed_off_by_email": "<email>",
-  "accent": "<sky-blue | light-purple>",
-  "scaffold_mode": "<skip | clone | new>",
-  "project_folder": "<path-or-null>",
-  "models": {
-    "primary": "<primary model ID>",
-    "planner": "<planner model ID>",
-    "design": "<design model ID>",
-    "judge": "<judge model ID>",
-    "utility": "<utility model ID>"
-  },
-  "variants": {
-    "primary": "<primary variant>",
-    "planner": "<planner variant>",
-    "design": "<design variant>",
-    "judge": "<judge variant>",
-    "utility": "<utility variant>"
-  },
-  "experimental": {
-    "lsp_tool": true,
-    "scout": true,
-    "background_subagents": false
-  },
-  "env": {
-    "deepseek_api_key": "",
-    "searxng_url": ""
-  }
-}
+> About to patch owned fields in place:
+>   project manifest: `prism.jsonc`
+>   user manifest:    `~/.config/opencode/prism.jsonc`
+> Only the /setup-owned fields (identity, app/domain/repo, accent, models,
+> variants, scaffold bookkeeping) change. Comments and unknown fields are
+> preserved byte-for-byte (ADR-0043 span patching). Secrets are never touched.
+
+**Patch, do not regenerate.** Never write a wholesale JSON object over either
+manifest. Both writers patch owned fields in place through the prism manifest
+CLI `patch` command, which delegates to `PrismJsoncDocument::withValues()` so
+only the specified value spans change.
+
+Export the interview values into the env vars the writers read, then invoke
+the writers. The bookkeeping fields (`scaffold_mode`, `project_folder`,
+`setup_version`) are PROJECT-ONLY — never apply a user-overlay value for them.
+
+### Scaffold contract (parent vs target)
+
+The project manifest is patched in **parent** or **target** mode depending on
+whether this run configured the template in place or scaffolded a subfolder:
+
+- **skip mode** — patch the root `prism.jsonc` (`parent`) with every interview
+  value, `scaffold_mode: "skip"`, and `project_folder: null`.
+- **clone / new mode** — the root `prism.jsonc` records the actual decision
+  (`parent`: the chosen `scaffold_mode` + `project_folder`). After the
+  quality-surface copy lands, patch the TARGET's `prism.jsonc` (`target`) with
+  the interview values plus `scaffold_mode: "skip"` and `project_folder: null`.
+  The target never embeds its parent's filesystem path.
+
+The user manifest is machine-global (`~/.config/opencode/prism.jsonc`); it is
+never copied into a scaffold target.
+
+### Project manifest — `setup-write-project-config.sh`
+
+Patch the project manifest (mode 0644) with the interview values and the
+mode-appropriate bookkeeping:
+
+```bash
+SETUP_APP="$APP" SETUP_DOMAIN="$DOMAIN" SETUP_REPO="$REPO" \
+SETUP_ACCENT="$accent" \
+SIGNED_OFF_BY_NAME="$name" SIGNED_OFF_BY_EMAIL="$email" \
+OPENCODE_MODEL_PRIMARY="$OPENCODE_MODEL_PRIMARY" \
+OPENCODE_MODEL_PLANNER="$OPENCODE_MODEL_PLANNER" \
+OPENCODE_MODEL_DESIGN="$OPENCODE_MODEL_DESIGN" \
+OPENCODE_MODEL_JUDGE="$OPENCODE_MODEL_JUDGE" \
+OPENCODE_MODEL_UTILITY="$OPENCODE_MODEL_UTILITY" \
+OPENCODE_VARIANT_PRIMARY="$OPENCODE_VARIANT_PRIMARY" \
+OPENCODE_VARIANT_PLANNER="$OPENCODE_VARIANT_PLANNER" \
+OPENCODE_VARIANT_DESIGN="$OPENCODE_VARIANT_DESIGN" \
+OPENCODE_VARIANT_JUDGE="$OPENCODE_VARIANT_JUDGE" \
+OPENCODE_VARIANT_UTILITY="$OPENCODE_VARIANT_UTILITY" \
+SETUP_SCAFFOLD_MODE="$scaffold_mode" \
+SETUP_PROJECT_FOLDER="$project_folder" \
+bash .github/scripts/setup-write-project-config.sh "$PROJECT" parent
 ```
+
+For a scaffolded target, run the same writer in `target` mode against the
+target's `prism.jsonc`. Reuse the same interview env vars as the `parent`
+call above, but omit `SETUP_SCAFFOLD_MODE`/`SETUP_PROJECT_FOLDER` — target
+mode always writes `skip`/`null`:
+
+```bash
+# (same SETUP_*/SIGNED_*/OPENCODE_* interview env vars as the parent call)
+bash .github/scripts/setup-write-project-config.sh "$REPO_ROOT/$project_folder/prism.jsonc" target
+```
+
+The user manifest was already patched in §3 (if any model/variant changed)
+via `setup-write-user-config.sh` at mode 0600.
 
 ## 9. Report
 
@@ -427,7 +489,7 @@ Remind the user:
 - The aurora/ submodule was NOT touched — it maintains its own copy of
   harness files.
 - Re-run `/setup` to change values; the manifest enables idempotent updates.
-- Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`. Set keys in `~/.config/opencode/setup.json` (`env` section). See `.opencode/docs/mcp.md`.
+- Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`. Set keys in `~/.config/opencode/prism.jsonc` (`env` section). See `.opencode/docs/mcp.md`.
 
 ## Rules
 
