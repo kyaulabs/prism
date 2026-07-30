@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/24 -0700 Exp $
+# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+
 
 
 
@@ -861,186 +862,380 @@ echo ""
 echo "── Test 17: clone path ALSO copies the quality surface (ADR-0026 wiring) ──"
 test_clone_copies_quality_surface
 
-# ── Test 18: should-prompt — no setup.json → exit 0 ─────────────────────────
+# ── Helper: write a valid schema-v5 project manifest fixture ─────────────────
+# write_scaffold_manifest <path> <scaffold_mode> <project_folder_json>
+#   Writes a complete valid v5 prism.jsonc with JSONC comments and the given
+#   scaffold fields. <project_folder_json> is a JSON literal: null or "path".
+write_scaffold_manifest() {
+	local path="$1" mode="$2" folder_json="$3"
+	cat > "$path" <<MANIFEST
+// Test fixture — schema v5 project manifest (ADR-0043)
+{
+  // Schema version — must be exactly 5.
+  "setup_version": 5,
+  "configured": true,
+  "timestamp": "2026-07-29T00:00:00Z",
+  "app": "testapp",
+  "domain": "example.com",
+  "repo": "testowner/testrepo",
+  "signed_off_by_name": "tester",
+  "signed_off_by_email": "tester@example.com",
+  "accent": "sky-blue",
+  // Scaffold behavior under test:
+  "scaffold_mode": "$mode",
+  "project_folder": $folder_json,
+  "models": {
+    "primary": "test/model-p",
+    "planner": "test/model-pl",
+    "design": "test/model-d",
+    "judge": "test/model-j",
+    "utility": "test/model-u"
+  },
+  "variants": {
+    "primary": "medium",
+    "planner": "medium",
+    "design": "medium",
+    "judge": "medium",
+    "utility": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
+  }
+}
+MANIFEST
+}
+
+# ── Test 18: should-prompt — missing manifest → exit 2 (config error) ────────
 
 test_should_prompt_no_file() {
-	local json rc
-	json=$(mktemp -d)
-	register_temp_dir "$json"
-	json="$json/nonexistent.json"
+	local dir manifest rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	manifest="$dir/nonexistent.jsonc"
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
-	if [ "$rc" -ne 0 ]; then
-		fail "should-prompt no file — exit code $rc (expected 0)"
+	if [ "$rc" -ne 2 ]; then
+		fail "should-prompt no file — exit code $rc (expected 2, config error)"
 		return
 	fi
-	pass "should-prompt no file → exit 0 (first run, prompt)"
+	pass "should-prompt no file → exit 2 (config error, not a prompt decision)"
 }
 
 echo ""
-echo "── Test 18: should-prompt — no setup.json → exit 0 ──"
+echo "── Test 18: should-prompt — missing manifest → exit 2 (config error) ──"
 test_should_prompt_no_file
 
-# ── Test 19: should-prompt — setup_version 2 → exit 0 (case a) ──────────────
+# ── Test 19: should-prompt — malformed manifest → exit 2 (config error) ──────
 
-test_should_prompt_v2() {
-	local json dir rc
+test_should_prompt_malformed() {
+	local dir manifest rc
 	dir=$(mktemp -d)
 	register_temp_dir "$dir"
-	json="$dir/setup.json"
+	manifest="$dir/prism.jsonc"
 
-	cat > "$json" <<'JSON'
-{
-  "setup_version": 2,
-  "app": "testapp",
-  "domain": "example.com"
-}
-JSON
+	# Truncated JSON — the JSONC parser must reject this
+	printf '{ "setup_version": 5, "broken": ' > "$manifest"
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
-	if [ "$rc" -ne 0 ]; then
-		fail "should-prompt v2 — exit code $rc (expected 0)"
+	if [ "$rc" -ne 2 ]; then
+		fail "should-prompt malformed — exit code $rc (expected 2, config error)"
 		return
 	fi
-	pass "should-prompt v2 → exit 0 (case a, prompt for scaffold)"
+	pass "should-prompt malformed manifest → exit 2 (config error)"
 }
 
 echo ""
-echo "── Test 19: should-prompt — setup_version 2 → exit 0 (case a) ──"
-test_should_prompt_v2
+echo "── Test 19: should-prompt — malformed manifest → exit 2 (config error) ──"
+test_should_prompt_malformed
 
-# ── Test 20: should-prompt — v3 + scaffold_mode skip → exit 0 (case b) ───────
+# ── Test 20: should-prompt — wrong setup_version → exit 2 (config error) ─────
 
-test_should_prompt_v3_skip() {
-	local json dir rc
+test_should_prompt_wrong_version() {
+	local dir manifest rc
 	dir=$(mktemp -d)
 	register_temp_dir "$dir"
-	json="$dir/setup.json"
+	manifest="$dir/prism.jsonc"
 
-	cat > "$json" <<'JSON'
+	# setup_version 3 (pre-migration) — validateProject rejects non-5 versions
+	cat > "$manifest" <<'BAD'
 {
   "setup_version": 3,
-  "app": "testapp",
   "scaffold_mode": "skip"
 }
-JSON
+BAD
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
-	if [ "$rc" -ne 0 ]; then
-		fail "should-prompt v3 skip — exit code $rc (expected 0)"
+	if [ "$rc" -ne 2 ]; then
+		fail "should-prompt wrong version — exit code $rc (expected 2, config error)"
 		return
 	fi
-	pass "should-prompt v3 skip → exit 0 (case b, re-prompt)"
+	pass "should-prompt wrong setup_version → exit 2 (config error, not prompt)"
 }
 
 echo ""
-echo "── Test 20: should-prompt — v3 + scaffold_mode skip → exit 0 (case b) ──"
-test_should_prompt_v3_skip
+echo "── Test 20: should-prompt — wrong setup_version → exit 2 (config error) ──"
+test_should_prompt_wrong_version
 
-# ── Test 21: should-prompt — v3 + mode new + folder exists → exit 1 (case c) ─
+# ── Test 21: should-prompt — JSONC comments parsed transparently ─────────────
 
-test_should_prompt_v3_new_exists() {
-	local json dir folder rc
+test_should_prompt_jsonc_comments() {
+	local dir manifest rc
 	dir=$(mktemp -d)
 	register_temp_dir "$dir"
-	json="$dir/setup.json"
+	manifest="$dir/prism.jsonc"
+
+	# Heavily-commented JSONC — the parser must strip every comment and
+	# should-prompt must read scaffold_mode through them (skip → short-circuit).
+	cat > "$manifest" <<'JSONC'
+// Project manifest fixture — schema v5
+// Verifies should-prompt reads through JSONC line and trailing comments.
+{
+  // Schema version
+  "setup_version": 5,
+  "configured": true, // configured flag
+  "timestamp": "2026-07-29T00:00:00Z",
+  "app": "testapp",
+  "domain": "example.com",
+  "repo": "testowner/testrepo",
+  "signed_off_by_name": "tester",
+  "signed_off_by_email": "tester@example.com",
+  "accent": "sky-blue",
+  // scaffold_mode skip → should short-circuit
+  "scaffold_mode": "skip",
+  "project_folder": null, // not set
+  "models": {
+    "primary": "test/model-p",
+    "planner": "test/model-pl",
+    "design": "test/model-d",
+    "judge": "test/model-j",
+    "utility": "test/model-u"
+  },
+  "variants": {
+    "primary": "medium",
+    "planner": "medium",
+    "design": "medium",
+    "judge": "medium",
+    "utility": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
+  }
+} // end manifest
+JSONC
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 1 ]; then
+		fail "should-prompt jsonc comments — exit code $rc (expected 1, skip short-circuit)"
+		return
+	fi
+	pass "should-prompt jsonc comments parsed transparently → exit 1"
+}
+
+echo ""
+echo "── Test 21: should-prompt — JSONC comments parsed transparently ──"
+test_should_prompt_jsonc_comments
+
+# ── Test 22: should-prompt — v5 + scaffold_mode skip → exit 1 (short-circuit) ─
+
+test_should_prompt_skip() {
+	local dir manifest rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	manifest="$dir/prism.jsonc"
+
+	write_scaffold_manifest "$manifest" "skip" "null"
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 1 ]; then
+		fail "should-prompt skip — exit code $rc (expected 1, short-circuit)"
+		return
+	fi
+	pass "should-prompt v5 + skip → exit 1 (user declined, short-circuit)"
+}
+
+echo ""
+echo "── Test 22: should-prompt — v5 + scaffold_mode skip → exit 1 (short-circuit) ──"
+test_should_prompt_skip
+
+# ── Test 23: should-prompt — v5 + mode new + folder exists → exit 1 ──────────
+
+test_should_prompt_new_exists() {
+	local dir manifest folder rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	manifest="$dir/prism.jsonc"
 	folder="$dir/my-project"
 	mkdir -p "$folder"
 
-	cat > "$json" <<JSON
-{
-  "setup_version": 3,
-  "app": "testapp",
-  "scaffold_mode": "new",
-  "project_folder": "$folder"
-}
-JSON
+	write_scaffold_manifest "$manifest" "new" "\"$folder\""
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
 	if [ "$rc" -ne 1 ]; then
-		fail "should-prompt mode new + folder exists — exit code $rc (expected 1)"
+		fail "should-prompt new + folder exists — exit code $rc (expected 1)"
 		return
 	fi
-	pass "should-prompt mode new + folder exists → exit 1 (case c, short-circuit)"
+	pass "should-prompt v5 + new + folder exists → exit 1 (short-circuit)"
 }
 
 echo ""
-echo "── Test 21: should-prompt — v3 + mode new + folder exists → exit 1 (case c) ──"
-test_should_prompt_v3_new_exists
+echo "── Test 23: should-prompt — v5 + mode new + folder exists → exit 1 ──"
+test_should_prompt_new_exists
 
-# ── Test 22: should-prompt — v3 + mode new + folder missing → exit 0 (case d) ─
+# ── Test 24: should-prompt — v5 + mode new + folder missing → exit 0 (drift) ─
 
-test_should_prompt_v3_new_missing() {
-	local json dir rc
+test_should_prompt_new_missing() {
+	local dir manifest rc
 	dir=$(mktemp -d)
 	register_temp_dir "$dir"
-	json="$dir/setup.json"
+	manifest="$dir/prism.jsonc"
 
-	cat > "$json" <<'JSON'
-{
-  "setup_version": 3,
-  "app": "testapp",
-  "scaffold_mode": "new",
-  "project_folder": "/nonexistent/project/path"
-}
-JSON
+	write_scaffold_manifest "$manifest" "new" "\"/nonexistent/project/path\""
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
 	if [ "$rc" -ne 0 ]; then
-		fail "should-prompt mode new + folder missing — exit code $rc (expected 0)"
+		fail "should-prompt new + folder missing — exit code $rc (expected 0, drift)"
 		return
 	fi
-	pass "should-prompt mode new + folder missing → exit 0 (case d, drift)"
+	pass "should-prompt v5 + new + folder missing → exit 0 (drift, re-prompt)"
 }
 
 echo ""
-echo "── Test 22: should-prompt — v3 + mode new + folder missing → exit 0 (case d) ──"
-test_should_prompt_v3_new_missing
+echo "── Test 24: should-prompt — v5 + mode new + folder missing → exit 0 (drift) ──"
+test_should_prompt_new_missing
 
-# ── Test 23: should-prompt — v3 + mode clone + folder exists → exit 1 ─────────
+# ── Test 25: should-prompt — v5 + mode clone + folder exists → exit 1 ────────
 
-test_should_prompt_v3_clone_exists() {
-	local json dir folder rc
+test_should_prompt_clone_exists() {
+	local dir manifest folder rc
 	dir=$(mktemp -d)
 	register_temp_dir "$dir"
-	json="$dir/setup.json"
+	manifest="$dir/prism.jsonc"
 	folder="$dir/cloned-project"
 	mkdir -p "$folder"
 
-	cat > "$json" <<JSON
-{
-  "setup_version": 3,
-  "app": "testapp",
-  "scaffold_mode": "clone",
-  "project_folder": "$folder"
-}
-JSON
+	write_scaffold_manifest "$manifest" "clone" "\"$folder\""
 
 	rc=0
-	bash "$SCRIPT" should-prompt "$json" >/dev/null 2>&1 || rc=$?
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
 
 	if [ "$rc" -ne 1 ]; then
-		fail "should-prompt mode clone + folder exists — exit code $rc (expected 1)"
+		fail "should-prompt clone + folder exists — exit code $rc (expected 1)"
 		return
 	fi
-	pass "should-prompt mode clone + folder exists → exit 1 (short-circuit)"
+	pass "should-prompt v5 + clone + folder exists → exit 1 (short-circuit)"
 }
 
 echo ""
-echo "── Test 23: should-prompt — v3 + mode clone + folder exists → exit 1 ──"
-test_should_prompt_v3_clone_exists
+echo "── Test 25: should-prompt — v5 + mode clone + folder exists → exit 1 ──"
+test_should_prompt_clone_exists
 
-# ── Test 24: new handles leading-dash target (SAST: git/mkdir option injection) ──
+# ── Test 26: should-prompt — v5 + mode new + folder null → exit 0 ────────────
+
+test_should_prompt_new_folder_null() {
+	local dir manifest rc
+	dir=$(mktemp -d)
+	register_temp_dir "$dir"
+	manifest="$dir/prism.jsonc"
+
+	write_scaffold_manifest "$manifest" "new" "null"
+
+	rc=0
+	bash "$SCRIPT" should-prompt "$manifest" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 0 ]; then
+		fail "should-prompt new + folder null — exit code $rc (expected 0, no folder recorded)"
+		return
+	fi
+	pass "should-prompt v5 + new + folder null → exit 0 (no folder recorded)"
+}
+
+echo ""
+echo "── Test 26: should-prompt — v5 + mode new + folder null → exit 0 ──"
+test_should_prompt_new_folder_null
+
+# ── Test 27: should-prompt — user manifest scaffold_mode ignored ─────────────
+
+test_should_prompt_user_ignored() {
+	local project_dir user_home user_manifest project_manifest rc
+	project_dir=$(mktemp -d)
+	register_temp_dir "$project_dir"
+	user_home=$(mktemp -d)
+	register_temp_dir "$user_home"
+
+	project_manifest="$project_dir/prism.jsonc"
+	user_manifest="$user_home/.config/opencode/prism.jsonc"
+
+	# Project says skip → must short-circuit (exit 1).
+	write_scaffold_manifest "$project_manifest" "skip" "null"
+
+	# User says new with null folder → WOULD prompt (exit 0) if its overlay
+	# were applied (resolved scaffold_mode would become "new"). If the user
+	# manifest were consulted, the exit would be 0, not 1. should-prompt
+	# passes '-' (project-only) so this user manifest is never read.
+	mkdir -p "$(dirname "$user_manifest")"
+	cat > "$user_manifest" <<'USER'
+{
+  "setup_version": 5,
+  "scaffold_mode": "new",
+  "project_folder": null
+}
+USER
+
+	rc=0
+	HOME="$user_home" bash "$SCRIPT" should-prompt "$project_manifest" >/dev/null 2>&1 || rc=$?
+
+	if [ "$rc" -ne 1 ]; then
+		fail "should-prompt user ignored — exit code $rc (expected 1; project skip must win over user new)"
+		return
+	fi
+	pass "should-prompt user manifest ignored — project scaffold_mode wins (exit 1)"
+}
+
+echo ""
+echo "── Test 27: should-prompt — user manifest scaffold_mode ignored ──"
+test_should_prompt_user_ignored
+
+# ── Test 28: prism.jsonc in quality-surface manifest (copy set) ──────────────
+
+test_prism_jsonc_in_manifest() {
+	if ! grep -qx "prism.jsonc" "$MANIFEST"; then
+		fail "prism.jsonc in manifest — not listed in quality-surface.manifest"
+		return
+	fi
+	pass "prism.jsonc listed in quality-surface manifest (copied to scaffolded projects)"
+}
+
+echo ""
+echo "── Test 28: prism.jsonc in quality-surface manifest (copy set) ──"
+test_prism_jsonc_in_manifest
+
+# ── Test 29: new handles leading-dash target (SAST: git/mkdir option injection) ──
 
 test_new_leading_dash_target() {
 	local target rc
@@ -1061,10 +1256,10 @@ test_new_leading_dash_target() {
 }
 
 echo ""
-echo "── Test 24: new — leading-dash target name (SAST hardening) ──"
+echo "── Test 29: new — leading-dash target name (SAST hardening) ──"
 test_new_leading_dash_target
 
-# ── Test 25: AC-1 — empty target rejected (all subcommands) ─────────────────
+# ── Test 30: AC-1 — empty target rejected (all subcommands) ─────────────────
 
 test_reject_empty_target() {
 	local rc
@@ -1078,10 +1273,10 @@ test_reject_empty_target() {
 }
 
 echo ""
-echo "── Test 25: AC-1 — empty target rejected ──"
+echo "── Test 30: AC-1 — empty target rejected ──"
 test_reject_empty_target
 
-# ── Test 26: AC-1 — absolute target rejected ────────────────────────────────
+# ── Test 31: AC-1 — absolute target rejected ────────────────────────────────
 
 test_reject_absolute_target() {
 	local rc
@@ -1100,10 +1295,10 @@ test_reject_absolute_target() {
 }
 
 echo ""
-echo "── Test 26: AC-1 — absolute target rejected ──"
+echo "── Test 31: AC-1 — absolute target rejected ──"
 test_reject_absolute_target
 
-# ── Test 27: AC-1 — ../ traversal target rejected ───────────────────────────
+# ── Test 32: AC-1 — ../ traversal target rejected ───────────────────────────
 
 test_reject_dotdot_target() {
 	local rc
@@ -1117,10 +1312,10 @@ test_reject_dotdot_target() {
 }
 
 echo ""
-echo "── Test 27: AC-1 — ../ traversal target rejected ──"
+echo "── Test 32: AC-1 — ../ traversal target rejected ──"
 test_reject_dotdot_target
 
-# ── Test 28: AC-1 — symlink-escape target rejected ──────────────────────────
+# ── Test 33: AC-1 — symlink-escape target rejected ──────────────────────────
 
 test_reject_symlink_escape_target() {
 	if ! can_symlink; then
@@ -1143,10 +1338,10 @@ test_reject_symlink_escape_target() {
 }
 
 echo ""
-echo "── Test 28: AC-1 — symlink-escape target rejected ──"
+echo "── Test 33: AC-1 — symlink-escape target rejected ──"
 test_reject_symlink_escape_target
 
-# ── Test 29: AC-1 — valid relative target still works ───────────────────────
+# ── Test 34: AC-1 — valid relative target still works ───────────────────────
 
 test_valid_relative_target_works() {
 	local target exit_code
@@ -1166,10 +1361,10 @@ test_valid_relative_target_works() {
 }
 
 echo ""
-echo "── Test 29: AC-1 — valid relative target still works ──"
+echo "── Test 34: AC-1 — valid relative target still works ──"
 test_valid_relative_target_works
 
-# ── Test 30: AC-1 — check-only also validates containment ────────────────────
+# ── Test 35: AC-1 — check-only also validates containment ────────────────────
 
 test_check_only_validates_containment() {
 	local rc
@@ -1183,10 +1378,10 @@ test_check_only_validates_containment() {
 }
 
 echo ""
-echo "── Test 30: AC-1 — check-only validates containment ──"
+echo "── Test 35: AC-1 — check-only validates containment ──"
 test_check_only_validates_containment
 
-# ── Test 31: AC-2 — manifest entry with ../ is rejected (source containment) ─
+# ── Test 36: AC-2 — manifest entry with ../ is rejected (source containment) ─
 
 test_reject_manifest_dotdot() {
 	local bad_manifest target exit_code
@@ -1213,10 +1408,10 @@ test_reject_manifest_dotdot() {
 }
 
 echo ""
-echo "── Test 31: AC-2 — manifest ../ entry rejected ──"
+echo "── Test 36: AC-2 — manifest ../ entry rejected ──"
 test_reject_manifest_dotdot
 
-# ── Test 32: AC-2 — manifest entry with absolute path rejected (source) ─────
+# ── Test 37: AC-2 — manifest entry with absolute path rejected (source) ─────
 
 test_reject_manifest_absolute() {
 	local bad_manifest target exit_code
@@ -1240,10 +1435,10 @@ test_reject_manifest_absolute() {
 }
 
 echo ""
-echo "── Test 32: AC-2 — manifest absolute entry rejected ──"
+echo "── Test 37: AC-2 — manifest absolute entry rejected ──"
 test_reject_manifest_absolute
 
-# ── Test 33: AC-2 — clean manifest still copies successfully ────────────────
+# ── Test 38: AC-2 — clean manifest still copies successfully ────────────────
 
 test_clean_manifest_copies() {
 	local target exit_code
@@ -1264,10 +1459,10 @@ test_clean_manifest_copies() {
 }
 
 echo ""
-echo "── Test 33: AC-2 — clean manifest copies successfully ──"
+echo "── Test 38: AC-2 — clean manifest copies successfully ──"
 test_clean_manifest_copies
 
-# ── Test 34: AC-3 — gh repo clone includes -- sentinel ──────────────────────
+# ── Test 39: AC-3 — gh repo clone includes -- sentinel ──────────────────────
 
 test_clone_has_double_dash_sentinel() {
 	local fake_bin target fake_log exit_code recorded
@@ -1304,13 +1499,14 @@ test_clone_has_double_dash_sentinel() {
 }
 
 echo ""
-echo "── Test 34: AC-3 — gh repo clone -- sentinel ──"
+echo "── Test 39: AC-3 — gh repo clone -- sentinel ──"
 test_clone_has_double_dash_sentinel
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
