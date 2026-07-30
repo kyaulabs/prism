@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: migrate-setup.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: migrate-setup.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
@@ -35,6 +36,8 @@ if ! command -v php >/dev/null 2>&1; then
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+# Resolve symlinks so path-prefix matching works when /tmp → /private/tmp (macOS).
+REPO_ROOT=$(cd "$REPO_ROOT" && pwd -P)
 CLI="$REPO_ROOT/.github/scripts/prism_manifest.php"
 
 PROJECT_OLD="${MIGRATE_PROJECT_OLD:-$REPO_ROOT/.opencode/setup.json}"
@@ -56,6 +59,9 @@ path_exists() {
 # downstream-upgrade case) is removed after equality verification.
 is_legacy_tracked() {
     local legacy="$1" rel
+    # Resolve directory symlinks so the prefix match works when
+    # /tmp → /private/tmp on macOS. pwd -P is POSIX, works on both platforms.
+    legacy="$(cd "$(dirname "$legacy")" && pwd -P)/$(basename "$legacy")"
     case "$legacy" in
         "$REPO_ROOT"/*)
             rel="${legacy#"$REPO_ROOT"/}"
@@ -135,6 +141,7 @@ process_tier "$PROJECT_OLD" "$PROJECT_NEW" project 0644
 process_tier "$USER_OLD" "$USER_NEW" user 0600
 
 echo "✓ Migration complete" >&2
+
 
 
 
