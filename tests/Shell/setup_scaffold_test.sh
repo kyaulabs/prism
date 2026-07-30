@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
@@ -1502,10 +1503,25 @@ echo ""
 echo "── Test 39: AC-3 — gh repo clone -- sentinel ──"
 test_clone_has_double_dash_sentinel
 
+# ── Test 40: ADR-0043 cutover — no legacy .opencode/setup.json ──────────────
+
+test_no_legacy_setup_json() {
+	if [ -f "$REPO_ROOT/.opencode/setup.json" ]; then
+		fail "legacy .opencode/setup.json still present after ADR-0043 prism.jsonc cutover"
+		return
+	fi
+	pass "no legacy .opencode/setup.json (ADR-0043 cutover complete)"
+}
+
+echo ""
+echo "── Test 40: ADR-0043 cutover — no legacy .opencode/setup.json ──"
+test_no_legacy_setup_json
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 
