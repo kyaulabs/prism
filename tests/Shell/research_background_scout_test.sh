@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: research_background_scout_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: research_background_scout_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
 
 
 
@@ -8,8 +10,8 @@
 # Asserts:
 #   1. adr/0024-experimental-subagent-dependencies.md exists, Status: Accepted
 #   2. CONTEXT.md defines `scout` and `background subagent`
-#   3. .opencode/setup.json experimental.lsp_tool and experimental.scout are true
-#   4. .envrc reads from .opencode/setup.json (via jq)
+#   3. prism.jsonc experimental.lsp_tool and experimental.scout are true
+#   4. .envrc loads prism.jsonc via the env0 CLI
 #   5. AGENTS.md documents all three experimental opencode flags
 #   6. .opencode/commands/research.md handles --background
 #   7. .opencode/skills/research-background/SKILL.md exists
@@ -45,22 +47,22 @@ else
 	fail "CONTEXT.md missing scout or background subagent glossary entry"
 fi
 
-# ── 3. .opencode/setup.json experimental section ────────────────────────────
+# ── 3. prism.jsonc experimental section (queried via the CLI) ───────────────
 
-LSP=$(jq -r '.experimental.lsp_tool' "$REPO_ROOT/.opencode/setup.json")
-SCOUT=$(jq -r '.experimental.scout' "$REPO_ROOT/.opencode/setup.json")
+LSP=$(php "$REPO_ROOT/.github/scripts/prism_manifest.php" get "$REPO_ROOT/prism.jsonc" - experimental.lsp_tool)
+SCOUT=$(php "$REPO_ROOT/.github/scripts/prism_manifest.php" get "$REPO_ROOT/prism.jsonc" - experimental.scout)
 if [ "$LSP" = "true" ] && [ "$SCOUT" = "true" ]; then
-	pass "setup.json experimental.lsp_tool and experimental.scout are true"
+	pass "prism.jsonc experimental.lsp_tool and experimental.scout are true"
 else
-	fail "setup.json missing LSP or scout experimental flag (LSP=$LSP SCOUT=$SCOUT)"
+	fail "prism.jsonc missing LSP or scout experimental flag (LSP=$LSP SCOUT=$SCOUT)"
 fi
 
-# ── 4. .envrc sources .opencode/setup.json ─────────────────────────────────
+# ── 4. .envrc loads prism.jsonc via the env0 CLI ────────────────────────────
 
-if grep -q 'setup\.json' "$REPO_ROOT/.envrc"; then
-	pass ".envrc sources .opencode/setup.json"
+if grep -q 'prism_manifest\.php' "$REPO_ROOT/.envrc" && grep -q 'env0' "$REPO_ROOT/.envrc"; then
+	pass ".envrc loads prism.jsonc via the env0 CLI"
 else
-	fail ".envrc does not source .opencode/setup.json"
+	fail ".envrc does not load prism.jsonc via the env0 CLI (prism_manifest.php env0)"
 fi
 
 # ── 5. AGENTS.md documents experimental flags ──────────────────────────────
@@ -100,6 +102,8 @@ else
 fi
 
 print_summary "research_background_scout"
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

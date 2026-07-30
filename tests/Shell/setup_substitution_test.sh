@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_substitution_test.sh kyau@nova 2026/07/21 -0700 Exp $
+# $KYAULabs: setup_substitution_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
 
 
 
@@ -166,7 +168,7 @@ Branch: feat/<username>-hash
 EOF
 	bash "$SCRIPT" file.md "$T_APP" "$T_DOMAIN" "$T_ORG" "$T_REPO"
 	# Verify NO old scaffolding tokens remain (identity tokens are NOT
-	# substituted by this script — they live in setup.json now per ADR-0029).
+	# substituted by this script — they live in prism.jsonc now per ADR-0029).
 	if grep -qF 'git+abuse@kyaulabs.com' file.md; then
 		fail "abuse contact still present after substitution"
 	elif grep -qF 'kyaulabs/template' file.md; then
@@ -404,6 +406,8 @@ register_temp_dir "$T13"
 
 print_summary "setup substitution"
 exit $?
+
+
 
 
 

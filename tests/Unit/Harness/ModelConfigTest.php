@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
 
 
 
@@ -10,16 +10,28 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
+use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
+require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
+
 /**
- * Load and return the project setup.json (v4 schema) as an associative array.
+ * Load and return the project prism.jsonc manifest (v5 schema) as an
+ * associative array via the production JSONC reader.
  *
  * @return array<string, mixed>
  */
-function setup_json(): array
+function prism_manifest(): array
 {
-    return json_decode(file_get_contents(__DIR__ . '/../../../.opencode/setup.json'), true);
+    $root = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/prism.jsonc')->root();
+
+    return json_decode(json_encode($root), true);
 }
 
 /**
@@ -49,26 +61,35 @@ function lsp_enabled_agents(): array
     return array_values(array_unique($agents));
 }
 
-it('has a setup.json with five tier model values', function () {
-    $setup = setup_json();
+it('has a prism.jsonc manifest at the v5 schema version', function () {
+    $manifest = prism_manifest();
 
-    Assert::assertArrayHasKey('models', $setup, 'setup.json must have a models section');
-    Assert::assertIsArray($setup['models'], 'setup.json models must be an object');
+    expect($manifest['setup_version'])->toBe(5);
+});
+
+it('has a prism.jsonc manifest with five tier model values', function () {
+    $setup = prism_manifest();
+
+    Assert::assertArrayHasKey('models', $setup, 'prism.jsonc must have a models section');
+    Assert::assertIsArray($setup['models'], 'prism.jsonc models must be an object');
 
     $tiers = ['primary', 'planner', 'design', 'judge', 'utility'];
     foreach ($tiers as $tier) {
-        Assert::assertArrayHasKey($tier, $setup['models'], "setup.json models must define '{$tier}'");
-        Assert::assertIsString($setup['models'][$tier], "setup.json models.{$tier} must be a string");
-        Assert::assertNotEmpty($setup['models'][$tier], "setup.json models.{$tier} must not be empty");
+        Assert::assertArrayHasKey($tier, $setup['models'], "prism.jsonc models must define '{$tier}'");
+        Assert::assertIsString($setup['models'][$tier], "prism.jsonc models.{$tier} must be a string");
+        Assert::assertNotEmpty($setup['models'][$tier], "prism.jsonc models.{$tier} must not be empty");
     }
 });
 
-it('has an envrc file that reads setup.json via jq', function () {
+it('has an envrc file that loads prism.jsonc via the env0 CLI', function () {
     $path = __DIR__ . '/../../../.envrc';
     Assert::assertFileExists($path, '.envrc must exist in project root');
 
     $content = file_get_contents($path);
-    Assert::assertStringContainsString('setup.json', $content);
+    Assert::assertStringContainsString('prism.jsonc', $content, '.envrc must reference the prism.jsonc manifest');
+    Assert::assertStringContainsString('prism_manifest.php', $content, '.envrc must load the manifest via the prism_manifest CLI');
+    Assert::assertStringContainsString('env0', $content, '.envrc must invoke the env0 subcommand');
+    Assert::assertStringNotContainsString(' jq ', ' ' . $content . ' ', '.envrc must not read the manifest via jq');
 });
 
 it('uses env var substitution for all model fields in opencode.json', function () {
@@ -202,14 +223,14 @@ it('agent md files do not define model or variant in frontmatter', function () {
     }
 });
 
-it('has consistent model keys between setup.json and opencode.json', function () {
-    $setup = setup_json();
+it('has consistent model keys between prism.jsonc and opencode.json', function () {
+    $setup = prism_manifest();
     $config = file_get_contents(opencode_config_path());
 
     $modelKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
 
     foreach ($modelKeys as $key) {
-        Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must define '{$key}'");
+        Assert::assertArrayHasKey($key, $setup['models'], "prism.jsonc models must define '{$key}'");
         $varName = 'OPENCODE_MODEL_' . strtoupper($key);
         Assert::assertStringContainsString($varName, $config, "opencode.jsonc must reference {$varName}");
     }
@@ -271,17 +292,17 @@ it('uses env var substitution for variant, keeps temperature as literal', functi
     }
 });
 
-it('has all required model and variant keys in setup.json', function () {
-    $setup = setup_json();
+it('has all required model and variant keys in prism.jsonc', function () {
+    $setup = prism_manifest();
     $expectedKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
     foreach ($expectedKeys as $key) {
-        Assert::assertArrayHasKey($key, $setup['models'], "setup.json models must have key '{$key}'");
-        Assert::assertArrayHasKey($key, $setup['variants'], "setup.json variants must have key '{$key}'");
+        Assert::assertArrayHasKey($key, $setup['models'], "prism.jsonc models must have key '{$key}'");
+        Assert::assertArrayHasKey($key, $setup['variants'], "prism.jsonc variants must have key '{$key}'");
     }
 });
 
 it('has correct default variant values', function () {
-    $setup = setup_json();
+    $setup = prism_manifest();
     expect($setup['variants']['primary'])->toBe('max');
     expect($setup['variants']['planner'])->toBe('xhigh');
     expect($setup['variants']['design'])->toBe('xhigh');
@@ -289,13 +310,13 @@ it('has correct default variant values', function () {
     expect($setup['variants']['utility'])->toBe('medium');
 });
 
-it('has OPENCODE_MODEL_JUDGE with correct default in setup.json', function () {
-    $setup = setup_json();
+it('has OPENCODE_MODEL_JUDGE with correct default in prism.jsonc', function () {
+    $setup = prism_manifest();
     expect($setup['models']['judge'])->toBe('deepseek/deepseek-v4-pro');
 });
 
 it('has planner and design defaulting to GPT-5.6 Sol', function () {
-    $setup = setup_json();
+    $setup = prism_manifest();
     expect($setup['models']['planner'])->toBe('openai/gpt-5.6-sol');
     expect($setup['models']['design'])->toBe('openai/gpt-5.6-sol');
 });
@@ -440,8 +461,8 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
     }
 });
 
-it('README and CODING_HARNESS tier tables match setup.json defaults', function (): void {
-    $setup = setup_json();
+it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function (): void {
+    $setup = prism_manifest();
 
     foreach (['README.md', 'CODING_HARNESS.md'] as $doc) {
         $text = file_get_contents(__DIR__ . '/../../../' . $doc);
@@ -451,7 +472,7 @@ it('README and CODING_HARNESS tier tables match setup.json defaults', function (
             Assert::assertStringContainsString(
                 $setup['models'][$tier],
                 $text,
-                "{$doc} must list the setup.json default model for the '{$tier}' tier",
+                "{$doc} must list the prism.jsonc default model for the '{$tier}' tier",
             );
         }
 
@@ -466,7 +487,7 @@ it('README and CODING_HARNESS tier tables match setup.json defaults', function (
 });
 
 it('README install verify comment matches the shipped Primary default', function (): void {
-    $setup = setup_json();
+    $setup = prism_manifest();
     $readme = file_get_contents(__DIR__ . '/../../../README.md');
 
     Assert::assertMatchesRegularExpression(
@@ -492,6 +513,8 @@ it('CODING_HARNESS variant column reflects xhigh for planner and design', functi
     Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
 });
+
+
 
 
 
