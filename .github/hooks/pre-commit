@@ -141,15 +141,16 @@ else
 	echo "⚠ gitleaks not installed — skipping secrets scan (https://github.com/gitleaks/gitleaks/releases)"
 fi
 
-# ── Tracked setup.json secret-slot guard (issue #194) ────────────────────────
-# Enforces ADR-0032's "empty defaults in the committed file" contract: a
-# non-empty env.* value in the tracked .opencode/setup.json means a secret is
-# about to be committed. Checks the STAGED blob (ADR-0015), not the working
-# tree. Mirrors check-script-executable-bits.sh (local guard + CI parity).
-STAGED_SETUP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -Fx '.opencode/setup.json' || true)
-if [ -n "$STAGED_SETUP" ]; then
-	echo "→ setup.json secret-slot guard"
-	checkout_staged ".opencode/setup.json"
+# ── Tracked prism.jsonc secret-slot guard (issue #194, ADR-0043) ─────────────
+# Enforces the project-tier secret invariant: a non-empty env.* value in the
+# tracked root prism.jsonc means a secret is about to be committed. Checks the
+# STAGED blob (ADR-0015), not the working tree. The guard delegates JSONC
+# parsing and violation detection to prism_manifest.php check-secrets. Mirrors
+# check-script-executable-bits.sh (local guard + CI parity).
+STAGED_MANIFEST=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -Fx 'prism.jsonc' || true)
+if [ -n "$STAGED_MANIFEST" ]; then
+	echo "→ prism.jsonc secret-slot guard"
+	checkout_staged "prism.jsonc"
 	bash .github/scripts/check-setup-secrets.sh "$TMPF"
 fi
 
