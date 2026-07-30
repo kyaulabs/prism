@@ -117,13 +117,13 @@ Floor: `gh` any recent (`gh auth status` is stable across versions). This is a
 `clone` option of `/setup`'s scaffold mode (§2.5). The `new` and `skip`
 options, and all other harness features, work without it.
 
-## 9. JSON parsing (config sourcing)
+## 9. Prism manifest CLI (config sourcing)
 
 ```bash
-jq --version 2>/dev/null || echo "NOT_FOUND"
+php .github/scripts/prism_manifest.php version 2>/dev/null || echo "NOT_FOUND"
 ```
 
-Floor: `jq` >= 1.6. Required by `.envrc` for parsing `.opencode/setup.json` (unified config per ADR-0029). Missing jq means `direnv` cannot source model, variant, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
+The `prism_manifest.php` CLI replaces jq for reading the `prism.jsonc` project manifest (ADR-0043). It exports the fifteen `OPENCODE_*` environment variables as a NUL-separated stream (via `env0` subcommand) and provides a `version` check. Missing means `direnv` cannot source model, variant, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
 
 ## Output
 
@@ -165,7 +165,7 @@ yaml-ls       PASS     auto-install    —            —
 stylelint-ls  PASS     1.1.1           any          npm i -D @stylelint/language-server
 deno-lsp      PASS     DISABLED        —            —
 gh            PASS     INSTALLED+AUTH  any recent   gh auth login
-jq            PASS     1.7.1           1.6          apt install jq
+prism_manifest PASS     v5              —            —
 
 GO: 13 pass, 1 warn, 2 fail, 1 skipped, 1 soft-fail pass. Unblocked for writing code.
 NO-GO for CI: fail items must be fixed before CI runs (git-cliff needed for
@@ -203,7 +203,7 @@ changelog generation).
   and `skip` scaffold options, and every other harness feature, work without
   it. A missing or unauthenticated `gh` is reported as FAIL/SKIPPED but never
   blocks writing, committing, or pushing code.
-- `jq` is required by `.envrc` for parsing `.opencode/setup.json` (ADR-0029).
-  Missing jq means model, variant, and experimental env vars export as empty —
+- `prism_manifest.php` is required by `.envrc` for parsing `prism.jsonc` (ADR-0043).
+  Missing means model, variant, and experimental env vars export as empty —
   opencode will not receive correct model configuration. Treat as blocking
   as `php` or `npm` being missing.

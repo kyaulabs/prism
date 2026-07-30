@@ -84,7 +84,7 @@ the system prompt, not the model variant.
 
 Models and variants are assigned via environment variable substitution
 (`{env:VAR}`) rather than hard-coded values. Five tiers with committed defaults
-in `.opencode/setup.json` (models section):
+in `prism.jsonc` (models section):
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
 | --- | --- | --- | --- | --- | --- |

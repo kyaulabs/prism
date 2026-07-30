@@ -51,7 +51,7 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 > footer adjustment until then. See ADR-0031.
 - `Signed-off-by:` — the human approver, resolved dynamically via
   `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
-  `~/.config/opencode/setup.json` → `.opencode/setup.json` → `git config`).
+  `~/.config/opencode/prism.jsonc` → `prism.jsonc` → `git config`).
   Ships as `kyau <git@kyaulabs.com>` until a user runs `/setup`.
 
 **Exemptions:**

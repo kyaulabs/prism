@@ -147,8 +147,8 @@ and produce a commit message in the required format:
 - Footer: `Tested-by:` with `agent.code-review.model` from `opencode.jsonc` — segment after the last `/` (e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`)
 - Footer: `Signed-off-by:` — resolved dynamically via
   `bash .github/scripts/resolve-identity.sh` (the resolver reads
-  `~/.config/opencode/setup.json` first, then project-level
-  `.opencode/setup.json`, falling back to `git config user.name`/`user.email`.
+  `~/.config/opencode/prism.jsonc` first, then project-level
+  `prism.jsonc`, falling back to `git config user.name`/`user.email`.
   See ADR-0029.)
 
 If the task already provided a commit message in the plan, validate it —
