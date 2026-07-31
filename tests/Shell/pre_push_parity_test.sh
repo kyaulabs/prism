@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_push_parity_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: pre_push_parity_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 # pre_push_parity_test.sh — verifies pre-push runs the CI-parity backstop
-# (validate-harness + shell tests) before allowing a push (ADR-0025).
+# (validate-harness + shell tests) before allowing a push (ADR-0025),
+# and asserts the protected-ref gate uses remote_ref (ADR-0044).
 
 set -euo pipefail
 
@@ -25,6 +27,27 @@ else
 	fail "pre-push missing CI-parity note"
 fi
 
+# ── Protected-ref parity assertions (ADR-0044) ────────────────────────
+
+if grep -qF 'remote_ref' "$HOOK"; then
+	pass "pre-push references remote_ref"
+else
+	fail "pre-push missing remote_ref"
+fi
+
+if grep -qF 'refs/heads/main' "$HOOK" && grep -qF 'refs/heads/develop' "$HOOK"; then
+	pass "pre-push gates both protected refs (main and develop)"
+else
+	fail "pre-push missing one or both protected refs"
+fi
+
+if grep -qF 'is_initial_protected_push' "$HOOK"; then
+	pass "pre-push defines is_initial_protected_push helper"
+else
+	fail "pre-push missing is_initial_protected_push helper"
+fi
+
 print_summary "pre_push_parity"
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

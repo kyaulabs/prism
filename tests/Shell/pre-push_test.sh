@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-push_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: pre-push_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
@@ -303,10 +304,301 @@ register_temp_dir "$T7"
     fi
 )
 
+# ── Test 8: Fast-forward update to refs/heads/main is blocked ──────────
+
+echo ""
+echo "── Test 8: Fast-forward update to main — blocked ──"
+T8=$(mktemp -d)
+register_temp_dir "$T8"
+(
+    cd "$T8"
+    git_init_test_repo .
+
+    # Base commit on main, simulate pushed to origin
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+    simulate_pushed origin main "$BASE_OID"
+
+    # Create second commit (fast-forward update)
+    echo "change" > change.txt
+    git add change.txt
+    git commit --quiet -m "feat: add change"
+    NEW_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/main $NEW_OID refs/heads/main $BASE_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -ne 0 ] && echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Fast-forward update to main blocked (exit $ret)"
+    else
+        fail "Fast-forward update to main not blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 9: Fast-forward update to refs/heads/develop is blocked ──────
+
+echo ""
+echo "── Test 9: Fast-forward update to develop — blocked ──"
+T9=$(mktemp -d)
+register_temp_dir "$T9"
+(
+    cd "$T9"
+    git_init_test_repo .
+
+    # Base commit on develop, simulate pushed to origin
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+    git branch -m develop
+    simulate_pushed origin develop "$BASE_OID"
+
+    # Create second commit (fast-forward update)
+    echo "change" > change.txt
+    git add change.txt
+    git commit --quiet -m "feat: add change"
+    NEW_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/develop $NEW_OID refs/heads/develop $BASE_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -ne 0 ] && echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Fast-forward update to develop blocked (exit $ret)"
+    else
+        fail "Fast-forward update to develop not blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 10: Deletion of protected ref is blocked ─────────────────────
+
+echo ""
+echo "── Test 10: Deletion of main — blocked ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+    cd "$T10"
+    git_init_test_repo .
+
+    # Base commit on main, simulate pushed to origin
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+
+    # Simulate deletion — zero local OID, non-zero remote OID
+    set +e
+    output=$(echo "refs/heads/main $ZERO_OID refs/heads/main $BASE_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -ne 0 ] && echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Deletion of main blocked (exit $ret)"
+    else
+        fail "Deletion of main not blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 11: Refspec work→main is blocked (remote_ref, not local_ref) ─
+
+echo ""
+echo "── Test 11: Refspec work→main — blocked ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+    cd "$T11"
+    git_init_test_repo .
+
+    # Base commit on main, simulate pushed to origin
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+    simulate_pushed origin main "$BASE_OID"
+
+    # Work branch with one commit ahead of main
+    git checkout --quiet -b work
+    echo "change" > change.txt
+    git add change.txt
+    git commit --quiet -m "feat: add change"
+    WORK_OID=$(git rev-parse HEAD)
+
+    # local_ref=work, remote_ref=main — blocked because target is protected
+    set +e
+    output=$(echo "refs/heads/work $WORK_OID refs/heads/main $BASE_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -ne 0 ] && echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Refspec work->main blocked by remote_ref (exit $ret)"
+    else
+        fail "Refspec work->main not blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 12: Work-branch push remains allowed (regression) ─────────────
+
+echo ""
+echo "── Test 12: Work-branch push — allowed ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+    cd "$T12"
+    git_init_test_repo .
+
+    # Base commit on main, simulate pushed to origin
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    BASE_OID=$(git rev-parse HEAD)
+    simulate_pushed origin main "$BASE_OID"
+
+    # Work branch with 3 commits (not a squash candidate either)
+    git checkout --quiet -b feat/test-user-abc12-feature
+    for i in 1 2 3; do
+        echo "change$i" > "change$i.txt"
+        git add "change$i.txt"
+        git commit --quiet -m "feat: change $i"
+    done
+    WORK_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/feat/test-user-abc12-feature $WORK_OID refs/heads/feat/test-user-abc12-feature $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Work-branch push allowed (exit $ret)"
+    else
+        fail "Work-branch push blocked unexpectedly (exit=$ret): $output"
+    fi
+)
+
+# ── Test 13: Tag push to refs/tags/v1.0.0 remains allowed ─────────────
+
+echo ""
+echo "── Test 13: Tag push v1.0.0 — allowed ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+    cd "$T13"
+    git_init_test_repo .
+
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "base commit"
+    TAG_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/tags/v1.0.0 $TAG_OID refs/tags/v1.0.0 $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Tag push v1.0.0 allowed (exit $ret)"
+    else
+        fail "Tag push v1.0.0 blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 14: Absent remote + one root commit to main — allowed ────────
+
+echo ""
+echo "── Test 14: Initial seed push to main — allowed ──"
+T14=$(mktemp -d)
+register_temp_dir "$T14"
+(
+    cd "$T14"
+    git_init_test_repo .
+
+    # Single zero-parent root commit (no remote tracking, no parent)
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "initial commit"
+    ROOT_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/main $ROOT_OID refs/heads/main $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Initial seed push to main allowed (exit $ret)"
+    else
+        fail "Initial seed push to main blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 15: Absent remote + multi-commit history to main — blocked ────
+
+echo ""
+echo "── Test 15: Multi-commit push to absent main — blocked ──"
+T15=$(mktemp -d)
+register_temp_dir "$T15"
+(
+    cd "$T15"
+    git_init_test_repo .
+
+    # Multiple commits (no remote tracking)
+    echo "first" > first.txt
+    git add first.txt
+    git commit --quiet -m "first commit"
+    echo "second" > second.txt
+    git add second.txt
+    git commit --quiet -m "second commit"
+    LOCAL_OID=$(git rev-parse HEAD)
+
+    set +e
+    output=$(echo "refs/heads/main $LOCAL_OID refs/heads/main $ZERO_OID" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -ne 0 ] && echo "$output" | grep -qi 'BLOCKED'; then
+        pass "Multi-commit push to absent main blocked (exit $ret)"
+    else
+        fail "Multi-commit push to absent main not blocked (exit=$ret): $output"
+    fi
+)
+
+# ── Test 16: SHA-256 zero OID + one root commit to develop — allowed ──
+
+echo ""
+echo "── Test 16: SHA-256 zero OID + root commit to develop — allowed ──"
+T16=$(mktemp -d)
+register_temp_dir "$T16"
+(
+    cd "$T16"
+    git_init_test_repo .
+
+    echo "base" > base.txt
+    git add base.txt
+    git commit --quiet -m "initial commit"
+    ROOT_OID=$(git rev-parse HEAD)
+
+    ZERO_OID_256="0000000000000000000000000000000000000000000000000000000000000000"
+
+    set +e
+    output=$(echo "refs/heads/develop $ROOT_OID refs/heads/develop $ZERO_OID_256" | bash "$REAL_HOOK" 2>&1)
+    ret=$?
+    set -e
+
+    if [ "$ret" -eq 0 ] && ! echo "$output" | grep -qi 'BLOCKED'; then
+        pass "SHA-256 zero OID + root commit to develop allowed (exit $ret)"
+    else
+        fail "SHA-256 zero OID + root commit to develop blocked (exit=$ret): $output"
+    fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "pre-push_test.sh"
 exit $?
+
 
 
 
