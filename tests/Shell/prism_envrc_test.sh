@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_envrc_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: prism_envrc_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
 # ── Isolated integration tests for .envrc manifest sourcing (ADR-0043) ────────
 #
-# Verifies that .envrc exports the fifteen OPENCODE_*/secret environment
+# Verifies that .envrc exports the nineteen OPENCODE_*/secret environment
 # variables from the layered prism.jsonc manifest via the dependency-free
 # prism_manifest.php env0 CLI (NUL-separated transport, no eval).
 #
@@ -95,6 +96,13 @@ write_default_project_manifest() {
     "scout": true,
     "background_subagents": false
   },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
+  },
   "env": {
     "deepseek_api_key": "",
     "searxng_url": ""
@@ -134,6 +142,10 @@ run_envrc() {
 			printf "OPENCODE_EXPERIMENTAL_LSP_TOOL\t%s\n" "$OPENCODE_EXPERIMENTAL_LSP_TOOL"
 			printf "OPENCODE_EXPERIMENTAL_SCOUT\t%s\n" "$OPENCODE_EXPERIMENTAL_SCOUT"
 			printf "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS\t%s\n" "$OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
+			printf "OPENCODE_MCP_DEEPSEEK_WEBSEARCH\t%s\n" "$OPENCODE_MCP_DEEPSEEK_WEBSEARCH"
+			printf "OPENCODE_MCP_SEARXNG\t%s\n" "$OPENCODE_MCP_SEARXNG"
+			printf "OPENCODE_PLUGIN_OPENCODE_QUOTA\t%s\n" "$OPENCODE_PLUGIN_OPENCODE_QUOTA"
+			printf "OPENCODE_CONFIG_CONTENT\t%s\n" "$OPENCODE_CONFIG_CONTENT"
 			printf "DEEPSEEK_API_KEY\t%s\n" "$DEEPSEEK_API_KEY"
 			printf "SEARXNG_URL\t%s\n" "$SEARXNG_URL"
 		' 2>"$stderr_file"
@@ -146,7 +158,7 @@ get_var() {
 	printf '%s' "$RUN_ENVRC_OUT" | awk -v n="$1" 'BEGIN{FS="\t"} $1==n{sub(/^[^\t]*\t/,""); print; exit}'
 }
 
-# ── Test 1: Project defaults only — fifteen vars exported byte-identical ──────
+# ── Test 1: Project defaults only — nineteen vars exported byte-identical ──────
 
 test_project_defaults_only() {
 	setup_default_fixture
@@ -174,6 +186,9 @@ test_project_defaults_only() {
 	local expected_lsp="true"
 	local expected_scout="true"
 	local expected_bg="false"
+	local expected_mcp_ds="false"
+	local expected_mcp_sx="false"
+	local expected_plugin_quota="false"
 
 	[ "$(get_var OPENCODE_MODEL_PRIMARY)" = "$expected_model_primary" ] || { echo "  OPENCODE_MODEL_PRIMARY got '$(get_var OPENCODE_MODEL_PRIMARY)' want '$expected_model_primary'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_MODEL_PLANNER)" = "$expected_model_planner" ] || { echo "  OPENCODE_MODEL_PLANNER got '$(get_var OPENCODE_MODEL_PLANNER)' want '$expected_model_planner'" >&2; failures=$((failures+1)); }
@@ -188,18 +203,21 @@ test_project_defaults_only() {
 	[ "$(get_var OPENCODE_EXPERIMENTAL_LSP_TOOL)" = "$expected_lsp" ] || { echo "  OPENCODE_EXPERIMENTAL_LSP_TOOL got '$(get_var OPENCODE_EXPERIMENTAL_LSP_TOOL)' want '$expected_lsp'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_EXPERIMENTAL_SCOUT)" = "$expected_scout" ] || { echo "  OPENCODE_EXPERIMENTAL_SCOUT got '$(get_var OPENCODE_EXPERIMENTAL_SCOUT)' want '$expected_scout'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS)" = "$expected_bg" ] || { echo "  OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS got '$(get_var OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS)' want '$expected_bg'" >&2; failures=$((failures+1)); }
+	[ "$(get_var OPENCODE_MCP_DEEPSEEK_WEBSEARCH)" = "$expected_mcp_ds" ] || { echo "  OPENCODE_MCP_DEEPSEEK_WEBSEARCH got '$(get_var OPENCODE_MCP_DEEPSEEK_WEBSEARCH)' want '$expected_mcp_ds'" >&2; failures=$((failures+1)); }
+	[ "$(get_var OPENCODE_MCP_SEARXNG)" = "$expected_mcp_sx" ] || { echo "  OPENCODE_MCP_SEARXNG got '$(get_var OPENCODE_MCP_SEARXNG)' want '$expected_mcp_sx'" >&2; failures=$((failures+1)); }
+	[ "$(get_var OPENCODE_PLUGIN_OPENCODE_QUOTA)" = "$expected_plugin_quota" ] || { echo "  OPENCODE_PLUGIN_OPENCODE_QUOTA got '$(get_var OPENCODE_PLUGIN_OPENCODE_QUOTA)' want '$expected_plugin_quota'" >&2; failures=$((failures+1)); }
 	[ "$(get_var DEEPSEEK_API_KEY)" = "" ] || { echo "  DEEPSEEK_API_KEY got '$(get_var DEEPSEEK_API_KEY)' want ''" >&2; failures=$((failures+1)); }
 	[ "$(get_var SEARXNG_URL)" = "" ] || { echo "  SEARXNG_URL got '$(get_var SEARXNG_URL)' want ''" >&2; failures=$((failures+1)); }
 
 	if [ "$failures" -eq 0 ]; then
-		pass "project defaults — all fifteen vars exported byte-identical"
+		pass "project defaults — all nineteen vars exported byte-identical"
 	else
 		fail "project defaults — $failures value(s) mismatched"
 	fi
 }
 
 echo ""
-echo "── Test 1: Project defaults only — fifteen vars byte-identical ──"
+echo "── Test 1: Project defaults only — nineteen vars byte-identical ──"
 test_project_defaults_only
 
 # ── Test 2: Per-field user overlay — overridden field wins, rest inherited ────
@@ -298,6 +316,13 @@ test_metacharacter_safety() {
     "lsp_tool": true,
     "scout": true,
     "background_subagents": false
+  },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
   },
   "env": {
     "deepseek_api_key": "",
@@ -594,6 +619,7 @@ test_preserves_caller_umask
 
 print_summary "prism envrc"
 exit $?
+
 
 
 

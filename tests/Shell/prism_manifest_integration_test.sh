@@ -6,6 +6,7 @@
 
 
 
+
 # ── Cross-consumer regression suite for the prism manifest boundary ───────────
 #
 # Exercises every consumer entry point through the same fixture corpus to catch
@@ -91,6 +92,13 @@ write_default_project_manifest() {
     "lsp_tool": true,
     "scout": true,
     "background_subagents": false
+  },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
   },
   "env": {
     "deepseek_api_key": "",
@@ -208,7 +216,7 @@ test_cross_consumer_consistency() {
 		return
 	}
 
-	# ── env0: all fifteen pairs consistent with decode ──
+		# ── env0: all nineteen pairs consistent with decode ──
 	local env0_out env0_err
 	env0_out=$(mktemp)
 	env0_err=$(mktemp)
@@ -537,6 +545,13 @@ test_metacharacters_remain_data() {
     "scout": true,
     "background_subagents": false
   },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
+  },
   "env": {
     "deepseek_api_key": "",
     "searxng_url": ""
@@ -657,6 +672,13 @@ test_diagnostics_redacted() {
     "lsp_tool": true,
     "scout": true,
     "background_subagents": false
+  },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
   },
   "env": {
     "deepseek_api_key": "$canary",
@@ -867,6 +889,7 @@ test_full_round_trip
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 
