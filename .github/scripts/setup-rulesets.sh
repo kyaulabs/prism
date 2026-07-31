@@ -10,6 +10,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -24,24 +25,7 @@
 
 set -euo pipefail
 
-# ── Prerequisites ─────────────────────────────────────────────────────────────
-
-if ! command -v gh >/dev/null 2>&1; then
-	echo "Error: gh (GitHub CLI) not found on PATH — install and run 'gh auth login'" >&2
-	exit 2
-fi
-
-if ! command -v php >/dev/null 2>&1; then
-	echo "Error: php not found on PATH — required for JSON comparison" >&2
-	exit 2
-fi
-
-if ! gh auth status >/dev/null 2>&1; then
-	echo "Error: gh auth status failed — run 'gh auth login'" >&2
-	exit 2
-fi
-
-# ── Mode parsing ──────────────────────────────────────────────────────────────
+# ── Mode parsing (must run first — before any prerequisite or network check) ───
 
 MODE="--dry-run"
 
@@ -64,6 +48,23 @@ if [ $# -gt 0 ]; then
 fi
 
 echo "[setup-rulesets] mode=$MODE"
+
+# ── Prerequisites ─────────────────────────────────────────────────────────────
+
+if ! command -v gh >/dev/null 2>&1; then
+	echo "Error: gh (GitHub CLI) not found on PATH — install and run 'gh auth login'" >&2
+	exit 2
+fi
+
+if ! command -v php >/dev/null 2>&1; then
+	echo "Error: php not found on PATH — required for JSON comparison" >&2
+	exit 2
+fi
+
+if ! gh auth status >/dev/null 2>&1; then
+	echo "Error: gh auth status failed — run 'gh auth login'" >&2
+	exit 2
+fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
 
@@ -291,6 +292,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 
