@@ -9,6 +9,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -117,6 +118,30 @@ case "$1" in
 						echo '{"allow_merge_commit":true,"allow_squash_merge":true,"allow_rebase_merge":true}'
 					fi
 					exit 0
+					;;
+			esac
+		fi
+
+		# 403 simulation for mutations
+		if [ -n "$method" ]; then
+			case "$method" in
+				POST)
+					if [ -f "$FIXTURES/ruleset-post-403" ]; then
+						echo 'gh: Resource not accessible by integration (HTTP 403)' >&2
+						exit 1
+					fi
+					;;
+				PUT)
+					if [ -f "$FIXTURES/ruleset-put-403" ]; then
+						echo 'gh: Resource not accessible by integration (HTTP 403)' >&2
+						exit 1
+					fi
+					;;
+				PATCH)
+					if [ -f "$FIXTURES/merge-patch-403" ]; then
+						echo 'gh: Resource not accessible by integration (HTTP 403)' >&2
+						exit 1
+					fi
 					;;
 			esac
 		fi
@@ -799,10 +824,494 @@ echo ""
 echo "── Test 18: No mutations in --check mode ──"
 test_no_mutations_in_check
 
+# ── Test 19: --apply with absent ruleset causes one ruleset POST ───────────────
+
+test_apply_absent_ruleset_posts() {
+	local fake_bin fake_log output exit_code post_count
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply absent ruleset — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Ruleset pr-only-integration: created"; then
+		fail "apply absent ruleset — output missing 'created': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	post_count=$(grep -c "MUTATION: POST" "$fake_log" || true)
+	if [ "$post_count" -ne 1 ]; then
+		fail "apply absent ruleset — expected 1 POST, got $post_count"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -qE "MUTATION: (PUT|PATCH|DELETE)" "$fake_log"; then
+		fail "apply absent ruleset — unexpected PUT/PATCH/DELETE mutation"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply absent ruleset — POST only, reports 'created'"
+}
+
+echo ""
+echo "── Test 19: --apply with absent ruleset causes POST ──"
+test_apply_absent_ruleset_posts
+
+# ── Test 20: --apply with drifted ruleset causes one PUT to its digits-only ID ──
+
+test_apply_drifted_ruleset_puts() {
+	local fake_bin fake_log output exit_code put_count
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	make_fixture "$fake_bin" "42" "$DRIFTED_RULESET" "$CANONICAL_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply drifted ruleset — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Ruleset pr-only-integration: updated"; then
+		fail "apply drifted ruleset — output missing 'updated': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	put_count=$(grep -c "MUTATION: PUT" "$fake_log" || true)
+	if [ "$put_count" -ne 1 ]; then
+		fail "apply drifted ruleset — expected 1 PUT, got $put_count"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! grep -q "MUTATION: PUT repos/.*/rulesets/42" "$fake_log"; then
+		fail "apply drifted ruleset — PUT not targeting ID 42"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -q "MUTATION: POST" "$fake_log"; then
+		fail "apply drifted ruleset — unexpected POST mutation"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply drifted ruleset — PUT to ID 42, reports 'updated'"
+}
+
+echo ""
+echo "── Test 20: --apply with drifted ruleset causes PUT to ID ──"
+test_apply_drifted_ruleset_puts
+
+# ── Test 21: --apply with matching ruleset causes no ruleset mutation ───────────
+
+test_apply_matching_ruleset_no_mutation() {
+	local fake_bin fake_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	make_fixture "$fake_bin" "42" "$CANONICAL_RULESET" "$CANONICAL_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply matching ruleset — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Ruleset pr-only-integration: unchanged"; then
+		fail "apply matching ruleset — output missing 'unchanged': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -qE "MUTATION: (POST|PUT|PATCH|DELETE)" "$fake_log"; then
+		fail "apply matching ruleset — unexpected mutation in log"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply matching ruleset — no mutation, reports 'unchanged'"
+}
+
+echo ""
+echo "── Test 21: --apply with matching ruleset causes no mutation ──"
+test_apply_matching_ruleset_no_mutation
+
+# ── Test 22: --apply with drifted merge settings causes one repo PATCH ──────────
+
+test_apply_drifted_merge_patches() {
+	local fake_bin fake_log output exit_code patch_count
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	make_fixture "$fake_bin" "42" "$CANONICAL_RULESET" "$DRIFTED_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply drifted merge — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Repository merge methods: updated"; then
+		fail "apply drifted merge — output missing 'updated': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	patch_count=$(grep -c "MUTATION: PATCH" "$fake_log" || true)
+	if [ "$patch_count" -ne 1 ]; then
+		fail "apply drifted merge — expected 1 PATCH, got $patch_count"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! grep -q "MUTATION: PATCH repos/" "$fake_log"; then
+		fail "apply drifted merge — PATCH not targeting repo endpoint"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	# Should NOT mutate the ruleset (it matched)
+	if grep -qE "MUTATION: (POST|PUT).*rulesets" "$fake_log"; then
+		fail "apply drifted merge — unexpected ruleset mutation alongside merge PATCH"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply drifted merge — PATCH only, reports 'updated'"
+}
+
+echo ""
+echo "── Test 22: --apply with drifted merge settings causes PATCH ──"
+test_apply_drifted_merge_patches
+
+# ── Test 23: --apply with matching merge settings causes no PATCH ───────────────
+
+test_apply_matching_merge_no_patch() {
+	local fake_bin fake_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	make_fixture "$fake_bin" "42" "$DRIFTED_RULESET" "$CANONICAL_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply matching merge — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Repository merge methods: unchanged"; then
+		fail "apply matching merge — output missing 'unchanged': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -q "MUTATION: PATCH" "$fake_log"; then
+		fail "apply matching merge — unexpected PATCH mutation"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply matching merge — no PATCH, reports 'unchanged'"
+}
+
+echo ""
+echo "── Test 23: --apply with matching merge settings causes no PATCH ──"
+test_apply_matching_merge_no_patch
+
+# ── Test 24: --apply never updates or deletes unrelated rulesets ────────────────
+
+test_apply_unrelated_rulesets_untouched() {
+	local fake_bin fake_log output exit_code unr
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+
+	# One unrelated ruleset (not pr-only-integration)
+	unr=$(echo "$UNRELATED_RULESET" | php -r '$_=json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR);$_["id"]=99;echo json_encode($_,JSON_UNESCAPED_SLASHES);')
+	echo "[$unr]" > "$fake_bin/rulesets-list.json"
+	write_fixture_ruleset_detail "$fake_bin" "99" "$unr"
+	write_fixture_repo_settings "$fake_bin" "$CANONICAL_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply unrelated — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	# Should POST to create pr-only-integration only
+	if ! echo "$output" | grep -q "Ruleset pr-only-integration: created"; then
+		fail "apply unrelated — missing 'created' for pr-only-integration: $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	# Must not PUT or DELETE the unrelated ruleset (ID 99)
+	if grep -q "rulesets/99" "$fake_log"; then
+		fail "apply unrelated — touched unrelated ruleset ID 99"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -q "MUTATION: DELETE" "$fake_log"; then
+		fail "apply unrelated — DELETE emitted"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply unrelated rulesets — only owned ruleset touched, no DELETE"
+}
+
+echo ""
+echo "── Test 24: --apply never touches unrelated rulesets ──"
+test_apply_unrelated_rulesets_untouched
+
+# ── Test 25: --apply fails on duplicate owned rulesets before mutation ──────────
+
+test_apply_duplicate_fails_before_mutation() {
+	local fake_bin fake_log output exit_code r1 r2
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+
+	# Two rulesets both named pr-only-integration
+	r1=$(echo "$CANONICAL_RULESET" | php -r '$_=json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR);$_["id"]=1;echo json_encode($_,JSON_UNESCAPED_SLASHES);')
+	r2=$(echo "$CANONICAL_RULESET" | php -r '$_=json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR);$_["id"]=2;echo json_encode($_,JSON_UNESCAPED_SLASHES);')
+	echo "[$r1,$r2]" > "$fake_bin/rulesets-list.json"
+	write_fixture_ruleset_detail "$fake_bin" "1" "$r1"
+	write_fixture_ruleset_detail "$fake_bin" "2" "$r2"
+	write_fixture_repo_settings "$fake_bin" "$CANONICAL_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "apply duplicate — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -qi "duplicate"; then
+		fail "apply duplicate — error doesn't mention duplicate"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	# No mutations must have occurred
+	if grep -qE "MUTATION:" "$fake_log"; then
+		fail "apply duplicate — mutations occurred before duplicate detection"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply duplicate — exit 2 before any mutation"
+}
+
+echo ""
+echo "── Test 25: --apply fails on duplicate rulesets before mutation ──"
+test_apply_duplicate_fails_before_mutation
+
+# ── Test 26: A second canonical --apply run is a complete no-op ─────────────────
+
+test_apply_second_run_noop() {
+	local fake_bin fake_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	make_fixture "$fake_bin" "42" "$CANONICAL_RULESET" "$CANONICAL_MERGE"
+
+	# First apply run — already canonical, should be a no-op
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply second run — first run exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -qE "MUTATION:" "$fake_log"; then
+		fail "apply second run — first run had unexpected mutation"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+
+	# Truncate log and run second apply — also canonical, must be no-op
+	: > "$fake_log"
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+	if [ "$exit_code" -ne 0 ]; then
+		fail "apply second run — second run exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if grep -qE "MUTATION:" "$fake_log"; then
+		fail "apply second run — second run had unexpected mutation"
+		echo "  log: $(cat "$fake_log")" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -q "Ruleset pr-only-integration: unchanged"; then
+		fail "apply second run — second run missing 'unchanged': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply second canonical run — complete no-op, GET calls only"
+}
+
+echo ""
+echo "── Test 26: Second canonical --apply run is a no-op ──"
+test_apply_second_run_noop
+
+# ── Test 27: A 403 names the required repository-administration permission ──────
+
+test_apply_403_names_permission() {
+	local fake_bin fake_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+	# Trigger 403 on POST (ruleset creation)
+	touch "$fake_bin/ruleset-post-403"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "apply 403 — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -qi "403"; then
+		fail "apply 403 — error doesn't mention 403: $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	if ! echo "$output" | grep -qi "repository administration"; then
+		fail "apply 403 — error doesn't name 'repository administration': $output"
+		unset FAKE_GH_LOG FAKE_GH_FIXTURES
+		return
+	fi
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+	pass "apply 403 — exit 2, names repository administration permission"
+}
+
+echo ""
+echo "── Test 27: A 403 names repository-administration permission ──"
+test_apply_403_names_permission
+
+# ── Test 28: No code path emits DELETE ──────────────────────────────────────────
+
+test_no_delete_code_path() {
+	# The script must never issue a DELETE API call.
+	# Check for -X DELETE usage (the gh api mutation flag).
+	if grep -nqE '\-X[[:space:]]+DELETE' "$SCRIPT" 2>/dev/null; then
+		fail "no DELETE — script contains -X DELETE"
+		return
+	fi
+	# Also catch DELETE method in any form that would emit a mutation
+	if grep -nqE '"DELETE"' "$SCRIPT" 2>/dev/null; then
+		fail "no DELETE — script contains DELETE string literal"
+		return
+	fi
+	pass "no DELETE — script never issues DELETE API calls"
+}
+
+echo ""
+echo "── Test 28: No code path emits DELETE ──"
+test_no_delete_code_path
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 

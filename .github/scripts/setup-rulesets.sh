@@ -9,6 +9,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -249,10 +250,48 @@ case "$MODE" in
 		exit 1
 		;;
 	--apply)
-		echo "[setup-rulesets] apply mode not yet implemented"
-		exit 0
+		API_ERR="$TMP_DIR/api-err"
+
+		if [ "$RULESET_STATUS" = "create" ]; then
+			if ! gh api "repos/$REPO/rulesets" -X POST --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+				if grep -qi "403" "$API_ERR"; then
+					echo "Error: 403 Forbidden — the token requires repository administration permission to create rulesets" >&2
+				else
+					echo "Error: API call failed: $(cat "$API_ERR")" >&2
+				fi
+				exit 2
+			fi
+			echo "Ruleset pr-only-integration: created"
+		elif [ "$RULESET_STATUS" = "update" ]; then
+			if ! gh api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+				if grep -qi "403" "$API_ERR"; then
+					echo "Error: 403 Forbidden — the token requires repository administration permission to update rulesets" >&2
+				else
+					echo "Error: API call failed: $(cat "$API_ERR")" >&2
+				fi
+				exit 2
+			fi
+			echo "Ruleset pr-only-integration: updated"
+		else
+			echo "Ruleset pr-only-integration: unchanged"
+		fi
+
+		if [ "$MERGE_STATUS" = "update" ]; then
+			if ! gh api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+				if grep -qi "403" "$API_ERR"; then
+					echo "Error: 403 Forbidden — the token requires repository administration permission to update merge settings" >&2
+				else
+					echo "Error: API call failed: $(cat "$API_ERR")" >&2
+				fi
+				exit 2
+			fi
+			echo "Repository merge methods: updated"
+		else
+			echo "Repository merge methods: unchanged"
+		fi
 		;;
 esac
+
 
 
 
