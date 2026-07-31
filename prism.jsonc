@@ -66,6 +66,18 @@
     "background_subagents": false
   },
 
+  // Optional MCP preferences. Effective enablement also requires the matching
+  // non-empty env value from the resolved user manifest.
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+
+  // Optional npm plugin preferences. Packages stay pinned even while disabled.
+  "plugins": {
+    "opencode_quota": false
+  },
+
   // Secret home for the project tier. SECURITY INVARIANT: every value here
   // MUST be empty. Non-empty values fail validateProject()/check-secrets and
   // block .envrc. Real secrets live in the user manifest only.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
 
 
 
@@ -34,6 +34,12 @@ final class PrismManifest
 
     /** @var list<string> */
     private const array SCAFFOLD_MODES = ['skip', 'clone', 'new'];
+
+    /** @var list<string> */
+    private const array MCP = ['deepseek_websearch', 'searxng'];
+
+    /** @var list<string> */
+    private const array PLUGINS = ['opencode_quota'];
 
     /**
      * Overlay an optional user manifest over the project manifest.
@@ -141,6 +147,8 @@ final class PrismManifest
         self::requireStringSection($manifest, 'models', self::TIERS);
         self::requireStringSection($manifest, 'variants', self::TIERS);
         self::requireBooleanSection($manifest, 'experimental', self::EXPERIMENTAL);
+        self::optionalBooleanSection($manifest, 'mcp', self::MCP);
+        self::optionalBooleanSection($manifest, 'plugins', self::PLUGINS);
         self::requireEmptyEnv($manifest);
     }
 
@@ -175,6 +183,8 @@ final class PrismManifest
         self::optionalStringSection($manifest, 'models', self::TIERS);
         self::optionalStringSection($manifest, 'variants', self::TIERS);
         self::optionalBooleanSection($manifest, 'experimental', self::EXPERIMENTAL);
+        self::optionalBooleanSection($manifest, 'mcp', self::MCP);
+        self::optionalBooleanSection($manifest, 'plugins', self::PLUGINS);
         self::optionalStringEnvSection($manifest, 'env');
     }
 
@@ -718,6 +728,7 @@ final class PrismManifest
         }
     }
 }
+
 
 
 

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
+
 
 
 
@@ -44,6 +47,13 @@ function pm_valid_project(): \stdClass
         ],
         'experimental' => (object) [
             'lsp_tool' => true, 'scout' => true, 'background_subagents' => false,
+        ],
+        'mcp' => (object) [
+            'deepseek_websearch' => false,
+            'searxng' => false,
+        ],
+        'plugins' => (object) [
+            'opencode_quota' => false,
         ],
         'env' => (object) ['deepseek_api_key' => '', 'searxng_url' => ''],
     ];
@@ -318,6 +328,43 @@ describe('PrismManifest::validateUser', function (): void {
         'env non-string value' => [(object) ['setup_version' => 5, 'env' => (object) ['deepseek_api_key' => 5]]],
     ]);
 });
+
+describe('mcp and plugins integration preferences', function (): void {
+    it('accepts schema-v5 project manifests that predate optional integration sections', function (): void {
+        $manifest = pm_valid_project();
+        unset($manifest->mcp, $manifest->plugins);
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects non-boolean integration preferences', function (string $path): void {
+        $manifest = pm_valid_project();
+        pm_set_dot($manifest, $path, 'false');
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class);
+    })->with(['mcp.deepseek_websearch', 'mcp.searxng', 'plugins.opencode_quota']);
+
+    it('accepts partial user integration overrides', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) [
+            'setup_version' => 5,
+            'mcp' => (object) ['searxng' => true],
+            'plugins' => (object) ['opencode_quota' => true],
+        ]))->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('overlays integration preferences without erasing sibling defaults', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) ['mcp' => (object) ['deepseek_websearch' => false, 'searxng' => false]],
+            (object) ['mcp' => (object) ['searxng' => true]],
+        );
+
+        expect($resolved->mcp->deepseek_websearch)->toBeFalse()
+            ->and($resolved->mcp->searxng)->toBeTrue();
+    });
+});
+
 
 
 
