@@ -37,6 +37,7 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | circuit breaker | Harness plugin that escalates (`session.abort` + redacted diagnostic) once consecutive-denial state reaches threshold 3, halting an agent stuck retrying denied commands. Extends upstream `doom_loop` for the bash-denial variation-retry class (which identical-input keying misses). Detection uses before/after callID reconciliation. See ADR-0042. |
 | agent-invocation identity | The `sessionID` used to isolate per-agent state such as the circuit breaker's counter. Subagent sessions are distinct from their caller's — each `@explore` dispatch is its own invocation. |
 | tool-call identity | The `callID` assigned to each individual tool invocation. Used by the before/after reconciliation layer (ADR-0042 §3) to correlate `message.part.updated` tool-part events and `tool.execute.after` hooks per invocation. Distinct from `sessionID` (agent-invocation identity). |
+| protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Writes are blocked locally (`prepare-commit-msg` + `pre-push` hooks), enforced server-side (a GitHub repository ruleset named `pr-only-integration`), and verified in CI (`verify-protected-push.sh` provenance tripwire). The initial single-root seed push is the sole direct-write exception. See ADR-0044. |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -127,7 +128,7 @@ What Prism owns vs. what it delegates to external services.
   - **Aurora PHP Framework** — the no-MVC PHP stack shipped as a submodule at `aurora/`. Prism assumes its patterns; Aurora implements them.
   - **PHP/JS toolchain** — Composer, php-cs-fixer, Pest, npm, Dart Sass, uglify-js, ESLint, Stylelint. Prism wires them into hooks and `/check`; the tools themselves are upstream.
   - **External security/review tools** — Semgrep, gitleaks, OpenCodeReview (`ocr`), git-cliff, commitlint, Shellcheck. Prism invokes them; their rule packs and heuristics are upstream.
-  - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution.
+  - **GitHub** — issue tracking, label taxonomy enforcement (via native issue-type and Progress fields per `docs/agents/labels.md`), Actions runners, release distribution, and repository rulesets for protected-branch enforcement (ADR-0044).
   - **LLM providers** — model inference happens at upstream providers (DeepSeek, OpenAI, OpenRouter, etc.) configured via `{env:OPENCODE_MODEL_*}`. Prism does not host or proxy inference. Provider auth is API-key or, for OpenAI, subscription-OAuth (ChatGPT Plus/Pro) — the binding economic constraint varies by auth path (per-token vs rolling weekly window; ADR-0040).
 
 - **Boundary interfaces:** Mockable surfaces include the OpenCode plugin hook layer (ADR-0008), the coverage-gate script's input (Clover XML via `phpunit.xml` `<source>` block), the eval runner's subprocess boundary (exec'd `opencode run`), and the Aurora SQL handler. Mocking of live model inference is not supported — agents and the eval judge run against real providers.
@@ -139,7 +140,7 @@ spurious "features" during implementation.
 
 - **Not a PHP application** — Prism ships no application code in an `<app>/` webroot or under `backend/` beyond `env.php`. The harness is the deliverable; an application built *using* Prism would be a separate project.
 - **Not a framework** — no MVC, no router, no templating engine, no ORM (per `AGENTS.md`). Aurora provides the PHP stack; Prism does not duplicate it.
-- **No push/merge automation** — every agent is denied `git push`. Humans push, humans merge, humans review releases.
+- **No push/merge automation** — every agent is denied `git push`. Humans push work branches and release tags; humans review and merge pull requests. Protected branches (`develop`, `main`) accept only merged PRs (ADR-0044).
 - **No bundled LSP servers** — Prism configures LSP usage (Intelephense, TypeScript, Stylelint, ESLint, Bash, YAML; Deno explicitly disabled) but expects them system-installed.
 - **No CI provider lock-in** — the lint/test/SAST surface uses GitHub Actions, but the underlying scripts (`coverage-gate.php`, `install-hooks.sh`, etc.) are CI-agnostic.
 - **No model fine-tuning or hosting** — Prism configures upstream models per tier via `{env:VAR}` substitution (ADR-0012 through ADR-0014) but does not train, fine-tune, host, or proxy inference.
@@ -195,6 +196,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — Pre-commit hook is an idempotent RCS-header normalizer (strip-then-insert, commit-date refresh); header is a last-commit marker, not creation stamp; rcs-header skill aligned to match
 - `adr/0042-consecutive-denial-circuit-breaker.md` — Consecutive-denial circuit breaker for bash variation-retry hang (config-deny, safety-block, ask-reject); structural outcome inference via before/after callID reconciliation; threshold 3 + session.abort escalation
 - `adr/0043-prism-jsonc-manifest-migration.md` — Dual-rename both setup.json manifests to `prism.jsonc` (project root + user home), schema v5, single dependency-free PHP JSONC reader replacing `jq`, recursive field-by-field overlay, full JSONC + trailing commas, in-place comment-preserving `/setup` patching; supersedes ADR-0029 + ADR-0032's JSONC rejection
+- `adr/0044-pr-only-protected-branches.md` — Three-layer PR-only protection (local hooks + GitHub ruleset + CI tripwire) for `develop` and `main`; single-root scaffold exception; idempotent ruleset provisioning via `setup-rulesets.sh`; PR-only release/back-merge flows
 
 ## When to update this file
 
