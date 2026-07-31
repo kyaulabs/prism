@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
 
 
 
@@ -82,9 +84,9 @@ register_temp_dir "$T1"
 	fi
 )
 
-# ── Test 2: Exempt main passes ────────────────────────────────────────────
+# ── Test 2: Commit on initialized main blocked ─────────────────────────────
 
-echo "── Test 2: Exempt main passes ──"
+echo "── Test 2: Commit on initialized main blocked ──"
 T2=$(mktemp -d)
 register_temp_dir "$T2"
 (
@@ -95,20 +97,20 @@ register_temp_dir "$T2"
 	MSG_FILE=$(mktemp)
 	echo "test commit" > "$MSG_FILE"
 	set +e
-	bash "$REAL_HOOK" "$MSG_FILE" >/dev/null 2>&1
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
 	code=$?
 	set -e
 	rm -f "$MSG_FILE"
-	if [ "$code" = "0" ]; then
-		pass "main exempt (exit 0)"
+	if [ "$code" -ne 0 ]; then
+		pass "main blocked (exit $code)"
 	else
-		fail "main should exit 0, got $code"
+		fail "main should be blocked (non-zero), got $code"
 	fi
 )
 
-# ── Test 3: Exempt develop passes ─────────────────────────────────────────
+# ── Test 3: Commit on initialized develop blocked ──────────────────────────
 
-echo "── Test 3: Exempt develop passes ──"
+echo "── Test 3: Commit on initialized develop blocked ──"
 T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
@@ -119,14 +121,14 @@ register_temp_dir "$T3"
 	MSG_FILE=$(mktemp)
 	echo "test commit" > "$MSG_FILE"
 	set +e
-	bash "$REAL_HOOK" "$MSG_FILE" >/dev/null 2>&1
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
 	code=$?
 	set -e
 	rm -f "$MSG_FILE"
-	if [ "$code" = "0" ]; then
-		pass "develop exempt (exit 0)"
+	if [ "$code" -ne 0 ]; then
+		pass "develop blocked (exit $code)"
 	else
-		fail "develop should exit 0, got $code"
+		fail "develop should be blocked (non-zero), got $code"
 	fi
 )
 
@@ -205,6 +207,121 @@ register_temp_dir "$T6"
 	fi
 )
 
+# ── Test 8: First commit on unborn main (no remote) passes ────────────────
+# ADR-0044 root exception: unborn HEAD + no remote-tracking ref → allowed.
+
+echo "── Test 8: First commit on unborn main (no remote) passes ──"
+T8=$(mktemp -d)
+register_temp_dir "$T8"
+(
+	cd "$T8"
+	git_init_test_repo .
+	# Ensure default branch is 'main' (unborn — no commits yet)
+	git symbolic-ref HEAD refs/heads/main
+	install_validator
+	MSG_FILE=$(mktemp)
+	echo "initial scaffold commit" > "$MSG_FILE"
+	set +e
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
+	code=$?
+	set -e
+	rm -f "$MSG_FILE"
+	if [ "$code" = "0" ]; then
+		pass "first commit on unborn main allowed (root exception, exit 0)"
+	else
+		fail "first commit on unborn main should pass (exit 0), got $code"
+		echo "  output: $output"
+	fi
+)
+
+# ── Test 9: First commit on unborn develop (no remote) passes ─────────────
+# ADR-0044 root exception: unborn HEAD + no remote-tracking ref → allowed.
+
+echo "── Test 9: First commit on unborn develop (no remote) passes ──"
+T9=$(mktemp -d)
+register_temp_dir "$T9"
+(
+	cd "$T9"
+	git_init_test_repo .
+	# Ensure default branch is 'develop' (unborn — no commits yet)
+	git symbolic-ref HEAD refs/heads/develop
+	install_validator
+	MSG_FILE=$(mktemp)
+	echo "initial scaffold commit" > "$MSG_FILE"
+	set +e
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
+	code=$?
+	set -e
+	rm -f "$MSG_FILE"
+	if [ "$code" = "0" ]; then
+		pass "first commit on unborn develop allowed (root exception, exit 0)"
+	else
+		fail "first commit on unborn develop should pass (exit 0), got $code"
+		echo "  output: $output"
+	fi
+)
+
+# ── Test 10: Orphan protected branch with remote ref blocked ──────────────
+# Unborn HEAD + remote-tracking ref exists → NOT a root exception → blocked.
+
+echo "── Test 10: Orphan protected branch with remote ref blocked ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+	cd "$T10"
+	git_init_test_repo .
+	# Move default branch out of the way so we can create an orphan main.
+	git branch -m throwaway 2>/dev/null || true
+	git commit --allow-empty -m "dummy"
+	ROOT_SHA=$(git rev-parse HEAD)
+	# Create orphan main (unborn, no commits)
+	git checkout --orphan main
+	git rm -rf --cached . 2>/dev/null || true
+	mkdir -p .git/refs/remotes/origin
+	echo "$ROOT_SHA" > .git/refs/remotes/origin/main
+	install_validator
+	MSG_FILE=$(mktemp)
+	echo "test commit" > "$MSG_FILE"
+	set +e
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
+	code=$?
+	set -e
+	rm -f "$MSG_FILE"
+	if [ "$code" -ne 0 ]; then
+		pass "orphan protected branch with remote ref blocked (exit $code)"
+	else
+		fail "orphan protected branch with remote ref should be blocked, got 0"
+	fi
+)
+
+# ── Test 11: Rebase on main blocked (protected check before rebase exit) ──
+# Protected check must fire before the rebase early exit; a rebase on main
+# should be rejected with a protected-branch diagnostic, not bypassed.
+
+echo "── Test 11: Rebase on main blocked ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+	cd "$T11"
+	setup_repo_with_bases .
+	git checkout main
+	# Simulate an active rebase on main
+	mkdir -p .git/rebase-merge
+	install_validator
+	MSG_FILE=$(mktemp)
+	echo "test commit" > "$MSG_FILE"
+	set +e
+	output=$(bash "$REAL_HOOK" "$MSG_FILE" 2>&1)
+	code=$?
+	set -e
+	rm -f "$MSG_FILE"
+	if [ "$code" -ne 0 ]; then
+		pass "rebase on main blocked (exit $code)"
+	else
+		fail "rebase on main should be blocked, got 0"
+	fi
+)
+
 # ── Test 7: Amend-pushed regression ───────────────────────────────────────
 # Verifies the amend-of-pushed-commit block still fires after the new branch
 # validation block is inserted. The existing prepare-commit-msg_test.sh
@@ -253,6 +370,8 @@ register_temp_dir "$T7"
 
 print_summary "prepare_commit_msg_branch_test.sh"
 exit $?
+
+
 
 
 

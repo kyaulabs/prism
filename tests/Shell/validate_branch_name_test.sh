@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate_branch_name_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: validate_branch_name_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
 
 
 
@@ -13,22 +15,38 @@ setup_result_file
 
 # ── Exempt branches (exit 0) ─────────────────────────────────────────────
 
-test_exempt_main() {
-    local code
+test_protected_main() {
+    local code stderr_out
     set +e
-    bash "$SCRIPT" main >/dev/null 2>&1
+    stderr_out=$(bash "$SCRIPT" main 2>&1 >/dev/null)
     code=$?
     set -e
-    if [ "$code" = "0" ]; then pass "main exempt"; else fail "main should exit 0, got $code"; fi
+    if [ "$code" = "3" ]; then
+        if echo "$stderr_out" | grep -q "main" && echo "$stderr_out" | grep -q "new-branch.sh"; then
+            pass "main protected (exit 3, diagnostic names branch and new-branch.sh)"
+        else
+            fail "main exit 3 but diagnostic missing branch or new-branch.sh: $stderr_out"
+        fi
+    else
+        fail "main should exit 3 (protected), got $code"
+    fi
 }
 
-test_exempt_develop() {
-    local code
+test_protected_develop() {
+    local code stderr_out
     set +e
-    bash "$SCRIPT" develop >/dev/null 2>&1
+    stderr_out=$(bash "$SCRIPT" develop 2>&1 >/dev/null)
     code=$?
     set -e
-    if [ "$code" = "0" ]; then pass "develop exempt"; else fail "develop should exit 0, got $code"; fi
+    if [ "$code" = "3" ]; then
+        if echo "$stderr_out" | grep -q "develop" && echo "$stderr_out" | grep -q "new-branch.sh"; then
+            pass "develop protected (exit 3, diagnostic names branch and new-branch.sh)"
+        else
+            fail "develop exit 3 but diagnostic missing branch or new-branch.sh: $stderr_out"
+        fi
+    else
+        fail "develop should exit 3 (protected), got $code"
+    fi
 }
 
 test_exempt_head() {
@@ -37,7 +55,7 @@ test_exempt_head() {
     bash "$SCRIPT" HEAD >/dev/null 2>&1
     code=$?
     set -e
-    if [ "$code" = "0" ]; then pass "HEAD exempt"; else fail "HEAD should exit 0, got $code"; fi
+    if [ "$code" = "0" ]; then pass "HEAD exempt (exit 0)"; else fail "HEAD should exit 0, got $code"; fi
 }
 
 # ── Valid branches (exit 0) ──────────────────────────────────────────────
@@ -146,9 +164,9 @@ test_invalid_ignore_type() {
 # ── Run all tests ────────────────────────────────────────────────────────
 
 echo ""
-echo "── Exempt branches ──"
-test_exempt_main
-test_exempt_develop
+echo "── Protected branches ──"
+test_protected_main
+test_protected_develop
 test_exempt_head
 
 echo ""
@@ -172,6 +190,8 @@ test_invalid_ignore_type
 
 print_summary "validate_branch_name_test.sh"
 exit $?
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
