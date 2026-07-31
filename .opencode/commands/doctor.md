@@ -123,7 +123,7 @@ options, and all other harness features, work without it.
 php .github/scripts/prism_manifest.php version 2>/dev/null || echo "NOT_FOUND"
 ```
 
-The `prism_manifest.php` CLI replaces jq for reading the `prism.jsonc` project manifest (ADR-0043). It exports the fifteen `OPENCODE_*` environment variables as a NUL-separated stream (via `env0` subcommand) and provides a `version` check. Missing means `direnv` cannot source model, variant, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
+The `prism_manifest.php` CLI replaces jq for reading the `prism.jsonc` project manifest (ADR-0043). It exports nineteen `OPENCODE_*` environment variables as a NUL-separated stream (via `env0` subcommand) — including three requested-preference toggle diagnostics (`OPENCODE_MCP_DEEPSEEK_WEBSEARCH`, `OPENCODE_MCP_SEARXNG`, `OPENCODE_PLUGIN_OPENCODE_QUOTA`) and the composed `OPENCODE_CONFIG_CONTENT` — and provides a `version` check. Missing means `direnv` cannot source model, variant, integration toggles, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
 
 ## Output
 

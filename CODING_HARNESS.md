@@ -99,8 +99,8 @@ commands), then `cd` into the project and run `direnv allow` to trust the
 `.envrc`. Without direnv, add `source /path/to/repo/.envrc` to your shell profile.
 
 **Customize:** Run `/setup` and follow the Model and Variant Configuration prompts.
-Choices are written to `~/.config/opencode/models.env` — user overrides take
-precedence over the committed defaults.
+Choices are written to the user Prism manifest (`~/.config/opencode/prism.jsonc`)
+— user overrides take precedence over committed defaults (ADR-0043).
 
 `variant` uses `{env:VAR}` substitution, consistent with the `model` field.
 `temperature` remains a hard-coded literal — opencode does not coerce string
@@ -110,6 +110,17 @@ ADR-0012, and ADR-0013 for the full design rationale.
 For guidance on picking `variant` / `temperature` for a non-default model —
 including per-provider lookup references and a task-type → variant decision
 frame — see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).
+
+### Optional Integration Toggles
+
+Two optional MCP servers (deepseek-websearch, mcp-searxng) and the quota plugin
+(`@slkiser/opencode-quota`) are controlled by Boolean preference fields in the
+user Prism manifest (`mcp.deepseek_websearch`, `mcp.searxng`,
+`plugins.opencode_quota`). Tracked `opencode.jsonc` permanently defines both
+MCP servers with `enabled: false` and omits a static quota plugin entry; actual
+enablement is composed from the resolved manifest into
+`OPENCODE_CONFIG_CONTENT` at env0 time. Run `/setup` to toggle preferences
+interactively, then `direnv allow` and restart OpenCode. See ADR-0045.
 
 ### Built-in subagents
 

@@ -7,10 +7,17 @@
 // ~/.config/opencode/prism.jsonc and overlays this file field-by-field (object
 // keys merge recursively; scalars/arrays replace atomically).
 //
-// .envrc consumes this via `prism_manifest.php env0`, which exports the
-// fifteen OPENCODE_*/secret environment variables as a NUL-separated stream
-// (no jq, no eval). Secrets never live here: the env.* section must stay
-// empty in the project manifest; user secrets belong in the user manifest.
+// .envrc consumes this via `prism_manifest.php env0`, which exports nineteen
+// OPENCODE_*/secret environment variables as a NUL-separated stream (including
+// three requested-preference toggle diagnostics and composed
+// OPENCODE_CONFIG_CONTENT — no jq, no eval). Secrets never live here: the
+// env.* section must stay empty in the project manifest; user secrets belong
+// in the user manifest.
+//
+// Optional integration preferences (mcp.*, plugins.*) are resolved from this
+// file and the user manifest, composed into OPENCODE_CONFIG_CONTENT at env0
+// time. Each preference is tracked as false here; enablement is a user choice
+// via /setup (see ADR-0045).
 {
   // Schema version — must be exactly 5. Bumped by migrations only.
   "setup_version": 5,

@@ -349,8 +349,9 @@ source /path/to/repo/.envrc
 ```
 
 **Customizing via /setup:** Run `/setup` to interactively choose models for
-each tier. Choices are written to `~/.config/opencode/models.env` (sourced
-by `.envrc` after the defaults, so user choices take precedence).
+each tier. Choices are written to the user Prism manifest
+(`~/.config/opencode/prism.jsonc`), field-by-field overlay on top of
+project defaults (ADR-0043).
 
 **Config file precedence** (per OpenCode `config.mdx`; later sources override
 earlier ones):
@@ -365,11 +366,14 @@ earlier ones):
 
 **Override mechanisms** (in order of escalation):
 
-- **Change models in /setup** — writes user choices to `~/.config/opencode/models.env`
+- **Change models in /setup** — writes user choices to `~/.config/opencode/prism.jsonc`
 - **Edit `prism.jsonc` models section** — change defaults committed to the repo
 - **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
   top-level; per-agent `{env:VAR}` references still resolve from env vars)
-- **Inline config** — `OPENCODE_CONFIG_CONTENT='{"agent":{"build":{"model":"..."}}}' opencode`
+- **Inline config** — Prism composes `OPENCODE_CONFIG_CONTENT` from the
+  resolved manifest into the env0 stream, replacing only the two MCP
+  `enabled` leaves and quota plugin membership while preserving all
+  unrelated keys and plugin entries (ADR-0045)
 
 **Choosing a model and variant:** The defaults are tuned for the three
 models shipped in `prism.jsonc`. To use a different

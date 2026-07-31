@@ -260,12 +260,23 @@ and `/research --background` semantics.
 
 ## MCP Servers
 
-Optional, opt-in. Two MCP servers are defined commented-out under the `mcp`
-key in `opencode.jsonc` (deepseek-websearch, mcp-searxng). Keys flow via
-`prism.jsonc`'s `env` section → `.envrc` → `{env:VAR}`; `DEEPSEEK_API_KEY`
-serves the deepseek-websearch MCP. Full setup guide, backend reference, and
-troubleshooting:
-`.opencode/docs/mcp.md`. Decision record: ADR-0032.
+Optional, opt-in. Two MCP servers are permanently defined under the `mcp`
+key in `opencode.jsonc` (deepseek-websearch, mcp-searxng) with static
+`enabled: false`. Actual enablement is composed from the resolved Prism
+manifest (`mcp.deepseek_websearch` / `mcp.searxng`) into
+`OPENCODE_CONFIG_CONTENT` at env0 time. Keys flow via `prism.jsonc`'s `env`
+section → `.envrc` → `{env:VAR}`; `DEEPSEEK_API_KEY` serves the
+deepseek-websearch MCP.
+
+The `@slkiser/opencode-quota` plugin (pinned at 4.0.1) is installed but not
+loaded by default. It is toggled via `plugins.opencode_quota` in the user
+Prism manifest only — the project manifest always tracks `false`. Opt-in is
+controlled by `/setup` and composed into the `OPENCODE_CONFIG_CONTENT` plugin
+array.
+
+Full setup guide, backend reference, and troubleshooting:
+`.opencode/docs/mcp.md`. Decision records: ADR-0032 (historical, superseded),
+ADR-0045.
 
 ## Skills Available
 
