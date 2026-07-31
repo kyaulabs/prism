@@ -157,8 +157,11 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 
 ## Git Workflow
 
-- Branches: `main` (production), `develop` (integration)
-- Feature/work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
+- Protected branches: `main` (production) and `develop` (integration) are
+  PR-only — all integration uses merged pull requests. Direct commits and
+  pushes to these branches are blocked by local hooks, GitHub rulesets, and
+  CI verification. See ADR-0044.
+- Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
   created via `bash .github/scripts/new-branch.sh <type> <desc>`. Allowed types
   mirror commitlint vocabulary (minus `ignore`): feat, fix, patch, docs, style,
   refactor, perf, test, build, ci, chore, revert. Plus `release/<semver>` and
@@ -188,7 +191,8 @@ message should be well-formed before you reach the hook.
   `git commit` — the user sees the full command including the commit message in
   the approval dialog. Used by `/release`, `/build-assets`, and design-document
   commits from `brainstorming`.
-- **`git push`** is denied to **every agent**. Only the human pushes.
+- **`git push`** is denied to **every agent**. Only the human pushes work branches
+  and release tags and merges pull requests.
 
 ## Build Pipeline
 
@@ -323,7 +327,7 @@ Load these on demand when the task requires them:
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
-| `/release` | git-cliff changelog + signed tag + `gh release` command |
+| `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (requires Phase-0 spike). |

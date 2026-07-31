@@ -161,7 +161,7 @@ causes a preventable mistake.
   doesn't know to load it. Always update the tables.
 - *Bash permission pattern ends in `" *"` (space-asterisk)* — the vendored
   OpenCode permission semantics treat space as a literal character
-  (permissions.mdx:99). `"git push *"` matches `git push origin main` but
+  (permissions.mdx:99). `"git push *"` matches `git push origin feature-x` but
   NOT bare `git push` — the bare form falls through to the catch-all.
   Always use the space-less prefix form: `"git push*"`, `"ls*"`, `"grep*"`.
   The `validate-harness.sh` regression check enforces this.

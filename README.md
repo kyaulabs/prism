@@ -181,8 +181,8 @@ Six hooks are activated:
 | --- | --- |
 | `pre-commit` | PHP syntax check, php-cs-fixer, Stylelint, ESLint, Shellcheck, gitleaks, and an idempotent RCS header normalizer that auto-adds/repairs headers on staged source files. |
 | `commit-msg` | commitlint against the project type-enum. Fails closed — blocks the commit when `commitlint` is not installed; run `npm install` to restore the local toolchain. |
-| `prepare-commit-msg` | Blocks `--amend` of a commit already pushed to a remote. Also blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
-| `pre-push` | **Hard gate:** blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
+| `prepare-commit-msg` | Blocks commits directly on `main`/`develop` (protected branches — see ADR-0044); enforces branch naming via `validate-branch-name.sh`. Also blocks `--amend` of a commit already pushed to a remote. Blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
+| `pre-push` | **Hard gate:** blocks pushes targeting `refs/heads/main` and `refs/heads/develop` (PR-only — see ADR-0044); blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
 | `post-checkout` | `git submodule update --init --recursive`. |
 | `post-merge` | `git submodule update --init --recursive`. |
 
@@ -383,7 +383,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
-| `/release` | git-cliff changelog + signed tag + `gh release` command |
+| `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (experimental, gated). |
@@ -598,7 +598,8 @@ git commit -S -a -m "<message>" # add a conventional commit message and sign the
 git cliff                       # generate a new changelog
 git add CHANGELOG.md            # add the changelog file to the commit
 git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-git push -u origin develop      # finally, push the commit
+# Push the work branch and open a PR to the target (see the
+# finishing-a-development-branch skill for the PR command)
 ```
 
 ## Attribution
