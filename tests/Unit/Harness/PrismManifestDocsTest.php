@@ -17,6 +17,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -266,7 +269,37 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             'AGENTS.md must reference prism.jsonc for experimental flag sourcing',
         );
     });
+
+    it('records the manifest-driven integration boundary in ADR-0045', function (): void {
+        $root = dirname(__DIR__, 3);
+        $path = $root . '/adr/0045-manifest-driven-mcp-plugin-toggles.md';
+
+        Assert::assertFileExists($path);
+        $adr = (string) file_get_contents($path);
+        $context = (string) file_get_contents($root . '/CONTEXT.md');
+
+        foreach ([
+            '## Status',
+            'Accepted',
+            'OPENCODE_CONFIG_CONTENT',
+            'setup_version',
+            'deepseek_websearch',
+            'searxng',
+            'opencode_quota',
+            'ADR-0032',
+            'ADR-0043',
+            'ADR-0040',
+        ] as $required) {
+            Assert::assertStringContainsString($required, $adr);
+        }
+
+        Assert::assertStringContainsString(
+            'adr/0045-manifest-driven-mcp-plugin-toggles.md',
+            $context,
+        );
+    });
 });
+
 
 
 

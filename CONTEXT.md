@@ -197,6 +197,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0042-consecutive-denial-circuit-breaker.md` — Consecutive-denial circuit breaker for bash variation-retry hang (config-deny, safety-block, ask-reject); structural outcome inference via before/after callID reconciliation; threshold 3 + session.abort escalation
 - `adr/0043-prism-jsonc-manifest-migration.md` — Dual-rename both setup.json manifests to `prism.jsonc` (project root + user home), schema v5, single dependency-free PHP JSONC reader replacing `jq`, recursive field-by-field overlay, full JSONC + trailing commas, in-place comment-preserving `/setup` patching; supersedes ADR-0029 + ADR-0032's JSONC rejection
 - `adr/0044-pr-only-protected-branches.md` — Three-layer PR-only protection (local hooks + GitHub ruleset + CI tripwire) for `develop` and `main`; single-root scaffold exception; idempotent ruleset provisioning via `setup-rulesets.sh`; PR-only release/back-merge flows
+- `adr/0045-manifest-driven-mcp-plugin-toggles.md` — Manifest-driven Boolean toggle preferences for optional MCP servers and quota plugin; supersedes ADR-0032's commented-block enablement
 
 ## When to update this file
 
