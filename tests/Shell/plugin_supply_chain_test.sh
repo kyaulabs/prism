@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: plugin_supply_chain_test.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: plugin_supply_chain_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
@@ -76,8 +77,25 @@ else
 	fail "maintainerAnnouncements.enabled is '$announcements' (expected false)"
 fi
 
+# ── Test 5: quota is absent from tracked opencode.jsonc plugin list ────────────
+
+echo ""
+echo "── Test 5: quota absent from tracked opencode.jsonc plugin list ──"
+
+OPENCODE_JSONC="$REPO_ROOT/opencode.jsonc"
+if [ ! -f "$OPENCODE_JSONC" ]; then
+	fail "opencode.jsonc not found"
+elif grep -q '"plugin"' "$OPENCODE_JSONC" 2>/dev/null; then
+	# The `plugin` key must not exist in the tracked opencode.jsonc.
+	# Quota appears only through composed OPENCODE_CONFIG_CONTENT membership.
+	fail "opencode.jsonc still contains a 'plugin' key — quota must be composed, not tracked"
+else
+	pass "opencode.jsonc has no plugin key (quota is composed)"
+fi
+
 print_summary "plugin_supply_chain"
 exit $?
+
 
 
 

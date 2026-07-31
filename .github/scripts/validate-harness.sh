@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
 
 
 
@@ -1052,8 +1053,9 @@ echo "── Checking for unpinned npx in opencode.jsonc command arrays ──"
 # runtime with plugin/LSP privileges. Each MUST (a) pass -y so a non-interactive
 # spawn does not hang on the install prompt, and (b) pin the package to an exact
 # version (pkg@x.y.z) so a compromised or typosquatted release cannot execute.
-# See issue #205. Commented-out blocks are checked too — they are the documented
-# opt-in template (mcp.md) and must be safe-by-default when uncommented. The
+# See issue #205. Permanent disabled definitions are checked — they are the
+# tracked false defaults consumed by OPENCODE_CONFIG_CONTENT composition; their
+# pinned commands and -y flags must be safe-by-default when enabled. The
 # check is line-local (command arrays are single-line per opencode config
 # convention); @[0-9] matches the version pin and ignores the @scope prefix.
 
@@ -1180,6 +1182,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

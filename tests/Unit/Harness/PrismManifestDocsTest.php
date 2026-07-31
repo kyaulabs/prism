@@ -20,6 +20,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -237,15 +240,15 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         Assert::assertStringNotContainsString(' jq ', ' ' . $content . ' ', '.envrc must not invoke jq for manifest parsing');
     });
 
-    it('has the opencode.jsonc MCP comments point to prism.jsonc for keys', function (): void {
+    it('has the opencode.jsonc MCP section describe OPENCODE_CONFIG_CONTENT composition', function (): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/opencode.jsonc');
 
-        // The MCP enablement comments should reference prism.jsonc (user manifest)
-        // not the legacy setup.json.
+        // The tracked MCP definitions are permanently disabled; enablement is
+        // composed from the resolved Prism manifest into OPENCODE_CONFIG_CONTENT.
         Assert::assertStringContainsString(
-            'prism.jsonc',
+            'OPENCODE_CONFIG_CONTENT',
             $content,
-            'opencode.jsonc MCP comments must point to prism.jsonc for env keys',
+            'opencode.jsonc MCP section must describe OPENCODE_CONFIG_CONTENT composition',
         );
         Assert::assertStringNotContainsString(
             '~/.config/opencode/setup.json',
@@ -298,7 +301,24 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             $context,
         );
     });
+
+    it('keeps optional integrations statically off in tracked OpenCode config', function (): void {
+        $config = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/opencode.jsonc')->root();
+
+        Assert::assertFalse(property_exists($config, 'plugin'));
+        Assert::assertFalse($config->mcp->{'deepseek-websearch'}->enabled);
+        Assert::assertFalse($config->mcp->searxng->enabled);
+        Assert::assertSame(
+            ['npx', '-y', '@kyaulabs/deepseek-websearch@1.0.4'],
+            $config->mcp->{'deepseek-websearch'}->command,
+        );
+        Assert::assertSame(
+            ['npx', '-y', 'mcp-searxng@1.12.0'],
+            $config->mcp->searxng->command,
+        );
+    });
 });
+
 
 
 
