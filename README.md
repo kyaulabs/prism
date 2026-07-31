@@ -139,12 +139,12 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
 | [jq](https://jqlang.github.io/jq/) | JSON extraction from prism.jsonc (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
+| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
-> optional — only needed for the `clone` option of `/setup`'s scaffold mode and
-> for `/release`; `new`/`skip` scaffold options and all other features work
-> without it.
+> optional — only needed for the `clone` option of `/setup`'s scaffold mode,
+> for `/release`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip` scaffold
+> options and all other features work without it.
 
 ## Git Hooks
 
@@ -181,8 +181,8 @@ Six hooks are activated:
 | --- | --- |
 | `pre-commit` | PHP syntax check, php-cs-fixer, Stylelint, ESLint, Shellcheck, gitleaks, and an idempotent RCS header normalizer that auto-adds/repairs headers on staged source files. |
 | `commit-msg` | commitlint against the project type-enum. Fails closed — blocks the commit when `commitlint` is not installed; run `npm install` to restore the local toolchain. |
-| `prepare-commit-msg` | Blocks `--amend` of a commit already pushed to a remote. Also blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
-| `pre-push` | **Hard gate:** blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
+| `prepare-commit-msg` | Blocks commits directly on `main`/`develop` (protected branches — see ADR-0044); enforces branch naming via `validate-branch-name.sh`. Also blocks `--amend` of a commit already pushed to a remote. Blocks `-c HEAD` / `-C HEAD` (indistinguishable from `--amend` in this hook) — use an explicit SHA as a workaround. |
+| `pre-push` | **Hard gate:** blocks pushes targeting `refs/heads/main` and `refs/heads/develop` (PR-only — see ADR-0044); blocks non-fast-forward pushes (rewrites of published history from `amend`/`rebase`/`reset`). **Soft gate:** warns on single-commit pushes that look like squashes (no-squash policy). |
 | `post-checkout` | `git submodule update --init --recursive`. |
 | `post-merge` | `git submodule update --init --recursive`. |
 
@@ -383,7 +383,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
-| `/release` | git-cliff changelog + signed tag + `gh release` command |
+| `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (experimental, gated). |
@@ -393,6 +393,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/handoff` | Compact current conversation into a handoff document for another session |
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme, offers optional scaffold (clone an existing template via `gh`, or init a new subfolder) |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
+| `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks |
@@ -597,7 +598,8 @@ git commit -S -a -m "<message>" # add a conventional commit message and sign the
 git cliff                       # generate a new changelog
 git add CHANGELOG.md            # add the changelog file to the commit
 git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-git push -u origin develop      # finally, push the commit
+# Push the work branch and open a PR to the target (see the
+# finishing-a-development-branch skill for the PR command)
 ```
 
 ## Attribution

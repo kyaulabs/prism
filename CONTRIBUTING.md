@@ -16,7 +16,11 @@ We use Github to host code, to track issues and feature requests, as well as acc
 
 <div align="center" style="background:#0d1117"><img src=".github/media/git-flow.svg" width="240" height="365" style="margin-bottom:2ch" /></div>
 
-All code changes happen through pull requests and are the best way to propose changes to the codebase. We actively welcome your pull requests:
+All code changes happen through pull requests. `develop` and `main` are
+protected branches — direct commits and pushes are blocked. Integration uses
+merged pull requests only (see ADR-0044).
+
+### External contributors (fork-based)
 
 1. Fork the repo. From the `develop` branch, create a feature branch:
    ```bash
@@ -32,7 +36,20 @@ All code changes happen through pull requests and are the best way to propose ch
 3. If you have changed APIs, update the documentation.
 4. Ensure it passes whatever tests are being used.
 5. Make sure your code lints.
-6. Issue the pull request!
+6. Open a pull request targeting `develop` (or `main` for hotfixes).
+
+### Internal contributors (same-repository work-branch PRs)
+
+1. Create a work branch off `develop` (or `main` for hotfixes/releases):
+   ```bash
+   bash .github/scripts/new-branch.sh <type> <description>
+   ```
+2. Commit your changes with signed conventional-commit messages.
+3. Run `/check` and `@code-review` before opening a PR.
+4. Open a pull request targeting `develop` (or `main` for hotfixes/releases).
+   Use the `finishing-a-development-branch` skill to prepare the PR command.
+5. A maintainer reviews and merges the PR. Never push directly to `develop`
+   or `main`.
 
 ## Commit Message Policy
 

@@ -23,9 +23,11 @@
 .github/scripts/setup-substitute.sh
 .github/scripts/setup-write-project-config.sh
 .github/scripts/setup-write-user-config.sh
+.github/scripts/setup-rulesets.sh
 .github/scripts/validate-branch-name.sh
 .github/scripts/inline-agent-permissions.js
 .github/scripts/validate-harness.sh
+.github/scripts/verify-protected-push.sh
 .github/ISSUE_TEMPLATE/01_ISSUE.md
 .github/ISSUE_TEMPLATE/config.yml
 .semgrep/kyaulabs.yml
