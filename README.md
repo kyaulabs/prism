@@ -139,12 +139,12 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
 | [jq](https://jqlang.github.io/jq/) | JSON extraction from prism.jsonc (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
+| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
-> optional — only needed for the `clone` option of `/setup`'s scaffold mode and
-> for `/release`; `new`/`skip` scaffold options and all other features work
-> without it.
+> optional — only needed for the `clone` option of `/setup`'s scaffold mode,
+> for `/release`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip` scaffold
+> options and all other features work without it.
 
 ## Git Hooks
 
@@ -393,6 +393,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/handoff` | Compact current conversation into a handoff document for another session |
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme, offers optional scaffold (clone an existing template via `gh`, or init a new subfolder) |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
+| `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks |

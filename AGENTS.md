@@ -333,6 +333,7 @@ Load these on demand when the task requires them:
 | `/handoff` | Compact current conversation into a handoff document for another session |
 | `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders across the harness, sets accent theme |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
+| `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Toolchain health check — verifies dev tools are installed at version floors; reports PASS/FAIL/SKIPPED table + go/no-go summary |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Auto-detects mode from the argument. Aliases: `/ticket` (singular), `/issues`, `/tickets` (plural = from-spec only) |
