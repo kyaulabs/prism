@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RunnerTest.php kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+# $KYAULabs: RunnerTest.php kyau@cosmos.kyaulabs 2026/07/31 -0700 Exp $
+
+
+
 
 
 
@@ -548,7 +551,7 @@ it('createWorktree creates a real git worktree and removeWorktree cleans it up',
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     $worktree = null;
 
@@ -922,7 +925,7 @@ it('isWorkingTreeDirty returns false on a clean tree', function () {
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     try {
         $runner = new Runner($repo);
@@ -944,7 +947,7 @@ it('isWorkingTreeDirty returns true on a dirty tree', function () {
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Make an uncommitted change
     file_put_contents($repo . '/README', "modified\n");
@@ -969,7 +972,7 @@ it('propagateUncommittedChanges applies modified tracked files to worktree', fun
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/skill.md', "original content\n");
     exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Make an uncommitted change
     file_put_contents($repo . '/skill.md', "modified content\n");
@@ -1012,7 +1015,7 @@ it('propagateUncommittedChanges applies untracked files to worktree', function (
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Add an untracked file (e.g., a new skill not yet committed)
     file_put_contents($repo . '/new_skill.md', "new skill content\n");
@@ -1056,7 +1059,7 @@ it('propagateUncommittedChanges returns false on a clean tree', function () {
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     $worktree = null;
     try {
@@ -1088,7 +1091,7 @@ it('createWorktree propagates uncommitted modifications to the worktree', functi
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/skill.md', "original content\n");
     exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Make an uncommitted change
     file_put_contents($repo . '/skill.md', "modified content\n");
@@ -1142,7 +1145,7 @@ it('createWorktree propagates untracked files to the worktree', function () {
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/README', "init\n");
     exec('git -C ' . escapeshellarg($repo) . ' add README');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Add an untracked file (e.g., a new skill not yet committed)
     file_put_contents($repo . '/new_skill.md', "new skill content\n");
@@ -1187,7 +1190,7 @@ it('propagateUncommittedChanges throws a recovery hint when the source-tree stas
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/skill.md', "original content\n");
     exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Uncommitted modification — triggers a real stash push.
     file_put_contents($repo . '/skill.md', "modified content\n");
@@ -1249,7 +1252,7 @@ it('propagateUncommittedChanges does not mask the apply exception when both appl
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/skill.md', "original content\n");
     exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Source: uncommitted modification that will be stashed.
     file_put_contents($repo . '/skill.md', "modified content\n");
@@ -1310,7 +1313,7 @@ it('propagateUncommittedChanges leaves the source tree and stash stack ref-ident
     exec('git -C ' . escapeshellarg($repo) . ' config user.name t');
     file_put_contents($repo . '/skill.md', "original content\n");
     exec('git -C ' . escapeshellarg($repo) . ' add skill.md');
-    exec('git -C ' . escapeshellarg($repo) . ' commit -q -m init');
+    exec('git -c commit.gpgsign=false -C ' . escapeshellarg($repo) . ' commit -q -m init');
 
     // Uncommitted modification to be round-tripped.
     file_put_contents($repo . '/skill.md', "modified content\n");
@@ -1351,6 +1354,7 @@ it('propagateUncommittedChanges leaves the source tree and stash stack ref-ident
         }
     }
 });
+
 
 
 
