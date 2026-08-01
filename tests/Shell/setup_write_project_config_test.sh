@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_write_project_config_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: setup_write_project_config_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
+
+
 
 
 
@@ -254,9 +258,36 @@ run_writer "$CFG" parent
 if [ "$(cat "$CFG")" = "$SNAP" ]; then pass "identical re-run is byte-identical"; else fail "file changed on identical re-run"; fi
 if php "$MANIFEST_CLI" validate "$CFG" project >/dev/null 2>&1; then pass "file validates after re-run"; else fail "file invalid after re-run"; fi
 
+# ── Test 12: newly seeded project manifest has all-off mcp/plugins defaults,
+#    never receives personal toggle answers ───────────────────────────────────
+echo "── Test 12: fresh seed has all-off mcp/plugins, never gets personal toggles ──"
+T12=$(mktemp -d); register_temp_dir "$T12"
+CFG="$T12/prism.jsonc"
+run_writer "$CFG" parent
+if [ "$WR_RC" -eq 0 ]; then pass "writer exited 0"; else fail "writer exited $WR_RC (expected 0)"; fi
+DS12=$(decode_field "$CFG" '.mcp.deepseek_websearch')
+SX12=$(decode_field "$CFG" '.mcp.searxng')
+QT12=$(decode_field "$CFG" '.plugins.opencode_quota')
+if [ "$DS12" = "false" ]; then pass "fresh seed: mcp.deepseek_websearch is false"; else fail "mcp.deepseek_websearch: '$DS12' (expected false)"; fi
+if [ "$SX12" = "false" ]; then pass "fresh seed: mcp.searxng is false"; else fail "mcp.searxng: '$SX12' (expected false)"; fi
+if [ "$QT12" = "false" ]; then pass "fresh seed: plugins.opencode_quota is false"; else fail "plugins.opencode_quota: '$QT12' (expected false)"; fi
+
+# Verify no toggle env vars leaked into the project seed — even if set in the
+# environment, the project writer must NOT read them.
+OPENCODE_MCP_DEEPSEEK_WEBSEARCH="INTRUDER" OPENCODE_MCP_SEARXNG="INTRUDER" \
+    OPENCODE_PLUGIN_OPENCODE_QUOTA="INTRUDER" \
+    run_writer "$CFG" parent
+if [ "$WR_RC" -eq 0 ]; then pass "writer ignores toggle env vars (ok)"; else fail "writer rejected toggle leaks ($WR_RC)"; fi
+DS_POST=$(decode_field "$CFG" '.mcp.deepseek_websearch')
+if [ "$DS_POST" = "false" ]; then pass "project mcp still false after suspected leak"; else fail "project mcp value changed to '$DS_POST' — toggle leaked!"; fi
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print_summary "setup_write_project_config_test.sh"
 exit $?
+
+
+
+
 
 
 

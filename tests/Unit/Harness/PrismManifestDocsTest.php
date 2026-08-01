@@ -17,6 +17,18 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -234,15 +246,15 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         Assert::assertStringNotContainsString(' jq ', ' ' . $content . ' ', '.envrc must not invoke jq for manifest parsing');
     });
 
-    it('has the opencode.jsonc MCP comments point to prism.jsonc for keys', function (): void {
+    it('has the opencode.jsonc MCP section describe OPENCODE_CONFIG_CONTENT composition', function (): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/opencode.jsonc');
 
-        // The MCP enablement comments should reference prism.jsonc (user manifest)
-        // not the legacy setup.json.
+        // The tracked MCP definitions are permanently disabled; enablement is
+        // composed from the resolved Prism manifest into OPENCODE_CONFIG_CONTENT.
         Assert::assertStringContainsString(
-            'prism.jsonc',
+            'OPENCODE_CONFIG_CONTENT',
             $content,
-            'opencode.jsonc MCP comments must point to prism.jsonc for env keys',
+            'opencode.jsonc MCP section must describe OPENCODE_CONFIG_CONTENT composition',
         );
         Assert::assertStringNotContainsString(
             '~/.config/opencode/setup.json',
@@ -266,7 +278,183 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             'AGENTS.md must reference prism.jsonc for experimental flag sourcing',
         );
     });
+
+    it('records the manifest-driven integration boundary in ADR-0045', function (): void {
+        $root = dirname(__DIR__, 3);
+        $path = $root . '/adr/0045-manifest-driven-mcp-plugin-toggles.md';
+
+        Assert::assertFileExists($path);
+        $adr = (string) file_get_contents($path);
+        $context = (string) file_get_contents($root . '/CONTEXT.md');
+
+        foreach ([
+            '## Status',
+            'Accepted',
+            'OPENCODE_CONFIG_CONTENT',
+            'setup_version',
+            'deepseek_websearch',
+            'searxng',
+            'opencode_quota',
+            'ADR-0032',
+            'ADR-0043',
+            'ADR-0040',
+        ] as $required) {
+            Assert::assertStringContainsString($required, $adr);
+        }
+
+        Assert::assertStringContainsString(
+            'adr/0045-manifest-driven-mcp-plugin-toggles.md',
+            $context,
+        );
+    });
+
+    it('keeps optional integrations statically off in tracked OpenCode config', function (): void {
+        $config = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/opencode.jsonc')->root();
+
+        Assert::assertFalse(property_exists($config, 'plugin'));
+        Assert::assertFalse($config->mcp->{'deepseek-websearch'}->enabled);
+        Assert::assertFalse($config->mcp->searxng->enabled);
+        Assert::assertSame(
+            ['npx', '-y', '@kyaulabs/deepseek-websearch@1.0.4'],
+            $config->mcp->{'deepseek-websearch'}->command,
+        );
+        Assert::assertSame(
+            ['npx', '-y', 'mcp-searxng@1.12.0'],
+            $config->mcp->searxng->command,
+        );
+    });
+
+    it('has a quota plugin glossary row in CONTEXT.md', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        Assert::assertStringContainsString(
+            'quota plugin',
+            $context,
+            'CONTEXT.md must define a quota plugin glossary entry',
+        );
+    });
+
+    it('names mcp.* and plugins.* in the Prism manifest glossary row', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        Assert::assertStringContainsString(
+            'mcp.*',
+            $context,
+            'CONTEXT.md Prism manifest entry must name mcp.* preference keys',
+        );
+        Assert::assertStringContainsString(
+            'plugins.*',
+            $context,
+            'CONTEXT.md Prism manifest entry must name plugins.* preference keys',
+        );
+    });
+
+    it('names permanent disabled definitions and OPENCODE_CONFIG_CONTENT in MCP server glossary row', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        Assert::assertStringContainsString(
+            'permanent',
+            $context,
+            'CONTEXT.md MCP server entry must describe permanent disabled definitions',
+        );
+        Assert::assertStringContainsString(
+            'OPENCODE_CONFIG_CONTENT',
+            $context,
+            'CONTEXT.md MCP server entry must reference OPENCODE_CONFIG_CONTENT composition',
+        );
+    });
+
+    it('names manifest-driven enablement in mcp.md', function (): void {
+        $mcpDoc = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/docs/mcp.md');
+
+        foreach ([
+            '/setup',
+            'direnv allow',
+            'restart',
+            'prerequisite',
+            'requested',
+            'active',
+            'quota',
+        ] as $required) {
+            Assert::assertStringContainsString(
+                $required,
+                $mcpDoc,
+                "mcp.md must describe {$required}",
+            );
+        }
+    });
+
+    it('has no living doc instructing users to uncomment an MCP block', function (): void {
+        $failing = [];
+        foreach (living_doc_files() as $file) {
+            $content = (string) file_get_contents($file);
+            if (preg_match('/uncomment.*(?:MCP|block)/i', $content)
+                || preg_match('/commented[- ]out.*MCP/i', $content)
+            ) {
+                $failing[] = pmd_short_path($file);
+            }
+        }
+
+        Assert::assertEmpty(
+            $failing,
+            "These living docs still instruct users to uncomment MCP blocks:\n  - "
+            . implode("\n  - ", $failing),
+        );
+    });
+
+    it('names ADR-0045 in AGENTS.md MCP section', function (): void {
+        $content = (string) file_get_contents(dirname(__DIR__, 3) . '/AGENTS.md');
+
+        Assert::assertStringContainsString(
+            'ADR-0045',
+            $content,
+            'AGENTS.md must reference ADR-0045 for manifest-driven MCP/plugin toggles',
+        );
+    });
+
+    it('names ADR-0045 in CODING_HARNESS.md', function (): void {
+        $content = (string) file_get_contents(dirname(__DIR__, 3) . '/CODING_HARNESS.md');
+
+        Assert::assertStringContainsString(
+            'ADR-0045',
+            $content,
+            'CODING_HARNESS.md must reference ADR-0045',
+        );
+    });
+
+    it('says nineteen env vars instead of fifteen in transport comments', function (): void {
+        $files = [
+            dirname(__DIR__, 3) . '/prism.jsonc',
+            dirname(__DIR__, 3) . '/.envrc',
+            dirname(__DIR__, 3) . '/.opencode/commands/doctor.md',
+        ];
+
+        foreach ($files as $file) {
+            $content = (string) file_get_contents($file);
+            $short = str_replace(dirname(__DIR__, 3) . '/', '', $file);
+
+            Assert::assertStringNotContainsString(
+                'fifteen',
+                $content,
+                "{$short} must not say fifteen env variables",
+            );
+        }
+    });
+
+    it('describes nineteen NUL pairs in prism.jsonc header', function (): void {
+        $content = (string) file_get_contents(dirname(__DIR__, 3) . '/prism.jsonc');
+
+        Assert::assertStringContainsString(
+            'nineteen',
+            $content,
+            'prism.jsonc header must describe nineteen NUL-delimited pairs',
+        );
+    });
 });
+
+
+
+
 
 
 

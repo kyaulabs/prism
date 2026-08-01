@@ -10,7 +10,6 @@
     "lsp": "deny"
   },
   "subagent_depth": 2,
-  "plugin": ["@slkiser/opencode-quota"],
   "provider": {
     "openrouter": {
       "options": {
@@ -37,31 +36,20 @@
     }
   },
   "mcp": {
-    // ── Optional MCP servers (commented out by default) ────────────────────
-    // To enable: uncomment a block, set its key/URL in
-    // ~/.config/opencode/prism.jsonc (env.deepseek_api_key / env.searxng_url),
-    // run `direnv allow`, restart opencode. Full guide: .opencode/docs/mcp.md
-
-    // deepseek-websearch — server-side web search via DeepSeek's
-    // web_search_20250305 tool (search + fetch + synthesize in one call).
-    // Requires DEEPSEEK_API_KEY (paid). Upstream: kyaulabs/deepseek-websearch-mcp
-    // "deepseek-websearch": {
-    //   "type": "local",
-    //   "command": ["npx", "-y", "@kyaulabs/deepseek-websearch@1.0.4"],
-    //   "enabled": true,
-    //   "environment": { "DEEPSEEK_API_KEY": "{env:DEEPSEEK_API_KEY}" }
-    // },
-
-    // mcp-searxng — private web search via a SearXNG instance (self-hosted,
-    // free, no API key). Requires SEARXNG_URL. Optional tuning vars
-    // (SEARXNG_FANOUT, SEARXNG_HTML_FALLBACK, ...) documented in mcp.md.
-    // Upstream: ihor-sokoliuk/mcp-searxng
-    // "searxng": {
-    //   "type": "local",
-    //   "command": ["npx", "-y", "mcp-searxng@1.12.0"],
-    //   "enabled": true,
-    //   "environment": { "SEARXNG_URL": "{env:SEARXNG_URL}" }
-    // }
+    // Enablement is composed from the resolved Prism manifest into
+    // OPENCODE_CONFIG_CONTENT. Do not edit these tracked false defaults.
+    "deepseek-websearch": {
+      "type": "local",
+      "command": ["npx", "-y", "@kyaulabs/deepseek-websearch@1.0.4"],
+      "enabled": false,
+      "environment": { "DEEPSEEK_API_KEY": "{env:DEEPSEEK_API_KEY}" }
+    },
+    "searxng": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-searxng@1.12.0"],
+      "enabled": false,
+      "environment": { "SEARXNG_URL": "{env:SEARXNG_URL}" }
+    }
   },
   "agent": {
     "build": {

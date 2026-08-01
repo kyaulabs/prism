@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
+
 
 
 
@@ -20,6 +23,7 @@ use function KYAULabs\Prism\main;
 use function KYAULabs\Prism\pm_env_pairs;
 
 use const KYAULabs\Prism\PRISM_ENV_MAP;
+use const KYAULabs\Prism\PRISM_TOGGLE_ENV_MAP;
 
 const PM_CLI_SCRIPT = __DIR__ . '/../../..' . '/.github/scripts/prism_manifest.php';
 
@@ -152,6 +156,8 @@ function pm_valid_project_jsonc(): string
   "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5" },
   "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5" },
   "experimental": { "lsp_tool": true, "scout": true, "background_subagents": false },
+  "mcp": { "deepseek_websearch": false, "searxng": false },
+  "plugins": { "opencode_quota": false },
   "env": { "deepseek_api_key": "", "searxng_url": "" }
 }
 JSONC;
@@ -245,7 +251,7 @@ describe('prism_manifest validate', function (): void {
 });
 
 describe('prism_manifest env0', function (): void {
-    it('emits exactly fifteen NUL-separated name/value pairs with bool coercion', function (): void {
+    it('emits exactly nineteen NUL-separated name/value pairs with bool coercion', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
 
         try {
@@ -257,7 +263,7 @@ describe('prism_manifest env0', function (): void {
 
             $parts = pm_parse_nul_pairs($stdout);
 
-            expect($parts)->toHaveCount(30)
+            expect($parts)->toHaveCount(38)
                 ->and($parts[0])->toBe('OPENCODE_MODEL_PRIMARY')
                 ->and($parts[1])->toBe('m1')
                 ->and($parts[20])->toBe('OPENCODE_EXPERIMENTAL_LSP_TOOL')
@@ -313,8 +319,10 @@ describe('prism_manifest env0', function (): void {
                 $names[] = $parts[$i];
             }
 
+            $expectedNames = array_merge(array_values(PRISM_ENV_MAP), array_values(PRISM_TOGGLE_ENV_MAP), ['OPENCODE_CONFIG_CONTENT']);
+
             expect($code)->toBe(0)
-                ->and($names)->toBe(array_values(PRISM_ENV_MAP));
+                ->and($names)->toBe($expectedNames);
         } finally {
             pm_clean($project);
         }
@@ -324,6 +332,224 @@ describe('prism_manifest env0', function (): void {
         $resolved = (object) ['models' => (object) ['primary' => "ba\0d"]];
 
         expect(fn () => pm_env_pairs($resolved))->toThrow(PrismJsoncException::class);
+    });
+
+    it('emits all-off toggle diagnostics and inline MCP enabled false by default', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project]);
+
+            expect($code)->toBe(0);
+
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            expect($pairs['OPENCODE_MCP_DEEPSEEK_WEBSEARCH'])->toBe('false')
+                ->and($pairs['OPENCODE_MCP_SEARXNG'])->toBe('false')
+                ->and($pairs['OPENCODE_PLUGIN_OPENCODE_QUOTA'])->toBe('false');
+
+            $inline = json_decode($pairs['OPENCODE_CONFIG_CONTENT'], false, 64, JSON_THROW_ON_ERROR);
+            expect($inline->mcp->{'deepseek-websearch'}->enabled)->toBeFalse()
+                ->and($inline->mcp->searxng->enabled)->toBeFalse();
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('produces effective MCP enabled true when user preference and prerequisite are both satisfied', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "mcp": { "searxng": true }, "env": { "searxng_url": "https://search.example" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(0);
+
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            // Diagnostic reflects user preference (true)
+            expect($pairs['OPENCODE_MCP_SEARXNG'])->toBe('true');
+
+            // Effective inline config has searxng enabled (prerequisite satisfied)
+            $inline = json_decode($pairs['OPENCODE_CONFIG_CONTENT'], false, 64, JSON_THROW_ON_ERROR);
+            expect($inline->mcp->searxng->enabled)->toBeTrue();
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('keeps diagnostic true but effective enablement false when prerequisite is missing', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(0);
+
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            // Diagnostic remains true (requested preference)
+            expect($pairs['OPENCODE_MCP_DEEPSEEK_WEBSEARCH'])->toBe('true');
+
+            // Effective inline config has it disabled (missing prerequisite)
+            $inline = json_decode($pairs['OPENCODE_CONFIG_CONTENT'], false, 64, JSON_THROW_ON_ERROR);
+            expect($inline->mcp->{'deepseek-websearch'}->enabled)->toBeFalse();
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('preserves unrelated keys and plugins from inherited OPENCODE_CONFIG_CONTENT', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        // Set OPENCODE_CONFIG_CONTENT in the environment for the subprocess
+        $envCopy = getenv();
+        $args = array_merge([PHP_BINARY, PM_CLI_SCRIPT], ['env0', $project]);
+        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+
+        $baseInline = '{"theme":"dark","plugin":["custom/plugin","@slkiser/opencode-quota"],"mcp":{"custom-srv":{"enabled":true}}}';
+
+        $proc = proc_open(
+            $args,
+            $descriptors,
+            $pipes,
+            null,
+            array_merge($envCopy, ['OPENCODE_CONFIG_CONTENT' => $baseInline]),
+        );
+
+        if (!is_resource($proc)) {
+            throw new RuntimeException('could not spawn prism_manifest subprocess');
+        }
+
+        fclose($pipes[0]);
+        $stdout = (string) stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($proc);
+
+        pm_clean($project);
+
+        expect($code)->toBe(0);
+
+        $parts = pm_parse_nul_pairs($stdout);
+        $pairs = [];
+        for ($i = 0; $i < count($parts); $i += 2) {
+            $pairs[$parts[$i]] = $parts[$i + 1];
+        }
+
+        $inline = json_decode($pairs['OPENCODE_CONFIG_CONTENT'], false, 64, JSON_THROW_ON_ERROR);
+        expect($inline->theme)->toBe('dark')
+            ->and($inline->mcp->{'custom-srv'}->enabled)->toBeTrue()
+            ->and($inline->plugin)->toBe(['custom/plugin']);
+    });
+
+    it('fails closed on malformed inherited OPENCODE_CONFIG_CONTENT with exit 1 and no stdout', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        $envCopy = getenv();
+        $args = array_merge([PHP_BINARY, PM_CLI_SCRIPT], ['env0', $project]);
+        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+
+        $proc = proc_open(
+            $args,
+            $descriptors,
+            $pipes,
+            null,
+            array_merge($envCopy, ['OPENCODE_CONFIG_CONTENT' => '{']),
+        );
+
+        if (!is_resource($proc)) {
+            throw new RuntimeException('could not spawn prism_manifest subprocess');
+        }
+
+        fclose($pipes[0]);
+        $stdout = (string) stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($proc);
+
+        pm_clean($project);
+
+        expect($code)->toBe(1)
+            ->and($stdout)->toBe('');
+    });
+
+    it('emits no secret canary in inline JSON', function (): void {
+        $canary = 'SK-SECRET-CANARY-9876543210';
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "' . $canary . '" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
+
+            expect($code)->toBe(0);
+
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            expect($pairs['OPENCODE_CONFIG_CONTENT'])->not->toContain($canary);
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('emits false diagnostics for old schema-v5 fixtures without mcp or plugins sections', function (): void {
+        $oldFixture = pm_fixture(<<<'JSONC'
+{
+  "setup_version": 5,
+  "timestamp": "2026-07-29T10:00:00+00:00",
+  "configured": true,
+  "app": "prism",
+  "domain": "prism.test",
+  "repo": "kyaulabs/prism",
+  "signed_off_by_name": "kyau",
+  "signed_off_by_email": "git@kyaulabs.com",
+  "accent": "sky-blue",
+  "scaffold_mode": "skip",
+  "project_folder": null,
+  "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5" },
+  "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5" },
+  "experimental": { "lsp_tool": true, "scout": true, "background_subagents": false },
+  "env": { "deepseek_api_key": "", "searxng_url": "" }
+}
+JSONC);
+
+        try {
+            [$code, $stdout] = pm_dispatch(['env0', $oldFixture]);
+
+            expect($code)->toBe(0);
+
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            expect($pairs['OPENCODE_MCP_DEEPSEEK_WEBSEARCH'])->toBe('false')
+                ->and($pairs['OPENCODE_MCP_SEARXNG'])->toBe('false')
+                ->and($pairs['OPENCODE_PLUGIN_OPENCODE_QUOTA'])->toBe('false');
+        } finally {
+            pm_clean($oldFixture);
+        }
     });
 });
 
@@ -439,7 +665,7 @@ describe('prism_manifest NUL framing', function (): void {
         }
     });
 
-    it('env0 round-trips all fifteen NUL-delimited pairs through a read -d loop', function (): void {
+    it('env0 round-trips all nineteen NUL-delimited pairs through a read -d loop', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
         $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
 
@@ -466,7 +692,7 @@ describe('prism_manifest NUL framing', function (): void {
             }
 
             expect($code)->toBe(0)
-                ->and($pairs)->toHaveCount(15)
+                ->and($pairs)->toHaveCount(19)
                 ->and($pairs['OPENCODE_MODEL_PRIMARY'])->toBe('m1')
                 ->and($pairs['SEARXNG_URL'])->toBe('http://x:8080');
         } finally {
@@ -1094,6 +1320,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 

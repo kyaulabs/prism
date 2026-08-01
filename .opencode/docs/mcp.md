@@ -6,10 +6,19 @@
 
 MCP (Model Context Protocol) servers provide agents with structured tool access
 beyond the built-in shell, file, and LSP operations. In this project, all MCP
-servers are optional — every block ships **commented out** by default in
-`opencode.jsonc`. No behavior changes unless a user explicitly opts in by
-uncommenting a block and setting the required keys in their user-level
-configuration.
+servers are optional — `opencode.jsonc` carries permanent disabled definitions
+with `enabled: false`. No behavior changes unless a user explicitly opts in via
+the Prism manifest and the required prerequisites are met. Enablement is
+composed from the resolved project + user manifest into
+`OPENCODE_CONFIG_CONTENT` at env0 time (ADR-0045).
+
+## Quota Plugin
+
+The `@slkiser/opencode-quota` package (pinned at 4.0.1) is installed but not
+loaded by default. It is toggled via `plugins.opencode_quota` in the user
+Prism manifest only — the project manifest always tracks `false`. Opt-in is
+controlled by `/setup` and composed into the `OPENCODE_CONFIG_CONTENT` plugin
+array; it never touches unrelated plugin entries.
 
 ## Available Servers
 
@@ -23,38 +32,76 @@ Both servers run as `type: "local"` MCP servers, spawned via `npx`. Each
 non-interactive runtime spawn auto-installs the exact pinned version instead
 of hanging on an install prompt — see `opencode.jsonc` for the current
 versions. Pinning closes the supply-chain typosquat / moving-target risk
-(issue #205). The two servers ship commented-out by default; uncommenting a
-block inherits the pinned, `-y`-flagged command (safe-by-default).
+(issue #205). The two servers are permanently defined with `enabled: false`;
+enablement happens through composed `OPENCODE_CONFIG_CONTENT`, not by editing
+`opencode.jsonc`.
 
 ## Enabling a Server
 
-1. **Uncomment the chosen block** in `opencode.jsonc` under the `"mcp"` key.
-   Remove the `//` comment markers around the server's object, including its
-   `enabled: true` and `environment` fields.
+Enablement has two layers: **requested** (what you asked for) and **active**
+(what actually runs). A server is active only when BOTH conditions hold:
 
-2. **Set the key or URL** in `~/.config/opencode/prism.jsonc` under the `"env"`
-   section. This is the user-level override (project-level
-   `prism.jsonc` ships with empty defaults). Example:
+1. The Boolean preference is `true` in the resolved Prism manifest.
+2. The matching prerequisite is non-empty in the resolved env (key or URL).
 
-   ```json
-   {
-     "env": {
-       "deepseek_api_key": "sk-...",
-       "searxng_url": "https://searxng.example.com"
-     }
-   }
-   ```
+A requested server with a missing prerequisite remains inactive — the
+preference signal is `true` but effective enablement stays `false`.
 
-   > ⚠️ **Never paste real keys or URLs into the tracked
-   > `prism.jsonc`.** A pre-commit hook and CI check
-   > (`check-setup-secrets.sh`) reject **any** non-empty `env.*` value in the
-   > committed file. Secrets belong **exclusively** in the user-level
-   > `~/.config/opencode/prism.jsonc` (ADR-0032, issue #194).
+### Option A — Interactive (/setup)
 
-3. **Run `direnv allow`** in the project root to re-evaluate `.envrc` and
-   export the new environment variables.
+Run `/setup` in the Build tab. After model/variant configuration, `/setup`
+asks three one-at-a-time prompts:
 
-4. **Restart opencode** — MCP server configuration is read once at startup.
+- `Enable deepseek-websearch MCP? [y/N]`
+- `Enable SearXNG MCP? [y/N]`
+- `Enable @slkiser/opencode-quota? [y/N]`
+
+Answers are written to the user Prism manifest
+(`~/.config/opencode/prism.jsonc`) as Booleans. `/setup` reports requested
+versus active MCP state and reminds you to set prerequisite environment
+values if any requested server is missing its key or URL.
+
+### Option B — Direct manifest edit
+
+Edit `~/.config/opencode/prism.jsonc` directly. Set Boolean preferences:
+
+```jsonc
+{
+  "mcp": {
+    "deepseek_websearch": true,
+    "searxng": true
+  },
+  "plugins": {
+    "opencode_quota": true
+  }
+}
+```
+
+### Set the prerequisite (key or URL)
+
+In `~/.config/opencode/prism.jsonc`, under the `"env"` section, set the
+required key or URL:
+
+```jsonc
+{
+  "env": {
+    "deepseek_api_key": "sk-...",
+    "searxng_url": "https://searxng.example.com"
+  }
+}
+```
+
+> ⚠️ **Never paste real keys or URLs into the tracked
+> `prism.jsonc`.** A pre-commit hook and CI check
+> (`check-setup-secrets.sh`) reject **any** non-empty `env.*` value in the
+> committed file. Secrets belong **exclusively** in the user-level
+> `~/.config/opencode/prism.jsonc` (ADR-0032, issue #194).
+
+### Activate
+
+Run `direnv allow` in the project root to re-evaluate `.envrc` and export
+the new environment variables. Then **restart OpenCode** — MCP server
+configuration is read once at startup.
 
 ## How Keys Flow
 
@@ -62,21 +109,34 @@ block inherits the pinned, `-y`-flagged command (safe-by-default).
 ~/.config/opencode/prism.jsonc (user-level, real values)
         OR
 prism.jsonc (project, empty defaults)
-        │  (user-level wins per ADR-0029 SETUP_FILE pick logic)
+        │  (user-level wins via recursive field-by-field overlay; ADR-0043)
         ▼
 .envrc prism_manifest.php env0 block — exports DEEPSEEK_API_KEY / SEARXNG_URL
-        │  (with // "" fallback for files without the env section)
+        │  + exports requested-preference diagnostics and composed
+        │    OPENCODE_CONFIG_CONTENT (the nineteen NUL-delimited pairs)
         ▼
 opencode.jsonc {env:VAR} resolution at server spawn
+        +
+OPENCODE_CONFIG_CONTENT overrides MCP enabled leaves and quota membership
 ```
 
 - The user-level override at `~/.config/opencode/prism.jsonc` takes precedence
-  over the checked-in project-level file.
-- Pre-existing `setup.json` files that lack an `"env"` section are handled by
-  the `// ""` fallback (exports empty strings — harmless). The actual
-  `.envrc` form uses the `prism_manifest.php env0` CLI.
+  over the checked-in project-level file (ADR-0043 recursive overlay).
+- `prism_manifest.php env0` composes `OPENCODE_CONFIG_CONTENT` from the
+  resolved manifest, overriding only the two MCP `enabled` leaves and the
+  quota plugin entry; all unrelated inline config keys and plugin entries are
+  preserved.
 - Opencode's `{env:DEEPSEEK_API_KEY}` / `{env:SEARXNG_URL}` syntax resolves
   these exported variables at MCP server spawn time.
+
+## Requested vs. Active
+
+The `OPENCODE_MCP_DEEPSEEK_WEBSEARCH` and `OPENCODE_MCP_SEARXNG` environment
+variables reflect your **requested** preference (the Boolean from the
+manifest). The actual **active** state is in the composed
+`OPENCODE_CONFIG_CONTENT` — a requested `true` with an empty or missing
+prerequisite results in `enabled: false` in the inline config. The
+`OPENCODE_PLUGIN_OPENCODE_QUOTA` variable reflects quota plugin membership.
 
 ## Tool Inventory
 
@@ -127,7 +187,7 @@ These are complementary. If you need to know how a library works, use
 ## Optional Tuning Variables
 
 These are user-managed in the **shell profile** (e.g., `~/.bashrc`,
-`~/.zshrc`). They are NOT set in `setup.json`.
+`~/.zshrc`). They are NOT set in the Prism manifest.
 
 ### deepseek-websearch
 
@@ -146,9 +206,13 @@ request routing. See the upstream reference:
 
 ## Troubleshooting
 
-- **Server fails to start silently** — Check that the key is set and non-empty
-  in `~/.config/opencode/prism.jsonc` under the `"env"` section. Run
-  `direnv allow` to re-export variables, then restart opencode.
+- **Server fails to start silently** — Check that the preference is `true`
+  and the prerequisite key or URL is set to a non-empty value in
+  `~/.config/opencode/prism.jsonc` under the `"env"` section. Run
+  `direnv allow` to re-export variables, then restart OpenCode.
+- **Requested but not active** — If `/setup` reports a server as requested
+  but inactive, the prerequisite (key or URL) is missing or empty. Set it
+  under `"env"` in the user manifest, run `direnv allow`, and restart.
 - **mcp-searxng returns 403** — The SearXNG instance likely has JSON format
   disabled. Fix: edit `settings.yml` to include `json` in `search.formats`,
   or set `SEARXNG_HTML_FALLBACK=true`.

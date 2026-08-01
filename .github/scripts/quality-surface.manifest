@@ -16,6 +16,7 @@
 .github/scripts/PrismJsoncDocument.php
 .github/scripts/PrismJsoncException.php
 .github/scripts/PrismManifest.php
+.github/scripts/PrismOpenCodeConfig.php
 .github/scripts/prism_manifest.php
 .github/scripts/quality-surface.manifest
 .github/scripts/resolve-identity.sh

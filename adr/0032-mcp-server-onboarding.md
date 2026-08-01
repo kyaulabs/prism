@@ -4,7 +4,11 @@ Date: 2026-07-20
 
 ## Status
 
-Accepted
+Superseded
+
+The JSONC/manifest replacement was delivered by ADR-0043. The
+commented-block enablement mechanism was superseded by ADR-0045's
+manifest-driven Boolean toggle preferences.
 
 Amends ADR-0029 (adds the `env` key to the `setup.json` schema; same
 `jq` + `.envrc` delivery chain and user-override-wins precedence). Follows

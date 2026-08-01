@@ -236,6 +236,73 @@ After writing, instruct:
 Record the model and variant choices (whether defaults or user-specified)
 for the manifest (section 8).
 
+## 3.5. Integration toggles (user-only)
+
+Read the current toggle preferences and prerequisite values from the resolved
+prism manifests through the CLI. Normalize absent fields (no `mcp`/`plugins`
+section yet) to `false`:
+
+```bash
+OPENCODE_MCP_DEEPSEEK_WEBSEARCH=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" mcp.deepseek_websearch)
+OPENCODE_MCP_SEARXNG=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" mcp.searxng)
+OPENCODE_PLUGIN_OPENCODE_QUOTA=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" plugins.opencode_quota)
+: "${OPENCODE_MCP_DEEPSEEK_WEBSEARCH:=false}"
+: "${OPENCODE_MCP_SEARXNG:=false}"
+: "${OPENCODE_PLUGIN_OPENCODE_QUOTA:=false}"
+# Read prerequisites for the active-state report (never show the values).
+DS_KEY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" env.deepseek_api_key)
+SX_URL=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" env.searxng_url)
+```
+
+Ask one question at a time. Accept `y`/`yes` → `true`; `n`/`no` or Enter → `false`.
+The resolved current value is suggested in the prompt; the default (in brackets)
+is always `N` (off):
+
+```text
+Enable deepseek-websearch MCP? [y/N]
+Enable SearXNG MCP? [y/N]
+Enable @slkiser/opencode-quota? [y/N]
+```
+
+Store exact shell strings `true` or `false`.
+
+Always invoke the toggle-only writer (no identity, model, or variant fields are
+touched — §3's writer handles those):
+
+```bash
+OPENCODE_MCP_DEEPSEEK_WEBSEARCH="$OPENCODE_MCP_DEEPSEEK_WEBSEARCH" \
+OPENCODE_MCP_SEARXNG="$OPENCODE_MCP_SEARXNG" \
+OPENCODE_PLUGIN_OPENCODE_QUOTA="$OPENCODE_PLUGIN_OPENCODE_QUOTA" \
+bash .github/scripts/setup-write-user-config.sh toggles
+```
+
+The writer patches only `mcp.deepseek_websearch`, `mcp.searxng`, and
+`plugins.opencode_quota` into `~/.config/opencode/prism.jsonc` (mode 0600,
+comment-preserving span patching). It validates each value as exactly `true` or
+`false` and refuses to write on any other input.
+
+After writing, report the requested preferences with their prerequisite gating
+(never print the key or URL values themselves). Compute active state:
+`active = requested AND non-empty prerequisite`:
+
+```text
+Integration preferences written to ~/.config/opencode/prism.jsonc.
+  deepseek-websearch MCP:   requested=true   active=false (no DEEPSEEK_API_KEY set)
+  SearXNG MCP:              requested=false  active=false
+  @slkiser/opencode-quota:  requested=false
+```
+
+When a prerequisite is non-empty, show `active=true` and omit the parenthetical.
+A requested MCP with a missing prerequisite (`env.deepseek_api_key` or
+`env.searxng_url` empty in the resolved manifest) remains inactive. Set the
+key/URL under the `env` section of `~/.config/opencode/prism.jsonc` and re-run
+`/setup` to activate.
+
+Finish with:
+
+> Run `direnv allow` to reload.
+> Restart OpenCode for integration changes to take effect.
+
 ## 4. Build the token map
 
 Construct the find/replace pairs in order. Identity tokens
@@ -386,8 +453,10 @@ target paths and state what will change:
 >   project manifest: `prism.jsonc`
 >   user manifest:    `~/.config/opencode/prism.jsonc`
 > Only the /setup-owned fields (identity, app/domain/repo, accent, models,
-> variants, scaffold bookkeeping) change. Comments and unknown fields are
-> preserved byte-for-byte (ADR-0043 span patching). Secrets are never touched.
+> variants, scaffold bookkeeping, and integration toggles) change. Toggle
+> preferences (mcp.*, plugins.*) are user-only and never appear in the
+> project manifest. Comments and unknown fields are preserved byte-for-byte
+> (ADR-0043 span patching). Secrets are never touched.
 
 **Patch, do not regenerate.** Never write a wholesale JSON object over either
 manifest. Both writers patch owned fields in place through the prism manifest
@@ -489,7 +558,8 @@ Remind the user:
 - The aurora/ submodule was NOT touched — it maintains its own copy of
   harness files.
 - Re-run `/setup` to change values; the manifest enables idempotent updates.
-- Optional integrations: enable MCP web-search servers (deepseek-websearch, mcp-searxng) by uncommenting their blocks in `opencode.jsonc`. Set keys in `~/.config/opencode/prism.jsonc` (`env` section). See `.opencode/docs/mcp.md`.
+- Integration preferences (MCP servers, quota plugin) are user-only; re-run
+  `/setup` to toggle them and then restart OpenCode. See `.opencode/docs/mcp.md`.
 
 ## Rules
 

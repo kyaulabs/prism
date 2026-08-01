@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
 
 
 
@@ -35,6 +35,7 @@ namespace KYAULabs\Prism;
  */
 
 require_once __DIR__ . '/PrismManifest.php';
+require_once __DIR__ . '/PrismOpenCodeConfig.php';
 
 /**
  * Allowlisted dot-path to environment-variable name map for the env0 command.
@@ -60,6 +61,21 @@ const PRISM_ENV_MAP = [
     'experimental.background_subagents' => 'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS',
     'env.deepseek_api_key' => 'DEEPSEEK_API_KEY',
     'env.searxng_url' => 'SEARXNG_URL',
+];
+
+/**
+ * Direct-preference dot-path to environment-variable name map for the env0 command.
+ *
+ * Three diagnostic booleans: user-requested MCP and plugin preferences from the
+ * resolved Prism manifest, emitted after the fifteen stable env0 pairs. Default to
+ * false when the dot path is absent.
+ *
+ * @var array<string, string>
+ */
+const PRISM_TOGGLE_ENV_MAP = [
+    'mcp.deepseek_websearch' => 'OPENCODE_MCP_DEEPSEEK_WEBSEARCH',
+    'mcp.searxng' => 'OPENCODE_MCP_SEARXNG',
+    'plugins.opencode_quota' => 'OPENCODE_PLUGIN_OPENCODE_QUOTA',
 ];
 
 if (defined('PRISM_MANIFEST_AS_LIBRARY')) {
@@ -185,7 +201,7 @@ function cmd_validate(array $argv): PrismCliResult
  * env0 PROJECT [USER] — emit allowlisted env vars as NUL-separated pairs.
  *
  * Resolves the project plus optional user overlay, then buffers and validates
- * all fifteen pairs before producing any output. Rejects non-scalar values
+ * all nineteen pairs before producing any output. Rejects non-scalar values
  * and NUL bytes (which would corrupt the NUL-delimited framing).
  *
  * @param  array<int, string> $argv
@@ -198,8 +214,10 @@ function cmd_env0(array $argv): PrismCliResult
     }
 
     $resolved = pm_load_resolved($argv[2], $argv[3] ?? '-');
+    $existing = getenv('OPENCODE_CONFIG_CONTENT');
+    $inline = is_string($existing) ? $existing : null;
 
-    return new PrismCliResult(0, stdout: pm_nul_pairs(pm_env_pairs($resolved)));
+    return new PrismCliResult(0, stdout: pm_nul_pairs(pm_env_pairs($resolved, $inline)));
 }
 
 /**
@@ -530,11 +548,16 @@ function pm_canonical_v5(\stdClass $projection): string
 /**
  * Build the flat allowlisted env name/value pair list from a resolved manifest.
  *
+ * Emits the fifteen stable PRISM_ENV_MAP entries, then three requested-preference
+ * toggle diagnostics, then the composed OPENCODE_CONFIG_CONTENT. All pairs are
+ * buffered before output so a mid-buffer failure produces no partial stream.
+ *
  * @param  \stdClass        $resolved
+ * @param  string|null      $existingInlineConfig  Inherited OPENCODE_CONFIG_CONTENT value.
  * @return list<string>     Interleaved [name, value, name, value, ...].
  * @throws PrismJsoncException  On a non-scalar value or a NUL byte in a value.
  */
-function pm_env_pairs(\stdClass $resolved): array
+function pm_env_pairs(\stdClass $resolved, ?string $existingInlineConfig = null): array
 {
     $pairs = [];
 
@@ -542,8 +565,39 @@ function pm_env_pairs(\stdClass $resolved): array
         $pairs[] = $envName;
         $pairs[] = pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $envName);
     }
+    foreach (PRISM_TOGGLE_ENV_MAP as $dotPath => $envName) {
+        $pairs[] = $envName;
+        $pairs[] = pm_scalar_to_transport(pm_boolean_default_false($resolved, $dotPath), $envName);
+    }
+
+    $pairs[] = 'OPENCODE_CONFIG_CONTENT';
+    $pairs[] = pm_scalar_to_transport(
+        PrismOpenCodeConfig::compose($resolved, $existingInlineConfig),
+        'OPENCODE_CONFIG_CONTENT',
+    );
 
     return $pairs;
+}
+
+/**
+ * Resolve a boolean preference from the manifest, defaulting to false when absent.
+ *
+ * @param  \stdClass $root
+ * @param  string    $dotPath
+ * @return bool
+ * @throws PrismJsoncException  When the value exists but is not a boolean.
+ */
+function pm_boolean_default_false(\stdClass $root, string $dotPath): bool
+{
+    $value = pm_resolve_dot($root, $dotPath);
+    if ($value === null) {
+        return false;
+    }
+    if (!is_bool($value)) {
+        throw new PrismJsoncException('field ' . $dotPath . ' must be a boolean');
+    }
+
+    return $value;
 }
 
 /**
@@ -677,6 +731,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 

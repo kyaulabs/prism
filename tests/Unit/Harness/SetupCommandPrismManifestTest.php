@@ -2,7 +2,19 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -122,7 +134,49 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
         // A scaffolded target must record skip-mode bookkeeping.
         Assert::assertStringContainsString('skip', $content);
     });
+
+    it('prompts for all three integration toggles (deepseek-websearch, searxng, quota)', function () {
+        $content = setup_command_content();
+        Assert::assertStringContainsString('deepseek-websearch MCP', $content);
+        Assert::assertStringContainsString('SearXNG MCP', $content);
+        Assert::assertStringContainsString('@slkiser/opencode-quota', $content);
+    });
+
+    it('invokes the toggles writer mode and names the user-only manifest path', function () {
+        $content = setup_command_content();
+        Assert::assertStringContainsString('setup-write-user-config.sh toggles', $content);
+        Assert::assertStringContainsString('~/.config/opencode/prism.jsonc', $content);
+    });
+
+    it('never writes toggle answers to the project manifest', function () {
+        $content = setup_command_content();
+        // Toggle section must NOT invoke the project writer. Bound the search
+        // from the toggles heading to the next major section start to avoid a
+        // false-positive from the project-writer invocation in §8.
+        $togglesPos = (int) strpos($content, 'Integration toggles');
+        $nextSectionPos = strpos($content, "\n## 4. Build the token map", $togglesPos);
+        $togglesSection = $nextSectionPos !== false
+            ? substr($content, $togglesPos, $nextSectionPos - $togglesPos)
+            : substr($content, $togglesPos);
+        Assert::assertStringNotContainsString(
+            'setup-write-project-config.sh',
+            $togglesSection,
+            'toggle section must not invoke the project writer',
+        );
+    });
+
+    it('advises direnv allow and OpenCode restart after writing toggles', function () {
+        $content = setup_command_content();
+        Assert::assertStringContainsString('direnv allow', $content);
+        // OpenCode restart guidance must appear near the toggles section.
+        $restartRegion = substr($content, (int) strpos($content, 'restart'));
+        Assert::assertStringContainsString('restart', $restartRegion);
+    });
 });
+
+
+
+
 
 
 

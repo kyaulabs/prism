@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-write-project-config.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: setup-write-project-config.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+
+
+
+
 
 
 
@@ -110,6 +114,13 @@ if [ ! -e "$MANIFEST" ]; then
   "env": {
     "deepseek_api_key": "",
     "searxng_url": ""
+  },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
   }
 }
 SEED
@@ -173,6 +184,10 @@ UPDATES=$(jq -n \
 printf '%s' "$UPDATES" | php "$CLI" patch "$MANIFEST" project 0644
 
 echo "✓ Wrote project-scoped /setup fields into $MANIFEST ($MODE mode, JSONC, comments preserved)" >&2
+
+
+
+
 
 
 
