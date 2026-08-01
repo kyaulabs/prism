@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_secrets_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: setup_secrets_test.sh kyau@cosmos.kyaulabs 2026/07/31 -0700 Exp $
+
+
+
+
 
 
 
@@ -35,7 +39,7 @@ CI="$REPO_ROOT/.github/workflows/ci.yml"
 
 # PHP CLI sources the guard delegates to. The functional hook tests (B4/B5)
 # copy these into a disposable repo so the guard can run end-to-end there.
-MANIFEST_PHP=(prism_manifest.php PrismManifest.php PrismJsoncDocument.php PrismJsoncException.php)
+MANIFEST_PHP=(prism_manifest.php PrismManifest.php PrismJsoncDocument.php PrismJsoncException.php PrismOpenCodeConfig.php)
 
 # run_guard_out <jsonc-string> → sets GUARD_RC (exit status) and GUARD_OUT
 # (combined stdout+stderr). Writes the content to a temp file so the guard
@@ -313,6 +317,10 @@ fi
 
 print_summary "setup_secrets_test (Sections A+B+C)"
 exit $?
+
+
+
+
 
 
 
