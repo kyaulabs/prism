@@ -159,7 +159,7 @@ commit_with_attribution() {
   `BASE_REF`, `BASE_SHA`, `HEAD_SHA`, `MERGE_BASE`, `COMMIT_COUNT`, and
   `NON_MERGE_COUNT`.
 
-- [ ] **Step 1: Write the failing command-contract and extracted-block tests**
+- [x] **Step 1: Write the failing command-contract and extracted-block tests**
 
 Create `tests/Shell/pr_command_test.sh`. Source
 `tests/Shell/lib/test_helpers.sh`, call `setup_result_file` once, and implement
@@ -306,7 +306,7 @@ Make the test executable:
 chmod +x tests/Shell/pr_command_test.sh
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -318,7 +318,7 @@ Expected: FAIL because `.opencode/commands/pr.md` does not exist. The test
 must continue through static assertions and print a non-zero summary rather
 than aborting on the first missing-file assertion.
 
-- [ ] **Step 3: Implement the minimum prompt-native `/pr` procedure**
+- [x] **Step 3: Implement the minimum prompt-native `/pr` procedure**
 
 Create `.opencode/commands/pr.md` with this structure and wording contract:
 
@@ -551,7 +551,7 @@ Do not copy Markdown code-fence nesting incorrectly when implementing: the
 outer plan fence is explanatory; `pr.md` itself contains normal fenced Bash
 blocks and the two HTML extraction sentinels exactly once each.
 
-- [ ] **Step 4: Run focused tests and refactor to GREEN**
+- [x] **Step 4: Run focused tests and refactor to GREEN**
 
 Run:
 
@@ -566,7 +566,7 @@ inside `pr_command_test.sh`; do not create a production helper. Confirm the
 mutation copy with the extra template heading fails parity while the real
 template passes.
 
-- [ ] **Step 5: Commit the command slice**
+- [x] **Step 5: Commit the command slice**
 
 ```bash
 git add .opencode/commands/pr.md tests/Shell/pr_command_test.sh
@@ -779,7 +779,7 @@ assert_contains "$REPO_ROOT/README.md" '/pr' \
     'README GitHub CLI tooling description includes /pr'
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 

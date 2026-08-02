@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: protected_branch_workflow_docs_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: protected_branch_workflow_docs_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+
 
 
 
@@ -72,11 +73,11 @@ echo "── Finishing skill assertions ─────────────"
 if [ ! -f "$finish_skill" ]; then
 	fail "finishing-a-development-branch/SKILL.md not found"
 else
-	# 2a: Uses gh pr create --base
-	if grep -qF 'gh pr create --base' "$finish_skill"; then
-		pass "finishing skill: uses gh pr create --base"
+	# 2a: Delegates PR preparation to /pr (no duplicated gh recipe)
+	if grep -qF '/pr' "$finish_skill" && ! grep -qF 'gh pr create' "$finish_skill"; then
+		pass "finishing skill: delegates PR preparation to /pr"
 	else
-		fail "finishing skill: missing 'gh pr create --base'"
+		fail "finishing skill: missing /pr delegation or still contains gh pr create"
 	fi
 
 	# 2b: Derives TARGET_BRANCH (normal → develop, hotfix/release → main)
@@ -258,6 +259,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 

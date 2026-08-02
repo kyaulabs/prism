@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: skill_shell_injection_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+
 
 
 
@@ -77,60 +78,99 @@ else
 	fi
 fi
 
-# ── Static scan: finishing-a-development-branch SKILL.md ─────────────────────
+# ── Static scan: finishing-a-development-branch SKILL.md + pr command ────────
 FINISHING="$REPO_ROOT/.opencode/skills/finishing-a-development-branch/SKILL.md"
+PR_COMMAND="$REPO_ROOT/.opencode/commands/pr.md"
 
 if [ ! -f "$FINISHING" ]; then
 	fail "finishing-a-development-branch/SKILL.md not found"
 else
-	# Check 3: No inline --title "--body " interpolation
+	# Check 3: No inline --title interpolation in the finishing skill
 	if grep -Pn "pr create.*--title\s+[\"']" "$FINISHING" > /dev/null 2>&1; then
-		fail "finishing-a-development-branch/SKILL.md: gh pr create still uses inline --title (should use --title-file)"
+		fail "finishing-a-development-branch/SKILL.md: still interpolates a literal title"
 	else
-		pass "finishing-a-development-branch/SKILL.md: gh pr create uses --title-file/--body-file"
+		pass "finishing-a-development-branch/SKILL.md: no inline title interpolation"
 	fi
 
-	# Check 4: Title-file and body-file flags are present
-	if grep -q -- "--title-file" "$FINISHING" && grep -q -- "--body-file" "$FINISHING"; then
-		pass "finishing-a-development-branch/SKILL.md: both --title-file and --body-file present"
+	# Check 4: gh pr create is absent from the finishing skill (single /pr path)
+	if grep -qF 'gh pr create' "$FINISHING"; then
+		fail "finishing-a-development-branch/SKILL.md: still contains a duplicate gh pr create recipe"
 	else
-		fail "finishing-a-development-branch/SKILL.md: missing --title-file or --body-file"
+		pass "finishing-a-development-branch/SKILL.md: no duplicate gh pr create recipe"
+	fi
+fi
+
+if [ ! -f "$PR_COMMAND" ]; then
+	fail ".opencode/commands/pr.md not found"
+else
+	# Check 4b: pr command reads title into a variable and passes it quoted
+	if grep -Fq 'TITLE=$(cat "$TITLE_FILE")' "$PR_COMMAND" \
+		&& grep -Fq -- '--title "$TITLE"' "$PR_COMMAND"; then
+		pass "pr command: title is read into TITLE and passed as quoted --title"
+	else
+		fail "pr command: missing quoted TITLE variable transport"
+	fi
+
+	# Check 4c: body transport via --body-file
+	if grep -Fq -- '--body-file "$BODY_FILE"' "$PR_COMMAND"; then
+		pass "pr command: body transport uses --body-file"
+	else
+		fail "pr command: missing --body-file transport"
+	fi
+
+	# Check 4d: no obsolete --title-file anywhere in .opencode/
+	if grep -R -Fq -- '--title-file' "$REPO_ROOT/.opencode"; then
+		fail ".opencode/: obsolete --title-file option still present"
+	else
+		pass ".opencode/: no obsolete --title-file option"
 	fi
 fi
 
 # ── Active injection test: malicious title through safe pattern ─────────────
 # Demonstrate that a crafted title does not execute embedded commands
-# when passed via --title-file (heredoc with quoted terminator).
+# when passed via quoted heredoc and read into a quoted variable.
 
 TMPDIR=$(mktemp -d)
 register_temp_dir "$TMPDIR"
 
-MALICIOUS_TITLE='fix: harmless $(touch /tmp/pwned_injection_test) looking title'
-SENTINEL="/tmp/pwned_injection_test"
+rm -f /tmp/pr_command_injection /tmp/pr_command_backtick
 
-# Remove any leftover sentinel from a previous run
-rm -f "$SENTINEL"
-
-# Use the heredoc pattern: unquoted terminator so $MALICIOUS_TITLE expands,
-# but the variable was assigned with single quotes so its $(touch ...) is
-# literal and does NOT execute.
-cat > "$TMPDIR/test-title.txt" <<HEREDOC
-$MALICIOUS_TITLE
+# The full adversarial payload, written via a QUOTED heredoc so nothing in it
+# expands: command substitution, backticks, quotes, a leading hyphen, and a
+# literal HEREDOC line that must survive transport unchanged.
+cat > "$TMPDIR/test-title.txt" <<'PAYLOAD_END'
+$(touch /tmp/pr_command_injection)
+`touch /tmp/pr_command_backtick`
+"'; leading-and-quotes
 HEREDOC
+PAYLOAD_END
 
-# After writing via heredoc, verify the sentinel file was NOT created
-if [ -f "$SENTINEL" ]; then
-	fail "active injection test: sentinel file CREATED — heredoc executed \$()"
-	rm -f "$SENTINEL"
+# Verify no sentinel file was created by the write
+if [ -f /tmp/pr_command_injection ] || [ -f /tmp/pr_command_backtick ]; then
+	fail "active injection test: sentinel CREATED — heredoc executed \$() or backticks"
+	rm -f /tmp/pr_command_injection /tmp/pr_command_backtick
 else
-	pass "active injection test: heredoc did NOT execute \$() in title"
+	pass "active injection test: quoted heredoc did NOT execute \$() or backticks"
 fi
 
-# Verify the title file contains the literal command (not expanded)
-if grep -q '$(touch' "$TMPDIR/test-title.txt"; then
-	pass "active injection test: malicious pattern preserved literally in title file"
+# Verify the payload bytes survive the file transport unchanged
+payload_bytes=$(cat "$TMPDIR/test-title.txt")
+expected_bytes='$(touch /tmp/pr_command_injection)
+`touch /tmp/pr_command_backtick`
+"'"'"'; leading-and-quotes
+HEREDOC'
+if [ "$payload_bytes" = "$expected_bytes" ]; then
+	pass "active injection test: payload preserved literally in title file"
 else
-	fail "active injection test: malicious pattern not found in title file"
+	fail "active injection test: payload bytes altered in title file"
+fi
+
+# Verify the payload survives read-into-variable transport unchanged
+TITLE_VAR=$(cat "$TMPDIR/test-title.txt")
+if [ "$TITLE_VAR" = "$expected_bytes" ]; then
+	pass "active injection test: payload preserved literally in quoted variable"
+else
+	fail "active injection test: payload bytes altered in variable transport"
 fi
 
 # ── Active injection test: graphql -F variables ──────────────────────────────
@@ -195,6 +235,7 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 

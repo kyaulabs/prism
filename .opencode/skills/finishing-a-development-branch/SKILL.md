@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use when a feature branch's work is complete — all tasks green, /check passed, @code-review clean — and you need to verify readiness and present disposal options (PR, keep, discard).
+description: Use when a feature branch's work is complete — all tasks green, /check passed, @code-review clean — and you need to verify readiness and present disposal options (PR via /pr, keep, discard).
 derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
@@ -13,25 +13,33 @@ and the branch is ready for integration.
 **Announce at start:** "I'm using the finishing-a-development-branch skill to
 verify and wrap up this feature branch."
 
-## Pre-completion checklist
+## Final-state ordering
 
-Run every item; do not skip:
+Run the items in this order; do not skip any:
 
-- [ ] All plan tasks checked off (`- [x]` in `docs/plans/`).
-- [ ] `verification-before-completion` run on the final state — all checks
-      passed.
-- [ ] `/check` green — lint + coverage 80% minimum.
-- [ ] `@code-review` clean — only Informational findings remain (see
-      `receiving-code-review` skill if not).
-- [ ] Working tree clean — `git status` shows no uncommitted changes.
-- [ ] All commits follow Conventional Commits format and include
-      `Authored-by:` + `Implemented-by:` + `Tested-by:` + `Signed-off-by:` footers (see `conventional-commits` skill).
-- [ ] Plan and spec files deleted from `docs/plans/` and `docs/specs/`
-      (unless branch is being kept for further work — see post-disposal
-      cleanup below).
-
-After every item passes, present the summary below. If any item fails, stop
-and fix it — do not proceed with a failing item.
+1. **Confirm all plan tasks are checked off** (`- [x]` in `docs/plans/`) and
+   per-task verification passed.
+2. **Clean up plan/spec artifacts.** Delete the tracked plan/spec files that
+   match this branch's work from `docs/plans/` and `docs/specs/` and commit
+   that cleanup before any final gate (ADR-0027). If no matching artifacts
+   exist, record that fact and do not create an empty cleanup commit.
+3. **Derive `TARGET_BRANCH`** (below). Note that `release/*` branches still
+   originate from `develop` (ADR-0028) while their PR target is `main`
+   (ADR-0044) — origin and target remain distinct.
+4. **Synchronize** if the work branch is already published (below). Resolve
+   conflicts before continuing.
+5. **Print the exact attestation** (below) with a clean working tree.
+6. **Run `/check`** after the attestation. Stop on anything except GO.
+7. **Run all four `@code-review` axes** after `/check` (see below). Use the
+   `receiving-code-review` skill to triage findings. Repeat the entire
+   attestation → `/check` → review sequence after any commit or merge.
+8. **Require no Blocking or Suggested finding** and no failed or skipped
+   review axis.
+9. **Recheck** the clean tree, HEAD SHA, and base SHA before the summary.
+10. **Offer exactly:** prepare a pull request through `/pr`, keep, or discard.
+11. For the first option, invoke the `/pr` procedure. State that `/pr` only
+    prepares artifacts; the human publishes the work branch and runs the
+    displayed GitHub CLI block.
 
 ## Determine the target branch
 
@@ -46,7 +54,8 @@ esac
 
 Normal work branches target `develop`; `hotfix/*` and `release/*` target
 `main`. All integration to a protected branch must go through a merged pull
-request — never a direct merge or push.
+request — never a direct merge or push. `release/*` branches originate from
+`develop` (ADR-0028) but their PR target is `main` (ADR-0044).
 
 ## Synchronize with the target branch
 
@@ -58,19 +67,37 @@ git fetch origin
 git merge origin/"$TARGET_BRANCH"
 ```
 
-Rerun `/check` and resolve any conflicts. The resulting branch is a
-fast-forward of the remote work branch, so the human can push it without
-`--force`. Never rebase a published work branch — rebasing an already-pushed
-branch requires a force-push, which is blocked by the pre-push hook on
-protected targets.
+Rerun `/check` and resolve any conflicts (use `@resolve-merge-conflicts`).
+The resulting branch is a fast-forward of the remote work branch, so the
+human can push it without `--force`. Never rebase a published work branch —
+rebasing an already-pushed branch requires a force-push, which is blocked by
+the pre-push hook on protected targets.
 
 If the work branch has not yet been published, the synchronization step is
 optional because the PR can still be opened against an up-to-date base. The
 fast-forward update after publication is sufficient.
 
-## Summary after checklist
+## Exact branch-completion attestation
 
-Present this block to the user:
+After synchronization and with a clean tree, print this exact attestation
+shape with resolved values (not angle-bracket text):
+
+```text
+BRANCH=<resolved valid work branch>
+HEAD_SHA=<git rev-parse HEAD>
+BASE_REF=origin/<resolved target branch>
+BASE_SHA=<git rev-parse origin/resolved-target>
+```
+
+`/check` and all four `@code-review` axes are valid only when the exact
+`BRANCH`, `HEAD_SHA`, `BASE_REF`, and `BASE_SHA` values above are recorded
+before the gates and current values still match afterward. Any changed SHA or
+dirty tree invalidates both final gates; restart the attestation → `/check` →
+review sequence after any commit or merge.
+
+## Summary after final gates
+
+Present this block to the user after the recheck:
 
 ```
 ## Branch completion — ready for PR
@@ -79,11 +106,12 @@ Branch: <branch-name>
 Target: <TARGET_BRANCH>
 Commits: N (all conventional-commits, all signed)
 Check: /check green
-Review: @code-review clean
+Review: @code-review clean (all four axes)
 Coverage: >= 80% on changed files
 
 What would you like to do?
-1. Open a pull request (I will prepare the gh pr command)
+1. Prepare a pull request (I will invoke /pr to prepare title, body, and the
+   GitHub CLI command)
 2. Keep branch for further work (no action)
 3. Discard branch (I will warn; you confirm)
 ```
@@ -92,25 +120,14 @@ Wait for the user's response. Do not auto-merge, auto-push, or bypass a PR.
 
 ## Option responses
 
-### Open a pull request
+### Prepare a pull request
 
-Prepare the `gh pr create` command:
-
-```bash
-cat > /tmp/pr-title.txt <<'HEREDOC'
-<subject>
-HEREDOC
-cat > /tmp/pr-body.md <<'HEREDOC'
-<body>
-HEREDOC
-gh pr create --base "$TARGET_BRANCH" --head <branch-name> \
-    --title-file /tmp/pr-title.txt \
-    --body-file /tmp/pr-body.md
-```
-
-Use the branch description and commit subjects to construct the title and body.
-Write each to a temp file via heredoc (`<<'HEREDOC'`) so no shell expansion
-occurs inside the payload. Present the exact command for user approval.
+Invoke the `/pr` command. `/pr` validates the branch, collects evidence from
+the attested session, generates a commitlint-valid conventional title and a
+template-complete body, and displays the exact GitHub CLI pull-request
+creation command. It only prepares artifacts: the human publishes the work
+branch and runs the displayed GitHub CLI block. `/pr` never creates the PR
+itself.
 
 ### Keep / Discard
 
@@ -121,18 +138,6 @@ lost, then present:
 git checkout "$TARGET_BRANCH"
 git branch -D <branch-name>
 ```
-
-## Post-disposal cleanup
-
-After the branch is PR'd or discarded, clean up the plan and spec files:
-
-```bash
-rm -f docs/plans/<plan-filename>.md docs/specs/<spec-filename>.md
-```
-
-Plans and specs are development artifacts — git history preserves them. They
-should not accumulate in the working tree. If the branch is being kept for
-further work, defer cleanup until the branch is ultimately disposed of.
 
 ## Post-merge local cleanup (after the PR is merged)
 
@@ -153,12 +158,16 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 
 ## Rules
 
-- Every checklist item must pass before presenting the summary. No partial
+- Every final-state item must pass before presenting the summary. No partial
   passes.
+- Plan/spec cleanup per ADR-0027 happens and is committed before the final
+  gates, not after disposal.
 - Determine `TARGET_BRANCH` from the branch name: `main` for `hotfix/*` and
   `release/*`; `develop` for all other work branches.
 - Merge `origin/$TARGET_BRANCH` into already-published work branches — never
   rebase a published branch (force-push is blocked).
+- Record the exact attestation before `/check` and all four `@code-review`
+  axes; recheck afterwards.
 - Never offer a direct merge to `develop` or `main`. Integration is by merged
   pull request only.
 - Never auto-merge. Never auto-push. The user drives integration.
@@ -176,6 +185,8 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 - `verification-before-completion` skill — the verification step in the
   checklist.
 - `/check` command — the lint + coverage gate.
+- `/pr` command — prepares the conventional title, template-complete body,
+  and human-run GitHub CLI pull-request creation command.
 - `@code-review` agent — generates findings; use `receiving-code-review` skill
   to triage them.
 - `conventional-commits` skill — validates commit message format.
@@ -188,12 +199,19 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 
 ## Gotchas
 
-- *Presenting the summary before the checklist is complete* — a red checklist
-  item means the branch is NOT ready. Fix it first.
+- *Presenting the summary before the final gates* — a failed item means the
+  branch is NOT ready. Fix it first.
+- *Running `/check` or review without the attestation* — gates are valid only
+  when bound to the exact branch, HEAD, base ref, and base SHA recorded
+  before them.
+- *Deferring plan/spec cleanup until after the PR* — ADR-0027 cleanup must be
+  committed before the final gates so `/pr` can recover the last committed
+  plan/spec from branch history.
 - *Rebasing a published branch* — the pre-push hook blocks force-pushes.
   Always merge `origin/$TARGET_BRANCH` into the work branch instead.
 - *Offering git push* — agents cannot push. Do not offer or attempt it.
 - *Suggesting squashing* — the no-squash policy is load-bearing for the
   evaluation log. Never suggest or offer a squash merge.
 - *Offering a direct merge to develop or main* — protected branches are
-  PR-only. Always prepare `gh pr create --base "$TARGET_BRANCH"`.
+  PR-only. Delegate preparation to `/pr`; the human runs the displayed
+  command.

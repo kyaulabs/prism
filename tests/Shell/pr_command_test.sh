@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # $KYAULabs: pr_command_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -12,6 +13,7 @@ setup_result_file
 
 COMMAND_FILE="$REPO_ROOT/.opencode/commands/pr.md"
 TEMPLATE_FILE="$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
+FINISHING_FILE="$REPO_ROOT/.opencode/skills/finishing-a-development-branch/SKILL.md"
 
 WORK_DIR="$(mktemp -d)"
 register_temp_dir "$WORK_DIR"
@@ -56,6 +58,16 @@ assert_heading_parity() {
 		fi
 	done < <(grep '^## ' "$template")
 	[ "$missing" -eq 0 ]
+}
+
+assert_delegates_to_pr() {
+	local skill_file="$1"
+	grep -Fq '/pr' "$skill_file" && ! grep -Fq 'gh pr create' "$skill_file"
+}
+
+assert_no_obsolete_title_flag() {
+	local tree="$1"
+	! grep -R -Fq -- '--title-file' "$tree"
 }
 
 make_standard_fixture() {
@@ -371,10 +383,55 @@ else
 	pass 'heading parity rejects a template with an added section'
 fi
 
+# ── 12. finishing workflow delegation and lifecycle ──────────────────────────
+
+assert_contains "$FINISHING_FILE" '/pr' \
+	'finishing workflow delegates PR preparation to /pr'
+assert_contains "$FINISHING_FILE" 'HEAD_SHA' \
+	'finishing workflow records exact HEAD SHA'
+assert_contains "$FINISHING_FILE" 'BASE_SHA' \
+	'finishing workflow records exact base SHA'
+assert_contains "$FINISHING_FILE" 'all four' \
+	'finishing workflow requires all four review axes'
+
+if assert_delegates_to_pr "$FINISHING_FILE"; then
+	pass 'finishing delegation has no duplicate gh recipe'
+else
+	fail 'finishing delegation still duplicates PR creation'
+fi
+
+if assert_no_obsolete_title_flag "$REPO_ROOT/.opencode"; then
+	pass 'opencode tree contains no obsolete PR title flag'
+else
+	fail 'opencode tree contains the obsolete PR title flag'
+fi
+
+mutation_dir=$(mktemp -d)
+register_temp_dir "$mutation_dir"
+cp "$FINISHING_FILE" "$mutation_dir/finishing.md"
+sed 's|/pr|/removed-pr|g' "$mutation_dir/finishing.md" > "$mutation_dir/no-delegation.md"
+if assert_delegates_to_pr "$mutation_dir/no-delegation.md"; then
+	fail 'delegation mutation was not detected'
+else
+	pass 'delegation mutation is detected'
+fi
+
+mkdir -p "$mutation_dir/opencode"
+cp "$COMMAND_FILE" "$mutation_dir/opencode/pr.md"
+printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/opencode/pr.md"
+sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/opencode/pr.md"
+rm -f "$mutation_dir/opencode/pr.md.bak"
+if assert_no_obsolete_title_flag "$mutation_dir/opencode"; then
+	fail 'obsolete flag mutation was not detected'
+else
+	pass 'obsolete flag mutation is detected'
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "pr command"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
