@@ -6,6 +6,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -505,8 +506,8 @@ fi
 
 # ── P18. Changelog generation ────────────────────────────────────────────────
 
-if grep -qF 'git cliff --tag v' "$RELEASE_CMD" && grep -qF -- '--output CHANGELOG.md' "$RELEASE_CMD"; then
-	pass "P18: /release generates CHANGELOG.md with git cliff --tag vX.Y.Z --output CHANGELOG.md"
+if grep -qF 'git cliff --tag "v' "$RELEASE_CMD" && grep -qF -- '--output CHANGELOG.md' "$RELEASE_CMD"; then
+	pass "P18: /release generates CHANGELOG.md with git cliff --tag \"vX.Y.Z\" --output CHANGELOG.md"
 else
 	fail "P18: /release missing git cliff --tag vX.Y.Z --output CHANGELOG.md"
 fi
@@ -603,6 +604,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

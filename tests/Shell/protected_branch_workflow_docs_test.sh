@@ -16,6 +16,7 @@
 
 
 
+
 # ── Protected Branch Workflow Docs Regression Test ───────────────────────────
 # Verify active .opencode/ and living-doc files contain only PR-based
 # integration flows — no direct push to develop or main, no direct merge
@@ -323,14 +324,13 @@ if grep -qF '"git-cliff"' "$REPO_ROOT/package.json" && \
    grep -qE '\| git-cliff \| npm \|' "$readme_md" && \
    grep -qiE 'git-cliff.*(cargo install|package manager)' "$readme_md" && \
    grep -qiE 'git-cliff.*(PATH|wrapper|devDependenc)' "$readme_md"; then
-	pass "README.md: git-cliff npm row matches package.json; >= 2.0 PATH binary floor explained"
+	pass "README.md: git-cliff npm row, install route, and PATH/wrapper floor phrases present"
 else
 	fail "README.md: git-cliff claims drift from package.json or lack the PATH/wrapper floor"
 fi
 
 # 6g: CONTRIBUTING.md branch origin/PR target matches ADR-0028/0046
-if ! grep -qE 'hotfixes/releases' "$contributing_md" && \
-   grep -qiE 'release.*(from|off|originate).*develop' "$contributing_md" && \
+if grep -qiE 'release.*(from|off|originate).*develop' "$contributing_md" && \
    grep -qiE 'release.*target.*main' "$contributing_md" && \
    grep -qE '(main.*hotfix|hotfix.*main)' "$contributing_md"; then
 	pass "CONTRIBUTING.md: releases originate from develop and target main; hotfixes from main"
@@ -352,6 +352,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 

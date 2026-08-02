@@ -141,7 +141,7 @@ The branch is `release/X.Y.Z` — the version carries no `v`.
 ## Generate the changelog
 
 ```bash
-git cliff --tag v$VERSION --output CHANGELOG.md
+git cliff --tag "v$VERSION" --output CHANGELOG.md
 ```
 
 If scaffold links survive, replace `kyaulabs/template` with the repository
@@ -179,6 +179,13 @@ without it:
 # argument was supplied); the raw invocation argument never enters a shell
 # command.
 RELEASE_ISSUE_DIGITS=""
+# Fail closed FIRST, before any assignment-derived value is used: a
+# non-empty value must be exactly ^[1-9][0-9]*$ so raw invocation input
+# can never reach a shell command.
+if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_ISSUE_DIGITS" | grep -qE '^[1-9][0-9]*$'; then
+    echo "✗ Release-issue digits are malformed." >&2
+    exit 1
+fi
 # Instantiate RELEASE_REF in this same shell invocation: empty when no issue
 # was supplied, otherwise exactly "Refs: #<digits>".
 RELEASE_REF=""

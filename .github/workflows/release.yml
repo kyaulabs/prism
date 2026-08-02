@@ -38,9 +38,10 @@ jobs:
           set -euo pipefail
 
           # The merge SHA must be exactly 40 lowercase hex characters.
-          # Plain stderr is used (not ::error::) because the values are
-          # not yet validated: raw input interpolated into workflow
-          # commands could be parsed as additional commands.
+          # Pre-validation values are echoed as plain text rather than
+          # workflow-command syntax: GitHub parses workflow commands from
+          # both stdout and stderr, and unvalidated input must never be
+          # interpolated into command syntax.
           if ! printf '%s' "$MERGE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
             echo "Error: merge commit SHA is not 40 lowercase hex characters: $MERGE_SHA" >&2
             exit 1
@@ -177,9 +178,24 @@ jobs:
             if [ "$ahead_by" -gt 0 ]; then
               if pr_numbers=$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head main --state open --json number --jq '.[].number'); then
                 if [ -z "$pr_numbers" ]; then
-                  gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
+                  if create_out=$(gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
                     --title "Back-merge main into develop" \
-                    --body "Automated back-merge PR opened by release.yml after the v$VERSION release. Human review and merge required."
+                    --body "Automated back-merge PR opened by release.yml after the v$VERSION release. Human review and merge required." 2>&1); then
+                    printf '%s\n' "$create_out"
+                  else
+                    # A concurrent release run may have created the PR
+                    # between the list check above and this create; that
+                    # race is success, not an error. Anything else fails.
+                    case "$create_out" in
+                      *"already exists"*)
+                        echo "back-merge PR already exists (created concurrently); nothing to do"
+                        ;;
+                      *)
+                        echo "Error: back-merge PR creation failed: $create_out" >&2
+                        exit 1
+                        ;;
+                    esac
+                  fi
                 else
                   echo "open back-merge PR already exists; nothing to do"
                 fi
