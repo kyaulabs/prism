@@ -1,4 +1,5 @@
-// $KYAULabs: pre-tool-use.ts kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 
@@ -10,50 +11,18 @@
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { DenialOutcomeTracker, type ToolCallSnapshot } from "./denial-circuit-breaker.ts";
+import {
+    loadAdditionalSensitivePaths,
+    sensitiveOperandCheck,
+    sensitivePathMatch,
+    tokenizeCommand,
+    tryUnwrapSegment,
+} from "./sensitive-paths.ts";
 
-/**
- * Tokenize a command segment on whitespace outside quotes.
- * Strips one layer of surrounding matching quotes from each token.
- * Returns [] for blank input.
- */
-export function tokenizeCommand(segment: string): string[] {
-    const trimmed = segment.trim();
-    if (trimmed.length === 0) return [];
-
-    const tokens: string[] = [];
-    let i = 0;
-    while (i < trimmed.length) {
-        // Skip leading whitespace
-        while (i < trimmed.length && /\s/.test(trimmed[i])) i++;
-        if (i >= trimmed.length) break;
-
-        let token = "";
-        if (trimmed[i] === '"' || trimmed[i] === "'") {
-            const quote = trimmed[i];
-            i++; // consume opening quote
-            while (i < trimmed.length && trimmed[i] !== quote) {
-                if (trimmed[i] === "\\" && i + 1 < trimmed.length) {
-                    // Consume escape + next char literally
-                    token += trimmed[i + 1];
-                    i += 2;
-                } else {
-                    token += trimmed[i];
-                    i++;
-                }
-            }
-            i++; // consume closing quote
-        } else {
-            while (i < trimmed.length && !/\s/.test(trimmed[i])) {
-                token += trimmed[i];
-                i++;
-            }
-        }
-        tokens.push(token);
-    }
-    return tokens;
-}
+// Re-export for tests/Plugin/pre-tool-use-bypass.test.ts.
+export { tokenizeCommand } from "./sensitive-paths.ts";
 
 export type Severity = "block" | "warn" | null;
 
@@ -81,9 +50,6 @@ const SAFE_ABS_DIRS: readonly string[] = [
     normalize("/var/tmp"),
     normalize(tmpdir()),
 ];
-
-/** Shell interpreters whose `-c` flag wraps a command string. */
-const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
 /** Maximum recursion depth for wrapper unwrapping. */
 const MAX_UNWRAP_DEPTH = 3;
@@ -227,53 +193,6 @@ function isWithinSafeZone(absPath: string, projectDir: string): boolean {
         const safeAbs = normalize(resolvePath(projectDir, rel));
         return absPath === safeAbs || absPath.startsWith(safeAbs + "/");
     });
-}
-
-/**
- * If `tokens` starts with a known wrapper, unwrap one layer and return
- * the inner command string. Returns null if the segment is not a wrapper.
- */
-function tryUnwrapSegment(tokens: string[]): string | null {
-    if (tokens.length === 0) return null;
-
-    const head = tokens[0];
-
-    // Shell -c wrapper: bash -c "..."
-    if (SHELL_WRAPPERS.has(head) && tokens[1] === "-c" && tokens.length >= 3) {
-        return tokens[2]; // the script string (quote-stripped by tokenizer)
-    }
-
-    // xargs is NOT unwrapped here — the rm detection in the main loop
-    // already handles xargs + rm via findRmAnywhere with the xargs check
-    // for unresolvable operands.
-
-    // env: drop env and any NAME=VALUE leading tokens, join rest as command
-    if (head === "env") {
-        let i = 1;
-        while (i < tokens.length && tokens[i].includes("=")) i++;
-        if (i < tokens.length) {
-            return tokens.slice(i).join(" ");
-        }
-        return null;
-    }
-
-    // command / exec: drop head, join rest as command
-    if (head === "command" || head === "exec") {
-        if (tokens.length > 1) {
-            return tokens.slice(1).join(" ");
-        }
-        return null;
-    }
-
-    // eval: join all remaining tokens as the command string
-    if (head === "eval") {
-        if (tokens.length > 1) {
-            return tokens.slice(1).join(" ");
-        }
-        return null;
-    }
-
-    return null;
 }
 
 /**
@@ -466,6 +385,11 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     // tracker per plugin instance isolates denial counts per agent invocation.
     const breaker = new DenialOutcomeTracker({ threshold: TRIP_THRESHOLD });
 
+    // Manifest extension of the deny floor (ADR-0047): newline-joined
+    // ~/-prefixed or absolute additions. Throws on malformed entries so the
+    // plugin factory rejects at startup — fail closed.
+    const extraPaths = loadAdditionalSensitivePaths(process.env.OPENCODE_SENSITIVE_PATHS);
+
     /**
      * Escalate a circuit-breaker trip: emit a redacted diagnostic log, then
      * abort the offending session.
@@ -530,8 +454,38 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
                     `circuit breaker active per ADR-0042`,
                 );
             }
-            if (input.tool !== "bash") return;
+            const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
+            const home = homedir();
+            const options = { projectDir: directory, home, extraPaths };
             const command: string = output?.args?.command ?? "";
+
+            // Sensitive-path interception (ADR-0047): blocks read/grep/glob/
+            // list on sensitive paths and bash operands resolving into the
+            // deny floor. Runs BEFORE the destructive classifier below.
+            if (input.tool === "bash") {
+                const match = sensitiveOperandCheck(command, options);
+                if (match) {
+                    throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                }
+            } else if (
+                input.tool === "read" ||
+                input.tool === "grep" ||
+                input.tool === "glob" ||
+                input.tool === "list"
+            ) {
+                const argPath: unknown = input.tool === "read"
+                    ? output?.args?.filePath
+                    : (output?.args?.path ?? output?.args?.filePath);
+                if (typeof argPath === "string" && argPath !== "") {
+                    const abs = argPath.startsWith("~")
+                        ? normalize(home + argPath.slice(1))
+                        : normalize(resolvePath(directory, argPath));
+                    if (sensitivePathMatch(abs, options)) {
+                        throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                    }
+                }
+            }
+            if (input.tool !== "bash") return;
             let finding: Finding;
             try {
                 finding = classifyCommand(command, { projectDir: directory });
@@ -593,6 +547,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 
