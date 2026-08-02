@@ -118,7 +118,7 @@ What Prism owns vs. what it delegates to external services.
   - **Harness configuration** — `opencode.jsonc`, `.opencode/{agents,commands,skills,docs,evals}/`
   - **Harness plugins** — `.opencode/plugins/` (`pre-tool-use.ts` safety hook ADR-0023/0036, `session-bootstrap.ts` ADR-0008, `denial-circuit-breaker.ts` ADR-0042)
   - **Git hooks** — `.github/hooks/` (pre-commit, commit-msg, prepare-commit-msg, pre-push, post-checkout, post-merge), installed via `.github/scripts/install-hooks.sh`
-  - **CI workflow** — `.github/workflows/ci.yml` (lint, test, SAST, commitlint)
+  - **CI workflows** — `.github/workflows/ci.yml` (lint, test, SAST, commitlint) and `.github/workflows/release.yml` (validated tag/Release publication and back-merge PR opening, ADR-0046)
   - **Quality gates** — `.github/scripts/coverage-gate.php` (ADR-0009) + the `/check` command
   - **Eval framework** — `.opencode/evals/bin/` (case parser, runner, judge integration, worktree isolation)
   - **Documentation** — `AGENTS.md`, `CONTEXT.md`, `CODING_HARNESS.md`, `adr/`, `docs/`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
@@ -141,7 +141,7 @@ spurious "features" during implementation.
 
 - **Not a PHP application** — Prism ships no application code in an `<app>/` webroot or under `backend/` beyond `env.php`. The harness is the deliverable; an application built *using* Prism would be a separate project.
 - **Not a framework** — no MVC, no router, no templating engine, no ORM (per `AGENTS.md`). Aurora provides the PHP stack; Prism does not duplicate it.
-- **No push/merge automation** — every agent is denied `git push`. Humans push work branches and release tags; humans review and merge pull requests. Protected branches (`develop`, `main`) accept only merged PRs (ADR-0044).
+- **No push/merge automation** — every agent is denied `git push`. Humans push work branches and merge pull requests. Only `.github/workflows/release.yml` may create a validated release tag/Release and open a back-merge PR; it never pushes a branch or merges a PR. Protected branches (`develop`, `main`) accept only merged PRs (ADR-0044).
 - **No bundled LSP servers** — Prism configures LSP usage (Intelephense, TypeScript, Stylelint, ESLint, Bash, YAML; Deno explicitly disabled) but expects them system-installed.
 - **No CI provider lock-in** — the lint/test/SAST surface uses GitHub Actions, but the underlying scripts (`coverage-gate.php`, `install-hooks.sh`, etc.) are CI-agnostic.
 - **No model fine-tuning or hosting** — Prism configures upstream models per tier via `{env:VAR}` substitution (ADR-0012 through ADR-0014) but does not train, fine-tune, host, or proxy inference.
@@ -199,6 +199,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0043-prism-jsonc-manifest-migration.md` — Dual-rename both setup.json manifests to `prism.jsonc` (project root + user home), schema v5, single dependency-free PHP JSONC reader replacing `jq`, recursive field-by-field overlay, full JSONC + trailing commas, in-place comment-preserving `/setup` patching; supersedes ADR-0029 + ADR-0032's JSONC rejection
 - `adr/0044-pr-only-protected-branches.md` — Three-layer PR-only protection (local hooks + GitHub ruleset + CI tripwire) for `develop` and `main`; single-root scaffold exception; idempotent ruleset provisioning via `setup-rulesets.sh`; PR-only release/back-merge flows
 - `adr/0045-manifest-driven-mcp-plugin-toggles.md` — Manifest-driven Boolean toggle preferences for optional MCP servers and quota plugin; supersedes ADR-0032's commented-block enablement
+- `adr/0046-automated-release-pipeline.md` — Split release finalization: local `/release` authors the reviewed release PR; `release.yml` publishes the unsigned tag/Release at the immutable merge SHA and opens the human-merged back-merge PR; partially supersedes ADR-0044's release-origin and manual-finalization clauses
 
 ## When to update this file
 

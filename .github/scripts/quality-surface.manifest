@@ -6,6 +6,7 @@
 .github/hooks/pre-push
 .github/hooks/prepare-commit-msg
 .github/workflows/ci.yml
+.github/workflows/release.yml
 .github/scripts/check-script-executable-bits.sh
 .github/scripts/check-setup-secrets.sh
 .github/scripts/coverage-gate.php

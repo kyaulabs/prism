@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+concurrency:
+  group: release-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish release tag, Release, and back-merge PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - name: Checkout merged release commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate merge SHA and release version
+        run: |
+          set -euo pipefail
+
+          # The merge SHA must be exactly 40 lowercase hex characters.
+          if ! printf '%s' "$MERGE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::merge commit SHA is not 40 lowercase hex characters: $MERGE_SHA" >&2
+            exit 1
+          fi
+
+          # The version is branch-derived: strip only the leading release/
+          # prefix and require the exact release grammar (no v, optional
+          # prerelease, no build metadata).
+          version="${HEAD_REF#release/}"
+          if [ "$version" = "$HEAD_REF" ]; then
+            echo "::error::head ref is not a release branch: $HEAD_REF" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::invalid release version in branch name: $version" >&2
+            exit 1
+          fi
+
+          # The checkout must have materialized the exact merge commit.
+          if [ "$(git rev-parse HEAD)" != "$MERGE_SHA" ]; then
+            echo "::error::checked-out HEAD $(git rev-parse HEAD) does not match merge SHA $MERGE_SHA" >&2
+            exit 1
+          fi
+
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Extract changelog notes
+        run: |
+          set -euo pipefail
+
+          # Scan every "## " heading; a section matches when the heading
+          # contains the exact markdown label [$VERSION] anywhere in the line.
+          # The real cliff.toml heading is
+          # "## [💾](.../releases/tag/vX) [X](.../compare/...) - (date)", so
+          # the leading [💾] link must not be mistaken for the version label.
+          # The matching heading and every following line up to the next
+          # "## " heading are written to notes.md; scanning continues so
+          # duplicate sections fail. The body must contain at least one
+          # non-whitespace line.
+          match_count=0
+          section_start=0
+          : > notes.md
+          : > body.md
+
+          while IFS= read -r line; do
+            case "$line" in
+              "## "*)
+                if printf '%s\n' "$line" | grep -qF "[$VERSION]"; then
+                  match_count=$((match_count + 1))
+                  section_start=1
+                  printf '%s\n' "$line" >> notes.md
+                  : > body.md
+                else
+                  section_start=0
+                fi
+                ;;
+              *)
+                if [ "$section_start" -eq 1 ]; then
+                  printf '%s\n' "$line" >> notes.md
+                  printf '%s\n' "$line" >> body.md
+                fi
+                ;;
+            esac
+          done < CHANGELOG.md
+
+          if [ "$match_count" -ne 1 ]; then
+            echo "::error::expected exactly one changelog section for [$VERSION], found $match_count" >&2
+            exit 1
+          fi
+          if ! grep -q '[^[:space:]]' body.md; then
+            echo "::error::changelog section for [$VERSION] has no non-whitespace body" >&2
+            exit 1
+          fi
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+
+          # Probe tag state locally: refs/tags/v$VERSION^{commit} peels both
+          # annotated tags and plain lightweight tags (gh release create
+          # produces a lightweight tag) to their commit. The refs are already
+          # on disk from the full-depth checkout, so no remote access or
+          # stored credentials are needed.
+          tag_exists="no"
+          tag_commit=""
+          if tag_commit=$(git rev-parse -q --verify "refs/tags/v${VERSION}^{commit}"); then
+            tag_exists="yes"
+          fi
+
+          # Probe Release state: HTTP 404 counts as absent; any other gh
+          # error is fatal.
+          release_exists="no"
+          if probe_out=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" 2>&1); then
+            release_exists="yes"
+          else
+            case "$probe_out" in
+              *"HTTP 404"*)
+                release_exists="no"
+                ;;
+              *)
+                echo "::error::Release probe failed: $probe_out" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+          # Four explicit publication states.
+          if [ "$tag_exists" = "no" ] && [ "$release_exists" = "no" ]; then
+            # Neither tag nor Release exists: publish at the merge SHA.
+            gh release create "v$VERSION" --target "$MERGE_SHA" --title "v$VERSION" --notes-file notes.md
+          elif [ "$tag_exists" = "yes" ] && [ "$release_exists" = "yes" ]; then
+            # Both exist: an idempotent rerun is valid only when the tag
+            # resolves to the recorded merge SHA.
+            if [ "$tag_commit" != "$MERGE_SHA" ]; then
+              echo "::error::tag v$VERSION resolves to $tag_commit, expected merge SHA $MERGE_SHA" >&2
+              exit 1
+            fi
+            echo "release v$VERSION already exists at the merge SHA; skipping publication"
+          else
+            # Exactly one exists: partial state requires manual recovery.
+            echo "::error::partial release state for v$VERSION: tag_exists=$tag_exists release_exists=$release_exists" >&2
+            echo "::error::delete or repair the stray tag/Release manually, then rerun the workflow" >&2
+            exit 1
+          fi
+
+      - name: Open back-merge PR
+        run: |
+          set -euo pipefail
+
+          # Skip when main has no commits ahead of develop, or when an open
+          # main -> develop PR already exists; otherwise open the PR. The
+          # workflow never pushes a branch and never merges a PR.
+          if ahead_by=$(gh api "repos/$GITHUB_REPOSITORY/compare/develop...main" --jq '.ahead_by'); then
+            if [ "$ahead_by" -gt 0 ]; then
+              if pr_numbers=$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head main --state open --json number --jq '.[].number'); then
+                if [ -z "$pr_numbers" ]; then
+                  gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
+                    --title "Back-merge main into develop" \
+                    --body "Automated back-merge PR opened by release.yml after the v$VERSION release. Human review and merge required."
+                else
+                  echo "open back-merge PR already exists; nothing to do"
+                fi
+              else
+                echo "::error::gh pr list failed" >&2
+                exit 1
+              fi
+            else
+              echo "develop is up to date with main; no back-merge needed"
+            fi
+          else
+            echo "::error::gh api compare develop...main failed" >&2
+            exit 1
+          fi
