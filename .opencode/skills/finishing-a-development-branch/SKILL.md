@@ -33,8 +33,12 @@ Run the items in this order; do not skip any:
 7. **Run all four `@code-review` axes** after `/check` (see below). Use the
    `receiving-code-review` skill to triage findings. Repeat the entire
    attestation → `/check` → review sequence after any commit or merge.
-8. **Require no Blocking or Suggested finding** and no failed or skipped
-   review axis.
+8. **Require no Blocking finding** from the review. Resolve every Suggested
+   finding and re-verify the affected suites, or record the human's explicit
+   waiver. A failed or skipped review axis is incomplete evidence and must be
+   explicitly waived by the human before `/pr` may proceed. The review is
+   never re-run solely to refresh evidence — the attested evidence stands
+   until the SHAs or the tree change.
 9. **Recheck** the clean tree, HEAD SHA, and base SHA before the summary.
 10. **Offer exactly:** prepare a pull request through `/pr`, keep, or discard.
 11. For the first option, invoke the `/pr` procedure. State that `/pr` only
@@ -93,7 +97,9 @@ BASE_SHA=<git rev-parse origin/resolved-target>
 `BRANCH`, `HEAD_SHA`, `BASE_REF`, and `BASE_SHA` values above are recorded
 before the gates and current values still match afterward. Any changed SHA or
 dirty tree invalidates both final gates; restart the attestation → `/check` →
-review sequence after any commit or merge.
+review sequence after any commit or merge. A review axis that failed or was
+skipped is incomplete evidence; the human may explicitly waive it in-session,
+and `/pr` then records the axis as waived rather than blocking.
 
 ## Summary after final gates
 

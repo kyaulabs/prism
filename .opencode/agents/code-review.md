@@ -63,13 +63,17 @@ one message turn):
 #### Axis 1 — Ocr (PSR-12, style, lint)
 
 Run `ocr` inline. Same flags and behaviour as before:
-- Verify `command -v ocr` first; if missing, STOP and report the install
-  command to the user (`npm install -g @alibaba-group/open-code-review`).
-  Do NOT install autonomously — global npm installs execute third-party
-  pre/postinstall scripts (supply-chain RCE risk; issue #183).
+- Verify `command -v ocr` first; if missing, mark Axis 1 FAILED with the
+  install command (`npm install -g @alibaba-group/open-code-review`) and
+  continue with the remaining axes. Do NOT install autonomously — global npm
+  installs execute third-party pre/postinstall scripts (supply-chain RCE
+  risk; issue #183).
 - Choose `ocr review` (diff) or `ocr scan` (full scan) based on scope.
 - Use `--audience agent --format json`.
-- If `ocr` fails, report the error and stop — do not fall back to manual review.
+- If `ocr` fails, retry ONCE with the same command (transient network or
+  backend failures are common). If it fails again, mark Axis 1 FAILED with
+  the exact error and CONTINUE with the remaining axes — never stop the whole
+  review because one axis failed.
 
 > **Data egress:** `ocr` transmits diff content to its cloud backend for
 > analysis — reviewed code leaves the repo boundary via a third-party AI
@@ -92,10 +96,19 @@ Dispatch `@semgrep` via the task tool. Pass the diff scope.
 
 ### 4. Assemble output
 
-Collect results from all 4 axes and present them as 4 separate sections:
+Collect results from all 4 axes and present them as 4 separate sections.
+Report every axis's completion status at the top of the report:
 
 ```
 ## Code Review — Multi-Axis Report
+
+Axis status: ocr COMPLETE · standards-review COMPLETE · spec-review COMPLETE · semgrep COMPLETE
+```
+
+Each axis is `COMPLETE`, `FAILED` (with the exact error), or `SKIPPED`.
+Always return the report even when one or more axes failed — a partial review
+is far more useful than a halted one, and the human (or the `/pr` gate) can
+waive a failed axis explicitly.
 
 ### 1. Ocr — PSR-12 / Style / Lint
 [ocr findings grouped by severity: Blocking / Suggested / Informational]
@@ -139,8 +152,12 @@ groupings. For sub-agent axes, pass through their native grouping.
 - Never auto-apply fixes. Report and stop. This is a read-only coordinator.
 - `.opencodereview/rule.json` is auto-loaded by `ocr` — no `--rule` flag
   needed.
-- If `ocr` fails (non-zero exit, no output), report the error and stop — do
-  not fall back to manual review.
-- If any sub-agent fails (non-zero exit, no output), report that axis as
+- If a sub-agent fails (non-zero exit, no output), report that axis as
   "failed" and include the error — continue with remaining axes.
+- If `ocr` fails, retry once; if it fails again, mark Axis 1 FAILED and
+  continue with the remaining axes.
+- The review NEVER freezes or halts progress: always return a report with
+  per-axis status (`COMPLETE` / `FAILED` / `SKIPPED`), even when every axis
+  failed. State plainly that a failed axis is incomplete evidence and can be
+  explicitly waived by the human in-session.
 - If the diff is empty, fail early — see §1.

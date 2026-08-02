@@ -4,6 +4,7 @@
 
 
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -480,10 +481,18 @@ else
 	fail "command contains stray angle-bracket placeholders: $extra_markers"
 fi
 
+# ── 15. review-gate anti-freeze contract ─────────────────────────────────────
+
+assert_contains "$COMMAND_FILE" 'waive' \
+	'command accepts an explicit human waiver for incomplete axis evidence'
+assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
+	'command no longer hard-freezes on Suggested findings'
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "pr command"
 exit $?
+
 
 
 

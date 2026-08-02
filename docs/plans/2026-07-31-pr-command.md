@@ -924,6 +924,127 @@ the branch and runs that block separately.
 
 ---
 
+### Task 5: Make the review gate non-freezing (mid-plan requirement change)
+
+**Requirement change (human, session):** "I am okay with the four-axis review
+if it doesn't freeze and halt progress." The review must always return a
+report and never block `/pr` behind an endless re-verification loop.
+
+**Files:**
+- Modify: `opencode.jsonc` — provider `timeout`/`chunkTimeout` options for
+  `deepseek` and `openai` (default 300 s provider timeout aborts the
+  7+ minute review mid-flight)
+- Modify: `.opencode/agents/code-review.md` — retry-once on transient axis
+  failure; a persistently failing axis is marked FAILED and the remaining
+  axes continue; always return a report with per-axis status
+- Modify: `.opencode/commands/pr.md` §2 — evidence rule accepts resolved +
+  re-verified Suggested findings and explicit in-session human waivers for a
+  failed/skipped axis; never re-run the review solely to refresh evidence
+- Modify: `.opencode/skills/finishing-a-development-branch/SKILL.md` — gate
+  wording aligned with the waiver rule
+- Modify: `tests/Shell/pr_command_test.sh` — anti-freeze contract assertions
+- Create: `tests/Shell/review_agent_policy_test.sh` — `@code-review`
+  anti-freeze contract (retry-once, axis continuation, per-axis status,
+  no stop-on-ocr-failure rule)
+
+- [x] **Step 1: Write the failing anti-freeze contract tests**
+
+Add to `pr_command_test.sh` before its summary:
+
+```bash
+assert_contains "$COMMAND_FILE" 'waive' \
+    'command accepts an explicit human waiver for incomplete axis evidence'
+assert_not_contains "$COMMAND_FILE" 'no Blocking or Suggested' \
+    'command no longer hard-freezes on Suggested findings'
+```
+
+Create `tests/Shell/review_agent_policy_test.sh` (RCS header, tab
+indentation, modeline, executable) asserting:
+
+- `agent: build` frontmatter is untouched by this task (covered by
+  validate-harness);
+- `code-review.md` contains retry-once guidance (`retry` plus a transient-
+  failure marker such as `transient`);
+- `code-review.md` contains `continue with the remaining axes`;
+- `code-review.md` contains per-axis status reporting (`per-axis status` or
+  `axis status`);
+- `code-review.md` does NOT contain the old freeze rule `report the error and
+  stop`.
+
+- [x] **Step 2: Run the focused tests and verify RED**
+
+```bash
+bash tests/Shell/pr_command_test.sh
+bash tests/Shell/review_agent_policy_test.sh
+```
+
+Expected: FAIL on the new assertions (current `pr.md` §2 hard-freezes on
+Suggested findings; `code-review.md` still says "report the error and stop"
+and has no retry/continuation policy).
+
+- [x] **Step 3: Implement the non-freezing review gate**
+
+Add `deepseek` and `openai` provider options to `opencode.jsonc`:
+
+```jsonc
+"deepseek": {
+  "options": {
+    "timeout": 900000,
+    "chunkTimeout": 300000
+  }
+},
+"openai": {
+  "options": {
+    "timeout": 900000,
+    "chunkTimeout": 300000
+  }
+}
+```
+
+Rewrite `code-review.md` Axis 1 and Rules: verify presence; run; on failure
+retry once; on persistent failure mark the axis FAILED with the exact error
+and continue with the remaining axes; always return a report listing each
+axis's status (`COMPLETE` / `FAILED` / `SKIPPED`); never stop the whole
+review because one axis failed.
+
+Rewrite `pr.md` §2: a four-axis review with no Blocking finding satisfies the
+gate; Suggested findings count as resolved when the affected code was fixed
+and its suites re-verified green or the human explicitly waives them;
+a failed or skipped axis may be explicitly waived by the human in-session;
+evidence from the attested range stands until SHAs or the tree change —
+never re-run the review solely to refresh evidence.
+
+Align finishing skill step 8 with the waiver rule.
+
+- [x] **Step 4: Run focused and project gates to verify GREEN**
+
+```bash
+bash tests/Shell/pr_command_test.sh
+bash tests/Shell/review_agent_policy_test.sh
+bash tests/Shell/skill_shell_injection_test.sh
+bash tests/Shell/protected_branch_workflow_docs_test.sh
+bash tests/Shell/validate-harness_test.sh
+bash .github/scripts/validate-harness.sh
+```
+
+Expected: all exit `0`.
+
+- [x] **Step 5: Commit the anti-freeze slice**
+
+```bash
+git add opencode.jsonc .opencode/agents/code-review.md \
+    .opencode/commands/pr.md \
+    .opencode/skills/finishing-a-development-branch/SKILL.md \
+    tests/Shell/pr_command_test.sh tests/Shell/review_agent_policy_test.sh \
+    docs/specs/2026-07-31-pr-command-spec.md \
+    docs/plans/2026-07-31-pr-command.md
+commit_with_attribution \
+    'fix(review): make the four-axis gate non-freezing' \
+    'Refs: #280'
+```
+
+---
+
 ## Acceptance-criteria traceability
 
 | Spec criterion | Plan coverage |
@@ -938,6 +1059,7 @@ the branch and runs that block separately.
 | Delegate ordinary branch finishing and remove stale title option | Task 2 contract, mutations, and active-guidance tests |
 | Register `/pr` in living docs | Task 3 index tests and documentation |
 | Pass focused and project-wide gates; prove this branch with `/pr` | Task 4 |
+| Review gate never freezes progress; waiver semantics | Task 5 anti-freeze contract tests and policy rewrite |
 
 ## Self-review
 

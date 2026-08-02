@@ -119,10 +119,15 @@ remains unchanged.
    attestation and before any repository mutation. Missing, stale, partial, or
    failed evidence blocks preparation and instructs the human to rerun the
    finishing gate sequence.
-9. Require a clean `@code-review` result recorded after `/check` for the same
-   attested range. All four review axes must complete successfully and report
-   no Blocking or Suggested findings. A failed or skipped axis is partial
-   evidence and blocks preparation.
+ 9. Require a `@code-review` result recorded after `/check` for the same
+    attested range. All four review axes must have run, and the report must
+    contain no Blocking finding. Suggested findings are acceptable when the
+    affected code was fixed and its suites re-verified green, or when the
+    human explicitly waives them in-session. A failed or skipped axis is
+    incomplete evidence; the human may explicitly waive that axis in-session,
+    and the command records the axis as waived rather than blocking. The
+    review is never re-run solely to refresh evidence while the attested SHAs
+    and tree are unchanged — the review must never freeze or halt progress.
 10. Re-read `HEAD`, `BASE_REF`, and `git status --porcelain` immediately before
     output. Any SHA change or dirty-tree change since attestation invalidates
     both gates and blocks preparation.
@@ -303,6 +308,9 @@ The test covers:
 - ADR-0044 target-branch derivation;
 - SHA/range-bound, fail-closed `/check` and four-axis `@code-review` evidence
   rules;
+- review-gate anti-freeze rules: retry-once, axis continuation with per-axis
+  status, and in-session human waiver for a failed/skipped axis or unresolved
+  Suggested findings;
 - merge-base commit/diff evidence collection;
 - title-type mapping and local commitlint validation with four trailers;
 - template-heading parity and order between the source template and command;
@@ -370,9 +378,12 @@ prompt-native and are protected by the static contract assertions.
    branch ranges.
 2. `/pr` targets `main` for `hotfix/*` and `release/*`, and `develop` for all
    standard ADR-0028 work branches.
-3. `/pr` refuses to generate output unless successful `/check` and complete,
-   clean four-axis `@code-review` evidence are bound in the active session to
-   the exact current branch, HEAD SHA, base ref, and base SHA.
+3. `/pr` refuses to generate output unless successful `/check` and four-axis
+   `@code-review` evidence are bound in the active session to the exact
+   current branch, HEAD SHA, base ref, and base SHA. The review report must
+   contain no Blocking finding; Suggested findings count as resolved when
+   fixed and re-verified or explicitly waived, and a failed or skipped axis
+   may be explicitly waived by the human in-session.
 4. `/pr` produces a commitlint-passing conventional title grounded in the
    branch family and non-merge commit history.
 5. `/pr` produces every pull request template section in source order, with no
@@ -387,6 +398,12 @@ prompt-native and are protected by the static contract assertions.
    flag drift guards through mutations.
 10. `/pr` is indexed in `AGENTS.md`, `README.md`, and `CODING_HARNESS.md`; the
     focused shell suites, `validate-harness.sh`, and `/check` pass.
+11. The review gate never freezes progress: `@code-review` retries a
+    transiently failing axis once, marks a persistently failing axis as
+    failed and continues with the remaining axes, always returns a report
+    with per-axis status, and `/pr` accepts an explicit in-session human
+    waiver for a failed or skipped axis or for unresolved Suggested
+    findings.
 
 ## Further Notes
 

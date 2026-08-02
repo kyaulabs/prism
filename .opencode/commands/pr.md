@@ -73,10 +73,19 @@ printf 'NON_MERGE_COUNT\t%s\n' "$NON_MERGE_COUNT"
 
 Find the branch-completion attestation in the active session. It must name the
 exact BRANCH, HEAD_SHA, BASE_REF, and BASE_SHA reported above. A successful
-/check must follow that attestation, and a four-axis @code-review with no
-Blocking or Suggested finding must follow /check. A failed or skipped review
-axis is incomplete. If any value or gate is absent, ambiguous, stale, partial,
-or failed, stop and direct the user to rerun the finishing workflow.
+/check must follow that attestation, and a four-axis @code-review must follow
+/check with no Blocking finding. Suggested findings count as resolved when
+the affected code was fixed and its suites re-verified green, or when the
+human explicitly waives them. A failed or skipped review axis is incomplete
+evidence; the human may explicitly waive that axis in-session, and the
+command records the axis as waived rather than blocking. If any value or gate
+is absent, ambiguous, stale, partial, or failed without an explicit waiver,
+stop and direct the user to rerun the finishing workflow.
+
+The review is never re-run solely to refresh evidence: the attested evidence
+stands until the attested SHAs or the working tree change. A review that
+completed with no Blocking finding is valid even when some axes were waived
+or marked failed by the coordinator.
 
 Rerun the mechanical preflight immediately before output. Any changed SHA or
 dirty tree invalidates both final gates.
