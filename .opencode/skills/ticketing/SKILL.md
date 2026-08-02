@@ -99,7 +99,7 @@ NAME=$(gh repo view --json name -q .name)
 
 # 2. Create the issue — capture issue number from output URL
 # Write title and body to temp files via single-quoted heredoc (no expansion).
-# gh issue create lacks --title-file, so read the title into a shell variable.
+# gh issue create has no title-file flag, so read the title into a shell variable.
 # Double-quoted variable expansion ("$TITLE") does NOT re-parse the value for
 # quotes, $(), or backticks — the content is inert data, not executable code.
 cat > /tmp/issue-title.txt <<'HEREDOC'

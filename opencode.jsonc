@@ -16,6 +16,18 @@
         "timeout": 600000,
         "chunkTimeout": 180000
       }
+    },
+    "deepseek": {
+      "options": {
+        "timeout": 900000,
+        "chunkTimeout": 300000
+      }
+    },
+    "openai": {
+      "options": {
+        "timeout": 900000,
+        "chunkTimeout": 300000
+      }
     }
   },
   "instructions": [

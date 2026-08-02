@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+
 
 
 
@@ -359,6 +360,35 @@ done
 
 if [ "${WARNINGS:-0}" -eq "${PATH_WARN_BEFORE:-0}" ]; then
 	ok "Command file path references valid"
+fi
+
+# ── Shell-test portability: GNU-only `sed -i -e` (hard error) ────────────────
+# BSD sed (macOS) requires a suffix argument after -i, so `sed -i -e "expr"`
+# consumes -e as the suffix and fails resolving the remaining arguments —
+# `sed: -e: No such file or directory`. GNU sed accepts the suffix-less form,
+# which is why Linux CI stays green while macOS CI fails. Portable forms:
+# `sed -i.bak ...` (attached suffix) or temp-file + mv. This is a HARD error:
+# parity with the macOS shell-test step.
+
+echo "── Checking shell-test sed portability ──"
+SED_I_E_COUNT=0
+if [ -d "$REPO_ROOT/tests/Shell" ]; then
+	while IFS= read -r -d '' test_file; do
+		# validate-harness_test.sh exercises this very guard with fixture
+		# strings and assertion messages that legitimately contain the
+		# pattern — exclude it, mirroring command_portability_test.sh's
+		# self-exclusion convention.
+		[ "$(basename "$test_file")" = "validate-harness_test.sh" ] && continue
+		while IFS= read -r hit; do
+			[ -z "$hit" ] && continue
+			err "GNU-only 'sed -i -e' (BSD sed incompatible) in $(basename "$test_file"):"
+			echo "    $hit" >&2
+			SED_I_E_COUNT=$((SED_I_E_COUNT + 1))
+		done < <(grep -HnE 'sed[[:space:]]+-i[[:space:]]+-e' "$test_file" 2>/dev/null || true)
+	done < <(find "$REPO_ROOT/tests/Shell" -maxdepth 1 -type f -name '*_test.sh' -print0)
+fi
+if [ "$SED_I_E_COUNT" -eq 0 ]; then
+	ok "No GNU-only 'sed -i -e' in tests/Shell"
 fi
 
 # ── Cross-reference validation (soft: warnings only) ─────────────────────────
@@ -1182,6 +1212,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

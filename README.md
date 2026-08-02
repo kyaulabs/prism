@@ -139,12 +139,14 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
 | [jq](https://jqlang.github.io/jq/) | JSON extraction from prism.jsonc (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
+| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
 > optional — only needed for the `clone` option of `/setup`'s scaffold mode,
-> for `/release`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip` scaffold
-> options and all other features work without it.
+> for `/release`, `/pr`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip`
+> scaffold options and all other features work without it. `/pr` only prepares
+> and displays the `gh pr create` command — the human executes it after
+> publishing the branch.
 
 ## Git Hooks
 
@@ -388,6 +390,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
+| `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command without creating the PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (experimental, gated). |
