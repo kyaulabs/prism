@@ -1,9 +1,13 @@
-// $KYAULabs: denial_circuit_breaker_integration.test.ts kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
+// $KYAULabs: denial_circuit_breaker_integration.test.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
 import { DenialOutcomeTracker } from "../../.opencode/plugins/denial-circuit-breaker.ts";
 
 /**
@@ -257,6 +261,126 @@ describe("DenialOutcomeTracker — issue #274 correlation", () => {
         assert.equal(recentObs, null);
     });
 });
+
+/**
+ * ADR-0047 wiring: sensitive-path bash denials flow through the plugin's
+ * `tool.execute.before` hook and must feed the ADR-0042 circuit breaker just
+ * like any other denial. Each denial is driven through the PUBLIC hook
+ * interface (the hook throws /BLOCKED/, then the blocked call surfaces as a
+ * bash error part) and the escalation side effects are observed at the system
+ * boundary (`client.session.abort`, `client.app.log`) — mirroring the
+ * rm-rf trip-test pattern in pre-tool-use-breaker.test.ts.
+ */
+describe("PreToolUse plugin — sensitive-path denials feed the ADR-0042 breaker", () => {
+    const makeClient = () => {
+        const logs: any[] = [];
+        const aborts: any[] = [];
+        const client = {
+            app: {
+                log: async (b: any) => {
+                    logs.push(b);
+                    return { data: true, error: undefined };
+                },
+            },
+            session: {
+                abort: async (o: any) => {
+                    aborts.push(o);
+                    return { data: true, error: undefined };
+                },
+            },
+        };
+        return { client, logs, aborts };
+    };
+
+    const load = async (client: any) => {
+        const mod = await import("../../.opencode/plugins/pre-tool-use.ts");
+        return mod.PreToolUse({ directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any);
+    };
+
+    /** Build a `message.part.updated` event carrying a bash tool part. */
+    const toolPartEvent = (sessionID: string, callID: string, status: string): any => ({
+        type: "message.part.updated",
+        properties: {
+            part: {
+                id: "p-" + callID,
+                sessionID,
+                messageID: "m-" + sessionID,
+                type: "tool",
+                callID,
+                tool: "bash",
+                state: { status },
+            },
+        },
+    });
+
+    /**
+     * One full sensitive-path denial: the hook must block the command
+     * (`head ~/.netrc` is a reader on a sensitive path), then the blocked
+     * call surfaces as a bash error part — the ADR-0042 denial signature.
+     */
+    const sensitiveDenial = async (before: any, eventHook: any, sessionID: string, callID: string) => {
+        await assert.rejects(
+            () => before({ tool: "bash", sessionID, callID }, { args: { command: "head ~/.netrc" } }),
+            /BLOCKED/,
+        );
+        await eventHook({ event: toolPartEvent(sessionID, callID, "pending") });
+        await eventHook({ event: toolPartEvent(sessionID, callID, "error") });
+    };
+
+    it("trips the breaker on three consecutive sensitive-path bash denials", async () => {
+        const { client, logs, aborts } = makeClient();
+        const hooks = await load(client);
+        const eventHook = hooks["event"]!;
+        const before = hooks["tool.execute.before"]!;
+        const session = "explore-1";
+
+        // Two denials: below threshold — no escalation yet.
+        await sensitiveDenial(before, eventHook, session, "c1");
+        await sensitiveDenial(before, eventHook, session, "c2");
+        assert.equal(aborts.length, 0, "no abort before threshold");
+        assert.equal(logs.length, 0, "no log before threshold");
+
+        // Third denial: the trip transition fires escalation exactly once.
+        await sensitiveDenial(before, eventHook, session, "c3");
+
+        assert.equal(aborts.length, 1, "abort called exactly once on trip");
+        assert.deepEqual(
+            aborts[0],
+            { path: { id: session } },
+            "abort targets the tripped session",
+        );
+        assert.equal(logs.length, 1, "log written exactly once on trip");
+        assert.equal(logs[0].body.level, "error");
+        assert.equal(logs[0].body.service, "denial-circuit-breaker");
+    });
+
+    it("resets the denial streak when a benign bash executes between sensitive-path denials", async () => {
+        const { client, logs, aborts } = makeClient();
+        const hooks = await load(client);
+        const eventHook = hooks["event"]!;
+        const before = hooks["tool.execute.before"]!;
+        const after = hooks["tool.execute.after"]!;
+        const session = "explore-1";
+
+        // One denial, then a benign bash call executes: the hook passes it and
+        // the matching `after` settles the call, resetting the streak.
+        await sensitiveDenial(before, eventHook, session, "c1");
+        await before({ tool: "bash", sessionID: session, callID: "ok1" }, { args: { command: "ls -la" } });
+        await eventHook({ event: toolPartEvent(session, "ok1", "pending") });
+        await after(
+            { tool: "bash", sessionID: session, callID: "ok1", args: { command: "ls -la" } },
+            { title: "ls -la", output: "", metadata: {} },
+        );
+
+        // Two more denials after the reset land at 2 — below threshold, so the
+        // breaker must NOT trip. Without the reset these three would trip.
+        await sensitiveDenial(before, eventHook, session, "c2");
+        await sensitiveDenial(before, eventHook, session, "c3");
+        assert.equal(aborts.length, 0, "no trip — the benign bash reset the streak");
+        assert.equal(logs.length, 0);
+    });
+});
+
 
 
 

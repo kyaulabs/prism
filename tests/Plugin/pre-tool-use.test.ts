@@ -1,9 +1,10 @@
-// $KYAULabs: pre-tool-use.test.ts kyau@nova 2026/07/17 -0700 Exp $
+// $KYAULabs: pre-tool-use.test.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
@@ -152,7 +153,57 @@ describe("PreToolUse plugin hook", () => {
         await hooks["tool.execute.before"]!({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "ls -la" } });
         assert.equal(logs.length, 0);
     });
+
+    // Sensitive-path interception (ADR-0047). Paths are homedir-derived
+    // because the hook resolves ~ via os.homedir() at runtime — literals like
+    // /home/user would never match on a host with a different home.
+
+    it("blocks read tool on sensitive path by throwing", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: join(homedir(), ".local/share/opencode/auth.json") } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks grep/glob/list tools on sensitive paths", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        for (const tool of ["grep", "glob", "list"]) {
+            await assert.rejects(
+                () => h({ tool, sessionID: "s", callID: "c" }, { args: { path: join(homedir(), ".config/opencode") } }),
+                /BLOCKED/,
+            );
+        }
+    });
+
+    it("does not throw for non-sensitive read", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: "opencode.jsonc" } });
+    });
+
+    it("blocks reader bash on sensitive path", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "head ~/.netrc" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("block error never leaks the path or command (redaction)", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        const sensitivePath = join(homedir(), ".local/share/opencode/auth.json");
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: `cat ${sensitivePath}` } }),
+            (err: Error) => !err.message.includes("auth.json") && !err.message.includes("cat "),
+        );
+    });
 });
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
