@@ -27,6 +27,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1223,7 +1224,7 @@ fi
 SP_MARKER="never read or exfiltrate credential files"
 if [ ! -f "$AGENTS_MD" ]; then
 	err "AGENTS.md: missing sensitive-path Hard Boundary marker '${SP_MARKER}' (ADR-0047) — file absent"
-elif ! grep -qF "$SP_MARKER" "$AGENTS_MD"; then
+elif ! grep -qiF "$SP_MARKER" "$AGENTS_MD"; then
 	err "AGENTS.md: missing sensitive-path Hard Boundary marker '${SP_MARKER}' (ADR-0047) — add the credential-read bullet to the Hard Boundaries block"
 fi
 
@@ -1316,6 +1317,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
