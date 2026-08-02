@@ -10,6 +10,7 @@
 
 
 
+
 # ── Protected Branch Workflow Docs Regression Test ───────────────────────────
 # Verify active .opencode/ and living-doc files contain only PR-based
 # integration flows — no direct push to develop or main, no direct merge
@@ -74,7 +75,7 @@ if [ ! -f "$finish_skill" ]; then
 	fail "finishing-a-development-branch/SKILL.md not found"
 else
 	# 2a: Delegates PR preparation to /pr (no duplicated gh recipe)
-	if grep -qF '/pr' "$finish_skill" && ! grep -qF 'gh pr create' "$finish_skill"; then
+	if grep -qE '(^|[^[:alnum:]_])/pr([^[:alnum:]_]|$)' "$finish_skill" && ! grep -qF 'gh pr create' "$finish_skill"; then
 		pass "finishing skill: delegates PR preparation to /pr"
 	else
 		fail "finishing skill: missing /pr delegation or still contains gh pr create"
@@ -259,6 +260,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 

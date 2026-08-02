@@ -3,6 +3,7 @@
 
 
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -41,14 +42,21 @@ assert_not_contains() {
 
 extract_marked_block() {
 	local source_file="$1" start_marker="$2" end_marker="$3" output_file="$4"
-	sed -n "/$start_marker/,/$end_marker/p" "$source_file" 2>/dev/null \
+	sed -n "/$start_marker/,/$end_marker/p" "$source_file" \
 		| sed '1d;$d' \
-		| sed '/^```/d' > "$output_file" || true
+		| sed '/^```/d' > "$output_file"
 	chmod +x "$output_file"
 }
 
 assert_heading_parity() {
-	local template="$1" command="$2" missing=0 heading line last_line=0
+	local template="$1" command="$2" missing=0 heading line last_line=0 heading_count
+	if [ ! -s "$template" ]; then
+		return 1
+	fi
+	heading_count=$(grep -c '^## ' "$template")
+	if [ "$heading_count" -eq 0 ]; then
+		return 1
+	fi
 	while IFS= read -r heading; do
 		[ -n "$heading" ] || continue
 		line=$(grep -nF -- "$heading" "$command" | head -1 | cut -d: -f1 || true)
@@ -182,16 +190,16 @@ assert_contains "$COMMAND_FILE" 'Never push' 'command is preparation-only'
 # ── 4. marked blocks extract to non-empty executable scripts ────────────────
 
 extract_marked_block "$COMMAND_FILE" '<!-- pr-preflight:start -->' '<!-- pr-preflight:end -->' "$PREFLIGHT_SCRIPT"
-if [ -s "$PREFLIGHT_SCRIPT" ] && [ -x "$PREFLIGHT_SCRIPT" ]; then
+if [ -s "$PREFLIGHT_SCRIPT" ] && [ -x "$PREFLIGHT_SCRIPT" ] && bash -n "$PREFLIGHT_SCRIPT" 2>/dev/null; then
 	pass 'preflight block extracts to a non-empty executable script'
 else
-	fail 'preflight block did not extract to a non-empty executable script'
+	fail 'preflight block did not extract to a valid script'
 fi
 extract_marked_block "$COMMAND_FILE" '<!-- pr-title-validation:start -->' '<!-- pr-title-validation:end -->' "$TITLE_SCRIPT"
-if [ -s "$TITLE_SCRIPT" ] && [ -x "$TITLE_SCRIPT" ]; then
+if [ -s "$TITLE_SCRIPT" ] && [ -x "$TITLE_SCRIPT" ] && bash -n "$TITLE_SCRIPT" 2>/dev/null; then
 	pass 'title-validation block extracts to a non-empty executable script'
 else
-	fail 'title-validation block did not extract to a non-empty executable script'
+	fail 'title-validation block did not extract to a valid script'
 fi
 
 # ── 5. template heading parity and order ────────────────────────────────────
@@ -318,54 +326,67 @@ export OPENCODE_MODEL_PLANNER="${OPENCODE_MODEL_PLANNER:-test-planner}"
 export OPENCODE_MODEL_PRIMARY="${OPENCODE_MODEL_PRIMARY:-test-primary}"
 export OPENCODE_MODEL_JUDGE="${OPENCODE_MODEL_JUDGE:-test-judge}"
 
+COMMITLINT_AVAILABLE=false
+if [ -d "$REPO_ROOT/node_modules/commitlint" ] && [ -x "$REPO_ROOT/node_modules/.bin/commitlint" ]; then
+	COMMITLINT_AVAILABLE=true
+fi
+
 title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
 title_file="$title_dir/title.txt"
 validation_file="$title_dir/validation.txt"
+injection_sentinel="$title_dir/pr_command_injection"
+backtick_sentinel="$title_dir/pr_command_backtick"
 
-printf 'feat(commands): prepare pull request\n' > "$title_file"
-rc=0
-(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-validation_title=""
-IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
-if [ "$rc" -eq 0 ] \
-	&& [ "$validation_title" = 'feat(commands): prepare pull request' ] \
-	&& grep -Fq 'Signed-off-by:' "$validation_file"; then
-	pass 'title validation accepts a conventional title with attribution trailers'
+if [ "$COMMITLINT_AVAILABLE" = false ]; then
+	skip 'local commitlint unavailable — title-validation behavior checks skipped'
 else
-	fail 'title validation rejected a conventional title'
-fi
+	printf 'feat(commands): prepare pull request\n' > "$title_file"
+	rc=0
+	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	validation_title=""
+	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
+	if [ "$rc" -eq 0 ] \
+		&& [ "$validation_title" = 'feat(commands): prepare pull request' ] \
+		&& grep -Fq 'Signed-off-by:' "$validation_file"; then
+		pass 'title validation accepts a conventional title with attribution trailers'
+	else
+		fail 'title validation rejected a conventional title'
+	fi
 
-printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
-rc=0
-(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-if [ "$rc" -ne 0 ]; then
-	pass 'title validation rejects an uppercase over-length title'
-else
-	fail 'title validation accepted an uppercase over-length title'
-fi
+	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
+	rc=0
+	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	if [ "$rc" -ne 0 ]; then
+		pass 'title validation rejects an uppercase over-length title'
+	else
+		fail 'title validation accepted an uppercase over-length title'
+	fi
 
-rm -f /tmp/pr_command_injection /tmp/pr_command_backtick
-cat > "$title_file" <<'PR_TITLE_PAYLOAD'
--$(touch /tmp/pr_command_injection) `touch /tmp/pr_command_backtick` "'; leading-and-quotes
+	rm -f "$injection_sentinel" "$backtick_sentinel"
+	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
+-$(touch @@SENTINEL1@@) `touch @@SENTINEL2@@` "'; leading-and-quotes
 PR_TITLE_PAYLOAD
-payload_line=$(cat "$title_file")
-rc=0
-(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-preserved=1
-if [ "$rc" -eq 0 ]; then preserved=0; fi
-if [ -e /tmp/pr_command_injection ]; then preserved=0; fi
-if [ -e /tmp/pr_command_backtick ]; then preserved=0; fi
-title_after=""
-IFS= read -r title_after < "$title_file" 2>/dev/null || true
-if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
-validation_first=""
-IFS= read -r validation_first < "$validation_file" 2>/dev/null || true
-if [ "$validation_first" != "$payload_line" ]; then preserved=0; fi
-if [ "$preserved" -eq 1 ]; then
-	pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
-else
-	fail 'title payload was expanded or altered during validation'
+	sed -i -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
+		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file"
+	payload_line=$(cat "$title_file")
+	rc=0
+	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	preserved=1
+	if [ "$rc" -eq 0 ]; then preserved=0; fi
+	if [ -e "$injection_sentinel" ]; then preserved=0; fi
+	if [ -e "$backtick_sentinel" ]; then preserved=0; fi
+	title_after=""
+	IFS= read -r title_after < "$title_file" 2>/dev/null || true
+	if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
+	validation_first=""
+	IFS= read -r validation_first < "$validation_file" 2>/dev/null || true
+	if [ "$validation_first" != "$payload_line" ]; then preserved=0; fi
+	if [ "$preserved" -eq 1 ]; then
+		pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
+	else
+		fail 'title payload was expanded or altered during validation'
+	fi
 fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
@@ -382,6 +403,13 @@ if assert_heading_parity "$mutation_dir/mutated-template.md" "$COMMAND_FILE"; th
 	fail 'heading parity accepted a template with an added section'
 else
 	pass 'heading parity rejects a template with an added section'
+fi
+
+: > "$mutation_dir/empty-template.md"
+if assert_heading_parity "$mutation_dir/empty-template.md" "$COMMAND_FILE"; then
+	fail 'heading parity accepted an empty template'
+else
+	pass 'heading parity rejects an empty template'
 fi
 
 # ── 12. finishing workflow delegation and lifecycle ──────────────────────────
@@ -439,10 +467,24 @@ assert_contains "$REPO_ROOT/CODING_HARNESS.md" '`/pr`' \
 assert_contains "$REPO_ROOT/README.md" '/pr' \
 	'README GitHub CLI tooling description includes /pr'
 
+# ── 14. no-placeholder / no-fabricated-evidence contract ─────────────────────
+
+assert_contains "$COMMAND_FILE" 'Do not copy template comments' \
+	'command forbids copying template comments'
+assert_contains "$COMMAND_FILE" 'invent' \
+	'command forbids fabricating evidence'
+extra_markers=$(grep -oE '<[^>]+>' "$COMMAND_FILE" | sort -u | grep -v '^<!--' | grep -v '^<# total>$' || true)
+if [ -z "$extra_markers" ]; then
+	pass 'command contains no stray angle-bracket placeholders'
+else
+	fail "command contains stray angle-bracket placeholders: $extra_markers"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "pr command"
 exit $?
+
 
 
 

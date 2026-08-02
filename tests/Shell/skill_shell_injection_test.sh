@@ -8,6 +8,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
@@ -133,32 +134,38 @@ fi
 TMPDIR=$(mktemp -d)
 register_temp_dir "$TMPDIR"
 
-rm -f /tmp/pr_command_injection /tmp/pr_command_backtick
+injection_sentinel="$TMPDIR/pr_command_injection"
+backtick_sentinel="$TMPDIR/pr_command_backtick"
+rm -f "$injection_sentinel" "$backtick_sentinel"
 
 # The full adversarial payload, written via a QUOTED heredoc so nothing in it
 # expands: command substitution, backticks, quotes, a leading hyphen, and a
-# literal HEREDOC line that must survive transport unchanged.
+# literal HEREDOC line that must survive transport unchanged. The sentinel
+# paths are substituted afterward with sed, so the payload stays inert.
 cat > "$TMPDIR/test-title.txt" <<'PAYLOAD_END'
-$(touch /tmp/pr_command_injection)
-`touch /tmp/pr_command_backtick`
+$(touch @@SENTINEL1@@)
+`touch @@SENTINEL2@@`
 "'; leading-and-quotes
 HEREDOC
 PAYLOAD_END
+sed -i -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
+	-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$TMPDIR/test-title.txt"
 
 # Verify no sentinel file was created by the write
-if [ -f /tmp/pr_command_injection ] || [ -f /tmp/pr_command_backtick ]; then
+if [ -f "$injection_sentinel" ] || [ -f "$backtick_sentinel" ]; then
 	fail "active injection test: sentinel CREATED — heredoc executed \$() or backticks"
-	rm -f /tmp/pr_command_injection /tmp/pr_command_backtick
+	rm -f "$injection_sentinel" "$backtick_sentinel"
 else
 	pass "active injection test: quoted heredoc did NOT execute \$() or backticks"
 fi
 
 # Verify the payload bytes survive the file transport unchanged
 payload_bytes=$(cat "$TMPDIR/test-title.txt")
-expected_bytes='$(touch /tmp/pr_command_injection)
-`touch /tmp/pr_command_backtick`
-"'"'"'; leading-and-quotes
-HEREDOC'
+expected_bytes=$(printf '%s\n%s\n%s\n%s' \
+	"\$(touch $injection_sentinel)" \
+	"\`touch $backtick_sentinel\`" \
+	"\"'; leading-and-quotes" \
+	'HEREDOC')
 if [ "$payload_bytes" = "$expected_bytes" ]; then
 	pass "active injection test: payload preserved literally in title file"
 else
@@ -235,6 +242,7 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 
