@@ -40,16 +40,35 @@ merged pull requests only (see ADR-0044).
 
 ### Internal contributors (same-repository work-branch PRs)
 
-1. Create a work branch off `develop` (or `main` for hotfixes/releases):
+1. Create a work branch off `develop` (or `main` for hotfixes). Release branches originate from `develop` via `/release` and target `main`.
    ```bash
    bash .github/scripts/new-branch.sh <type> <description>
    ```
 2. Commit your changes with signed conventional-commit messages.
 3. Run `/check` and `@code-review` before opening a PR.
-4. Open a pull request targeting `develop` (or `main` for hotfixes/releases).
+4. Open a pull request targeting `develop` (or `main` for hotfixes). Release PRs target `main`.
    Use the `finishing-a-development-branch` skill to prepare the PR command.
 5. A maintainer reviews and merges the PR. Never push directly to `develop`
    or `main`.
+
+## Releases
+
+Releases are a two-half pipeline (ADR-0046):
+
+1. **Authoring** — `/release` prepares a git-cliff changelog on a
+   `release/X.Y.Z` branch and opens the release pull request to `main`.
+2. **Publication** — merging the release PR triggers `release.yml`, which
+   creates the unsigned `vX.Y.Z` tag and GitHub Release at the merge commit
+   and opens the `main` → `develop` back-merge PR. A maintainer reviews and
+   merges the back-merge PR.
+
+Humans push work branches and merge pull requests; agents never push or merge.
+Do not create tags, Releases, or back-merge PRs locally — publication is
+CI-only.
+
+`hotfix/*` merges are excluded from v1 release automation: hotfix branches
+carry no version in the branch name, so hotfix publication needs a separately
+designed follow-up.
 
 ## Commit Message Policy
 

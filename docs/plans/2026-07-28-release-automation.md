@@ -30,10 +30,10 @@ ShellCheck, actionlint when available, and the existing shell-test harness at
 | Publication | `gh release create vX.Y.Z --target <merge-sha> --title vX.Y.Z --notes-file notes.md` | One GitHub operation creates the lightweight tag and Release at the reviewed merge commit. |
 | Tag signing | Release tags created by CI are unsigned; the release commit remains signed | Actions runners hold no private signing key. ADR-0046 narrows the human-signed-tag rule only for this workflow. |
 | Back-merge | CI opens `main` → `develop`; a human reviews and merges it | The workflow never pushes a branch or merges a PR. |
-| Bump proposal | `git cliff --bumped-version` proposes; the human confirms | `cliff.toml` is the executable bump policy, including `patch:` and pre-1.0 behavior. |
+| Bump proposal | On a tagged repository, `git cliff --bumped-version` proposes; on a tagless (first) release, the human proposes a validated initial version (approved re-plan: git-cliff cannot compute a bump without a prior tag); the human confirms | `cliff.toml` is the executable bump policy, including `patch:` and pre-1.0 behavior. |
 | Scaffold URL token | Leave `kyaulabs/template` in `cliff.toml`; `/release` replaces it in generated `CHANGELOG.md` with the repository detected by `gh repo view` | Scaffold substitution keeps generated projects correct; Prism's own changelog also receives correct links. |
 | Hotfixes | Out of scope for v1 | `hotfix/*` has no version in its branch name and needs a separate changelog/version design. |
-| First release | Supported with no existing tags | git-cliff evaluates full history and applies its configured bump defaults. |
+| First release | Supported with no existing tags | Approved re-plan: git-cliff cannot propose an initial version without a prior tag (empirical testing disproved bump defaults); `/release` asks the human for a validated initial version and git-cliff still generates the changelog. |
 | Existing protected-branch work | ADR-0046 partially supersedes ADR-0044's release-origin and manual tag/publication clauses; `docs/plans/2026-07-30-protected-branch-pr-only.md` Task 8 has already landed | PR-only integration and human-only merges remain unchanged; only release authoring/publication changes. |
 | Commit/branch type | `ci` / GitHub issue type `CI/CD` | The primary behavior change is the release pipeline. |
 | ADR | `adr/0046-automated-release-pipeline.md` | ADR-0044 and ADR-0045 already exist. |
@@ -345,7 +345,7 @@ commit_with_attribution() {
   `chore(release): vX.Y.Z`, and printed human-run push/PR commands. It creates
   no tag, Release, or back-merge PR.
 
-- [ ] **Step 1: Extend the contract tests (Red)**
+- [x] **Step 1: Extend the contract tests (Red)**
 
   Add assertions P13–P22 to `release_workflow_test.sh` requiring
   `.opencode/commands/release.md` to:
@@ -354,7 +354,9 @@ commit_with_attribution() {
     `develop` SHA different from fetched `origin/develop`;
   - require git-cliff instead of claiming a manual fallback that cannot
     generate the changelog;
-  - use `git cliff --bumped-version`, human confirmation, and
+  - use `git cliff --bumped-version` on a tagged repository (tagless first
+    releases ask the human for a validated initial version per the approved
+    re-plan), human confirmation, and
     `new-branch.sh release X.Y.Z` without `v` in the resulting branch;
   - run `git cliff --tag vX.Y.Z --output CHANGELOG.md`;
   - detect the repository via
@@ -382,7 +384,7 @@ commit_with_attribution() {
   general `git tag*: ask` permission assertion, but remove the stale comment
   that `/release` itself creates a signed tag.
 
-- [ ] **Step 2: Run the focused tests and observe RED**
+- [x] **Step 2: Run the focused tests and observe RED**
 
   Run:
 
@@ -395,7 +397,7 @@ commit_with_attribution() {
   Expected: release contract failures because the current command still has a
   post-merge local signed-tag, manual Release, and back-merge phase.
 
-- [ ] **Step 3: Rewrite `.opencode/commands/release.md` (Green)**
+- [x] **Step 3: Rewrite `.opencode/commands/release.md` (Green)**
 
   Preserve `agent: build` and replace the two-phase ritual with this ordered
   procedure:
@@ -405,10 +407,13 @@ commit_with_attribution() {
      equality of `HEAD` and `origin/develop`. Require `git-cliff`/`git cliff`
      2.0+ and direct a missing-tool user to `/doctor`; do not offer a fallback
      that cannot produce `CHANGELOG.md`.
-  2. **Propose and confirm:** run `git cliff --bumped-version`, strip one
-     optional leading `v`, validate the exact release regex, show the commit
-     range/bump rationale, and ask the human to confirm `vX.Y.Z`. Stop when
-     there are no releasable commits or confirmation is withheld.
+  2. **Propose and confirm:** on a tagged repository run
+     `git cliff --bumped-version`, strip one optional leading `v`,
+     validate the exact release regex, show the commit range/bump rationale,
+     and ask the human to confirm `vX.Y.Z`. On a tagless (first) release,
+     git-cliff cannot compute an initial version without a prior tag, so ask
+     the human for a validated initial version instead (approved re-plan).
+     Stop when there are no releasable commits or confirmation is withheld.
   3. **Branch:** run
      `bash .github/scripts/new-branch.sh release X.Y.Z`.
   4. **Changelog:** run
@@ -430,7 +435,7 @@ commit_with_attribution() {
   manual `gh release create`, local back-merge creation, and branch-cleanup
   phase; those are no longer command responsibilities.
 
-- [ ] **Step 4: Reconcile `.opencode/docs/versioning.md`**
+- [x] **Step 4: Reconcile `.opencode/docs/versioning.md`**
 
   Update it to match current facts:
 
@@ -445,7 +450,7 @@ commit_with_attribution() {
   - the release flow is authoring PR → human merge → CI-created unsigned tag
     and Release → CI-opened/human-merged back-merge PR.
 
-- [ ] **Step 5: Verify Task 2 is green**
+- [x] **Step 5: Verify Task 2 is green**
 
   Run:
 
@@ -462,7 +467,7 @@ commit_with_attribution() {
   Expected: all PASS and no manual publication instruction remains in
   `/release`.
 
-- [ ] **Step 6: Commit the authoring slice**
+- [x] **Step 6: Commit the authoring slice**
 
   ```bash
   git add .opencode/commands/release.md .opencode/docs/versioning.md \

@@ -12,6 +12,8 @@
 
 
 
+
+
 # ── Protected Branch Workflow Docs Regression Test ───────────────────────────
 # Verify active .opencode/ and living-doc files contain only PR-based
 # integration flows — no direct push to develop or main, no direct merge
@@ -261,8 +263,95 @@ else
 	pass "ADR exclusion: no ADR contains direct-push text (no false positives expected)"
 fi
 
+# ── Assertion 6: Release documentation alignment (ADR-0046) ─────────────────
+echo ""
+echo "── Release documentation alignment ────────"
+
+# 6a: CONTRIBUTING.md describes the two-half release flow and hotfix deferral
+if grep -qF '/release' "$contributing_md" && \
+   grep -qF 'release.yml' "$contributing_md" && \
+   grep -qiE 'back-merge' "$contributing_md" && \
+   grep -qiE 'hotfix' "$contributing_md" && \
+   grep -qiE '(defer|v1|out of scope|follow-up)' "$contributing_md"; then
+	pass "CONTRIBUTING.md: /release → PR → CI tag/Release → human-merged back-merge, hotfix deferred"
+else
+	fail "CONTRIBUTING.md: missing two-half release flow or hotfix-v1 exclusion"
+fi
+
+# 6b: AGENTS.md /release row carries the two-half contract
+release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1)
+if printf '%s' "$release_row" | grep -qF 'git-cliff changelog' && \
+   printf '%s' "$release_row" | grep -qF 'release-branch PR' && \
+   printf '%s' "$release_row" | grep -qF 'CI tags' && \
+   printf '%s' "$release_row" | grep -qF 'back-merge PR'; then
+	pass "AGENTS.md: /release row = changelog + release-branch PR; CI tags/publishes/opens back-merge"
+else
+	fail "AGENTS.md: /release row not aligned with the ADR-0046 two-half contract"
+fi
+
+# 6c: AGENTS.md keeps the agent push ban; release.yml alone creates release tags
+if grep -qF 'git push' "$agents_md" && grep -qiE 'denied to .*every agent' "$agents_md" && \
+   ! grep -qiE 'human (pushes|push).*release tags' "$agents_md" && \
+   grep -qF 'release.yml' "$agents_md"; then
+	pass "AGENTS.md: agents denied push; release.yml alone creates release tags"
+else
+	fail "AGENTS.md: still says humans push release tags or omits release.yml tag ownership"
+fi
+
+# 6d: AGENTS.md and README.md /release command rows stay synchronized
+agents_release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1)
+readme_release_row=$(grep -E '^\| `/release` \|' "$readme_md" | head -1)
+if [ -n "$agents_release_row" ] && [ "$agents_release_row" = "$readme_release_row" ]; then
+	pass "AGENTS.md and README.md: /release command rows synchronized"
+else
+	fail "AGENTS.md and README.md: /release command rows differ"
+fi
+
+# 6e: README.md changelog walkthrough has no manual tag/Release instruction
+if grep -qF 'release.yml' "$readme_md" && grep -qiE 'back-merge' "$readme_md" && \
+   ! grep -qE 'git tag -s' "$readme_md" && \
+   ! grep -qE 'gh release create' "$readme_md"; then
+	pass "README.md: walkthrough describes CI publication; no manual tag/Release instruction"
+else
+	fail "README.md: walkthrough teaches manual tag/Release or lacks CI publication"
+fi
+
+# 6f: README.md git-cliff claims match package.json — npm row present AND PATH-binary floor
+if grep -qF '"git-cliff"' "$REPO_ROOT/package.json" && \
+   grep -qE '\| git-cliff \| npm \|' "$readme_md" && \
+   grep -qiE 'git-cliff.*(cargo install|package manager)' "$readme_md" && \
+   grep -qiE 'git-cliff.*(PATH|wrapper|devDependenc)' "$readme_md"; then
+	pass "README.md: git-cliff npm row matches package.json; >= 2.0 PATH binary floor explained"
+else
+	fail "README.md: git-cliff claims drift from package.json or lack the PATH/wrapper floor"
+fi
+
+# 6g: CONTRIBUTING.md branch origin/PR target matches ADR-0028/0046
+if ! grep -qE 'hotfixes/releases' "$contributing_md" && \
+   grep -qiE 'release.*(from|off|originate).*develop' "$contributing_md" && \
+   grep -qiE 'release.*target.*main' "$contributing_md" && \
+   grep -qE '(main.*hotfix|hotfix.*main)' "$contributing_md"; then
+	pass "CONTRIBUTING.md: releases originate from develop and target main; hotfixes from main"
+else
+	fail "CONTRIBUTING.md: branch origin/PR target contradicts ADR-0028/0046"
+fi
+
+# 6h: ADR-0046 records the approved first-release re-plan (tagless initial version)
+adr_0046="$REPO_ROOT/adr/0046-automated-release-pipeline.md"
+if [ -f "$adr_0046" ] && \
+   grep -qF 'git cliff --bumped-version' "$adr_0046" && \
+   grep -qiE 'no prior release tag|tagless|initial version' "$adr_0046" && \
+   grep -qiE 'ask.*(human|user)|human.*(propose|initial)' "$adr_0046" && \
+   grep -qiE 'git-cliff changelog|changelog' "$adr_0046"; then
+	pass "ADR-0046: tagged repos use --bumped-version; tagless repos ask for a validated initial version"
+else
+	fail "ADR-0046: first-release re-plan not recorded (tagless initial-version path)"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
+
 
 
 

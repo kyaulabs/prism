@@ -52,9 +52,12 @@ We split release finalization into a local authoring half and a GitHub
 Actions publishing half.
 
 - **Authoring (local `/release`):** from a clean, synchronized `develop`,
-  `/release` proposes a version with `git cliff --bumped-version`,
-  confirms it with the human, creates `release/X.Y.Z` via
-  `new-branch.sh`, writes the git-cliff changelog, and commits it signed.
+  `/release` proposes a version — on a tagged repository with
+  `git cliff --bumped-version`; on a tagless (first) release, it asks the
+  human for a validated initial version, because git-cliff cannot compute
+  a bump without a prior tag — confirms it with the human, creates
+  `release/X.Y.Z` via `new-branch.sh`, writes the git-cliff changelog,
+  and commits it signed.
   It creates no tag, Release, or PR; it prints the human-run push and
   release-PR commands.
 - **Publishing (`.github/workflows/release.yml`):** triggered only by a
