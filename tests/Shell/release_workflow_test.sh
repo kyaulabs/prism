@@ -4,6 +4,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -30,6 +31,10 @@
 #      gh pr create --base develop --head main; no || true or
 #      continue-on-error masks API failures
 #  12. concurrency is release-specific with cancel-in-progress: false
+#
+# Plus the P13–P22 /release authoring contract (ADR-0046): the local command
+# authors the release PR from clean synchronized develop with git-cliff 2.0+,
+# and contains no local tag/Release/back-merge operation.
 
 set -euo pipefail
 
@@ -431,7 +436,172 @@ else
 	fail "concurrency is not release-specific or cancels in-flight runs"
 fi
 
+# ── P13–P22. /release authoring contract (ADR-0046) ──────────────────────────
+# The local command authors the release PR; release.yml publishes. These
+# assertions pin .opencode/commands/release.md to the authoring half.
+
+RELEASE_CMD="$REPO_ROOT/.opencode/commands/release.md"
+
+# ── P13. Pre-flight stops on a dirty tree ────────────────────────────────────
+
+if grep -qF 'git status --porcelain' "$RELEASE_CMD" && grep -qF 'Commit or stash' "$RELEASE_CMD"; then
+	pass "P13: /release stops on a dirty working tree"
+else
+	fail "P13: /release does not stop on a dirty working tree"
+fi
+
+# ── P14. Pre-flight requires develop synchronized with origin/develop ────────
+
+if grep -qF 'git branch --show-current' "$RELEASE_CMD" && \
+   grep -qF 'git fetch origin develop --tags' "$RELEASE_CMD" && \
+   grep -qF 'origin/develop' "$RELEASE_CMD"; then
+	pass "P14: /release requires branch develop and HEAD equal to fetched origin/develop"
+else
+	fail "P14: /release missing branch/fetch/sync pre-flight checks"
+fi
+
+# ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
+
+if grep -qF 'git cliff --version' "$RELEASE_CMD" && \
+   grep -qF -- '-lt 2' "$RELEASE_CMD" && \
+   grep -qF '/doctor' "$RELEASE_CMD"; then
+	pass "P15: /release requires git-cliff 2.0+ and points to /doctor"
+else
+	fail "P15: /release does not require git-cliff 2.0+ or lacks the /doctor pointer"
+fi
+
+# ── P16. No manual changelog fallback ────────────────────────────────────────
+
+if ! grep -qiF 'fall back' "$RELEASE_CMD"; then
+	pass "P16: /release offers no manual changelog fallback"
+else
+	fail "P16: /release still offers a manual fallback that cannot produce CHANGELOG.md"
+fi
+
+# ── P17. Tagged/tagless proposal paths; no shell read prompt ─────────────────
+
+if grep -qF 'git cliff --bumped-version' "$RELEASE_CMD" && \
+   grep -qF 'no prior release tag' "$RELEASE_CMD" && \
+   grep -qF 'initial version' "$RELEASE_CMD" && \
+   grep -qF 'new-branch.sh release' "$RELEASE_CMD" && \
+   ! grep -qF 'new-branch.sh release "v' "$RELEASE_CMD" && \
+   ! grep -qE '(^|[^[:alpha:]])read[[:space:]]+' "$RELEASE_CMD"; then
+	pass "P17: /release proposes via git cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
+else
+	fail "P17: /release proposal-path, tagless-initial-version, no-shell-read, or no-v branch contract violated"
+fi
+
+# ── P17b. Agent-level one-question-at-a-time gates and halt semantics ────────
+
+if grep -qiF 'exactly one question' "$RELEASE_CMD" && \
+   grep -qiF 'stop and wait' "$RELEASE_CMD" && \
+   grep -qiF 'stop until the user' "$RELEASE_CMD"; then
+	pass "P17b: /release asks one question per turn at the conversation level and halts for the reply and for final approval"
+else
+	fail "P17b: /release missing agent-level one-question or halt semantics"
+fi
+
+# ── P18. Changelog generation ────────────────────────────────────────────────
+
+if grep -qF 'git cliff --tag v' "$RELEASE_CMD" && grep -qF -- '--output CHANGELOG.md' "$RELEASE_CMD"; then
+	pass "P18: /release generates CHANGELOG.md with git cliff --tag vX.Y.Z --output CHANGELOG.md"
+else
+	fail "P18: /release missing git cliff --tag vX.Y.Z --output CHANGELOG.md"
+fi
+
+# ── P19. Repo identity and portable template-link replacement ────────────────
+
+if grep -qF 'gh repo view --json nameWithOwner -q .nameWithOwner' "$RELEASE_CMD" && \
+   grep -qF 'kyaulabs/template' "$RELEASE_CMD" && \
+   grep -qF 'mktemp' "$RELEASE_CMD" && \
+   grep -qF 'mv "$TMP_FILE" CHANGELOG.md' "$RELEASE_CMD" && \
+   ! grep -qF 'sed -i' "$RELEASE_CMD"; then
+	pass "P19: /release resolves the repo via gh repo view and replaces kyaulabs/template links with portable mktemp + sed + mv (no sed -i)"
+else
+	fail "P19: /release repo-identity or portable link-replacement contract violated"
+fi
+
+# ── P20. Signed chore(release) commit with four dynamic ADR-0040 footers ─────
+
+if grep -qF 'git commit -S' "$RELEASE_CMD" && \
+   grep -qF 'chore(release): v' "$RELEASE_CMD" && \
+   grep -qF 'OPENCODE_MODEL_PLANNER' "$RELEASE_CMD" && \
+   grep -qF 'OPENCODE_MODEL_PRIMARY' "$RELEASE_CMD" && \
+   grep -qF 'OPENCODE_MODEL_JUDGE' "$RELEASE_CMD" && \
+   grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
+   grep -qF 'Authored-by:' "$RELEASE_CMD" && \
+   grep -qF 'Implemented-by:' "$RELEASE_CMD" && \
+   grep -qF 'Tested-by:' "$RELEASE_CMD" && \
+   grep -qF 'Signed-off-by:' "$RELEASE_CMD"; then
+	pass "P20: /release creates a signed chore(release) commit with four dynamically resolved footers"
+else
+	fail "P20: /release signed-commit or dynamic-footer contract violated"
+fi
+
+# bash_block_contains <file> <regex> — exit 0 when any ```bash code block in
+# <file> contains a line matching the ERE <regex>; exit 1 otherwise.
+bash_block_contains() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block && $0 ~ re { found = 1; exit }
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
+# ── P20b. Tracking-issue argument contract ($ARGUMENTS, validated) ───────────
+
+if grep -qF '$ARGUMENTS' "$RELEASE_CMD" && \
+   grep -qF '^#?[1-9][0-9]*$' "$RELEASE_CMD" && \
+   grep -qF 'Refs: #NN' "$RELEASE_CMD" && \
+   ! grep -qF '$1' "$RELEASE_CMD" && \
+   ! grep -qF '#281' "$RELEASE_CMD" && \
+   ! grep -qE 'Refs: [0-9]' "$RELEASE_CMD" && \
+   ! bash_block_contains "$RELEASE_CMD" '\$ARGUMENTS'; then
+	pass "P20b: /release consumes the issue via \$ARGUMENTS with ^#?[1-9][0-9]*\$ validation, emits exactly Refs: #NN, and keeps raw \$ARGUMENTS out of shell blocks"
+else
+	fail "P20b: /release tracking-issue argument contract violated"
+fi
+
+# ── P20c. RELEASE_REF instantiated in the commit shell; fail-closed guard ────
+
+ref_assign=$(grep -nE 'RELEASE_REF="' "$RELEASE_CMD" | head -1 | cut -d: -f1 || true)
+commit_line=$(grep -nF 'git commit -S' "$RELEASE_CMD" | head -1 | cut -d: -f1 || true)
+if [ -n "$ref_assign" ] && [ -n "$commit_line" ] && [ "$ref_assign" -lt "$commit_line" ] && \
+   grep -qF 'RELEASE_ISSUE_DIGITS' "$RELEASE_CMD" && \
+   grep -qF 'Refs: #[1-9][0-9]*$' "$RELEASE_CMD" && \
+   grep -qF 'missing or malformed' "$RELEASE_CMD" && \
+   ! grep -qE 'RELEASE_REF="[^"]*<' "$RELEASE_CMD"; then
+	pass "P20c: RELEASE_REF is instantiated before the commit in the same shell invocation, with a fail-closed footer guard and no runnable placeholder"
+else
+	fail "P20c: RELEASE_REF is referenced without instantiation, lacks a fail-closed guard, or contains a runnable placeholder"
+fi
+
+# ── P21. Handoff renders inert text — never a runnable bash block ────────────
+
+if grep -qF '```text' "$RELEASE_CMD" && \
+   grep -qF 'git push -u origin release/X.Y.Z' "$RELEASE_CMD" && \
+   grep -qF 'gh pr create --base main --head release/X.Y.Z' "$RELEASE_CMD" && \
+   grep -qiF 'do not execute' "$RELEASE_CMD" && \
+   ! bash_block_contains "$RELEASE_CMD" 'git push|gh pr create'; then
+	pass "P21: /release renders the handoff as an inert text template (release/X.Y.Z) with no runnable bash block containing the push or PR commands"
+else
+	fail "P21: /release handoff is a runnable bash block or missing the inert text template"
+fi
+
+# ── P22. No local tag, Release, direct protected push, or back-merge PR ──────
+
+if ! grep -qF 'git tag -s' "$RELEASE_CMD" && \
+   ! grep -qF 'gh release create' "$RELEASE_CMD" && \
+   ! grep -qE 'git push origin (main|develop)' "$RELEASE_CMD" && \
+   ! grep -qF -- '--base develop --head main' "$RELEASE_CMD"; then
+	pass "P22: /release contains no local tag, Release, direct protected push, or back-merge creation"
+else
+	fail "P22: /release still contains local tag/publication/back-merge operations"
+fi
+
 print_summary "release_workflow"
+
 
 
 

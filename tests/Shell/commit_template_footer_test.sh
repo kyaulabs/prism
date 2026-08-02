@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+# $KYAULabs: commit_template_footer_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 
@@ -37,9 +38,10 @@ else
 fi
 
 # ── 2. build agent gates git tag* behind confirmation ───────────────────────
-# /release runs as the build agent and creates a signed tag via `git tag -s`.
-# build's bash has "*": "allow", so without an explicit "git tag*": "ask" the
-# tag is created with no confirmation — unlike git add/commit which are "ask".
+# /release no longer creates local tags — release.yml owns tag creation after
+# the human merges the release PR. The "git tag*": "ask" gate is retained as a
+# general build-agent guard so any tag command still requires confirmation
+# (build's bash has "*": "allow", so without it a tag would need no prompt).
 build_block=$(sed -n '/"build": {/,/"plan": {/p' "$REPO_ROOT/opencode.jsonc")
 if echo "$build_block" | grep -qF '"git tag*": "ask"'; then
 	pass "build agent gates git tag* at ask"
@@ -59,6 +61,7 @@ else
 fi
 
 print_summary "commit_template_footer"
+
 
 
 

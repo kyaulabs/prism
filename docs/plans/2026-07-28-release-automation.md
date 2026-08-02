@@ -169,7 +169,7 @@ commit_with_attribution() {
   is exactly one matching changelog section, and at most one open
   `main` → `develop` back-merge PR.
 
-- [ ] **Step 1: Record the architecture boundary before implementation**
+- [x] **Step 1: Record the architecture boundary before implementation**
 
   Write ADR-0046 in Nygard format with status `Accepted`. Its Decision must
   record:
@@ -196,7 +196,7 @@ commit_with_attribution() {
     validated release tag/Release and open a back-merge PR;
   - add ADR-0046 to Architectural Decisions.
 
-- [ ] **Step 2: Write the failing workflow drift guard (Red)**
+- [x] **Step 2: Write the failing workflow drift guard (Red)**
 
   Create `tests/Shell/release_workflow_test.sh` with the canonical harness:
 
@@ -250,14 +250,14 @@ commit_with_attribution() {
 
   End with `print_summary "release_workflow"` and the shell vim modeline.
 
-- [ ] **Step 3: Run the new test and observe the intended failure**
+- [x] **Step 3: Run the new test and observe the intended failure**
 
   Run: `bash tests/Shell/release_workflow_test.sh`
 
   Expected: FAIL because `.github/workflows/release.yml` does not exist and is
   not in the quality-surface manifest.
 
-- [ ] **Step 4: Implement the minimum fail-closed workflow (Green)**
+- [x] **Step 4: Implement the minimum fail-closed workflow (Green)**
 
   Create `.github/workflows/release.yml` with:
 
@@ -301,7 +301,7 @@ commit_with_attribution() {
   Add `.github/workflows/release.yml` after `.github/workflows/ci.yml` in
   `.github/scripts/quality-surface.manifest`.
 
-- [ ] **Step 5: Verify Task 1 is green**
+- [x] **Step 5: Verify Task 1 is green**
 
   Run:
 
@@ -315,7 +315,7 @@ commit_with_attribution() {
   `actionlint .github/workflows/release.yml`; otherwise record the skipped tool
   for Task 4's manual YAML review.
 
-- [ ] **Step 6: Commit the architecture and publishing slice**
+- [x] **Step 6: Commit the architecture and publishing slice**
 
   ```bash
   git add adr/0046-automated-release-pipeline.md CONTEXT.md \

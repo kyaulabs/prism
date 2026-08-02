@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: protected_branch_workflow_docs_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+# $KYAULabs: protected_branch_workflow_docs_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 
@@ -147,29 +148,31 @@ else
 		fail "release: missing PR-to-main integration"
 	fi
 
-	# 3c: Signed tag names the verified merged-main SHA (not HEAD)
-	if grep -qF 'git tag -s' "$release_cmd" && grep -qF 'merge' "$release_cmd"; then
-		pass "release: signed tag references merged-main SHA"
+	# 3c: /release authors only — no local tag, publication, or back-merge
+	if ! grep -qF 'git tag -s' "$release_cmd" && \
+	   ! grep -qF 'gh release create' "$release_cmd" && \
+	   ! grep -qF -- '--base develop --head main' "$release_cmd"; then
+		pass "release: no local tag, publication, or back-merge operation"
 	else
-		fail "release: signed tag does not reference verified merger SHA"
+		fail "release: still contains local tag/publication/back-merge operations"
 	fi
 
-	# 3d: Publication pushes only the tag (vX.Y.Z or v1.0.0), not main
-	if grep -qE 'git push origin (v[0-9X]|tag|--delete)' "$release_cmd"; then
-		if grep -qE 'git push origin (main|develop)\b' "$release_cmd"; then
-			fail "release: still prints direct push to main/develop"
-		else
-			pass "release: publishes only tag (not main/develop directly)"
-		fi
+	# 3d: release.yml owns gh release create and the develop←main back-merge PR
+	release_workflow="$REPO_ROOT/.github/workflows/release.yml"
+	if [ -f "$release_workflow" ] && \
+	   grep -qF 'gh release create' "$release_workflow" && \
+	   grep -qF -- '--base develop --head main' "$release_workflow"; then
+		pass "release.yml owns gh release create and the back-merge PR"
 	else
-		fail "release: missing tag-only push command"
+		fail "release.yml does not own gh release create and the back-merge PR"
 	fi
 
-	# 3e: Back-merge uses PR with base develop, head main
-	if grep -qF 'develop' "$release_cmd" && grep -qF -- '--head main' "$release_cmd"; then
-		pass "release: back-merge PR uses --base develop --head main"
+	# 3e: the release workflow alone creates release tags — /release tags nothing
+	if ! grep -qE 'git tag' "$release_cmd" && \
+	   [ -f "$release_workflow" ] && grep -qF 'gh release create' "$release_workflow"; then
+		pass "release: the release workflow alone creates release tags"
 	else
-		fail "release: missing back-merge PR (develop ← main)"
+		fail "release: tag creation is not exclusive to release.yml"
 	fi
 
 	# 3f: Never reuses the release branch after merge
@@ -209,9 +212,9 @@ else
 	fail "AGENTS.md: missing new-branch.sh reference"
 fi
 
-# 4c: AGENTS.md states humans alone push work branches/tags and merge PRs
-if grep -qiE 'human.*(push.*branch|push.*tag|merge.*PR|merge.*pull)' "$agents_md"; then
-	pass "AGENTS.md: humans push work branches/tags and merge PRs"
+# 4c: AGENTS.md states humans push work branches and merge PRs
+if grep -qiE 'human.*(push.*branch|merge.*PR|merge.*pull)' "$agents_md"; then
+	pass "AGENTS.md: humans push work branches and merge PRs"
 else
 	fail "AGENTS.md: human push/merge policy not stated"
 fi
@@ -260,6 +263,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 
