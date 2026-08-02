@@ -5,6 +5,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -150,10 +151,10 @@ env_line=$(grep -nF '>> "$GITHUB_ENV"' "$RELEASE_FILE" | head -1 | cut -d: -f1 |
 head_line=$(grep -nF 'git rev-parse HEAD' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
 
 if [ -n "$regex_line" ] && [ -n "$sha_line" ] && [ -n "$env_line" ] && [ -n "$head_line" ] && \
-   [ "$regex_line" -lt "$env_line" ] && [ "$sha_line" -lt "$env_line" ]; then
-	pass "version regex and 40-hex merge-SHA validation precede VERSION export; HEAD checked against MERGE_SHA"
+   [ "$regex_line" -lt "$env_line" ] && [ "$sha_line" -lt "$env_line" ] && [ "$head_line" -lt "$env_line" ]; then
+	pass "version regex and 40-hex merge-SHA validation and HEAD==MERGE_SHA check precede VERSION export"
 else
-	fail "validation order broken: version regex or merge-SHA check not before GITHUB_ENV export"
+	fail "validation order broken: version regex, merge-SHA check, or HEAD check not before GITHUB_ENV export"
 fi
 
 # ── 8. Notes extraction: real cliff.toml heading label, exact-one, non-blank body ──
@@ -349,12 +350,13 @@ if grep -qF 'tag_exists' "$RELEASE_FILE" && \
    grep -qF 'git rev-parse -q --verify' "$RELEASE_FILE" && \
    grep -qF 'refs/tags/v${VERSION}^{commit}' "$RELEASE_FILE" && \
    grep -qF 'releases/tags/v$VERSION' "$RELEASE_FILE" && \
+   grep -qF 'HTTP 404' "$RELEASE_FILE" && \
    grep -qF '!= "$MERGE_SHA"' "$RELEASE_FILE" && \
    ! grep -qF 'git ls-remote' "$RELEASE_FILE" && \
    ! grep -qF 'exit 0' "$RELEASE_FILE"; then
-	pass "neither/both/partial states distinguished; local lightweight-safe tag probe; existing tag verified against merge SHA; no early exit before back-merge"
+	pass "neither/both/partial states distinguished; 404 counts as absent; local lightweight-safe tag probe; existing tag verified against merge SHA; no early exit before back-merge"
 else
-	fail "publication-state rerun logic, tag-probe, or early-exit contract violated"
+	fail "publication-state rerun logic, 404 classification, tag-probe, or early-exit contract violated"
 fi
 
 # ── 9b. Executable simulation: local tag probe handles lightweight and annotated ──
@@ -429,9 +431,9 @@ fi
 
 # ── 12. Release-specific concurrency, no cancellation ────────────────────────
 
-if grep -qF 'release-${{ github.event.pull_request.head.ref }}' "$RELEASE_FILE" && \
+if grep -qF 'release-${{ github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
    grep -qF 'cancel-in-progress: false' "$RELEASE_FILE"; then
-	pass "concurrency is release-specific with cancel-in-progress: false"
+	pass "concurrency is release-specific (immutable merge-SHA key) with cancel-in-progress: false"
 else
 	fail "concurrency is not release-specific or cancels in-flight runs"
 fi
@@ -601,6 +603,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

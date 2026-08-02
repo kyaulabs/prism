@@ -14,6 +14,7 @@
 
 
 
+
 # ── Protected Branch Workflow Docs Regression Test ───────────────────────────
 # Verify active .opencode/ and living-doc files contain only PR-based
 # integration flows — no direct push to develop or main, no direct merge
@@ -272,14 +273,14 @@ if grep -qF '/release' "$contributing_md" && \
    grep -qF 'release.yml' "$contributing_md" && \
    grep -qiE 'back-merge' "$contributing_md" && \
    grep -qiE 'hotfix' "$contributing_md" && \
-   grep -qiE '(defer|v1|out of scope|follow-up)' "$contributing_md"; then
+   grep -qiE 'hotfix.{0,80}(excluded|defer|out of scope|follow-up)' "$contributing_md"; then
 	pass "CONTRIBUTING.md: /release → PR → CI tag/Release → human-merged back-merge, hotfix deferred"
 else
 	fail "CONTRIBUTING.md: missing two-half release flow or hotfix-v1 exclusion"
 fi
 
 # 6b: AGENTS.md /release row carries the two-half contract
-release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1)
+release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1 || true)
 if printf '%s' "$release_row" | grep -qF 'git-cliff changelog' && \
    printf '%s' "$release_row" | grep -qF 'release-branch PR' && \
    printf '%s' "$release_row" | grep -qF 'CI tags' && \
@@ -291,7 +292,7 @@ fi
 
 # 6c: AGENTS.md keeps the agent push ban; release.yml alone creates release tags
 if grep -qF 'git push' "$agents_md" && grep -qiE 'denied to .*every agent' "$agents_md" && \
-   ! grep -qiE 'human (pushes|push).*release tags' "$agents_md" && \
+   ! grep -qiE 'humans? (push|pushes).{0,40}release tags' "$agents_md" && \
    grep -qF 'release.yml' "$agents_md"; then
 	pass "AGENTS.md: agents denied push; release.yml alone creates release tags"
 else
@@ -350,6 +351,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 
