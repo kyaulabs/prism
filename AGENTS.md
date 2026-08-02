@@ -192,7 +192,9 @@ message should be well-formed before you reach the hook.
   the approval dialog. Used by `/release`, `/build-assets`, and design-document
   commits from `brainstorming`.
 - **`git push`** is denied to **every agent**. Only the human pushes work branches
-  and release tags and merges pull requests.
+  and merges pull requests. `release.yml` alone creates release tags and
+  GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a
+  branch or merges a PR.
 
 ## Build Pipeline
 
@@ -338,7 +340,7 @@ Load these on demand when the task requires them:
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
-| `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
+| `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
 | `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command for a verified work branch; never creates the PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |

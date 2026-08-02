@@ -30,6 +30,8 @@ permission:
     "gh issue edit*": ask
     "gh issue comment*": ask
     "gh label list*": allow
+    "gh repo view*": allow
+    "gh auth status*": allow
     "gh label create*": ask
     "gh api*": ask
     "git add*": ask

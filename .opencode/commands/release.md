@@ -1,182 +1,246 @@
 ---
-description: Prepare a release via a PR to main — determine version, create branch, generate changelog, then print the PR command. After human merge, finalize with a signed tag on the merged SHA and a back-merge PR to develop.
+description: Prepare a release from synchronized develop — propose the version via git-cliff (or the human for a first release), create release/X.Y.Z, commit the changelog, and print the human-run push and PR commands. CI tags and publishes after merge.
 agent: build
 ---
 
-Prepare a release in two phases using the project's existing `cliff.toml`.
-No step here pushes or publishes without user confirmation. `main` and
-`develop` are protected branches — all integration goes through merged pull
-requests.
+Prepare a release from a clean, synchronized `develop` and author the release
+pull request. This command is only the local authoring half of the release
+pipeline (ADR-0046): after the human merges the PR,
+`.github/workflows/release.yml` creates the tag and GitHub Release and opens
+the back-merge PR. Never tag, publish, push, or clean up locally.
 
----
+## Arguments
 
-## Phase 1 — Preparation (before the PR is merged)
+The optional release tracking issue number arrives as the slash-command
+argument (`$ARGUMENTS`) and is untrusted data. Accept only an empty argument
+or a single bare positive integer with an optional leading `#` — the exact
+accepted pattern is `^#?[1-9][0-9]*$`. Reject whitespace, multiple arguments,
+zero, signs, shell metacharacters, and command substitutions before the value
+reaches any shell command or the commit message. Normalize the accepted value
+to its digits: when present, the release commit footer is exactly
+`Refs: #NN`; with no argument the `Refs:` line is omitted. Never emit
+`Refs: NN` without the `#`.
 
-### 1. Determine the version bump
+## Pre-flight
 
-Run `git fetch --tags` then inspect commits since the last tag:
+Stop immediately (exit 1) if any of these hold:
 
 ```bash
-git describe --tags --abbrev=0 2>/dev/null   # last tag, if any
-git log --oneline <last-tag>..HEAD
+# Working tree must be clean (staged, unstaged, and untracked)
+if [ -n "$(git status --porcelain)" ]; then
+    echo "✗ Working tree has uncommitted changes. Commit or stash first." >&2
+    exit 1
+fi
 ```
 
-Apply SemVer (see `.opencode/docs/versioning.md`):
-
-- `feat:` or `feat!:` (breaking) since last tag → **minor** (or **major** if
-  there's a `BREAKING CHANGE:` footer / `!` on a `feat`).
-- `fix:` or `patch:` only → **patch**.
-- `BREAKING CHANGE:` on any type without a `feat` → **major**.
-- No `feat`/`fix`/`patch` since last tag → no release needed; say so and stop.
-
-Propose the new version `vX.Y.Z`. Confirm with the user before proceeding.
-
-### 2. Create the release branch
-
 ```bash
-bash .github/scripts/new-branch.sh release "vX.Y.Z"
+# The current branch must be exactly develop
+if [ "$(git branch --show-current)" != "develop" ]; then
+    echo "✗ Releases originate from the develop branch only." >&2
+    exit 1
+fi
 ```
 
-This creates `release/vX.Y.Z` off the current branch. Commit the changelog
-on this branch.
-
-### 3. Generate the changelog
-
 ```bash
-git cliff --tag vX.Y.Z --output CHANGELOG.md
+# Synchronize and verify HEAD equals the fetched origin/develop
+git fetch origin develop --tags
+if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/develop)" ]; then
+    echo "✗ Local develop is not synchronized with origin/develop. Pull or reset first." >&2
+    exit 1
+fi
 ```
 
-Show the generated section. If `CHANGELOG.md` doesn't exist, `git cliff`
-creates it; otherwise it prepends the new section.
+```bash
+# git-cliff 2.0+ is required; there is no alternative — CHANGELOG.md cannot
+# be produced without it. Direct a missing-tool user to /doctor.
+CLIFF_MAJOR=$(git cliff --version 2>/dev/null | grep -oE '^git-cliff [0-9]+' | grep -oE '[0-9]+$' || true)
+if [ -z "$CLIFF_MAJOR" ] || [ "$CLIFF_MAJOR" -lt 2 ]; then
+    echo "✗ git-cliff 2.0+ is required. Run /doctor to fix your toolchain." >&2
+    exit 1
+fi
+```
 
-### 4. Commit the changelog on the release branch
+## Propose and confirm the version
+
+Stop when there are no releasable commits — with none pending, the unreleased
+changelog contains no list items:
 
 ```bash
+if ! git cliff --unreleased --strip header 2>/dev/null | grep -qE '^[-*] '; then
+    echo "No releasable commits — nothing to release." >&2
+    exit 1
+fi
+```
+
+Detect whether a prior release tag matching `v[0-9]*` exists:
+
+```bash
+LAST_RELEASE_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+```
+
+When no prior release tag exists, git-cliff cannot compute an initial
+version, so do not run `git cliff --bumped-version`. Ask the user exactly one
+question — the initial version (e.g. `0.1.0`) — and STOP and wait for the
+reply:
+
+```text
+First release — no prior release tag. Propose the initial version (e.g. 0.1.0):
+```
+
+Validate the reply against `^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$` before
+any shell or ref use; an invalid reply stops the release.
+
+When a prior release tag exists, let `cliff.toml` compute the bump with
+`git cliff --bumped-version` (breaking changes bump MINOR before 1.0.0 and
+MAJOR at 1.0.0+, `feat:` bumps MINOR, and `fix:`/`patch:` bump PATCH), then
+strip at most one leading `v`:
+
+```bash
+VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+```
+
+If the proposal is empty or invalid despite releasable commits, stop and
+report the failure — never switch to manual bumping.
+
+Either way, validate the candidate against the exact release grammar
+(optional prerelease, no build metadata):
+
+```bash
+if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+    echo "✗ Invalid version '$VERSION'." >&2
+    exit 1
+fi
+```
+
+Present the pending commit range and bump rationale:
+
+```bash
+git cliff --unreleased --strip header
+```
+
+Then ask the final release-confirmation question — exactly one question in
+that turn — following the confirmation-gate style of `setup-rulesets.md`:
+
+```text
+Release vX.Y.Z? (yes/no)
+```
+
+Accept only an explicit `yes`; any other reply — including empty or `y` —
+means stop. STOP until the user approves; proceed only after explicit
+approval. Keep every question at the conversation level; never prompt on the
+shell.
+
+## Create the release branch
+
+```bash
+bash .github/scripts/new-branch.sh release "$VERSION"
+```
+
+The branch is `release/X.Y.Z` — the version carries no `v`.
+
+## Generate the changelog
+
+```bash
+git cliff --tag "v$VERSION" --output CHANGELOG.md
+```
+
+If scaffold links survive, replace `kyaulabs/template` with the repository
+detected by `gh repo view`. Use a portable temp file + `mv` — never GNU-only
+in-place `sed` editing:
+
+```bash
+if grep -qF 'kyaulabs/template' CHANGELOG.md; then
+    OWNER_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+    TMP_FILE=$(mktemp)
+    sed "s|kyaulabs/template|${OWNER_REPO}|g" CHANGELOG.md > "$TMP_FILE"
+    mv "$TMP_FILE" CHANGELOG.md
+fi
+```
+
+Show the generated version section for review.
+
+## Commit the changelog
+
+Resolve the four ADR-0040 footers from the current environment, then create
+the signed `chore(release): vX.Y.Z` commit through the normal permission
+gate. Carry the validated digits from the Arguments step into the block below
+as `RELEASE_ISSUE_DIGITS` (empty when no argument was supplied); the block
+instantiates `RELEASE_REF` from it in the same shell invocation and fails
+closed if the footer state is missing or malformed. If a valid issue was
+supplied, the commit must carry exactly `Refs: #<digits>` — never commit
+without it:
+
+```bash
+: "${OPENCODE_MODEL_PLANNER:?run direnv allow before committing}"
+: "${OPENCODE_MODEL_PRIMARY:?run direnv allow before committing}"
+: "${OPENCODE_MODEL_JUDGE:?run direnv allow before committing}"
+# RELEASE_ISSUE_DIGITS: validated digits from the invocation argument. The
+# agent renders the validated value into the assignment below (empty when no
+# argument was supplied); the raw invocation argument never enters a shell
+# command.
+RELEASE_ISSUE_DIGITS=""
+# Fail closed FIRST, before any assignment-derived value is used: a
+# non-empty value must be exactly ^[1-9][0-9]*$ so raw invocation input
+# can never reach a shell command.
+if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_ISSUE_DIGITS" | grep -qE '^[1-9][0-9]*$'; then
+    echo "✗ Release-issue digits are malformed." >&2
+    exit 1
+fi
+# Instantiate RELEASE_REF in this same shell invocation: empty when no issue
+# was supplied, otherwise exactly "Refs: #<digits>".
+RELEASE_REF=""
+if [ -n "$RELEASE_ISSUE_DIGITS" ]; then
+    RELEASE_REF="Refs: #${RELEASE_ISSUE_DIGITS}"
+fi
+# Fail closed: a validated issue must yield exactly "Refs: #<digits>".
+if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_REF" | grep -qE '^Refs: #[1-9][0-9]*$'; then
+    echo "✗ Release-issue footer is missing or malformed." >&2
+    exit 1
+fi
 git add CHANGELOG.md
-git commit -S -m $'chore(release): vX.Y.Z\n\nAuthored-by: glm-5.2\nImplemented-by: glm-5.2\nTested-by: deepseek-v4-pro\nSigned-off-by: <resolved via bash .github/scripts/resolve-identity.sh>'
+if [ -n "$RELEASE_REF" ]; then
+    RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
+        "$VERSION" "$RELEASE_REF" "${OPENCODE_MODEL_PLANNER##*/}" \
+        "${OPENCODE_MODEL_PRIMARY##*/}" "${OPENCODE_MODEL_JUDGE##*/}" \
+        "$(bash .github/scripts/resolve-identity.sh)")
+else
+    RELEASE_MSG=$(printf 'chore(release): v%s\n\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
+        "$VERSION" "${OPENCODE_MODEL_PLANNER##*/}" \
+        "${OPENCODE_MODEL_PRIMARY##*/}" "${OPENCODE_MODEL_JUDGE##*/}" \
+        "$(bash .github/scripts/resolve-identity.sh)")
+fi
+git commit -S -m "$RELEASE_MSG"
 ```
 
-Signed commit required (see `conventional-commits` skill). The release commit is
-a normal `chore(release):` commit (not a merge/revert), so it carries the four
-required footers: `Authored-by`/`Implemented-by`/`Tested-by` from the configured
-model tiers and `Signed-off-by` resolved via
-`bash .github/scripts/resolve-identity.sh`. Use a single `-m` with `$'...\n...'`
-quoting (never multiple `-m` flags).
+## Handoff — print only, do not execute
 
-### 5. Print the release-branch push and PR commands
+Render the validated version into the inert text template below and print it
+for the human. These lines are output text, not a shell block — never
+execute them:
 
-Print the exact commands for the user to run:
+```text
+# Print for the human — do not execute these commands.
+git push -u origin release/X.Y.Z
 
-```bash
-# Push the release branch (human only — agents never push)
-git push -u origin release/vX.Y.Z
-
-# Open the PR to main
-gh pr create --base main --head release/vX.Y.Z \
+gh pr create --base main --head release/X.Y.Z \
     --title "Release vX.Y.Z" \
-    --body "Automated release PR for vX.Y.Z. After merge, run the
-/ release finalization steps to create the signed tag and back-merge."
+    --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA and opens the back-merge PR for a human to merge."
 ```
 
-**Stop here.** Do not continue to Phase 2 until the user confirms the PR has
-been reviewed, approved, and merged into `main`.
-
----
-
-## Phase 2 — Finalization (after the PR is merged)
-
-Do not run this phase until the human confirms the release PR has been merged.
-All steps require explicit confirmation before execution.
-
-### 6. Fetch the merged state and verify
-
-```bash
-git fetch origin main
-```
-
-Query the just-merged PR to verify it was merged into `main`:
-
-```bash
-gh pr view release/vX.Y.Z --json state,mergedAt,baseRefName,mergeCommit --jq '.' | php -r '
-$pr = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
-$ok = ($pr["state"] ?? "") === "MERGED"
-   && ($pr["mergedAt"] ?? null) !== null
-   && ($pr["baseRefName"] ?? "") === "main"
-   && ($pr["mergeCommit"]["oid"] ?? "") === trim(shell_exec("git rev-parse origin/main"));
-if (!$ok) { fwrite(STDERR, "FAIL: PR is not a verified merged-main commit\n"); exit(1); }
-echo "OK: PR merge commit matches origin/main\n";
-'
-```
-
-The exit code must be `0`. If not, stop — the PR may not yet be merged, may
-have been closed without merging, or `origin/main` may not match the expected
-merge SHA. Do not proceed.
-
-### 7. Create the signed tag on the verified merge SHA
-
-```bash
-MERGE_SHA=$(git rev-parse origin/main)
-git tag -s vX.Y.Z "$MERGE_SHA" -m "Release vX.Y.Z"
-```
-
-The tag names the exact merge commit on `main`, not the release-branch tip.
-This ties the signed tag to the PR merge that GitHub verified.
-
-### 8. Publish only the tag (never push main directly)
-
-Print the exact commands:
-
-```bash
-# Push the signed tag only (human only — agents never push)
-git push origin vX.Y.Z
-
-# Create the GitHub release
-gh release create vX.Y.Z \
-    --title "vX.Y.Z" \
-    --notes-file <(git cliff --tag vX.Y.Z --strip header)
-```
-
-If the repo is not on GitHub or `gh` isn't available, print the tag-push
-command alone. Never push `main` or `develop` directly.
-
-### 9. Back-merge main into develop via PR
-
-After the tag is published, `main` has new commits that `develop` needs:
-
-```bash
-# Back-merge PR: develop ← main
-gh pr create --base develop --head main \
-    --title "Back-merge main into develop (vX.Y.Z)" \
-    --body "Back-merge the vX.Y.Z release from main into develop."
-```
-
-This opens a PR to merge `main`'s release commits back into `develop`. The
-human reviews and merges it. Never push to `develop` directly.
-
-### 10. Clean up the release branch
-
-The release branch has been merged — do not reuse it. The human may delete
-it locally and remotely after the PR is merged:
-
-```bash
-git branch -d release/vX.Y.Z
-git push origin --delete release/vX.Y.Z   # human executes this
-```
+State that after the human merges the PR, `release.yml` creates the unsigned
+`vX.Y.Z` tag and GitHub Release at the merge SHA and opens the
+`main` → `develop` back-merge PR, which a human reviews and merges. Stop there.
 
 ## Rules
 
-- Never push `main` or `develop` directly. All integration uses merged PRs.
-- Never push or run `gh release create` automatically. Print the commands and
-  stop at each phase boundary.
-- If there is nothing to release since the last tag, say so and exit without
-  bumping.
-- If the working tree is dirty, stop and ask the user to commit or stash
-  first.
-- Always sign the commit and the tag (`-S` / `git tag -s`).
-- The signed tag must reference the verified merge commit on `main`, not
-  `HEAD` or the release branch tip.
-- Never reuse a release branch after its PR is merged. Create a fresh
+- Never push `main` or `develop` directly; all integration uses merged PRs.
+- Never create a tag, a GitHub Release, or a back-merge PR locally — after the
+  human merges the release PR, `release.yml` creates the tag and Release and
+  opens the back-merge PR.
+- If there are no releasable commits or the human withholds approval, stop
+  without creating anything.
+- Never reuse a release branch after its PR is merged; create a fresh
   `release/` branch for each release.
-- If `cliff.toml` is missing or `git cliff` is not installed, fall back to a
-  hand-written Conventional-Commits summary grouped by type, and flag that
-  `cliff.toml` should be added.
+- The release commit is signed (`git commit -S`) and always carries the four
+  ADR-0040 footers; a `Refs:` footer appears only from a validated invocation
+  argument.

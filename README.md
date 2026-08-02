@@ -83,7 +83,7 @@ When you add new source directories, register them in `phpunit.xml`'s
 | stylelint | npm | SCSS linting |
 | commitlint | npm | Commit message validation |
 | @commitlint/config-conventional | npm | Conventional commits preset for commitlint |
-| git-cliff | npm | Changelog generation |
+| git-cliff | npm | Changelog generation (project-local wrapper) |
 | playwright | npm | Browser testing |
 
 ### Coverage driver
@@ -140,13 +140,16 @@ In addition to the Composer and npm dependencies above, the coding harness uses 
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
 | [jq](https://jqlang.github.io/jq/) | JSON extraction from prism.jsonc (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
 | [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
+| [git-cliff](https://github.com/orhun/git-cliff) | Changelog generation (`/release`, manual fallback) | `cargo install git-cliff` or your package manager | 2.0+ |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
 > optional — only needed for the `clone` option of `/setup`'s scaffold mode,
 > for `/release`, `/pr`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip`
 > scaffold options and all other features work without it. `/pr` only prepares
 > and displays the `gh pr create` command — the human executes it after
-> publishing the branch.
+> publishing the branch. `git-cliff` is also an npm devDependency — the
+> project-local wrapper — while `/release` needs the direct `git cliff` PATH
+> binary at >= 2.0 (`cargo install git-cliff` or your package manager).
 
 ## Git Hooks
 
@@ -389,7 +392,7 @@ see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
-| `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
+| `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
 | `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command without creating the PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
@@ -583,7 +586,12 @@ chore(release): v0.0.1 [skip ci]
 
 ## Changelog
 
-Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog. The recommended path is the `/release` command (see [Slash commands](#slash-commands) in the Coding Harness section), which drives `git-cliff` end-to-end. The manual flow below is a fallback.
+Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog. Releases follow the two-half pipeline (ADR-0046):
+
+1. **Authoring** — `/release` (see [Slash commands](#slash-commands) in the Coding Harness section) prepares the git-cliff changelog and a `release/X.Y.Z` release-branch PR to `main`; a maintainer merges it.
+2. **Publication** — merging the release PR triggers `release.yml`, which creates the `vX.Y.Z` tag and GitHub Release at the merge commit and opens the `main` → `develop` back-merge PR for a maintainer to merge.
+
+Never create tags, Releases, or back-merge PRs locally — `release.yml` owns publication (ADR-0046). The low-level flow below is a fallback for preparing changelog content; it stops at a release-branch PR.
 
 ### Manual changelog
 
@@ -597,7 +605,7 @@ After the initial run of git-cliff all subsequent runs should detect the version
 git cliff
 ```
 
-A typical manual workflow should look like the following.
+A typical low-level workflow should look like the following.
 
 ```bash
 git add -A                      # add all un-indexed and changed files to the commit
@@ -605,9 +613,12 @@ git commit -S -a -m "<message>" # add a conventional commit message and sign the
 git cliff                       # generate a new changelog
 git add CHANGELOG.md            # add the changelog file to the commit
 git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-# Push the work branch and open a PR to the target (see the
+# Push the release branch and open the release PR to main (see the
 # finishing-a-development-branch skill for the PR command)
 ```
+
+The fallback stops at the release PR — CI tags, publishes, and opens the
+back-merge PR after the merge.
 
 ## Attribution
 
