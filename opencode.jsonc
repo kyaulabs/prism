@@ -7,6 +7,13 @@
     "bash": {
       "git push*": "deny"
     },
+    "read": {
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "*auth.json*": "deny",
+      "*mcp-auth.json*": "deny"
+    },
     "lsp": "deny"
   },
   "subagent_depth": 2,
@@ -75,7 +82,12 @@
           "git stage*": "ask",
           "git commit*": "ask",
           "git tag*": "ask",
-          "git push*": "deny"
+          "git push*": "deny",
+          "*auth.json*": "deny",
+          "*mcp-auth.json*": "deny",
+          "*.env": "deny",
+          "*.env.*": "deny",
+          "*.env.example": "allow"
         },
         "lsp": "allow"
       },
@@ -121,7 +133,12 @@
           "git add*": "ask",
           "git stage*": "ask",
           "git commit*": "ask",
-          "git push*": "deny"
+          "git push*": "deny",
+          "*auth.json*": "deny",
+          "*mcp-auth.json*": "deny",
+          "*.env": "deny",
+          "*.env.*": "deny",
+          "*.env.example": "allow"
         },
         "lsp": "allow"
       },
@@ -137,7 +154,12 @@
           "git add*": "ask",
           "git stage*": "ask",
           "git commit*": "ask",
-          "git push*": "deny"
+          "git push*": "deny",
+          "*auth.json*": "deny",
+          "*mcp-auth.json*": "deny",
+          "*.env": "deny",
+          "*.env.*": "deny",
+          "*.env.example": "allow"
         },
         "lsp": "allow"
       }
@@ -152,10 +174,29 @@
         "edit": "deny",
         "bash": "deny",
         "task": "deny",
-        "read": "allow",
-        "glob": "allow",
-        "grep": "allow",
-        "list": "allow",
+        "read": {
+          "*.env": "deny",
+          "*.env.*": "deny",
+          "*.env.example": "allow",
+          "*auth.json*": "deny",
+          "*mcp-auth.json*": "deny",
+          "*": "allow"
+        },
+        "glob": {
+          "*.env*": "deny",
+          "*.env.example*": "allow",
+          "*": "allow"
+        },
+        "grep": {
+          "*.env*": "deny",
+          "*.env.example*": "allow",
+          "*": "allow"
+        },
+        "list": {
+          "*.env*": "deny",
+          "*.env.example*": "allow",
+          "*": "allow"
+        },
         "lsp": "allow",
         "webfetch": "allow",
         "websearch": "allow"
