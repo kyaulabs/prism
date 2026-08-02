@@ -164,3 +164,10 @@ See `AGENTS.md` for the complete list with purpose descriptions.
 
 All custom commands live under `.opencode/commands/` and are invoked via `/slash`.
 See `AGENTS.md` for the complete list with purpose descriptions.
+
+The ordinary branch-completion path delegates pull request preparation to
+`/pr` after synchronization, plan/spec cleanup, `/check`, and all four
+`@code-review` axes. `/pr` displays a conventional title, a body containing
+every pull request template section, and a human-run GitHub CLI command; it
+does not push or create the pull request. `/release` retains its separate
+release and back-merge PR procedure.

@@ -339,6 +339,7 @@ Load these on demand when the task requires them:
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
 | `/release` | Prepare release via PR to main — version bump, changelog, signed tag on merged SHA, back-merge PR |
+| `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command for a verified work branch; never creates the PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
 | `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (requires Phase-0 spike). |

@@ -2,6 +2,7 @@
 # $KYAULabs: pr_command_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
 
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -427,10 +428,22 @@ else
 	pass 'obsolete flag mutation is detected'
 fi
 
+# ── 13. living-document command index ────────────────────────────────────────
+
+assert_contains "$REPO_ROOT/AGENTS.md" '| `/pr` |' \
+	'AGENTS command table indexes /pr'
+assert_contains "$REPO_ROOT/README.md" '| `/pr` |' \
+	'README slash-command table indexes /pr'
+assert_contains "$REPO_ROOT/CODING_HARNESS.md" '`/pr`' \
+	'CODING_HARNESS documents /pr branch completion'
+assert_contains "$REPO_ROOT/README.md" '/pr' \
+	'README GitHub CLI tooling description includes /pr'
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "pr command"
 exit $?
+
 
 
 
