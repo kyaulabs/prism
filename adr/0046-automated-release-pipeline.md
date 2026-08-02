@@ -97,7 +97,7 @@ Actions publishing half.
   resolves elsewhere → fail; exactly one exists → fail with recovery
   guidance. A 404 from the Release probe counts as absent; every other
   `gh` error is fatal.
-- **Concurrency:** the workflow group is `release-<head ref>` with
+- **Concurrency:** the workflow group is `release-<merge commit SHA>` with
   `cancel-in-progress: false`, so a rerun never cancels an in-flight
   publication.
 - **Back-merge:** after publication handling, the workflow opens — but

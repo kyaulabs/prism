@@ -15,6 +15,7 @@
 
 
 
+
 # ── Protected Branch Workflow Docs Regression Test ───────────────────────────
 # Verify active .opencode/ and living-doc files contain only PR-based
 # integration flows — no direct push to develop or main, no direct merge
@@ -300,8 +301,8 @@ else
 fi
 
 # 6d: AGENTS.md and README.md /release command rows stay synchronized
-agents_release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1)
-readme_release_row=$(grep -E '^\| `/release` \|' "$readme_md" | head -1)
+agents_release_row=$(grep -E '^\| `/release` \|' "$agents_md" | head -1 || true)
+readme_release_row=$(grep -E '^\| `/release` \|' "$readme_md" | head -1 || true)
 if [ -n "$agents_release_row" ] && [ "$agents_release_row" = "$readme_release_row" ]; then
 	pass "AGENTS.md and README.md: /release command rows synchronized"
 else
@@ -351,6 +352,7 @@ fi
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "protected_branch_workflow_docs"
+
 
 
 

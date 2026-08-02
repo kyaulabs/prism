@@ -136,7 +136,7 @@ jobs:
           if probe_out=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" 2>&1); then
             release_exists="yes"
           else
-              case "$probe_out" in
+            case "$probe_out" in
               *"HTTP 404"*)
                 release_exists="no"
                 ;;
