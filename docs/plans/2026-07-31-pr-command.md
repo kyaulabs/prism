@@ -593,7 +593,7 @@ header and modeline.
 - Produces: a branch-completion attestation with exact range identity, final
   gate order, and a single `/pr` delegation path.
 
-- [ ] **Step 1: Extend tests with failing delegation, lifecycle, and injection assertions**
+- [x] **Step 1: Extend tests with failing delegation, lifecycle, and injection assertions**
 
 Add these assertions to `pr_command_test.sh` before its summary:
 
@@ -663,7 +663,7 @@ Change `protected_branch_workflow_docs_test.sh` assertion 2a from requiring a
 forbidding `gh pr create` there. Keep target derivation, synchronization,
 keep/discard, no-auto-push/merge, and no-rebase assertions.
 
-- [ ] **Step 2: Run the integration tests and verify RED**
+- [x] **Step 2: Run the integration tests and verify RED**
 
 Run:
 
@@ -677,7 +677,7 @@ Expected: FAIL because the finishing skill still contains its hand-written
 GitHub CLI recipe, lacks an exact attestation, and preserves the unsupported
 title option.
 
-- [ ] **Step 3: Rewrite the finishing workflow around final-state gates and `/pr`**
+- [x] **Step 3: Rewrite the finishing workflow around final-state gates and `/pr`**
 
 In `.opencode/skills/finishing-a-development-branch/SKILL.md`, preserve the
 intro, target derivation, synchronization policy, keep/discard behavior,
@@ -718,7 +718,7 @@ Remove the old temp-file recipe and every direct `gh pr create` line from the
 skill. Remove delayed plan/spec cleanup because cleanup now precedes final
 gates. Do not include the unsupported title option even in a warning or gotcha.
 
-- [ ] **Step 4: Run integration and project guidance tests to verify GREEN**
+- [x] **Step 4: Run integration and project guidance tests to verify GREEN**
 
 Run:
 
@@ -734,7 +734,7 @@ Expected: every command exits `0`. Also run the three mutation checks inside
 `pr_command_test.sh` and confirm they report PASS because each deliberately
 corrupted copy is rejected.
 
-- [ ] **Step 5: Commit the workflow slice**
+- [x] **Step 5: Commit the workflow slice**
 
 ```bash
 git add .opencode/skills/finishing-a-development-branch/SKILL.md \
@@ -764,7 +764,7 @@ unsupported title option.
 - Produces: discoverable `/pr` documentation and accurate GitHub CLI tooling
   scope without changing `/release`.
 
-- [ ] **Step 1: Add failing command-index assertions**
+- [x] **Step 1: Add failing command-index assertions**
 
 Add before `pr_command_test.sh`'s summary:
 
@@ -790,7 +790,7 @@ bash tests/Shell/pr_command_test.sh
 Expected: FAIL on the four documentation assertions while command and workflow
 assertions remain green.
 
-- [ ] **Step 3: Add exact living-document entries**
+- [x] **Step 3: Add exact living-document entries**
 
 Add this row to `AGENTS.md`'s `## Commands` table near `/release`:
 
@@ -819,7 +819,7 @@ does not push or create the pull request. `/release` retains its separate
 release and back-merge PR procedure.
 ```
 
-- [ ] **Step 4: Run focused registration and harness validation to verify GREEN**
+- [x] **Step 4: Run focused registration and harness validation to verify GREEN**
 
 Run:
 
@@ -832,7 +832,7 @@ bash .github/scripts/validate-harness.sh
 Expected: all exit `0`; forward and reverse command indexing find exactly one
 `/pr` command file and the required AGENTS/README rows.
 
-- [ ] **Step 5: Commit the documentation slice**
+- [x] **Step 5: Commit the documentation slice**
 
 ```bash
 git add tests/Shell/pr_command_test.sh AGENTS.md README.md CODING_HARNESS.md
