@@ -864,7 +864,7 @@ above the four attribution trailers.
   harness indexes, and full project gate are green; no source changes unless a
   failing test is first reproduced through `@tdd`.
 
-- [ ] **Step 1: Run focused shell suites**
+- [x] **Step 1: Run focused shell suites**
 
 ```bash
 bash tests/Shell/pr_command_test.sh
@@ -876,7 +876,7 @@ bash tests/Shell/validate-harness_test.sh
 
 Expected: every suite exits `0`, including baseline and mutation assertions.
 
-- [ ] **Step 2: Run source and harness static gates**
+- [x] **Step 2: Run source and harness static gates**
 
 ```bash
 shellcheck --severity=warning tests/Shell/pr_command_test.sh \
@@ -889,7 +889,7 @@ bash .github/scripts/validate-harness.sh
 Expected: no Shellcheck findings, executable-bit failures, frontmatter errors,
 registry collisions, missing command indexes, or stale unsupported patterns.
 
-- [ ] **Step 3: Prove the three drift guards by mutation**
+- [x] **Step 3: Prove the three drift guards by mutation**
 
 Run `bash tests/Shell/pr_command_test.sh` and inspect its named results.
 Expected:
@@ -901,14 +901,14 @@ Expected:
 
 No tracked file is mutated by these proofs.
 
-- [ ] **Step 4: Run project-wide verification**
+- [x] **Step 4: Run project-wide verification**
 
 Run `verification-before-completion`, then `/check`.
 
 Expected: all linters, shell suites, Pest tests, plugin tests, syntax checks,
 and changed-file coverage gates pass. No PHP source file changes are expected.
 
-- [ ] **Step 5: Review and enter the ordinary finishing workflow**
+- [x] **Step 5: Review and enter the ordinary finishing workflow**
 
 Run `@code-review`. Resolve all non-informational findings through
 `receiving-code-review`, rerun affected tests, and stop. The human then uses
