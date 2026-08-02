@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/07/26 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+
 
 
 
@@ -2236,10 +2237,66 @@ EOF
 	fi
 )
 
+# ── Test: GNU-only `sed -i -e` in shell tests flagged (BSD sed parity) ───────
+
+echo "── Test: sed -i -e (GNU-only) flagged in tests/Shell ──"
+T_SED_I_E=$(mktemp -d)
+register_temp_dir "$T_SED_I_E"
+git_init_test_repo "$T_SED_I_E"
+(
+	cd "$T_SED_I_E"
+
+	mkdir -p tests/Shell
+	setup_validator_env
+
+	cat > tests/Shell/bad_test.sh <<'BADEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+sed -i -e "s|@@A@@|one|g" -e "s|@@B@@|two|g" "$tmp_file"
+BADEOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -q "sed -i -e" && echo "$output" | grep -q "bad_test.sh"; then
+		pass "GNU-only sed -i -e flagged as ERROR"
+	else
+		fail "sed -i -e was not flagged as ERROR"
+	fi
+)
+
+# ── Test: portable `sed -i.bak` in shell tests NOT flagged ────────────────────
+
+echo "── Test: sed -i.bak (portable) not flagged in tests/Shell ──"
+T_SED_BAK=$(mktemp -d)
+register_temp_dir "$T_SED_BAK"
+git_init_test_repo "$T_SED_BAK"
+(
+	cd "$T_SED_BAK"
+
+	mkdir -p tests/Shell
+	setup_validator_env
+
+	cat > tests/Shell/ok_test.sh <<'OKEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+sed -i.bak 's/foo/bar/' "$tmp_file"
+rm -f "$tmp_file.bak"
+OKEOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -q "ERROR: GNU-only 'sed -i -e'"; then
+		fail "Portable sed -i.bak was falsely flagged as GNU-only"
+	else
+		pass "Portable sed -i.bak not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

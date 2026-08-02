@@ -9,6 +9,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
@@ -40,7 +41,7 @@ if [ ! -f "$TICKETING" ]; then
 	fail "ticketing/SKILL.md not found"
 else
 	# Check 1: No single-quoted $OWNER in graphql -f query
-	if grep -Pn "graphql\s+-f\s+query=['\"][{]+\s*\\$" "$TICKETING" > /dev/null 2>&1; then
+	if grep -nE "graphql[[:space:]]+-f[[:space:]]+query=['\"][{]+[[:space:]]*\\$" "$TICKETING" > /dev/null 2>&1; then
 		fail "ticketing/SKILL.md: graphql query still uses inline \$VAR expansion (should use -F variables)"
 	else
 		pass "ticketing/SKILL.md: graphql queries use -F variable bindings"
@@ -48,7 +49,7 @@ else
 
 	# Check 2: No shell variable embedded inside a single-quoted graphql query
 	# The bug pattern: -f query='... $OWNER ...' with $ inside single quotes
-	if grep -Pn "query='[^']*\\\$[A-Z_]+[^']*'" "$TICKETING" > /dev/null 2>&1; then
+	if grep -nE "query='[^']*\\\$[A-Z_]+[^']*'" "$TICKETING" > /dev/null 2>&1; then
 		fail "ticketing/SKILL.md: graphql query has shell variable inside single-quoted string"
 	else
 		pass "ticketing/SKILL.md: no shell variables inside single-quoted graphql strings"
@@ -57,14 +58,14 @@ else
 	# Check 5: No gh issue create with inline --title "<literal>" or --body "<literal>"
 	# Bug:   --title "<title>" or --body "<body>"   (inline interpolation)
 	# Safe:  --title "$TITLE" and --body-file FILE   (variable + file)
-	if grep -Pn 'issue create.*--title\s+"[^$]' "$TICKETING" > /dev/null 2>&1; then
+	if grep -nE 'issue create.*--title[[:space:]]+"[^$]' "$TICKETING" > /dev/null 2>&1; then
 		fail "ticketing/SKILL.md: gh issue create uses inline --title (should use heredoc + variable)"
 	else
 		pass "ticketing/SKILL.md: gh issue create uses safe title pattern (variable)"
 	fi
 
 	# Check 6: gh issue create must use --body-file, not inline --body
-	if grep -Pn 'issue create.*--body\s+"' "$TICKETING" > /dev/null 2>&1; then
+	if grep -nE 'issue create.*--body[[:space:]]+"' "$TICKETING" > /dev/null 2>&1; then
 		fail "ticketing/SKILL.md: gh issue create uses inline --body (should use --body-file)"
 	else
 		pass "ticketing/SKILL.md: gh issue create uses --body-file"
@@ -72,7 +73,7 @@ else
 
 	# Check 7: No <UPPERCASE_PLACEHOLDER> inside single-quoted graphql queries
 	# All values must be -F variables, not inline-interpolated placeholders
-	if grep -Pn "query='[^']*<[A-Z][A-Z_]*>[^']*'" "$TICKETING" > /dev/null 2>&1; then
+	if grep -nE "query='[^']*<[A-Z][A-Z_]*>[^']*'" "$TICKETING" > /dev/null 2>&1; then
 		fail "ticketing/SKILL.md: graphql query has inline <PLACEHOLDER> (should use -F variables)"
 	else
 		pass "ticketing/SKILL.md: graphql queries use -F variables for all placeholders"
@@ -87,7 +88,7 @@ if [ ! -f "$FINISHING" ]; then
 	fail "finishing-a-development-branch/SKILL.md not found"
 else
 	# Check 3: No inline --title interpolation in the finishing skill
-	if grep -Pn "pr create.*--title\s+[\"']" "$FINISHING" > /dev/null 2>&1; then
+	if grep -nE "pr create.*--title[[:space:]]+[\"']" "$FINISHING" > /dev/null 2>&1; then
 		fail "finishing-a-development-branch/SKILL.md: still interpolates a literal title"
 	else
 		pass "finishing-a-development-branch/SKILL.md: no inline title interpolation"
@@ -148,8 +149,9 @@ $(touch @@SENTINEL1@@)
 "'; leading-and-quotes
 HEREDOC
 PAYLOAD_END
-sed -i -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
-	-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$TMPDIR/test-title.txt"
+sed -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
+	-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$TMPDIR/test-title.txt" > "$TMPDIR/test-title.txt.tmp" \
+	&& mv "$TMPDIR/test-title.txt.tmp" "$TMPDIR/test-title.txt"
 
 # Verify no sentinel file was created by the write
 if [ -f "$injection_sentinel" ] || [ -f "$backtick_sentinel" ]; then
@@ -242,6 +244,7 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
 
 
 

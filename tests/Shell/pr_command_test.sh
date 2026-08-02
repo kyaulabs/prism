@@ -5,6 +5,7 @@
 
 
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -368,8 +369,9 @@ else
 	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
 -$(touch @@SENTINEL1@@) `touch @@SENTINEL2@@` "'; leading-and-quotes
 PR_TITLE_PAYLOAD
-	sed -i -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
-		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file"
+	sed -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
+		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file" > "$title_file.tmp" \
+		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
 	rc=0
 	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
@@ -492,6 +494,7 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
 
 
 
