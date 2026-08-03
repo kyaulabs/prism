@@ -1,10 +1,14 @@
-// $KYAULabs: pre-tool-use.test.ts kyau@nova 2026/07/17 -0700 Exp $
+// $KYAULabs: pre-tool-use.test.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
 
 
-import { describe, it } from "node:test";
+
+
+
+import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, symlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
 
@@ -107,9 +111,12 @@ describe("classifyCommand — rm -rf safe zones", () => {
 });
 
 describe("PreToolUse plugin hook", () => {
-    const load = async (client: any) => {
+    const load = async (client: any, pluginOptions?: Record<string, unknown>) => {
         const mod = await import("../../.opencode/plugins/pre-tool-use.ts");
-        return mod.PreToolUse({ directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any);
+        return mod.PreToolUse(
+            { directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any,
+            pluginOptions,
+        );
     };
     const noopClient = { app: { log: async () => {} } };
     const capturingClient = () => {
@@ -152,7 +159,145 @@ describe("PreToolUse plugin hook", () => {
         await hooks["tool.execute.before"]!({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "ls -la" } });
         assert.equal(logs.length, 0);
     });
+
+    // Sensitive-path interception (ADR-0047). Paths are homedir-derived
+    // because the hook resolves ~ via os.homedir() at runtime — literals like
+    // /home/user would never match on a host with a different home.
+
+    it("blocks read tool on sensitive path by throwing", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: join(homedir(), ".local/share/opencode/auth.json") } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks grep/glob/list tools on sensitive paths", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        for (const tool of ["grep", "glob", "list"]) {
+            await assert.rejects(
+                () => h({ tool, sessionID: "s", callID: "c" }, { args: { path: join(homedir(), ".config/opencode") } }),
+                /BLOCKED/,
+            );
+        }
+    });
+
+    it("does not throw for non-sensitive read", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: "opencode.jsonc" } });
+    });
+
+    it("blocks reader bash on sensitive path", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: "head ~/.netrc" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("block error never leaks the path or command (redaction)", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        const sensitivePath = join(homedir(), ".local/share/opencode/auth.json");
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: `cat ${sensitivePath}` } }),
+            (err: Error) => !err.message.includes("auth.json") && !err.message.includes("cat "),
+        );
+    });
+
+    // Task 13 (ADR-0048 §5): glob pattern / grep include interception and
+    // fail-closed handling of present-but-malformed tool args. The symlink
+    // fixture is canary-only (fake home + temp symlink tree under
+    // os.tmpdir(), ADR-0048 §8) — the plugin is loaded with the fake home so
+    // the ~/.ssh deny class anchors to the fixture, never the real home.
+    const FIXTURE_TMP = mkdtempSync(join(tmpdir(), "ptu-symlink-"));
+    const FAKE_HOME = join(FIXTURE_TMP, "home");
+    const FIXTURE_PROJECT = join(FIXTURE_TMP, "project");
+    mkdirSync(join(FAKE_HOME, ".ssh"), { recursive: true });
+    mkdirSync(FIXTURE_PROJECT, { recursive: true });
+    symlinkSync(join(FAKE_HOME, ".ssh"), join(FIXTURE_PROJECT, "leak"));
+    const LEAK_ID_RSA = join(FIXTURE_PROJECT, "leak/id_rsa");
+    after(() => rmSync(FIXTURE_TMP, { recursive: true, force: true }));
+
+    it("blocks glob pattern targeting the env class from a benign base", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { path: ".", pattern: "**/.env" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks glob pattern inside a sensitive class", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { pattern: "~/.ssh/*" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks grep include globs and allows .env.example", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ".", include: ["*.env", "*.env.*"] } }),
+            /BLOCKED/,
+        );
+        await h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ".", include: "*.env.example" } });
+    });
+
+    it("fails closed on malformed path/include/pattern args", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { include: { bad: 1 } } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { pattern: 42 } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: ["a"] } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("fails closed on malformed bash args and path-array arguments", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: 42 } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ["~/.ssh", "."] } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { path: 42 } }),
+            /BLOCKED/,
+        );
+        await h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: [".", "docs"], include: "*.php" } });
+    });
+
+    it("blocks read of a symlinked spelling into a sensitive class", async () => {
+        const hooks = await load(noopClient, { home: FAKE_HOME });
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: LEAK_ID_RSA } }),
+            /BLOCKED/,
+        );
+    });
 });
+
+
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

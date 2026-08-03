@@ -8,6 +8,11 @@ permission:
     "git commit*": "ask"
     "git push*": "deny"
     "git tag*": "deny"
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
 ---
 
 You are resolving an in-progress git merge or rebase. Follow these steps in order. Do not `--abort`.

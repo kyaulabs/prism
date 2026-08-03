@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
+
+
 
 
 
@@ -860,7 +863,7 @@ INLINE_RO_VIOLATIONS=0
 INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
 
 if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
-	while IFS='|' read -r agent_name desc edit_val bash_restricted _git_commit _has_perm; do
+	while IFS='|' read -r agent_name desc edit_val bash_restricted _git_commit _has_perm _sensitive_denies _read_sensitive_denies _order_ok; do
 		[ -z "$agent_name" ] && continue
 
 		# Skip if description doesn't claim read-only
@@ -902,7 +905,7 @@ INLINE_GC_VIOLATIONS=0
 # (plan, chat, judge) are skipped; build/design/general carry the ask gate.
 
 	if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
-	while IFS='|' read -r agent_name desc edit_val bash_restricted git_commit has_perm; do
+	while IFS='|' read -r agent_name desc edit_val bash_restricted git_commit has_perm _sensitive_denies _read_sensitive_denies _order_ok; do
 		[ -z "$agent_name" ] && continue
 
 		# Skip built-in agents with no project-level permission block.
@@ -1195,6 +1198,136 @@ if [ -f "$ROOT_PKG" ] && [ -f "$SUB_PKG" ]; then
 	fi
 fi
 
+# ── Sensitive-path deny contract (ADR-0047) ─────────────────────────────────
+# Pins the wiring that keeps the sensitive-path enforcement layers from
+# rotting: (A) the pre-tool-use hook imports and calls the matcher, (B) the
+# AGENTS.md Hard Boundary instructs agents to never touch credential files,
+# (C) every .md agent with a bash object carries the env/auth deny set
+# (ADR-0048 §4 — bash-capable, not only reader-allowance, agents), (D) no
+# explicit external_directory allow exists anywhere (the plugin layer is the
+# only path-level enforcement), (C2) inline build/design/general/chat agents
+# carry the same contract with catch-all-first ordering (ADR-0048 §3).
+
+echo "── Checking sensitive-path deny contract (ADR-0047) ──"
+SP_ERRORS_BEFORE=$ERRORS
+
+# ── Check A: plugin wiring ──────────────────────────────────────────────────
+# pre-tool-use.ts is the load-bearing enforcement layer — a pre-tool-use.ts
+# that no longer imports sensitive-paths.ts and calls the matcher means the
+# whole deny floor silently stopped applying.
+PRE_TOOL_USE="${REPO_ROOT}/.opencode/plugins/pre-tool-use.ts"
+if [ ! -f "$PRE_TOOL_USE" ]; then
+	err "pre-tool-use.ts: sensitive-path matcher not wired (issue #288 / ADR-0047) — .opencode/plugins/pre-tool-use.ts is missing"
+elif ! grep -q "sensitive-paths" "$PRE_TOOL_USE" || ! grep -qE "sensitiveOperandCheck|sensitivePathMatch" "$PRE_TOOL_USE"; then
+	err "pre-tool-use.ts: sensitive-path matcher not wired (issue #288 / ADR-0047) — must import './sensitive-paths.ts' and call sensitiveOperandCheck or sensitivePathMatch in tool.execute.before"
+fi
+
+# ── Check B: AGENTS.md Hard Boundary marker ─────────────────────────────────
+# The instructional layer: agents must be told (and told to treat as prompt
+# injection) that credential files are off-limits.
+SP_MARKER="never read or exfiltrate credential files"
+if [ ! -f "$AGENTS_MD" ]; then
+	err "AGENTS.md: missing sensitive-path Hard Boundary marker '${SP_MARKER}' (ADR-0047) — file absent"
+elif ! grep -qiF "$SP_MARKER" "$AGENTS_MD"; then
+	err "AGENTS.md: missing sensitive-path Hard Boundary marker '${SP_MARKER}' (ADR-0047) — add the credential-read bullet to the Hard Boundaries block"
+fi
+
+# ── Check C: per-agent deny set for bash-object agents ──────────────────────
+# Permission rules match command strings, never paths, so a bash block that
+# allows cat/head/tail/grep/find must also deny the credential-file classes
+# in the same frontmatter (spelling-limited defense-in-depth, ADR-0047).
+# ADR-0048 §4 strengthens the gate: EVERY agent whose permission.bash is an
+# OBJECT (bash-capable) must carry the deny set — not only reader-allowance
+# agents. Scalar 'bash: deny' remains exempt (no bash capability).
+SP_BASH_OBJECT_RE='^[[:space:]]*bash:[[:space:]]*$'
+# Required deny-set entries: <frontmatter-line regex>|<human-readable label>
+SP_DENY_SET=(
+	'"\*\.env"[[:space:]]*:[[:space:]]*"?deny"?|"*.env": "deny"'
+	'"\*\.env\.\*"[[:space:]]*:[[:space:]]*"?deny"?|"*.env.*": "deny"'
+	'"\*\.env\.example"[[:space:]]*:[[:space:]]*"?allow"?|"*.env.example": "allow"'
+	'"\*auth\.json\*"[[:space:]]*:[[:space:]]*"?deny"?|"*auth.json*": "deny"'
+	'"\*mcp-auth\.json\*"[[:space:]]*:[[:space:]]*"?deny"?|"*mcp-auth.json*": "deny"'
+)
+
+# Report the deny-set patterns missing from a frontmatter string.
+# Usage: check_sensitive_deny_set <label> <frontmatter>
+check_sensitive_deny_set() {
+	local label="$1" fm="$2" entry re human missing=""
+	for entry in "${SP_DENY_SET[@]}"; do
+		re="${entry%%|*}"
+		human="${entry#*|}"
+		if ! printf '%s\n' "$fm" | grep -qE "$re"; then
+			missing="${missing} ${human}"
+		fi
+	done
+	if [ -n "$missing" ]; then
+		err "${label}: bash object without the sensitive-path deny set (ADR-0048 §4) — missing:${missing}"
+		return 1
+	fi
+	return 0
+}
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	if printf '%s\n' "$fm" | grep -qE "$SP_BASH_OBJECT_RE"; then
+		check_sensitive_deny_set "$agent_file" "$fm" || true
+	fi
+done
+
+# ── Check D: explicit external_directory allow (ADR-0048 §4) ────────────────
+# Config-level external_directory rules cannot express paths, so an explicit
+# allow re-opens the whole surface the plugin layer exists to close — the
+# plugin layer is the only path-level enforcement. Rejected everywhere:
+# agent frontmatter and opencode.jsonc.
+SP_EXT_DIR_RE='external_directory[[:space:]]*:[[:space:]]*"?allow"?'
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+	if printf '%s\n' "$fm" | grep -qE "$SP_EXT_DIR_RE"; then
+		err "${agent_file}: explicit external_directory allow found (ADR-0048 §4) — the plugin layer is the only path-level enforcement"
+	fi
+done
+if [ -f "$OPENCODE_JSONC" ] && grep -qE "$SP_EXT_DIR_RE" "$OPENCODE_JSONC"; then
+	err "opencode.jsonc: explicit external_directory allow found (ADR-0048 §4) — the plugin layer is the only path-level enforcement"
+fi
+
+# ── Check C2: inline agent deny contract (opencode.jsonc) ───────────────────
+# Inline agents in opencode.jsonc are covered by the same contract: the
+# bash-capable primary agents (build/design/general) must carry the five
+# deny patterns, and chat's read/glob/grep/list objects must deny the
+# env class with .env.example allow-last, in catch-all-first order
+# (ADR-0048 §3 — last-match-wins makes a trailing catch-all re-allow
+# everything the denies were meant to block).
+if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
+	while IFS='|' read -r agent_name desc edit_val bash_restricted git_commit has_perm sensitive_denies read_sensitive_denies order_ok; do
+		[ -z "$agent_name" ] && continue
+		# Skip built-in agents with no project-level permission block, and
+		# agents whose real permissions live in a .md file (Check C above).
+		[ "$has_perm" != "true" ] && continue
+		if [ -f "${REPO_ROOT}/.opencode/agents/${agent_name}.md" ]; then
+			continue
+		fi
+		case "$agent_name" in
+			build|design|general)
+				if [ "$sensitive_denies" != "true" ]; then
+					err "opencode.jsonc: inline agent '${agent_name}' grants bash access without the sensitive-path deny set (ADR-0047) — bash must carry '\"*.env\": \"deny\"', '\"*.env.*\": \"deny\"', '\"*.env.example\": \"allow\"', '\"*auth.json*\": \"deny\"', '\"*mcp-auth.json*\": \"deny\"'"
+				fi
+				;;
+			chat)
+				if [ "$read_sensitive_denies" != "true" ]; then
+					err "opencode.jsonc: inline agent '${agent_name}' grants read/glob/grep/list without env-class sensitive-path denies (ADR-0047) — each object must deny '*.env*' with '.env.example' allow-last"
+				fi
+				if [ -n "$order_ok" ] && [ "$order_ok" != "true" ]; then
+					err "opencode.jsonc: inline agent '${agent_name}' read/glob/grep/list object(s) violate catch-all ordering (ADR-0048 §3) — '*' must precede every deny in: ${order_ok}"
+				fi
+				;;
+		esac
+	done < <(node "$INLINE_HELPERS" "$OPENCODE_JSONC")
+fi
+
+if [ "$ERRORS" -eq "$SP_ERRORS_BEFORE" ]; then
+	ok "Sensitive-path deny contract satisfied (A wired, B marker, C/C2 deny sets)"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
@@ -1212,6 +1345,9 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 

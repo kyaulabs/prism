@@ -7,7 +7,7 @@
 // ~/.config/opencode/prism.jsonc and overlays this file field-by-field (object
 // keys merge recursively; scalars/arrays replace atomically).
 //
-// .envrc consumes this via `prism_manifest.php env0`, which exports nineteen
+// .envrc consumes this via `prism_manifest.php env0`, which exports twenty
 // OPENCODE_*/secret environment variables as a NUL-separated stream (including
 // three requested-preference toggle diagnostics and composed
 // OPENCODE_CONFIG_CONTENT — no jq, no eval). Secrets never live here: the
@@ -83,6 +83,14 @@
   // Optional npm plugin preferences. Packages stay pinned even while disabled.
   "plugins": {
     "opencode_quota": false
+  },
+
+  // Sensitive-path extension surface (ADR-0047), exported as newline-joined
+  // OPENCODE_SENSITIVE_PATHS. Malformed values fail closed at env0 time.
+  "security": {
+    // Immutable deny floor lives in .opencode/plugins/sensitive-paths.ts (ADR-0047).
+    // This list can only ADD paths; entries must be "~/"-prefixed or absolute.
+    "additional_sensitive_paths": []
   },
 
   // Secret home for the project tier. SECURITY INVARIANT: every value here

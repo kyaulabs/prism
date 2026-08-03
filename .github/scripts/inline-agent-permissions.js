@@ -1,4 +1,6 @@
-// $KYAULabs: inline-agent-permissions.js kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+// $KYAULabs: inline-agent-permissions.js kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
+
 
 
 
@@ -6,6 +8,7 @@
 // Usage: node inline-agent-permissions.js <opencode.jsonc-path>
 // Emits one row per agent (pipe-separated):
 //   name | description | edit | bash_restricted | git_commit | has_permission
+//   | sensitive_denies | read_sensitive_denies | order_ok
 // Where:
 //   edit            = the permission.edit value ('deny', 'allow', 'ask', or '')
 //   bash_restricted = 'true' if bash is fully denied OR has a catch-all deny
@@ -15,6 +18,18 @@
 //   has_permission  = 'true' if the agent defines a permission block (even if
 //                     empty); 'false' if no permission key exists at all
 //                     (built-in agents with no project-level permission cfg).
+//   sensitive_denies = 'true' if the bash object carries the ADR-0047 deny set
+//                     ('*.env'/'*.env.*'/'*auth.json*'/'*mcp-auth.json*' deny +
+//                     '*.env.example' allow); 'false' if bash is an object
+//                     without the full set; '' if bash is absent/not an object.
+//   read_sensitive_denies = 'true' if read/glob/grep/list are objects each
+//                     carrying env-class denies with '.env.example' allow;
+//                     'false' if any is an object without them; '' otherwise.
+//   order_ok        = 'true' if read/glob/grep/list are objects whose
+//                     catch-all '*' precedes every deny entry (ADR-0048 §3
+//                     last-match-wins ordering); otherwise a comma-joined
+//                     list of the misordered object names; '' if the four
+//                     tools are not all objects.
 // Exits 0 on success, 1 on parse error.
 
 'use strict';
@@ -101,10 +116,57 @@ for (const name of Object.keys(agents)) {
         if (typeof v === 'string') gitCommit = v;
     }
 
-    process.stdout.write(`${name}|${desc}|${edit}|${bashRestricted}|${gitCommit}|${a.permission !== undefined ? 'true' : 'false'}\n`);
+    // Sensitive-path deny contract (ADR-0047): a bash object must carry the
+    // five env/auth patterns; read/glob/grep/list objects must deny the env
+    // class with '.env.example' allow (last-match-wins). Consumed by the
+    // inline sensitive-path deny check in validate-harness.sh.
+    let sensitiveDenies = '';
+    if (perm.bash && typeof perm.bash === 'object') {
+        sensitiveDenies =
+            perm.bash['*.env'] === 'deny' &&
+            perm.bash['*.env.*'] === 'deny' &&
+            perm.bash['*.env.example'] === 'allow' &&
+            perm.bash['*auth.json*'] === 'deny' &&
+            perm.bash['*mcp-auth.json*'] === 'deny'
+                ? 'true'
+                : 'false';
+    }
+    let readSensitiveDenies = '';
+    const readTools = ['read', 'glob', 'grep', 'list'];
+    const readObjects = readTools.every((t) => perm[t] && typeof perm[t] === 'object');
+    if (readObjects) {
+        const readOk =
+            perm.read['*.env'] === 'deny' &&
+            perm.read['*.env.*'] === 'deny' &&
+            perm.read['*.env.example'] === 'allow';
+        const searchOk = ['glob', 'grep', 'list'].every(
+            (t) => perm[t]['*.env*'] === 'deny' && perm[t]['*.env.example*'] === 'allow',
+        );
+        readSensitiveDenies = readOk && searchOk ? 'true' : 'false';
+    }
+
+    // Catch-all ordering (ADR-0048 §3): permission rules are last-match-wins,
+    // so in each of read/glob/grep/list the catch-all '*' must precede every
+    // deny entry — otherwise the deny is dead and the whole class is
+    // re-allowed. 'true' when all four objects are ordered; otherwise a
+    // comma-joined list of the misordered object names for the error message.
+    let orderOk = '';
+    if (readObjects) {
+        const bad = readTools.filter((t) => {
+            const keys = Object.keys(perm[t]);
+            const star = keys.indexOf('*');
+            if (star === -1) return false; // no catch-all — nothing to order
+            return keys.some((k, idx) => k !== '*' && perm[t][k] === 'deny' && idx < star);
+        });
+        orderOk = bad.length === 0 ? 'true' : bad.join(',');
+    }
+
+    process.stdout.write(`${name}|${desc}|${edit}|${bashRestricted}|${gitCommit}|${a.permission !== undefined ? 'true' : 'false'}|${sensitiveDenies}|${readSensitiveDenies}|${orderOk}\n`);
 }
 
 process.exit(0);
+
+
 
 
 

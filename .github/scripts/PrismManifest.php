@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
 
 
 
@@ -20,6 +20,10 @@ require_once __DIR__ . '/PrismJsoncDocument.php';
  * merge recursively while arrays and scalars are replaced atomically. Objects
  * remain {@see \stdClass} throughout so `{}` and `[]` never collapse. The
  * result is always a fresh tree; neither input is mutated.
+ *
+ * One security-scoped exception to the atomic-array-replace rule (ADR-0048 §1):
+ * `security.additional_sensitive_paths` is unioned across tiers — the user
+ * tier can add paths but never remove project-tier entries.
  */
 final class PrismManifest
 {
@@ -56,7 +60,66 @@ final class PrismManifest
             self::overlay($base, $user);
         }
 
+        self::unionSensitivePaths($base, $project, $user);
+
         return $base;
+    }
+
+    /**
+     * Union the security.additional_sensitive_paths lists across both tiers.
+     *
+     * ADR-0048 §1 scoped exception to the atomic-array-replace overlay rule:
+     * the user tier can add sensitive paths but never silently drop
+     * project-tier additions. Reads the field from the original project and
+     * user trees (when present and arrays), concatenates project then user,
+     * deduplicates exact strings preserving order, and sets the union on the
+     * base tree. A field absent from both tiers leaves the base untouched.
+     * Malformed (non-array) lists are skipped here; validation and the env0
+     * transport fail closed on them.
+     *
+     * @param  \stdClass      $base     Resolved tree (mutated in place).
+     * @param  \stdClass|null $project  Original project manifest (read only).
+     * @param  \stdClass|null $user     Original user manifest (read only).
+     * @return void
+     */
+    private static function unionSensitivePaths(\stdClass $base, ?\stdClass $project, ?\stdClass $user): void
+    {
+        $sources = [];
+
+        foreach ([$project, $user] as $tier) {
+            if (
+                $tier instanceof \stdClass
+                && property_exists($tier, 'security')
+                && $tier->security instanceof \stdClass
+                && property_exists($tier->security, 'additional_sensitive_paths')
+            ) {
+                $sources[] = $tier->security->additional_sensitive_paths;
+            }
+        }
+
+        if ($sources === []) {
+            return;
+        }
+
+        if (!property_exists($base, 'security') || !($base->security instanceof \stdClass)) {
+            $base->security = new \stdClass();
+        }
+
+        $merged = [];
+
+        foreach ($sources as $list) {
+            if (!is_array($list)) {
+                continue;
+            }
+
+            foreach ($list as $entry) {
+                if (is_string($entry) && !in_array($entry, $merged, true)) {
+                    $merged[] = $entry;
+                }
+            }
+        }
+
+        $base->security->additional_sensitive_paths = $merged;
     }
 
     /**
@@ -150,6 +213,7 @@ final class PrismManifest
         self::optionalBooleanSection($manifest, 'mcp', self::MCP);
         self::optionalBooleanSection($manifest, 'plugins', self::PLUGINS);
         self::requireEmptyEnv($manifest);
+        self::validateSensitivePathList($manifest, 'project');
     }
 
     /**
@@ -186,6 +250,79 @@ final class PrismManifest
         self::optionalBooleanSection($manifest, 'mcp', self::MCP);
         self::optionalBooleanSection($manifest, 'plugins', self::PLUGINS);
         self::optionalStringEnvSection($manifest, 'env');
+        self::validateSensitivePathList($manifest, 'user');
+    }
+
+    /**
+     * Validate a present security.additional_sensitive_paths list fails closed.
+     *
+     * ADR-0048 §7: when present, the field must be an array whose entries are
+     * all ~/-prefixed or absolute path strings free of control characters; the
+     * security section itself must be an object. Any other shape throws so
+     * malformed additions surface at validation time, before env0 or CI
+     * consumers see them. Diagnostics name only the field path and tier,
+     * never a value.
+     *
+     * @param  \stdClass $manifest
+     * @param  string    $tier     'project' or 'user' for the diagnostic.
+     * @return void
+     * @throws PrismJsoncException  On a malformed security section or list.
+     */
+    private static function validateSensitivePathList(\stdClass $manifest, string $tier): void
+    {
+        if (!property_exists($manifest, 'security')) {
+            return;
+        }
+
+        if (!($manifest->security instanceof \stdClass)) {
+            throw new PrismJsoncException(
+                'field security in the ' . $tier . ' manifest must be an object — fail closed (ADR-0048)',
+            );
+        }
+
+        if (!property_exists($manifest->security, 'additional_sensitive_paths')) {
+            return;
+        }
+
+        $list = $manifest->security->additional_sensitive_paths;
+
+        if (!is_array($list)) {
+            throw new PrismJsoncException(
+                'security.additional_sensitive_paths in the ' . $tier
+                . ' manifest must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0048)',
+            );
+        }
+
+        foreach ($list as $entry) {
+            self::validateSensitivePathEntry($entry, 'security.additional_sensitive_paths in the ' . $tier . ' manifest');
+        }
+    }
+
+    /**
+     * Validate one additional-sensitive-path entry fails closed.
+     *
+     * Single source of the load-bearing entry rule (ADR-0047/0048): a string
+     * that is ~/-prefixed or absolute and free of control characters. Shared
+     * with the env0 transport coercion in prism_manifest.php so the two
+     * layers cannot drift. Diagnostics name only the field path, never a
+     * value.
+     *
+     * @param  mixed  $entry
+     * @param  string $label  Dotted manifest path for the diagnostic.
+     * @return void
+     * @throws PrismJsoncException  On a malformed entry.
+     */
+    public static function validateSensitivePathEntry(mixed $entry, string $label): void
+    {
+        if (
+            !is_string($entry)
+            || preg_match('/^(~\/|\/)/', $entry) !== 1
+            || preg_match('/[\x00-\x1f\x7f]/', $entry) === 1
+        ) {
+            throw new PrismJsoncException(
+                $label . ' must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0048)',
+            );
+        }
     }
 
     /**
@@ -728,6 +865,10 @@ final class PrismManifest
         }
     }
 }
+
+
+
+
 
 
 

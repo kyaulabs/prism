@@ -17,6 +17,11 @@ permission:
     "git status*": allow
     "git diff*": allow
     "git branch*": allow
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
   webfetch: deny
   task: deny
   lsp: allow

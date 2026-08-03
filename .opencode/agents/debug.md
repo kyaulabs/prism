@@ -38,6 +38,11 @@ permission:
     "gh issue list": "allow"
     "gh issue list*": "allow"
     "gh issue view*": "allow"
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
   lsp: allow
 ---
 

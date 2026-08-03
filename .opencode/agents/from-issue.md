@@ -39,6 +39,11 @@ permission:
     "git commit*": ask
     "git push*": deny
     "git tag*": deny
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
   webfetch: deny
   task:
     "*": deny

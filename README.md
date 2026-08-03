@@ -440,7 +440,7 @@ Skills load when an agent needs them — they are not loaded into every session.
 | Review triage | `receiving-code-review` |
 | Branch lifecycle | `finishing-a-development-branch` |
 | Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
-| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `database` |
+| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `credential-protection`, `database` |
 | Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
 | Testing | `pest-browser` |
 | Docs & process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `opencode-docs`, `research-background` |
