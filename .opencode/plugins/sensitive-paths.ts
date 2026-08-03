@@ -3,6 +3,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -56,6 +57,18 @@ const MAX_UNWRAP_DEPTH = 3;
 
 const SENSITIVE_FALLBACK_RE =
     /\.env(\.|$)|\bauth\.json\b|mcp-auth\.json|intelephense|opencodereview|\.config\/opencode|\.ssh\/|\.aws\/|\.netrc|git-credentials|\/etc\/ssl\//;
+
+/**
+ * True when a token references the sole env-class exception, .env.example,
+ * as its final path segment. Option prefixes (-d@, -d, --opt=) and a
+ * leading @ (curl's @file) are stripped first so glued forms like
+ * -d@.env.example stay readable, while -d@~/.ssh/id_rsa.env.example
+ * remains denied. Mirrors the basename exemption in sensitivePathMatch.
+ */
+function isEnvExampleRef(token: string): boolean {
+    const bare = token.replace(/^-[^=]*@?/, "").replace(/^@/, "");
+    return (bare.split("/").pop() ?? "") === ".env.example";
+}
 
 export function tokenizeCommand(segment: string): string[] {
     const trimmed = segment.trim();
@@ -240,23 +253,16 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             // that are option-prefixed), so argv-prefix and glued-token
             // forms (-d@~/.ssh/id_rsa, @~/.ssh/id_rsa, user@host:~/.ssh/
             // id_rsa, --output=~/.aws/credentials) cannot bypass the deny
-            // floor. .env.example references stay exempt, mirroring the
-            // basename exemption in sensitivePathMatch. A trusted-setup
-            // prism-user-manifest skip suppresses the fallback so /setup
-            // scripts keep their narrow exception.
-            if (token.startsWith("-")) {
-                if (!token.endsWith(".env.example") && SENSITIVE_FALLBACK_RE.test(token)) {
-                    return { className: "dynamic" };
-                }
-                continue;
-            }
-            const abs = resolveOperand(token, opts);
+            // floor. .env.example references stay exempt (basename-scoped),
+            // and a trusted-setup prism-user-manifest skip suppresses the
+            // fallback so /setup scripts keep their narrow exception.
+            const abs = token.startsWith("-") ? null : resolveOperand(token, opts);
             const match = abs === null ? null : sensitivePathMatch(abs, opts);
             if (match) {
                 if (match.className === "prism-user-manifest" && trustedSetup) continue;
                 return match;
             }
-            if (!token.endsWith(".env.example") && SENSITIVE_FALLBACK_RE.test(token)) {
+            if (!isEnvExampleRef(token) && SENSITIVE_FALLBACK_RE.test(token)) {
                 return { className: "dynamic" };
             }
         }
@@ -280,6 +286,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
