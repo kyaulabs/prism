@@ -1,7 +1,9 @@
 // $KYAULabs: sensitive-paths.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
 
 
-import { resolve as resolvePath, normalize, basename } from "node:path";
+
+import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
+import { realpathSync } from "node:fs";
 
 export interface SensitivePathOptions {
     projectDir: string;
@@ -120,26 +122,60 @@ function isEnvBasename(name: string): boolean {
     return name === ".env" || name.startsWith(".env.");
 }
 
+export function canonicalizePath(p: string): string {
+    let current = normalize(p);
+    const tail: string[] = [];
+    for (let i = 0; i < 64; i++) {
+        try {
+            const real = realpathSync(current);
+            if (tail.length === 0) return normalize(real);
+            return normalize(real + "/" + tail.reverse().join("/"));
+        } catch {
+            const parent = dirname(current);
+            if (parent === current) return normalize(p);
+            tail.push(basename(current));
+            current = parent;
+        }
+    }
+    return normalize(p);
+}
+
 export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions): SensitiveMatch | null {
-    const p = normalize(absPath);
+    const p = canonicalizePath(absPath);
     const name = basename(p);
     if (isEnvBasename(name)) return { className: "env" };
     if (name === "auth.json" || name === "mcp-auth.json") return { className: "opencode-auth-store" };
     for (const pattern of DEFAULT_PATTERNS) {
-        const pat = normalizeRaw(pattern.raw, opts.home);
+        const pat = canonicalizePath(normalizeRaw(pattern.raw, opts.home));
         if (p === pat || (pattern.dir && p.startsWith(pat + "/"))) return { className: pattern.className };
     }
     for (const raw of opts.extraPaths ?? []) {
-        const pat = normalizeRaw(raw, opts.home);
+        const pat = canonicalizePath(normalizeRaw(raw, opts.home));
         const dir = raw.endsWith("/");
         if (p === pat || (dir && p.startsWith(pat + "/"))) return { className: "additional" };
     }
     return null;
 }
 
+export function sensitivePatternCheck(pattern: unknown, base: string, opts: SensitivePathOptions): SensitiveMatch | null {
+    if (pattern === undefined || pattern === "") return null;
+    if (typeof pattern !== "string") return { className: "malformed" };
+    const p = pattern.trim();
+    if (p === "") return null;
+    const expanded = p.startsWith("~") ? opts.home + p.slice(1) : p;
+    const metaIdx = expanded.search(/[*?[{]/);
+    const probe = metaIdx !== -1 && !expanded.startsWith("/") ? expanded.slice(0, metaIdx) : expanded;
+    const abs = probe.startsWith("/") ? probe : resolvePath(base, probe);
+    const match = sensitivePathMatch(abs, opts);
+    if (match) return match;
+    if (p.endsWith(".env.example")) return null;
+    if (SENSITIVE_FALLBACK_RE.test(p)) return { className: "dynamic" };
+    return null;
+}
+
 type SetupTrust = "trusted" | "untrusted-subcommand" | "none";
 
-function setupScriptTrust(tokens: string[], opts: SensitivePathOptions): SetupTrust {
+function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: number): SetupTrust {
     let i = 0;
     if (INTERPRETERS.has(tokens[0])) {
         if (tokens[1] === "-c") return "none";
@@ -149,6 +185,7 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions): SetupTr
         const t = tokens[i];
         if (t.startsWith("-") || t.includes("=")) continue;
         const name = basename(t);
+        if (depth > 0) return SETUP_SCRIPTS.has(name) ? "untrusted-subcommand" : "none";
         if (!SETUP_SCRIPTS.has(name)) return "none";
         if (name === "prism_manifest.php") {
             let j = i + 1;
@@ -193,7 +230,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             if (match) return match;
             continue;
         }
-        const trust = setupScriptTrust(tokens, opts);
+        const trust = setupScriptTrust(tokens, opts, depth);
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
         const trustedSetup = trust === "trusted";
         for (const token of tokens) {
@@ -229,6 +266,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

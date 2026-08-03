@@ -1,10 +1,15 @@
 // $KYAULabs: sensitive-paths.test.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
 
-import { describe, it } from "node:test";
+
+import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, symlinkSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
     sensitivePathMatch,
     sensitiveOperandCheck,
+    sensitivePatternCheck,
     loadAdditionalSensitivePaths,
 } from "../../.opencode/plugins/sensitive-paths.ts";
 
@@ -117,6 +122,72 @@ describe("loadAdditionalSensitivePaths", () => {
         assert.throws(() => loadAdditionalSensitivePaths("has\u0000nul"), /fail closed/i);
     });
 });
+
+// fixture: tmp/<fakehome>/.ssh + tmp/<project>/leak -> tmp/<fakehome>/.ssh
+describe("canonicalizePath (symlink resolution)", () => {
+    const TMP = mkdtempSync(join(tmpdir(), "sp-symlink-"));
+    const FAKE_HOME = join(TMP, "home");
+    const PROJECT = join(TMP, "project");
+    mkdirSync(join(FAKE_HOME, ".ssh"), { recursive: true });
+    mkdirSync(PROJECT, { recursive: true });
+    symlinkSync(join(FAKE_HOME, ".ssh"), join(PROJECT, "leak"));
+    const OPTS = { projectDir: PROJECT, home: FAKE_HOME };
+    after(() => rmSync(TMP, { recursive: true, force: true }));
+
+    it("resolves a symlinked spelling into the ssh class", () => {
+        assert.equal(sensitivePathMatch(join(PROJECT, "leak/id_rsa"), OPTS)?.className, "ssh");
+        assert.equal(sensitivePathMatch(join(PROJECT, "leak"), OPTS)?.className, "ssh");
+    });
+    it("lexical fallback still matches plain nonexistent paths", () => {
+        assert.equal(sensitivePathMatch(join(FAKE_HOME, ".ssh/id_rsa"), OPTS)?.className, "ssh");
+        assert.equal(sensitivePathMatch(join(PROJECT, ".env"), OPTS)?.className, "env");
+    });
+});
+
+describe("setupScriptTrust is invocation-scoped (ADR-0048)", () => {
+    it("blocks wrapped setup-script invocations touching the user manifest", () => {
+        assert.ok(sensitiveOperandCheck('bash -c "bash migrate-setup.sh ~/.config/opencode/prism.jsonc"', OPTS));
+        assert.ok(sensitiveOperandCheck("env bash migrate-setup.sh ~/.config/opencode/prism.jsonc", OPTS));
+        assert.ok(sensitiveOperandCheck('sh -c "php prism_manifest.php get prism.jsonc - app"', OPTS));
+    });
+    it("still trusts a direct top-level setup-script invocation", () => {
+        assert.equal(
+            sensitiveOperandCheck("bash .github/scripts/migrate-setup.sh ~/.config/opencode/prism.jsonc", OPTS),
+            null,
+        );
+        assert.equal(
+            sensitiveOperandCheck("php .github/scripts/prism_manifest.php get prism.jsonc - app", OPTS),
+            null,
+        );
+    });
+    it("blocks prism_manifest.php env0 even at top level", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php env0 prism.jsonc", OPTS));
+    });
+});
+
+describe("sensitivePatternCheck (glob/grep patterns)", () => {
+    const BASE = OPTS.projectDir;
+    it("blocks absolute and ~ globs inside sensitive classes", () => {
+        assert.ok(sensitivePatternCheck("~/.ssh/*", BASE, OPTS));
+        assert.ok(sensitivePatternCheck("/etc/ssl/private/*.pem", BASE, OPTS));
+    });
+    it("blocks relative patterns whose static prefix lands in a sensitive class", () => {
+        assert.ok(sensitivePatternCheck("**/.env", BASE, OPTS));
+        assert.ok(sensitivePatternCheck("**/.env.*", BASE, OPTS));
+        assert.ok(sensitivePatternCheck("../../.config/opencode/**", BASE, OPTS));
+    });
+    it("allows benign patterns", () => {
+        assert.equal(sensitivePatternCheck("docs/**", BASE, OPTS), null);
+        assert.equal(sensitivePatternCheck("*.php", BASE, OPTS), null);
+        assert.equal(sensitivePatternCheck("**/.env.example", BASE, OPTS), null);
+    });
+    it("fails closed on malformed patterns and passes undefined", () => {
+        assert.ok(sensitivePatternCheck(42, BASE, OPTS));
+        assert.ok(sensitivePatternCheck({ bad: 1 }, BASE, OPTS));
+        assert.equal(sensitivePatternCheck(undefined, BASE, OPTS), null);
+    });
+});
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
