@@ -52,9 +52,9 @@
     "primary": "zai-coding-plan/glm-5.2",
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
+    "frontend": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash",
-    "frontend": "openai/gpt-5.6-sol"
+    "utility": "deepseek/deepseek-v4-flash"
   },
 
   // Six-tier variant map (reasoning effort). Consumed via
@@ -63,9 +63,9 @@
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
+    "frontend": "xhigh",
     "judge": "medium",
-    "utility": "medium",
-    "frontend": "xhigh"
+    "utility": "medium"
   },
 
   // Experimental opencode feature flags, exported as OPENCODE_EXPERIMENTAL_*.
