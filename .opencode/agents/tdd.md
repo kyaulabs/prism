@@ -9,6 +9,11 @@ permission:
     "git push*": "deny"
     "git tag*": "deny"
     "bash .github/scripts/resolve-identity.sh*": allow
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
   lsp: allow
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---

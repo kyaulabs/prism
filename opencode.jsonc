@@ -175,27 +175,27 @@
         "bash": "deny",
         "task": "deny",
         "read": {
+          "*": "allow",
           "*.env": "deny",
           "*.env.*": "deny",
           "*.env.example": "allow",
           "*auth.json*": "deny",
-          "*mcp-auth.json*": "deny",
-          "*": "allow"
+          "*mcp-auth.json*": "deny"
         },
         "glob": {
+          "*": "allow",
           "*.env*": "deny",
-          "*.env.example*": "allow",
-          "*": "allow"
+          "*.env.example*": "allow"
         },
         "grep": {
+          "*": "allow",
           "*.env*": "deny",
-          "*.env.example*": "allow",
-          "*": "allow"
+          "*.env.example*": "allow"
         },
         "list": {
+          "*": "allow",
           "*.env*": "deny",
-          "*.env.example*": "allow",
-          "*": "allow"
+          "*.env.example*": "allow"
         },
         "lsp": "allow",
         "webfetch": "allow",
