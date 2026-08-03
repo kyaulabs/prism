@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_toggles_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup_toggles_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
 
 
 
@@ -21,6 +22,12 @@ MANIFEST_CLI="$REPO_ROOT/.github/scripts/prism_manifest.php"
 
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
+
+# Hermeticity: PrismOpenCodeConfig::compose() preserves inherited
+# OPENCODE_CONFIG_CONTENT plugin entries (plan 2026-07-30), so a
+# direnv-sourced shell would surface a spurious 'plugin' key in the
+# all-off fixtures. The composition base must be empty.
+unset OPENCODE_CONFIG_CONTENT
 
 # ── Shared fixture helpers ────────────────────────────────────────────────────
 
@@ -536,6 +543,7 @@ test_opencode_debug_config_probe
 
 print_summary "setup_toggles_test.sh"
 exit $?
+
 
 
 
