@@ -206,6 +206,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0046-automated-release-pipeline.md` — Split release finalization: local `/release` authors the reviewed release PR; `release.yml` publishes the unsigned tag/Release at the immutable merge SHA and opens the human-merged back-merge PR; partially supersedes ADR-0044's release-origin and manual-finalization clauses
 - `adr/0047-sensitive-path-enforcement.md` — Four-layer sensitive-path enforcement (plugin matcher + permission rules + validator contract + prompt prohibition) with an immutable deny floor, additive-only manifest extension, trusted `/setup` boundary, and documented residual risk; extends ADR-0023/0036/0042
 - `adr/0048-sensitive-path-enforcement-corrections.md` — Corrections to ADR-0047's implementation: project-plus-user union for `security.additional_sensitive_paths`, invocation-scoped `/setup` trust (depth-0 only), last-match-wins permission ordering invariant, deny set for every bash-object agent + `external_directory` check, `glob.pattern`/`grep.include` interception with fail-closed malformed args, symlink canonicalization, manifest-level validation of the security field, canary-only fixtures; partially supersedes ADR-0047
+- `adr/0049-frontend-model-tier-and-tdd-owned-agent.md` — Add schema-v6 FRONTEND model routing and a skill-gated implementation subagent owned by `@tdd`.
 
 ## When to update this file
 

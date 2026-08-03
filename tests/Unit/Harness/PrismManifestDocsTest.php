@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
+
 
 
 
@@ -317,6 +320,42 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 
+    it('records the FRONTEND tier and TDD-owned agent boundary in ADR-0049', function (): void {
+        $root = dirname(__DIR__, 3);
+        $path = $root . '/adr/0049-frontend-model-tier-and-tdd-owned-agent.md';
+
+        Assert::assertFileExists($path);
+
+        $adr = (string) file_get_contents($path);
+        foreach ([
+            '# 0049.',
+            'FRONTEND',
+            'setup_version 6',
+            'openai/gpt-5.6-sol',
+            'xhigh',
+            'subagent_depth',
+            'permission.skill',
+            'frontend-design',
+            'frontend-architecture',
+            'scss-mobile-first',
+            'accessibility',
+            'build → @tdd → @frontend',
+            'Implemented-by:',
+            '/build-assets',
+            'ADR-0043',
+            'weekly window',
+        ] as $required) {
+            Assert::assertStringContainsString($required, $adr);
+        }
+
+        $context = (string) file_get_contents($root . '/CONTEXT.md');
+        Assert::assertMatchesRegularExpression('/## Status\s+Accepted/s', $adr);
+        Assert::assertStringContainsString(
+            'adr/0049-frontend-model-tier-and-tdd-owned-agent.md',
+            $context,
+        );
+    });
+
     it('keeps optional integrations statically off in tracked OpenCode config', function (): void {
         $config = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/opencode.jsonc')->root();
 
@@ -460,6 +499,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 
