@@ -47,6 +47,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -299,6 +302,34 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             '(6 tiers)',
             $context,
             'CONTEXT.md Prism manifest entity must describe six model/variant tiers',
+        );
+    });
+
+    it('attributes the v6 schema to ADR-0049 and records ADR-0043 as its v5 source', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        // ADR-0049 records the v6 advance; ADR-0043 established schema v5 and
+        // its exact schema/five-tier clauses are partially superseded. The
+        // glossary must not credit ADR-0043 with the current v6 schema.
+        Assert::assertStringContainsString(
+            'currently v6 per ADR-0049',
+            $context,
+            'CONTEXT.md Prism manifest entry must attribute the current v6 schema to ADR-0049',
+        );
+        Assert::assertStringNotContainsString(
+            'v6 per ADR-0043',
+            $context,
+            'CONTEXT.md Prism manifest entry must not attribute the v6 schema to ADR-0043',
+        );
+        Assert::assertStringContainsString(
+            'ADR-0043 established schema v5',
+            $context,
+            'CONTEXT.md Prism manifest entry must record ADR-0043 as the v5 source',
+        );
+        Assert::assertStringContainsString(
+            'partially superseded',
+            $context,
+            'CONTEXT.md Prism manifest entry must state ADR-0043 is partially superseded',
         );
     });
 
@@ -570,6 +601,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 
