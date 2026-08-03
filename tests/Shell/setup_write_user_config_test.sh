@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_write_user_config_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup_write_user_config_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -59,11 +60,13 @@ export OPENCODE_MODEL_PLANNER="new/p"
 export OPENCODE_MODEL_DESIGN="new/d"
 export OPENCODE_MODEL_JUDGE="new/j"
 export OPENCODE_MODEL_UTILITY="new/u"
+export OPENCODE_MODEL_FRONTEND="new/f"
 export OPENCODE_VARIANT_PRIMARY="max"
 export OPENCODE_VARIANT_PLANNER="high"
 export OPENCODE_VARIANT_DESIGN="high"
 export OPENCODE_VARIANT_JUDGE="medium"
 export OPENCODE_VARIANT_UTILITY="medium"
+export OPENCODE_VARIANT_FRONTEND="high"
 
 # ── Test 1: missing file created as JSONC at 0600 ─────────────────────────
 echo ""
@@ -75,10 +78,14 @@ if [ "$WR_RC" -eq 0 ]; then pass "writer exited 0"; else fail "writer exited $WR
 if [ -f "$CFG" ]; then pass "missing file created (with parent dir)"; else fail "file not created"; fi
 PRI=$(decode_field "$CFG" '.models.primary' 2>/dev/null)
 NM=$(decode_field "$CFG" '.signed_off_by_name' 2>/dev/null)
+FR=$(decode_field "$CFG" '.models.frontend' 2>/dev/null)
+VF=$(decode_field "$CFG" '.variants.frontend' 2>/dev/null)
 if [ "$PRI" = "new/m" ]; then pass "fresh file has correct models.primary"; else fail "wrong primary: '$PRI'"; fi
 if [ "$NM" = "New Name" ]; then pass "fresh file has correct signed_off_by_name"; else fail "wrong name: '$NM'"; fi
+if [ "$FR" = "new/f" ]; then pass "fresh file has correct models.frontend"; else fail "wrong frontend model: '$FR'"; fi
+if [ "$VF" = "high" ]; then pass "fresh file has correct variants.frontend"; else fail "wrong frontend variant: '$VF'"; fi
 if grep -q '//' "$CFG"; then pass "fresh file is genuine JSONC (carries comments)"; else fail "fresh file is not JSONC"; fi
-if php "$MANIFEST_CLI" validate "$CFG" user >/dev/null 2>&1; then pass "fresh file validates as user v5"; else fail "fresh file fails user validation"; fi
+if php "$MANIFEST_CLI" validate "$CFG" user >/dev/null 2>&1; then pass "fresh file validates as user v6"; else fail "fresh file fails user validation"; fi
 
 # ── Test 2: empty required var aborts without writing ─────────────────────
 echo "── Test 2: empty required var aborts without writing ──"
@@ -94,7 +101,7 @@ T3=$(mktemp -d); register_temp_dir "$T3"
 CFG="$T3/prism.jsonc"
 cat > "$CFG" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "models": {
     "primary": "old/m",
     "custom_model": "KEEP-ME"
@@ -106,9 +113,13 @@ if [ "$WR_RC" -eq 0 ]; then pass "writer exited 0"; else fail "writer exited $WR
 PRI=$(decode_field "$CFG" '.models.primary')
 CUST=$(decode_field "$CFG" '.models.custom_model')
 JUDGE=$(decode_field "$CFG" '.models.judge')
+FRONT=$(decode_field "$CFG" '.models.frontend')
+VFRONT=$(decode_field "$CFG" '.variants.frontend')
 if [ "$PRI" = "new/m" ]; then pass "models.primary updated"; else fail "models.primary not updated: '$PRI'"; fi
 if [ "$CUST" = "KEEP-ME" ]; then pass "custom sibling models.custom_model preserved"; else fail "sibling lost: '$CUST'"; fi
 if [ "$JUDGE" = "new/j" ]; then pass "missing sibling models.judge added"; else fail "models.judge not added: '$JUDGE'"; fi
+if [ "$FRONT" = "new/f" ]; then pass "models.frontend override written"; else fail "models.frontend not written: '$FRONT'"; fi
+if [ "$VFRONT" = "high" ]; then pass "variants.frontend override written"; else fail "variants.frontend not written: '$VFRONT'"; fi
 
 # ── Test 4: env/experimental/custom fields preserved ──────────────────────
 echo "── Test 4: env/experimental/custom fields preserved ──"
@@ -116,7 +127,7 @@ T4=$(mktemp -d); register_temp_dir "$T4"
 CFG="$T4/prism.jsonc"
 cat > "$CFG" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "env": {
     "deepseek_api_key": "sk-KEEP-ME",
     "searxng_url": "http://sx:8080"
@@ -148,7 +159,7 @@ cat > "$CFG" <<'JSON'
 // top-of-file header KEEP
 {
   // standalone line comment KEEP
-  "setup_version": 5,
+  "setup_version": 6,
   "models": {
     "primary": "old/m"
   }
@@ -247,6 +258,12 @@ if echo "$FULL_DECODED" | jq -e '.models' >/dev/null 2>&1; then
     fail "toggles mode materialized models"; else pass "no models in toggles write"; fi
 if echo "$FULL_DECODED" | jq -e '.variants' >/dev/null 2>&1; then
     fail "toggles mode materialized variants"; else pass "no variants in toggles write"; fi
+# The FRONTEND overrides must stay absent in toggle-only mode — the user
+# manifest keeps inheriting project defaults rather than pinning personal keys.
+if echo "$FULL_DECODED" | jq -e '.models.frontend' >/dev/null 2>&1; then
+    fail "toggles mode materialized models.frontend"; else pass "no models.frontend in toggles write"; fi
+if echo "$FULL_DECODED" | jq -e '.variants.frontend' >/dev/null 2>&1; then
+    fail "toggles mode materialized variants.frontend"; else pass "no variants.frontend in toggles write"; fi
 
 # ── Test 11: toggles mode preserves existing comments, env secrets, and
 #    unrelated keys ─────────────────────────────────────────────────────
@@ -256,7 +273,7 @@ CFG="$T11/prism.jsonc"
 cat > "$CFG" <<'JSON'
 // User manifest KEEP
 {
-  "setup_version": 5,
+  "setup_version": 6,
   // deepseek key KEEP
   "env": {
     "deepseek_api_key": "sk-CANARY",
@@ -316,6 +333,7 @@ if php "$MANIFEST_CLI" validate "$CFG" user >/dev/null 2>&1; then pass "file val
 # ── Summary ──────────────────────────────────────────────────────────────
 print_summary "setup_write_user_config_test.sh"
 exit $?
+
 
 
 

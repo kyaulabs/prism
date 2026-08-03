@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
+
 
 
 
@@ -30,14 +33,14 @@ use KYAULabs\Prism\PrismJsoncException;
 use KYAULabs\Prism\PrismManifest;
 
 /**
- * Build a complete, valid schema-v5 project manifest for validation tests.
+ * Build a complete, valid schema-v6 project manifest for validation tests.
  *
  * @return \stdClass
  */
 function pm_valid_project(): \stdClass
 {
     return (object) [
-        'setup_version' => 5,
+        'setup_version' => 6,
         'timestamp' => '2026-07-29T10:00:00+00:00',
         'configured' => true,
         'app' => 'prism',
@@ -49,10 +52,10 @@ function pm_valid_project(): \stdClass
         'scaffold_mode' => 'skip',
         'project_folder' => null,
         'models' => (object) [
-            'primary' => 'm1', 'planner' => 'm2', 'design' => 'm3', 'judge' => 'm4', 'utility' => 'm5',
+            'primary' => 'm1', 'planner' => 'm2', 'design' => 'm3', 'judge' => 'm4', 'utility' => 'm5', 'frontend' => 'm6',
         ],
         'variants' => (object) [
-            'primary' => 'v1', 'planner' => 'v2', 'design' => 'v3', 'judge' => 'v4', 'utility' => 'v5',
+            'primary' => 'v1', 'planner' => 'v2', 'design' => 'v3', 'judge' => 'v4', 'utility' => 'v5', 'frontend' => 'v6',
         ],
         'experimental' => (object) [
             'lsp_tool' => true, 'scout' => true, 'background_subagents' => false,
@@ -98,8 +101,8 @@ function pm_set_dot(\stdClass $root, string $dotPath, mixed $value): void
 describe('PrismManifest::resolve', function (): void {
     it('overlays user fields recursively without erasing project siblings', function (): void {
         $resolved = PrismManifest::resolve(
-            (object) ['setup_version' => 5, 'models' => (object) ['primary' => 'project', 'judge' => 'judge']],
-            (object) ['setup_version' => 5, 'models' => (object) ['primary' => 'user']],
+            (object) ['setup_version' => 6, 'models' => (object) ['primary' => 'project', 'judge' => 'judge']],
+            (object) ['setup_version' => 6, 'models' => (object) ['primary' => 'user']],
         );
 
         expect($resolved->models)->toEqual((object) ['primary' => 'user', 'judge' => 'judge']);
@@ -183,13 +186,21 @@ describe('PrismManifest::resolve', function (): void {
 });
 
 describe('PrismManifest::validateProject', function (): void {
-    it('accepts a complete schema-v5 project manifest', function (): void {
+    it('accepts a complete schema-v6 project manifest', function (): void {
         $validate = function (): void {
             PrismManifest::validateProject(pm_valid_project());
         };
 
         expect($validate)->not->toThrow(PrismJsoncException::class);
     });
+
+    it('requires frontend model and variant values in schema-v6 projects', function (string $section): void {
+        $manifest = pm_valid_project();
+        unset($manifest->{$section}->frontend);
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class, "missing required field: {$section}.frontend");
+    })->with(['models', 'variants']);
 
     it('rejects a project manifest missing a required field', function (string $field): void {
         $manifest = pm_valid_project();
@@ -286,10 +297,21 @@ describe('PrismManifest::validateProject', function (): void {
 });
 
 describe('PrismManifest::validateUser', function (): void {
+    it('allows a schema-v6 user manifest to inherit frontend defaults', function (): void {
+        $user = (object) ['setup_version' => 6];
+
+        expect(fn () => PrismManifest::validateUser($user))
+            ->not->toThrow(PrismJsoncException::class);
+
+        $resolved = PrismManifest::resolve(pm_valid_project(), $user);
+        expect($resolved->models->frontend)->toBe('m6')
+            ->and($resolved->variants->frontend)->toBe('v6');
+    });
+
     it('accepts a minimal partial user manifest', function (): void {
         $validate = function (): void {
             PrismManifest::validateUser((object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'models' => (object) ['primary' => 'my-model'],
             ]);
         };
@@ -302,7 +324,7 @@ describe('PrismManifest::validateUser', function (): void {
             ->toThrow(PrismJsoncException::class);
     });
 
-    it('requires setup_version to be exactly 5 when present', function (): void {
+    it('requires setup_version to be exactly 6 when present', function (): void {
         expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 4]))
             ->toThrow(PrismJsoncException::class);
     });
@@ -315,7 +337,7 @@ describe('PrismManifest::validateUser', function (): void {
     it('accepts non-empty env overrides in a user manifest', function (): void {
         $validate = function (): void {
             PrismManifest::validateUser((object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'env' => (object) ['deepseek_api_key' => 'user-secret'],
             ]);
         };
@@ -327,14 +349,14 @@ describe('PrismManifest::validateUser', function (): void {
         expect(fn () => PrismManifest::validateUser($user))
             ->toThrow(PrismJsoncException::class);
     })->with([
-        'setup_version not 5' => [(object) ['setup_version' => 4]],
-        'configured non-bool' => [(object) ['setup_version' => 5, 'configured' => 'yes']],
-        'accent bad enum' => [(object) ['setup_version' => 5, 'accent' => 'red']],
-        'scaffold_mode bad enum' => [(object) ['setup_version' => 5, 'scaffold_mode' => 'fast']],
-        'app empty' => [(object) ['setup_version' => 5, 'app' => '']],
-        'models.design empty' => [(object) ['setup_version' => 5, 'models' => (object) ['design' => '']]],
-        'experimental non-bool' => [(object) ['setup_version' => 5, 'experimental' => (object) ['scout' => 'yes']]],
-        'env non-string value' => [(object) ['setup_version' => 5, 'env' => (object) ['deepseek_api_key' => 5]]],
+        'setup_version not 6' => [(object) ['setup_version' => 4]],
+        'configured non-bool' => [(object) ['setup_version' => 6, 'configured' => 'yes']],
+        'accent bad enum' => [(object) ['setup_version' => 6, 'accent' => 'red']],
+        'scaffold_mode bad enum' => [(object) ['setup_version' => 6, 'scaffold_mode' => 'fast']],
+        'app empty' => [(object) ['setup_version' => 6, 'app' => '']],
+        'models.design empty' => [(object) ['setup_version' => 6, 'models' => (object) ['design' => '']]],
+        'experimental non-bool' => [(object) ['setup_version' => 6, 'experimental' => (object) ['scout' => 'yes']]],
+        'env non-string value' => [(object) ['setup_version' => 6, 'env' => (object) ['deepseek_api_key' => 5]]],
     ]);
 });
 
@@ -342,11 +364,11 @@ describe('PrismManifest::resolve sensitive-path union', function (): void {
     it('unions project and user additions order-preserving with exact-string dedup', function (): void {
         $resolved = PrismManifest::resolve(
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['~/vault/', '/etc/proj/']],
             ],
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['/etc/user/', '/etc/proj/']],
             ],
         );
@@ -357,9 +379,9 @@ describe('PrismManifest::resolve sensitive-path union', function (): void {
 
     it('keeps the user additions when only the user tier defines them', function (): void {
         $resolved = PrismManifest::resolve(
-            (object) ['setup_version' => 5],
+            (object) ['setup_version' => 6],
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['/etc/user/']],
             ],
         );
@@ -370,10 +392,10 @@ describe('PrismManifest::resolve sensitive-path union', function (): void {
     it('keeps the project additions when the user tier omits the security field', function (): void {
         $resolved = PrismManifest::resolve(
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
             ],
-            (object) ['setup_version' => 5],
+            (object) ['setup_version' => 6],
         );
 
         expect($resolved->security->additional_sensitive_paths)->toBe(['~/vault/']);
@@ -382,10 +404,10 @@ describe('PrismManifest::resolve sensitive-path union', function (): void {
     it('restores the project additions when the user tier clobbers security with a scalar', function (): void {
         $resolved = PrismManifest::resolve(
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
             ],
-            (object) ['setup_version' => 5, 'security' => 'junk'],
+            (object) ['setup_version' => 6, 'security' => 'junk'],
         );
 
         expect($resolved->security)->toBeObject()
@@ -395,11 +417,11 @@ describe('PrismManifest::resolve sensitive-path union', function (): void {
     it('skips a non-array list from a tier instead of letting it drop the other tier', function (): void {
         $resolved = PrismManifest::resolve(
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
             ],
             (object) [
-                'setup_version' => 5,
+                'setup_version' => 6,
                 'security' => (object) ['additional_sensitive_paths' => 'not-an-array'],
             ],
         );
@@ -419,7 +441,7 @@ describe('PrismManifest sensitive-path field validation', function (): void {
 
     it('accepts a valid additional_sensitive_paths list in a user manifest', function (): void {
         expect(fn () => PrismManifest::validateUser((object) [
-            'setup_version' => 5,
+            'setup_version' => 6,
             'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
         ]))->not->toThrow(PrismJsoncException::class);
     });
@@ -428,7 +450,7 @@ describe('PrismManifest sensitive-path field validation', function (): void {
         expect(fn () => PrismManifest::validateProject(pm_valid_project()))
             ->not->toThrow(PrismJsoncException::class);
 
-        expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 5]))
+        expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 6]))
             ->not->toThrow(PrismJsoncException::class);
     });
 
@@ -440,7 +462,7 @@ describe('PrismManifest sensitive-path field validation', function (): void {
             ->not->toThrow(PrismJsoncException::class);
 
         expect(fn () => PrismManifest::validateUser((object) [
-            'setup_version' => 5,
+            'setup_version' => 6,
             'security' => (object) [],
         ]))->not->toThrow(PrismJsoncException::class);
     });
@@ -461,7 +483,7 @@ describe('PrismManifest sensitive-path field validation', function (): void {
     ]);
 
     it('rejects malformed additional_sensitive_paths in a user manifest', function (string $dotPath, mixed $bad): void {
-        $user = (object) ['setup_version' => 5];
+        $user = (object) ['setup_version' => 6];
         $user->security = (object) [];
         pm_set_dot($user, $dotPath, $bad);
 
@@ -476,7 +498,7 @@ describe('PrismManifest sensitive-path field validation', function (): void {
 });
 
 describe('mcp and plugins integration preferences', function (): void {
-    it('accepts schema-v5 project manifests that predate optional integration sections', function (): void {
+    it('accepts schema-v6 project manifests that predate optional integration sections', function (): void {
         $manifest = pm_valid_project();
         unset($manifest->mcp, $manifest->plugins);
 
@@ -494,7 +516,7 @@ describe('mcp and plugins integration preferences', function (): void {
 
     it('accepts partial user integration overrides', function (): void {
         expect(fn () => PrismManifest::validateUser((object) [
-            'setup_version' => 5,
+            'setup_version' => 6,
             'mcp' => (object) ['searxng' => true],
             'plugins' => (object) ['opencode_quota' => true],
         ]))->not->toThrow(PrismJsoncException::class);
@@ -510,6 +532,7 @@ describe('mcp and plugins integration preferences', function (): void {
             ->and($resolved->mcp->searxng)->toBeTrue();
     });
 });
+
 
 
 

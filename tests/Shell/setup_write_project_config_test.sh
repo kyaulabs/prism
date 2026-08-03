@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_write_project_config_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup_write_project_config_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -68,23 +69,25 @@ export OPENCODE_MODEL_PLANNER="new/p"
 export OPENCODE_MODEL_DESIGN="new/d"
 export OPENCODE_MODEL_JUDGE="new/j"
 export OPENCODE_MODEL_UTILITY="new/u"
+export OPENCODE_MODEL_FRONTEND="new/f"
 export OPENCODE_VARIANT_PRIMARY="max"
 export OPENCODE_VARIANT_PLANNER="high"
 export OPENCODE_VARIANT_DESIGN="high"
 export OPENCODE_VARIANT_JUDGE="medium"
 export OPENCODE_VARIANT_UTILITY="medium"
+export OPENCODE_VARIANT_FRONTEND="high"
 export SETUP_SCAFFOLD_MODE="new"
 export SETUP_PROJECT_FOLDER="/repo/.test-target"
 
-# write_valid_project_fixture <path> — write a complete valid schema-v5 project
+# write_valid_project_fixture <path> — write a complete valid schema-v6 project
 # manifest with JSONC comments and a custom/unknown field to prove preservation.
 write_valid_project_fixture() {
     local path="$1"
     cat > "$path" <<'FIX'
-// Project fixture — schema v5 (ADR-0043)
+// Project fixture — schema v6 (ADR-0043)
 {
-  // Schema version — must be exactly 5.
-  "setup_version": 5,
+  // Schema version — must be exactly 6.
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "oldapp",
@@ -102,14 +105,16 @@ write_valid_project_fixture() {
     "planner": "old/p",
     "design": "old/d",
     "judge": "old/j",
-    "utility": "old/u"
+    "utility": "old/u",
+    "frontend": "old/f"
   },
   "variants": {
     "primary": "low",
     "planner": "low",
     "design": "low",
     "judge": "low",
-    "utility": "low"
+    "utility": "low",
+    "frontend": "low"
   },
   "experimental": {
     "lsp_tool": true,
@@ -137,13 +142,17 @@ SM=$(decode_field "$CFG" '.scaffold_mode')
 PF=$(decode_field "$CFG" '.project_folder | if . == null then "NULL" else . end')
 PRI=$(decode_field "$CFG" '.models.primary')
 ACC=$(decode_field "$CFG" '.accent')
+FR=$(decode_field "$CFG" '.models.frontend')
+VF=$(decode_field "$CFG" '.variants.frontend')
 if [ "$APP" = "myapp" ]; then pass "fresh parent file has correct app"; else fail "wrong app: '$APP'"; fi
 if [ "$SM" = "new" ]; then pass "fresh parent file has correct scaffold_mode (actual bookkeeping)"; else fail "wrong scaffold_mode: '$SM'"; fi
 if [ "$PF" = "/repo/.test-target" ]; then pass "fresh parent file has correct project_folder"; else fail "wrong project_folder: '$PF'"; fi
 if [ "$PRI" = "new/m" ]; then pass "fresh parent file has correct models.primary"; else fail "wrong primary: '$PRI'"; fi
+if [ "$FR" = "new/f" ]; then pass "fresh parent file has correct models.frontend"; else fail "wrong frontend model: '$FR'"; fi
+if [ "$VF" = "high" ]; then pass "fresh parent file has correct variants.frontend"; else fail "wrong frontend variant: '$VF'"; fi
 if [ "$ACC" = "light-purple" ]; then pass "fresh parent file has correct accent"; else fail "wrong accent: '$ACC'"; fi
 if grep -q '//' "$CFG"; then pass "fresh file is genuine JSONC (carries comments)"; else fail "fresh file is not JSONC"; fi
-if php "$MANIFEST_CLI" validate "$CFG" project >/dev/null 2>&1; then pass "fresh file validates as project v5"; else fail "fresh file fails project validation"; fi
+if php "$MANIFEST_CLI" validate "$CFG" project >/dev/null 2>&1; then pass "fresh file validates as project v6"; else fail "fresh file fails project validation"; fi
 
 # ── Test 2: target mode writes skip/null + interview values ─────────────────
 echo "── Test 2: target mode writes skip/null + interview values ──"
@@ -160,7 +169,7 @@ if [ "$SM" = "skip" ]; then pass "target file has scaffold_mode skip"; else fail
 if [ "$PF" = "NULL" ]; then pass "target file has project_folder null"; else fail "target project_folder not null: '$PF'"; fi
 if [ "$APP" = "myapp" ]; then pass "target file has interview app written"; else fail "target app not written: '$APP'"; fi
 if [ "$REPO" = "myorg/myapp" ]; then pass "target file has interview repo written"; else fail "target repo not written: '$REPO'"; fi
-if php "$MANIFEST_CLI" validate "$CFG" project >/dev/null 2>&1; then pass "target file validates as project v5"; else fail "target file fails project validation"; fi
+if php "$MANIFEST_CLI" validate "$CFG" project >/dev/null 2>&1; then pass "target file validates as project v6"; else fail "target file fails project validation"; fi
 
 # ── Test 3: comments and unknown fields preserved ──────────────────────────
 echo "── Test 3: comments and unknown fields preserved ──"
@@ -284,6 +293,7 @@ if [ "$DS_POST" = "false" ]; then pass "project mcp still false after suspected 
 # ── Summary ──────────────────────────────────────────────────────────────
 print_summary "setup_write_project_config_test.sh"
 exit $?
+
 
 
 

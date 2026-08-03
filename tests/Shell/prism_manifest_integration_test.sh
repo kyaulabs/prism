@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_manifest_integration_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: prism_manifest_integration_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -59,14 +60,14 @@ make_user_home() {
 	mkdir -p "$1/.config/opencode"
 }
 
-# write_default_project_manifest <dir> — write the standard commented v5
+# write_default_project_manifest <dir> — write the standard commented v6
 # project prism.jsonc carrying the shipped defaults.
 write_default_project_manifest() {
 	local dir="$1"
 	cat > "$dir/prism.jsonc" <<'JSONC'
-// Project manifest (schema v5) — fixture
+// Project manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -82,14 +83,16 @@ write_default_project_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -111,14 +114,14 @@ write_default_project_manifest() {
 JSONC
 }
 
-# write_security_manifest <dir> <paths-json> — write the standard v5 project
+# write_security_manifest <dir> <paths-json> — write the standard v6 project
 # manifest carrying security.additional_sensitive_paths set to <paths-json>.
 write_security_manifest() {
 	local dir="$1" paths="$2"
 	cat > "$dir/prism.jsonc" <<JSONC
-// Project manifest (schema v5) — fixture
+// Project manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -134,14 +137,16 @@ write_security_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -274,7 +279,7 @@ test_cross_consumer_consistency() {
 		return
 	}
 
-		# ── env0: all twenty pairs consistent with decode ──
+		# ── env0: all twenty-two pairs consistent with decode ──
 	local env0_out env0_err
 	env0_out=$(mktemp)
 	env0_err=$(mktemp)
@@ -461,9 +466,9 @@ test_migration_rollback
 
 # ── Test 3: Later legacy detection warns (.envrc with residual setup.json) ────
 #
-# When a v5 prism.jsonc is present but a v4 setup.json is also found in the
+# When a v6 prism.jsonc is present but a v4 setup.json is also found in the
 # user's opencode config dir, .envrc must print a deprecation warning AND NOT
-# read the legacy. The v5 values must be exported.
+# read the legacy. The v6 values must be exported.
 
 test_legacy_detection_warns() {
 	local project_root fake_home stderr_file
@@ -573,7 +578,7 @@ test_metacharacters_remain_data() {
 	# JSON needs \" to escape double-quotes; everything else is literal.
 	cat > "$project_root/prism.jsonc" <<'JSONC'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -589,14 +594,16 @@ test_metacharacters_remain_data() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -701,7 +708,7 @@ test_diagnostics_redacted() {
 	# validate command throws PrismJsoncException with field path only.
 	cat > "$project_root/prism.jsonc" <<JSONC
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -717,14 +724,16 @@ test_diagnostics_redacted() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -827,7 +836,7 @@ test_full_round_trip() {
 	# ── Phase 1: Create v4 legacy ──
 	write_complete_v4_project "$project_root" "Roundtrip User" "roundtrip@test.com"
 
-	# ── Phase 2: Migrate v4 → v5 via the shell engine ──
+	# ── Phase 2: Migrate v4 → v6 via the shell engine ──
 	set +e
 	HOME="$fake_home" GIT_CONFIG_NOSYSTEM=1 \
 		MIGRATE_PROJECT_OLD="$legacy" MIGRATE_PROJECT_NEW="$manifest" \
@@ -1091,7 +1100,7 @@ test_env_redaction() {
 	# User manifest carrying a real secret — the legitimate secret home.
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "env": {
     "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK",
     "searxng_url": ""
@@ -1199,7 +1208,7 @@ test_security_paths_union() {
 	write_security_manifest "$project_root" '["~/vault/"]'
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["/etc/myapp/keys/"]
   }
@@ -1222,7 +1231,7 @@ JSON
 	# ── Case B: user manifest without the security field → project list passes through ──
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "models": {
     "primary": "my-model"
   }
@@ -1245,7 +1254,7 @@ JSON
 	# ── Case C: identical entries deduplicate ──
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["~/vault/"]
   }
@@ -1303,7 +1312,7 @@ test_security_paths_validation() {
 	fi
 	cat > "$manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["/etc/myapp/keys/"]
   }
@@ -1350,6 +1359,7 @@ test_security_paths_validation
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 

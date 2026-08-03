@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
+
 
 
 
@@ -143,7 +146,7 @@ function pm_clean(string $path): void
 }
 
 /**
- * A complete valid schema-v5 project manifest as JSONC text.
+ * A complete valid schema-v6 project manifest as JSONC text.
  *
  * @return string
  */
@@ -152,7 +155,7 @@ function pm_valid_project_jsonc(): string
     return <<<'JSONC'
 {
   // project manifest
-  "setup_version": 5,
+  "setup_version": 6,
   "timestamp": "2026-07-29T10:00:00+00:00",
   "configured": true,
   "app": "prism",
@@ -163,8 +166,8 @@ function pm_valid_project_jsonc(): string
   "accent": "sky-blue",
   "scaffold_mode": "skip",
   "project_folder": null,
-  "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5" },
-  "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5" },
+  "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5", "frontend": "m6" },
+  "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5", "frontend": "v6" },
   "experimental": { "lsp_tool": true, "scout": true, "background_subagents": false },
   "mcp": { "deepseek_websearch": false, "searxng": false },
   "plugins": { "opencode_quota": false },
@@ -219,7 +222,7 @@ describe('prism_manifest validate', function (): void {
     });
 
     it('exits 1 for an invalid project manifest', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5, "configured": true }');
+        $fixture = pm_fixture('{ "setup_version": 6, "configured": true }');
 
         try {
             [$code, $stdout, $stderr] = pm_dispatch(['validate', $fixture, 'project']);
@@ -233,7 +236,7 @@ describe('prism_manifest validate', function (): void {
     });
 
     it('exits 0 for a valid partial user manifest', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5, "models": { "primary": "x" } }');
+        $fixture = pm_fixture('{ "setup_version": 6, "models": { "primary": "x" } }');
 
         try {
             [$code, $stdout, $stderr] = pm_dispatch(['validate', $fixture, 'user']);
@@ -261,7 +264,7 @@ describe('prism_manifest validate', function (): void {
 });
 
 describe('prism_manifest env0', function (): void {
-    it('emits exactly twenty NUL-separated name/value pairs with bool coercion', function (): void {
+    it('emits exactly twenty-two NUL-separated name/value pairs with bool coercion', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
 
         try {
@@ -273,17 +276,21 @@ describe('prism_manifest env0', function (): void {
 
             $parts = pm_parse_nul_pairs($stdout);
 
-            expect($parts)->toHaveCount(40)
+            expect($parts)->toHaveCount(44)
                 ->and($parts[0])->toBe('OPENCODE_MODEL_PRIMARY')
                 ->and($parts[1])->toBe('m1')
-                ->and($parts[20])->toBe('OPENCODE_EXPERIMENTAL_LSP_TOOL')
-                ->and($parts[21])->toBe('true')
-                ->and($parts[26])->toBe('DEEPSEEK_API_KEY')
-                ->and($parts[27])->toBe('')
-                ->and($parts[28])->toBe('SEARXNG_URL')
-                ->and($parts[29])->toBe('')
-                ->and($parts[30])->toBe('OPENCODE_SENSITIVE_PATHS')
-                ->and($parts[31])->toBe('');
+                ->and($parts[10])->toBe('OPENCODE_MODEL_FRONTEND')
+                ->and($parts[11])->toBe('m6')
+                ->and($parts[22])->toBe('OPENCODE_VARIANT_FRONTEND')
+                ->and($parts[23])->toBe('v6')
+                ->and($parts[24])->toBe('OPENCODE_EXPERIMENTAL_LSP_TOOL')
+                ->and($parts[25])->toBe('true')
+                ->and($parts[30])->toBe('DEEPSEEK_API_KEY')
+                ->and($parts[31])->toBe('')
+                ->and($parts[32])->toBe('SEARXNG_URL')
+                ->and($parts[33])->toBe('')
+                ->and($parts[34])->toBe('OPENCODE_SENSITIVE_PATHS')
+                ->and($parts[35])->toBe('');
         } finally {
             pm_clean($project);
         }
@@ -304,7 +311,7 @@ describe('prism_manifest env0', function (): void {
 
     it('overlays a user manifest onto the project defaults', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "models": { "primary": "overridden" }, "env": { "deepseek_api_key": "user-key" } }');
+        $user = pm_fixture('{ "setup_version": 6, "models": { "primary": "overridden" }, "env": { "deepseek_api_key": "user-key" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -312,7 +319,7 @@ describe('prism_manifest env0', function (): void {
 
             expect($code)->toBe(0)
                 ->and($parts[1])->toBe('overridden')
-                ->and($parts[27])->toBe('user-key');
+                ->and($parts[31])->toBe('user-key');
         } finally {
             pm_clean($project);
             pm_clean($user);
@@ -374,7 +381,7 @@ describe('prism_manifest env0', function (): void {
 
     it('produces effective MCP enabled true when user preference and prerequisite are both satisfied', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "mcp": { "searxng": true }, "env": { "searxng_url": "https://search.example" } }');
+        $user = pm_fixture('{ "setup_version": 6, "mcp": { "searxng": true }, "env": { "searxng_url": "https://search.example" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -401,7 +408,7 @@ describe('prism_manifest env0', function (): void {
 
     it('keeps diagnostic true but effective enablement false when prerequisite is missing', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "" } }');
+        $user = pm_fixture('{ "setup_version": 6, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -504,7 +511,7 @@ describe('prism_manifest env0', function (): void {
     it('emits no secret canary in inline JSON', function (): void {
         $canary = 'SK-SECRET-CANARY-9876543210';
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "' . $canary . '" } }');
+        $user = pm_fixture('{ "setup_version": 6, "mcp": { "deepseek_websearch": true }, "env": { "deepseek_api_key": "' . $canary . '" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -524,10 +531,10 @@ describe('prism_manifest env0', function (): void {
         }
     });
 
-    it('emits false diagnostics for old schema-v5 fixtures without mcp or plugins sections', function (): void {
+    it('emits false diagnostics for schema-v6 fixtures without mcp or plugins sections', function (): void {
         $oldFixture = pm_fixture(<<<'JSONC'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "timestamp": "2026-07-29T10:00:00+00:00",
   "configured": true,
   "app": "prism",
@@ -538,8 +545,8 @@ describe('prism_manifest env0', function (): void {
   "accent": "sky-blue",
   "scaffold_mode": "skip",
   "project_folder": null,
-  "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5" },
-  "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5" },
+  "models": { "primary": "m1", "planner": "m2", "design": "m3", "judge": "m4", "utility": "m5", "frontend": "m6" },
+  "variants": { "primary": "v1", "planner": "v2", "design": "v3", "judge": "v4", "utility": "v5", "frontend": "v6" },
   "experimental": { "lsp_tool": true, "scout": true, "background_subagents": false },
   "env": { "deepseek_api_key": "", "searxng_url": "" }
 }
@@ -643,7 +650,7 @@ describe('prism_manifest resolved-load validation', function (): void {
 
     it('env0 fails closed when the user manifest is malformed', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "app": ');
+        $user = pm_fixture('{ "setup_version": 6, "app": ');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -684,7 +691,7 @@ describe('prism_manifest resolved-load validation', function (): void {
 
     it('env0 accepts a valid project plus a valid partial user manifest', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "models": { "primary": "partial" } }');
+        $user = pm_fixture('{ "setup_version": 6, "models": { "primary": "partial" } }');
 
         try {
             [$code] = pm_dispatch(['env0', $project, $user]);
@@ -700,7 +707,7 @@ describe('prism_manifest resolved-load validation', function (): void {
 describe('prism_manifest NUL framing', function (): void {
     it('env0 output ends with a trailing NUL byte when the last value is non-empty', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
+        $user = pm_fixture('{ "setup_version": 6, "env": { "searxng_url": "http://x:8080" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -726,9 +733,9 @@ describe('prism_manifest NUL framing', function (): void {
         }
     });
 
-    it('env0 round-trips all twenty NUL-delimited pairs through a read -d loop', function (): void {
+    it('env0 round-trips all twenty-two NUL-delimited pairs through a read -d loop', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
+        $user = pm_fixture('{ "setup_version": 6, "env": { "searxng_url": "http://x:8080" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['env0', $project, $user]);
@@ -753,8 +760,10 @@ describe('prism_manifest NUL framing', function (): void {
             }
 
             expect($code)->toBe(0)
-                ->and($pairs)->toHaveCount(20)
+                ->and($pairs)->toHaveCount(22)
                 ->and($pairs['OPENCODE_MODEL_PRIMARY'])->toBe('m1')
+                ->and($pairs['OPENCODE_MODEL_FRONTEND'])->toBe('m6')
+                ->and($pairs['OPENCODE_VARIANT_FRONTEND'])->toBe('v6')
                 ->and($pairs['SEARXNG_URL'])->toBe('http://x:8080')
                 ->and($pairs['OPENCODE_SENSITIVE_PATHS'])->toBe('');
         } finally {
@@ -807,7 +816,7 @@ describe('prism_manifest get', function (): void {
 
     it('redacts an env.* value as [redacted] and never prints the secret', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
+        $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['get', $project, $user, 'env.deepseek_api_key']);
@@ -831,7 +840,7 @@ describe('prism_manifest values0', function (): void {
             $parts = pm_parse_nul_pairs($stdout);
 
             expect($code)->toBe(0)
-                ->and($parts)->toBe(['setup_version', '5', 'models.primary', 'm1', 'project_folder', '']);
+                ->and($parts)->toBe(['setup_version', '6', 'models.primary', 'm1', 'project_folder', '']);
         } finally {
             pm_clean($project);
         }
@@ -839,7 +848,7 @@ describe('prism_manifest values0', function (): void {
 
     it('reflects user overlay in the single snapshot', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "signed_off_by_name": "alice" }');
+        $user = pm_fixture('{ "setup_version": 6, "signed_off_by_name": "alice" }');
 
         try {
             [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name', 'signed_off_by_email']);
@@ -868,7 +877,7 @@ describe('prism_manifest values0', function (): void {
 
     it('fails closed when a value contains a NUL byte', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "signed_off_by_name": "evil\u0000inject" }');
+        $user = pm_fixture('{ "setup_version": 6, "signed_off_by_name": "evil\u0000inject" }');
 
         try {
             [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name']);
@@ -883,7 +892,7 @@ describe('prism_manifest values0', function (): void {
 
     it('redacts an env.* value in the pair stream without leaking the secret', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
-        $user = pm_fixture('{ "setup_version": 5, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
+        $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
             [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name', 'env.deepseek_api_key']);
@@ -986,7 +995,7 @@ describe('prism_manifest patch', function (): void {
     });
 
     it('validates a partial user manifest on a user-mode patch', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5 }');
+        $fixture = pm_fixture('{ "setup_version": 6 }');
 
         try {
             [$code] = pm_dispatch(['patch', $fixture, 'user', '0600'], '{"models.primary": "u1"}');
@@ -1060,7 +1069,7 @@ describe('prism_manifest patch', function (): void {
 });
 
 describe('prism_manifest migrate-preview', function (): void {
-    it('projects a legacy source to normalized v5 JSON without filesystem mutation', function (): void {
+    it('projects a legacy source to normalized v6 JSON without filesystem mutation', function (): void {
         $legacy = pm_fixture('{ "setup_version": 4, "app": "prism" }');
         $before = file_get_contents($legacy);
 
@@ -1069,7 +1078,7 @@ describe('prism_manifest migrate-preview', function (): void {
 
             expect($code)->toBe(0)
                 ->and($stderr)->toBe('')
-                ->and($stdout)->toBe('{"setup_version":5,"app":"prism"}')
+                ->and($stdout)->toBe('{"setup_version":6,"app":"prism"}')
                 ->and(file_get_contents($legacy))->toBe($before);
         } finally {
             pm_clean($legacy);
@@ -1078,7 +1087,7 @@ describe('prism_manifest migrate-preview', function (): void {
 });
 
 describe('prism_manifest migrate', function (): void {
-    it('refuses to migrate when the v5 projection fails project validation, preserving the legacy', function (): void {
+    it('refuses to migrate when the v6 projection fails project validation, preserving the legacy', function (): void {
         $legacy = pm_fixture('{ "setup_version": 4 }');
         $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
 
@@ -1095,7 +1104,7 @@ describe('prism_manifest migrate', function (): void {
         }
     });
 
-    it('refuses to migrate when the v5 projection fails user validation, preserving the legacy', function (): void {
+    it('refuses to migrate when the v6 projection fails user validation, preserving the legacy', function (): void {
         $legacy = pm_fixture('{ "setup_version": 4, "accent": "red" }');
         $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
 
@@ -1112,7 +1121,7 @@ describe('prism_manifest migrate', function (): void {
         }
     });
 
-    it('rejects a source whose setup_version is not a positive integer no greater than 5', function (string $versionPayload): void {
+    it('rejects a source whose setup_version is not a positive integer no greater than 6', function (string $versionPayload): void {
         $legacy = pm_fixture('{ "setup_version": ' . $versionPayload . ' }');
         $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
 
@@ -1131,7 +1140,7 @@ describe('prism_manifest migrate', function (): void {
         'negative' => ['-1'],
         'string' => ['"abc"'],
         'null' => ['null'],
-        'newer than 5' => ['6'],
+        'newer than 6' => ['7'],
     ]);
 
     it('refuses to migrate when the target already exists', function (): void {
@@ -1150,8 +1159,8 @@ describe('prism_manifest migrate', function (): void {
         }
     });
 
-    it('refuses a source version newer than 5', function (): void {
-        $legacy = pm_fixture('{ "setup_version": 6 }');
+    it('refuses a source version newer than 6', function (): void {
+        $legacy = pm_fixture('{ "setup_version": 7 }');
         $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
 
         try {
@@ -1165,8 +1174,8 @@ describe('prism_manifest migrate', function (): void {
         }
     });
 
-    it('writes a canonical v5 document, removes legacy, at the requested mode', function (): void {
-        $legacy = pm_fixture(str_replace('"setup_version": 5', '"setup_version": 4', pm_valid_project_jsonc()));
+    it('writes a canonical v6 document, removes legacy, at the requested mode', function (): void {
+        $legacy = pm_fixture(str_replace('"setup_version": 6', '"setup_version": 4', pm_valid_project_jsonc()));
         $target = sys_get_temp_dir() . '/prism_tgt_' . uniqid('', true);
 
         try {
@@ -1178,12 +1187,69 @@ describe('prism_manifest migrate', function (): void {
                 ->and($stdout)->toBe('')
                 ->and(file_exists($legacy))->toBeFalse()
                 ->and(file_exists($target))->toBeTrue()
-                ->and($root->setup_version)->toBe(5)
+                ->and($root->setup_version)->toBe(6)
                 ->and($root->app)->toBe('prism')
                 ->and(fileperms($target) & 0777)->toBe(0644);
         } finally {
             pm_clean($legacy);
             pm_clean($target);
+        }
+    });
+});
+
+describe('prism_manifest upgrade-v6', function (): void {
+    it('patches a v5 project in place while preserving comments and custom fields', function (): void {
+        $source = str_replace(
+            [
+                '"setup_version": 6',
+                ', "frontend": "m6"',
+                ', "frontend": "v6"',
+                "\n}",
+            ],
+            [
+                '"setup_version": 5',
+                '',
+                '',
+                ",\n  \"custom\": { \"keep\": true }\n}",
+            ],
+            pm_valid_project_jsonc(),
+        );
+        $fixture = pm_fixture("// keep this comment\n" . $source);
+
+        try {
+            [$code] = pm_dispatch(['upgrade-v6', $fixture, 'project', '0644']);
+            $afterFirst = (string) file_get_contents($fixture);
+            [$repeatCode] = pm_dispatch(['upgrade-v6', $fixture, 'project', '0644']);
+
+            $root = PrismJsoncDocument::fromFile($fixture)->root();
+            expect($code)->toBe(0)
+                ->and($repeatCode)->toBe(0)
+                ->and(file_get_contents($fixture))->toBe($afterFirst)
+                ->and($afterFirst)->toContain('// keep this comment')
+                ->and($root->setup_version)->toBe(6)
+                ->and($root->models->frontend)->toBe('openai/gpt-5.6-sol')
+                ->and($root->variants->frontend)->toBe('xhigh')
+                ->and($root->custom->keep)->toBeTrue()
+                ->and(fileperms($fixture) & 0777)->toBe(0644);
+        } finally {
+            pm_clean($fixture);
+        }
+    });
+
+    it('bumps a partial user manifest without pinning frontend values', function (): void {
+        $fixture = pm_fixture('{ "setup_version": 5, "accent": "sky-blue" }');
+
+        try {
+            [$code] = pm_dispatch(['upgrade-v6', $fixture, 'user', '0600']);
+            $root = PrismJsoncDocument::fromFile($fixture)->root();
+
+            expect($code)->toBe(0)
+                ->and($root->setup_version)->toBe(6)
+                ->and(property_exists($root, 'models'))->toBeFalse()
+                ->and(property_exists($root, 'variants'))->toBeFalse()
+                ->and(fileperms($fixture) & 0777)->toBe(0600);
+        } finally {
+            pm_clean($fixture);
         }
     });
 });
@@ -1203,7 +1269,7 @@ describe('prism_manifest check-secrets', function (): void {
     });
 
     it('exits 0 for a user manifest with no env section', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5 }');
+        $fixture = pm_fixture('{ "setup_version": 6 }');
 
         try {
             [$code] = pm_dispatch(['check-secrets', $fixture, 'user']);
@@ -1257,7 +1323,7 @@ describe('prism_manifest check-secrets', function (): void {
 
 describe('prism_manifest check-secrets env contract', function (): void {
     it('fails closed for a project manifest with no env section', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5 }');
+        $fixture = pm_fixture('{ "setup_version": 6 }');
 
         try {
             [$code] = pm_dispatch(['check-secrets', $fixture, 'project']);
@@ -1285,7 +1351,7 @@ describe('prism_manifest check-secrets env contract', function (): void {
     ]);
 
     it('accepts a user manifest with no env section', function (): void {
-        $fixture = pm_fixture('{ "setup_version": 5 }');
+        $fixture = pm_fixture('{ "setup_version": 6 }');
 
         try {
             [$code] = pm_dispatch(['check-secrets', $fixture, 'user']);
@@ -1366,6 +1432,9 @@ describe('prism_manifest process boundary', function (): void {
         'patch arity' => [['patch', 'x']],
         'patch mode' => [['patch', 'x', 'bogus', '0644']],
         'patch octal' => [['patch', 'x', 'project', '644']],
+        'upgrade-v6 arity' => [['upgrade-v6', 'x']],
+        'upgrade-v6 mode' => [['upgrade-v6', 'x', 'bogus', '0644']],
+        'upgrade-v6 octal' => [['upgrade-v6', 'x', 'project', '644']],
         'migrate-preview arity' => [['migrate-preview', 'x']],
         'migrate-preview mode' => [['migrate-preview', 'x', 'bogus']],
         'migrate arity' => [['migrate', 'x', 'y']],
@@ -1415,6 +1484,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 

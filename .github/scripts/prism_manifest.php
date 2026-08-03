@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
@@ -12,7 +12,7 @@ namespace KYAULabs\Prism;
 /**
  * Shell-facing CLI for the ADR-0043 prism manifest boundary.
  *
- * Nine commands operate on schema-v5 JSONC manifests via the dependency-free
+ * Ten commands operate on schema-v6 JSONC manifests via the dependency-free
  * {@see PrismJsoncDocument} parser and {@see PrismManifest} resolver/validator:
  *
  *   validate FILE project|user
@@ -21,6 +21,7 @@ namespace KYAULabs\Prism;
  *   get     PROJECT USER_OR_DASH DOT_PATH
  *   values0 PROJECT USER_OR_DASH DOT_PATH...
  *   patch   FILE project|user OCTAL_MODE < updates.json
+ *   upgrade-v6 FILE project|user OCTAL_MODE
  *   migrate-preview LEGACY project|user
  *   migrate LEGACY TARGET project|user OCTAL_MODE
  *   check-secrets FILE project|user
@@ -40,8 +41,8 @@ require_once __DIR__ . '/PrismOpenCodeConfig.php';
 /**
  * Allowlisted dot-path to environment-variable name map for the env0 command.
  *
- * Fifteen scalar variables: thirteen OPENCODE_* plus DEEPSEEK_API_KEY and
- * SEARXNG_URL. The sixteenth stable env0 pair is the list-valued
+ * Seventeen scalar variables: fifteen OPENCODE_* plus DEEPSEEK_API_KEY and
+ * SEARXNG_URL. The eighteenth stable env0 pair is the list-valued
  * OPENCODE_SENSITIVE_PATHS from {@see PRISM_LIST_ENV_MAP}.
  *
  * @var array<string, string>
@@ -52,11 +53,13 @@ const PRISM_ENV_MAP = [
     'models.design' => 'OPENCODE_MODEL_DESIGN',
     'models.judge' => 'OPENCODE_MODEL_JUDGE',
     'models.utility' => 'OPENCODE_MODEL_UTILITY',
+    'models.frontend' => 'OPENCODE_MODEL_FRONTEND',
     'variants.primary' => 'OPENCODE_VARIANT_PRIMARY',
     'variants.planner' => 'OPENCODE_VARIANT_PLANNER',
     'variants.design' => 'OPENCODE_VARIANT_DESIGN',
     'variants.judge' => 'OPENCODE_VARIANT_JUDGE',
     'variants.utility' => 'OPENCODE_VARIANT_UTILITY',
+    'variants.frontend' => 'OPENCODE_VARIANT_FRONTEND',
     'experimental.lsp_tool' => 'OPENCODE_EXPERIMENTAL_LSP_TOOL',
     'experimental.scout' => 'OPENCODE_EXPERIMENTAL_SCOUT',
     'experimental.background_subagents' => 'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS',
@@ -81,7 +84,7 @@ const PRISM_LIST_ENV_MAP = [
  * Direct-preference dot-path to environment-variable name map for the env0 command.
  *
  * Three diagnostic booleans: user-requested MCP and plugin preferences from the
- * resolved Prism manifest, emitted after the sixteen stable env0 pairs. Default to
+ * resolved Prism manifest, emitted after the eighteen stable env0 pairs. Default to
  * false when the dot path is absent.
  *
  * @var array<string, string>
@@ -139,7 +142,8 @@ function dispatch(array $argv, string $stdin): PrismCliResult
 
     $known = [
         'decode' => 1, 'validate' => 1, 'env0' => 1, 'get' => 1, 'values0' => 1,
-        'patch' => 1, 'migrate-preview' => 1, 'migrate' => 1, 'check-secrets' => 1,
+        'patch' => 1, 'upgrade-v6' => 1, 'migrate-preview' => 1, 'migrate' => 1,
+        'check-secrets' => 1,
     ];
 
     if (!isset($known[$command])) {
@@ -154,6 +158,7 @@ function dispatch(array $argv, string $stdin): PrismCliResult
             'get' => cmd_get($argv),
             'values0' => cmd_values0($argv),
             'patch' => cmd_patch($argv, $stdin),
+            'upgrade-v6' => cmd_upgrade_v6($argv),
             'migrate-preview' => cmd_migrate_preview($argv),
             'migrate' => cmd_migrate($argv),
             'check-secrets' => cmd_check_secrets($argv),
@@ -215,7 +220,7 @@ function cmd_validate(array $argv): PrismCliResult
  * env0 PROJECT [USER] — emit allowlisted env vars as NUL-separated pairs.
  *
  * Resolves the project plus optional user overlay, then buffers and validates
- * all twenty pairs before producing any output. Rejects non-scalar values
+ * all twenty-two pairs before producing any output. Rejects non-scalar values
  * and NUL bytes (which would corrupt the NUL-delimited framing).
  *
  * @param  array<int, string> $argv
@@ -346,11 +351,70 @@ function cmd_patch(array $argv, string $stdin): PrismCliResult
 }
 
 /**
- * migrate-preview LEGACY project|user — print the v5 projection without writing.
+ * upgrade-v6 FILE project|user OCTAL_MODE — patch a manifest in place to v6.
  *
- * Reads a legacy source, refuses a version newer than 5, and prints the
- * normalized strict-JSON projection (setup_version forced to 5). No file is
- * created, modified, or deleted.
+ * Pushes setup_version to 6 via {@see PrismJsoncDocument::withValues()} so
+ * comments, unknown fields, and every unrelated byte are preserved. In project
+ * mode, absent models.frontend/variants.frontend keys gain the shipped
+ * defaults; user mode patches only setup_version so partial manifests keep
+ * inheriting project values. The upgraded tree is validated per the tier and
+ * written atomically at the octal mode only when something actually changed,
+ * so a repeat run is byte-idempotent.
+ *
+ * @param  array<int, string> $argv
+ * @return PrismCliResult
+ */
+function cmd_upgrade_v6(array $argv): PrismCliResult
+{
+    if (count($argv) !== 5) {
+        return new PrismCliResult(2, stderr: 'prism_manifest: upgrade-v6 requires FILE project|user OCTAL_MODE');
+    }
+
+    [, , $file, $mode, $modeString] = $argv;
+    if ($mode !== 'project' && $mode !== 'user') {
+        return new PrismCliResult(2, stderr: 'prism_manifest: upgrade-v6 mode must be project or user');
+    }
+    if (preg_match('/^0[0-7]{3}$/', $modeString) !== 1) {
+        return new PrismCliResult(2, stderr: 'prism_manifest: OCTAL_MODE must match ^0[0-7]{3}$');
+    }
+
+    $document = PrismJsoncDocument::fromFile($file);
+    $root = $document->root();
+    pm_guard_source_version($root);
+
+    $updates = ['setup_version' => 6];
+    if ($mode === 'project') {
+        if (!property_exists($root, 'models') || !($root->models instanceof \stdClass)
+            || !property_exists($root->models, 'frontend')) {
+            $updates['models.frontend'] = 'openai/gpt-5.6-sol';
+        }
+        if (!property_exists($root, 'variants') || !($root->variants instanceof \stdClass)
+            || !property_exists($root->variants, 'frontend')) {
+            $updates['variants.frontend'] = 'xhigh';
+        }
+    }
+
+    $upgraded = $document->withValues($updates);
+    $upgradedRoot = $upgraded->root();
+    if ($mode === 'project') {
+        PrismManifest::validateProject($upgradedRoot);
+    } else {
+        PrismManifest::validateUser($upgradedRoot);
+    }
+
+    if (!pm_objects_equal($root, $upgradedRoot)) {
+        $upgraded->writeAtomic($file, intval($modeString, 8));
+    }
+
+    return new PrismCliResult(0);
+}
+
+/**
+ * migrate-preview LEGACY project|user — print the v6 projection without writing.
+ *
+ * Reads a legacy source, refuses a version newer than 6, and prints the
+ * normalized strict-JSON projection (setup_version forced to 6; project mode
+ * adds absent frontend defaults). No file is created, modified, or deleted.
  *
  * @param  array<int, string> $argv
  * @return PrismCliResult
@@ -371,7 +435,7 @@ function cmd_migrate_preview(array $argv): PrismCliResult
     pm_guard_source_version($root);
 
     $json = json_encode(
-        pm_project_v5($root),
+        pm_project_v6($root, $mode),
         JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
     );
 
@@ -379,10 +443,10 @@ function cmd_migrate_preview(array $argv): PrismCliResult
 }
 
 /**
- * migrate LEGACY TARGET project|user OCTAL_MODE — atomically migrate to v5.
+ * migrate LEGACY TARGET project|user OCTAL_MODE — atomically migrate to v6.
  *
- * Refuses an existing target and a source version newer than 5, writes a
- * canonical commented v5 document, reparses it for validation, writes
+ * Refuses an existing target and a source version newer than 6, writes a
+ * canonical commented v6 document, reparses it for validation, writes
  * atomically at the octal mode, then removes the legacy source.
  *
  * @param  array<int, string> $argv
@@ -411,7 +475,7 @@ function cmd_migrate(array $argv): PrismCliResult
     $root = PrismJsoncDocument::fromFile($legacy)->root();
     pm_guard_source_version($root);
 
-    $projection = pm_project_v5($root);
+    $projection = pm_project_v6($root, $mode);
 
     if ($mode === 'project') {
         PrismManifest::validateProject($projection);
@@ -419,7 +483,7 @@ function cmd_migrate(array $argv): PrismCliResult
         PrismManifest::validateUser($projection);
     }
 
-    $canonical = pm_canonical_v5($projection);
+    $canonical = pm_canonical_v6($projection);
     PrismJsoncDocument::parse($canonical)->writeAtomic($target, intval($modeString, 8));
 
     // Re-read the written target and verify it matches the projection before
@@ -494,13 +558,13 @@ function cmd_check_secrets(array $argv): PrismCliResult
 /**
  * Guard that a source manifest version is migratable.
  *
- * Accepts only positive integers no greater than 5 (older schemas that the
- * projection can upgrade, plus 5 for idempotent migration). Rejects missing,
- * non-integer, zero, negative, and newer-than-5 versions.
+ * Accepts only positive integers no greater than 6 (older schemas that the
+ * projection can upgrade, plus 6 for idempotent migration). Rejects missing,
+ * non-integer, zero, negative, and newer-than-6 versions.
  *
  * @param  \stdClass $root
  * @return void
- * @throws PrismJsoncException  When setup_version is absent or not an integer in [1, 5].
+ * @throws PrismJsoncException  When setup_version is absent or not an integer in [1, 6].
  */
 function pm_guard_source_version(\stdClass $root): void
 {
@@ -508,9 +572,9 @@ function pm_guard_source_version(\stdClass $root): void
         !property_exists($root, 'setup_version')
         || !is_int($root->setup_version)
         || $root->setup_version < 1
-        || $root->setup_version > 5
+        || $root->setup_version > 6
     ) {
-        throw new PrismJsoncException('setup_version must be a positive integer no greater than 5');
+        throw new PrismJsoncException('setup_version must be a positive integer no greater than 6');
     }
 }
 
@@ -532,13 +596,19 @@ function pm_objects_equal(\stdClass $a, \stdClass $b): bool
 }
 
 /**
- * Deep-clone a source manifest and force its schema version to 5.
+ * Deep-clone a source manifest and force its schema version to 6.
+ *
+ * Project mode adds the shipped FRONTEND defaults when the models/variants
+ * sections exist but lack a frontend key, so a v5 project gains its required
+ * tier without overwriting pre-existing custom values. User mode only forces
+ * the version; partial manifests keep inheriting project frontend values.
  *
  * @param  \stdClass $source
+ * @param  string    $mode    'project' or 'user'.
  * @return \stdClass
  * @throws JsonException  If the value cannot be re-encoded (should not occur).
  */
-function pm_project_v5(\stdClass $source): \stdClass
+function pm_project_v6(\stdClass $source, string $mode): \stdClass
 {
     $clone = json_decode(
         json_encode($source, JSON_THROW_ON_ERROR),
@@ -547,32 +617,43 @@ function pm_project_v5(\stdClass $source): \stdClass
         JSON_THROW_ON_ERROR,
     );
 
-    $clone->setup_version = 5;
+    $clone->setup_version = 6;
+
+    if ($mode === 'project') {
+        if (property_exists($clone, 'models') && $clone->models instanceof \stdClass
+            && !property_exists($clone->models, 'frontend')) {
+            $clone->models->frontend = 'openai/gpt-5.6-sol';
+        }
+        if (property_exists($clone, 'variants') && $clone->variants instanceof \stdClass
+            && !property_exists($clone->variants, 'frontend')) {
+            $clone->variants->frontend = 'xhigh';
+        }
+    }
 
     return $clone;
 }
 
 /**
- * Render a canonical commented schema-v5 JSONC document.
+ * Render a canonical commented schema-v6 JSONC document.
  *
  * @param  \stdClass $projection
  * @return string
  * @throws JsonException  If the projection cannot be encoded.
  */
-function pm_canonical_v5(\stdClass $projection): string
+function pm_canonical_v6(\stdClass $projection): string
 {
     $json = json_encode(
         $projection,
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
     );
 
-    return "// Prism manifest (schema v5)\n" . $json . "\n";
+    return "// Prism manifest (schema v6)\n" . $json . "\n";
 }
 
 /**
  * Build the flat allowlisted env name/value pair list from a resolved manifest.
  *
- * Emits the sixteen stable env0 pairs (fifteen PRISM_ENV_MAP scalars plus the
+ * Emits the eighteen stable env0 pairs (seventeen PRISM_ENV_MAP scalars plus the
  * PRISM_LIST_ENV_MAP path list), then three requested-preference toggle
  * diagnostics, then the composed OPENCODE_CONFIG_CONTENT. All pairs are
  * buffered before output so a mid-buffer failure produces no partial stream.
@@ -794,6 +875,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 

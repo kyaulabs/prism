@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# $KYAULabs: migrate_setup_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: migrate_setup_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
 
 
-# ── Isolated integration tests for migrate-setup.sh (ADR-0043) ────────────────
+
+# ── Isolated integration tests for migrate-setup.sh (ADR-0043, ADR-0049) ────
 #
 # Verifies that migrate-setup.sh is a shell engine wrapping the PHP CLI's
-# migrate / migrate-preview commands for dual-path v4→v5 migration:
+# migrate / migrate-preview / upgrade-v6 commands for dual-path migration:
 #   project: .opencode/setup.json → root prism.jsonc  (mode 0644)
 #   user:    ~/.config/opencode/setup.json → ~/.config/opencode/prism.jsonc (0600)
 #
 # Idempotent, validates projections before deleting legacy, refuses downgrade,
-# handles tracked-vs-untracked legacy retention, and fails closed on conflicts.
+# upgrades existing targets to schema v6 in place, handles tracked-vs-untracked
+# legacy retention, and fails closed on conflicts.
 #
 # Every test runs in throwaway temp directories: the real $HOME and the real
 # project files are never touched. Each fixture project root gets a symlinked
@@ -168,7 +170,7 @@ test_project_success() {
 		echo "  stderr: $(cat "$FX_ERR")" >&2
 		failures=$((failures+1))
 	fi
-	# New v5 target must exist.
+	# New v6 target must exist.
 	if [ ! -f "$PROJ_NEW" ]; then
 		echo "  project success — target $PROJ_NEW not created" >&2
 		failures=$((failures+1))
@@ -259,7 +261,7 @@ echo ""
 echo "── Test 2: User success — v4 → user prism.jsonc (0600) ──"
 test_user_success
 
-# ── Test 3: Canonical comments — migrated v5 doc is JSONC, not bare JSON ─────
+# ── Test 3: Canonical comments — migrated v6 doc is JSONC, not bare JSON ─────
 
 test_canonical_comments() {
 	fresh_fixture
@@ -270,7 +272,7 @@ test_canonical_comments() {
 	# The migrated document must carry a line comment (it is genuine JSONC, the
 	# canonical render from pm_canonical_v5, not bare strict JSON).
 	if grep -q '//' "$PROJ_NEW"; then
-		pass "canonical comments — migrated v5 doc carries JSONC comments"
+		pass "canonical comments — migrated v6 doc carries JSONC comments"
 	else
 		fail "canonical comments — no '//' found in $PROJ_NEW"
 	fi
@@ -280,10 +282,10 @@ echo ""
 echo "── Test 3: Canonical comments ──"
 test_canonical_comments
 
-# ── Test 4: Verified target — migrated file independently validates as v5 ────
+# ── Test 4: Verified target — migrated file independently validates as v6 ────
 #
 # Deletion-after-verify is owned by the PHP migrate command, but its observable
-# outcome is that the new file is a real, reparsable, contract-valid v5 manifest
+# outcome is that the new file is a real, reparsable, contract-valid v6 manifest
 # once the legacy is gone. Assert the target validates after migration.
 
 test_verified_target_validates() {
@@ -308,7 +310,7 @@ test_verified_target_validates() {
 		failures=$((failures+1))
 	fi
 	if [ "$failures" -eq 0 ]; then
-		pass "verified target — migrated file validates as v5, legacy deleted"
+		pass "verified target — migrated file validates as v6, legacy deleted"
 	else
 		fail "verified target — $failures assertion(s) failed"
 	fi
@@ -320,7 +322,7 @@ test_verified_target_validates
 
 # ── Test 5: Source retention on failure — legacy kept when migration fails ───
 #
-# A project legacy whose v5 projection fails validateProject (missing required
+# A project legacy whose v6 projection fails validateProject (missing required
 # fields) must leave the legacy untouched and create no target. The migrate
 # command validates before writing or deleting, so a failure is abortive.
 
@@ -360,13 +362,13 @@ echo ""
 echo "── Test 5: Source retention on failure ──"
 test_source_retention_on_failure
 
-# write_complete_v5_project <dir> <name> <email> — write a schema-v5 project
+# write_complete_v6_project <dir> <name> <email> — write a schema-v6 project
 # prism.jsonc carrying every required field, with a distinctive identity.
-write_complete_v5_project() {
+write_complete_v6_project() {
 	local dir="$1" name="$2" email="$3"
 	cat > "$dir/prism.jsonc" <<JSON
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-06T23:44:00Z",
   "app": "prism",
@@ -382,14 +384,16 @@ write_complete_v5_project() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -411,7 +415,7 @@ test_divergent_coexistence() {
 	# Legacy carries identity "Alice Legacy".
 	write_complete_v4_project "$FX_PROJECT" "Alice Legacy" "alice@legacy.test"
 	# Target already present with a DIFFERENT identity ("Bob Target").
-	write_complete_v5_project "$FX_PROJECT" "Bob Target" "bob@target.test"
+	write_complete_v6_project "$FX_PROJECT" "Bob Target" "bob@target.test"
 
 	# Snapshot both files before the run to prove they are left byte-identical.
 	local old_before new_before
@@ -457,7 +461,7 @@ test_equivalent_coexistence_untracked() {
 	fresh_fixture
 	# Same identity + fields in both; only the schema version differs.
 	write_complete_v4_project "$FX_PROJECT" "Eve Equal" "eve@equal.test"
-	write_complete_v5_project "$FX_PROJECT" "Eve Equal" "eve@equal.test"
+	write_complete_v6_project "$FX_PROJECT" "Eve Equal" "eve@equal.test"
 
 	run_migrator
 
@@ -520,12 +524,12 @@ echo ""
 echo "── Test 8: Malformed source ──"
 test_malformed_source
 
-# ── Test 9: Source versions 1-4 all migrate to v5 ────────────────────────────
+# ── Test 9: Source versions 1-5 all migrate to v6 ────────────────────────────
 
-test_versions_1_to_4_migrate() {
+test_versions_1_to_5_migrate() {
 	local failures=0
 	local v
-	for v in 1 2 3 4; do
+	for v in 1 2 3 4 5; do
 		fresh_fixture
 		printf '{ "setup_version": %s, "signed_off_by_name": "v%s-user" }\n' "$v" "$v" > "$USER_OLD"
 
@@ -545,8 +549,8 @@ test_versions_1_to_4_migrate() {
 		local ver name
 		ver=$(decode_field "$USER_NEW" '.setup_version')
 		name=$(decode_field "$USER_NEW" '.signed_off_by_name')
-		if [ "$ver" != "5" ]; then
-			echo "  v$v — target setup_version $ver (expected 5)" >&2
+		if [ "$ver" != "6" ]; then
+			echo "  v$v — target setup_version $ver (expected 6)" >&2
 			failures=$((failures+1))
 		elif [ "$name" != "v$v-user" ]; then
 			echo "  v$v — value not preserved: '$name'" >&2
@@ -558,15 +562,15 @@ test_versions_1_to_4_migrate() {
 	done
 
 	if [ "$failures" -eq 0 ]; then
-		pass "versions 1-4 — each source migrates to v5 with values preserved"
+		pass "versions 1-5 — each source migrates to v6 with values preserved"
 	else
-		fail "versions 1-4 — $failures assertion(s) failed"
+		fail "versions 1-5 — $failures assertion(s) failed"
 	fi
 }
 
 echo ""
-echo "── Test 9: Source versions 1-4 migrate to v5 ──"
-test_versions_1_to_4_migrate
+echo "── Test 9: Source versions 1-5 migrate to v6 ──"
+test_versions_1_to_5_migrate
 
 # ── Test 10: Version 5 at legacy path is renamed, not left in place ──────────
 #
@@ -652,37 +656,37 @@ echo ""
 echo "── Test 10: Version 5 at legacy path moved ──"
 test_v5_at_legacy_path_moved
 
-# ── Test 11: Version 6 (downgrade) refusal — source > 5 fails ────────────────
+# ── Test 11: Version 7 (downgrade) refusal — source > 6 fails ────────────────
 
-test_version_6_refused() {
+test_version_7_refused() {
 	fresh_fixture
-	printf '{ "setup_version": 6, "signed_off_by_name": "future" }\n' > "$USER_OLD"
+	printf '{ "setup_version": 7, "signed_off_by_name": "future" }\n' > "$USER_OLD"
 
 	run_migrator
 
 	local failures=0
 	if [ "$RUN_RC" -eq 0 ]; then
-		echo "  v6 — engine exited 0 (expected non-zero)" >&2
+		echo "  v7 — engine exited 0 (expected non-zero)" >&2
 		failures=$((failures+1))
 	fi
 	if [ ! -e "$USER_OLD" ]; then
-		echo "  v6 — legacy deleted despite downgrade refusal" >&2
+		echo "  v7 — legacy deleted despite downgrade refusal" >&2
 		failures=$((failures+1))
 	fi
 	if [ -e "$USER_NEW" ]; then
-		echo "  v6 — target created despite downgrade refusal" >&2
+		echo "  v7 — target created despite downgrade refusal" >&2
 		failures=$((failures+1))
 	fi
 	if [ "$failures" -eq 0 ]; then
-		pass "version 6 — refused (downgrade), legacy kept, no target"
+		pass "version 7 — refused (downgrade), legacy kept, no target"
 	else
-		fail "version 6 — $failures assertion(s) failed"
+		fail "version 7 — $failures assertion(s) failed"
 	fi
 }
 
 echo ""
-echo "── Test 11: Version 6 downgrade refusal ──"
-test_version_6_refused
+echo "── Test 11: Version 7 downgrade refusal ──"
+test_version_7_refused
 
 # ── Test 12: Idempotent — repeated invocation is a no-op ─────────────────────
 
@@ -825,7 +829,7 @@ test_tracked_legacy_retained() {
 	fresh_fixture
 	# Equal values in both tiers; only the schema version differs.
 	write_complete_v4_project "$FX_PROJECT" "Tracked Pair" "tracked@pair.test"
-	write_complete_v5_project "$FX_PROJECT" "Tracked Pair" "tracked@pair.test"
+	write_complete_v6_project "$FX_PROJECT" "Tracked Pair" "tracked@pair.test"
 	# The legacy is git-tracked (the in-repo transition state).
 	git -C "$FX_PROJECT" add .opencode/setup.json
 
@@ -909,6 +913,7 @@ test_user_coexistence_deletes
 
 print_summary "migrate_setup_test.sh"
 exit $?
+
 
 
 
