@@ -294,16 +294,34 @@ final class PrismManifest
         }
 
         foreach ($list as $entry) {
-            if (
-                !is_string($entry)
-                || preg_match('/^(~\/|\/)/', $entry) !== 1
-                || preg_match('/[\x00-\x1f\x7f]/', $entry) === 1
-            ) {
-                throw new PrismJsoncException(
-                    'security.additional_sensitive_paths in the ' . $tier
-                    . ' manifest must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0048)',
-                );
-            }
+            self::validateSensitivePathEntry($entry, 'security.additional_sensitive_paths in the ' . $tier . ' manifest');
+        }
+    }
+
+    /**
+     * Validate one additional-sensitive-path entry fails closed.
+     *
+     * Single source of the load-bearing entry rule (ADR-0047/0048): a string
+     * that is ~/-prefixed or absolute and free of control characters. Shared
+     * with the env0 transport coercion in prism_manifest.php so the two
+     * layers cannot drift. Diagnostics name only the field path, never a
+     * value.
+     *
+     * @param  mixed  $entry
+     * @param  string $label  Dotted manifest path for the diagnostic.
+     * @return void
+     * @throws PrismJsoncException  On a malformed entry.
+     */
+    public static function validateSensitivePathEntry(mixed $entry, string $label): void
+    {
+        if (
+            !is_string($entry)
+            || preg_match('/^(~\/|\/)/', $entry) !== 1
+            || preg_match('/[\x00-\x1f\x7f]/', $entry) === 1
+        ) {
+            throw new PrismJsoncException(
+                $label . ' must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0048)',
+            );
         }
     }
 
@@ -847,6 +865,7 @@ final class PrismManifest
         }
     }
 }
+
 
 
 

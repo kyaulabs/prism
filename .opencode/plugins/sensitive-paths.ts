@@ -2,6 +2,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -234,16 +235,29 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
         const trustedSetup = trust === "trusted";
         for (const token of tokens) {
-            if (token.startsWith("-")) continue;
-            const abs = resolveOperand(token, opts);
-            if (abs === null) {
-                if (SENSITIVE_FALLBACK_RE.test(token)) return { className: "dynamic" };
+            // Review follow-up (ADR-0048): the class-specific fallback runs
+            // against tokens that resolve without a denied-class match (or
+            // that are option-prefixed), so argv-prefix and glued-token
+            // forms (-d@~/.ssh/id_rsa, @~/.ssh/id_rsa, user@host:~/.ssh/
+            // id_rsa, --output=~/.aws/credentials) cannot bypass the deny
+            // floor. .env.example references stay exempt, mirroring the
+            // basename exemption in sensitivePathMatch. A trusted-setup
+            // prism-user-manifest skip suppresses the fallback so /setup
+            // scripts keep their narrow exception.
+            if (token.startsWith("-")) {
+                if (!token.endsWith(".env.example") && SENSITIVE_FALLBACK_RE.test(token)) {
+                    return { className: "dynamic" };
+                }
                 continue;
             }
-            const match = sensitivePathMatch(abs, opts);
+            const abs = resolveOperand(token, opts);
+            const match = abs === null ? null : sensitivePathMatch(abs, opts);
             if (match) {
                 if (match.className === "prism-user-manifest" && trustedSetup) continue;
                 return match;
+            }
+            if (!token.endsWith(".env.example") && SENSITIVE_FALLBACK_RE.test(token)) {
+                return { className: "dynamic" };
             }
         }
     }
@@ -266,6 +280,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

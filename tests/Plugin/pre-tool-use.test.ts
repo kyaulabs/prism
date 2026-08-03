@@ -3,6 +3,7 @@
 
 
 
+
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir, homedir } from "node:os";
@@ -264,6 +265,27 @@ describe("PreToolUse plugin hook", () => {
         );
     });
 
+    it("fails closed on malformed bash args and path-array arguments", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "bash", sessionID: "s", callID: "c" }, { args: { command: 42 } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ["~/.ssh", "."] } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { path: 42 } }),
+            /BLOCKED/,
+        );
+        await h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: [".", "docs"], include: "*.php" } });
+    });
+
     it("blocks read of a symlinked spelling into a sensitive class", async () => {
         const hooks = await load(noopClient, { home: FAKE_HOME });
         const h = hooks["tool.execute.before"]!;
@@ -273,6 +295,7 @@ describe("PreToolUse plugin hook", () => {
         );
     });
 });
+
 
 
 

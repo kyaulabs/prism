@@ -657,15 +657,7 @@ function pm_path_list_to_transport(mixed $value, string $label): string
     }
 
     foreach ($value as $entry) {
-        if (
-            !is_string($entry)
-            || preg_match('/^(~\/|\/)/', $entry) !== 1
-            || preg_match('/[\x00-\x1f\x7f]/', $entry) === 1
-        ) {
-            throw new PrismJsoncException(
-                $label . ' must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0047)',
-            );
-        }
+        PrismManifest::validateSensitivePathEntry($entry, $label);
     }
 
     return implode("\n", $value);
@@ -802,6 +794,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 

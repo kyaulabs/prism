@@ -10,6 +10,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir, homedir } from "node:os";
@@ -463,7 +464,7 @@ export const PreToolUse: Plugin = async ({ directory, client }, options) => {
             }
             const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
             const options = { projectDir: directory, home, extraPaths };
-            const command: string = output?.args?.command ?? "";
+            const command: unknown = output?.args?.command;
 
             // Sensitive-path interception (ADR-0047 / ADR-0048 §5): blocks
             // read/grep/glob/list on sensitive paths, sensitive glob patterns
@@ -471,6 +472,11 @@ export const PreToolUse: Plugin = async ({ directory, client }, options) => {
             // deny floor. Present-but-malformed args fail closed. Runs BEFORE
             // the destructive classifier below.
             if (input.tool === "bash") {
+                if (typeof command !== "string") {
+                    throw new Error(
+                        `[pre-tool-use] BLOCKED: malformed bash args — failing closed per ADR-0036`,
+                    );
+                }
                 const match = sensitiveOperandCheck(command, options);
                 if (match) {
                     throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
@@ -481,19 +487,33 @@ export const PreToolUse: Plugin = async ({ directory, client }, options) => {
                 input.tool === "glob" ||
                 input.tool === "list"
             ) {
-                const argPath: unknown = input.tool === "read"
-                    ? output?.args?.filePath
-                    : (output?.args?.path ?? output?.args?.filePath);
-                if (argPath !== undefined && typeof argPath !== "string") {
-                    throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
-                }
-                if (typeof argPath === "string" && argPath !== "") {
-                    const abs = argPath.startsWith("~")
-                        ? normalize(home + argPath.slice(1))
-                        : normalize(resolvePath(directory, argPath));
+                const checkPathArg = (pathArg: unknown): void => {
+                    if (typeof pathArg !== "string") {
+                        throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                    }
+                    if (pathArg === "") return;
+                    const abs = pathArg.startsWith("~")
+                        ? normalize(home + pathArg.slice(1))
+                        : normalize(resolvePath(directory, pathArg));
                     if (sensitivePathMatch(abs, options)) {
                         throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
                     }
+                };
+                const argPath: unknown = input.tool === "read"
+                    ? output?.args?.filePath
+                    : (output?.args?.path ?? output?.args?.filePath);
+                if (input.tool === "read") {
+                    // read's filePath is always a single string; any other
+                    // shape is malformed and fails closed.
+                    if (argPath !== undefined) {
+                        checkPathArg(argPath);
+                    }
+                } else if (Array.isArray(argPath)) {
+                    for (const entry of argPath) {
+                        checkPathArg(entry);
+                    }
+                } else if (argPath !== undefined) {
+                    checkPathArg(argPath);
                 }
                 // Relative patterns resolve against the tool's directory arg
                 // when present (a string), else the plugin project dir.
@@ -525,9 +545,12 @@ export const PreToolUse: Plugin = async ({ directory, client }, options) => {
                 }
             }
             if (input.tool !== "bash") return;
+            // The bash branch above already threw for a non-string command,
+            // so this narrowed value is always a real command string.
+            const cmd: string = command as string;
             let finding: Finding;
             try {
-                finding = classifyCommand(command, { projectDir: directory });
+                finding = classifyCommand(cmd, { projectDir: directory });
             } catch (e) {
                 throw new Error(
                     "[pre-tool-use] BLOCKED: classifier failure — failing closed per #178/ADR-0036: " +
@@ -586,6 +609,7 @@ export const PreToolUse: Plugin = async ({ directory, client }, options) => {
     };
     return hooks;
 };
+
 
 
 
