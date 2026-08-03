@@ -47,7 +47,7 @@
 - Consumes: ADR-0012, ADR-0013, ADR-0022, ADR-0030, ADR-0040, ADR-0043, ADR-0047, ADR-0048, and the approved spec.
 - Produces: accepted ADR-0049 and the architecture gate required by every later task.
 
-- [ ] **Step 1: Write the failing ADR content test**
+- [x] **Step 1: Write the failing ADR content test**
 
 Add this test to `tests/Unit/Harness/PrismManifestDocsTest.php`:
 
@@ -82,7 +82,7 @@ it('records the FRONTEND tier and TDD-owned agent boundary in ADR-0049', functio
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run:
 
@@ -92,7 +92,7 @@ php vendor/bin/pest tests/Unit/Harness/PrismManifestDocsTest.php --filter='ADR-0
 
 Expected: FAIL because the ADR file does not exist.
 
-- [ ] **Step 3: Write ADR-0049 with Proposed status**
+- [x] **Step 3: Write ADR-0049 with Proposed status**
 
 Use `adr/0000-template.md` and this decision content:
 
@@ -179,15 +179,15 @@ automatic fallback is not added.
 - Automatic quota fallback was rejected as unnecessary complexity.
 ```
 
-- [ ] **Step 4: Run the focused test and verify Green**
+- [x] **Step 4: Run the focused test and verify Green**
 
 Run the Step 2 command. Expected: PASS.
 
-- [ ] **Step 5: Halt for human ADR review**
+- [x] **Step 5: Halt for human ADR review**
 
 Present the complete ADR. Do not change its status and do not begin Task 2 until the user explicitly approves it.
 
-- [ ] **Step 6: Add the acceptance assertion and verify Red**
+- [x] **Step 6: Add the acceptance assertion and verify Red**
 
 After approval, extend the test with:
 
@@ -202,7 +202,7 @@ Assert::assertStringContainsString(
 
 Run the Step 2 command. Expected: FAIL because the ADR is still Proposed and is not registered.
 
-- [ ] **Step 7: Accept and register ADR-0049**
+- [x] **Step 7: Accept and register ADR-0049**
 
 Change only ADR-0049's status to `Accepted`. Add this line to `CONTEXT.md`'s Architectural Decisions list:
 
@@ -210,11 +210,11 @@ Change only ADR-0049's status to `Accepted`. Add this line to `CONTEXT.md`'s Arc
 - `adr/0049-frontend-model-tier-and-tdd-owned-agent.md` — Add schema-v6 FRONTEND model routing and a skill-gated implementation subagent owned by `@tdd`.
 ```
 
-- [ ] **Step 8: Run the focused test and verify Green**
+- [x] **Step 8: Run the focused test and verify Green**
 
 Run the Step 2 command. Expected: PASS.
 
-- [ ] **Step 9: Commit the accepted architecture record**
+- [x] **Step 9: Commit the accepted architecture record**
 
 ```bash
 git add adr/0049-frontend-model-tier-and-tdd-owned-agent.md CONTEXT.md tests/Unit/Harness/PrismManifestDocsTest.php docs/specs/2026-08-03-frontend-model-tier-spec.md docs/plans/2026-08-03-frontend-model-tier.md && \
@@ -253,7 +253,7 @@ This is one wide vertical slice because changing the required schema version inv
 - Consumes: `PrismJsoncDocument::withValues()`, `writeAtomic()`, `PrismManifest::validateProject()`, `validateUser()`, and the existing `migrate`/`migrate-preview` legacy-path commands.
 - Produces: schema-v6 project/user validation, `upgrade-v6 FILE project|user OCTAL_MODE`, 22 ordered env0 pairs, and setup round-tripping for FRONTEND overrides.
 
-- [ ] **Step 1: Write failing schema, migration, and inheritance tests**
+- [x] **Step 1: Write failing schema, migration, and inheritance tests**
 
 Update `pm_valid_project()` in `PrismManifestTest.php` to schema 6 with:
 
@@ -360,7 +360,7 @@ describe('prism_manifest upgrade-v6', function (): void {
 });
 ```
 
-- [ ] **Step 2: Run the focused Pest tests and verify Red**
+- [x] **Step 2: Run the focused Pest tests and verify Red**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/PrismManifestTest.php tests/Unit/Harness/PrismManifestCliTest.php --filter='frontend|schema-v6|upgrade-v6'
@@ -368,7 +368,7 @@ php vendor/bin/pest tests/Unit/Harness/PrismManifestTest.php tests/Unit/Harness/
 
 Expected: FAIL because validation still requires schema 5 and `upgrade-v6` is unknown.
 
-- [ ] **Step 3: Implement schema-v6 validation and the in-place upgrader**
+- [x] **Step 3: Implement schema-v6 validation and the in-place upgrader**
 
 In `PrismManifest.php`:
 
@@ -462,7 +462,7 @@ function pm_project_v6(\stdClass $source, string $mode): \stdClass
 
 Pass `$mode` from both legacy migration handlers and change the canonical header/version prose to 6.
 
-- [ ] **Step 4: Wire `migrate-setup.sh` through the in-place upgrade**
+- [x] **Step 4: Wire `migrate-setup.sh` through the in-place upgrade**
 
 For an existing new-path manifest, call the upgrader before validation:
 
@@ -482,7 +482,7 @@ fi
 
 When both paths exist and their v6 projections compare equal, run the same `upgrade-v6` command on `$new` before retaining/removing the old path. A legacy-only path continues through `migrate`, which now writes canonical v6 directly. Update all version/error prose and make version 7 the downgrade-refusal case.
 
-- [ ] **Step 5: Add FRONTEND transport and shipped defaults**
+- [x] **Step 5: Add FRONTEND transport and shipped defaults**
 
 Keep `PRISM_ENV_MAP` grouped by section:
 
@@ -518,7 +518,7 @@ This yields 22 pairs/44 NUL parts: six models, six variants, three experimental 
 
 Update env0 tests to expect `OPENCODE_MODEL_FRONTEND` at parts 10/11 and `OPENCODE_VARIANT_FRONTEND` at parts 22/23; later entries shift by four. Update `.envrc`/doctor/header prose to 22 pairs and the envrc shell test to 21 exported variables because `OPENCODE_SENSITIVE_PATHS` is consumed internally.
 
-- [ ] **Step 6: Update setup writers, setup UX, and every valid fixture**
+- [x] **Step 6: Update setup writers, setup UX, and every valid fixture**
 
 Add `OPENCODE_MODEL_FRONTEND` and `OPENCODE_VARIANT_FRONTEND` to both writers' `REQUIRED_VARS`, jq arguments, and update objects:
 
@@ -535,7 +535,7 @@ The actual update object must retain every existing path and append these two pa
 
 Update every valid Pest/shell manifest fixture named in this task to version 6 with required project frontend keys. Keep malformed negative fixtures malformed. Add writer assertions proving `all` mode writes frontend overrides while toggle-only mode leaves absent user frontend keys absent.
 
-- [ ] **Step 7: Run the complete manifest/setup seam**
+- [x] **Step 7: Run the complete manifest/setup seam**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/PrismManifestTest.php tests/Unit/Harness/PrismManifestCliTest.php tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harness/SetupCommandPrismManifestTest.php
@@ -550,7 +550,7 @@ bash tests/Shell/setup_scaffold_test.sh
 
 Expected: all commands PASS. Re-run `upgrade-v6` against copied fixtures and confirm the second run is byte-identical.
 
-- [ ] **Step 8: Commit the schema-v6 manifest slice**
+- [x] **Step 8: Commit the schema-v6 manifest slice**
 
 ```bash
 git add .github/scripts/PrismManifest.php .github/scripts/prism_manifest.php .github/scripts/migrate-setup.sh .github/scripts/setup-write-project-config.sh .github/scripts/setup-write-user-config.sh prism.jsonc .envrc .opencode/commands/setup.md .opencode/commands/doctor.md tests/Unit/Harness/PrismManifestTest.php tests/Unit/Harness/PrismManifestCliTest.php tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harness/SetupCommandPrismManifestTest.php tests/Shell/migrate_setup_test.sh tests/Shell/prism_manifest_integration_test.sh tests/Shell/prism_envrc_test.sh tests/Shell/setup_write_project_config_test.sh tests/Shell/setup_write_user_config_test.sh tests/Shell/setup_toggles_test.sh tests/Shell/setup_scaffold_test.sh && \
@@ -967,7 +967,7 @@ git commit -S -m $'docs(harness): document frontend tier workflow\n\nRefs: #285\
 - Consumes: OpenCode permission resolution, `@tdd` task dispatch, and disposable eval worktrees.
 - Produces: observable regression coverage for the two agent-behavior seams.
 
-- [ ] **Step 1: Add the eval cases and verify schema loading first**
+- [x] **Step 1: Add the eval cases and verify schema loading first**
 
 Create `frontend-skill-gating.json`:
 
@@ -1007,7 +1007,7 @@ Create `tdd-frontend-handoff.json`:
 }
 ```
 
-- [ ] **Step 2: Run schema and case loading tests**
+- [x] **Step 2: Run schema and case loading tests**
 
 ```bash
 php vendor/bin/pest tests/Unit/Eval/EvalCaseSchemaParityTest.php
@@ -1015,7 +1015,7 @@ php vendor/bin/pest tests/Unit/Eval/EvalCaseSchemaParityTest.php
 
 Expected: PASS; if it fails, correct only the case shape to match `.opencode/evals/schema.json` and `EvalCase::validate()`.
 
-- [ ] **Step 3: Run the isolated behavior evals**
+- [x] **Step 3: Run the isolated behavior evals**
 
 ```bash
 php .opencode/evals/bin/run-eval.php .opencode/evals/smoke/frontend-skill-gating.json
@@ -1024,11 +1024,11 @@ php .opencode/evals/bin/run-eval.php .opencode/evals/smoke/tdd-frontend-handoff.
 
 Expected: both verdicts PASS. The handoff case must show consultation before test creation, and the skill-gating case must show no gated content.
 
-- [ ] **Step 4: Refine prompts without weakening assertions**
+- [x] **Step 4: Refine prompts without weakening assertions**
 
 If an eval is `Undetermined` because the scenario lacks a usable presentation seam, adjust only its `input` to point at an existing disposable-worktree page/test seam. Do not remove or soften any expected behavior.
 
-- [ ] **Step 5: Commit behavior evals**
+- [x] **Step 5: Commit behavior evals**
 
 ```bash
 git add .opencode/evals/smoke/frontend-skill-gating.json .opencode/evals/smoke/tdd-frontend-handoff.json tests/Unit/Eval/EvalCaseSchemaParityTest.php && \
@@ -1048,7 +1048,7 @@ If `EvalCaseSchemaParityTest.php` did not change, omit it from `git add`.
 - Consumes: all prior task outputs.
 - Produces: verified schema migration, configuration, behavior, coverage, and a final issue-closing commit when a correction is required.
 
-- [ ] **Step 1: Run all focused harness and shell suites**
+- [x] **Step 1: Run all focused harness and shell suites**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/ tests/Unit/Eval/EvalCaseSchemaParityTest.php
@@ -1064,7 +1064,7 @@ bash tests/Shell/validate-harness_test.sh
 
 Expected: all PASS.
 
-- [ ] **Step 2: Run coverage and the repository gate**
+- [x] **Step 2: Run coverage and the repository gate**
 
 ```bash
 php -d pcov.enabled=1 vendor/bin/pest --coverage
@@ -1072,7 +1072,7 @@ php -d pcov.enabled=1 vendor/bin/pest --coverage
 
 Expected: PASS with at least 80% line coverage on every changed PHP file. Then run `/check`; expected: php-cs-fixer, stylelint, eslint, harness validation, shell checks, and Pest coverage all PASS.
 
-- [ ] **Step 3: Re-run the original acceptance scenarios**
+- [x] **Step 3: Re-run the original acceptance scenarios**
 
 Verify all of these directly:
 
@@ -1085,7 +1085,7 @@ Verify all of these directly:
 7. Both frontend smoke evals pass.
 8. No generated asset, dependency, credential path, or fixed footer source changed.
 
-- [ ] **Step 4: Commit only if verification required corrections**
+- [x] **Step 4: Commit only if verification required corrections**
 
 List the corrected paths from `git status --short`, present that exact list for
 review, and stage only those paths. Never use `git add -A` or `git add .`.
@@ -1097,6 +1097,6 @@ git commit -S -m $'fix(harness): complete frontend tier verification\n\nFixes: #
 
 If no corrective commit is needed, add `Fixes: #285` to the final logical commit from Task 6 before creating it; do not create an empty commit.
 
-- [ ] **Step 5: Report manual post-change gates**
+- [x] **Step 5: Report manual post-change gates**
 
 Tell the user to restart OpenCode so the new agent, tier, depth, and permissions load. Stop before push. The human runs `@code-review`, pushes the branch, and opens/merges the PR.
