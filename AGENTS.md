@@ -336,7 +336,7 @@ Load these on demand when the task requires them:
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
 | `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; LSP-first for structural queries (`findReferences`/`callHierarchy`), glob/grep/read for text and prose. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
-| `@frontend` | subagent | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources; cannot test, stage, commit, install dependencies, or dispatch |
+| `@frontend` | subagent | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources; may run focused checks but cannot author tests, stage, commit, install dependencies, or dispatch |
 
 ## Commands
 

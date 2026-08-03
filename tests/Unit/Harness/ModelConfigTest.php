@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
@@ -517,6 +520,25 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
     }
 });
 
+it('AGENTS.md frontend roster allows focused checks but not test authorship', function (): void {
+    $agentsMd = file_get_contents(__DIR__ . '/../../../AGENTS.md');
+
+    preg_match('/^\| `@frontend` \|.*$/m', $agentsMd, $matches);
+    Assert::assertCount(1, $matches, 'AGENTS.md must have exactly one @frontend roster row');
+    $row = $matches[0];
+
+    Assert::assertStringContainsString(
+        'focused checks',
+        $row,
+        '@frontend roster must state it may run focused checks',
+    );
+    Assert::assertStringNotContainsString(
+        'cannot test',
+        $row,
+        '@frontend roster must not deny running focused checks',
+    );
+});
+
 it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function (): void {
     $setup = prism_manifest();
 
@@ -569,6 +591,7 @@ it('CODING_HARNESS variant column reflects xhigh for planner and design', functi
     Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
 });
+
 
 
 
