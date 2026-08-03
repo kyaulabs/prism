@@ -2,10 +2,12 @@
 
 
 
-import { describe, it } from "node:test";
+
+import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir, homedir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
+import { mkdtempSync, mkdirSync, symlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { classifyCommand } from "../../.opencode/plugins/pre-tool-use.ts";
 
@@ -108,9 +110,12 @@ describe("classifyCommand — rm -rf safe zones", () => {
 });
 
 describe("PreToolUse plugin hook", () => {
-    const load = async (client: any) => {
+    const load = async (client: any, pluginOptions?: Record<string, unknown>) => {
         const mod = await import("../../.opencode/plugins/pre-tool-use.ts");
-        return mod.PreToolUse({ directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any);
+        return mod.PreToolUse(
+            { directory: await mkdtemp(join(tmpdir(), "ptu-")), client } as any,
+            pluginOptions,
+        );
     };
     const noopClient = { app: { log: async () => {} } };
     const capturingClient = () => {
@@ -202,7 +207,73 @@ describe("PreToolUse plugin hook", () => {
             (err: Error) => !err.message.includes("auth.json") && !err.message.includes("cat "),
         );
     });
+
+    // Task 13 (ADR-0048 §5): glob pattern / grep include interception and
+    // fail-closed handling of present-but-malformed tool args. The symlink
+    // fixture is canary-only (fake home + temp symlink tree under
+    // os.tmpdir(), ADR-0048 §8) — the plugin is loaded with the fake home so
+    // the ~/.ssh deny class anchors to the fixture, never the real home.
+    const FIXTURE_TMP = mkdtempSync(join(tmpdir(), "ptu-symlink-"));
+    const FAKE_HOME = join(FIXTURE_TMP, "home");
+    const FIXTURE_PROJECT = join(FIXTURE_TMP, "project");
+    mkdirSync(join(FAKE_HOME, ".ssh"), { recursive: true });
+    mkdirSync(FIXTURE_PROJECT, { recursive: true });
+    symlinkSync(join(FAKE_HOME, ".ssh"), join(FIXTURE_PROJECT, "leak"));
+    const LEAK_ID_RSA = join(FIXTURE_PROJECT, "leak/id_rsa");
+    after(() => rmSync(FIXTURE_TMP, { recursive: true, force: true }));
+
+    it("blocks glob pattern targeting the env class from a benign base", async () => {
+        const hooks = await load(noopClient);
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { path: ".", pattern: "**/.env" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks glob pattern inside a sensitive class", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { pattern: "~/.ssh/*" } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks grep include globs and allows .env.example", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ".", include: ["*.env", "*.env.*"] } }),
+            /BLOCKED/,
+        );
+        await h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { path: ".", include: "*.env.example" } });
+    });
+
+    it("fails closed on malformed path/include/pattern args", async () => {
+        const h = (await load(noopClient))["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "grep", sessionID: "s", callID: "c" }, { args: { include: { bad: 1 } } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "glob", sessionID: "s", callID: "c" }, { args: { pattern: 42 } }),
+            /BLOCKED/,
+        );
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: ["a"] } }),
+            /BLOCKED/,
+        );
+    });
+
+    it("blocks read of a symlinked spelling into a sensitive class", async () => {
+        const hooks = await load(noopClient, { home: FAKE_HOME });
+        const h = hooks["tool.execute.before"]!;
+        await assert.rejects(
+            () => h({ tool: "read", sessionID: "s", callID: "c" }, { args: { filePath: LEAK_ID_RSA } }),
+            /BLOCKED/,
+        );
+    });
 });
+
 
 
 

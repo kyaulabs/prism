@@ -9,6 +9,7 @@
 
 
 
+
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir, homedir } from "node:os";
@@ -17,6 +18,7 @@ import {
     loadAdditionalSensitivePaths,
     sensitiveOperandCheck,
     sensitivePathMatch,
+    sensitivePatternCheck,
     tokenizeCommand,
     tryUnwrapSegment,
 } from "./sensitive-paths.ts";
@@ -380,10 +382,15 @@ const TRIP_THRESHOLD = 3;
  * warns on destructive commands. Fails closed: a classifier error blocks
  * the command. See ADR-0023, ADR-0036.
  */
-export const PreToolUse: Plugin = async ({ directory, client }) => {
+export const PreToolUse: Plugin = async ({ directory, client }, options) => {
     // Consecutive-bash-denial circuit breaker (ADR-0042 / issue #274). One
     // tracker per plugin instance isolates denial counts per agent invocation.
     const breaker = new DenialOutcomeTracker({ threshold: TRIP_THRESHOLD });
+
+    // Sensitive-path home anchor. Defaults to the real home; tests inject a
+    // canary fake home (ADR-0048 §8) through the SDK plugin-options record so
+    // the deny floor anchors to a fixture under os.tmpdir().
+    const home = typeof options?.home === "string" ? options.home : homedir();
 
     // Manifest extension of the deny floor (ADR-0047): newline-joined
     // ~/-prefixed or absolute additions. Throws on malformed entries so the
@@ -455,13 +462,14 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
                 );
             }
             const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
-            const home = homedir();
             const options = { projectDir: directory, home, extraPaths };
             const command: string = output?.args?.command ?? "";
 
-            // Sensitive-path interception (ADR-0047): blocks read/grep/glob/
-            // list on sensitive paths and bash operands resolving into the
-            // deny floor. Runs BEFORE the destructive classifier below.
+            // Sensitive-path interception (ADR-0047 / ADR-0048 §5): blocks
+            // read/grep/glob/list on sensitive paths, sensitive glob patterns
+            // and grep include globs, and bash operands resolving into the
+            // deny floor. Present-but-malformed args fail closed. Runs BEFORE
+            // the destructive classifier below.
             if (input.tool === "bash") {
                 const match = sensitiveOperandCheck(command, options);
                 if (match) {
@@ -476,12 +484,43 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
                 const argPath: unknown = input.tool === "read"
                     ? output?.args?.filePath
                     : (output?.args?.path ?? output?.args?.filePath);
+                if (argPath !== undefined && typeof argPath !== "string") {
+                    throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                }
                 if (typeof argPath === "string" && argPath !== "") {
                     const abs = argPath.startsWith("~")
                         ? normalize(home + argPath.slice(1))
                         : normalize(resolvePath(directory, argPath));
                     if (sensitivePathMatch(abs, options)) {
                         throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                    }
+                }
+                // Relative patterns resolve against the tool's directory arg
+                // when present (a string), else the plugin project dir.
+                const patternBase = typeof output?.args?.path === "string"
+                    ? output?.args?.path
+                    : directory;
+                if (input.tool === "glob") {
+                    if (sensitivePatternCheck(output?.args?.pattern, patternBase, options)) {
+                        throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                    }
+                }
+                if (input.tool === "grep") {
+                    const include: unknown = output?.args?.include;
+                    if (include !== undefined) {
+                        if (typeof include === "string") {
+                            if (sensitivePatternCheck(include, patternBase, options)) {
+                                throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                            }
+                        } else if (Array.isArray(include)) {
+                            for (const entry of include) {
+                                if (sensitivePatternCheck(entry, patternBase, options)) {
+                                    throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                                }
+                            }
+                        } else {
+                            throw new Error(`[pre-tool-use] BLOCKED: ${SENSITIVE_REASON}`);
+                        }
                     }
                 }
             }
@@ -547,6 +586,7 @@ export const PreToolUse: Plugin = async ({ directory, client }) => {
     };
     return hooks;
 };
+
 
 
 
