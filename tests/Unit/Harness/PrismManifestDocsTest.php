@@ -2,7 +2,16 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -441,16 +450,19 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         }
     });
 
-    it('describes nineteen NUL pairs in prism.jsonc header', function (): void {
+    it('describes twenty NUL pairs in prism.jsonc header', function (): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/prism.jsonc');
 
         Assert::assertStringContainsString(
-            'nineteen',
+            'twenty',
             $content,
-            'prism.jsonc header must describe nineteen NUL-delimited pairs',
+            'prism.jsonc header must describe twenty NUL-delimited pairs',
         );
     });
 });
+
+
+
 
 
 

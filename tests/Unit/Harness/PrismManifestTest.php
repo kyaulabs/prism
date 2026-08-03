@@ -2,7 +2,16 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: PrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -329,6 +338,143 @@ describe('PrismManifest::validateUser', function (): void {
     ]);
 });
 
+describe('PrismManifest::resolve sensitive-path union', function (): void {
+    it('unions project and user additions order-preserving with exact-string dedup', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['~/vault/', '/etc/proj/']],
+            ],
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['/etc/user/', '/etc/proj/']],
+            ],
+        );
+
+        expect($resolved->security->additional_sensitive_paths)
+            ->toBe(['~/vault/', '/etc/proj/', '/etc/user/']);
+    });
+
+    it('keeps the user additions when only the user tier defines them', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) ['setup_version' => 5],
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['/etc/user/']],
+            ],
+        );
+
+        expect($resolved->security->additional_sensitive_paths)->toBe(['/etc/user/']);
+    });
+
+    it('keeps the project additions when the user tier omits the security field', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
+            ],
+            (object) ['setup_version' => 5],
+        );
+
+        expect($resolved->security->additional_sensitive_paths)->toBe(['~/vault/']);
+    });
+
+    it('restores the project additions when the user tier clobbers security with a scalar', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
+            ],
+            (object) ['setup_version' => 5, 'security' => 'junk'],
+        );
+
+        expect($resolved->security)->toBeObject()
+            ->and($resolved->security->additional_sensitive_paths)->toBe(['~/vault/']);
+    });
+
+    it('skips a non-array list from a tier instead of letting it drop the other tier', function (): void {
+        $resolved = PrismManifest::resolve(
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
+            ],
+            (object) [
+                'setup_version' => 5,
+                'security' => (object) ['additional_sensitive_paths' => 'not-an-array'],
+            ],
+        );
+
+        expect($resolved->security->additional_sensitive_paths)->toBe(['~/vault/']);
+    });
+});
+
+describe('PrismManifest sensitive-path field validation', function (): void {
+    it('accepts a valid additional_sensitive_paths list in a project manifest', function (): void {
+        $manifest = pm_valid_project();
+        $manifest->security = (object) ['additional_sensitive_paths' => ['~/vault/', '/etc/myapp/keys/']];
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts a valid additional_sensitive_paths list in a user manifest', function (): void {
+        expect(fn () => PrismManifest::validateUser((object) [
+            'setup_version' => 5,
+            'security' => (object) ['additional_sensitive_paths' => ['~/vault/']],
+        ]))->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts project and user manifests without a security section', function (): void {
+        expect(fn () => PrismManifest::validateProject(pm_valid_project()))
+            ->not->toThrow(PrismJsoncException::class);
+
+        expect(fn () => PrismManifest::validateUser((object) ['setup_version' => 5]))
+            ->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('accepts a security section that omits the additional_sensitive_paths field', function (): void {
+        $manifest = pm_valid_project();
+        $manifest->security = (object) [];
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+
+        expect(fn () => PrismManifest::validateUser((object) [
+            'setup_version' => 5,
+            'security' => (object) [],
+        ]))->not->toThrow(PrismJsoncException::class);
+    });
+
+    it('rejects malformed additional_sensitive_paths in a project manifest', function (string $dotPath, mixed $bad): void {
+        $manifest = pm_valid_project();
+        $manifest->security = (object) [];
+        pm_set_dot($manifest, $dotPath, $bad);
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class, 'fail closed');
+    })->with([
+        'string value' => ['security.additional_sensitive_paths', '/not-an-array'],
+        'relative entry' => ['security.additional_sensitive_paths', ['relative/path']],
+        'control character entry' => ['security.additional_sensitive_paths', ["/etc/\x01bad/"]],
+        'non-string entry' => ['security.additional_sensitive_paths', ['/ok/', 5]],
+        'security not an object' => ['security', 'junk'],
+    ]);
+
+    it('rejects malformed additional_sensitive_paths in a user manifest', function (string $dotPath, mixed $bad): void {
+        $user = (object) ['setup_version' => 5];
+        $user->security = (object) [];
+        pm_set_dot($user, $dotPath, $bad);
+
+        expect(fn () => PrismManifest::validateUser($user))
+            ->toThrow(PrismJsoncException::class, 'fail closed');
+    })->with([
+        'string value' => ['security.additional_sensitive_paths', '/not-an-array'],
+        'relative entry' => ['security.additional_sensitive_paths', ['relative/path']],
+        'control character entry' => ['security.additional_sensitive_paths', ["/etc/\x01bad/"]],
+        'security not an object' => ['security', 'junk'],
+    ]);
+});
+
 describe('mcp and plugins integration preferences', function (): void {
     it('accepts schema-v5 project manifests that predate optional integration sections', function (): void {
         $manifest = pm_valid_project();
@@ -364,6 +510,9 @@ describe('mcp and plugins integration preferences', function (): void {
             ->and($resolved->mcp->searxng)->toBeTrue();
     });
 });
+
+
+
 
 
 

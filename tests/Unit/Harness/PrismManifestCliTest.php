@@ -2,7 +2,16 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -23,6 +32,7 @@ use function KYAULabs\Prism\main;
 use function KYAULabs\Prism\pm_env_pairs;
 
 use const KYAULabs\Prism\PRISM_ENV_MAP;
+use const KYAULabs\Prism\PRISM_LIST_ENV_MAP;
 use const KYAULabs\Prism\PRISM_TOGGLE_ENV_MAP;
 
 const PM_CLI_SCRIPT = __DIR__ . '/../../..' . '/.github/scripts/prism_manifest.php';
@@ -251,7 +261,7 @@ describe('prism_manifest validate', function (): void {
 });
 
 describe('prism_manifest env0', function (): void {
-    it('emits exactly nineteen NUL-separated name/value pairs with bool coercion', function (): void {
+    it('emits exactly twenty NUL-separated name/value pairs with bool coercion', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
 
         try {
@@ -263,7 +273,7 @@ describe('prism_manifest env0', function (): void {
 
             $parts = pm_parse_nul_pairs($stdout);
 
-            expect($parts)->toHaveCount(38)
+            expect($parts)->toHaveCount(40)
                 ->and($parts[0])->toBe('OPENCODE_MODEL_PRIMARY')
                 ->and($parts[1])->toBe('m1')
                 ->and($parts[20])->toBe('OPENCODE_EXPERIMENTAL_LSP_TOOL')
@@ -271,7 +281,9 @@ describe('prism_manifest env0', function (): void {
                 ->and($parts[26])->toBe('DEEPSEEK_API_KEY')
                 ->and($parts[27])->toBe('')
                 ->and($parts[28])->toBe('SEARXNG_URL')
-                ->and($parts[29])->toBe('');
+                ->and($parts[29])->toBe('')
+                ->and($parts[30])->toBe('OPENCODE_SENSITIVE_PATHS')
+                ->and($parts[31])->toBe('');
         } finally {
             pm_clean($project);
         }
@@ -319,7 +331,7 @@ describe('prism_manifest env0', function (): void {
                 $names[] = $parts[$i];
             }
 
-            $expectedNames = array_merge(array_values(PRISM_ENV_MAP), array_values(PRISM_TOGGLE_ENV_MAP), ['OPENCODE_CONFIG_CONTENT']);
+            $expectedNames = array_merge(array_values(PRISM_ENV_MAP), array_values(PRISM_LIST_ENV_MAP), array_values(PRISM_TOGGLE_ENV_MAP), ['OPENCODE_CONFIG_CONTENT']);
 
             expect($code)->toBe(0)
                 ->and($names)->toBe($expectedNames);
@@ -553,6 +565,55 @@ JSONC);
     });
 });
 
+describe('prism_manifest env0 sensitive-paths transport', function (): void {
+    it('joins a valid additional_sensitive_paths list with newlines', function (): void {
+        $resolved = (object) [
+            'security' => (object) ['additional_sensitive_paths' => ['~/vault/', '/etc/myapp/keys/']],
+        ];
+
+        $pairs = pm_env_pairs($resolved);
+        $index = array_search('OPENCODE_SENSITIVE_PATHS', $pairs, true);
+
+        expect($index)->not->toBeFalse()
+            ->and($pairs[$index + 1])->toBe("~/vault/\n/etc/myapp/keys/");
+    });
+
+    it('emits an empty OPENCODE_SENSITIVE_PATHS when the field is absent', function (): void {
+        $pairs = pm_env_pairs((object) []);
+        $index = array_search('OPENCODE_SENSITIVE_PATHS', $pairs, true);
+
+        expect($index)->not->toBeFalse()
+            ->and($pairs[$index + 1])->toBe('');
+    });
+
+    it('fails closed on a non-array additional_sensitive_paths value', function (): void {
+        $resolved = (object) [
+            'security' => (object) ['additional_sensitive_paths' => '/not-an-array'],
+        ];
+
+        expect(fn () => pm_env_pairs($resolved))
+            ->toThrow(PrismJsoncException::class, 'fail closed');
+    });
+
+    it('fails closed on a relative additional_sensitive_paths entry', function (): void {
+        $resolved = (object) [
+            'security' => (object) ['additional_sensitive_paths' => ['relative/path']],
+        ];
+
+        expect(fn () => pm_env_pairs($resolved))
+            ->toThrow(PrismJsoncException::class, 'fail closed');
+    });
+
+    it('fails closed on a control character in an additional_sensitive_paths entry', function (): void {
+        $resolved = (object) [
+            'security' => (object) ['additional_sensitive_paths' => ["/etc/\x01bad/"]],
+        ];
+
+        expect(fn () => pm_env_pairs($resolved))
+            ->toThrow(PrismJsoncException::class, 'fail closed');
+    });
+});
+
 describe('prism_manifest resolved-load validation', function (): void {
     it('env0 fails closed when the project manifest lacks setup_version', function (): void {
         $project = pm_fixture('{ "app": "prism" }');
@@ -665,7 +726,7 @@ describe('prism_manifest NUL framing', function (): void {
         }
     });
 
-    it('env0 round-trips all nineteen NUL-delimited pairs through a read -d loop', function (): void {
+    it('env0 round-trips all twenty NUL-delimited pairs through a read -d loop', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
         $user = pm_fixture('{ "setup_version": 5, "env": { "searxng_url": "http://x:8080" } }');
 
@@ -692,9 +753,10 @@ describe('prism_manifest NUL framing', function (): void {
             }
 
             expect($code)->toBe(0)
-                ->and($pairs)->toHaveCount(19)
+                ->and($pairs)->toHaveCount(20)
                 ->and($pairs['OPENCODE_MODEL_PRIMARY'])->toBe('m1')
-                ->and($pairs['SEARXNG_URL'])->toBe('http://x:8080');
+                ->and($pairs['SEARXNG_URL'])->toBe('http://x:8080')
+                ->and($pairs['OPENCODE_SENSITIVE_PATHS'])->toBe('');
         } finally {
             pm_clean($project);
             pm_clean($user);
@@ -740,6 +802,22 @@ describe('prism_manifest get', function (): void {
                 ->and($stderr)->not->toBe('');
         } finally {
             pm_clean($project);
+        }
+    });
+
+    it('redacts an env.* value as [redacted] and never prints the secret', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['get', $project, $user, 'env.deepseek_api_key']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('[redacted]')
+                ->and($stdout)->not->toContain('CANARY');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
         }
     });
 });
@@ -797,6 +875,23 @@ describe('prism_manifest values0', function (): void {
 
             expect($code)->toBe(1)
                 ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('redacts an env.* value in the pair stream without leaking the secret', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 5, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['values0', $project, $user, 'signed_off_by_name', 'env.deepseek_api_key']);
+            $parts = pm_parse_nul_pairs($stdout);
+
+            expect($code)->toBe(0)
+                ->and($parts)->toBe(['signed_off_by_name', 'kyau', 'env.deepseek_api_key', '[redacted]'])
+                ->and($stdout)->not->toContain('CANARY');
         } finally {
             pm_clean($project);
             pm_clean($user);
@@ -1320,6 +1415,9 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
+
+
 
 
 

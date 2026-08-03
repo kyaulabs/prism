@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
 
 
 
@@ -40,8 +40,9 @@ require_once __DIR__ . '/PrismOpenCodeConfig.php';
 /**
  * Allowlisted dot-path to environment-variable name map for the env0 command.
  *
- * Exactly fifteen variables: thirteen OPENCODE_* plus DEEPSEEK_API_KEY and
- * SEARXNG_URL.
+ * Fifteen scalar variables: thirteen OPENCODE_* plus DEEPSEEK_API_KEY and
+ * SEARXNG_URL. The sixteenth stable env0 pair is the list-valued
+ * OPENCODE_SENSITIVE_PATHS from {@see PRISM_LIST_ENV_MAP}.
  *
  * @var array<string, string>
  */
@@ -64,10 +65,23 @@ const PRISM_ENV_MAP = [
 ];
 
 /**
+ * List-valued dot-path to environment-variable name map for the env0 command.
+ *
+ * The sixteenth stable env0 pair: additional sensitive paths from the security
+ * section (ADR-0047), newline-joined. Absent key emits the empty string;
+ * malformed values fail closed.
+ *
+ * @var array<string, string>
+ */
+const PRISM_LIST_ENV_MAP = [
+    'security.additional_sensitive_paths' => 'OPENCODE_SENSITIVE_PATHS',
+];
+
+/**
  * Direct-preference dot-path to environment-variable name map for the env0 command.
  *
  * Three diagnostic booleans: user-requested MCP and plugin preferences from the
- * resolved Prism manifest, emitted after the fifteen stable env0 pairs. Default to
+ * resolved Prism manifest, emitted after the sixteen stable env0 pairs. Default to
  * false when the dot path is absent.
  *
  * @var array<string, string>
@@ -201,7 +215,7 @@ function cmd_validate(array $argv): PrismCliResult
  * env0 PROJECT [USER] — emit allowlisted env vars as NUL-separated pairs.
  *
  * Resolves the project plus optional user overlay, then buffers and validates
- * all nineteen pairs before producing any output. Rejects non-scalar values
+ * all twenty pairs before producing any output. Rejects non-scalar values
  * and NUL bytes (which would corrupt the NUL-delimited framing).
  *
  * @param  array<int, string> $argv
@@ -224,6 +238,8 @@ function cmd_env0(array $argv): PrismCliResult
  * get PROJECT USER_OR_DASH DOT_PATH — print one resolved scalar value.
  *
  * USER_OR_DASH is '-' for no user manifest. Object/array results fail closed.
+ * env.* values are redacted to "[redacted]" (ADR-0047 CLI exfiltration close);
+ * the real value remains reachable only through env0 for direnv.
  *
  * @param  array<int, string> $argv
  * @return PrismCliResult
@@ -238,6 +254,10 @@ function cmd_get(array $argv): PrismCliResult
     $resolved = pm_load_resolved($projectFile, $userDash);
     $value = pm_resolve_dot($resolved, $dotPath);
 
+    if (str_starts_with($dotPath, 'env.')) {
+        return new PrismCliResult(0, stdout: '[redacted]');
+    }
+
     return new PrismCliResult(0, stdout: pm_scalar_to_string($value));
 }
 
@@ -246,7 +266,9 @@ function cmd_get(array $argv): PrismCliResult
  *
  * Resolves one immutable project/user snapshot, then emits each requested dot
  * path interleaved with its scalar value. Used by identity/scaffold consumers
- * so files cannot change between reads.
+ * so files cannot change between reads. env.* values are redacted to
+ * "[redacted]" in the emitted pairs (ADR-0047 CLI exfiltration close); env0
+ * remains the only stdout path that carries real values.
  *
  * @param  array<int, string> $argv
  * @return PrismCliResult
@@ -263,7 +285,9 @@ function cmd_values0(array $argv): PrismCliResult
     for ($i = 4, $n = count($argv); $i < $n; $i++) {
         $dotPath = $argv[$i];
         $pairs[] = $dotPath;
-        $pairs[] = pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $dotPath);
+        $pairs[] = str_starts_with($dotPath, 'env.')
+            ? '[redacted]'
+            : pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $dotPath);
     }
 
     return new PrismCliResult(0, stdout: pm_nul_pairs($pairs));
@@ -548,14 +572,16 @@ function pm_canonical_v5(\stdClass $projection): string
 /**
  * Build the flat allowlisted env name/value pair list from a resolved manifest.
  *
- * Emits the fifteen stable PRISM_ENV_MAP entries, then three requested-preference
- * toggle diagnostics, then the composed OPENCODE_CONFIG_CONTENT. All pairs are
+ * Emits the sixteen stable env0 pairs (fifteen PRISM_ENV_MAP scalars plus the
+ * PRISM_LIST_ENV_MAP path list), then three requested-preference toggle
+ * diagnostics, then the composed OPENCODE_CONFIG_CONTENT. All pairs are
  * buffered before output so a mid-buffer failure produces no partial stream.
  *
  * @param  \stdClass        $resolved
  * @param  string|null      $existingInlineConfig  Inherited OPENCODE_CONFIG_CONTENT value.
  * @return list<string>     Interleaved [name, value, name, value, ...].
- * @throws PrismJsoncException  On a non-scalar value or a NUL byte in a value.
+ * @throws PrismJsoncException  On a non-scalar value, a NUL byte in a value, or
+ *                              a malformed additional-sensitive-paths list.
  */
 function pm_env_pairs(\stdClass $resolved, ?string $existingInlineConfig = null): array
 {
@@ -564,6 +590,10 @@ function pm_env_pairs(\stdClass $resolved, ?string $existingInlineConfig = null)
     foreach (PRISM_ENV_MAP as $dotPath => $envName) {
         $pairs[] = $envName;
         $pairs[] = pm_scalar_to_transport(pm_resolve_dot($resolved, $dotPath), $envName);
+    }
+    foreach (PRISM_LIST_ENV_MAP as $dotPath => $envName) {
+        $pairs[] = $envName;
+        $pairs[] = pm_path_list_to_transport(pm_resolve_dot($resolved, $dotPath), $dotPath);
     }
     foreach (PRISM_TOGGLE_ENV_MAP as $dotPath => $envName) {
         $pairs[] = $envName;
@@ -598,6 +628,47 @@ function pm_boolean_default_false(\stdClass $root, string $dotPath): bool
     }
 
     return $value;
+}
+
+/**
+ * Coerce the additional-sensitive-paths value to its transport string form.
+ *
+ * An absent key resolves to the empty string; an array whose entries are all
+ * ~/-prefixed or absolute path strings free of control characters joins with
+ * newlines (the plugin's newline-delimited OPENCODE_SENSITIVE_PATHS framing).
+ * Any other shape fails closed so the deny floor can never be silently widened
+ * by a malformed manifest (ADR-0047).
+ *
+ * @param  mixed  $value
+ * @param  string $label  Dotted manifest path for the diagnostic (never a value).
+ * @return string
+ * @throws PrismJsoncException  When the value is not a valid path list.
+ */
+function pm_path_list_to_transport(mixed $value, string $label): string
+{
+    if ($value === null) {
+        return '';
+    }
+
+    if (!is_array($value)) {
+        throw new PrismJsoncException(
+            $label . ' must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0047)',
+        );
+    }
+
+    foreach ($value as $entry) {
+        if (
+            !is_string($entry)
+            || preg_match('/^(~\/|\/)/', $entry) !== 1
+            || preg_match('/[\x00-\x1f\x7f]/', $entry) === 1
+        ) {
+            throw new PrismJsoncException(
+                $label . ' must be an array of ~/-prefixed or absolute path strings — fail closed (ADR-0047)',
+            );
+        }
+    }
+
+    return implode("\n", $value);
 }
 
 /**
@@ -731,6 +802,9 @@ final class PrismCliResult
     ) {
     }
 }
+
+
+
 
 
 
