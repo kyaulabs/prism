@@ -39,7 +39,7 @@ UI copy, and conversation. When a term is introduced, add it here first.
 | agent-invocation identity | The `sessionID` used to isolate per-agent state such as the circuit breaker's counter. Subagent sessions are distinct from their caller's — each `@explore` dispatch is its own invocation. |
 | tool-call identity | The `callID` assigned to each individual tool invocation. Used by the before/after reconciliation layer (ADR-0042 §3) to correlate `message.part.updated` tool-part events and `tool.execute.after` hooks per invocation. Distinct from `sessionID` (agent-invocation identity). |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Writes are blocked locally (`prepare-commit-msg` + `pre-push` hooks), enforced server-side (a GitHub repository ruleset named `pr-only-integration`), and verified in CI (`verify-protected-push.sh` provenance tripwire). The initial single-root seed push is the sole direct-write exception. See ADR-0044. |
-| sensitive path | A filesystem path every agent and sub-agent is forbidden to read, print, copy, encode, or transmit: the opencode auth store (`~/.local/share/opencode/`, incl. `auth.json`/`mcp-auth.json` basenames anywhere), `~/.opencodereview/`, `~/intelephense/licen?e.txt`, `~/.config/opencode/` (user Prism manifest), `~/.ssh/`, `~/.aws/`, `~/.netrc`, `~/.git-credentials`, `/etc/ssl/private/`, and any `**/.env`/`.env.*` anywhere on the filesystem. `.env.example` is the sole env-class exception. Enforced by an **immutable deny floor** in `.opencode/plugins/sensitive-paths.ts` — the Prism manifest can only ADD paths via `security.additional_sensitive_paths` (never reduce), with a trusted `/setup` boundary for the prism-user-manifest class. See ADR-0047. |
+| sensitive path | A filesystem path every agent and sub-agent is forbidden to read, print, copy, encode, or transmit: the opencode auth store (`~/.local/share/opencode/`, incl. `auth.json`/`mcp-auth.json` basenames anywhere), `~/.opencodereview/`, `~/intelephense/licen?e.txt`, `~/.config/opencode/` (user Prism manifest), `~/.ssh/`, `~/.aws/`, `~/.netrc`, `~/.git-credentials`, `/etc/ssl/private/`, and any `**/.env`/`.env.*` anywhere on the filesystem. `.env.example` is the sole env-class exception. Enforced by an **immutable deny floor** in `.opencode/plugins/sensitive-paths.ts` — the Prism manifest can only ADD paths via `security.additional_sensitive_paths` (never reduce), with project-plus-user **union** semantics (ADR-0048) and a trusted `/setup` boundary for the prism-user-manifest class. See ADR-0047, ADR-0048. |
 
 ### Verdict
 Terminal outcome of a single eval case. One of six case-level values
@@ -99,7 +99,10 @@ one schema and one reader.
   - User `env.*` may be non-empty (real secrets, never committed).
   - Resolution is a recursive field-by-field overlay (user wins per-field;
     object keys merge, arrays/scalars replace atomically). A missing user
-    manifest is valid.
+    manifest is valid. **Security-scoped exception (ADR-0048):**
+    `security.additional_sensitive_paths` unions across tiers (project list
+    then user list, order-preserving, deduplicated) — the user tier can add
+    but never remove a project-tier sensitive-path addition.
   - Fail-closed: missing project manifest, malformed either-tier manifest,
     duplicate key, unsupported schema version, unsafe symlink, > 1 MiB, or
     > 64 nesting levels. No silent fall-through.
@@ -202,6 +205,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0045-manifest-driven-mcp-plugin-toggles.md` — Manifest-driven Boolean toggle preferences for optional MCP servers and quota plugin; supersedes ADR-0032's commented-block enablement
 - `adr/0046-automated-release-pipeline.md` — Split release finalization: local `/release` authors the reviewed release PR; `release.yml` publishes the unsigned tag/Release at the immutable merge SHA and opens the human-merged back-merge PR; partially supersedes ADR-0044's release-origin and manual-finalization clauses
 - `adr/0047-sensitive-path-enforcement.md` — Four-layer sensitive-path enforcement (plugin matcher + permission rules + validator contract + prompt prohibition) with an immutable deny floor, additive-only manifest extension, trusted `/setup` boundary, and documented residual risk; extends ADR-0023/0036/0042
+- `adr/0048-sensitive-path-enforcement-corrections.md` — Corrections to ADR-0047's implementation: project-plus-user union for `security.additional_sensitive_paths`, invocation-scoped `/setup` trust (depth-0 only), last-match-wins permission ordering invariant, deny set for every bash-object agent + `external_directory` check, `glob.pattern`/`grep.include` interception with fail-closed malformed args, symlink canonicalization, manifest-level validation of the security field, canary-only fixtures; partially supersedes ADR-0047
 
 ## When to update this file
 

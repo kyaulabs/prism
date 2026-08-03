@@ -4,7 +4,11 @@ Date: 2026-08-02
 
 ## Status
 
-Accepted
+Accepted — partially superseded by ADR-0048 (project-plus-user union for
+additional sensitive paths, invocation-scoped `/setup` trust, last-match-wins
+permission ordering, `glob.pattern`/`grep.include` tool-argument coverage,
+symlink canonicalization, and manifest-level validation of the security
+field).
 
 ## Context
 
