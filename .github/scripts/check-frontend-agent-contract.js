@@ -1,6 +1,7 @@
 // $KYAULabs: check-frontend-agent-contract.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
+
 // Check the FRONTEND agent routing contract (ADR-0049).
 // Usage: node check-frontend-agent-contract.js <opencode.jsonc> <frontend.md> <tdd.md>
 // Emits one stable 'frontend-contract: ' diagnostic per violation and exits 1;
@@ -45,7 +46,28 @@ const expectedEditValues = {
 	'cdn/javascript/**': 'deny',
 };
 
-const credentialRules = {
+const expectedBashKeys = [
+	'*',
+	'git status*', 'git diff*',
+	'php -l*', 'php vendor/bin/pest*',
+	'npx --no-install stylelint*', 'npx --no-install eslint*',
+	'git add*', 'git stage*', 'git commit*', 'git push*', 'git tag*',
+	'*.env', '*.env.*', '*.env.example', '*auth.json*', '*mcp-auth.json*',
+];
+
+const expectedBashValues = {
+	'*': 'deny',
+	'git status*': 'allow',
+	'git diff*': 'allow',
+	'php -l*': 'allow',
+	'php vendor/bin/pest*': 'allow',
+	'npx --no-install stylelint*': 'allow',
+	'npx --no-install eslint*': 'allow',
+	'git add*': 'deny',
+	'git stage*': 'deny',
+	'git commit*': 'deny',
+	'git push*': 'deny',
+	'git tag*': 'deny',
 	'*.env': 'deny',
 	'*.env.*': 'deny',
 	'*.env.example': 'allow',
@@ -53,9 +75,7 @@ const credentialRules = {
 	'*mcp-auth.json*': 'deny',
 };
 
-const gitWriteKeys = ['git add*', 'git stage*', 'git commit*', 'git push*', 'git tag*'];
-
-const forbiddenAllowPatterns = ['npm install', 'pip install', 'sass', 'uglifyjs', 'cdn/css', 'cdn/javascript'];
+const expectedFrontendConfigKeys = ['model', 'variant', 'temperature', 'hidden'];
 
 const violations = [];
 
@@ -182,14 +202,19 @@ if (cfg !== null) {
 		violation("global skill rules must allow '*' first and deny exactly the four frontend skills");
 	}
 
-	// ── @frontend tier config: model, variant, literal temperature, hidden ──
+	// ── @frontend tier config: exactly model, variant, literal temperature,
+	// and hidden — no permission override. Config sources deep-merge, so an
+	// inline permission block would silently override the terminal
+	// frontmatter contract (ADR-0049). ─────────────────────────────────────
 	const frontendConfig = cfg.agent && cfg.agent.frontend;
-	if (!frontendConfig || typeof frontendConfig !== 'object'
-		|| frontendConfig.model !== '{env:OPENCODE_MODEL_FRONTEND}'
-		|| frontendConfig.variant !== '{env:OPENCODE_VARIANT_FRONTEND}'
-		|| frontendConfig.temperature !== 0.3
-		|| frontendConfig.hidden !== true) {
-		violation('@frontend config must set model, variant, temperature 0.3, and hidden true');
+	const configOk = frontendConfig && typeof frontendConfig === 'object'
+		&& sameKeys(frontendConfig, expectedFrontendConfigKeys)
+		&& frontendConfig.model === '{env:OPENCODE_MODEL_FRONTEND}'
+		&& frontendConfig.variant === '{env:OPENCODE_VARIANT_FRONTEND}'
+		&& frontendConfig.temperature === 0.3
+		&& frontendConfig.hidden === true;
+	if (!configOk) {
+		violation('@frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override');
 	}
 }
 
@@ -203,10 +228,12 @@ if (tdd !== null) {
 }
 
 if (frontend !== null) {
-	// ── @frontend frontmatter: mode, literal temperature, LSP access ────────
+	// ── @frontend frontmatter: mode, literal temperature, LSP access; model
+	// and variant live in opencode.jsonc config only (ADR-0022) ─────────────
 	if (frontend.mode !== 'subagent' || frontend.temperature !== 0.3
-		|| !(frontend.permission && frontend.permission.lsp === 'allow')) {
-		violation('@frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow');
+		|| !(frontend.permission && frontend.permission.lsp === 'allow')
+		|| 'model' in frontend || 'variant' in frontend) {
+		violation('@frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant');
 	}
 
 	const perm = frontend.permission || {};
@@ -225,18 +252,17 @@ if (frontend !== null) {
 		violation("@frontend edit rules must keep '*' first and generated assets denied");
 	}
 
-	// ── @frontend bash rules: catch-all '*' deny first, credential denies,
-	// all git-write denies, and no install/asset-build allows ───────────────
+	// ── @frontend bash rules: the exact ordered focused-check allowlist —
+	// catch-all '*' deny first, only git status/diff, php -l, pest,
+	// stylelint, and eslint allows, then the exact git-write and credential
+	// denies. Missing, extra, reordered, or re-valued keys all violate the
+	// contract (last-match-wins ordering). ──────────────────────────────────
 	const bash = perm.bash;
-	const bashKeys = bash && typeof bash === 'object' ? Object.keys(bash) : [];
 	const bashOk = bash && typeof bash === 'object'
-		&& bashKeys.length > 0 && bashKeys[0] === '*' && bash['*'] === 'deny'
-		&& sameValues(bash, credentialRules)
-		&& gitWriteKeys.every((key) => bash[key] === 'deny')
-		&& !Object.keys(bash).some((key) => bash[key] === 'allow'
-			&& forbiddenAllowPatterns.some((pattern) => key.includes(pattern)));
+		&& sameKeys(bash, expectedBashKeys)
+		&& sameValues(bash, expectedBashValues);
 	if (!bashOk) {
-		violation('@frontend bash rules may not allow git writes, installs, or asset builds');
+		violation('@frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)');
 	}
 
 	// ── @frontend skill rules: exactly the four frontend skills at allow ───
@@ -254,6 +280,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

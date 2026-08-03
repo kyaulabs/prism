@@ -30,6 +30,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -3131,7 +3132,7 @@ git_init_test_repo "$T_CTR_CONFIG"
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend config must set model, variant, temperature 0.3, and hidden true"; then
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override"; then
 		pass "Caught @frontend tier config drift with the exact diagnostic"
 	else
 		fail "Did not detect @frontend tier config drift (exit ${exit_code:-0})"
@@ -3152,7 +3153,7 @@ git_init_test_repo "$T_CTR_FRONTMATTER"
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow"; then
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant"; then
 		pass "Caught @frontend frontmatter drift with the exact diagnostic"
 	else
 		fail "Did not detect @frontend frontmatter drift (exit ${exit_code:-0})"
@@ -3215,7 +3216,7 @@ git_init_test_repo "$T_CTR_BASH"
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules may not allow git writes, installs, or asset builds"; then
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
 		pass "Caught @frontend bash git-write drift with the exact diagnostic"
 	else
 		fail "Did not detect @frontend bash git-write drift (exit ${exit_code:-0})"
@@ -3243,10 +3244,95 @@ git_init_test_repo "$T_CTR_SKILL_FRONTEND"
 	fi
 )
 
+# ── Test: unrelated bash allow is rejected (exact allowlist) ─────────────────
+
+echo "── Test: FRONTEND contract — unrelated bash allow rejected ──"
+T_CTR_BASH_EXTRA=$(mktemp -d)
+register_temp_dir "$T_CTR_BASH_EXTRA"
+git_init_test_repo "$T_CTR_BASH_EXTRA"
+(
+	cd "$T_CTR_BASH_EXTRA"
+	setup_contract_env
+	awk '/npx --no-install eslint\*/ { print; print "    \"curl *\": allow"; next } { print }' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
+		pass "Caught unrelated bash allow with the exact-allowlist diagnostic"
+	else
+		fail "Did not reject unrelated bash allow (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: reordered bash keys are rejected (exact order) ────────────────────
+
+echo "── Test: FRONTEND contract — reordered bash keys rejected ──"
+T_CTR_BASH_REORDER=$(mktemp -d)
+register_temp_dir "$T_CTR_BASH_REORDER"
+git_init_test_repo "$T_CTR_BASH_REORDER"
+(
+	cd "$T_CTR_BASH_REORDER"
+	setup_contract_env
+	awk '{
+		if ($0 ~ /"git add\*": deny/) { last = $0; next }
+		if ($0 ~ /"git stage\*": deny/) { print $0; print last; next }
+		print
+	}' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
+		pass "Caught reordered bash keys with the exact-allowlist diagnostic"
+	else
+		fail "Did not reject reordered bash keys (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: inline frontend permission override is rejected ───────────────────
+
+echo "── Test: FRONTEND contract — inline permission override rejected ──"
+T_CTR_CONFIG_PERM=$(mktemp -d)
+register_temp_dir "$T_CTR_CONFIG_PERM"
+git_init_test_repo "$T_CTR_CONFIG_PERM"
+(
+	cd "$T_CTR_CONFIG_PERM"
+	setup_contract_env
+	awk '/^      "hidden": true$/ { print "      \"hidden\": true,"; print "      \"permission\": { \"task\": \"allow\" }"; next } { print }' opencode.jsonc > opencode.jsonc.tmp && mv opencode.jsonc.tmp opencode.jsonc
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override"; then
+		pass "Caught inline frontend permission override with the exact-config diagnostic"
+	else
+		fail "Did not reject inline frontend permission override (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: model/variant in frontend frontmatter is rejected ─────────────────
+
+echo "── Test: FRONTEND contract — frontmatter model/variant rejected ──"
+T_CTR_FRONTMATTER_MODEL=$(mktemp -d)
+register_temp_dir "$T_CTR_FRONTMATTER_MODEL"
+git_init_test_repo "$T_CTR_FRONTMATTER_MODEL"
+(
+	cd "$T_CTR_FRONTMATTER_MODEL"
+	setup_contract_env
+	awk '/^mode: subagent$/ { print; print "model: openai/gpt-5.6-sol"; print "variant: xhigh"; next } { print }' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant"; then
+		pass "Caught frontmatter model/variant with the exact-frontmatter diagnostic"
+	else
+		fail "Did not reject frontmatter model/variant (exit ${exit_code:-0})"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
