@@ -15,6 +15,9 @@ permission:
     "*auth.json*": "deny"
     "*mcp-auth.json*": "deny"
   lsp: allow
+  task:
+    "*": deny
+    "frontend": allow
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 
@@ -62,6 +65,21 @@ RIGHT (vertical):     RED→GREEN: test1→impl1, test2→impl2, test3→impl3, 
 
 If you catch yourself about to write a second test before the first is green,
 stop and implement first.
+
+## Frontend slices
+
+When the slice touches presentation PHP/HTML, SCSS, JavaScript, visual,
+responsive, progressive-enhancement, or accessibility work:
+
+1. Detect the frontend surface and plan a narrow slice.
+2. Dispatch `@frontend` in consultation mode (slice goal and candidate
+   paths) BEFORE writing the failing test.
+3. Use the returned standards checklist to select the observable behavior;
+   `@tdd` writes and verifies Red itself.
+4. Dispatch `@frontend` in implementation mode with the selected behavior,
+   the complete failing test output, and the approved permitted-file list.
+5. After frontend returns, rerun the tests, verify Green, own refactoring
+   checks and coverage, and produce the commit.
 
 ## Your workflow
 

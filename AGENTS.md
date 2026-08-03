@@ -237,11 +237,12 @@ LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
 hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
-default in `opencode.jsonc`. Eight agents explicitly opt in with `lsp: "allow"`:
-`build`, `design`, `explore`, `general`, `chat`, `@tdd`, `@debug`, and
-`@docs-writer` — agents that write PHP or navigate code semantically
-(Intelephense premium fills the gap left by the absence of `psalm`/`phpstan`
-in `composer.json`). All other agents inherit the `deny` default.
+default in `opencode.jsonc`. Nine agents explicitly opt in with `lsp: "allow"`:
+`build`, `design`, `explore`, `general`, `chat`, `@tdd`, `@debug`,
+`@docs-writer`, and `@frontend` — agents that write PHP or navigate code
+semantically (Intelephense premium fills the gap left by the absence of
+`psalm`/`phpstan` in `composer.json`). All other agents inherit the `deny`
+default.
 
 ## Experimental OpenCode Features
 
@@ -253,7 +254,7 @@ their shell profile.
 
 | Flag | Purpose | Status |
 | --- | --- | --- |
-| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for eight agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
+| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for nine agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
 | `OPENCODE_EXPERIMENTAL_SCOUT=true` | Enables the built-in `@scout` experimental subagent (ADR-0005 delegate — web research, clone upstream deps) | Auto-sourced |
 | `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` | Enables background subagent tasks (see `/research --background`) | Commented — gated on ADR-0024 Phase-0 spike |
 
@@ -335,6 +336,7 @@ Load these on demand when the task requires them:
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
 | `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; LSP-first for structural queries (`findReferences`/`callHierarchy`), glob/grep/read for text and prose. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
+| `@frontend` | subagent | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources; cannot test, stage, commit, install dependencies, or dispatch |
 
 ## Commands
 

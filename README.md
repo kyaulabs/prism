@@ -301,6 +301,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
 | `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
+| `@frontend` | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources |
 
 ### Model Configuration
 
