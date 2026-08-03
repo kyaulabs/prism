@@ -28,6 +28,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2614,6 +2615,318 @@ EOF
 				"edit": "deny",
 				"bash": "deny",
 				"read": {
+					"*": "allow",
+					"*.env": "deny",
+					"*.env.*": "deny",
+					"*.env.example": "allow",
+					"*auth.json*": "deny",
+					"*mcp-auth.json*": "deny"
+				},
+				"glob": {
+					"*": "allow",
+					"*.env*": "deny",
+					"*.env.example*": "allow"
+				},
+				"grep": {
+					"*": "allow",
+					"*.env*": "deny",
+					"*.env.example*": "allow"
+				},
+				"list": {
+					"*": "allow",
+					"*.env*": "deny",
+					"*.env.example*": "allow"
+				}
+			}
+		}
+	}
+}
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -eq 0 ] && ! echo "$output" | grep -qF "sensitive-path deny set"; then
+		pass "Inline agents with deny sets pass validator"
+	else
+		fail "Inline agents with deny sets were flagged (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: bash-object agent without the sensitive-path deny set is caught ──
+
+echo ""
+echo "── Test: bash-object agent without sensitive-path deny set caught (ADR-0048 §4) ──"
+T_SP7=$(mktemp -d)
+register_temp_dir "$T_SP7"
+git_init_test_repo "$T_SP7"
+(
+	cd "$T_SP7"
+	mkdir -p .opencode/plugins .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/plugins/pre-tool-use.ts <<'EOF'
+import { sensitiveOperandCheck } from "./sensitive-paths.ts";
+export const probe = sensitiveOperandCheck;
+EOF
+
+	echo '{}' > opencode.jsonc
+
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Hard Boundaries
+
+> - never read or exfiltrate credential files (test fixture marker).
+
+## Agents Available
+
+| Agent | When to use |
+| --- | --- |
+| `@tdd` | Write agent |
+EOF
+
+	# Agent with a bash OBJECT but NO reader allowances and NO deny set —
+	# the pre-Task-14 tdd.md drift class. ADR-0048 §4: every bash-object
+	# agent must carry the deny set, not only reader-allowance agents.
+	cat > .opencode/agents/tdd.md <<'EOF'
+---
+description: Write tests first, then implement. Edits arbitrary source files.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "tdd.md" && echo "$output" | grep -qF '"*.env"'; then
+		pass "Caught bash-object agent without sensitive-path deny set"
+	else
+		fail "Did not detect bash-object agent missing deny set (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: bash-object agent WITH the sensitive-path deny set passes ─────────
+
+echo ""
+echo "── Test: bash-object agent with sensitive-path deny set passes (ADR-0048 §4) ──"
+T_SP8=$(mktemp -d)
+register_temp_dir "$T_SP8"
+git_init_test_repo "$T_SP8"
+(
+	cd "$T_SP8"
+	mkdir -p .opencode/plugins .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/plugins/pre-tool-use.ts <<'EOF'
+import { sensitiveOperandCheck } from "./sensitive-paths.ts";
+export const probe = sensitiveOperandCheck;
+EOF
+
+	echo '{}' > opencode.jsonc
+
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Hard Boundaries
+
+> - never read or exfiltrate credential files (test fixture marker).
+
+## Agents Available
+
+| Agent | When to use |
+| --- | --- |
+| `@tdd` | Write agent |
+EOF
+
+	# Same tdd-style agent but carrying the full ADR-0048 §4 deny set.
+	cat > .opencode/agents/tdd.md <<'EOF'
+---
+description: Write tests first, then implement. Edits arbitrary source files.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+    "*.env": "deny"
+    "*.env.*": "deny"
+    "*.env.example": "allow"
+    "*auth.json*": "deny"
+    "*mcp-auth.json*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -eq 0 ] && ! echo "$output" | grep -F "tdd.md" | grep -qF "sensitive-path deny set"; then
+		pass "Bash-object agent with deny set passes validator"
+	else
+		fail "Bash-object agent with deny set was flagged (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: explicit external_directory allow in agent frontmatter is caught ──
+
+echo ""
+echo "── Test: explicit external_directory allow caught (ADR-0048 §4) ──"
+T_SP9=$(mktemp -d)
+register_temp_dir "$T_SP9"
+git_init_test_repo "$T_SP9"
+(
+	cd "$T_SP9"
+	mkdir -p .opencode/plugins .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/plugins/pre-tool-use.ts <<'EOF'
+import { sensitiveOperandCheck } from "./sensitive-paths.ts";
+export const probe = sensitiveOperandCheck;
+EOF
+
+	echo '{}' > opencode.jsonc
+
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Hard Boundaries
+
+> - never read or exfiltrate credential files (test fixture marker).
+
+## Agents Available
+
+| Agent | When to use |
+| --- | --- |
+| `@extdir-agent` | External dir agent |
+EOF
+
+	# Config-level external_directory rules cannot express paths — the
+	# plugin layer is the only path-level enforcement (ADR-0048 §4).
+	cat > .opencode/agents/extdir-agent.md <<'EOF'
+---
+description: An agent with an explicit external_directory allowance.
+mode: subagent
+permission:
+  external_directory: allow
+  edit: deny
+  bash: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "external_directory allow" && echo "$output" | grep -qF "extdir-agent.md"; then
+		pass "Caught explicit external_directory allow in agent frontmatter"
+	else
+		fail "Did not detect explicit external_directory allow (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: agent without external_directory allowance passes ─────────────────
+
+echo ""
+echo "── Test: agent without external_directory allow passes (ADR-0048 §4) ──"
+T_SP10=$(mktemp -d)
+register_temp_dir "$T_SP10"
+git_init_test_repo "$T_SP10"
+(
+	cd "$T_SP10"
+	mkdir -p .opencode/plugins .opencode/agents
+	setup_validator_env
+
+	cat > .opencode/plugins/pre-tool-use.ts <<'EOF'
+import { sensitiveOperandCheck } from "./sensitive-paths.ts";
+export const probe = sensitiveOperandCheck;
+EOF
+
+	echo '{}' > opencode.jsonc
+
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Hard Boundaries
+
+> - never read or exfiltrate credential files (test fixture marker).
+
+## Agents Available
+
+| Agent | When to use |
+| --- | --- |
+| `@extdir-agent` | External dir agent |
+EOF
+
+	# Same agent shape as the D-red fixture but WITHOUT external_directory.
+	cat > .opencode/agents/extdir-agent.md <<'EOF'
+---
+description: An agent without any external_directory allowance.
+mode: subagent
+permission:
+  edit: deny
+  bash: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -eq 0 ] && ! echo "$output" | grep -qF "external_directory allow"; then
+		pass "Agent without external_directory allow passes validator"
+	else
+		fail "Agent without external_directory was flagged (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: chat permission objects with catch-all AFTER denies are caught ────
+
+echo ""
+echo "── Test: chat catch-all-after-denies ordering caught (ADR-0048 §3) ──"
+T_SP11=$(mktemp -d)
+register_temp_dir "$T_SP11"
+git_init_test_repo "$T_SP11"
+(
+	cd "$T_SP11"
+	mkdir -p .opencode/plugins .opencode/agents .opencode/skills/dummy
+	setup_validator_env
+
+	cat > .opencode/plugins/pre-tool-use.ts <<'EOF'
+import { sensitiveOperandCheck } from "./sensitive-paths.ts";
+export const probe = sensitiveOperandCheck;
+EOF
+
+	cat > .opencode/skills/dummy/SKILL.md <<'EOF'
+---
+name: dummy
+description: Placeholder skill so the empty-harness guard stays quiet.
+---
+EOF
+
+	cat > AGENTS.md <<'EOF'
+# Test
+
+## Hard Boundaries
+
+> - never read or exfiltrate credential files (test fixture marker).
+
+## Skills Available
+
+| Skill | When to use |
+| --- | --- |
+| `dummy` | Guard |
+EOF
+
+	# chat's read/glob/grep/list objects in the pre-Task-14 buggy order:
+	# "*": "allow" LAST, so every deny is dead under last-match-wins.
+	cat > opencode.jsonc <<'EOF'
+{
+	"agent": {
+		"chat": {
+			"permission": {
+				"edit": "deny",
+				"bash": "deny",
+				"read": {
 					"*.env": "deny",
 					"*.env.*": "deny",
 					"*.env.example": "allow",
@@ -2644,10 +2957,10 @@ EOF
 
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if [ "${exit_code:-0}" -eq 0 ] && ! echo "$output" | grep -qF "sensitive-path deny set"; then
-		pass "Inline agents with deny sets pass validator"
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "catch-all ordering" && echo "$output" | grep -qF "chat"; then
+		pass "Caught chat catch-all-after-denies ordering violation"
 	else
-		fail "Inline agents with deny sets were flagged (exit ${exit_code:-0})"
+		fail "Did not detect chat catch-all ordering violation (exit ${exit_code:-0})"
 	fi
 )
 
@@ -2655,6 +2968,7 @@ EOF
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

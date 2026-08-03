@@ -3,11 +3,12 @@
 
 
 
+
 // Walk agent.* in opencode.jsonc and emit TSV rows for each inline agent.
 // Usage: node inline-agent-permissions.js <opencode.jsonc-path>
 // Emits one row per agent (pipe-separated):
 //   name | description | edit | bash_restricted | git_commit | has_permission
-//   | sensitive_denies | read_sensitive_denies
+//   | sensitive_denies | read_sensitive_denies | order_ok
 // Where:
 //   edit            = the permission.edit value ('deny', 'allow', 'ask', or '')
 //   bash_restricted = 'true' if bash is fully denied OR has a catch-all deny
@@ -24,6 +25,11 @@
 //   read_sensitive_denies = 'true' if read/glob/grep/list are objects each
 //                     carrying env-class denies with '.env.example' allow;
 //                     'false' if any is an object without them; '' otherwise.
+//   order_ok        = 'true' if read/glob/grep/list are objects whose
+//                     catch-all '*' precedes every deny entry (ADR-0048 §3
+//                     last-match-wins ordering); otherwise a comma-joined
+//                     list of the misordered object names; '' if the four
+//                     tools are not all objects.
 // Exits 0 on success, 1 on parse error.
 
 'use strict';
@@ -127,7 +133,8 @@ for (const name of Object.keys(agents)) {
     }
     let readSensitiveDenies = '';
     const readTools = ['read', 'glob', 'grep', 'list'];
-    if (readTools.every((t) => perm[t] && typeof perm[t] === 'object')) {
+    const readObjects = readTools.every((t) => perm[t] && typeof perm[t] === 'object');
+    if (readObjects) {
         const readOk =
             perm.read['*.env'] === 'deny' &&
             perm.read['*.env.*'] === 'deny' &&
@@ -138,10 +145,27 @@ for (const name of Object.keys(agents)) {
         readSensitiveDenies = readOk && searchOk ? 'true' : 'false';
     }
 
-    process.stdout.write(`${name}|${desc}|${edit}|${bashRestricted}|${gitCommit}|${a.permission !== undefined ? 'true' : 'false'}|${sensitiveDenies}|${readSensitiveDenies}\n`);
+    // Catch-all ordering (ADR-0048 §3): permission rules are last-match-wins,
+    // so in each of read/glob/grep/list the catch-all '*' must precede every
+    // deny entry — otherwise the deny is dead and the whole class is
+    // re-allowed. 'true' when all four objects are ordered; otherwise a
+    // comma-joined list of the misordered object names for the error message.
+    let orderOk = '';
+    if (readObjects) {
+        const bad = readTools.filter((t) => {
+            const keys = Object.keys(perm[t]);
+            const star = keys.indexOf('*');
+            if (star === -1) return false; // no catch-all — nothing to order
+            return keys.some((k, idx) => k !== '*' && perm[t][k] === 'deny' && idx < star);
+        });
+        orderOk = bad.length === 0 ? 'true' : bad.join(',');
+    }
+
+    process.stdout.write(`${name}|${desc}|${edit}|${bashRestricted}|${gitCommit}|${a.permission !== undefined ? 'true' : 'false'}|${sensitiveDenies}|${readSensitiveDenies}|${orderOk}\n`);
 }
 
 process.exit(0);
+
 
 
 
