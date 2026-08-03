@@ -83,7 +83,7 @@ the system prompt, not the model variant.
 ### Model Configuration
 
 Models and variants are assigned via environment variable substitution
-(`{env:VAR}`) rather than hard-coded values. Five tiers with committed defaults
+(`{env:VAR}`) rather than hard-coded values. Six tiers with committed defaults
 in `prism.jsonc` (models section):
 
 | Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
@@ -93,6 +93,7 @@ in `prism.jsonc` (models section):
 | Design | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openai/gpt-5.6-sol` | `xhigh` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep, chat |
+| Frontend | `OPENCODE_MODEL_FRONTEND` | `OPENCODE_VARIANT_FRONTEND` | `openai/gpt-5.6-sol` | `xhigh` | frontend |
 
 **Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
 commands), then `cd` into the project and run `direnv allow` to trust the

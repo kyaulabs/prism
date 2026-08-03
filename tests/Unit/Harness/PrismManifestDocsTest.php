@@ -44,6 +44,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
@@ -225,19 +228,84 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         Assert::assertFileExists($path, 'model-configuration.md must exist');
         $content = (string) file_get_contents($path);
 
-        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+        foreach (['primary', 'planner', 'design', 'judge', 'utility', 'frontend'] as $tier) {
             Assert::assertStringContainsString(
                 $manifest['models'][$tier],
                 $content,
                 "model-configuration.md must list the prism.jsonc default model for the '{$tier}' tier",
             );
+            Assert::assertStringContainsString(
+                'OPENCODE_MODEL_' . strtoupper($tier),
+                $content,
+                "model-configuration.md must list the model env var for the '{$tier}' tier",
+            );
+            Assert::assertStringContainsString(
+                'OPENCODE_VARIANT_' . strtoupper($tier),
+                $content,
+                "model-configuration.md must list the variant env var for the '{$tier}' tier",
+            );
         }
+    });
+
+    it('documents the six-tier vocabulary across living docs', function (): void {
+        $agents = (string) file_get_contents(dirname(__DIR__, 3) . '/AGENTS.md');
+        $readme = (string) file_get_contents(dirname(__DIR__, 3) . '/README.md');
+        $codingHarness = (string) file_get_contents(dirname(__DIR__, 3) . '/CODING_HARNESS.md');
+        $modelConfiguration = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/docs/model-configuration.md');
+
+        $requirements = [
+            [$agents, 'Six tiers', 'AGENTS.md must state six model/variant tiers'],
+            [$agents, 'Nine agents', 'AGENTS.md must state nine LSP-enabled agents'],
+            [$agents, 'restart OpenCode', 'AGENTS.md must require an OpenCode restart after config changes'],
+            [$readme, 'Six tiers', 'README must state six model/variant tiers'],
+            [$readme, 'OPENCODE_MODEL_FRONTEND', 'README tier table must list OPENCODE_MODEL_FRONTEND'],
+            [$codingHarness, 'Six tiers', 'CODING_HARNESS must state six model/variant tiers'],
+            [$codingHarness, 'OPENCODE_VARIANT_FRONTEND', 'CODING_HARNESS tier table must list OPENCODE_VARIANT_FRONTEND'],
+            [$modelConfiguration, 'six-tier', 'model-configuration.md must describe a six-tier system'],
+            [$modelConfiguration, 'OPENCODE_MODEL_FRONTEND', 'model-configuration.md must list OPENCODE_MODEL_FRONTEND'],
+            [$modelConfiguration, 'OPENCODE_VARIANT_FRONTEND', 'model-configuration.md must list OPENCODE_VARIANT_FRONTEND'],
+            [$modelConfiguration, 'weekly window', 'model-configuration.md must document the Sol rolling weekly window'],
+            [$modelConfiguration, 'no automatic fallback', 'model-configuration.md must rule out automatic quota fallback'],
+            [$modelConfiguration, '0.3', 'model-configuration.md must document the FRONTEND literal temperature 0.3'],
+            [$modelConfiguration, '@tdd', 'model-configuration.md must document TDD-owned frontend use'],
+        ];
+
+        foreach ($requirements as [$content, $needle, $message]) {
+            Assert::assertStringContainsString($needle, $content, $message);
+        }
+    });
+
+    it('documents schema v6 and the frontend glossary terms in CONTEXT.md', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        foreach ([
+            'FRONTEND model tier',
+            'frontend agent',
+            'frontend implementation slice',
+        ] as $term) {
+            Assert::assertStringContainsString(
+                $term,
+                $context,
+                "CONTEXT.md glossary must define '{$term}'",
+            );
+        }
+
+        Assert::assertStringContainsString(
+            'currently v6',
+            $context,
+            'CONTEXT.md Prism manifest entry must describe the v6 schema',
+        );
+        Assert::assertStringContainsString(
+            '(6 tiers)',
+            $context,
+            'CONTEXT.md Prism manifest entity must describe six model/variant tiers',
+        );
     });
 
     it('has model tier tables in AGENTS.md Model selection section aligned with prism.jsonc', function () use ($manifest): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/AGENTS.md');
 
-        // AGENTS.md does not have a full five-tier table — it delegates to
+        // AGENTS.md does not have a full six-tier table — it delegates to
         // model-configuration.md.  But it must not contain stale model IDs.
         Assert::assertStringNotContainsString(
             'openrouter/',
@@ -502,6 +570,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 

@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
@@ -545,13 +548,27 @@ it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function 
     foreach (['README.md', 'CODING_HARNESS.md'] as $doc) {
         $text = file_get_contents(__DIR__ . '/../../../' . $doc);
 
-        // Each tier's shipped default model must appear in the table.
-        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+        // Each tier's shipped default model and model env var must appear in
+        // the table; CODING_HARNESS additionally carries the variant env var
+        // column so every tier's variant env var must appear there too.
+        foreach (['primary', 'planner', 'design', 'judge', 'utility', 'frontend'] as $tier) {
             Assert::assertStringContainsString(
                 $setup['models'][$tier],
                 $text,
                 "{$doc} must list the prism.jsonc default model for the '{$tier}' tier",
             );
+            Assert::assertStringContainsString(
+                'OPENCODE_MODEL_' . strtoupper($tier),
+                $text,
+                "{$doc} must list the model env var for the '{$tier}' tier",
+            );
+            if ($doc === 'CODING_HARNESS.md') {
+                Assert::assertStringContainsString(
+                    'OPENCODE_VARIANT_' . strtoupper($tier),
+                    $text,
+                    "{$doc} must list the variant env var for the '{$tier}' tier",
+                );
+            }
         }
 
         // The stale OpenRouter provider prefix must be gone (drifted form was
@@ -562,6 +579,19 @@ it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function 
             "{$doc} must not use the stale openrouter/z-ai provider prefix",
         );
     }
+});
+
+it('README FRONTEND row lists the model env var, Sol default, and frontend agent', function (): void {
+    $readme = file_get_contents(__DIR__ . '/../../../README.md');
+
+    // Anchor on the model env var so the Skills (on-demand) category row
+    // ("| Frontend | frontend-design, ... |") cannot satisfy this test.
+    preg_match('/^\| Frontend \| `OPENCODE_MODEL_FRONTEND` \|.*$/m', $readme, $matches);
+    Assert::assertCount(1, $matches, 'README must have exactly one Frontend tier-table row');
+    $row = $matches[0];
+
+    Assert::assertStringContainsString('openai/gpt-5.6-sol', $row, 'README Frontend row must list the Sol default');
+    Assert::assertStringContainsString('frontend', $row, 'README Frontend row must name the frontend agent');
 });
 
 it('README install verify comment matches the shipped Primary default', function (): void {
@@ -575,22 +605,26 @@ it('README install verify comment matches the shipped Primary default', function
     );
 });
 
-it('CODING_HARNESS variant column reflects xhigh for planner and design', function (): void {
+it('CODING_HARNESS variant column reflects xhigh for planner, design, and frontend', function (): void {
     $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
 
     // Assert per tier row, not document-wide: a single `xhigh` (only one
     // tier updated, or the token appearing in unrelated prose) must not
-    // satisfy this test. Both Planner and Design are `xhigh` per ADR-0040.
-    // Match the full backtick-delimited token to avoid the trap where
-    // `xhigh` contains the substring `high`.
+    // satisfy this test. Planner, Design, and Frontend are `xhigh` per
+    // ADR-0040 and ADR-0049. Match the full backtick-delimited token to
+    // avoid the trap where `xhigh` contains the substring `high`.
     preg_match_all('/^\| Planner \|.*$/m', $harness, $planner);
     preg_match_all('/^\| Design \|.*$/m', $harness, $design);
+    preg_match_all('/^\| Frontend \| `OPENCODE_MODEL_FRONTEND` \|.*$/m', $harness, $frontend);
 
     Assert::assertCount(1, $planner[0], 'CODING_HARNESS has exactly one Planner tier row');
     Assert::assertCount(1, $design[0], 'CODING_HARNESS has exactly one Design tier row');
+    Assert::assertCount(1, $frontend[0], 'CODING_HARNESS has exactly one Frontend tier row');
     Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
+    Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
+
 
 
 
