@@ -4,6 +4,7 @@
 
 
 
+
 // Check the FRONTEND agent routing contract (ADR-0049).
 // Usage: node check-frontend-agent-contract.js <opencode.jsonc> <frontend.md> <tdd.md> <skills-root>
 // Emits one stable 'frontend-contract: ' diagnostic per violation and exits 1;
@@ -23,54 +24,37 @@ const path = require('path');
 const { stripJsoncComments } = require('./jsonc-strip');
 const { parseFrontmatter } = require('./frontmatter-parser');
 
-const expectedEditKeys = [
-	'*',
-	'<app>/*.php', '<app>/**/*.php',
-	'<app>/*.html', '<app>/**/*.html',
-	'cdn/sass/**', 'cdn/js/**',
-	'cdn/css/**', 'cdn/javascript/**',
+const editRules = [
+	['*', 'deny'],
+	['<app>/*.php', 'allow'],
+	['<app>/**/*.php', 'allow'],
+	['<app>/*.html', 'allow'],
+	['<app>/**/*.html', 'allow'],
+	['cdn/sass/**', 'allow'],
+	['cdn/js/**', 'allow'],
+	['cdn/css/**', 'deny'],
+	['cdn/javascript/**', 'deny'],
 ];
 
-const expectedEditValues = {
-	'*': 'deny',
-	'<app>/*.php': 'allow',
-	'<app>/**/*.php': 'allow',
-	'<app>/*.html': 'allow',
-	'<app>/**/*.html': 'allow',
-	'cdn/sass/**': 'allow',
-	'cdn/js/**': 'allow',
-	'cdn/css/**': 'deny',
-	'cdn/javascript/**': 'deny',
-};
-
-const expectedBashKeys = [
-	'*',
-	'git status*', 'git diff*',
-	'php -l*', 'php vendor/bin/pest*',
-	'npx --no-install stylelint*', 'npx --no-install eslint*',
-	'git add*', 'git stage*', 'git commit*', 'git push*', 'git tag*',
-	'*.env', '*.env.*', '*.env.example', '*auth.json*', '*mcp-auth.json*',
+const bashRules = [
+	['*', 'deny'],
+	['git status*', 'allow'],
+	['git diff*', 'allow'],
+	['php -l*', 'allow'],
+	['php vendor/bin/pest*', 'allow'],
+	['npx --no-install stylelint*', 'allow'],
+	['npx --no-install eslint*', 'allow'],
+	['git add*', 'deny'],
+	['git stage*', 'deny'],
+	['git commit*', 'deny'],
+	['git push*', 'deny'],
+	['git tag*', 'deny'],
+	['*.env', 'deny'],
+	['*.env.*', 'deny'],
+	['*.env.example', 'allow'],
+	['*auth.json*', 'deny'],
+	['*mcp-auth.json*', 'deny'],
 ];
-
-const expectedBashValues = {
-	'*': 'deny',
-	'git status*': 'allow',
-	'git diff*': 'allow',
-	'php -l*': 'allow',
-	'php vendor/bin/pest*': 'allow',
-	'npx --no-install stylelint*': 'allow',
-	'npx --no-install eslint*': 'allow',
-	'git add*': 'deny',
-	'git stage*': 'deny',
-	'git commit*': 'deny',
-	'git push*': 'deny',
-	'git tag*': 'deny',
-	'*.env': 'deny',
-	'*.env.*': 'deny',
-	'*.env.example': 'allow',
-	'*auth.json*': 'deny',
-	'*mcp-auth.json*': 'deny',
-};
 
 const violations = [];
 
@@ -170,8 +154,6 @@ const tddTaskRules = [['*', 'deny'], ['frontend', 'allow']];
 const frontendSkillRules = frontendSkills === null
 	? []
 	: frontendSkills.map((name) => [name, 'allow']);
-const editRules = expectedEditKeys.map((key) => [key, expectedEditValues[key]]);
-const bashRules = expectedBashKeys.map((key) => [key, expectedBashValues[key]]);
 const expectedFrontendConfig = {
 	model: '{env:OPENCODE_MODEL_FRONTEND}',
 	variant: '{env:OPENCODE_VARIANT_FRONTEND}',
@@ -216,6 +198,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 
