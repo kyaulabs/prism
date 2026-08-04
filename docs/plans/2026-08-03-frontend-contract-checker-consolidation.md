@@ -46,7 +46,7 @@
 - Produces: `stripJsoncComments(content: string): string` exported from `.github/scripts/jsonc-strip.js`.
 - Preserves: `inline-agent-permissions.js` TSV output and exit codes; frontend checker JSONC parse diagnostics and exit codes.
 
-- [ ] **Step 1: Write the failing cross-language differential corpus test**
+- [x] **Step 1: Write the failing cross-language differential corpus test**
 
 Create `tests/Shell/jsonc_strip_parity_test.sh`. Build one temporary corpus and feed every file, byte-for-byte, through the exported JavaScript function and PHP's `strip_jsonc_comments()`:
 
@@ -96,7 +96,7 @@ print_summary "jsonc_strip_parity"
 
 The corpus intentionally compares the strip-only functions. BOM/CRLF normalization remains in the JavaScript file loaders and is not moved into the shared function.
 
-- [ ] **Step 2: Run the parity test and verify Red**
+- [x] **Step 2: Run the parity test and verify Red**
 
 Run:
 
@@ -106,7 +106,7 @@ bash tests/Shell/jsonc_strip_parity_test.sh
 
 Expected: FAIL because `.github/scripts/jsonc-strip.js` does not exist.
 
-- [ ] **Step 3: Add the module and replace both JavaScript copies**
+- [x] **Step 3: Add the module and replace both JavaScript copies**
 
 Create `.github/scripts/jsonc-strip.js` with the existing scanner unchanged apart from becoming an export:
 
@@ -161,7 +161,7 @@ const { stripJsoncComments } = require('./jsonc-strip');
 
 Delete the private scanner from `check-frontend-agent-contract.js` and the inline `stripped` loop from `inline-agent-permissions.js`. Keep each caller's existing BOM/CRLF normalization immediately before `stripJsoncComments(content)`. Add `.github/scripts/jsonc-strip.js` to `quality-surface.manifest` and copy it in `setup_validator_env()` so isolated validator fixtures can resolve both consumers.
 
-- [ ] **Step 4: Run focused and regression checks and verify Green**
+- [x] **Step 4: Run focused and regression checks and verify Green**
 
 Run:
 
@@ -174,7 +174,7 @@ npx --no-install eslint .github/scripts/jsonc-strip.js .github/scripts/inline-ag
 
 Expected: all commands PASS; existing checker diagnostics and inline TSV assertions remain unchanged.
 
-- [ ] **Step 5: Commit the shared JSONC slice**
+- [x] **Step 5: Commit the shared JSONC slice**
 
 Present this commit for approval; the command resolves the human identity at execution time:
 
@@ -198,7 +198,7 @@ git commit -S -m $'refactor(harness): share jsonc comment stripping\n\nRefs: #29
 - Produces: `parseFrontmatter(content: string): object|null` exported by `.github/scripts/frontmatter-parser.js`; malformed YAML throws to the caller.
 - Preserves: CLI file/stdin modes, empty output for absent frontmatter/keys, usage exit `2`, parse/read exit `1`, and the checker's existing `cannot parse frontmatter` diagnostics.
 
-- [ ] **Step 1: Add failing import and CLI characterization tests**
+- [x] **Step 1: Add failing import and CLI characterization tests**
 
 Extend `tests/Shell/frontmatter_parser_stdin_test.sh` with an import-mode assertion that exercises nested typed values without invoking the CLI body:
 
@@ -218,7 +218,7 @@ fi
 
 Also add a malformed-YAML CLI case that expects exit `1` and a `YAML parse error in <stdin>:` prefix, locking the existing error contract before extraction.
 
-- [ ] **Step 2: Run the parser test and verify Red**
+- [x] **Step 2: Run the parser test and verify Red**
 
 Run:
 
@@ -228,7 +228,7 @@ bash tests/Shell/frontmatter_parser_stdin_test.sh
 
 Expected: FAIL because `parseFrontmatter` is not exported and requiring the script currently executes its CLI usage path.
 
-- [ ] **Step 3: Extract the importable parser and make the CLI a guarded adapter**
+- [x] **Step 3: Extract the importable parser and make the CLI a guarded adapter**
 
 Refactor `.github/scripts/frontmatter-parser.js` around these interfaces:
 
@@ -305,7 +305,7 @@ function readFrontmatter(file) {
 }
 ```
 
-- [ ] **Step 4: Run parser and checker regressions and verify Green**
+- [x] **Step 4: Run parser and checker regressions and verify Green**
 
 Run:
 
@@ -318,7 +318,7 @@ npx --no-install eslint .github/scripts/frontmatter-parser.js .github/scripts/ch
 
 Expected: all commands PASS; direct parser output/exit codes and all exact frontend checker diagnostics remain unchanged.
 
-- [ ] **Step 5: Commit the frontmatter reuse slice**
+- [x] **Step 5: Commit the frontmatter reuse slice**
 
 ```bash
 git add .github/scripts/frontmatter-parser.js .github/scripts/check-frontend-agent-contract.js tests/Shell/frontmatter_parser_stdin_test.sh && \
@@ -341,7 +341,7 @@ git commit -S -m $'refactor(harness): reuse frontmatter parser\n\nRefs: #291\nAu
 - Consumes: schema-v1 through schema-v6 source manifests and project/user migration mode.
 - Preserves: strict exact-version validation, migration source range, project-only default injection, custom values, update ordering, canonical header bytes, modes, atomic writes, and no-write repeat behavior.
 
-- [ ] **Step 1: Add failing constant, helper, and parity tests**
+- [x] **Step 1: Add failing constant, helper, and parity tests**
 
 In `PrismManifestCliTest.php`, import `PrismManifest`, `pm_add_frontend_defaults`, `PRISM_FRONTEND_MODEL`, and `PRISM_FRONTEND_VARIANT`, then add:
 
@@ -386,7 +386,7 @@ it('keeps bootstrap shell seeds aligned with the schema constant', function (): 
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -396,7 +396,7 @@ php vendor/bin/pest tests/Unit/Harness/PrismManifestCliTest.php tests/Unit/Harne
 
 Expected: FAIL because the constants and `pm_add_frontend_defaults()` do not exist and the stale v5 comment remains.
 
-- [ ] **Step 3: Add constants and route both migration paths through one helper**
+- [x] **Step 3: Add constants and route both migration paths through one helper**
 
 Add the public typed class constant near the top of `PrismManifest`:
 
@@ -466,7 +466,7 @@ if ($mode === 'project') {
 
 Keep user mode version-only. Correct the stale setup-scaffold comment from version 5 to version 6; do not change shell bootstrap execution.
 
-- [ ] **Step 4: Run migration, parity, and coverage checks and verify Green**
+- [x] **Step 4: Run migration, parity, and coverage checks and verify Green**
 
 Run:
 
@@ -481,7 +481,7 @@ php -d pcov.enabled=1 vendor/bin/pest tests/Unit/Harness/PrismManifestTest.php t
 
 Expected: all tests PASS; v5 projects gain the two defaults, user manifests do not pin them, custom values remain unchanged, repeats are byte-identical, and changed PHP coverage is at least 80%.
 
-- [ ] **Step 5: Commit the manifest constant slice**
+- [x] **Step 5: Commit the manifest constant slice**
 
 ```bash
 git add .github/scripts/PrismManifest.php .github/scripts/prism_manifest.php .github/scripts/setup-scaffold.sh tests/Unit/Harness/PrismManifestCliTest.php tests/Unit/Harness/PrismManifestDocsTest.php && \
@@ -510,7 +510,7 @@ git commit -S -m $'refactor(config): centralize schema migration defaults\n\nRef
 - Preserves: exact existing permission rules and diagnostics; insertion-sensitive permission comparison; existing malformed config/frontmatter behavior.
 - Intentionally changes: reordering only `model`, `variant`, `temperature`, and `hidden` inside `agent.frontend` no longer fails validation; missing/empty/duplicate/invalid frontend skill metadata fails loudly.
 
-- [ ] **Step 1: Write failing metadata-derivation and comparator tests**
+- [x] **Step 1: Write failing metadata-derivation and comparator tests**
 
 Add this metadata reader to `tests/Pest.php`:
 
@@ -568,7 +568,7 @@ Extend `setup_contract_env()` to copy the four real skill directories. Add shell
 4. reorder only the four keys in `opencode.jsonc`'s `agent.frontend` block and expect checker exit `0`;
 5. retain the existing bash-key reorder case and expect failure.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -579,7 +579,7 @@ bash tests/Shell/validate-harness_test.sh
 
 Expected: FAIL because no skill carries the metadata, the checker has no skills-root input, and frontend config comparison is still order-sensitive.
 
-- [ ] **Step 3: Add ordered metadata to the four skills**
+- [x] **Step 3: Add ordered metadata to the four skills**
 
 Use the OpenCode-supported string map shape from `skills.mdx`:
 
@@ -590,7 +590,7 @@ metadata:
 
 Assign `"10"` to `frontend-design`, `"20"` to `frontend-architecture`, `"30"` to `scss-mobile-first`, and `"40"` to `accessibility`. Do not add an unrecognized top-level frontmatter field. Do not change any skill body.
 
-- [ ] **Step 4: Discover metadata and table-drive checker clauses**
+- [x] **Step 4: Discover metadata and table-drive checker clauses**
 
 Import `parseFrontmatter` from Task 2 and derive the ordered skill names from the explicit fourth CLI argument. The discovery function must:
 
@@ -677,7 +677,7 @@ const expectedFrontendConfig = {
 
 Use `matchesUnorderedRecord()` only for that config object. Keep every existing violation string byte-for-byte unchanged. Update the checker usage text and `validate-harness.sh` invocation to pass `${REPO_ROOT}/.opencode/skills` as the fourth input; keep the existing generic missing-checker/agent diagnostic unchanged.
 
-- [ ] **Step 5: Run the full harness verification and verify Green**
+- [x] **Step 5: Run the full harness verification and verify Green**
 
 Run:
 
@@ -693,7 +693,7 @@ php -d pcov.enabled=1 vendor/bin/pest --coverage
 
 Expected: all commands PASS; metadata order drives both runtime contract assertions and documentation assertions, config key reordering passes, permission key reordering still fails, and changed-file coverage is at least 80%.
 
-- [ ] **Step 6: Commit the derived contract and close the issue**
+- [x] **Step 6: Commit the derived contract and close the issue**
 
 ```bash
 git add .opencode/skills/frontend-design/SKILL.md .opencode/skills/frontend-architecture/SKILL.md .opencode/skills/scss-mobile-first/SKILL.md .opencode/skills/accessibility/SKILL.md .github/scripts/check-frontend-agent-contract.js .github/scripts/validate-harness.sh tests/Pest.php tests/Unit/Harness/ModelConfigTest.php tests/Unit/Harness/PrismManifestDocsTest.php tests/Shell/validate-harness_test.sh && \
