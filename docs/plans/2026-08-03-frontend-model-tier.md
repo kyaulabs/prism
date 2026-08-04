@@ -573,7 +573,7 @@ git commit -S -m $'feat(config): migrate prism manifest to schema v6\n\nRefs: #2
 - Consumes: `OPENCODE_MODEL_FRONTEND`, `OPENCODE_VARIANT_FRONTEND`, OpenCode `permission.skill`, and depth-3 task dispatch.
 - Produces: hidden `@frontend`, exact four-skill access, exact `@tdd → @frontend` dispatch, and the two-phase handoff protocol.
 
-- [ ] **Step 1: Write failing model, permission, and handoff tests**
+- [x] **Step 1: Write failing model, permission, and handoff tests**
 
 Add focused assertions to `ModelConfigTest.php`:
 
@@ -626,7 +626,7 @@ it('limits tdd dispatch to frontend and makes frontend terminal', function (): v
 
 Also extend the existing tier arrays with `frontend`, assert the model/variant defaults, and change the LSP set from eight to nine agents.
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/ModelConfigTest.php --filter='frontend|tier|LSP'
@@ -634,7 +634,7 @@ php vendor/bin/pest tests/Unit/Harness/ModelConfigTest.php --filter='frontend|ti
 
 Expected: FAIL because `agent.frontend`, depth 3, and the agent file do not exist.
 
-- [ ] **Step 3: Add OpenCode routing and the global skill gate**
+- [x] **Step 3: Add OpenCode routing and the global skill gate**
 
 In the top-level permission object, add this catch-all-first rule:
 
@@ -661,7 +661,7 @@ Set `subagent_depth` to `3` and add:
 
 Do not place model or variant in Markdown frontmatter.
 
-- [ ] **Step 4: Create the terminal frontend agent**
+- [x] **Step 4: Create the terminal frontend agent**
 
 Create `.opencode/agents/frontend.md` with this frontmatter:
 
@@ -728,7 +728,7 @@ commits, dependencies, web access, or further dispatch.
 
 Require loading all four allowed frontend skills during consultation, and require implementation to obey the returned checklist. If a direct invocation lacks a phase, slice goal, and candidate/permitted paths, return a handoff-format reminder without reading or editing project files.
 
-- [ ] **Step 5: Give `@tdd` the exact task allowlist and handoff protocol**
+- [x] **Step 5: Give `@tdd` the exact task allowlist and handoff protocol**
 
 Add to `tdd.md` frontmatter:
 
@@ -746,7 +746,7 @@ After behavior planning, add a `Frontend slices` section requiring:
 4. Dispatch `@frontend` in implementation mode with the behavior, complete failing output, and approved paths.
 5. `@tdd` reruns tests, verifies Green, owns refactoring checks and coverage, and produces the commit.
 
-- [ ] **Step 6: Update mandatory agent rosters and run Green**
+- [x] **Step 6: Update mandatory agent rosters and run Green**
 
 Add `@frontend` to AGENTS.md's Agents Available table and README's Custom agents table in the same change so `validate-harness.sh` does not reject the new file. Update AGENTS.md's LSP roster to nine agents.
 
@@ -759,7 +759,7 @@ bash .github/scripts/validate-harness.sh
 
 Expected: PASS for model wiring, tier membership, agent indexing, and existing generic permission checks.
 
-- [ ] **Step 7: Commit the frontend agent slice**
+- [x] **Step 7: Commit the frontend agent slice**
 
 ```bash
 git add opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md tests/Unit/Harness/ModelConfigTest.php AGENTS.md README.md && \
@@ -780,7 +780,7 @@ git commit -S -m $'feat(frontend): add tdd-owned frontend agent\n\nRefs: #285\nA
 - Consumes: `prism.jsonc`, `opencode.jsonc`, `.opencode/agents/frontend.md`, `.opencode/agents/tdd.md`.
 - Produces: a zero-output success / diagnostic failure contract invoked by pre-commit and CI validation.
 
-- [ ] **Step 1: Add failing validator regression cases**
+- [x] **Step 1: Add failing validator regression cases**
 
 Extend `setup_validator_env()` to copy `check-frontend-agent-contract.js`. Add mutation cases that begin from copies of the valid project manifest, OpenCode config, frontend agent, and TDD agent, then assert these diagnostics:
 
@@ -796,7 +796,7 @@ frontend-contract: @frontend must allow exactly the four frontend skills
 
 For each case, copy the real three inputs into a temporary git repository, mutate one property, run `validate-harness.sh`, and assert nonzero plus the exact diagnostic. Include one positive-control case that leaves all three files unchanged and does not emit `frontend-contract:`.
 
-- [ ] **Step 2: Run the shell suite and verify Red**
+- [x] **Step 2: Run the shell suite and verify Red**
 
 ```bash
 bash tests/Shell/validate-harness_test.sh
@@ -804,7 +804,7 @@ bash tests/Shell/validate-harness_test.sh
 
 Expected: new negative cases FAIL because no dedicated contract checker runs.
 
-- [ ] **Step 3: Implement the focused contract checker**
+- [x] **Step 3: Implement the focused contract checker**
 
 The new Node script must:
 
@@ -839,7 +839,7 @@ const expectedEditKeys = [
 
 Assert values as well as keys. For bash, require `'*': 'deny'` as the first key, the five credential rules, all git-write denies, and reject any `allow` key matching `npm install`, `pip install`, `sass`, `uglifyjs`, `cdn/css`, or `cdn/javascript`. Assert the config's frontend model, variant, temperature, and hidden values and the frontmatter's mode/temperature/LSP values.
 
-- [ ] **Step 4: Invoke the checker from harness validation**
+- [x] **Step 4: Invoke the checker from harness validation**
 
 Add this section after generic `.md` git-commit gating:
 
@@ -871,7 +871,7 @@ so a missing checker or agent file fails rather than passing vacuously.
 
 Add the checker to `quality-surface.manifest` so scaffolded projects inherit enforcement.
 
-- [ ] **Step 5: Run validator tests and verify Green**
+- [x] **Step 5: Run validator tests and verify Green**
 
 ```bash
 bash tests/Shell/validate-harness_test.sh
@@ -880,7 +880,7 @@ bash .github/scripts/validate-harness.sh
 
 Expected: all regression cases and the repository validation PASS.
 
-- [ ] **Step 6: Commit mechanical enforcement**
+- [x] **Step 6: Commit mechanical enforcement**
 
 ```bash
 git add .github/scripts/check-frontend-agent-contract.js .github/scripts/validate-harness.sh quality-surface.manifest tests/Shell/validate-harness_test.sh && \
@@ -904,7 +904,7 @@ git commit -S -m $'feat(harness): enforce frontend agent routing\n\nRefs: #285\n
 - Consumes: accepted ADR-0049 and the shipped schema/config behavior.
 - Produces: one six-tier vocabulary, frontend agent glossary, quota guidance, and documentation parity.
 
-- [ ] **Step 1: Write failing documentation parity assertions**
+- [x] **Step 1: Write failing documentation parity assertions**
 
 Add/extend assertions for:
 
@@ -920,7 +920,7 @@ Assert::assertStringContainsString('frontend implementation slice', $context);
 Assert::assertStringContainsString('restart OpenCode', $agents);
 ```
 
-- [ ] **Step 2: Run documentation tests and verify Red**
+- [x] **Step 2: Run documentation tests and verify Red**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harness/ModelConfigTest.php --filter='tier|documentation|FRONTEND|LSP'
@@ -928,7 +928,7 @@ php vendor/bin/pest tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harn
 
 Expected: FAIL on missing six-tier rows, glossary, and restart/quota guidance.
 
-- [ ] **Step 3: Update every canonical description**
+- [x] **Step 3: Update every canonical description**
 
 Apply these exact content changes:
 
@@ -938,7 +938,7 @@ Apply these exact content changes:
 - `CODING_HARNESS.md`: add FRONTEND row with model env, variant env, default model, `xhigh`, and agent `frontend`.
 - `.opencode/docs/model-configuration.md`: six-tier table, Sol weekly-window exposure, manual manifest/model fallback, no automatic fallback, temperature `0.3`, and TDD-owned use.
 
-- [ ] **Step 4: Run documentation and harness parity tests**
+- [x] **Step 4: Run documentation and harness parity tests**
 
 ```bash
 php vendor/bin/pest tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harness/ModelConfigTest.php
@@ -947,7 +947,7 @@ bash .github/scripts/validate-harness.sh
 
 Expected: PASS with no stale five-tier/eight-agent/schema-v5 statements in current docs.
 
-- [ ] **Step 5: Commit documentation parity**
+- [x] **Step 5: Commit documentation parity**
 
 ```bash
 git add AGENTS.md CONTEXT.md README.md CODING_HARNESS.md .opencode/docs/model-configuration.md tests/Unit/Harness/PrismManifestDocsTest.php tests/Unit/Harness/ModelConfigTest.php && \
