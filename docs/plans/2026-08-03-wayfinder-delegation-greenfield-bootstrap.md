@@ -77,7 +77,7 @@
 - Consumes: Confirmed strict-greenfield predicate and bootstrap-completion decision from issue #287 triage; ADR-0020, ADR-0026, ADR-0027, ADR-0030, and ADR-0044.
 - Produces: Accepted ADR-0050 and canonical glossary terms `oversized request`, `strict greenfield`, `walking-skeleton bootstrap`, and `wayfinder map` for every later task.
 
-- [ ] **Step 1: Write the failing architecture contract test**
+- [x] **Step 1: Write the failing architecture contract test**
 
 Create `WayfinderDelegationArchitectureTest.php` following the RCS/modeline structure used by `PrismManifestDocsTest.php`:
 
@@ -120,7 +120,7 @@ it('indexes ADR-0050 and its routing vocabulary in project context', function ()
 // vim: ft=php sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the contract and verify Red**
+- [x] **Step 2: Run the contract and verify Red**
 
 Run:
 
@@ -130,7 +130,7 @@ php vendor/bin/pest tests/Unit/Harness/WayfinderDelegationArchitectureTest.php
 
 Expected: FAIL because ADR-0050 and the glossary entries do not exist.
 
-- [ ] **Step 3: Write and accept ADR-0050**
+- [x] **Step 3: Write and accept ADR-0050**
 
 Use `adr/0000-template.md` and the `adr` skill. The ADR must use this exact heading and core decision:
 
@@ -171,11 +171,11 @@ Bootstrap completion requires `/check` and `@code-review`. Before ADR-0027 clean
 - Infer greenfield from missing application code alone: rejected because established non-application repositories would be misclassified.
 ```
 
-- [ ] **Step 4: Add glossary and ADR index entries**
+- [x] **Step 4: Add glossary and ADR index entries**
 
 Add concise `CONTEXT.md` glossary rows using the exact four canonical terms and append the ADR-0050 one-line summary under Architectural Decisions. Do not duplicate the full predicate outside ADR-0050; glossary entries should point to the ADR and classifier.
 
-- [ ] **Step 5: Run the contract and verify Green**
+- [x] **Step 5: Run the contract and verify Green**
 
 Run:
 
@@ -185,7 +185,7 @@ php vendor/bin/pest tests/Unit/Harness/WayfinderDelegationArchitectureTest.php
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the governance slice**
+- [x] **Step 6: Commit the governance slice**
 
 Stage the plan plus the three Task 1 implementation files. Use subject `docs(adr): define oversized wayfinding contract`, `Refs: #287`, and the dynamically resolved four model/identity footers. Present the full signed `git commit -S` command for approval; do not push.
 
@@ -202,7 +202,7 @@ Stage the plan plus the three Task 1 implementation files. Use subject `docs(adr
 - Consumes: `php .github/scripts/prism_manifest.php get "$PROJECT_ROOT/prism.jsonc" - app`; Git read-only commands; ADR-0050 predicate.
 - Produces: `bash .github/scripts/classify-greenfield.sh [project-root]` with stdout `greenfield|established|indeterminate` and exit code `0|1|2`, respectively. Consumers treat exit codes 1 and 2 identically for routing.
 
-- [ ] **Step 1: Write the failing shell matrix**
+- [x] **Step 1: Write the failing shell matrix**
 
 Create an executable `tests/Shell/classify_greenfield_test.sh` using `tests/Shell/lib/test_helpers.sh`. Its fixture helper must initialize an unborn repository, expose the real quality-surface scripts, and copy the valid project manifest:
 
@@ -235,7 +235,7 @@ assert_classification() {
 
 Add independent cases for: baseline greenfield; each forbidden doc path; each forbidden source root; app webroot; one commit; missing quality manifest; non-Git directory; missing manifest; malformed manifest; missing app; and the real Prism repository. Every case asserts both status and stdout. Expected results are `0 greenfield`, `1 established`, and `2 indeterminate` as defined by the interface.
 
-- [ ] **Step 2: Run the shell test and verify Red**
+- [x] **Step 2: Run the shell test and verify Red**
 
 Run:
 
@@ -245,7 +245,7 @@ bash tests/Shell/classify_greenfield_test.sh
 
 Expected: FAIL because `.github/scripts/classify-greenfield.sh` does not exist.
 
-- [ ] **Step 3: Implement the minimal classifier**
+- [x] **Step 3: Implement the minimal classifier**
 
 Create executable `.github/scripts/classify-greenfield.sh` with this control flow:
 
@@ -296,7 +296,7 @@ printf 'greenfield\n'
 
 Register `classify-greenfield.sh` in `.github/scripts/quality-surface.manifest` so new scaffolds receive the classifier.
 
-- [ ] **Step 4: Run focused tests and refactor**
+- [x] **Step 4: Run focused tests and refactor**
 
 Run:
 
@@ -308,7 +308,7 @@ shellcheck --severity=warning .github/scripts/classify-greenfield.sh tests/Shell
 
 Expected: all classifier matrix cases PASS, scaffold manifest forward/reverse parity PASS, and ShellCheck exits 0.
 
-- [ ] **Step 5: Verify executable tracking**
+- [x] **Step 5: Verify executable tracking**
 
 After staging the new script during execution, run:
 
@@ -318,7 +318,7 @@ bash .github/scripts/check-script-executable-bits.sh
 
 Expected: PASS with `.github/scripts/classify-greenfield.sh` tracked as mode `100755`.
 
-- [ ] **Step 6: Commit the classifier slice**
+- [x] **Step 6: Commit the classifier slice**
 
 Stage only the three Task 2 files. Use subject `feat(harness): classify strict greenfield repositories`, `Refs: #287`, and the dynamically resolved footers. Present the signed commit command for approval; do not push.
 
