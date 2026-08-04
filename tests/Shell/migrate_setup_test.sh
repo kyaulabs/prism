@@ -6,6 +6,7 @@
 
 
 
+
 # ── Isolated integration tests for migrate-setup.sh (ADR-0043, ADR-0049) ────
 #
 # Verifies that migrate-setup.sh is a shell engine wrapping the PHP CLI's
@@ -50,7 +51,7 @@ make_user_home() {
 }
 
 # write_complete_v4_project <dir> [name] [email] — write a schema-v4 project
-# legacy setup.json carrying every field validateProject() requires, so the v5
+# legacy setup.json carrying every field validateProject() requires, so the v6
 # projection passes project validation. Values are distinctive literals.
 write_complete_v4_project() {
 	local dir="$1" name="${2:-Migrator Project}" email="${3:-migrator@project.test}"
@@ -270,7 +271,7 @@ test_canonical_comments() {
 	run_migrator
 
 	# The migrated document must carry a line comment (it is genuine JSONC, the
-	# canonical render from pm_canonical_v5, not bare strict JSON).
+	# canonical render from pm_canonical_v6, not bare strict JSON).
 	if grep -q '//' "$PROJ_NEW"; then
 		pass "canonical comments — migrated v6 doc carries JSONC comments"
 	else
@@ -408,6 +409,51 @@ write_complete_v6_project() {
 JSON
 }
 
+# write_complete_v5_project <dir> <name> <email> — write a schema-v5 project
+# prism.jsonc carrying every required field WITHOUT the frontend tier, so the
+# engine's legacy-absent upgrade path has a real v5 target to transform.
+write_complete_v5_project() {
+	local dir="$1" name="$2" email="$3"
+	cat > "$dir/prism.jsonc" <<JSON
+{
+  "setup_version": 5,
+  "configured": true,
+  "timestamp": "2026-07-06T23:44:00Z",
+  "app": "prism",
+  "domain": "kyaulabs",
+  "repo": "kyaulabs/prism",
+  "signed_off_by_name": "$name",
+  "signed_off_by_email": "$email",
+  "accent": "sky-blue",
+  "scaffold_mode": "skip",
+  "project_folder": null,
+  "models": {
+    "primary": "zai-coding-plan/glm-5.2",
+    "planner": "openai/gpt-5.6-sol",
+    "design": "openai/gpt-5.6-sol",
+    "judge": "deepseek/deepseek-v4-pro",
+    "utility": "deepseek/deepseek-v4-flash"
+  },
+  "variants": {
+    "primary": "max",
+    "planner": "xhigh",
+    "design": "xhigh",
+    "judge": "medium",
+    "utility": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
+  }
+}
+JSON
+}
+
 # ── Test 6: Divergent old/new coexistence — fail without modifying either ────
 
 test_divergent_coexistence() {
@@ -453,7 +499,7 @@ test_divergent_coexistence
 
 # ── Test 7: Equivalent old/new coexistence — equal → delete old, keep new ────
 #
-# The legacy (v4) and target (v5) carry identical values, so their v5
+# The legacy (v4) and target (v6) carry identical values, so their v6
 # projections match. The project legacy is untracked here (the downstream-upgrade
 # case after a git pull), so the engine removes the redundant old.
 
@@ -645,6 +691,13 @@ JSON
 			failures=$((failures+1))
 		fi
 	fi
+	# Target must have advanced to schema v6 (not left at v5).
+	local ver
+	ver=$(decode_field "$PROJ_NEW" '.setup_version')
+	if [ "$ver" != "6" ]; then
+		echo "  v5-at-legacy — target setup_version $ver (expected 6)" >&2
+		failures=$((failures+1))
+	fi
 	if [ "$failures" -eq 0 ]; then
 		pass "v5 at legacy path — renamed to target, removed from legacy location"
 	else
@@ -688,7 +741,8 @@ echo ""
 echo "── Test 11: Version 7 downgrade refusal ──"
 test_version_7_refused
 
-# ── Test 12: Idempotent — repeated invocation is a no-op ─────────────────────
+# ── Test 12: Idempotent — legacy-absent run upgrades a real v5 target; the ──
+#            settled v6 state is a byte-identical no-op ───────────────────────
 
 test_idempotent() {
 	fresh_fixture
@@ -701,38 +755,69 @@ test_idempotent() {
 		return
 	fi
 
-	# Snapshot the settled state, then run again. The migrated target is JSONC
-	# (it carries comments), so compare raw bytes rather than feeding jq.
-	local target_before
-	target_before=$(cat "$PROJ_NEW")
+	# Second run with the legacy gone but a REAL v5 target in place: the
+	# "old absent, new present" branch must upgrade it to v6 in place.
+	# A plain second run on the first run's v6 output only ever hit the
+	# already-v6 no-op, so the v5→v6 transformation was never exercised.
+	write_complete_v5_project "$FX_PROJECT" "V5 Idempotent" "v5@idempotent.test"
 
 	run_migrator
 
 	local failures=0
 	if [ "$RUN_RC" -ne 0 ]; then
-		echo "  idempotent — second run exited $RUN_RC (expected 0)" >&2
+		echo "  idempotent — v5-target run exited $RUN_RC (expected 0)" >&2
 		echo "  stderr: $(cat "$FX_ERR")" >&2
 		failures=$((failures+1))
 	fi
-	# Target must be byte-identical to the settled state.
-	if [ "$(cat "$PROJ_NEW")" != "$target_before" ]; then
-		echo "  idempotent — target changed on second run" >&2
+	# The v5 target must have reached v6 with the required frontend defaults.
+	local ver
+	ver=$(decode_field "$PROJ_NEW" '.setup_version')
+	if [ "$ver" != "6" ]; then
+		echo "  idempotent — v5 target left at setup_version $ver (expected 6)" >&2
+		failures=$((failures+1))
+	fi
+	if [ "$(decode_field "$PROJ_NEW" '.models.frontend')" != "openai/gpt-5.6-sol" ]; then
+		echo "  idempotent — models.frontend default missing after v5 upgrade" >&2
+		failures=$((failures+1))
+	fi
+	if [ "$(decode_field "$PROJ_NEW" '.variants.frontend')" != "xhigh" ]; then
+		echo "  idempotent — variants.frontend default missing after v5 upgrade" >&2
 		failures=$((failures+1))
 	fi
 	# No legacy reappeared.
 	if [ -e "$PROJ_OLD" ]; then
-		echo "  idempotent — legacy present after second run" >&2
+		echo "  idempotent — legacy present after the v5-target run" >&2
 		failures=$((failures+1))
 	fi
+
+	# A third run on the now-v6 target must be a byte-identical no-op. The
+	# upgraded target is JSONC (it carries comments), so compare raw bytes
+	# rather than feeding jq.
+	local target_before
+	target_before=$(cat "$PROJ_NEW")
+
+	run_migrator
+
+	if [ "$RUN_RC" -ne 0 ]; then
+		echo "  idempotent — third run exited $RUN_RC (expected 0)" >&2
+		echo "  stderr: $(cat "$FX_ERR")" >&2
+		failures=$((failures+1))
+	fi
+	# Target must be byte-identical to the settled v6 state.
+	if [ "$(cat "$PROJ_NEW")" != "$target_before" ]; then
+		echo "  idempotent — target changed on the v6 no-op run" >&2
+		failures=$((failures+1))
+	fi
+
 	if [ "$failures" -eq 0 ]; then
-		pass "idempotent — second run is a no-op (no mutation, exit 0)"
+		pass "idempotent — legacy-absent run upgrades a real v5 target to v6; v6 no-op is byte-identical"
 	else
 		fail "idempotent — $failures assertion(s) failed"
 	fi
 }
 
 echo ""
-echo "── Test 12: Idempotent repeated invocation ──"
+echo "── Test 12: Idempotent repeated invocation + v5→v6 in-place upgrade ──"
 test_idempotent
 
 # ── Test 13: Read symlink refusal — legacy symlink is not followed ───────────
@@ -874,12 +959,12 @@ test_tracked_legacy_retained
 
 test_user_coexistence_deletes() {
 	fresh_fixture
-	# Equal v4 legacy and v5 target in the USER tier (outside the repo).
+	# Equal v4 legacy and v6 target in the USER tier (outside the repo).
 	cat > "$USER_OLD" <<'JSON'
 { "setup_version": 4, "signed_off_by_name": "User Coexist" }
 JSON
 	cat > "$USER_NEW" <<'JSON'
-{ "setup_version": 5, "signed_off_by_name": "User Coexist" }
+{ "setup_version": 6, "signed_off_by_name": "User Coexist" }
 JSON
 
 	run_migrator
@@ -913,6 +998,7 @@ test_user_coexistence_deletes
 
 print_summary "migrate_setup_test.sh"
 exit $?
+
 
 
 
