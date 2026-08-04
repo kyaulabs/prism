@@ -6,10 +6,16 @@ file carries no per-session token cost.
 
 ## How the pieces fit together
 
+New ideas enter through the **design tab** front door. Pre-spec work that is
+oversized — multiple independent subsystems, or unknowns that cannot be
+expressed as sharp questions — branches to `wayfinder` before detailed
+grilling; the sole exception is the strict-greenfield walking-skeleton
+bootstrap, which precedes wayfinding (ADR-0050).
+
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`.
@@ -45,7 +51,7 @@ For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
 | --- | --- |
 | **Build** | Default mode — full tool access for development; enforces mandatory `@tdd` + hard boundaries |
 | **Plan** | Restricted mode — analysis and planning, no file changes |
-| **Design** | Brainstorming front door — grilling → spec → commit → feature-branch creation; hands off to Plan |
+| **Design** | Brainstorming front door — grilling → exploration → design → spec → commit → branch; hands off to Plan |
 
 Plan mode is restricted from invoking code-modifying subagents (`@tdd`,
 `@resolve-merge-conflicts`, `@docs-writer`) — it can only invoke

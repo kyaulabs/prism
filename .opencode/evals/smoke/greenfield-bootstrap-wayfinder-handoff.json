@@ -1,0 +1,13 @@
+{
+  "name": "greenfield-bootstrap-wayfinder-handoff",
+  "description": "Design narrows strict-greenfield oversized work to a bootstrap before wayfinding.",
+  "agent": "design",
+  "input": "Design an oversized product in a repository that the strict-greenfield classifier identifies as greenfield.",
+  "expected_behavior": [
+    "Agent limits brainstorming to a walking-skeleton bootstrap with one thin vertical slice",
+    "Agent preserves the normal spec and branch handoff without invoking planning or TDD",
+    "Agent states that completion requires check and code review before a fresh wayfinder map records the immutable bootstrap-spec link"
+  ],
+  "pass_criteria": "all behaviors observed",
+  "tags": ["smoke", "brainstorming", "greenfield", "wayfinder"]
+}

@@ -121,18 +121,29 @@ see the brainstorming skill for the full definition.
 Four on-ramps start the pipeline depending on where the request enters:
 
 - `@consult` (questions / exploration)
-- **design** tab (new idea → brainstorm)
+- **design tab** (new idea → brainstorm)
 - `@from-issue #NN` (existing issue)
 - `@debug` (bug / regression)
 
-→  brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+Pre-spec work that is oversized — multiple independent subsystems, or
+unknowns that cannot be expressed as sharp questions — branches to `wayfinder`
+before detailed grilling; brainstorming does not decompose it here. The sole
+exception is strict greenfield: a walking-skeleton bootstrap (scaffold plus
+one thin vertical slice) whose approved spec rides the human-pushed
+single-root seed (ADR-0044) before a fresh wayfinder session maps the
+remainder (ADR-0050). The design cycle ends at the committed spec and feature
+branch and hands off to the plan tab; bootstrap branches also require `/check`
+and `@code-review` plus the wayfinder map's immutable bootstrap-spec link in
+Notes before ADR-0027 cleanup.
+
+→  brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 
 `/router` maps a free-form request to the right on-ramp. Trivial
 zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
 test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
 
 ```text
-brainstorming / to-spec → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.

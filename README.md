@@ -55,7 +55,7 @@ npm install
 
 ### Test setup
 
-No bootstrap step needed — `tests/Unit/Harness/ArchTest.php` ships
+No test-harness setup step is needed — `tests/Unit/Harness/ArchTest.php` ships
 pre-configured with filesystem-walker arch tests (no debug functions,
 strict types). The seven test subdirectories (`Unit`, `Feature`,
 `Integration`, `Browser`, `Plugin`, `Semgrep`, `Shell`) are also
@@ -250,10 +250,17 @@ This template ships with an [OpenCode](https://opencode.ai) coding harness — a
 
 ### Quick-start loop
 
+New ideas enter through the **design tab** front door. Pre-spec work that is
+oversized — multiple independent subsystems, or unknowns that cannot be
+expressed as sharp questions — branches to `wayfinder` before detailed
+grilling; the sole exception is strict greenfield, whose walking-skeleton
+bootstrap (scaffold plus one thin vertical slice) precedes wayfinding
+(ADR-0050).
+
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.

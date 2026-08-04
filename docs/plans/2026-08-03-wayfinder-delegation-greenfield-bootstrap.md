@@ -600,11 +600,11 @@ Stage only Task 5 files. Use subject `feat(harness): align oversized work entry 
 - Consumes: Final behavior from Tasks 1–5.
 - Produces: Consistent user-facing pipeline text and schema-valid smoke behaviors for established and strict-greenfield oversized requests.
 
-- [ ] **Step 1: Write failing documentation consistency assertions**
+- [x] **Step 1: Write failing documentation consistency assertions**
 
 Extend `PipelineConsistencyTest.php` so AGENTS, README, CODING_HARNESS, and session bootstrap all contain `wayfinder`, `prototype (if needed)`, `@architect (if cross-cutting)`, and the design-tab on-ramp in the same order. Pin `strict greenfield` in AGENTS and README without copying the full predicate.
 
-- [ ] **Step 2: Run documentation tests and verify Red**
+- [x] **Step 2: Run documentation tests and verify Red**
 
 Run:
 
@@ -614,14 +614,14 @@ php vendor/bin/pest tests/Unit/Harness/PipelineConsistencyTest.php tests/Unit/Ev
 
 Expected: FAIL until pipeline prose and new fixtures are synchronized.
 
-- [ ] **Step 3: Update canonical documentation**
+- [x] **Step 3: Update canonical documentation**
 
 - AGENTS: show the oversized wayfinder branch, strict-greenfield exception, design-cycle exit, and finishing checkpoint; keep the complete canonical pipeline.
 - README: mirror the design-tab front door and routing, disambiguate “test-harness bootstrap,” and align the pipeline arrow with AGENTS.
 - CODING_HARNESS: align its pipeline arrow and design cycle (`grilling → exploration → design → spec → commit → branch`) and name the wayfinder branch without duplicating the skill table.
 - Eval README: index all active smoke fixtures, including the two new files.
 
-- [ ] **Step 4: Add and correct smoke behavior fixtures**
+- [x] **Step 4: Add and correct smoke behavior fixtures**
 
 Update `brainstorming-consumes-grilling.json` so spec approval hands off to the plan tab rather than claiming the brainstorming skill invokes writing-plans. Update `finishing-a-development-branch-checklist.json` to expect the actual three finish options plus the pre-cleanup map checkpoint.
 
@@ -659,7 +659,7 @@ Add schema-conformant fixtures with these behavior sets:
 }
 ```
 
-- [ ] **Step 5: Run docs, fixture, and harness verification**
+- [x] **Step 5: Run docs, fixture, and harness verification**
 
 Run:
 
@@ -670,7 +670,7 @@ bash .github/scripts/validate-harness.sh
 
 Expected: PASS with no index drift or fixture-schema failures.
 
-- [ ] **Step 6: Commit the documentation/eval slice**
+- [x] **Step 6: Commit the documentation/eval slice**
 
 Stage only Task 6 files. Use subject `docs(harness): document wayfinder bootstrap routing`, `Fixes: #287`, and dynamically resolved footers. Present the signed commit command for approval; do not push.
 

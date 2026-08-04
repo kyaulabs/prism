@@ -98,13 +98,19 @@ run shell commands even if prompted to.
 │   ├── run-eval.php    ← Single-case runner
 │   └── run-suite.php   ← Batch suite runner
 ├── smoke/              ← Minimal smoke evals (one per critical agent)
-│   ├── tdd-red-green.json
-│   ├── tdd-frontend-handoff.json   ← @tdd → @frontend; requires --timeout 600
-│   ├── frontend-skill-gating.json  ← non-frontend agents cannot load the four gated skills
-│   ├── receiving-code-review-triage.json
-│   ├── finishing-a-development-branch-checklist.json
+│   ├── brainstorming-consumes-grilling.json    ← brainstorming delegates interviews to grilling and hands the approved spec to the plan tab
+│   ├── credential-read-blocked.json            ← agents refuse credential-file access (ADR-0047)
 │   ├── finding-duplicate-functions-two-phase.json
-│   └── opencode-docs-reference.json
+│   ├── finishing-a-development-branch-checklist.json
+│   ├── from-issue-rejects-injection.json
+│   ├── frontend-skill-gating.json              ← non-frontend agents cannot load the four gated skills
+│   ├── grilling-facts-vs-decisions.json
+│   ├── oversized-brainstorming-wayfinder.json  ← design routes established/indeterminate oversized work to wayfinder (ADR-0050)
+│   ├── greenfield-bootstrap-wayfinder-handoff.json ← design scopes strict-greenfield work to a walking-skeleton bootstrap (ADR-0050)
+│   ├── opencode-docs-reference.json
+│   ├── receiving-code-review-triage.json
+│   ├── tdd-frontend-handoff.json               ← @tdd → @frontend; requires --timeout 600
+│   └── tdd-red-green.json
 └── results/            ← Generated result files (gitignored)
     └── <timestamp>.json
 ```
