@@ -2,11 +2,12 @@
 
 
 
+
 // Check the FRONTEND agent routing contract (ADR-0049).
 // Usage: node check-frontend-agent-contract.js <opencode.jsonc> <frontend.md> <tdd.md>
 // Emits one stable 'frontend-contract: ' diagnostic per violation and exits 1;
 // emits nothing and exits 0 when the contract holds. Parses JSONC with the
-// same string-aware comment stripping as inline-agent-permissions.js, parses
+// shared string-aware comment stripper (./jsonc-strip), parses
 // both Markdown frontmatters with js-yaml, and preserves object key order via
 // Object.keys() — rule order matters because the last matching rule wins.
 
@@ -14,6 +15,7 @@
 
 const fs = require('fs');
 const yaml = require('js-yaml');
+const { stripJsoncComments } = require('./jsonc-strip');
 
 const frontendSkills = [
 	'frontend-design',
@@ -90,43 +92,6 @@ function sameKeys(actual, expected) {
 
 function sameValues(actual, expected) {
 	return Object.keys(expected).every((key) => actual[key] === expected[key]);
-}
-
-// Strip JSONC comments (// line comments and /* */ block comments) while
-// preserving string content. Mirrors inline-agent-permissions.js.
-function stripJsoncComments(content) {
-	let stripped = '';
-	let i = 0;
-	let inString = false;
-	while (i < content.length) {
-		const ch = content[i];
-		if (inString) {
-			if (ch === '\\' && i + 1 < content.length) {
-				stripped += ch + content[i + 1];
-				i += 2;
-				continue;
-			}
-			if (ch === '"') inString = false;
-			stripped += ch;
-			i++;
-			continue;
-		}
-		if (ch === '"') { inString = true; stripped += ch; i++; continue; }
-		if (ch === '/' && content[i + 1] === '/') {
-			i += 2;
-			while (i < content.length && content[i] !== '\n') i++;
-			continue;
-		}
-		if (ch === '/' && content[i + 1] === '*') {
-			i += 2;
-			while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) i++;
-			i += 2;
-			continue;
-		}
-		stripped += ch;
-		i++;
-	}
-	return stripped;
 }
 
 function readJsoncFile(file) {
@@ -280,6 +245,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 

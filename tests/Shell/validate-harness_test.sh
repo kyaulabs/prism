@@ -32,6 +32,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -60,6 +61,7 @@ setup_validator_env() {
 	mkdir -p .github/scripts
 	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
 	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/jsonc-strip.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
 	ln -s "$REPO_ROOT/node_modules" node_modules
@@ -3408,6 +3410,7 @@ git_init_test_repo "$T_CTR_FRONTMATTER_MODEL"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
