@@ -1,6 +1,8 @@
 ---
 name: frontend-design
 description: Use when writing or reviewing SCSS/CSS that defines visual language. Sets the mandatory baseline — responsive always, mobile-first, CSS transitions for ease, CSS-driven load/scroll flow, neumorphic design language, and the default light/dark theme with sky-blue or light-purple highlights. Defines the canonical :root tokens consumed by frontend-architecture.
+metadata:
+  prism.frontend-skill-order: "10"
 ---
 
 ## Mandatory baseline

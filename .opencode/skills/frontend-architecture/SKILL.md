@@ -1,6 +1,8 @@
 ---
 name: frontend-architecture
 description: Use when structuring frontend JS or wiring up page behavior. Covers progressive enhancement, vanilla-JS module pattern, the jQuery-only-when-insufficient policy, design-token consumption from CSS custom properties, and CSP-friendly inline-script rules. Does NOT cover visual design — see frontend-design.
+metadata:
+  prism.frontend-skill-order: "20"
 ---
 
 ## Progressive enhancement

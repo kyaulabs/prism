@@ -1,6 +1,8 @@
 ---
 name: scss-mobile-first
 description: Use when writing or reviewing SCSS. Covers mobile-first design rules, responsive breakpoints, unit preferences, touch targets, and stylelint configuration.
+metadata:
+  prism.frontend-skill-order: "30"
 ---
 
 ## Mobile-First Design Rules

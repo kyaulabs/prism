@@ -33,6 +33,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -80,6 +81,12 @@ setup_contract_env() {
 	mkdir -p .opencode/agents
 	cp "$REPO_ROOT/.opencode/agents/frontend.md" .opencode/agents/frontend.md
 	cp "$REPO_ROOT/.opencode/agents/tdd.md" .opencode/agents/tdd.md
+	# Real skill directories: the checker derives the ordered frontend skill
+	# set from their self-declared metadata, so the fixtures must ship them.
+	for skill in frontend-design frontend-architecture scss-mobile-first accessibility; do
+		mkdir -p ".opencode/skills/$skill"
+		cp "$REPO_ROOT/.opencode/skills/$skill/SKILL.md" ".opencode/skills/$skill/SKILL.md"
+	done
 }
 
 # ── Test 1: Finding 3 — vacuous PASS on relative HARNESS_DIR ──────────────────
@@ -3008,7 +3015,7 @@ git_init_test_repo "$T_CTR_POS"
 	# for the "frontend-contract:" prefix alone would let a checker crash
 	# (unprefixed stack lines, non-zero exit) pass silently.
 	exit_code=0
-	output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md 2>&1) || exit_code=$?
+	output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills 2>&1) || exit_code=$?
 
 	if [ "$exit_code" -ne 0 ]; then
 		fail "Positive control: contract checker exited $exit_code on valid fixtures (checker crash or contract drift)"
@@ -3406,10 +3413,129 @@ git_init_test_repo "$T_CTR_FRONTMATTER_MODEL"
 	fi
 )
 
+# ── Test: frontend skill metadata order drift is caught ────────────────────
+
+echo "── Test: FRONTEND contract — frontend skill metadata order drift caught ──"
+T_CTR_META_ORDER=$(mktemp -d)
+register_temp_dir "$T_CTR_META_ORDER"
+git_init_test_repo "$T_CTR_META_ORDER"
+(
+	cd "$T_CTR_META_ORDER"
+	setup_contract_env
+	sed -i.bak 's/^  prism.frontend-skill-order: "40"/  prism.frontend-skill-order: "5"/' .opencode/skills/accessibility/SKILL.md
+	rm -f .opencode/skills/accessibility/SKILL.md.bak
+
+	if grep -qF 'prism.frontend-skill-order: "5"' .opencode/skills/accessibility/SKILL.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the four frontend skills" && echo "$output" | grep -qF "frontend-contract: @frontend must allow exactly the four frontend skills"; then
+			pass "Caught metadata order drift with the exact global and frontend skill diagnostics"
+		else
+			fail "Did not detect metadata order drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "metadata order mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: duplicated frontend skill metadata order fails loud ───────────────
+
+echo "── Test: FRONTEND contract — duplicated skill metadata order fails loud ──"
+T_CTR_META_DUP=$(mktemp -d)
+register_temp_dir "$T_CTR_META_DUP"
+git_init_test_repo "$T_CTR_META_DUP"
+(
+	cd "$T_CTR_META_DUP"
+	setup_contract_env
+	sed -i.bak 's/^  prism.frontend-skill-order: "40"/  prism.frontend-skill-order: "10"/' .opencode/skills/accessibility/SKILL.md
+	rm -f .opencode/skills/accessibility/SKILL.md.bak
+
+	# Guard scoped to the accessibility file: frontend-design already ships "10".
+	if [ "$(grep -cF 'prism.frontend-skill-order: "10"' .opencode/skills/accessibility/SKILL.md)" -eq 1 ]; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: cannot derive ordered frontend skills from"; then
+			pass "Caught duplicate metadata order with the fail-loud source diagnostic"
+		else
+			fail "Did not fail loud on duplicate metadata order (exit ${exit_code:-0})"
+		fi
+	else
+		fail "duplicate metadata mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: missing skills root fails loud with the source diagnostic ─────────
+
+echo "── Test: FRONTEND contract — missing skills root fails loud ──"
+T_CTR_META_MISSING=$(mktemp -d)
+register_temp_dir "$T_CTR_META_MISSING"
+git_init_test_repo "$T_CTR_META_MISSING"
+(
+	cd "$T_CTR_META_MISSING"
+	setup_contract_env
+	rm -rf .opencode/skills
+
+	if [ ! -d .opencode/skills ]; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: cannot derive ordered frontend skills from"; then
+			pass "Missing skills root fails loud with the source diagnostic"
+		else
+			fail "Missing skills root did not fail loud (exit ${exit_code:-0})"
+		fi
+	else
+		fail "skills root removal did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: reordered @frontend config keys pass (order-insensitive record) ───
+
+echo "── Test: FRONTEND contract — reordered @frontend config keys pass ──"
+T_CTR_CONFIG_REORDER=$(mktemp -d)
+register_temp_dir "$T_CTR_CONFIG_REORDER"
+git_init_test_repo "$T_CTR_CONFIG_REORDER"
+(
+	cd "$T_CTR_CONFIG_REORDER"
+	setup_contract_env
+	awk '
+		/^    "frontend": \{$/ {
+			print "    \"frontend\": {"
+			print "      \"hidden\": true,"
+			print "      \"temperature\": 0.3,"
+			print "      \"variant\": \"{env:OPENCODE_VARIANT_FRONTEND}\","
+			print "      \"model\": \"{env:OPENCODE_MODEL_FRONTEND}\""
+			in_frontend = 1
+			next
+		}
+		in_frontend && /^    \},$/ {
+			print
+			in_frontend = 0
+			next
+		}
+		in_frontend { next }
+		{ print }
+	' opencode.jsonc > opencode.jsonc.tmp && mv opencode.jsonc.tmp opencode.jsonc
+
+	# Guard: the reorder must have landed — "hidden": true now leads the block.
+	if grep -A1 '"frontend": {' opencode.jsonc | grep -qF '"hidden": true'; then
+		exit_code=0
+		output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -eq 0 ] && [ -z "$output" ]; then
+			pass "Reordered @frontend config keys pass the contract check"
+		else
+			fail "Reordered @frontend config keys were rejected (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "frontend config reorder mutation did not apply — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

@@ -10,6 +10,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
 
@@ -428,10 +431,6 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             'xhigh',
             'subagent_depth',
             'permission.skill',
-            'frontend-design',
-            'frontend-architecture',
-            'scss-mobile-first',
-            'accessibility',
             'build → @tdd → @frontend',
             'Implemented-by:',
             '/build-assets',
@@ -439,6 +438,10 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             'weekly window',
         ] as $required) {
             Assert::assertStringContainsString($required, $adr);
+        }
+
+        foreach (frontend_skill_names() as $skill) {
+            Assert::assertStringContainsString($skill, $adr);
         }
 
         $context = (string) file_get_contents($root . '/CONTEXT.md');
@@ -609,6 +612,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 
