@@ -7,9 +7,14 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
+require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
+use KYAULabs\Prism\PrismManifest;
 use PHPUnit\Framework\Assert;
 
 /**
@@ -444,6 +449,23 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 
+    it('keeps bootstrap shell seeds aligned with the schema constant', function (): void {
+        $root = dirname(__DIR__, 3);
+        $needle = '"setup_version": ' . PrismManifest::SCHEMA_VERSION;
+
+        foreach ([
+            '.github/scripts/setup-write-project-config.sh',
+            '.github/scripts/setup-write-user-config.sh',
+        ] as $file) {
+            Assert::assertStringContainsString($needle, (string) file_get_contents($root . '/' . $file));
+        }
+
+        Assert::assertStringNotContainsString(
+            'setup_version === 5',
+            (string) file_get_contents($root . '/.github/scripts/setup-scaffold.sh'),
+        );
+    });
+
     it('keeps optional integrations statically off in tracked OpenCode config', function (): void {
         $config = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/opencode.jsonc')->root();
 
@@ -587,6 +609,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 
