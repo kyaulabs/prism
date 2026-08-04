@@ -95,6 +95,20 @@ const PRISM_TOGGLE_ENV_MAP = [
     'plugins.opencode_quota' => 'OPENCODE_PLUGIN_OPENCODE_QUOTA',
 ];
 
+/**
+ * Default FRONTEND model injected by project-mode v6 migration.
+ *
+ * @var string
+ */
+const PRISM_FRONTEND_MODEL = 'openai/gpt-5.6-sol';
+
+/**
+ * Default FRONTEND variant injected by project-mode v6 migration.
+ *
+ * @var string
+ */
+const PRISM_FRONTEND_VARIANT = 'xhigh';
+
 if (defined('PRISM_MANIFEST_AS_LIBRARY')) {
     return;
 }
@@ -382,16 +396,9 @@ function cmd_upgrade_v6(array $argv): PrismCliResult
     $root = $document->root();
     pm_guard_source_version($root);
 
-    $updates = ['setup_version' => 6];
+    $updates = ['setup_version' => PrismManifest::SCHEMA_VERSION];
     if ($mode === 'project') {
-        if (!property_exists($root, 'models') || !($root->models instanceof \stdClass)
-            || !property_exists($root->models, 'frontend')) {
-            $updates['models.frontend'] = 'openai/gpt-5.6-sol';
-        }
-        if (!property_exists($root, 'variants') || !($root->variants instanceof \stdClass)
-            || !property_exists($root->variants, 'frontend')) {
-            $updates['variants.frontend'] = 'xhigh';
-        }
+        $updates = array_merge($updates, pm_add_frontend_defaults($root, true));
     }
 
     $upgraded = $document->withValues($updates);
@@ -556,15 +563,42 @@ function cmd_check_secrets(array $argv): PrismCliResult
 }
 
 /**
+ * Build ordered dot-path additions for absent FRONTEND defaults.
+ *
+ * @param  \stdClass $root
+ * @param  bool      $includeMissingSections
+ * @return array<string, string>
+ */
+function pm_add_frontend_defaults(\stdClass $root, bool $includeMissingSections): array
+{
+    $updates = [];
+    $defaults = [
+        'models' => PRISM_FRONTEND_MODEL,
+        'variants' => PRISM_FRONTEND_VARIANT,
+    ];
+
+    foreach ($defaults as $section => $default) {
+        $hasSection = property_exists($root, $section) && $root->{$section} instanceof \stdClass;
+        if (($includeMissingSections || $hasSection)
+            && (! $hasSection || ! property_exists($root->{$section}, 'frontend'))) {
+            $updates[$section . '.frontend'] = $default;
+        }
+    }
+
+    return $updates;
+}
+
+/**
  * Guard that a source manifest version is migratable.
  *
- * Accepts only positive integers no greater than 6 (older schemas that the
- * projection can upgrade, plus 6 for idempotent migration). Rejects missing,
- * non-integer, zero, negative, and newer-than-6 versions.
+ * Accepts only positive integers no greater than the current schema version
+ * (older schemas that the projection can upgrade, plus the current version
+ * for idempotent migration). Rejects missing, non-integer, zero, negative,
+ * and newer-than-current versions.
  *
  * @param  \stdClass $root
  * @return void
- * @throws PrismJsoncException  When setup_version is absent or not an integer in [1, 6].
+ * @throws PrismJsoncException  When setup_version is absent or not an integer in [1, SCHEMA_VERSION].
  */
 function pm_guard_source_version(\stdClass $root): void
 {
@@ -572,9 +606,11 @@ function pm_guard_source_version(\stdClass $root): void
         !property_exists($root, 'setup_version')
         || !is_int($root->setup_version)
         || $root->setup_version < 1
-        || $root->setup_version > 6
+        || $root->setup_version > PrismManifest::SCHEMA_VERSION
     ) {
-        throw new PrismJsoncException('setup_version must be a positive integer no greater than 6');
+        throw new PrismJsoncException(
+            'setup_version must be a positive integer no greater than ' . PrismManifest::SCHEMA_VERSION,
+        );
     }
 }
 
@@ -617,16 +653,12 @@ function pm_project_v6(\stdClass $source, string $mode): \stdClass
         JSON_THROW_ON_ERROR,
     );
 
-    $clone->setup_version = 6;
+    $clone->setup_version = PrismManifest::SCHEMA_VERSION;
 
     if ($mode === 'project') {
-        if (property_exists($clone, 'models') && $clone->models instanceof \stdClass
-            && !property_exists($clone->models, 'frontend')) {
-            $clone->models->frontend = 'openai/gpt-5.6-sol';
-        }
-        if (property_exists($clone, 'variants') && $clone->variants instanceof \stdClass
-            && !property_exists($clone->variants, 'frontend')) {
-            $clone->variants->frontend = 'xhigh';
+        foreach (pm_add_frontend_defaults($clone, false) as $path => $default) {
+            [$section] = explode('.', $path, 2);
+            $clone->{$section}->frontend = $default;
         }
     }
 
@@ -647,7 +679,7 @@ function pm_canonical_v6(\stdClass $projection): string
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
     );
 
-    return "// Prism manifest (schema v6)\n" . $json . "\n";
+    return "// Prism manifest (schema v" . PrismManifest::SCHEMA_VERSION . ")\n" . $json . "\n";
 }
 
 /**
@@ -875,6 +907,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 

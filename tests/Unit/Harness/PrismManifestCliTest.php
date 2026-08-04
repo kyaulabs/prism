@@ -27,14 +27,21 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use KYAULabs\Prism\PrismJsoncException;
+use KYAULabs\Prism\PrismManifest;
 
 use function KYAULabs\Prism\dispatch;
 use function KYAULabs\Prism\main;
+use function KYAULabs\Prism\pm_add_frontend_defaults;
 use function KYAULabs\Prism\pm_env_pairs;
 
 use const KYAULabs\Prism\PRISM_ENV_MAP;
+use const KYAULabs\Prism\PRISM_FRONTEND_MODEL;
+use const KYAULabs\Prism\PRISM_FRONTEND_VARIANT;
 use const KYAULabs\Prism\PRISM_LIST_ENV_MAP;
 use const KYAULabs\Prism\PRISM_TOGGLE_ENV_MAP;
 
@@ -1252,6 +1259,36 @@ describe('prism_manifest upgrade-v6', function (): void {
             pm_clean($fixture);
         }
     });
+
+    it('centralizes schema and frontend migration defaults', function (): void {
+        $missing = new stdClass();
+        $existing = (object) [
+            'models' => (object) ['frontend' => 'custom/model'],
+            'variants' => (object) ['frontend' => 'custom'],
+        ];
+        $partial = (object) ['models' => (object) []];
+
+        expect(PrismManifest::SCHEMA_VERSION)->toBe(6)
+            ->and(PRISM_FRONTEND_MODEL)->toBe('openai/gpt-5.6-sol')
+            ->and(PRISM_FRONTEND_VARIANT)->toBe('xhigh')
+            ->and(pm_add_frontend_defaults($missing, true))->toBe([
+                'models.frontend' => PRISM_FRONTEND_MODEL,
+                'variants.frontend' => PRISM_FRONTEND_VARIANT,
+            ])
+            ->and(pm_add_frontend_defaults($missing, false))->toBe([])
+            ->and(pm_add_frontend_defaults($partial, false))->toBe([
+                'models.frontend' => PRISM_FRONTEND_MODEL,
+            ])
+            ->and(pm_add_frontend_defaults($existing, true))->toBe([]);
+    });
+
+    it('keeps the tracked prism.jsonc aligned with the schema constants', function (): void {
+        $root = PrismJsoncDocument::fromFile(dirname(__DIR__, 3) . '/prism.jsonc')->root();
+
+        expect($root->setup_version)->toBe(PrismManifest::SCHEMA_VERSION)
+            ->and($root->models->frontend)->toBe(PRISM_FRONTEND_MODEL)
+            ->and($root->variants->frontend)->toBe(PRISM_FRONTEND_VARIANT);
+    });
 });
 
 describe('prism_manifest check-secrets', function (): void {
@@ -1484,6 +1521,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 

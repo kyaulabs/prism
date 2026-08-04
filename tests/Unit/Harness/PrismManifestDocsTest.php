@@ -7,9 +7,17 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
+require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
+use KYAULabs\Prism\PrismManifest;
 use PHPUnit\Framework\Assert;
 
 /**
@@ -423,10 +431,6 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             'xhigh',
             'subagent_depth',
             'permission.skill',
-            'frontend-design',
-            'frontend-architecture',
-            'scss-mobile-first',
-            'accessibility',
             'build → @tdd → @frontend',
             'Implemented-by:',
             '/build-assets',
@@ -436,11 +440,32 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             Assert::assertStringContainsString($required, $adr);
         }
 
+        foreach (frontend_skill_names() as $skill) {
+            Assert::assertStringContainsString($skill, $adr);
+        }
+
         $context = (string) file_get_contents($root . '/CONTEXT.md');
         Assert::assertMatchesRegularExpression('/## Status\s+Accepted/s', $adr);
         Assert::assertStringContainsString(
             'adr/0049-frontend-model-tier-and-tdd-owned-agent.md',
             $context,
+        );
+    });
+
+    it('keeps bootstrap shell seeds aligned with the schema constant', function (): void {
+        $root = dirname(__DIR__, 3);
+        $needle = '"setup_version": ' . PrismManifest::SCHEMA_VERSION;
+
+        foreach ([
+            '.github/scripts/setup-write-project-config.sh',
+            '.github/scripts/setup-write-user-config.sh',
+        ] as $file) {
+            Assert::assertStringContainsString($needle, (string) file_get_contents($root . '/' . $file));
+        }
+
+        Assert::assertStringNotContainsString(
+            'setup_version === 5',
+            (string) file_get_contents($root . '/.github/scripts/setup-scaffold.sh'),
         );
     });
 
@@ -587,6 +612,8 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
+
 
 
 

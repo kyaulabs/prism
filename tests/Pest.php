@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: Pest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
+
 
 
 
@@ -275,6 +278,36 @@ function agent_frontmatter(string $name): string
     return $matches[0];
 }
 
+/**
+ * Return frontend-gated skill names ordered by their self-declared metadata.
+ *
+ * @return list<string>
+ */
+function frontend_skill_names(): array
+{
+    $files = glob(dirname(__DIR__) . '/.opencode/skills/*/SKILL.md');
+    $ordered = [];
+
+    foreach (is_array($files) ? $files : [] as $file) {
+        $content = (string) file_get_contents($file);
+        if (preg_match('/^  prism\.frontend-skill-order:\s+"([1-9]\d*)"$/m', $content, $orderMatch) !== 1) {
+            continue;
+        }
+        if (preg_match('/^name:\s+([a-z0-9]+(?:-[a-z0-9]+)*)$/m', $content, $nameMatch) !== 1) {
+            throw new RuntimeException('frontend skill metadata requires a valid skill name');
+        }
+
+        $order = (int) $orderMatch[1];
+        if (array_key_exists($order, $ordered)) {
+            throw new RuntimeException('frontend skill metadata order values must be unique');
+        }
+        $ordered[$order] = $nameMatch[1];
+    }
+
+    ksort($ordered, SORT_NUMERIC);
+
+    return array_values($ordered);
+}
 
 
 

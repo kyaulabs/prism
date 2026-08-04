@@ -12,6 +12,7 @@
 .github/scripts/coverage-gate.php
 .github/scripts/frontmatter-parser.js
 .github/scripts/install-hooks.sh
+.github/scripts/jsonc-strip.js
 .github/scripts/migrate-setup.sh
 .github/scripts/new-branch.sh
 .github/scripts/PrismJsoncDocument.php

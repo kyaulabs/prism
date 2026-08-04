@@ -1,4 +1,5 @@
-// $KYAULabs: frontmatter-parser.js kyau@nova 2026/07/16 -0700 Exp $
+// $KYAULabs: frontmatter-parser.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 // Extract a YAML frontmatter key's value from a Markdown file (or stdin).
@@ -10,85 +11,74 @@
 //
 // Note: no shebang — always invoked via `node` (validate-harness.sh, the
 // pre-commit skill-frontmatter check). See ADR-0025.
+//
+// Importable: require('./frontmatter-parser').parseFrontmatter(content)
+// returns the typed YAML frontmatter object (or null when absent) and throws
+// on malformed YAML; the CLI body only runs when this file is executed
+// directly (require.main === module).
 
 'use strict';
 
 const fs = require('fs');
 const yaml = require('js-yaml');
 
-const useStdin = process.argv[2] === '--stdin';
-const file = useStdin ? null : process.argv[2];
-const key  = useStdin ? process.argv[3] : process.argv[3];
-const label = useStdin ? '<stdin>' : file;
+function parseFrontmatter(content) {
+	const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+	const lines = normalized.split('\n');
+	if (lines[0] !== '---') return null;
 
-if (useStdin) {
-	if (!key) {
-		console.error('Usage: node frontmatter-parser.js --stdin <key>');
-		process.exit(2);
+	const fmLines = [];
+	let foundClosing = false;
+	for (let i = 1; i < lines.length; i++) {
+		if (lines[i] === '---') { foundClosing = true; break; }
+		fmLines.push(lines[i]);
 	}
-} else if (!file || !key) {
-	console.error('Usage: node frontmatter-parser.js [--stdin] <file> <key>');
-	process.exit(2);
+	if (!foundClosing) return null;
+
+	const doc = yaml.load(fmLines.join('\n'));
+	return doc && typeof doc === 'object' ? doc : null;
 }
 
-let content;
-try {
-	content = useStdin ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8');
-} catch (e) {
-	console.error(`Error reading ${useStdin ? 'stdin' : 'file'}: ${e.message}`);
-	process.exit(1);
-}
+function runCli(argv) {
+	const useStdin = argv[2] === '--stdin';
+	const file = useStdin ? null : argv[2];
+	const key = argv[3];
+	const label = useStdin ? '<stdin>' : file;
 
-// Extract frontmatter between first two --- lines
-// Strip \r for CRLF safety, strip BOM (U+FEFF) for Windows editors
-content = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-const lines = content.split('\n');
-if (lines[0] !== '---') {
-	// No frontmatter
-	process.stdout.write('');
-	process.exit(0);
-}
-
-let fmLines = [];
-let foundClosing = false;
-for (let i = 1; i < lines.length; i++) {
-	if (lines[i] === '---') {
-		foundClosing = true;
-		break;
+	if ((useStdin && !key) || (!useStdin && (!file || !key))) {
+		console.error(useStdin
+			? 'Usage: node frontmatter-parser.js --stdin <key>'
+			: 'Usage: node frontmatter-parser.js [--stdin] <file> <key>');
+		return 2;
 	}
-	fmLines.push(lines[i]);
+
+	let content;
+	try {
+		content = useStdin ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8');
+	} catch (error) {
+		console.error(`Error reading ${useStdin ? 'stdin' : 'file'}: ${error.message}`);
+		return 1;
+	}
+
+	let doc;
+	try {
+		doc = parseFrontmatter(content);
+	} catch (error) {
+		console.error(`YAML parse error in ${label}: ${error.message}`);
+		return 1;
+	}
+
+	const value = doc === null ? undefined : doc[key];
+	process.stdout.write(value === undefined || value === null ? '' : String(value));
+	return 0;
 }
 
-if (!foundClosing) {
-	// No closing --- delimiter
-	process.stdout.write('');
-	process.exit(0);
+module.exports = { parseFrontmatter };
+
+if (require.main === module) {
+	process.exitCode = runCli(process.argv);
 }
 
-const fmText = fmLines.join('\n');
-
-let doc;
-try {
-	doc = yaml.load(fmText);
-} catch (e) {
-	console.error(`YAML parse error in ${label}: ${e.message}`);
-	process.exit(1);
-}
-
-if (doc === null || doc === undefined || typeof doc !== 'object') {
-	process.stdout.write('');
-	process.exit(0);
-}
-
-const value = doc[key];
-if (value === undefined || value === null) {
-	process.stdout.write('');
-} else {
-	process.stdout.write(String(value));
-}
-
-process.exit(0);
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

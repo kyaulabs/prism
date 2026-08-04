@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
@@ -407,19 +410,21 @@ it('configures the hidden frontend agent on the FRONTEND tier', function (): voi
 });
 
 it('gates exactly four frontend skills and re-enables them only for frontend', function (): void {
+    $frontendSkills = frontend_skill_names();
+    expect($frontendSkills)->toBe([
+        'frontend-design',
+        'frontend-architecture',
+        'scss-mobile-first',
+        'accessibility',
+    ]);
+
     $config = load_opencode_config();
-    $expected = [
-        '*' => 'allow',
-        'frontend-design' => 'deny',
-        'frontend-architecture' => 'deny',
-        'scss-mobile-first' => 'deny',
-        'accessibility' => 'deny',
-    ];
+    $expected = array_merge(['*' => 'allow'], array_fill_keys($frontendSkills, 'deny'));
 
     expect($config['permission']['skill'])->toBe($expected);
 
     $frontend = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/agents/frontend.md');
-    foreach (array_slice(array_keys($expected), 1) as $skill) {
+    foreach ($frontendSkills as $skill) {
         Assert::assertMatchesRegularExpression(
             '/^\s+' . preg_quote($skill, '/') . ':\s+allow$/m',
             $frontend,
@@ -612,6 +617,7 @@ it('CODING_HARNESS variant column reflects xhigh for planner, design, and fronte
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
+
 
 
 

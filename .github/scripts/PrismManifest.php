@@ -27,6 +27,9 @@ require_once __DIR__ . '/PrismJsoncDocument.php';
  */
 final class PrismManifest
 {
+    /** Current Prism manifest schema version (ADR-0043). */
+    public const int SCHEMA_VERSION = 6;
+
     /** @var list<string> */
     private const array TIERS = ['primary', 'planner', 'design', 'judge', 'utility', 'frontend'];
 
@@ -326,7 +329,7 @@ final class PrismManifest
     }
 
     /**
-     * Require setup_version to be exactly the integer 6.
+     * Require setup_version to be exactly the current schema version.
      *
      * @param  \stdClass $manifest
      * @return void
@@ -334,8 +337,8 @@ final class PrismManifest
      */
     private static function requireVersion(\stdClass $manifest): void
     {
-        if (!property_exists($manifest, 'setup_version') || $manifest->setup_version !== 6) {
-            throw new PrismJsoncException('setup_version must be exactly 6');
+        if (!property_exists($manifest, 'setup_version') || $manifest->setup_version !== self::SCHEMA_VERSION) {
+            throw new PrismJsoncException('setup_version must be exactly ' . self::SCHEMA_VERSION);
         }
     }
 
@@ -865,6 +868,7 @@ final class PrismManifest
         }
     }
 }
+
 
 
 

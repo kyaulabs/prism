@@ -30,6 +30,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1002,7 +1003,9 @@ fi
 # The dedicated Node checker mechanically pins the frontend routing contract:
 # subagent_depth 3, catch-all-first global skill denies, the @tdd task
 # allowlist, and the terminal @frontend edit/bash/task/web/skill permissions.
-# It runs only when the Prism manifest advertises the FRONTEND tier — generic
+# The ordered frontend skill set is derived from the recognized
+# metadata.prism.frontend-skill-order values under the skills root. It runs
+# only when the Prism manifest advertises the FRONTEND tier — generic
 # validator fixtures without a frontend manifest stay out of scope. When the
 # tier is advertised, a missing checker/config/agent input must fail loudly
 # rather than pass vacuously.
@@ -1011,13 +1014,14 @@ echo "── Checking FRONTEND agent routing contract ──"
 FRONTEND_CONTRACT="${REPO_ROOT}/.github/scripts/check-frontend-agent-contract.js"
 FRONTEND_AGENT="${REPO_ROOT}/.opencode/agents/frontend.md"
 TDD_AGENT="${REPO_ROOT}/.opencode/agents/tdd.md"
+FRONTEND_SKILLS="${REPO_ROOT}/.opencode/skills"
 PRISM_MANIFEST="${REPO_ROOT}/prism.jsonc"
 
 if [ -f "$PRISM_MANIFEST" ] && grep -q '"frontend"' "$PRISM_MANIFEST"; then
 	if [ -f "$FRONTEND_CONTRACT" ] && [ -f "$OPENCODE_JSONC" ] \
 		&& [ -f "$FRONTEND_AGENT" ] && [ -f "$TDD_AGENT" ]; then
 		contract_output=''
-		if ! contract_output=$(node "$FRONTEND_CONTRACT" "$OPENCODE_JSONC" "$FRONTEND_AGENT" "$TDD_AGENT" 2>&1); then
+		if ! contract_output=$(node "$FRONTEND_CONTRACT" "$OPENCODE_JSONC" "$FRONTEND_AGENT" "$TDD_AGENT" "$FRONTEND_SKILLS" 2>&1); then
 			while IFS= read -r line; do
 				[ -n "$line" ] && err "$line"
 			done <<< "$contract_output"
@@ -1375,6 +1379,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

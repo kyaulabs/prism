@@ -1,4 +1,5 @@
-// $KYAULabs: inline-agent-permissions.js kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+// $KYAULabs: inline-agent-permissions.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -35,6 +36,7 @@
 'use strict';
 
 const fs = require('fs');
+const { stripJsoncComments } = require('./jsonc-strip');
 
 const file = process.argv[2];
 if (!file) {
@@ -51,40 +53,10 @@ try {
 }
 
 // Strip JSONC comments (// line comments and /* */ block comments) while
-// preserving string content. Mirrors tests/Pest.php strip_jsonc_comments().
+// preserving string content. Shared via ./jsonc-strip.
 content = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-let stripped = '';
-let i = 0;
-let inString = false;
-while (i < content.length) {
-    const ch = content[i];
-    if (inString) {
-        if (ch === '\\' && i + 1 < content.length) {
-            stripped += ch + content[i + 1];
-            i += 2;
-            continue;
-        }
-        if (ch === '"') inString = false;
-        stripped += ch;
-        i++;
-        continue;
-    }
-    if (ch === '"') { inString = true; stripped += ch; i++; continue; }
-    if (ch === '/' && content[i + 1] === '/') {
-        i += 2;
-        while (i < content.length && content[i] !== '\n') i++;
-        continue;
-    }
-    if (ch === '/' && content[i + 1] === '*') {
-        i += 2;
-        while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) i++;
-        i += 2;
-        continue;
-    }
-    stripped += ch;
-    i++;
-}
+const stripped = stripJsoncComments(content);
 
 let cfg;
 try {
@@ -165,6 +137,7 @@ for (const name of Object.keys(agents)) {
 }
 
 process.exit(0);
+
 
 
 

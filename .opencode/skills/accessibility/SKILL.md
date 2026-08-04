@@ -1,6 +1,8 @@
 ---
 name: accessibility
 description: Use when writing or reviewing frontend markup, SCSS, or JS that produces UI. Covers WCAG 2.2 AA, semantic HTML over ARIA, focus management, motion safety, and contrast floors for neumorphic surfaces. Complements scss-mobile-first and frontend-design.
+metadata:
+  prism.frontend-skill-order: "40"
 ---
 
 ## WCAG 2.2 AA — the floor

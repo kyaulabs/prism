@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-scaffold.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: setup-scaffold.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -336,7 +337,7 @@ CLONE_USAGE
 		done < "$_scaffold_tmp"
 		rm -f "$_scaffold_tmp"
 
-		# The CLI validates setup_version === 5 and scaffold_mode ∈
+		# The CLI validates setup_version === 6 and scaffold_mode ∈
 		# {skip, clone, new}; a valid manifest is current. scaffold_mode skip
 		# means the user already declined → short-circuit. clone/new check
 		# project_folder drift (folder deleted since last setup → re-prompt).
@@ -376,6 +377,7 @@ USAGE
 		exit 1
 		;;
 esac
+
 
 
 
