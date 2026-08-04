@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PipelineConsistencyTest.php kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: PipelineConsistencyTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+
+
+
 
 
 
@@ -80,6 +83,15 @@ test('no canonical doc uses the stale before-step-4 placement', function (): voi
     }
 });
 
+test('session bootstrap shows wayfinder as the oversized pre-spec branch with the strict-greenfield sole exception', function (): void {
+    $contents = harness_read_file(dirname(__DIR__, 3) . '/.opencode/docs/session-bootstrap.md');
+
+    expect($contents)
+        ->toContain('wayfinder')
+        ->toContain('oversized')
+        ->toContain('strict greenfield')
+        ->toContain('sole exception');
+});
 
 
 

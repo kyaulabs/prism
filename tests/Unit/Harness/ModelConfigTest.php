@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+
+
+
 
 
 
@@ -364,6 +367,17 @@ it('design agent exists with the DESIGN-tier contract (ADR-0030)', function () {
     Assert::assertStringContainsString('brainstorming', $design['prompt'], 'design agent prompt must reference the brainstorming skill');
 });
 
+it('design prompt runs the classifier scope gate and preserves the ADR-0030 boundary (ADR-0050)', function () {
+    $config = load_opencode_config();
+    $designPrompt = $config['agent']['design']['prompt'];
+
+    Assert::assertStringContainsString('classify-greenfield.sh', $designPrompt, 'design prompt must run the strict-greenfield classifier before grilling');
+    Assert::assertStringContainsString('wayfinder', $designPrompt, 'design prompt must end the design cycle by loading wayfinder for established/indeterminate work');
+    Assert::assertStringContainsString('walking-skeleton bootstrap', $designPrompt, 'design prompt must permit only the walking-skeleton bootstrap for greenfield');
+    Assert::assertStringContainsString('Do NOT invoke `writing-plans`', $designPrompt, 'design prompt must preserve the no-writing-plans boundary (ADR-0030)');
+    Assert::assertStringContainsString('Do NOT dispatch `@tdd`', $designPrompt, 'design prompt must preserve the no-@tdd boundary (ADR-0030)');
+});
+
 it('architect and consult use PLANNER tier', function () {
     $json = load_opencode_config();
     expect($json['agent']['architect']['model'])->toBe('{env:OPENCODE_MODEL_PLANNER}');
@@ -617,12 +631,6 @@ it('CODING_HARNESS variant column reflects xhigh for planner, design, and fronte
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
-
-
-
-
-
-
 
 
 

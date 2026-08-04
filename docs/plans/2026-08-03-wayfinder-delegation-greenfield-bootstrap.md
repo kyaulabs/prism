@@ -528,7 +528,7 @@ Stage only Task 4 files. Use subject `feat(harness): add greenfield bootstrap ha
 - Consumes: Task 2 classifier and Task 3/4 skill routes.
 - Produces: One router destination for oversized work, an inline design-agent scope gate, a safe from-issue stop/redirect boundary, and a session-bootstrap pipeline branch. No permission/model/frontmatter shape changes.
 
-- [ ] **Step 1: Add failing entry-point assertions**
+- [x] **Step 1: Add failing entry-point assertions**
 
 Extend existing tests to assert:
 
@@ -548,7 +548,7 @@ Assert::assertStringContainsString('Do NOT dispatch `@tdd`', $designPrompt);
 
 In `FromIssueAgentTest.php`, assert that if loaded brainstorming reports oversized scope, `@from-issue` stops and directs the user to a design/wayfinder session; it must not create a map or expand its task allowlist. In `PipelineConsistencyTest.php`, add wayfinder to the pipeline surfaces while preserving the exact architect-ordering assertion.
 
-- [ ] **Step 2: Run entry-point tests and verify Red**
+- [x] **Step 2: Run entry-point tests and verify Red**
 
 Run:
 
@@ -558,14 +558,14 @@ php vendor/bin/pest tests/Unit/Harness/RouterCommandTest.php tests/Unit/Harness/
 
 Expected: FAIL on absent classifier/wayfinder/bootstrap wording and the router's alternate decomposition route.
 
-- [ ] **Step 3: Align the four entry points**
+- [x] **Step 3: Align the four entry points**
 
 - Router: route HUGE only to wayfinder; add a strict-greenfield signal row that points to the design-tab walking-skeleton bootstrap and then wayfinder.
 - Design prompt: run the scope/classifier gate before grilling; established/indeterminate ends the design cycle by loading wayfinder; greenfield permits only the bootstrap spec and normal spec/branch handoff. Preserve its prohibition on planning/TDD.
 - From-issue: when its optional brainstorming stage declares oversized scope, stop and direct the user to a fresh design/wayfinder session. Do not add wayfinder to `permission.task`, create issues, or bypass the existing GitHub confirmation gate.
 - Session bootstrap: show wayfinder as the oversized pre-spec branch and strict-greenfield bootstrap as the sole exception. Preserve “`@architect` after the spec and before ticketing/planning”.
 
-- [ ] **Step 4: Validate configuration and run focused tests**
+- [x] **Step 4: Validate configuration and run focused tests**
 
 Run:
 
@@ -577,7 +577,7 @@ bash .github/scripts/validate-harness.sh
 
 Expected: PASS. `ConfigArchTest.php` and `ModelConfigTest.php` are the authoritative JSONC/config contracts; do not add a parser dependency.
 
-- [ ] **Step 5: Commit the entry-point slice**
+- [x] **Step 5: Commit the entry-point slice**
 
 Stage only Task 5 files. Use subject `feat(harness): align oversized work entry points`, `Refs: #287`, and dynamically resolved footers. Present the signed commit command for approval; do not push.
 

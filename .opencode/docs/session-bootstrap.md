@@ -42,5 +42,11 @@ to do the task; skipping it means you are guessing.
 brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
+Pre-spec work that is oversized (multiple independent subsystems, or unknowns
+that cannot be expressed as sharp questions) branches to `wayfinder` before
+detailed grilling — brainstorming does not decompose it here.
+The sole exception is the strict greenfield bootstrap (scaffold plus one thin
+vertical slice): it precedes wayfinding in the design tab (see ADR-0050).
+
 For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.
 For bugs, prepend `@debug` before `@tdd` on the fix.
