@@ -2,7 +2,8 @@
 # $KYAULabs: classify-greenfield.sh kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
 
 
-set -u
+
+set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${1:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
@@ -39,6 +40,7 @@ app="$(php "$SCRIPT_DIR/prism_manifest.php" get "$ROOT/prism.jsonc" - app 2>/dev
 [[ ! -e "$ROOT/$app" ]] || established
 
 printf 'greenfield\n'
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -2,6 +2,7 @@
 # $KYAULabs: classify_greenfield_test.sh kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
 
 
+
 # ── Tests for .github/scripts/classify-greenfield.sh ─────────────────────────
 # Exercises the strict-greenfield tri-state predicate (ADR-0050): stdout
 # greenfield|established|indeterminate with exit codes 0|1|2. Every case
@@ -365,10 +366,32 @@ echo ""
 echo "── Test 16: real Prism repository → 1 established ──"
 test_real_prism_repository
 
+# ── Test 17: present but malformed app value ────────────────────────────────
+
+test_malformed_app_value() {
+	local root
+	root="$(make_greenfield_fixture)"
+	# A non-empty app that is not a project-local webroot name (contains '/')
+	# must trip the classifier's app-value guard into indeterminate — even
+	# though the manifest itself validates (app is only required non-empty).
+	printf '{"app": "evil/app"}\n' | php "$REPO_ROOT/.github/scripts/prism_manifest.php" patch "$root/prism.jsonc" project 0644
+
+	if assert_classification 2 indeterminate "$root"; then
+		pass "malformed app value — 2 indeterminate"
+	else
+		fail "malformed app value — expected status 2 and stdout 'indeterminate'"
+	fi
+}
+
+echo ""
+echo "── Test 17: malformed app value → 2 indeterminate ──"
+test_malformed_app_value
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "classify greenfield"
 exit $?
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
