@@ -1,10 +1,11 @@
 ---
-description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then rewrites template defaults (<app>, <domain>, kyau <git@kyaulabs.com>, kyaulabs/template) across the harness. Idempotent — re-runnable to update values. Offers an optional scaffold step (clone an existing template via gh, or init a new subfolder) for spinning up standalone projects.
+description: Interactive project configurator. Interviews for app name, domain, repo, Signed-off-by identity, and accent color, then substitutes template defaults (<app>, <domain>, kyau <git@kyaulabs.com>, kyaulabs/template) inside the scaffolded project folder — never in the Prism harness itself. Idempotent — re-runnable to update values. Offers an optional scaffold step (clone an existing template via gh, or init a new subfolder) for spinning up standalone projects.
 agent: build
 ---
 
 Replace template defaults (`<app>`, `<domain>`, `kyau <git@kyaulabs.com>`,
-`kyaulabs/template`) across the harness with real project values. Patches the
+`kyaulabs/template`) with real project values inside the scaffolded project
+folder — the Prism harness itself is never rewritten. Patches the
 answers into the dual-path prism manifests (`prism.jsonc` project tier +
 `~/.config/opencode/prism.jsonc` user tier, ADR-0043) for idempotent re-runs.
 
@@ -87,7 +88,8 @@ Otherwise, present the scaffold prompt:
 > The `/setup` command can scaffold a standalone project subfolder with a
 > portable quality surface (git hooks, CI, linters, shell-test harness).
 > Choose a mode:
-> 1. **skip** — configure the template in place (no scaffold)
+> 1. **skip** — patch the manifests in place; no scaffold and no substitution
+>    sweep (the harness is never rewritten)
 > 2. **clone** an existing quality-surface template
 > 3. **new** — init a fresh subfolder from the template's quality surface
 
@@ -373,7 +375,9 @@ repository's own harness files (commands, agents, skills, docs) are NEVER
 swept. The sweep never runs on Prism itself.
 ```
 
-Ask: "Proceed with rewrites? (y/n)"
+If a sweep will run (scaffold mode `clone` or `new`), ask:
+"Proceed with rewrites? (y/n)". In skip mode there are no rewrites — proceed
+to §6.
 
 ## 6. Apply
 
@@ -404,7 +408,7 @@ When the sweep runs, for each file in the sweep list (resolved against
 3. For `cdn/sass/_tokens.scss` only: apply the accent toggle inside the
    target (see below).
 
-**Accent toggle** (`cdn/sass/_tokens.scss`):
+**Accent toggle** (`$project_folder/cdn/sass/_tokens.scss`):
 
 The file has two accent palettes as comment-toggle lines. For each accent
 choice, ensure the correct lines are uncommented and the other is commented.
@@ -423,24 +427,34 @@ For **light-purple:**
 - `--accent-soft: #c4b5fd;` — uncommented
 - `--accent-hover: #8b5cf6;` — uncommented, value `#8b5cf6`
 
-Use the Edit tool for the accent toggle — it is a small targeted change.
+Use the Edit tool for the accent toggle on `$project_folder/cdn/sass/_tokens.scss`
+— it is a small targeted change. Never touch the parent repo's `_tokens.scss`.
 
 ## 7. Verify sweep
 
-After the sweep, confirm no old identity strings remain in the swept
-directory (`$project_folder`), excluding LICENSE and NOTICE, which are
-legal/attribution and must not be swept. Use the grep tool (never bash grep
-— bash grep is denied by runtime permissions) with pattern
-`kyau <git@kyaulabs.com>` and path `$project_folder`.
+If the sweep was skipped in §6 (empty or unset `$project_folder`), skip this
+verification too — there is nothing to check.
 
-The grep tool must return zero matches in `$project_folder`. If any matches
-are found, the sweep was incomplete — re-run the substitution script on the
-reported files.
+After the sweep, confirm no old identity strings remain in the swept
+directory (`$project_folder`). Use the grep tool (never bash grep — bash grep
+is denied by runtime permissions) with pattern `kyau <git@kyaulabs.com>` and
+path `$project_folder`.
+
+The grep tool must return zero matches in `$project_folder` — except in
+LICENSE and NOTICE, which always retain the identity by design (they are
+legal/attribution files and must not be swept, see Rules). Matches limited to
+LICENSE/NOTICE are expected and are NOT sweep failures. If any other matches
+are found, the sweep was incomplete — re-run the substitution script scoped
+to the target on the reported files:
+
+```bash
+bash .github/scripts/setup-substitute.sh --target-dir "$project_folder" <file> "{app}" "{domain}" "{org}" "{repo}"
+```
 
 Also verify the abuse contact was replaced: run the grep tool with pattern
-`git+abuse@kyaulabs.com` and path `$project_folder`.
-
-This must also return zero matches.
+`git+abuse@kyaulabs.com` and path `$project_folder`. LICENSE and NOTICE may
+also retain the abuse address by design — matches there are expected, all
+other matches must be zero.
 
 Matches outside the swept directory — in the parent repo's `adr/`,
 `docs/plans`, `docs/specs`, `tests/`, or `setup.md` itself — are expected:
@@ -541,7 +555,7 @@ composer.json                           1
 package.json                            1
 cdn/sass/_tokens.scss                   accent: light-purple
 --------------------------------------  ------------
-TOTAL                                   31 replacements across 10 files
+TOTAL                                   30 replacements across 10 files
 ```
 
 Remind the user:

@@ -7,9 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -26,18 +23,22 @@ function setup_command_content(): string
 /**
  * Extract one section of the /setup command between two markdown headings.
  *
+ * Fails loudly if either marker is missing — a renamed or removed section
+ * heading must never degrade into a vacuous pass.
+ *
  * @param  string $from  Text that starts the section (heading or lead-in).
  * @param  string $toNext  Next section heading; the slice ends before it.
- * @return string  The section text, or the tail of the document if the
- *                 next heading is missing.
+ * @return string  The section text between the two markers.
  */
 function setup_command_section(string $from, string $toNext): string
 {
     $content = setup_command_content();
-    $start = (int) strpos($content, $from);
+    $start = strpos($content, $from);
+    Assert::assertNotFalse($start, "section start marker not found: {$from}");
     $end = strpos($content, $toNext, $start);
+    Assert::assertNotFalse($end, "section end marker not found: {$toNext}");
 
-    return $end !== false ? substr($content, $start, $end - $start) : substr($content, $start);
+    return substr($content, $start, $end - $start);
 }
 
 describe('/setup command — prism manifest contract (ADR-0043)', function () {
@@ -311,16 +312,6 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
         );
     });
 });
-
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
