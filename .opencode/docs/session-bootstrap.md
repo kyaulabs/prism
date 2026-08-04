@@ -38,8 +38,15 @@ to do the task; skipping it means you are guessing.
 
 ## Pipeline reminder
 
+New ideas enter through the **design tab** front door. Pre-spec work that is
+oversized (multiple independent subsystems, or unknowns that cannot be
+expressed as sharp questions) branches to `wayfinder` before detailed
+grilling — brainstorming does not decompose it here. The sole exception is
+strict greenfield: a walking-skeleton bootstrap (scaffold plus one thin
+vertical slice) precedes wayfinding in the design tab (see ADR-0050).
+
 ```
-brainstorming → prototype (if needed) → writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
 For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.

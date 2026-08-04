@@ -45,41 +45,74 @@ exception defined in the HARD-GATE above.
 Complete these in order:
 
 1. **Explore project context** — check files, docs, recent commits, `CONTEXT.md`.
-2. **Gather requirements via grilling** — load the `grilling` skill and
+2. **Assess scope before detailed grilling**
+   - Run `bash .github/scripts/classify-greenfield.sh` from the project root.
+   - If the request spans multiple independent subsystems or its unknowns
+     cannot be expressed as sharp questions, it is oversized.
+   - For classifier results `established` or `indeterminate`, stop detailed
+     grilling, announce the route, load the `wayfinder` skill, and chart the
+     map. Do not create ad-hoc sub-projects or specs.
+   - For `greenfield`, this is the sole exception to immediate wayfinding:
+     scope the design to a walking-skeleton bootstrap and follow the
+     strict-greenfield bootstrap path below.
+3. **Gather requirements via grilling** — load the `grilling` skill and
    interview the user one question at a time. Focus on purpose, constraints,
    and success criteria. Grilling governs *how* to ask (one-at-a-time,
    facts-vs-decisions, reassess, recommend, confirm); this skill governs
    *what* to ask about.
-3. **Propose 2–3 approaches** — with trade-offs and your recommendation.
+4. **Propose 2–3 approaches** — with trade-offs and your recommendation.
    Present these following grilling's Recommended answer behavior (lead with
    your recommendation, explain the trade-off you're making and what
    alternative you're rejecting).
-4. **Present design** — in sections scaled to their complexity. Use grilling's
+5. **Present design** — in sections scaled to their complexity. Use grilling's
    Confirmation gate: present each section, ask "Does this look right so far?",
    and wait for explicit approval before moving to the next section.
-5. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md` and commit.
-6. **Spec self-review** — quick inline check for placeholders, contradictions,
+6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md` and commit.
+7. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
-7. **User reviews written spec** — ask the user to review before proceeding.
-8. **Create feature branch** — `bash .github/scripts/new-branch.sh <type> <desc>`
+8. **User reviews written spec** — ask the user to review before proceeding.
+9. **Create feature branch** — `bash .github/scripts/new-branch.sh <type> <desc>`
    off `develop` (or `main` for hotfixes). See ADR-0028.
-9. **Transition** — direct the user to the `plan` tab for implementation
-   planning. Do NOT invoke `writing-plans` or dispatch `@tdd` from the design
-   tab (per ADR-0030).
+10. **Transition** — direct the user to the `plan` tab for implementation
+    planning. Do NOT invoke `writing-plans` or dispatch `@tdd` from the design
+    tab (per ADR-0030).
+
+## Strict-greenfield bootstrap path
+
+A `greenfield` classifier result is the **sole exception to immediate
+wayfinding**: the repository has no commits and no project evidence, so
+there is nothing to map yet. Scope this session to a **walking-skeleton
+bootstrap** — quality scaffold plus **one thin vertical slice**, nothing
+more — and write it as a normal spec (checklist steps 6–8). Never expand a
+bootstrap session into a full product design; the remainder map waits for
+real code (see the `wayfinder` skill).
+
+The bootstrap handoff differs from the normal branch flow:
+
+- A no-commit repository cannot create a work branch yet. The approved spec
+  is included in the ADR-0044 **single-root seed** on `develop`, and the
+  **human** performs that initial push — the agent never pushes.
+- Only after the seed push does `new-branch.sh` create the implementation
+  work branch for the scaffold plus the vertical slice.
+- Implementation follows the normal pipeline on the **plan tab** (`@tdd` →
+  verification → `/check` → `@code-review`); the design tab does not plan or
+  implement (ADR-0030).
+- The bootstrap is complete only after `/check` and `@code-review`. A fresh
+  wayfinder session then charts the remainder map and records the immutable
+  bootstrap-spec link in its Notes; see the `finishing-a-development-branch`
+  skill's checkpoint for the exact handoff.
 
 ## The process
 
 **Understanding the idea:**
 
 - Check the current project state first (files, docs, recent commits).
-- Before asking detailed questions, assess scope: if the request describes
-  multiple independent subsystems, flag it immediately. Don't spend questions
-  refining details of a project that needs to be decomposed first.
-- If the project is too large for a single spec, help the user decompose into
-  sub-projects: what are the independent pieces, how do they relate, what
-  order should they be built? Then brainstorm the first sub-project through
-  the normal design flow. Each sub-project gets its own spec → plan →
-  implementation cycle.
+- Run the scope gate (checklist step 2) before asking detailed questions: if
+  the request is oversized, don't spend questions refining details of work
+  that must be wayfound first.
+- For classifier results `established` or `indeterminate`, stop detailed
+  grilling, announce the route, and load the `wayfinder` skill — the design
+  cycle hands off to wayfinding instead of decomposing the work here.
 - For appropriately-scoped changes, load the `grilling` skill for the
   interview. Grilling handles the mechanics — one question at a time,
   facts-vs-decisions checking, reassessment after each answer, recommendations
@@ -145,8 +178,9 @@ If a decision is hard to reverse, note it as an ADR candidate.
 1. **Placeholder scan:** any "TBD", "TODO", incomplete sections, or vague
    requirements? Fix them.
 2. **Internal consistency:** do any sections contradict each other?
-3. **Scope check:** is this focused enough for a single implementation plan,
-   or does it need decomposition?
+3. **Scope check:** is this focused enough for a single implementation plan?
+   If it is still oversized, halt and return it to wayfinder — do not
+   decompose it here.
 4. **Ambiguity check:** could any requirement be interpreted two different
    ways? If so, pick one and make it explicit.
 
@@ -176,6 +210,12 @@ bugs, `docs` for documentation, etc. — full vocabulary per ADR-0028) and
 `<description>` is a short kebab-case summary. The helper script handles base
 branch selection, identity resolution, hash generation, and the checkout.
 See ADR-0028.
+
+For a strict-greenfield repository (classifier result `greenfield`), the
+branch cannot be created yet: the approved spec rides the ADR-0044
+single-root seed on `develop`, the human performs that initial push, and
+only then does `new-branch.sh` create the implementation work branch (see
+the strict-greenfield bootstrap path above).
 
 **Transition:**
 
@@ -209,6 +249,10 @@ execution phase respectively.
 - `@architect` agent — for non-trivial or cross-cutting changes, suggest an
   architect review after the spec is written and before the plan tab loads
   `writing-plans` (per AGENTS.md).
+- `wayfinder` skill — the oversized-work route: for classifier results
+  `established` or `indeterminate`, stop detailed grilling and chart the work
+  as a wayfinder map instead of decomposing it here; the map merges to a spec
+  via the `to-spec` skill.
 
 ## Gotchas
 
@@ -226,3 +270,7 @@ causes a preventable mistake.
   will be missing. Grilling is the authoritative source for interview protocol.
 - *Jumping to implementation before spec is written* — the hard-gate exists
   for a reason. No code until the design is approved and the spec is saved.
+- *Decomposing oversized work by hand* — ad-hoc sub-project decomposition
+  produces session-only decisions that drift and consume context. For
+  `established` or `indeterminate` repositories, stop detailed grilling and
+  load `wayfinder`; the shared map is the durable decomposition.

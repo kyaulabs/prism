@@ -18,7 +18,8 @@ or problem domain. Assume they don't know good test design very well.
 implementation plan."
 
 **Context:** This skill is invoked after the `brainstorming` skill has produced
-an approved spec. The spec lives at `docs/specs/YYYY-MM-DD-<topic>-spec.md`.
+an approved spec, or after a wayfinder map has merged to a spec via the
+`to-spec` skill. The spec lives at `docs/specs/YYYY-MM-DD-<topic>-spec.md`.
 The Plan agent delegates reading the spec file to `@explore` (since `read`
 is denied on the Plan agent) — dispatch `@explore` with the spec path to
 load its contents into context.
@@ -34,10 +35,9 @@ spec files from `docs/plans/` and `docs/specs/`. Git history preserves them.
 
 ## Scope check
 
-If the spec covers multiple independent subsystems, it should have been broken
-into sub-project specs during brainstorming. If it wasn't, suggest breaking
-this into separate plans — one per subsystem. Each plan should produce working,
-testable software on its own.
+If an approved spec is still oversized, halt and return it to wayfinder; do not
+create multiple plans here. Wayfinder owns pre-spec decomposition; this skill
+produces one implementation plan per approved spec.
 
 ## File structure
 
@@ -216,6 +216,10 @@ context management across long plans.
 ## Cross-refs
 
 - `brainstorming` skill — the step before this one (produces the spec).
+- `to-spec` skill — the merge exit for a wayfinder map; also a source of
+  approved specs.
+- `wayfinder` skill — the pre-spec route: an approved spec that is still
+  oversized returns here instead of becoming multiple plans.
 - `@explore` agent — delegate spec reading, codebase exploration, and file discovery (Plan agent cannot read files directly).
 - `@scout` agent — delegate web research and external dependency inspection.
   (Built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` — see
@@ -238,3 +242,6 @@ causes a preventable mistake.
   `clearFullLayers()` in Task 7. Run the self-review type-consistency check.
 - *Tasks too large* — a task should be 2–5 minutes of work. If a task has
   more than ~5 steps, it's probably two tasks.
+- *Splitting one oversized spec into multiple plans* — if the approved spec is
+  still oversized, halt and return it to wayfinder. Creating multiple plans
+  here bypasses the shared decision map (ADR-0050).

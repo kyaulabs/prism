@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RouterCommandTest.php kyau@nova 2026/07/20 -0700 Exp $
+# $KYAULabs: RouterCommandTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+
+
+
 
 
 
@@ -148,6 +151,19 @@ it('AGENTS.md Engineering Pipeline section contains the 3 on-ramps', function ()
         $section,
         'Engineering Pipeline section must contain brainstorming (idea on-ramp)',
     );
+});
+
+it('router routes HUGE work only to wayfinder and signals the strict-greenfield bootstrap (ADR-0050)', function () {
+    $router = (string) file_get_contents(__DIR__ . '/../../../.opencode/commands/router.md');
+
+    Assert::assertStringContainsString('HUGE', $router, 'router must keep a HUGE-work signal row');
+    Assert::assertStringContainsString('wayfinder', $router, 'router must route oversized work to wayfinder');
+    Assert::assertStringNotContainsString(
+        "brainstorming's decomposition guidance",
+        $router,
+        'router must not offer brainstorming decomposition as an alternate HUGE route (ADR-0050)',
+    );
+    Assert::assertStringContainsString('classify-greenfield.sh', $router, 'router must reference the strict-greenfield classifier signal');
 });
 
 

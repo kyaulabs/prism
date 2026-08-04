@@ -190,6 +190,16 @@ when the routing matrix demands it:
 | Ambiguous / multiple approaches | load the `brainstorming` skill |
 | Technical viability uncertain | load the `prototype` skill |
 
+**Oversized-scope stop (ADR-0050):** the `brainstorming` skill runs its scope
+gate before grilling. If it classifies the issue as oversized (multiple
+independent subsystems, or unknowns that cannot be expressed as sharp
+questions), STOP: do not decompose the work, do not create a wayfinder map or
+issues, and do not continue to Step 8. Direct the user to start a fresh
+design/wayfinder session — the design tab loads `wayfinder` for established or
+indeterminate repositories. `wayfinder` is not in this agent's `task`
+allowlist, so you do not dispatch it; the bug/enhancement/chore routing
+contract is unchanged.
+
 ### 8. Plan
 
 Load the `writing-plans` skill and write a detailed implementation plan to
@@ -289,6 +299,7 @@ prompt (Step 9).
 - `executing-plans` skill — dispatch @tdd per task (Step 10)
 - `brainstorming` skill — defines the chore fast-path; loaded when ambiguous
 - `prototype` skill — loaded when viability is uncertain
+- `wayfinder` skill — oversized-work route (ADR-0050); loaded by the design tab, never dispatched from here (Step 7)
 - `/issue` command — Type→field mapping and the GraphQL/REST application pattern
 - `docs/agents/labels.md` — Type/Progress axes + meta labels
 - `@explore` agent — codebase analysis (Step 1, Step 7)
@@ -305,6 +316,9 @@ prompt (Step 9).
   labels. Progress has exactly four values; do not invent a fifth.
 - *Dispatching @debug directly* — `debug` is not whitelisted in this agent's
   `task` permission; recommend it and stop.
+- *Decomposing oversized-scope issues yourself* — when the brainstorming scope
+  gate says oversized, stop and redirect the user to a fresh design/wayfinder
+  session; never create a wayfinder map or issues from this agent (ADR-0050).
 - *Proceeding to execute before plan approval* — Step 9 is a hard gate.
 - *Posting a comment without the AI-disclaimer* — every comment carries it.
 - *Hard-coding repo or type IDs* — always detect via `gh repo view` /

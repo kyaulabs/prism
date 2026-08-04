@@ -17,33 +17,35 @@ verify and wrap up this feature branch."
 
 Run the items in this order; do not skip any:
 
-1. **Confirm all plan tasks are checked off** (`- [x]` in `docs/plans/`) and
-   per-task verification passed.
-2. **Clean up plan/spec artifacts.** Delete the tracked plan/spec files that
+1. **Confirm every implementation task is complete** (`- [x]` in
+   `docs/plans/`) and per-task verification passed.
+2. **Strict-greenfield checkpoint (bootstrap branches only).** Require
+   successful `/check` and all four `@code-review` axes first. Then derive
+   the immutable spec link and direct the user to a fresh wayfinder session:
+   - `REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)`
+   - `SPEC_SHA` from the commit that added `SPEC_PATH`
+     (`git log --format=%H --diff-filter=A -1 -- "$SPEC_PATH"`)
+   - the link `https://github.com/$REPO/blob/$SPEC_SHA/$SPEC_PATH`
+3. **Require map evidence before artifact cleanup (bootstrap branches
+   only).** Confirm that the fresh wayfinder map exists and its Notes contain
+   that immutable URL; otherwise halt without deleting development artifacts.
+4. **Clean up plan/spec artifacts.** Delete the tracked plan/spec files that
    match this branch's work from `docs/plans/` and `docs/specs/` and commit
    that cleanup before any final gate (ADR-0027). If no matching artifacts
-   exist, record that fact and do not create an empty cleanup commit.
-3. **Derive `TARGET_BRANCH`** (below). Note that `release/*` branches still
-   originate from `develop` (ADR-0028) while their PR target is `main`
-   (ADR-0044) — origin and target remain distinct.
-4. **Synchronize** if the work branch is already published (below). Resolve
-   conflicts before continuing.
-5. **Print the exact attestation** (below) with a clean working tree.
-6. **Run `/check`** after the attestation. Stop on anything except GO.
-7. **Run all four `@code-review` axes** after `/check` (see below). Use the
-   `receiving-code-review` skill to triage findings. Repeat the entire
-   attestation → `/check` → review sequence after any commit or merge.
-8. **Require no Blocking finding** from the review. Resolve every Suggested
-   finding and re-verify the affected suites, or record the human's explicit
-   waiver. A failed or skipped review axis is incomplete evidence and must be
-   explicitly waived by the human before `/pr` may proceed. The review is
-   never re-run solely to refresh evidence — the attested evidence stands
-   until the SHAs or the tree change.
-9. **Recheck** the clean tree, HEAD SHA, and base SHA before the summary.
-10. **Offer exactly:** prepare a pull request through `/pr`, keep, or discard.
-11. For the first option, invoke the `/pr` procedure. State that `/pr` only
-    prepares artifacts; the human publishes the work branch and runs the
-    displayed GitHub CLI block.
+   exist, record that fact and do not create an empty cleanup commit. Map
+   issues live on the GitHub tracker, outside repository cleanup; only
+   tracked plan/spec artifacts are deleted.
+5. **Recompute branch attestation.** Derive `TARGET_BRANCH` (below),
+   synchronize if the work branch is already published (below), and print the
+   exact attestation (below) with a clean working tree. Cleanup changed HEAD,
+   so rerun `/check` and all four `@code-review` axes on the new HEAD.
+6. **Continue the existing finish/PR/keep/discard options.** Require no
+   Blocking finding from the review (resolve every Suggested finding or
+   record the human's explicit waiver), recheck the clean tree, HEAD SHA, and
+   base SHA, then offer exactly: prepare a pull request through `/pr`, keep,
+   or discard. For the first option, invoke the `/pr` procedure and state
+   that `/pr` only prepares artifacts — the human publishes the work branch
+   and runs the displayed GitHub CLI block.
 
 ## Determine the target branch
 
@@ -202,6 +204,9 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 - `AGENTS.md` § Git Workflow — branch naming convention, protected-branch
   policy, and no-squash policy.
 - `writing-plans` skill — produces the plan; documents its own lifecycle.
+- `wayfinder` skill — charts the remainder map for a strict-greenfield
+  bootstrap between the initial gates and ADR-0027 cleanup; its map Notes
+  hold the immutable bootstrap-spec link.
 
 ## Gotchas
 
@@ -221,3 +226,8 @@ development and evaluation log. Do not squash. Do not suggest squashing. The
 - *Offering a direct merge to develop or main* — protected branches are
   PR-only. Delegate preparation to `/pr`; the human runs the displayed
   command.
+- *Deleting development artifacts before the map checkpoint* — a
+  strict-greenfield bootstrap must complete `/check` and `@code-review`,
+  derive the immutable spec link, and record it in a fresh wayfinder map's
+  Notes before ADR-0027 cleanup. Cleanup changes HEAD, so the attestation
+  and both gates must be repeated.

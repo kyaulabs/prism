@@ -9,6 +9,7 @@
 .github/workflows/release.yml
 .github/scripts/check-script-executable-bits.sh
 .github/scripts/check-setup-secrets.sh
+.github/scripts/classify-greenfield.sh
 .github/scripts/coverage-gate.php
 .github/scripts/frontmatter-parser.js
 .github/scripts/install-hooks.sh

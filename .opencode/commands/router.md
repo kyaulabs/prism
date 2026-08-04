@@ -20,7 +20,8 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 | Build a NEW feature or behavior from an idea | switch to the **design** tab (brainstorming → spec → branch → plan → @tdd) |
 | Work an EXISTING GitHub issue | `@from-issue #NN` |
 | Investigate a BUG or regression | `@debug "repro steps"` |
-| Build something HUGE (multiple independent subsystems) | Decompose first — chart it with the wayfinder skill, or use brainstorming's decomposition guidance |
+| Build something HUGE (multiple independent subsystems) | Decompose first — chart it with the `wayfinder` skill (the sole pre-spec decomposition route, ADR-0050) |
+| Build something HUGE in a fresh scaffold (strict greenfield — `bash .github/scripts/classify-greenfield.sh` confirms) | **design tab** — walking-skeleton bootstrap first, then wayfinder |
 | Make a trivial zero-behavior-delta change (typo, docs, RCS header, style, patch deps, test-only) | fast-path — implement directly, then verification-before-completion + /check |
 
 ## Signal heuristics
@@ -30,6 +31,7 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 - a concrete new-feature description → **design** tab
 - "how does X work" / "what should I consider" / a question → `@consult`
 - spans multiple subsystems / "huge" / "platform" → decompose (wayfinder)
+- fresh scaffold / no commits / "greenfield" → run `bash .github/scripts/classify-greenfield.sh`; on `greenfield`, point to the design-tab walking-skeleton bootstrap, then wayfinder
 - typo / docs-only / header / lint fix / dep bump / test-only → fast-path
 
 Present the matched entry point as a single recommendation with a one-line
