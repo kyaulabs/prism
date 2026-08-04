@@ -405,7 +405,7 @@ bash .github/scripts/check-skill-frontmatter.sh .opencode/skills/brainstorming/S
 
 Expected: PASS; no duplicated predicate beyond the classifier/ADR references.
 
-- [ ] **Step 5: Commit the established-route slice**
+- [x] **Step 5: Commit the established-route slice**
 
 Stage only Task 3 files. Use subject `feat(harness): route oversized brainstorming to wayfinder`, `Refs: #287`, and dynamically resolved footers. Present the signed commit command for approval; do not push.
 
@@ -424,7 +424,7 @@ Stage only Task 3 files. Use subject `feat(harness): route oversized brainstormi
 - Consumes: classifier stdout `greenfield`; ADR-0044 root-seed exception; ADR-0027 cleanup; existing `finishing-a-development-branch` final-state checklist.
 - Produces: One-session walking-skeleton scope, initial seed prerequisites, and a two-session finish/map/cleanup checkpoint with immutable spec evidence.
 
-- [ ] **Step 1: Write the failing cross-surface workflow contract**
+- [x] **Step 1: Write the failing cross-surface workflow contract**
 
 Create `GreenfieldBootstrapWorkflowTest.php` with focused assertions:
 
@@ -462,7 +462,7 @@ it('keeps empty repositories out of wayfinder until bootstrap completion', funct
 });
 ```
 
-- [ ] **Step 2: Run the workflow contract and verify Red**
+- [x] **Step 2: Run the workflow contract and verify Red**
 
 Run:
 
@@ -472,13 +472,13 @@ php vendor/bin/pest tests/Unit/Harness/GreenfieldBootstrapWorkflowTest.php tests
 
 Expected: FAIL because the bootstrap and finishing checkpoint are undocumented.
 
-- [ ] **Step 3: Implement the bootstrap branch**
+- [x] **Step 3: Implement the bootstrap branch**
 
 In brainstorming, define the `greenfield` result as the sole exception to immediate wayfinding. Require a bootstrap spec containing only quality scaffold plus one end-to-end vertical slice, then explicitly hand to the plan tab. Document that a no-commit repository first needs the approved spec included in the ADR-0044 root seed on `develop`, with the human performing the initial push before `new-branch.sh` can create the implementation branch.
 
 In wayfinder's “When not to use” and Gotchas, reject direct map creation for strict-greenfield repositories. State that the post-bootstrap fresh session requires a configured remote, authenticated `gh`, ruleset setup, and the immutable bootstrap-spec blob URL in Notes.
 
-- [ ] **Step 4: Insert the finishing checkpoint before ADR-0027 cleanup**
+- [x] **Step 4: Insert the finishing checkpoint before ADR-0027 cleanup**
 
 Refactor the finishing checklist ordering to:
 
@@ -493,7 +493,7 @@ Refactor the finishing checklist ordering to:
 
 Keep map issues outside repository cleanup; only tracked plan/spec artifacts are deleted.
 
-- [ ] **Step 5: Run focused finishing and injection tests**
+- [x] **Step 5: Run focused finishing and injection tests**
 
 Run:
 
@@ -506,7 +506,7 @@ bash tests/Shell/skill_shell_injection_test.sh
 
 Expected: PASS; the existing three finishing options, no-auto-push rule, and `/pr` delegation remain intact.
 
-- [ ] **Step 6: Commit the bootstrap lifecycle slice**
+- [x] **Step 6: Commit the bootstrap lifecycle slice**
 
 Stage only Task 4 files. Use subject `feat(harness): add greenfield bootstrap handoff`, `Refs: #287`, and dynamically resolved footers. Present the signed commit command for approval; do not push.
 

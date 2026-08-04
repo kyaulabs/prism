@@ -35,6 +35,11 @@ Do NOT use this skill when a smaller on-ramp fits:
   `@from-issue #NN`.
 - A question or domain exploration → `@consult`.
 - A bug or regression → `@debug`.
+- A **strict greenfield** repository — classifier result `greenfield` from
+  `bash .github/scripts/classify-greenfield.sh`. The repository must
+  bootstrap first: the approved walking-skeleton spec rides the human-pushed
+  single-root seed (ADR-0044) onto `develop` and completes through `/check`
+  and `@code-review` before a fresh session may chart the remainder map.
 
 If, while charting, you surface **no fog** — the whole journey fits one session
 — stop and tell the user; a map is not needed.
@@ -285,3 +290,8 @@ editing the tracker concurrently.
 - *Slicing implementation on the map* — implementation slicing is `ticketing`'s
   post-spec job. Once the map merges through `to-spec`, stop re-decomposing
   the work here.
+- *Mapping a strict-greenfield repository* — an empty scaffold has no
+  evidence to chart; reject direct map creation. The repository must
+  bootstrap first. A fresh post-bootstrap session charts the map only with
+  a configured remote, authenticated `gh`, ruleset setup, and the immutable
+  bootstrap-spec blob URL recorded in the map's Notes.

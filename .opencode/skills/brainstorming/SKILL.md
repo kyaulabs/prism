@@ -52,7 +52,9 @@ Complete these in order:
    - For classifier results `established` or `indeterminate`, stop detailed
      grilling, announce the route, load the `wayfinder` skill, and chart the
      map. Do not create ad-hoc sub-projects or specs.
-   - For `greenfield`, follow the strict-greenfield bootstrap path below.
+   - For `greenfield`, this is the sole exception to immediate wayfinding:
+     scope the design to a walking-skeleton bootstrap and follow the
+     strict-greenfield bootstrap path below.
 3. **Gather requirements via grilling** — load the `grilling` skill and
    interview the user one question at a time. Focus on purpose, constraints,
    and success criteria. Grilling governs *how* to ask (one-at-a-time,
@@ -74,6 +76,31 @@ Complete these in order:
 10. **Transition** — direct the user to the `plan` tab for implementation
     planning. Do NOT invoke `writing-plans` or dispatch `@tdd` from the design
     tab (per ADR-0030).
+
+## Strict-greenfield bootstrap path
+
+A `greenfield` classifier result is the **sole exception to immediate
+wayfinding**: the repository has no commits and no project evidence, so
+there is nothing to map yet. Scope this session to a **walking-skeleton
+bootstrap** — quality scaffold plus **one thin vertical slice**, nothing
+more — and write it as a normal spec (checklist steps 6–8). Never expand a
+bootstrap session into a full product design; the remainder map waits for
+real code (see the `wayfinder` skill).
+
+The bootstrap handoff differs from the normal branch flow:
+
+- A no-commit repository cannot create a work branch yet. The approved spec
+  is included in the ADR-0044 **single-root seed** on `develop`, and the
+  **human** performs that initial push — the agent never pushes.
+- Only after the seed push does `new-branch.sh` create the implementation
+  work branch for the scaffold plus the vertical slice.
+- Implementation follows the normal pipeline on the **plan tab** (`@tdd` →
+  verification → `/check` → `@code-review`); the design tab does not plan or
+  implement (ADR-0030).
+- The bootstrap is complete only after `/check` and `@code-review`. A fresh
+  wayfinder session then charts the remainder map and records the immutable
+  bootstrap-spec link in its Notes; see the `finishing-a-development-branch`
+  skill's checkpoint for the exact handoff.
 
 ## The process
 
@@ -183,6 +210,12 @@ bugs, `docs` for documentation, etc. — full vocabulary per ADR-0028) and
 `<description>` is a short kebab-case summary. The helper script handles base
 branch selection, identity resolution, hash generation, and the checkout.
 See ADR-0028.
+
+For a strict-greenfield repository (classifier result `greenfield`), the
+branch cannot be created yet: the approved spec rides the ADR-0044
+single-root seed on `develop`, the human performs that initial push, and
+only then does `new-branch.sh` create the implementation work branch (see
+the strict-greenfield bootstrap path above).
 
 **Transition:**
 
