@@ -7,56 +7,13 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
 /**
- * Load and return the project prism.jsonc manifest (v5 schema) as an
+ * Load and return the project prism.jsonc manifest (v6 schema) as an
  * associative array via the production JSONC reader.
  *
  * @return array<string, mixed>
@@ -269,13 +226,42 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
             [$modelConfiguration, 'OPENCODE_VARIANT_FRONTEND', 'model-configuration.md must list OPENCODE_VARIANT_FRONTEND'],
             [$modelConfiguration, 'weekly window', 'model-configuration.md must document the Sol rolling weekly window'],
             [$modelConfiguration, 'no automatic fallback', 'model-configuration.md must rule out automatic quota fallback'],
-            [$modelConfiguration, '0.3', 'model-configuration.md must document the FRONTEND literal temperature 0.3'],
             [$modelConfiguration, '@tdd', 'model-configuration.md must document TDD-owned frontend use'],
         ];
 
         foreach ($requirements as [$content, $needle, $message]) {
             Assert::assertStringContainsString($needle, $content, $message);
         }
+    });
+
+    it('documents the FRONTEND literal temperature within the frontend tier section', function (): void {
+        $modelConfiguration = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/docs/model-configuration.md');
+
+        // Bound to the FRONTEND prose block: a bare '0.3' needle also matches
+        // the shared temperature table and the DESIGN row, so it cannot catch
+        // a Frontend-specific temperature drift on its own.
+        $anchor = 'FRONTEND also runs';
+        $sectionEnd = 'The **judge** agent';
+        Assert::assertStringContainsString(
+            $anchor,
+            $modelConfiguration,
+            'model-configuration.md must describe the FRONTEND OAuth backing',
+        );
+        Assert::assertStringContainsString(
+            $sectionEnd,
+            $modelConfiguration,
+            'model-configuration.md must keep the FRONTEND prose block before the judge section',
+        );
+        $frontendRegion = substr(
+            $modelConfiguration,
+            (int) strpos($modelConfiguration, $anchor),
+            (int) strpos($modelConfiguration, $sectionEnd) - (int) strpos($modelConfiguration, $anchor),
+        );
+        Assert::assertStringContainsString(
+            '0.3',
+            $frontendRegion,
+            'model-configuration.md FRONTEND section must document the literal temperature 0.3',
+        );
     });
 
     it('documents schema v6 and the frontend glossary terms in CONTEXT.md', function (): void {
@@ -601,6 +587,7 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         );
     });
 });
+
 
 
 

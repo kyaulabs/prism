@@ -7,24 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
@@ -448,9 +430,10 @@ it('gates exactly four frontend skills and re-enables them only for frontend', f
 });
 
 it('limits tdd dispatch to frontend and makes frontend terminal', function (): void {
-    $root = dirname(__DIR__, 3);
-    $tdd = (string) file_get_contents($root . '/.opencode/agents/tdd.md');
-    $frontend = (string) file_get_contents($root . '/.opencode/agents/frontend.md');
+    // agent_contents() fails with a diagnostic when a file is missing; the
+    // (string) cast on file_get_contents() would silently coerce to ''.
+    $tdd = agent_contents('tdd');
+    $frontend = agent_contents('frontend');
 
     Assert::assertMatchesRegularExpression('/task:\s+"\*": deny\s+"frontend": allow/s', $tdd);
     Assert::assertMatchesRegularExpression('/^\s+task:\s+deny$/m', $frontend);
@@ -534,6 +517,11 @@ it('AGENTS.md frontend roster allows focused checks but not test authorship', fu
         'focused checks',
         $row,
         '@frontend roster must state it may run focused checks',
+    );
+    Assert::assertStringContainsString(
+        'cannot author tests',
+        $row,
+        '@frontend roster must forbid test authorship',
     );
     Assert::assertStringNotContainsString(
         'cannot test',
@@ -624,6 +612,7 @@ it('CODING_HARNESS variant column reflects xhigh for planner, design, and fronte
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
+
 
 
 

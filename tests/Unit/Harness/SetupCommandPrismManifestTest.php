@@ -7,30 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use PHPUnit\Framework\Assert;
 
 /**
@@ -91,13 +67,16 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
             $content,
             '/setup must read variants.frontend and pass it to both writers',
         );
+        // Scope to the Frontend prompt entries: the bare 'openai/gpt-5.6-sol'
+        // and 'xhigh' tokens also appear in the Planner/Design rows, so a
+        // Frontend-specific default drift would otherwise go undetected.
         Assert::assertStringContainsString(
-            'openai/gpt-5.6-sol',
+            '**Frontend** model [openai/gpt-5.6-sol]',
             $content,
             '/setup must default the Frontend model prompt to openai/gpt-5.6-sol',
         );
         Assert::assertStringContainsString(
-            'xhigh',
+            '**Frontend** variant [xhigh]',
             $content,
             '/setup must default the Frontend variant prompt to xhigh',
         );
@@ -210,6 +189,7 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
         Assert::assertStringContainsString('restart', $restartRegion);
     });
 });
+
 
 
 

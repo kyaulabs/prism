@@ -7,26 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismManifest.php';
 
 use KYAULabs\Prism\PrismJsoncException;
@@ -532,6 +512,7 @@ describe('mcp and plugins integration preferences', function (): void {
             ->and($resolved->mcp->searxng)->toBeTrue();
     });
 });
+
 
 
 
