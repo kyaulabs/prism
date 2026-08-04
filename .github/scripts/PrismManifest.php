@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: PrismManifest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
@@ -28,7 +28,7 @@ require_once __DIR__ . '/PrismJsoncDocument.php';
 final class PrismManifest
 {
     /** @var list<string> */
-    private const array TIERS = ['primary', 'planner', 'design', 'judge', 'utility'];
+    private const array TIERS = ['primary', 'planner', 'design', 'judge', 'utility', 'frontend'];
 
     /** @var list<string> */
     private const array EXPERIMENTAL = ['lsp_tool', 'scout', 'background_subagents'];
@@ -183,7 +183,7 @@ final class PrismManifest
     }
 
     /**
-     * Validate a complete schema-v5 project manifest.
+     * Validate a complete schema-v6 project manifest.
      *
      * Every required section must be present with the correct type. Unknown
      * fields are preserved and never rejected. Throws on the first violation;
@@ -217,9 +217,9 @@ final class PrismManifest
     }
 
     /**
-     * Validate a partial schema-v5 user manifest.
+     * Validate a partial schema-v6 user manifest.
      *
-     * setup_version is required and must be exactly 5. Every other field is
+     * setup_version is required and must be exactly 6. Every other field is
      * optional, but any present field must still carry a correct type and
      * value (enums, non-empty strings, booleans). Unlike the project
      * manifest, non-empty env overrides are permitted because the user
@@ -326,7 +326,7 @@ final class PrismManifest
     }
 
     /**
-     * Require setup_version to be exactly the integer 5.
+     * Require setup_version to be exactly the integer 6.
      *
      * @param  \stdClass $manifest
      * @return void
@@ -334,8 +334,8 @@ final class PrismManifest
      */
     private static function requireVersion(\stdClass $manifest): void
     {
-        if (!property_exists($manifest, 'setup_version') || $manifest->setup_version !== 5) {
-            throw new PrismJsoncException('setup_version must be exactly 5');
+        if (!property_exists($manifest, 'setup_version') || $manifest->setup_version !== 6) {
+            throw new PrismJsoncException('setup_version must be exactly 6');
         }
     }
 
@@ -865,6 +865,7 @@ final class PrismManifest
         }
     }
 }
+
 
 
 

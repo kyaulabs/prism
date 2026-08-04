@@ -2,16 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
@@ -22,7 +13,7 @@ use PHPUnit\Framework\Assert;
 require_once dirname(__DIR__, 3) . '/.github/scripts/PrismJsoncDocument.php';
 
 /**
- * Load and return the project prism.jsonc manifest (v5 schema) as an
+ * Load and return the project prism.jsonc manifest (v6 schema) as an
  * associative array via the production JSONC reader.
  *
  * @return array<string, mixed>
@@ -61,19 +52,19 @@ function lsp_enabled_agents(): array
     return array_values(array_unique($agents));
 }
 
-it('has a prism.jsonc manifest at the v5 schema version', function () {
+it('has a prism.jsonc manifest at the v6 schema version', function () {
     $manifest = prism_manifest();
 
-    expect($manifest['setup_version'])->toBe(5);
+    expect($manifest['setup_version'])->toBe(6);
 });
 
-it('has a prism.jsonc manifest with five tier model values', function () {
+it('has a prism.jsonc manifest with six tier model values', function () {
     $setup = prism_manifest();
 
     Assert::assertArrayHasKey('models', $setup, 'prism.jsonc must have a models section');
     Assert::assertIsArray($setup['models'], 'prism.jsonc models must be an object');
 
-    $tiers = ['primary', 'planner', 'design', 'judge', 'utility'];
+    $tiers = ['primary', 'planner', 'design', 'judge', 'utility', 'frontend'];
     foreach ($tiers as $tier) {
         Assert::assertArrayHasKey($tier, $setup['models'], "prism.jsonc models must define '{$tier}'");
         Assert::assertIsString($setup['models'][$tier], "prism.jsonc models.{$tier} must be a string");
@@ -227,7 +218,7 @@ it('has consistent model keys between prism.jsonc and opencode.json', function (
     $setup = prism_manifest();
     $config = file_get_contents(opencode_config_path());
 
-    $modelKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
+    $modelKeys = ['primary', 'planner', 'design', 'judge', 'utility', 'frontend'];
 
     foreach ($modelKeys as $key) {
         Assert::assertArrayHasKey($key, $setup['models'], "prism.jsonc models must define '{$key}'");
@@ -294,7 +285,7 @@ it('uses env var substitution for variant, keeps temperature as literal', functi
 
 it('has all required model and variant keys in prism.jsonc', function () {
     $setup = prism_manifest();
-    $expectedKeys = ['primary', 'planner', 'design', 'judge', 'utility'];
+    $expectedKeys = ['primary', 'planner', 'design', 'judge', 'utility', 'frontend'];
     foreach ($expectedKeys as $key) {
         Assert::assertArrayHasKey($key, $setup['models'], "prism.jsonc models must have key '{$key}'");
         Assert::assertArrayHasKey($key, $setup['variants'], "prism.jsonc variants must have key '{$key}'");
@@ -308,6 +299,7 @@ it('has correct default variant values', function () {
     expect($setup['variants']['design'])->toBe('xhigh');
     expect($setup['variants']['judge'])->toBe('medium');
     expect($setup['variants']['utility'])->toBe('medium');
+    expect($setup['variants']['frontend'])->toBe('xhigh');
 });
 
 it('has OPENCODE_MODEL_JUDGE with correct default in prism.jsonc', function () {
@@ -397,6 +389,58 @@ it('from-issue stays on PLANNER tier', function () {
     expect($json['agent']['from-issue']['variant'])->toBe('{env:OPENCODE_VARIANT_PLANNER}');
 });
 
+it('has frontend defaulting to GPT-5.6 Sol at xhigh on the FRONTEND tier', function () {
+    $setup = prism_manifest();
+    expect($setup['models']['frontend'])->toBe('openai/gpt-5.6-sol');
+    expect($setup['variants']['frontend'])->toBe('xhigh');
+});
+
+it('configures the hidden frontend agent on the FRONTEND tier', function (): void {
+    $config = load_opencode_config();
+    $frontend = $config['agent']['frontend'];
+
+    expect($config['subagent_depth'])->toBe(3)
+        ->and($frontend['model'])->toBe('{env:OPENCODE_MODEL_FRONTEND}')
+        ->and($frontend['variant'])->toBe('{env:OPENCODE_VARIANT_FRONTEND}')
+        ->and($frontend['temperature'])->toBe(0.3)
+        ->and($frontend['hidden'])->toBeTrue();
+});
+
+it('gates exactly four frontend skills and re-enables them only for frontend', function (): void {
+    $config = load_opencode_config();
+    $expected = [
+        '*' => 'allow',
+        'frontend-design' => 'deny',
+        'frontend-architecture' => 'deny',
+        'scss-mobile-first' => 'deny',
+        'accessibility' => 'deny',
+    ];
+
+    expect($config['permission']['skill'])->toBe($expected);
+
+    $frontend = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/agents/frontend.md');
+    foreach (array_slice(array_keys($expected), 1) as $skill) {
+        Assert::assertMatchesRegularExpression(
+            '/^\s+' . preg_quote($skill, '/') . ':\s+allow$/m',
+            $frontend,
+        );
+    }
+    Assert::assertStringNotContainsString('aurora-page: allow', $frontend);
+    Assert::assertStringNotContainsString('pest-browser: allow', $frontend);
+});
+
+it('limits tdd dispatch to frontend and makes frontend terminal', function (): void {
+    // agent_contents() fails with a diagnostic when a file is missing; the
+    // (string) cast on file_get_contents() would silently coerce to ''.
+    $tdd = agent_contents('tdd');
+    $frontend = agent_contents('frontend');
+
+    Assert::assertMatchesRegularExpression('/task:\s+"\*": deny\s+"frontend": allow/s', $tdd);
+    Assert::assertMatchesRegularExpression('/^\s+task:\s+deny$/m', $frontend);
+    Assert::assertStringContainsString('standards checklist', $tdd);
+    Assert::assertStringContainsString('failing test output', $tdd);
+});
+
 it('every agent has an explicit temperature — no silent default inheritance', function () {
     // opencode.json agents
     $config = load_opencode_config();
@@ -437,11 +481,11 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
     $enabled = lsp_enabled_agents();
     sort($enabled);
 
-    // After granting explore lsp:allow, eight agents carry the tool.
-    expect($enabled)->toHaveCount(8);
+    // After granting frontend lsp:allow, nine agents carry the tool.
+    expect($enabled)->toHaveCount(9);
     expect($enabled)->toBe([
         'build', 'chat', 'debug', 'design', 'docs-writer',
-        'explore', 'general', 'tdd',
+        'explore', 'frontend', 'general', 'tdd',
     ]);
 
     $agentsMd = file_get_contents(__DIR__ . '/../../../AGENTS.md');
@@ -449,10 +493,11 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
     // Stale counts must be gone.
     Assert::assertStringNotContainsString('six agents', $agentsMd);
     Assert::assertStringNotContainsString('Seven agents', $agentsMd);
+    Assert::assertStringNotContainsString('Eight agents', $agentsMd);
     // Current count is stated.
-    Assert::assertStringContainsString('Eight agents', $agentsMd);
+    Assert::assertStringContainsString('Nine agents', $agentsMd);
     // Every enabled agent is named in the LSP sentence.
-    foreach (['build', 'design', 'explore', 'general', 'chat', '@tdd', '@debug', '@docs-writer'] as $name) {
+    foreach (['build', 'design', 'explore', 'general', 'chat', '@tdd', '@debug', '@docs-writer', '@frontend'] as $name) {
         Assert::assertStringContainsString(
             $name,
             $agentsMd,
@@ -461,19 +506,57 @@ it('AGENTS.md LSP opt-in count and membership match agents granted lsp allow', f
     }
 });
 
+it('AGENTS.md frontend roster allows focused checks but not test authorship', function (): void {
+    $agentsMd = file_get_contents(__DIR__ . '/../../../AGENTS.md');
+
+    preg_match('/^\| `@frontend` \|.*$/m', $agentsMd, $matches);
+    Assert::assertCount(1, $matches, 'AGENTS.md must have exactly one @frontend roster row');
+    $row = $matches[0];
+
+    Assert::assertStringContainsString(
+        'focused checks',
+        $row,
+        '@frontend roster must state it may run focused checks',
+    );
+    Assert::assertStringContainsString(
+        'cannot author tests',
+        $row,
+        '@frontend roster must forbid test authorship',
+    );
+    Assert::assertStringNotContainsString(
+        'cannot test',
+        $row,
+        '@frontend roster must not deny running focused checks',
+    );
+});
+
 it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function (): void {
     $setup = prism_manifest();
 
     foreach (['README.md', 'CODING_HARNESS.md'] as $doc) {
         $text = file_get_contents(__DIR__ . '/../../../' . $doc);
 
-        // Each tier's shipped default model must appear in the table.
-        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+        // Each tier's shipped default model and model env var must appear in
+        // the table; CODING_HARNESS additionally carries the variant env var
+        // column so every tier's variant env var must appear there too.
+        foreach (['primary', 'planner', 'design', 'judge', 'utility', 'frontend'] as $tier) {
             Assert::assertStringContainsString(
                 $setup['models'][$tier],
                 $text,
                 "{$doc} must list the prism.jsonc default model for the '{$tier}' tier",
             );
+            Assert::assertStringContainsString(
+                'OPENCODE_MODEL_' . strtoupper($tier),
+                $text,
+                "{$doc} must list the model env var for the '{$tier}' tier",
+            );
+            if ($doc === 'CODING_HARNESS.md') {
+                Assert::assertStringContainsString(
+                    'OPENCODE_VARIANT_' . strtoupper($tier),
+                    $text,
+                    "{$doc} must list the variant env var for the '{$tier}' tier",
+                );
+            }
         }
 
         // The stale OpenRouter provider prefix must be gone (drifted form was
@@ -484,6 +567,19 @@ it('README and CODING_HARNESS tier tables match prism.jsonc defaults', function 
             "{$doc} must not use the stale openrouter/z-ai provider prefix",
         );
     }
+});
+
+it('README FRONTEND row lists the model env var, Sol default, and frontend agent', function (): void {
+    $readme = file_get_contents(__DIR__ . '/../../../README.md');
+
+    // Anchor on the model env var so the Skills (on-demand) category row
+    // ("| Frontend | frontend-design, ... |") cannot satisfy this test.
+    preg_match('/^\| Frontend \| `OPENCODE_MODEL_FRONTEND` \|.*$/m', $readme, $matches);
+    Assert::assertCount(1, $matches, 'README must have exactly one Frontend tier-table row');
+    $row = $matches[0];
+
+    Assert::assertStringContainsString('openai/gpt-5.6-sol', $row, 'README Frontend row must list the Sol default');
+    Assert::assertStringContainsString('frontend', $row, 'README Frontend row must name the frontend agent');
 });
 
 it('README install verify comment matches the shipped Primary default', function (): void {
@@ -497,22 +593,29 @@ it('README install verify comment matches the shipped Primary default', function
     );
 });
 
-it('CODING_HARNESS variant column reflects xhigh for planner and design', function (): void {
+it('CODING_HARNESS variant column reflects xhigh for planner, design, and frontend', function (): void {
     $harness = file_get_contents(__DIR__ . '/../../../CODING_HARNESS.md');
 
     // Assert per tier row, not document-wide: a single `xhigh` (only one
     // tier updated, or the token appearing in unrelated prose) must not
-    // satisfy this test. Both Planner and Design are `xhigh` per ADR-0040.
-    // Match the full backtick-delimited token to avoid the trap where
-    // `xhigh` contains the substring `high`.
+    // satisfy this test. Planner, Design, and Frontend are `xhigh` per
+    // ADR-0040 and ADR-0049. Match the full backtick-delimited token to
+    // avoid the trap where `xhigh` contains the substring `high`.
     preg_match_all('/^\| Planner \|.*$/m', $harness, $planner);
     preg_match_all('/^\| Design \|.*$/m', $harness, $design);
+    preg_match_all('/^\| Frontend \| `OPENCODE_MODEL_FRONTEND` \|.*$/m', $harness, $frontend);
 
     Assert::assertCount(1, $planner[0], 'CODING_HARNESS has exactly one Planner tier row');
     Assert::assertCount(1, $design[0], 'CODING_HARNESS has exactly one Design tier row');
+    Assert::assertCount(1, $frontend[0], 'CODING_HARNESS has exactly one Frontend tier row');
     Assert::assertStringContainsString('`xhigh`', $planner[0][0], 'Planner variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
+    Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
+
+
+
+
 
 
 

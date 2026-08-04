@@ -2,28 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
@@ -73,6 +52,43 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
             'jq',
             $content,
             '/setup must not read values with jq; it reads through the CLI',
+        );
+    });
+
+    it('reads and writes the FRONTEND model and variant through the CLI and writers', function () {
+        $content = setup_command_content();
+        Assert::assertStringContainsString(
+            'OPENCODE_MODEL_FRONTEND',
+            $content,
+            '/setup must read models.frontend and pass it to both writers',
+        );
+        Assert::assertStringContainsString(
+            'OPENCODE_VARIANT_FRONTEND',
+            $content,
+            '/setup must read variants.frontend and pass it to both writers',
+        );
+        // Scope to the Frontend prompt entries: the bare 'openai/gpt-5.6-sol'
+        // and 'xhigh' tokens also appear in the Planner/Design rows, so a
+        // Frontend-specific default drift would otherwise go undetected.
+        Assert::assertStringContainsString(
+            '**Frontend** model [openai/gpt-5.6-sol]',
+            $content,
+            '/setup must default the Frontend model prompt to openai/gpt-5.6-sol',
+        );
+        Assert::assertStringContainsString(
+            '**Frontend** variant [xhigh]',
+            $content,
+            '/setup must default the Frontend variant prompt to xhigh',
+        );
+        Assert::assertStringContainsString(
+            'setup-write-project-config.sh',
+            $content,
+            '/setup must pass frontend values to the project writer',
+        );
+        Assert::assertStringContainsString(
+            'setup-write-user-config.sh',
+            $content,
+            '/setup must pass frontend values to the user writer',
         );
     });
 
@@ -173,6 +189,8 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
         Assert::assertStringContainsString('restart', $restartRegion);
     });
 });
+
+
 
 
 

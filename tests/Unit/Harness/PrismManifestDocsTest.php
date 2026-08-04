@@ -2,38 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: PrismManifestDocsTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
 
 
 
@@ -44,7 +13,7 @@ use KYAULabs\Prism\PrismJsoncDocument;
 use PHPUnit\Framework\Assert;
 
 /**
- * Load and return the project prism.jsonc manifest (v5 schema) as an
+ * Load and return the project prism.jsonc manifest (v6 schema) as an
  * associative array via the production JSONC reader.
  *
  * @return array<string, mixed>
@@ -219,19 +188,141 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         Assert::assertFileExists($path, 'model-configuration.md must exist');
         $content = (string) file_get_contents($path);
 
-        foreach (['primary', 'planner', 'design', 'judge', 'utility'] as $tier) {
+        foreach (['primary', 'planner', 'design', 'judge', 'utility', 'frontend'] as $tier) {
             Assert::assertStringContainsString(
                 $manifest['models'][$tier],
                 $content,
                 "model-configuration.md must list the prism.jsonc default model for the '{$tier}' tier",
             );
+            Assert::assertStringContainsString(
+                'OPENCODE_MODEL_' . strtoupper($tier),
+                $content,
+                "model-configuration.md must list the model env var for the '{$tier}' tier",
+            );
+            Assert::assertStringContainsString(
+                'OPENCODE_VARIANT_' . strtoupper($tier),
+                $content,
+                "model-configuration.md must list the variant env var for the '{$tier}' tier",
+            );
         }
+    });
+
+    it('documents the six-tier vocabulary across living docs', function (): void {
+        $agents = (string) file_get_contents(dirname(__DIR__, 3) . '/AGENTS.md');
+        $readme = (string) file_get_contents(dirname(__DIR__, 3) . '/README.md');
+        $codingHarness = (string) file_get_contents(dirname(__DIR__, 3) . '/CODING_HARNESS.md');
+        $modelConfiguration = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/docs/model-configuration.md');
+
+        $requirements = [
+            [$agents, 'Six tiers', 'AGENTS.md must state six model/variant tiers'],
+            [$agents, 'Nine agents', 'AGENTS.md must state nine LSP-enabled agents'],
+            [$agents, 'restart OpenCode', 'AGENTS.md must require an OpenCode restart after config changes'],
+            [$readme, 'Six tiers', 'README must state six model/variant tiers'],
+            [$readme, 'OPENCODE_MODEL_FRONTEND', 'README tier table must list OPENCODE_MODEL_FRONTEND'],
+            [$codingHarness, 'Six tiers', 'CODING_HARNESS must state six model/variant tiers'],
+            [$codingHarness, 'OPENCODE_VARIANT_FRONTEND', 'CODING_HARNESS tier table must list OPENCODE_VARIANT_FRONTEND'],
+            [$modelConfiguration, 'six-tier', 'model-configuration.md must describe a six-tier system'],
+            [$modelConfiguration, 'OPENCODE_MODEL_FRONTEND', 'model-configuration.md must list OPENCODE_MODEL_FRONTEND'],
+            [$modelConfiguration, 'OPENCODE_VARIANT_FRONTEND', 'model-configuration.md must list OPENCODE_VARIANT_FRONTEND'],
+            [$modelConfiguration, 'weekly window', 'model-configuration.md must document the Sol rolling weekly window'],
+            [$modelConfiguration, 'no automatic fallback', 'model-configuration.md must rule out automatic quota fallback'],
+            [$modelConfiguration, '@tdd', 'model-configuration.md must document TDD-owned frontend use'],
+        ];
+
+        foreach ($requirements as [$content, $needle, $message]) {
+            Assert::assertStringContainsString($needle, $content, $message);
+        }
+    });
+
+    it('documents the FRONTEND literal temperature within the frontend tier section', function (): void {
+        $modelConfiguration = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/docs/model-configuration.md');
+
+        // Bound to the FRONTEND prose block: a bare '0.3' needle also matches
+        // the shared temperature table and the DESIGN row, so it cannot catch
+        // a Frontend-specific temperature drift on its own.
+        $anchor = 'FRONTEND also runs';
+        $sectionEnd = 'The **judge** agent';
+        Assert::assertStringContainsString(
+            $anchor,
+            $modelConfiguration,
+            'model-configuration.md must describe the FRONTEND OAuth backing',
+        );
+        Assert::assertStringContainsString(
+            $sectionEnd,
+            $modelConfiguration,
+            'model-configuration.md must keep the FRONTEND prose block before the judge section',
+        );
+        $frontendRegion = substr(
+            $modelConfiguration,
+            (int) strpos($modelConfiguration, $anchor),
+            (int) strpos($modelConfiguration, $sectionEnd) - (int) strpos($modelConfiguration, $anchor),
+        );
+        Assert::assertStringContainsString(
+            '0.3',
+            $frontendRegion,
+            'model-configuration.md FRONTEND section must document the literal temperature 0.3',
+        );
+    });
+
+    it('documents schema v6 and the frontend glossary terms in CONTEXT.md', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        foreach ([
+            'FRONTEND model tier',
+            'frontend agent',
+            'frontend implementation slice',
+        ] as $term) {
+            Assert::assertStringContainsString(
+                $term,
+                $context,
+                "CONTEXT.md glossary must define '{$term}'",
+            );
+        }
+
+        Assert::assertStringContainsString(
+            'currently v6',
+            $context,
+            'CONTEXT.md Prism manifest entry must describe the v6 schema',
+        );
+        Assert::assertStringContainsString(
+            '(6 tiers)',
+            $context,
+            'CONTEXT.md Prism manifest entity must describe six model/variant tiers',
+        );
+    });
+
+    it('attributes the v6 schema to ADR-0049 and records ADR-0043 as its v5 source', function (): void {
+        $context = (string) file_get_contents(dirname(__DIR__, 3) . '/CONTEXT.md');
+
+        // ADR-0049 records the v6 advance; ADR-0043 established schema v5 and
+        // its exact schema/five-tier clauses are partially superseded. The
+        // glossary must not credit ADR-0043 with the current v6 schema.
+        Assert::assertStringContainsString(
+            'currently v6 per ADR-0049',
+            $context,
+            'CONTEXT.md Prism manifest entry must attribute the current v6 schema to ADR-0049',
+        );
+        Assert::assertStringNotContainsString(
+            'v6 per ADR-0043',
+            $context,
+            'CONTEXT.md Prism manifest entry must not attribute the v6 schema to ADR-0043',
+        );
+        Assert::assertStringContainsString(
+            'ADR-0043 established schema v5',
+            $context,
+            'CONTEXT.md Prism manifest entry must record ADR-0043 as the v5 source',
+        );
+        Assert::assertStringContainsString(
+            'partially superseded',
+            $context,
+            'CONTEXT.md Prism manifest entry must state ADR-0043 is partially superseded',
+        );
     });
 
     it('has model tier tables in AGENTS.md Model selection section aligned with prism.jsonc', function () use ($manifest): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/AGENTS.md');
 
-        // AGENTS.md does not have a full five-tier table — it delegates to
+        // AGENTS.md does not have a full six-tier table — it delegates to
         // model-configuration.md.  But it must not contain stale model IDs.
         Assert::assertStringNotContainsString(
             'openrouter/',
@@ -313,6 +404,42 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
 
         Assert::assertStringContainsString(
             'adr/0045-manifest-driven-mcp-plugin-toggles.md',
+            $context,
+        );
+    });
+
+    it('records the FRONTEND tier and TDD-owned agent boundary in ADR-0049', function (): void {
+        $root = dirname(__DIR__, 3);
+        $path = $root . '/adr/0049-frontend-model-tier-and-tdd-owned-agent.md';
+
+        Assert::assertFileExists($path);
+
+        $adr = (string) file_get_contents($path);
+        foreach ([
+            '# 0049.',
+            'FRONTEND',
+            'setup_version 6',
+            'openai/gpt-5.6-sol',
+            'xhigh',
+            'subagent_depth',
+            'permission.skill',
+            'frontend-design',
+            'frontend-architecture',
+            'scss-mobile-first',
+            'accessibility',
+            'build → @tdd → @frontend',
+            'Implemented-by:',
+            '/build-assets',
+            'ADR-0043',
+            'weekly window',
+        ] as $required) {
+            Assert::assertStringContainsString($required, $adr);
+        }
+
+        $context = (string) file_get_contents($root . '/CONTEXT.md');
+        Assert::assertMatchesRegularExpression('/## Status\s+Accepted/s', $adr);
+        Assert::assertStringContainsString(
+            'adr/0049-frontend-model-tier-and-tdd-owned-agent.md',
             $context,
         );
     });
@@ -450,16 +577,21 @@ describe('Prism manifest — living documentation (ADR-0043 cutover)', function 
         }
     });
 
-    it('describes twenty NUL pairs in prism.jsonc header', function (): void {
+    it('describes twenty-two NUL pairs in prism.jsonc header', function (): void {
         $content = (string) file_get_contents(dirname(__DIR__, 3) . '/prism.jsonc');
 
         Assert::assertStringContainsString(
-            'twenty',
+            'twenty-two',
             $content,
-            'prism.jsonc header must describe twenty NUL-delimited pairs',
+            'prism.jsonc header must describe twenty-two NUL-delimited pairs',
         );
     });
 });
+
+
+
+
+
 
 
 

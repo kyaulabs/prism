@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-write-user-config.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup-write-user-config.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -25,7 +26,7 @@
 # delegates to PrismJsoncDocument::withValues() so only the specified spans
 # change — existing comments, env, experimental flags, mcp, plugins, and
 # unknown fields are preserved byte-for-byte. When no manifest exists, a
-# minimal canonical commented schema-v5 seed (`{"setup_version": 5}`) is
+# minimal canonical commented schema-v6 seed (`{"setup_version": 6}`) is
 # written first so the patcher has a valid document to span-patch. Refuses to
 # proceed on a missing required value, a symlink target, a missing php/jq, an
 # invalid mode argument, or a corrupt existing file (exits non-zero, leaves the
@@ -62,8 +63,8 @@ if [ "$MODE" = "toggles" ]; then
 else
     REQUIRED_VARS=(
         SIGNED_OFF_BY_NAME SIGNED_OFF_BY_EMAIL
-        OPENCODE_MODEL_PRIMARY OPENCODE_MODEL_PLANNER OPENCODE_MODEL_DESIGN OPENCODE_MODEL_JUDGE OPENCODE_MODEL_UTILITY
-        OPENCODE_VARIANT_PRIMARY OPENCODE_VARIANT_PLANNER OPENCODE_VARIANT_DESIGN OPENCODE_VARIANT_JUDGE OPENCODE_VARIANT_UTILITY
+        OPENCODE_MODEL_PRIMARY OPENCODE_MODEL_PLANNER OPENCODE_MODEL_DESIGN OPENCODE_MODEL_JUDGE OPENCODE_MODEL_UTILITY OPENCODE_MODEL_FRONTEND
+        OPENCODE_VARIANT_PRIMARY OPENCODE_VARIANT_PLANNER OPENCODE_VARIANT_DESIGN OPENCODE_VARIANT_JUDGE OPENCODE_VARIANT_UTILITY OPENCODE_VARIANT_FRONTEND
     )
 
     for var in "${REQUIRED_VARS[@]}"; do
@@ -93,11 +94,11 @@ fi
 
 mkdir -p "$(dirname "$CONFIG")"
 
-# Seed a minimal valid schema-v5 user document when none exists so the
+# Seed a minimal valid schema-v6 user document when none exists so the
 # span-patcher has a real JSONC document to patch. umask 077 keeps the seed at
 # 0600 for its brief lifetime before the CLI rewrites it explicitly at 0600.
 if [ ! -e "$CONFIG" ]; then
-    ( umask 077; printf '// Prism user manifest (schema v5)\n{\n  "setup_version": 5\n}\n' > "$CONFIG" )
+    ( umask 077; printf '// Prism user manifest (schema v6)\n{\n  "setup_version": 6\n}\n' > "$CONFIG" )
 fi
 
 # ── Build updates ────────────────────────────────────────────────────────
@@ -116,9 +117,9 @@ else
     UPDATES=$(jq -n \
         --arg name "$SIGNED_OFF_BY_NAME" --arg email "$SIGNED_OFF_BY_EMAIL" \
         --arg mp "$OPENCODE_MODEL_PRIMARY" --arg mpl "$OPENCODE_MODEL_PLANNER" \
-        --arg md "$OPENCODE_MODEL_DESIGN" --arg mj "$OPENCODE_MODEL_JUDGE" --arg mu "$OPENCODE_MODEL_UTILITY" \
+        --arg md "$OPENCODE_MODEL_DESIGN" --arg mj "$OPENCODE_MODEL_JUDGE" --arg mu "$OPENCODE_MODEL_UTILITY" --arg mf "$OPENCODE_MODEL_FRONTEND" \
         --arg vp "$OPENCODE_VARIANT_PRIMARY" --arg vpl "$OPENCODE_VARIANT_PLANNER" \
-        --arg vd "$OPENCODE_VARIANT_DESIGN" --arg vj "$OPENCODE_VARIANT_JUDGE" --arg vu "$OPENCODE_VARIANT_UTILITY" \
+        --arg vd "$OPENCODE_VARIANT_DESIGN" --arg vj "$OPENCODE_VARIANT_JUDGE" --arg vu "$OPENCODE_VARIANT_UTILITY" --arg vf "$OPENCODE_VARIANT_FRONTEND" \
         '{
             "signed_off_by_name": $name,
             "signed_off_by_email": $email,
@@ -127,11 +128,13 @@ else
             "models.design": $md,
             "models.judge": $mj,
             "models.utility": $mu,
+            "models.frontend": $mf,
             "variants.primary": $vp,
             "variants.planner": $vpl,
             "variants.design": $vd,
             "variants.judge": $vj,
-            "variants.utility": $vu
+            "variants.utility": $vu,
+            "variants.frontend": $vf
         }')
     MSG="user-scoped /setup fields"
 fi
@@ -143,6 +146,7 @@ fi
 printf '%s' "$UPDATES" | php "$CLI" patch "$CONFIG" user 0600
 
 echo "✓ Wrote $MSG into $CONFIG (JSONC, comments preserved)" >&2
+
 
 
 

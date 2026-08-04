@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-write-project-config.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup-write-project-config.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -15,7 +16,7 @@
 # symlink-refusing, fail-closed on malformed input.
 #
 # Two modes select the scaffold bookkeeping written alongside the interview
-# values (app/domain/repo/identity/accent and the five-tier model + variant
+# values (app/domain/repo/identity/accent and the six-tier model + variant
 # maps):
 #
 #   parent — records the ACTUAL scaffold decision: scaffold_mode takes the
@@ -31,7 +32,7 @@
 # PrismJsoncDocument::withValues() so only the specified spans change —
 # existing comments, experimental flags, env, and unknown fields are preserved
 # byte-for-byte. When no manifest exists, a minimal canonical commented
-# schema-v5 seed is written first so the patcher has a valid document to
+# schema-v6 seed is written first so the patcher has a valid document to
 # span-patch. Refuses to proceed on a missing required value, a symlink target,
 # a missing php/jq, a corrupt existing file, or an invalid mode argument.
 
@@ -60,8 +61,8 @@ CLI="$SCRIPT_DIR/prism_manifest.php"
 REQUIRED_VARS=(
     SETUP_APP SETUP_DOMAIN SETUP_REPO SETUP_ACCENT
     SIGNED_OFF_BY_NAME SIGNED_OFF_BY_EMAIL
-    OPENCODE_MODEL_PRIMARY OPENCODE_MODEL_PLANNER OPENCODE_MODEL_DESIGN OPENCODE_MODEL_JUDGE OPENCODE_MODEL_UTILITY
-    OPENCODE_VARIANT_PRIMARY OPENCODE_VARIANT_PLANNER OPENCODE_VARIANT_DESIGN OPENCODE_VARIANT_JUDGE OPENCODE_VARIANT_UTILITY
+    OPENCODE_MODEL_PRIMARY OPENCODE_MODEL_PLANNER OPENCODE_MODEL_DESIGN OPENCODE_MODEL_JUDGE OPENCODE_MODEL_UTILITY OPENCODE_MODEL_FRONTEND
+    OPENCODE_VARIANT_PRIMARY OPENCODE_VARIANT_PLANNER OPENCODE_VARIANT_DESIGN OPENCODE_VARIANT_JUDGE OPENCODE_VARIANT_UTILITY OPENCODE_VARIANT_FRONTEND
 )
 
 if [ "$MODE" = "parent" ]; then
@@ -94,16 +95,16 @@ fi
 
 mkdir -p "$(dirname "$MANIFEST")"
 
-# Seed a minimal valid schema-v5 project document when none exists so the
+# Seed a minimal valid schema-v6 project document when none exists so the
 # span-patcher has a real JSONC document to patch. The interview + bookkeeping
 # fields are added by the patch below; this seed supplies the non-interview
 # required fields (version, configured, timestamp, experimental, env).
 if [ ! -e "$MANIFEST" ]; then
     NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     ( umask 022; cat > "$MANIFEST" <<SEED
-// Prism project manifest (schema v5)
+// Prism project manifest (schema v6)
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "$NOW",
   "experimental": {
@@ -154,9 +155,9 @@ UPDATES=$(jq -n \
     --arg accent "$SETUP_ACCENT" --arg name "$SIGNED_OFF_BY_NAME" --arg email "$SIGNED_OFF_BY_EMAIL" \
     --argjson sm "$SM_JSON" --argjson pf "$PF_JSON" \
     --arg mp "$OPENCODE_MODEL_PRIMARY" --arg mpl "$OPENCODE_MODEL_PLANNER" \
-    --arg md "$OPENCODE_MODEL_DESIGN" --arg mj "$OPENCODE_MODEL_JUDGE" --arg mu "$OPENCODE_MODEL_UTILITY" \
+    --arg md "$OPENCODE_MODEL_DESIGN" --arg mj "$OPENCODE_MODEL_JUDGE" --arg mu "$OPENCODE_MODEL_UTILITY" --arg mf "$OPENCODE_MODEL_FRONTEND" \
     --arg vp "$OPENCODE_VARIANT_PRIMARY" --arg vpl "$OPENCODE_VARIANT_PLANNER" \
-    --arg vd "$OPENCODE_VARIANT_DESIGN" --arg vj "$OPENCODE_VARIANT_JUDGE" --arg vu "$OPENCODE_VARIANT_UTILITY" \
+    --arg vd "$OPENCODE_VARIANT_DESIGN" --arg vj "$OPENCODE_VARIANT_JUDGE" --arg vu "$OPENCODE_VARIANT_UTILITY" --arg vf "$OPENCODE_VARIANT_FRONTEND" \
     '{
         "app": $app,
         "domain": $dom,
@@ -171,11 +172,13 @@ UPDATES=$(jq -n \
         "models.design": $md,
         "models.judge": $mj,
         "models.utility": $mu,
+        "models.frontend": $mf,
         "variants.primary": $vp,
         "variants.planner": $vpl,
         "variants.design": $vd,
         "variants.judge": $vj,
-        "variants.utility": $vu
+        "variants.utility": $vu,
+        "variants.frontend": $vf
     }')
 
 # Patch atomically through the CLI: validates the result as a project manifest,
@@ -184,6 +187,7 @@ UPDATES=$(jq -n \
 printf '%s' "$UPDATES" | php "$CLI" patch "$MANIFEST" project 0644
 
 echo "✓ Wrote project-scoped /setup fields into $MANIFEST ($MODE mode, JSONC, comments preserved)" >&2
+
 
 
 

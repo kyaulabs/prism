@@ -301,6 +301,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
 | `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
+| `@frontend` | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources |
 
 ### Model Configuration
 
@@ -309,7 +310,7 @@ Models are assigned via environment variable substitution (`{env:VAR}`) in
 and `temperature` values live in the `agent` section of `opencode.jsonc`; the
 `.opencode/agents/*.md` files carry only `description`, `mode`, `temperature`
 (hard-coded literal), and `permission` (see ADR-0022 — the runtime rejects
-`model:`/`variant:` in sub-agent frontmatter). Five tiers, each mapped to a
+`model:`/`variant:` in sub-agent frontmatter). Six tiers, each mapped to a
 different `OPENCODE_MODEL_*` env var:
 
 | Tier | Env Var | Default | Agents |
@@ -319,6 +320,13 @@ different `OPENCODE_MODEL_*` env var:
 | Design | `OPENCODE_MODEL_DESIGN` | `openai/gpt-5.6-sol` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `deepseek/deepseek-v4-pro` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |
+| Frontend | `OPENCODE_MODEL_FRONTEND` | `openai/gpt-5.6-sol` | frontend |
+
+Frontend implementation stays TDD-owned: the four frontend skills
+(`frontend-design`, `frontend-architecture`, `scss-mobile-first`,
+`accessibility`) are gated to the hidden `@frontend` subagent, which `@tdd`
+consults before Red and delegates implementation to only after a failing test
+exists (ADR-0049).
 
 **Default delivery:** A direnv `.envrc` automatically extracts the committed
 `prism.jsonc` models section (via `prism_manifest.php env0`) when you `cd` into the project.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve_identity_test.sh kyau@cosmos.kyaulabs 2026/07/29 -0700 Exp $
+# $KYAULabs: resolve_identity_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -45,14 +46,14 @@ make_user_home() {
 	mkdir -p "$1/.config/opencode"
 }
 
-# write_project_manifest <dir> <name> <email> — write a valid schema-v5 project
+# write_project_manifest <dir> <name> <email> — write a valid schema-v6 project
 # prism.jsonc carrying the given Signed-off-by identity. All other required
 # fields carry valid shipped-style defaults so validateProject() accepts it.
 write_project_manifest() {
 	local dir="$1" name="$2" email="$3"
 	cat > "$dir/prism.jsonc" <<JSONC
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -68,14 +69,16 @@ write_project_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -159,7 +162,7 @@ test_partial_user_overlay() {
 
 	# User overrides ONLY the name.
 	cat > "$FX_HOME/.config/opencode/prism.jsonc" <<'JSONC'
-{ "setup_version": 5, "signed_off_by_name": "Bjorn Override" }
+{ "setup_version": 6, "signed_off_by_name": "Bjorn Override" }
 JSONC
 
 	run_resolver
@@ -185,7 +188,7 @@ test_complete_user_override() {
 	write_project_manifest "$FX_PROJECT" "Annika Project" "annika@project.identity"
 
 	cat > "$FX_HOME/.config/opencode/prism.jsonc" <<'JSONC'
-{ "setup_version": 5, "signed_off_by_name": "Cora User", "signed_off_by_email": "cora@user.identity" }
+{ "setup_version": 6, "signed_off_by_name": "Cora User", "signed_off_by_email": "cora@user.identity" }
 JSONC
 
 	run_resolver
@@ -344,6 +347,7 @@ test_all_sources_fail
 
 print_summary "resolve_identity_test.sh"
 exit $?
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_toggles_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: setup_toggles_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -71,7 +72,7 @@ get_nul_value() {
 	done
 }
 
-# Write a minimal project prism.jsonc (schema v5) with configurable toggle
+# Write a minimal project prism.jsonc (schema v6) with configurable toggle
 # values. Accepts three booleans as arguments.
 write_project_manifest() {
 	local dir="$1"
@@ -79,9 +80,9 @@ write_project_manifest() {
 	local searxng="${3:-false}"
 	local quota="${4:-false}"
 	cat > "$dir/prism.jsonc" <<JSONC
-// Project manifest (schema v5) — fixture
+// Project manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-30T00:00:00Z",
   "app": "prism",
@@ -97,14 +98,16 @@ write_project_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -126,7 +129,7 @@ write_project_manifest() {
 JSONC
 }
 
-# Write a minimal user prism.jsonc (schema v5) with MCP/plugin prefs.
+# Write a minimal user prism.jsonc (schema v6) with MCP/plugin prefs.
 # Accepts three booleans; env keys carry fake non-empty values so the
 # prerequisite check passes.
 write_user_manifest() {
@@ -135,9 +138,9 @@ write_user_manifest() {
 	local searxng="${3:-false}"
 	local quota="${4:-false}"
 	cat > "$dir/.config/opencode/prism.jsonc" <<JSONC
-// User manifest (schema v5) — fixture
+// User manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "mcp": {
     "deepseek_websearch": $deepseek,
     "searxng": $searxng
@@ -543,6 +546,7 @@ test_opencode_debug_config_probe
 
 print_summary "setup_toggles_test.sh"
 exit $?
+
 
 
 

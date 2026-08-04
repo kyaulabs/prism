@@ -11,7 +11,7 @@ answers into the dual-path prism manifests (`prism.jsonc` project tier +
 ## 1. Migrate, then read the existing manifest
 
 **Auto-migrate on entry (ADR-0043).** Before reading any value, run the
-idempotent dual-path migration so both manifests are at schema v5:
+idempotent dual-path migration so both manifests are at schema v6:
 
 ```bash
 bash .github/scripts/migrate-setup.sh
@@ -21,7 +21,7 @@ If this exits non-zero, STOP — a migration conflict must be resolved before
 /setup proceeds. Never read or write the legacy `.opencode/setup.json` or
 `~/.config/opencode/setup.json` directly: the migration renames both to their
 `prism.jsonc` successors. The legacy files are deprecated and removed by the
-migration once their verified v5 replacement is in place.
+migration once their verified v6 replacement is in place.
 
 After migration, resolve the manifest paths and read current values through
 the prism manifest CLI (`prism_manifest.php`), never the legacy files and
@@ -131,16 +131,19 @@ OPENCODE_MODEL_PLANNER=$(php .github/scripts/prism_manifest.php get "$PROJECT" "
 OPENCODE_MODEL_DESIGN=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.design)
 OPENCODE_MODEL_JUDGE=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.judge)
 OPENCODE_MODEL_UTILITY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.utility)
+OPENCODE_MODEL_FRONTEND=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" models.frontend)
 OPENCODE_VARIANT_PRIMARY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.primary)
 OPENCODE_VARIANT_PLANNER=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.planner)
 OPENCODE_VARIANT_DESIGN=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.design)
 OPENCODE_VARIANT_JUDGE=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.judge)
 OPENCODE_VARIANT_UTILITY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.utility)
+OPENCODE_VARIANT_FRONTEND=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" variants.frontend)
 echo "Primary  model:   $OPENCODE_MODEL_PRIMARY    variant: $OPENCODE_VARIANT_PRIMARY"
 echo "Planner  model:   $OPENCODE_MODEL_PLANNER    variant: $OPENCODE_VARIANT_PLANNER"
 echo "Design   model:   $OPENCODE_MODEL_DESIGN     variant: $OPENCODE_VARIANT_DESIGN"
 echo "Judge    model:   $OPENCODE_MODEL_JUDGE      variant: $OPENCODE_VARIANT_JUDGE"
 echo "Utility  model:   $OPENCODE_MODEL_UTILITY    variant: $OPENCODE_VARIANT_UTILITY"
+echo "Frontend model:   $OPENCODE_MODEL_FRONTEND   variant: $OPENCODE_VARIANT_FRONTEND"
 ```
 
 Present a summary table:
@@ -155,13 +158,14 @@ Model & Variant Configuration
 │ Design   │ openai/gpt-5.6-sol              │ xhigh   │ Brainstorming, design, spec workflow               │
 │ Judge    │ deepseek/deepseek-v4-pro        │ medium  │ Cross-model review, audit, eval, explore           │
 │ Utility  │ deepseek/deepseek-v4-flash      │ medium  │ Compaction, titles, summaries, docs, scan          │
+│ Frontend │ openai/gpt-5.6-sol              │ xhigh   │ Visual implementation (TDD-delegated)              │
 └──────────┴─────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
 Prompt for each tier one at a time. Press Enter at any prompt to accept
 the default shown in brackets.
 
-**Model prompts (5 tiers):**
+**Model prompts (6 tiers):**
 
 1. **Primary** model [zai-coding-plan/glm-5.2] — the main coding engine.
    Used by: build, tdd, debug, resolve-merge-conflicts, general.
@@ -173,8 +177,10 @@ the default shown in brackets.
    read-only assessment. Used by: code-review, standards-review, spec-review, test-audit, judge, explore.
 5. **Utility** model [deepseek/deepseek-v4-flash] — cost-efficient engine
    for routine tasks. Used by: compaction, title, summary, docs-writer, semgrep.
+6. **Frontend** model [openai/gpt-5.6-sol] — visual implementation engine
+   (ChatGPT-Plus OAuth). Used by: frontend (TDD-delegated via @tdd).
 
-**Variant prompts (5 tiers):**
+**Variant prompts (6 tiers):**
 
 5. **Primary** variant [max] — variant for PRIMARY-tier agents.
    Common values: max, high, medium, low.
@@ -191,8 +197,11 @@ the default shown in brackets.
 9. **Utility** variant [medium] — variant for UTILITY-tier agents.
    Common values: medium, high, max, low.
    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
+10. **Frontend** variant [xhigh] — variant for FRONTEND-tier agents (OpenAI/GPT-5.6 Sol).
+    Common values: xhigh, high, medium, low.
+    (see .opencode/docs/model-configuration.md to confirm supported variants for your model)
 
-If the user pressed Enter for all ten prompts (accepted all defaults), skip
+If the user pressed Enter for all twelve prompts (accepted all defaults), skip
 the write step — the committed `prism.jsonc` already provides defaults.
 Instruct the user:
 
@@ -211,11 +220,13 @@ OPENCODE_MODEL_PLANNER="$OPENCODE_MODEL_PLANNER" \
 OPENCODE_MODEL_DESIGN="$OPENCODE_MODEL_DESIGN" \
 OPENCODE_MODEL_JUDGE="$OPENCODE_MODEL_JUDGE" \
 OPENCODE_MODEL_UTILITY="$OPENCODE_MODEL_UTILITY" \
+OPENCODE_MODEL_FRONTEND="$OPENCODE_MODEL_FRONTEND" \
 OPENCODE_VARIANT_PRIMARY="$OPENCODE_VARIANT_PRIMARY" \
 OPENCODE_VARIANT_PLANNER="$OPENCODE_VARIANT_PLANNER" \
 OPENCODE_VARIANT_DESIGN="$OPENCODE_VARIANT_DESIGN" \
 OPENCODE_VARIANT_JUDGE="$OPENCODE_VARIANT_JUDGE" \
 OPENCODE_VARIANT_UTILITY="$OPENCODE_VARIANT_UTILITY" \
+OPENCODE_VARIANT_FRONTEND="$OPENCODE_VARIANT_FRONTEND" \
 bash .github/scripts/setup-write-user-config.sh
 ```
 
@@ -497,11 +508,13 @@ OPENCODE_MODEL_PLANNER="$OPENCODE_MODEL_PLANNER" \
 OPENCODE_MODEL_DESIGN="$OPENCODE_MODEL_DESIGN" \
 OPENCODE_MODEL_JUDGE="$OPENCODE_MODEL_JUDGE" \
 OPENCODE_MODEL_UTILITY="$OPENCODE_MODEL_UTILITY" \
+OPENCODE_MODEL_FRONTEND="$OPENCODE_MODEL_FRONTEND" \
 OPENCODE_VARIANT_PRIMARY="$OPENCODE_VARIANT_PRIMARY" \
 OPENCODE_VARIANT_PLANNER="$OPENCODE_VARIANT_PLANNER" \
 OPENCODE_VARIANT_DESIGN="$OPENCODE_VARIANT_DESIGN" \
 OPENCODE_VARIANT_JUDGE="$OPENCODE_VARIANT_JUDGE" \
 OPENCODE_VARIANT_UTILITY="$OPENCODE_VARIANT_UTILITY" \
+OPENCODE_VARIANT_FRONTEND="$OPENCODE_VARIANT_FRONTEND" \
 SETUP_SCAFFOLD_MODE="$scaffold_mode" \
 SETUP_PROJECT_FOLDER="$project_folder" \
 bash .github/scripts/setup-write-project-config.sh "$PROJECT" parent

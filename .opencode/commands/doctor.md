@@ -123,7 +123,7 @@ options, and all other harness features, work without it.
 php .github/scripts/prism_manifest.php version 2>/dev/null || echo "NOT_FOUND"
 ```
 
-The `prism_manifest.php` CLI replaces jq for reading the `prism.jsonc` project manifest (ADR-0043). It exports twenty `OPENCODE_*` environment variables as a NUL-separated stream (via `env0` subcommand) — including three requested-preference toggle diagnostics (`OPENCODE_MCP_DEEPSEEK_WEBSEARCH`, `OPENCODE_MCP_SEARXNG`, `OPENCODE_PLUGIN_OPENCODE_QUOTA`) and the composed `OPENCODE_CONFIG_CONTENT` — and provides a `version` check. Missing means `direnv` cannot source model, variant, integration toggles, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
+The `prism_manifest.php` CLI replaces jq for reading the `prism.jsonc` project manifest (ADR-0043). It exports twenty-two `OPENCODE_*` environment variables as a NUL-separated stream (via `env0` subcommand) — including three requested-preference toggle diagnostics (`OPENCODE_MCP_DEEPSEEK_WEBSEARCH`, `OPENCODE_MCP_SEARXNG`, `OPENCODE_PLUGIN_OPENCODE_QUOTA`) and the composed `OPENCODE_CONFIG_CONTENT` — and provides a `version` check. Missing means `direnv` cannot source model, variant, integration toggles, or experimental flags — opencode.jsonc `{env:VAR}` substitution will resolve to empty values.
 
 ## Output
 
@@ -165,7 +165,7 @@ yaml-ls       PASS     auto-install    —            —
 stylelint-ls  PASS     1.1.1           any          npm i -D @stylelint/language-server
 deno-lsp      PASS     DISABLED        —            —
 gh            PASS     INSTALLED+AUTH  any recent   gh auth login
-prism_manifest PASS     v5              —            —
+prism_manifest PASS     v6              —            —
 
 GO: 13 pass, 1 warn, 2 fail, 1 skipped, 1 soft-fail pass. Unblocked for writing code.
 NO-GO for CI: fail items must be fixed before CI runs (git-cliff needed for

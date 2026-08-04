@@ -10,7 +10,7 @@ env var), and ADR-0031 (model rebalance for z.ai Pro plan).
 
 ## 1. How the harness assigns models
 
-The harness uses a **five-tier** system. Each tier maps to a model and a
+The harness uses a **six-tier** system. Each tier maps to a model and a
 variant, both driven by environment variable substitution (`{env:VAR}`):
 
 | Tier | Model env var | Variant env var | Default model | Default variant | Agents |
@@ -20,12 +20,24 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 | DESIGN | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openai/gpt-5.6-sol` | `xhigh` | design |
 | JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |
+| FRONTEND | `OPENCODE_MODEL_FRONTEND` | `OPENCODE_VARIANT_FRONTEND` | `openai/gpt-5.6-sol` | `xhigh` | frontend |
 
 PLANNER and DESIGN are backed by `openai/gpt-5.6-sol` via **ChatGPT-Plus
 subscription OAuth** (not an API key) — the first such tier backing in this
 harness. The binding economic constraint for those tiers is the Plus weekly
 window (surfaced by `@slkiser/opencode-quota`), not per-token cost. See
 ADR-0040.
+
+FRONTEND also runs `openai/gpt-5.6-sol` via ChatGPT-Plus OAuth (ADR-0049),
+sharing the same rolling weekly window as PLANNER and DESIGN. Sol use for
+frontend implementation can consume weekly quota faster. When capacity is
+low, operators override the FRONTEND manifest values
+(`OPENCODE_MODEL_FRONTEND` / `OPENCODE_VARIANT_FRONTEND` via `/setup` or
+`prism.jsonc`) or select another model manually — there is **no automatic fallback**.
+The sole consumer of the FRONTEND tier is the hidden `@frontend`
+subagent at literal temperature `0.3`. `@tdd` owns the Red → Green → Refactor
+slice: it consults `@frontend` for a standards checklist before Red and
+delegates implementation only after a failing test exists (ADR-0049).
 
 The **judge** agent is `hidden: true` — it does not appear as a TUI tab.
 It is eval-only (invocable by the eval runner by agent name, same mechanism
@@ -117,7 +129,7 @@ supported variants, context window, max output tokens, and pricing:
 
 ## 4. Choosing a variant per tier
 
-The task-type &rarr; variant decision frame (applies within the five-tier
+The task-type &rarr; variant decision frame (applies within the six-tier
 constraint — all agents in a tier share one variant):
 
 | Task profile | Example agents | Recommended variant |
@@ -126,6 +138,7 @@ constraint — all agents in a tier share one variant):
 | General research | general | `max` (feeds coding with cross-model diversity) |
 | Planning / decomposition | plan, from-issue, architect, consult | `xhigh` (OpenAI/GPT-5.6 Sol via ChatGPT-Plus OAuth; planning quality directly determines code quality downstream; ADR-0040) |
 | Creative design / approach exploration | design | `xhigh` (OpenAI/GPT-5.6 Sol via ChatGPT-Plus OAuth; warmer temperature `0.3` differentiates from PLANNER; ADR-0040) |
+| Frontend implementation | frontend | `xhigh` (OpenAI/GPT-5.6 Sol via ChatGPT-Plus OAuth; literal temperature `0.3`; `@tdd`-owned two-phase handoff; ADR-0049) |
 | Cross-model review | code-review, standards-review, spec-review, test-audit, judge | `medium` (functionally `high` on DeepSeek per variant collapse) |
 | Codebase exploration | explore | `medium` (JUDGE-tier cross-model diversity before planning) |
 | Routine summarisation | compaction, title, summary | `low`&ndash;`medium` |
@@ -154,7 +167,7 @@ these values:
 | `0.0` | Deterministic grading / judgement | judge |
 | `0.1` | Read-only analysis, search, audits | architect, code-review, test-audit, general, explore, plan, debug, docs-writer, semgrep, resolve-merge-conflicts |
 | `0.2` | Structured output / faithful summarisation | build, tdd, compaction, summary |
-| `0.3` | Creative design / approach exploration | design |
+| `0.3` | Creative design / approach exploration | design, frontend |
 | `0.4` | Short-form natural generation | title |
 
 **Why temperature can't be `{env:VAR}`:** See ADR-0013 prototype result —

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_envrc_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: prism_envrc_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
 
 # ── Isolated integration tests for .envrc manifest sourcing (ADR-0043) ────────
 #
-# Verifies that .envrc exports the nineteen OPENCODE_*/secret environment
+# Verifies that .envrc exports the twenty-one OPENCODE_*/secret environment
 # variables from the layered prism.jsonc manifest via the dependency-free
 # prism_manifest.php env0 CLI (NUL-separated transport, no eval).
 #
@@ -59,14 +60,14 @@ setup_default_fixture() {
 	make_user_home "$FX_HOME"
 }
 
-# write_default_project_manifest <dir> — write the standard commented v5
+# write_default_project_manifest <dir> — write the standard commented v6
 # project prism.jsonc carrying the shipped defaults.
 write_default_project_manifest() {
 	local dir="$1"
 	cat > "$dir/prism.jsonc" <<'JSONC'
-// Project manifest (schema v5) — fixture for prism_envrc_test.sh
+// Project manifest (schema v6) — fixture for prism_envrc_test.sh
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -82,14 +83,16 @@ write_default_project_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -114,7 +117,7 @@ JSONC
 # run_envrc <project_root> <fake_home> <stderr_file>
 #
 # Source the fixture .envrc in a fresh subshell with HOME=<fake_home>. On
-# success, dump each of the fifteen target variables as a "NAME<TAB>VALUE"
+# success, dump each of the twenty-one target variables as a "NAME<TAB>VALUE"
 # line into the global RUN_ENVRC_OUT. Record the subshell exit status in
 # RUN_ENVRC_RC and capture its stderr into <stderr_file>. On fail-closed
 # paths the dump is empty and RUN_ENVRC_RC is non-zero.
@@ -134,11 +137,13 @@ run_envrc() {
 			printf "OPENCODE_MODEL_DESIGN\t%s\n" "$OPENCODE_MODEL_DESIGN"
 			printf "OPENCODE_MODEL_JUDGE\t%s\n" "$OPENCODE_MODEL_JUDGE"
 			printf "OPENCODE_MODEL_UTILITY\t%s\n" "$OPENCODE_MODEL_UTILITY"
+			printf "OPENCODE_MODEL_FRONTEND\t%s\n" "$OPENCODE_MODEL_FRONTEND"
 			printf "OPENCODE_VARIANT_PRIMARY\t%s\n" "$OPENCODE_VARIANT_PRIMARY"
 			printf "OPENCODE_VARIANT_PLANNER\t%s\n" "$OPENCODE_VARIANT_PLANNER"
 			printf "OPENCODE_VARIANT_DESIGN\t%s\n" "$OPENCODE_VARIANT_DESIGN"
 			printf "OPENCODE_VARIANT_JUDGE\t%s\n" "$OPENCODE_VARIANT_JUDGE"
 			printf "OPENCODE_VARIANT_UTILITY\t%s\n" "$OPENCODE_VARIANT_UTILITY"
+			printf "OPENCODE_VARIANT_FRONTEND\t%s\n" "$OPENCODE_VARIANT_FRONTEND"
 			printf "OPENCODE_EXPERIMENTAL_LSP_TOOL\t%s\n" "$OPENCODE_EXPERIMENTAL_LSP_TOOL"
 			printf "OPENCODE_EXPERIMENTAL_SCOUT\t%s\n" "$OPENCODE_EXPERIMENTAL_SCOUT"
 			printf "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS\t%s\n" "$OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
@@ -158,7 +163,7 @@ get_var() {
 	printf '%s' "$RUN_ENVRC_OUT" | awk -v n="$1" 'BEGIN{FS="\t"} $1==n{sub(/^[^\t]*\t/,""); print; exit}'
 }
 
-# ── Test 1: Project defaults only — nineteen vars exported byte-identical ──────
+# ── Test 1: Project defaults only — twenty-one vars exported byte-identical ────
 
 test_project_defaults_only() {
 	setup_default_fixture
@@ -178,11 +183,13 @@ test_project_defaults_only() {
 	local expected_model_design="openai/gpt-5.6-sol"
 	local expected_model_judge="deepseek/deepseek-v4-pro"
 	local expected_model_utility="deepseek/deepseek-v4-flash"
+	local expected_model_frontend="openai/gpt-5.6-sol"
 	local expected_variant_primary="max"
 	local expected_variant_planner="xhigh"
 	local expected_variant_design="xhigh"
 	local expected_variant_judge="medium"
 	local expected_variant_utility="medium"
+	local expected_variant_frontend="xhigh"
 	local expected_lsp="true"
 	local expected_scout="true"
 	local expected_bg="false"
@@ -195,11 +202,13 @@ test_project_defaults_only() {
 	[ "$(get_var OPENCODE_MODEL_DESIGN)" = "$expected_model_design" ] || { echo "  OPENCODE_MODEL_DESIGN got '$(get_var OPENCODE_MODEL_DESIGN)' want '$expected_model_design'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_MODEL_JUDGE)" = "$expected_model_judge" ] || { echo "  OPENCODE_MODEL_JUDGE got '$(get_var OPENCODE_MODEL_JUDGE)' want '$expected_model_judge'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_MODEL_UTILITY)" = "$expected_model_utility" ] || { echo "  OPENCODE_MODEL_UTILITY got '$(get_var OPENCODE_MODEL_UTILITY)' want '$expected_model_utility'" >&2; failures=$((failures+1)); }
+	[ "$(get_var OPENCODE_MODEL_FRONTEND)" = "$expected_model_frontend" ] || { echo "  OPENCODE_MODEL_FRONTEND got '$(get_var OPENCODE_MODEL_FRONTEND)' want '$expected_model_frontend'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_VARIANT_PRIMARY)" = "$expected_variant_primary" ] || { echo "  OPENCODE_VARIANT_PRIMARY got '$(get_var OPENCODE_VARIANT_PRIMARY)' want '$expected_variant_primary'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_VARIANT_PLANNER)" = "$expected_variant_planner" ] || { echo "  OPENCODE_VARIANT_PLANNER got '$(get_var OPENCODE_VARIANT_PLANNER)' want '$expected_variant_planner'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_VARIANT_DESIGN)" = "$expected_variant_design" ] || { echo "  OPENCODE_VARIANT_DESIGN got '$(get_var OPENCODE_VARIANT_DESIGN)' want '$expected_variant_design'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_VARIANT_JUDGE)" = "$expected_variant_judge" ] || { echo "  OPENCODE_VARIANT_JUDGE got '$(get_var OPENCODE_VARIANT_JUDGE)' want '$expected_variant_judge'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_VARIANT_UTILITY)" = "$expected_variant_utility" ] || { echo "  OPENCODE_VARIANT_UTILITY got '$(get_var OPENCODE_VARIANT_UTILITY)' want '$expected_variant_utility'" >&2; failures=$((failures+1)); }
+	[ "$(get_var OPENCODE_VARIANT_FRONTEND)" = "$expected_variant_frontend" ] || { echo "  OPENCODE_VARIANT_FRONTEND got '$(get_var OPENCODE_VARIANT_FRONTEND)' want '$expected_variant_frontend'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_EXPERIMENTAL_LSP_TOOL)" = "$expected_lsp" ] || { echo "  OPENCODE_EXPERIMENTAL_LSP_TOOL got '$(get_var OPENCODE_EXPERIMENTAL_LSP_TOOL)' want '$expected_lsp'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_EXPERIMENTAL_SCOUT)" = "$expected_scout" ] || { echo "  OPENCODE_EXPERIMENTAL_SCOUT got '$(get_var OPENCODE_EXPERIMENTAL_SCOUT)' want '$expected_scout'" >&2; failures=$((failures+1)); }
 	[ "$(get_var OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS)" = "$expected_bg" ] || { echo "  OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS got '$(get_var OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS)' want '$expected_bg'" >&2; failures=$((failures+1)); }
@@ -210,14 +219,14 @@ test_project_defaults_only() {
 	[ "$(get_var SEARXNG_URL)" = "" ] || { echo "  SEARXNG_URL got '$(get_var SEARXNG_URL)' want ''" >&2; failures=$((failures+1)); }
 
 	if [ "$failures" -eq 0 ]; then
-		pass "project defaults — all nineteen vars exported byte-identical"
+		pass "project defaults — all twenty-one vars exported byte-identical"
 	else
 		fail "project defaults — $failures value(s) mismatched"
 	fi
 }
 
 echo ""
-echo "── Test 1: Project defaults only — nineteen vars byte-identical ──"
+echo "── Test 1: Project defaults only — twenty-one vars byte-identical ──"
 test_project_defaults_only
 
 # ── Test 2: Per-field user overlay — overridden field wins, rest inherited ────
@@ -229,7 +238,7 @@ test_per_field_user_overlay() {
 	cat > "$FX_HOME/.config/opencode/prism.jsonc" <<'JSONC'
 // User override — partial
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "models": {
     "primary": "user/override-primary"
   }
@@ -287,7 +296,7 @@ test_metacharacter_safety() {
 	# semicolons are literal JSON characters.
 	cat > "$project_root/prism.jsonc" <<'JSONC'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -303,14 +312,16 @@ test_metacharacter_safety() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -619,6 +630,7 @@ test_preserves_caller_umask
 
 print_summary "prism envrc"
 exit $?
+
 
 
 

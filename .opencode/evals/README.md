@@ -17,6 +17,10 @@ php .opencode/evals/bin/run-eval.php .opencode/evals/smoke/tdd-red-green.json
 
 Options: `--timeout <seconds>` (default 120), `--dry-run` (print command, don't execute).
 
+> The `tdd-frontend-handoff` smoke case spans two agent dispatches
+> (@tdd → @frontend) and exceeds the 120s default; run it with
+> `--timeout 600`.
+
 Output: JSON result object to stdout. Exit code 0 = PASS, 1 = FAIL/TIMEOUT/INVALID/UNDETERMINED, 2 = SKIPPED.
 
 ### Run a suite
@@ -70,6 +74,14 @@ in a `finally` block. A notice is printed to stderr when the working tree
 is dirty. This means the before/after authoring workflow (see convention #4
 below) works correctly without committing between runs.
 
+The `tdd-frontend-handoff` case authors its own seam **inside the worktree
+during the run**: `@tdd` writes the failing Node test
+(`tests/Shell/frontend_eval_fixture_test.js`) and `@frontend` writes the
+implementation (`cdn/js/frontend_eval_fixture.js`). Neither file exists in
+the repository — the Red state is a real `MODULE_NOT_FOUND`, and the
+worktree is discarded on completion. Result files under `results/` are
+gitignored by convention and are not committed.
+
 The LLM judge runs as a dedicated **read-only `judge` agent** (see
 `opencode.jsonc`) with `edit` and `bash` denied — it cannot mutate files or
 run shell commands even if prompted to.
@@ -87,6 +99,8 @@ run shell commands even if prompted to.
 │   └── run-suite.php   ← Batch suite runner
 ├── smoke/              ← Minimal smoke evals (one per critical agent)
 │   ├── tdd-red-green.json
+│   ├── tdd-frontend-handoff.json   ← @tdd → @frontend; requires --timeout 600
+│   ├── frontend-skill-gating.json  ← non-frontend agents cannot load the four gated skills
 │   ├── receiving-code-review-triage.json
 │   ├── finishing-a-development-branch-checklist.json
 │   ├── finding-duplicate-functions-two-phase.json

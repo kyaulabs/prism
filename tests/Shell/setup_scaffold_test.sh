@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup_scaffold_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 
@@ -863,17 +864,17 @@ echo ""
 echo "── Test 17: clone path ALSO copies the quality surface (ADR-0026 wiring) ──"
 test_clone_copies_quality_surface
 
-# ── Helper: write a valid schema-v5 project manifest fixture ─────────────────
+# ── Helper: write a valid schema-v6 project manifest fixture ─────────────────
 # write_scaffold_manifest <path> <scaffold_mode> <project_folder_json>
-#   Writes a complete valid v5 prism.jsonc with JSONC comments and the given
+#   Writes a complete valid v6 prism.jsonc with JSONC comments and the given
 #   scaffold fields. <project_folder_json> is a JSON literal: null or "path".
 write_scaffold_manifest() {
 	local path="$1" mode="$2" folder_json="$3"
 	cat > "$path" <<MANIFEST
-// Test fixture — schema v5 project manifest (ADR-0043)
+// Test fixture — schema v6 project manifest (ADR-0043)
 {
-  // Schema version — must be exactly 5.
-  "setup_version": 5,
+  // Schema version — must be exactly 6.
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "testapp",
@@ -890,14 +891,16 @@ write_scaffold_manifest() {
     "planner": "test/model-pl",
     "design": "test/model-d",
     "judge": "test/model-j",
-    "utility": "test/model-u"
+    "utility": "test/model-u",
+    "frontend": "test/model-f"
   },
   "variants": {
     "primary": "medium",
     "planner": "medium",
     "design": "medium",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "medium"
   },
   "experimental": {
     "lsp_tool": true,
@@ -1000,11 +1003,11 @@ test_should_prompt_jsonc_comments() {
 	# Heavily-commented JSONC — the parser must strip every comment and
 	# should-prompt must read scaffold_mode through them (skip → short-circuit).
 	cat > "$manifest" <<'JSONC'
-// Project manifest fixture — schema v5
+// Project manifest fixture — schema v6
 // Verifies should-prompt reads through JSONC line and trailing comments.
 {
   // Schema version
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true, // configured flag
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "testapp",
@@ -1021,14 +1024,16 @@ test_should_prompt_jsonc_comments() {
     "planner": "test/model-pl",
     "design": "test/model-d",
     "judge": "test/model-j",
-    "utility": "test/model-u"
+    "utility": "test/model-u",
+    "frontend": "test/model-f"
   },
   "variants": {
     "primary": "medium",
     "planner": "medium",
     "design": "medium",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "medium"
   },
   "experimental": {
     "lsp_tool": true,
@@ -1056,7 +1061,7 @@ echo ""
 echo "── Test 21: should-prompt — JSONC comments parsed transparently ──"
 test_should_prompt_jsonc_comments
 
-# ── Test 22: should-prompt — v5 + scaffold_mode skip → exit 1 (short-circuit) ─
+# ── Test 22: should-prompt — v6 + scaffold_mode skip → exit 1 (short-circuit) ─
 
 test_should_prompt_skip() {
 	local dir manifest rc
@@ -1073,14 +1078,14 @@ test_should_prompt_skip() {
 		fail "should-prompt skip — exit code $rc (expected 1, short-circuit)"
 		return
 	fi
-	pass "should-prompt v5 + skip → exit 1 (user declined, short-circuit)"
+	pass "should-prompt v6 + skip → exit 1 (user declined, short-circuit)"
 }
 
 echo ""
-echo "── Test 22: should-prompt — v5 + scaffold_mode skip → exit 1 (short-circuit) ──"
+echo "── Test 22: should-prompt — v6 + scaffold_mode skip → exit 1 (short-circuit) ──"
 test_should_prompt_skip
 
-# ── Test 23: should-prompt — v5 + mode new + folder exists → exit 1 ──────────
+# ── Test 23: should-prompt — v6 + mode new + folder exists → exit 1 ──────────
 
 test_should_prompt_new_exists() {
 	local dir manifest folder rc
@@ -1099,14 +1104,14 @@ test_should_prompt_new_exists() {
 		fail "should-prompt new + folder exists — exit code $rc (expected 1)"
 		return
 	fi
-	pass "should-prompt v5 + new + folder exists → exit 1 (short-circuit)"
+	pass "should-prompt v6 + new + folder exists → exit 1 (short-circuit)"
 }
 
 echo ""
-echo "── Test 23: should-prompt — v5 + mode new + folder exists → exit 1 ──"
+echo "── Test 23: should-prompt — v6 + mode new + folder exists → exit 1 ──"
 test_should_prompt_new_exists
 
-# ── Test 24: should-prompt — v5 + mode new + folder missing → exit 0 (drift) ─
+# ── Test 24: should-prompt — v6 + mode new + folder missing → exit 0 (drift) ─
 
 test_should_prompt_new_missing() {
 	local dir manifest rc
@@ -1123,14 +1128,14 @@ test_should_prompt_new_missing() {
 		fail "should-prompt new + folder missing — exit code $rc (expected 0, drift)"
 		return
 	fi
-	pass "should-prompt v5 + new + folder missing → exit 0 (drift, re-prompt)"
+	pass "should-prompt v6 + new + folder missing → exit 0 (drift, re-prompt)"
 }
 
 echo ""
-echo "── Test 24: should-prompt — v5 + mode new + folder missing → exit 0 (drift) ──"
+echo "── Test 24: should-prompt — v6 + mode new + folder missing → exit 0 (drift) ──"
 test_should_prompt_new_missing
 
-# ── Test 25: should-prompt — v5 + mode clone + folder exists → exit 1 ────────
+# ── Test 25: should-prompt — v6 + mode clone + folder exists → exit 1 ────────
 
 test_should_prompt_clone_exists() {
 	local dir manifest folder rc
@@ -1149,14 +1154,14 @@ test_should_prompt_clone_exists() {
 		fail "should-prompt clone + folder exists — exit code $rc (expected 1)"
 		return
 	fi
-	pass "should-prompt v5 + clone + folder exists → exit 1 (short-circuit)"
+	pass "should-prompt v6 + clone + folder exists → exit 1 (short-circuit)"
 }
 
 echo ""
-echo "── Test 25: should-prompt — v5 + mode clone + folder exists → exit 1 ──"
+echo "── Test 25: should-prompt — v6 + mode clone + folder exists → exit 1 ──"
 test_should_prompt_clone_exists
 
-# ── Test 26: should-prompt — v5 + mode new + folder null → exit 0 ────────────
+# ── Test 26: should-prompt — v6 + mode new + folder null → exit 0 ────────────
 
 test_should_prompt_new_folder_null() {
 	local dir manifest rc
@@ -1173,11 +1178,11 @@ test_should_prompt_new_folder_null() {
 		fail "should-prompt new + folder null — exit code $rc (expected 0, no folder recorded)"
 		return
 	fi
-	pass "should-prompt v5 + new + folder null → exit 0 (no folder recorded)"
+	pass "should-prompt v6 + new + folder null → exit 0 (no folder recorded)"
 }
 
 echo ""
-echo "── Test 26: should-prompt — v5 + mode new + folder null → exit 0 ──"
+echo "── Test 26: should-prompt — v6 + mode new + folder null → exit 0 ──"
 test_should_prompt_new_folder_null
 
 # ── Test 27: should-prompt — user manifest scaffold_mode ignored ─────────────
@@ -1202,7 +1207,7 @@ test_should_prompt_user_ignored() {
 	mkdir -p "$(dirname "$user_manifest")"
 	cat > "$user_manifest" <<'USER'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "scaffold_mode": "new",
   "project_folder": null
 }
@@ -1521,6 +1526,7 @@ test_no_legacy_setup_json
 
 print_summary "setup scaffold"
 exit $?
+
 
 
 

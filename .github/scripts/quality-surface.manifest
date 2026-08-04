@@ -28,6 +28,7 @@
 .github/scripts/setup-rulesets.sh
 .github/scripts/validate-branch-name.sh
 .github/scripts/inline-agent-permissions.js
+.github/scripts/check-frontend-agent-contract.js
 .github/scripts/validate-harness.sh
 .github/scripts/verify-protected-push.sh
 .github/ISSUE_TEMPLATE/01_ISSUE.md

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
+
 
 
 
@@ -58,7 +61,23 @@ setup_validator_env() {
 	cp "$REAL_VALIDATOR" .github/scripts/validate-harness.sh
 	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
 	ln -s "$REPO_ROOT/node_modules" node_modules
+}
+
+# Seed the FRONTEND routing-contract fixtures: the real project manifest,
+# OpenCode config, and frontend/tdd agent files. Contract-specific fixtures
+# copy prism.jsonc so a missing checker or agent input fails loudly instead of
+# passing vacuously; the manifest guard keeps generic fixtures without the
+# FRONTEND tier out of scope. Must be called from inside the temp repo root.
+# Usage: setup_contract_env
+setup_contract_env() {
+	setup_validator_env
+	cp "$REPO_ROOT/prism.jsonc" prism.jsonc
+	cp "$REPO_ROOT/opencode.jsonc" opencode.jsonc
+	mkdir -p .opencode/agents
+	cp "$REPO_ROOT/.opencode/agents/frontend.md" .opencode/agents/frontend.md
+	cp "$REPO_ROOT/.opencode/agents/tdd.md" .opencode/agents/tdd.md
 }
 
 # ── Test 1: Finding 3 — vacuous PASS on relative HARNESS_DIR ──────────────────
@@ -2964,10 +2983,434 @@ EOF
 	fi
 )
 
+# ── FRONTEND routing contract (ADR-0049) ─────────────────────────────────────
+# The dedicated checker mechanically pins the frontend routing contract:
+# subagent_depth 3, catch-all-first global skill denies, the @tdd task
+# allowlist, and the terminal @frontend edit/bash/task/web/skill permissions.
+# Each mutation case begins from copies of the real project manifest, OpenCode
+# config, and frontend/tdd agent files, mutates one property, and asserts
+# nonzero exit plus the exact stable diagnostic.
+
+# ── Test: positive control — valid contract fixtures emit no diagnostics ────
+
+echo ""
+echo "── Test: FRONTEND contract positive control (valid fixtures) ──"
+T_CTR_POS=$(mktemp -d)
+register_temp_dir "$T_CTR_POS"
+git_init_test_repo "$T_CTR_POS"
+(
+	cd "$T_CTR_POS"
+	setup_contract_env
+
+	# Run the checker directly and assert exit 0. Grepping the harness output
+	# for the "frontend-contract:" prefix alone would let a checker crash
+	# (unprefixed stack lines, non-zero exit) pass silently.
+	exit_code=0
+	output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md 2>&1) || exit_code=$?
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "Positive control: contract checker exited $exit_code on valid fixtures (checker crash or contract drift)"
+	elif echo "$output" | grep -q "frontend-contract:"; then
+		fail "Positive control: valid contract fixtures emitted a frontend-contract diagnostic"
+	else
+		pass "Positive control: valid contract fixtures emit no frontend-contract diagnostics"
+	fi
+)
+
+# ── Test: missing checker fails loud when the manifest advertises FRONTEND ──
+
+echo "── Test: FRONTEND contract — missing checker fails loud ──"
+T_CTR_MISSING=$(mktemp -d)
+register_temp_dir "$T_CTR_MISSING"
+git_init_test_repo "$T_CTR_MISSING"
+(
+	cd "$T_CTR_MISSING"
+	setup_contract_env
+	rm .github/scripts/check-frontend-agent-contract.js
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: checker and agent inputs must all exist"; then
+		pass "Missing checker fails loud with the missing-inputs diagnostic"
+	else
+		fail "Missing checker did not fail loud (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: generic fixture without the FRONTEND manifest stays out of scope ──
+
+echo "── Test: FRONTEND contract — no manifest keeps generic fixtures out of scope ──"
+T_CTR_NOMANIFEST=$(mktemp -d)
+register_temp_dir "$T_CTR_NOMANIFEST"
+git_init_test_repo "$T_CTR_NOMANIFEST"
+(
+	cd "$T_CTR_NOMANIFEST"
+	# Validator + checker copied, but deliberately NO prism.jsonc and a
+	# DRIFTED opencode.jsonc: the manifest guard must skip the contract
+	# section entirely. If the guard regressed, the checker would flag the
+	# drifted fixture — so the test only passes when the guard really skips
+	# (valid fixtures would have made a removed guard undetectable).
+	setup_validator_env
+	mkdir -p .opencode/agents
+	cp "$REPO_ROOT/opencode.jsonc" opencode.jsonc
+	sed -i.bak 's/"subagent_depth": 3/"subagent_depth": 2/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+	cp "$REPO_ROOT/.opencode/agents/frontend.md" .opencode/agents/frontend.md
+	cp "$REPO_ROOT/.opencode/agents/tdd.md" .opencode/agents/tdd.md
+
+	if grep -qF '"subagent_depth": 2' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+		if echo "$output" | grep -q "frontend-contract:"; then
+			fail "Fixture without prism.jsonc was pulled into the FRONTEND contract scope"
+		else
+			pass "Fixture without prism.jsonc stays out of the FRONTEND contract scope"
+		fi
+	else
+		fail "no-manifest fixture mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: subagent_depth drift is caught ────────────────────────────────────
+
+echo "── Test: FRONTEND contract — subagent_depth drift caught ──"
+T_CTR_DEPTH=$(mktemp -d)
+register_temp_dir "$T_CTR_DEPTH"
+git_init_test_repo "$T_CTR_DEPTH"
+(
+	cd "$T_CTR_DEPTH"
+	setup_contract_env
+	sed -i.bak 's/"subagent_depth": 3/"subagent_depth": 2/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	if grep -qF '"subagent_depth": 2' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: subagent_depth must be exactly 3"; then
+			pass "Caught subagent_depth drift with the exact diagnostic"
+		else
+			fail "Did not detect subagent_depth drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "subagent_depth mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: global skill rule drift is caught ─────────────────────────────────
+
+echo "── Test: FRONTEND contract — global skill rule drift caught ──"
+T_CTR_SKILL_GLOBAL=$(mktemp -d)
+register_temp_dir "$T_CTR_SKILL_GLOBAL"
+git_init_test_repo "$T_CTR_SKILL_GLOBAL"
+(
+	cd "$T_CTR_SKILL_GLOBAL"
+	setup_contract_env
+	sed -i.bak 's/"accessibility": "deny"/"accessibility": "allow"/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	if grep -qF '"accessibility": "allow"' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the four frontend skills"; then
+			pass "Caught global skill rule drift with the exact diagnostic"
+		else
+			fail "Did not detect global skill rule drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "global skill rule mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @tdd task allowlist drift is caught ───────────────────────────────
+
+echo "── Test: FRONTEND contract — @tdd task allowlist drift caught ──"
+T_CTR_TDD_TASK=$(mktemp -d)
+register_temp_dir "$T_CTR_TDD_TASK"
+git_init_test_repo "$T_CTR_TDD_TASK"
+(
+	cd "$T_CTR_TDD_TASK"
+	setup_contract_env
+	sed -i.bak 's/"frontend": allow/"frontend": deny/' .opencode/agents/tdd.md
+	rm -f .opencode/agents/tdd.md.bak
+
+	if grep -qF '"frontend": deny' .opencode/agents/tdd.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @tdd task rules must deny '*' first and allow only frontend"; then
+			pass "Caught @tdd task allowlist drift with the exact diagnostic"
+		else
+			fail "Did not detect @tdd task allowlist drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@tdd task allowlist mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend tier config drift is caught ─────────────────────────────
+
+echo "── Test: FRONTEND contract — @frontend tier config drift caught ──"
+T_CTR_CONFIG=$(mktemp -d)
+register_temp_dir "$T_CTR_CONFIG"
+git_init_test_repo "$T_CTR_CONFIG"
+(
+	cd "$T_CTR_CONFIG"
+	setup_contract_env
+	sed -i.bak 's|{env:OPENCODE_MODEL_FRONTEND}|{env:OPENCODE_MODEL_PRIMARY}|' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	# Guard: OPENCODE_MODEL_PRIMARY appears elsewhere in the config, so scope
+	# the check to the @frontend agent block — the mutation must have landed
+	# there for this test to mean anything.
+	if grep -A4 '"frontend": {' opencode.jsonc | grep -qF '{env:OPENCODE_MODEL_PRIMARY}'; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override"; then
+			pass "Caught @frontend tier config drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend tier config drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend tier config mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend frontmatter mode/temperature/lsp drift is caught ────────
+
+echo "── Test: FRONTEND contract — @frontend frontmatter drift caught ──"
+T_CTR_FRONTMATTER=$(mktemp -d)
+register_temp_dir "$T_CTR_FRONTMATTER"
+git_init_test_repo "$T_CTR_FRONTMATTER"
+(
+	cd "$T_CTR_FRONTMATTER"
+	setup_contract_env
+	sed -i.bak 's/lsp: allow/lsp: deny/' .opencode/agents/frontend.md
+	rm -f .opencode/agents/frontend.md.bak
+
+	if grep -qF 'lsp: deny' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant"; then
+			pass "Caught @frontend frontmatter drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend frontmatter drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend frontmatter mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend terminal flags drift is caught ──────────────────────────
+
+echo "── Test: FRONTEND contract — @frontend terminal flag drift caught ──"
+T_CTR_TERMINAL=$(mktemp -d)
+register_temp_dir "$T_CTR_TERMINAL"
+git_init_test_repo "$T_CTR_TERMINAL"
+(
+	cd "$T_CTR_TERMINAL"
+	setup_contract_env
+	sed -i.bak 's/webfetch: deny/webfetch: allow/' .opencode/agents/frontend.md
+	rm -f .opencode/agents/frontend.md.bak
+
+	if grep -qF 'webfetch: allow' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend must deny task, webfetch, websearch, and external_directory"; then
+			pass "Caught @frontend terminal flag drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend terminal flag drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend terminal flag mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend edit scoping drift is caught ────────────────────────────
+
+echo "── Test: FRONTEND contract — @frontend edit scoping drift caught ──"
+T_CTR_EDIT=$(mktemp -d)
+register_temp_dir "$T_CTR_EDIT"
+git_init_test_repo "$T_CTR_EDIT"
+(
+	cd "$T_CTR_EDIT"
+	setup_contract_env
+	sed -i.bak 's|"cdn/css/\*\*": deny|"cdn/css/\*\*": allow|' .opencode/agents/frontend.md
+	rm -f .opencode/agents/frontend.md.bak
+
+	if grep -qF '"cdn/css/**": allow' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend edit rules must keep '*' first and generated assets denied"; then
+			pass "Caught @frontend edit scoping drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend edit scoping drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend edit scoping mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend bash git-write drift is caught ──────────────────────────
+
+echo "── Test: FRONTEND contract — @frontend bash git-write drift caught ──"
+T_CTR_BASH=$(mktemp -d)
+register_temp_dir "$T_CTR_BASH"
+git_init_test_repo "$T_CTR_BASH"
+(
+	cd "$T_CTR_BASH"
+	setup_contract_env
+	sed -i.bak 's|"git tag\*": deny|"git tag\*": allow|' .opencode/agents/frontend.md
+	rm -f .opencode/agents/frontend.md.bak
+
+	if grep -qF '"git tag*": allow' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
+			pass "Caught @frontend bash git-write drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend bash git-write drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend bash git-write mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: @frontend skill allowlist drift is caught ─────────────────────────
+
+echo "── Test: FRONTEND contract — @frontend skill allowlist drift caught ──"
+T_CTR_SKILL_FRONTEND=$(mktemp -d)
+register_temp_dir "$T_CTR_SKILL_FRONTEND"
+git_init_test_repo "$T_CTR_SKILL_FRONTEND"
+(
+	cd "$T_CTR_SKILL_FRONTEND"
+	setup_contract_env
+	sed -i.bak 's/accessibility: allow/accessibility: deny/' .opencode/agents/frontend.md
+	rm -f .opencode/agents/frontend.md.bak
+
+	if grep -qF 'accessibility: deny' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend must allow exactly the four frontend skills"; then
+			pass "Caught @frontend skill allowlist drift with the exact diagnostic"
+		else
+			fail "Did not detect @frontend skill allowlist drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "@frontend skill allowlist mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: unrelated bash allow is rejected (exact allowlist) ─────────────────
+
+echo "── Test: FRONTEND contract — unrelated bash allow rejected ──"
+T_CTR_BASH_EXTRA=$(mktemp -d)
+register_temp_dir "$T_CTR_BASH_EXTRA"
+git_init_test_repo "$T_CTR_BASH_EXTRA"
+(
+	cd "$T_CTR_BASH_EXTRA"
+	setup_contract_env
+	awk '/npx --no-install eslint\*/ { print; print "    \"curl *\": allow"; next } { print }' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	if grep -qF '"curl *": allow' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
+			pass "Caught unrelated bash allow with the exact-allowlist diagnostic"
+		else
+			fail "Did not reject unrelated bash allow (exit ${exit_code:-0})"
+		fi
+	else
+		fail "unrelated bash allow mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: reordered bash keys are rejected (exact order) ────────────────────
+
+echo "── Test: FRONTEND contract — reordered bash keys rejected ──"
+T_CTR_BASH_REORDER=$(mktemp -d)
+register_temp_dir "$T_CTR_BASH_REORDER"
+git_init_test_repo "$T_CTR_BASH_REORDER"
+(
+	cd "$T_CTR_BASH_REORDER"
+	setup_contract_env
+	awk '{
+		if ($0 ~ /"git add\*": deny/) { last = $0; next }
+		if ($0 ~ /"git stage\*": deny/) { print $0; print last; next }
+		print
+	}' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	# Guard: the reorder must actually have happened — "git stage*": deny must
+	# now precede "git add*": deny (the fixture ships the reverse order).
+	if awk 'BEGIN{s=0; a=0} /"git stage\*": deny/{s=NR} /"git add\*": deny/{a=NR} END{exit !(s>0 && a>s)}' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend bash rules must be exactly the focused-check allowlist (catch-all deny first; only git status/diff, php -l, pest, stylelint, eslint allows; exact git-write and credential denies)"; then
+			pass "Caught reordered bash keys with the exact-allowlist diagnostic"
+		else
+			fail "Did not reject reordered bash keys (exit ${exit_code:-0})"
+		fi
+	else
+		fail "bash reorder mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: inline frontend permission override is rejected ───────────────────
+
+echo "── Test: FRONTEND contract — inline permission override rejected ──"
+T_CTR_CONFIG_PERM=$(mktemp -d)
+register_temp_dir "$T_CTR_CONFIG_PERM"
+git_init_test_repo "$T_CTR_CONFIG_PERM"
+(
+	cd "$T_CTR_CONFIG_PERM"
+	setup_contract_env
+	awk '/^      "hidden": true$/ { print "      \"hidden\": true,"; print "      \"permission\": { \"task\": \"allow\" }"; next } { print }' opencode.jsonc > opencode.jsonc.tmp && mv opencode.jsonc.tmp opencode.jsonc
+
+	# Guard: the inline permission override must have landed under @frontend
+	# (the first "hidden": true block — judge's carries a trailing comma and
+	# does not match the awk pattern).
+	if grep -A4 '"hidden": true' opencode.jsonc | grep -qF '"permission": { "task": "allow" }'; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override"; then
+			pass "Caught inline frontend permission override with the exact-config diagnostic"
+		else
+			fail "Did not reject inline frontend permission override (exit ${exit_code:-0})"
+		fi
+	else
+		fail "inline permission override mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: model/variant in frontend frontmatter is rejected ─────────────────
+
+echo "── Test: FRONTEND contract — frontmatter model/variant rejected ──"
+T_CTR_FRONTMATTER_MODEL=$(mktemp -d)
+register_temp_dir "$T_CTR_FRONTMATTER_MODEL"
+git_init_test_repo "$T_CTR_FRONTMATTER_MODEL"
+(
+	cd "$T_CTR_FRONTMATTER_MODEL"
+	setup_contract_env
+	awk '/^mode: subagent$/ { print; print "model: openai/gpt-5.6-sol"; print "variant: xhigh"; next } { print }' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	if grep -qF 'model: openai/gpt-5.6-sol' .opencode/agents/frontend.md; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: @frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant"; then
+			pass "Caught frontmatter model/variant with the exact-frontmatter diagnostic"
+		else
+			fail "Did not reject frontmatter model/variant (exit ${exit_code:-0})"
+		fi
+	else
+		fail "frontmatter model/variant mutation did not apply — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
+
+
 
 
 

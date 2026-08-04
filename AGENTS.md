@@ -174,7 +174,7 @@ For linting details and responsive/mobile-first CSS rules, see `scss-mobile-firs
 user-level `~/.config/opencode/prism.jsonc` → project-level `prism.jsonc`
 → `git config user.name`/`user.email`). The `prism.jsonc` default ships as
 `kyau <git@kyaulabs.com>` until a user runs `/setup`. Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Authored-by:`. Use `Refs: #NN` for non-closing references.
-- Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `prism.jsonc` (models section), sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Five tiers: PRIMARY, PLANNER, DESIGN, JUDGE, UTILITY. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, and ADR-0022. For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
+- Model selection: all `model` and `variant` fields in `opencode.jsonc` use `{env:VAR}` substitution (e.g. `{env:OPENCODE_MODEL_PRIMARY}`, `{env:OPENCODE_VARIANT_PRIMARY}`) rather than hard-coded values. Per-agent model, variant, and temperature config lives in the `agent` section of `opencode.jsonc` — not in `.opencode/agents/*.md` frontmatter (the runtime does not support `model:`/`variant:` in sub-agent `.md` files — see ADR-0022). Defaults ship in `prism.jsonc` (models section), sourced automatically via direnv `.envrc`. Use `/setup` to configure models and variants per-tier. Six tiers: PRIMARY, PLANNER, DESIGN, JUDGE, UTILITY, FRONTEND. `temperature` remains a hard-coded literal (confirmed infeasible for `{env:VAR}`). Primary agents that omit `model:` inherit the top-level `model` (which itself is `{env:VAR}` — resolved at runtime). `.opencode/agents/*.md` files carry `description`, `mode`, `temperature` (literal), and `permission` only. See ADR-0012, ADR-0013, ADR-0014, ADR-0022, and ADR-0049. OpenCode loads its configuration once at startup — restart OpenCode after any configuration change so the new tier, agent, and permissions load (ADR-0049). For guidance on picking `variant` / `temperature` for a non-default model, see `.opencode/docs/model-configuration.md`.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via @tdd, a direct fix, an issue
@@ -237,11 +237,12 @@ LSP; project is not a deno project).
 
 **Experimental LSP tool:** The `lsp` tool (go-to-definition, find-references,
 hover, call-hierarchy) is gated by a top-level `permission.lsp: "deny"`
-default in `opencode.jsonc`. Eight agents explicitly opt in with `lsp: "allow"`:
-`build`, `design`, `explore`, `general`, `chat`, `@tdd`, `@debug`, and
-`@docs-writer` — agents that write PHP or navigate code semantically
-(Intelephense premium fills the gap left by the absence of `psalm`/`phpstan`
-in `composer.json`). All other agents inherit the `deny` default.
+default in `opencode.jsonc`. Nine agents explicitly opt in with `lsp: "allow"`:
+`build`, `design`, `explore`, `general`, `chat`, `@tdd`, `@debug`,
+`@docs-writer`, and `@frontend` — agents that write PHP or navigate code
+semantically (Intelephense premium fills the gap left by the absence of
+`psalm`/`phpstan` in `composer.json`). All other agents inherit the `deny`
+default.
 
 ## Experimental OpenCode Features
 
@@ -253,7 +254,7 @@ their shell profile.
 
 | Flag | Purpose | Status |
 | --- | --- | --- |
-| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for eight agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
+| `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` | Enables the Intelephense `lsp` tool for nine agents (see above) | Auto-sourced (was manual-export; consolidated per ADR-0024) |
 | `OPENCODE_EXPERIMENTAL_SCOUT=true` | Enables the built-in `@scout` experimental subagent (ADR-0005 delegate — web research, clone upstream deps) | Auto-sourced |
 | `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS` | Enables background subagent tasks (see `/research --background`) | Commented — gated on ADR-0024 Phase-0 spike |
 
@@ -335,6 +336,7 @@ Load these on demand when the task requires them:
 | `@consult` | subagent | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | subagent | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies one Type + one Progress value, analyzes, plans, halts for approval, and dispatches @tdd; routes bugs to @debug and chores to the fast-path |
 | `@explore` | subagent | Focused codebase exploration — read-only. Answers the caller's question with the minimum scoped context needed; LSP-first for structural queries (`findReferences`/`callHierarchy`), glob/grep/read for text and prose. Does not modify files, dispatch subagents, or run shell commands outside a read-only allowlist. |
+| `@frontend` | subagent | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; sole owner of the four gated frontend skills (`frontend-design`, `frontend-architecture`, `scss-mobile-first`, `accessibility`); edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources; may run focused checks but cannot author tests, stage, commit, install dependencies, or dispatch |
 
 ## Commands
 

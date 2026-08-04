@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_manifest_integration_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: prism_manifest_integration_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
+
 
 
 
@@ -59,14 +61,14 @@ make_user_home() {
 	mkdir -p "$1/.config/opencode"
 }
 
-# write_default_project_manifest <dir> — write the standard commented v5
+# write_default_project_manifest <dir> — write the standard commented v6
 # project prism.jsonc carrying the shipped defaults.
 write_default_project_manifest() {
 	local dir="$1"
 	cat > "$dir/prism.jsonc" <<'JSONC'
-// Project manifest (schema v5) — fixture
+// Project manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -82,14 +84,16 @@ write_default_project_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -111,14 +115,14 @@ write_default_project_manifest() {
 JSONC
 }
 
-# write_security_manifest <dir> <paths-json> — write the standard v5 project
+# write_security_manifest <dir> <paths-json> — write the standard v6 project
 # manifest carrying security.additional_sensitive_paths set to <paths-json>.
 write_security_manifest() {
 	local dir="$1" paths="$2"
 	cat > "$dir/prism.jsonc" <<JSONC
-// Project manifest (schema v5) — fixture
+// Project manifest (schema v6) — fixture
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -134,14 +138,16 @@ write_security_manifest() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -202,6 +208,60 @@ write_complete_v4_project() {
     "lsp_tool": true,
     "scout": true,
     "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
+  }
+}
+JSON
+}
+
+# write_complete_v5_project <dir> [name] [email] — write a schema-v5 project
+# prism.jsonc carrying every required field WITHOUT the frontend tier, plus a
+# distinctive comment marker so the in-place v5→v6 upgrade's comment
+# preservation is observable.
+write_complete_v5_project() {
+	local dir="$1" name="${2:-V5 Project}" email="${3:-v5@project.test}"
+	cat > "$dir/prism.jsonc" <<JSON
+// Project manifest (schema v5) — V5_UPGRADE_COMMENT marker
+{
+  "setup_version": 5,
+  "configured": true,
+  "timestamp": "2026-07-29T00:00:00Z",
+  "app": "prism",
+  "domain": "kyaulabs",
+  "repo": "kyaulabs/prism",
+  "signed_off_by_name": "$name",
+  "signed_off_by_email": "$email",
+  "accent": "sky-blue",
+  "scaffold_mode": "skip",
+  "project_folder": null,
+  "models": {
+    "primary": "zai-coding-plan/glm-5.2",
+    "planner": "openai/gpt-5.6-sol",
+    "design": "openai/gpt-5.6-sol",
+    "judge": "deepseek/deepseek-v4-pro",
+    "utility": "deepseek/deepseek-v4-flash"
+  },
+  "variants": {
+    "primary": "max",
+    "planner": "xhigh",
+    "design": "xhigh",
+    "judge": "medium",
+    "utility": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  },
+  "mcp": {
+    "deepseek_websearch": false,
+    "searxng": false
+  },
+  "plugins": {
+    "opencode_quota": false
   },
   "env": {
     "deepseek_api_key": "",
@@ -274,7 +334,7 @@ test_cross_consumer_consistency() {
 		return
 	}
 
-		# ── env0: all twenty pairs consistent with decode ──
+		# ── env0: all twenty-two pairs consistent with decode ──
 	local env0_out env0_err
 	env0_out=$(mktemp)
 	env0_err=$(mktemp)
@@ -287,6 +347,14 @@ test_cross_consumer_consistency() {
 		expected_via_jq=$(printf '%s' "$decoded" | jq -r '.["models"]["primary"]')
 		actual_via_env0=$(get_nul_value "OPENCODE_MODEL_PRIMARY")
 		[ "$actual_via_env0" = "$expected_via_jq" ] || { echo "  env0 models.primary: got '$actual_via_env0' want '$expected_via_jq'" >&2; failures=$((failures+1)); }
+		# Frontend tier pair must round-trip: decode models.frontend →
+		# OPENCODE_MODEL_FRONTEND and variants.frontend → OPENCODE_VARIANT_FRONTEND.
+		expected_via_jq=$(printf '%s' "$decoded" | jq -r '.["models"]["frontend"]')
+		actual_via_env0=$(get_nul_value "OPENCODE_MODEL_FRONTEND")
+		[ "$actual_via_env0" = "$expected_via_jq" ] || { echo "  env0 models.frontend: got '$actual_via_env0' want '$expected_via_jq'" >&2; failures=$((failures+1)); }
+		expected_via_jq=$(printf '%s' "$decoded" | jq -r '.["variants"]["frontend"]')
+		actual_via_env0=$(get_nul_value "OPENCODE_VARIANT_FRONTEND")
+		[ "$actual_via_env0" = "$expected_via_jq" ] || { echo "  env0 variants.frontend: got '$actual_via_env0' want '$expected_via_jq'" >&2; failures=$((failures+1)); }
 		# experimental.lsp_tool check
 		expected_via_jq=$(printf '%s' "$decoded" | jq -r '.["experimental"]["lsp_tool"]')
 		actual_via_env0=$(get_nul_value "OPENCODE_EXPERIMENTAL_LSP_TOOL")
@@ -461,9 +529,9 @@ test_migration_rollback
 
 # ── Test 3: Later legacy detection warns (.envrc with residual setup.json) ────
 #
-# When a v5 prism.jsonc is present but a v4 setup.json is also found in the
+# When a v6 prism.jsonc is present but a v4 setup.json is also found in the
 # user's opencode config dir, .envrc must print a deprecation warning AND NOT
-# read the legacy. The v5 values must be exported.
+# read the legacy. The v6 values must be exported.
 
 test_legacy_detection_warns() {
 	local project_root fake_home stderr_file
@@ -573,7 +641,7 @@ test_metacharacters_remain_data() {
 	# JSON needs \" to escape double-quotes; everything else is literal.
 	cat > "$project_root/prism.jsonc" <<'JSONC'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -589,14 +657,16 @@ test_metacharacters_remain_data() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -701,7 +771,7 @@ test_diagnostics_redacted() {
 	# validate command throws PrismJsoncException with field path only.
 	cat > "$project_root/prism.jsonc" <<JSONC
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "configured": true,
   "timestamp": "2026-07-29T00:00:00Z",
   "app": "prism",
@@ -717,14 +787,16 @@ test_diagnostics_redacted() {
     "planner": "openai/gpt-5.6-sol",
     "design": "openai/gpt-5.6-sol",
     "judge": "deepseek/deepseek-v4-pro",
-    "utility": "deepseek/deepseek-v4-flash"
+    "utility": "deepseek/deepseek-v4-flash",
+    "frontend": "openai/gpt-5.6-sol"
   },
   "variants": {
     "primary": "max",
     "planner": "xhigh",
     "design": "xhigh",
     "judge": "medium",
-    "utility": "medium"
+    "utility": "medium",
+    "frontend": "xhigh"
   },
   "experimental": {
     "lsp_tool": true,
@@ -827,7 +899,7 @@ test_full_round_trip() {
 	# ── Phase 1: Create v4 legacy ──
 	write_complete_v4_project "$project_root" "Roundtrip User" "roundtrip@test.com"
 
-	# ── Phase 2: Migrate v4 → v5 via the shell engine ──
+	# ── Phase 2: Migrate v4 → v6 via the shell engine ──
 	set +e
 	HOME="$fake_home" GIT_CONFIG_NOSYSTEM=1 \
 		MIGRATE_PROJECT_OLD="$legacy" MIGRATE_PROJECT_NEW="$manifest" \
@@ -1091,7 +1163,7 @@ test_env_redaction() {
 	# User manifest carrying a real secret — the legitimate secret home.
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "env": {
     "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK",
     "searxng_url": ""
@@ -1199,7 +1271,7 @@ test_security_paths_union() {
 	write_security_manifest "$project_root" '["~/vault/"]'
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["/etc/myapp/keys/"]
   }
@@ -1222,7 +1294,7 @@ JSON
 	# ── Case B: user manifest without the security field → project list passes through ──
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "models": {
     "primary": "my-model"
   }
@@ -1245,7 +1317,7 @@ JSON
 	# ── Case C: identical entries deduplicate ──
 	cat > "$user_manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["~/vault/"]
   }
@@ -1303,7 +1375,7 @@ test_security_paths_validation() {
 	fi
 	cat > "$manifest" <<'JSON'
 {
-  "setup_version": 5,
+  "setup_version": 6,
   "security": {
     "additional_sensitive_paths": ["/etc/myapp/keys/"]
   }
@@ -1346,10 +1418,120 @@ echo ""
 echo "── Test 11: validate fails closed on malformed security lists (ADR-0048 §7) ──"
 test_security_paths_validation
 
+# ── Test 12: v5→v6 in-place upgrade via migrate-setup.sh (ADR-0049) ───────────
+#
+# The engine's "old absent, new present" and "both present" branches upgrade an
+# existing schema-v5 target to v6 in place: version bump, the required frontend
+# defaults (project tier), and comment preservation. Both branches run against
+# a real v5 fixture so a regression that silently stops upgrading (or drops the
+# frontend defaults) fails the assertions instead of hitting a v6 no-op.
+
+test_v5_to_v6_upgrade() {
+	local project_root fake_home
+	project_root=$(mktemp -d)
+	fake_home=$(mktemp -d)
+	register_temp_dir "$project_root"
+	register_temp_dir "$fake_home"
+
+	make_project_root "$project_root"
+	make_user_home "$fake_home"
+
+	local failures=0
+
+	# ── Case A: old absent, new present — a real v5 target is upgraded in place ──
+	write_complete_v5_project "$project_root" "V5 Upgrade" "v5@upgrade.test"
+	local manifest="$project_root/prism.jsonc"
+
+	set +e
+	HOME="$fake_home" GIT_CONFIG_NOSYSTEM=1 \
+		MIGRATE_PROJECT_OLD="$project_root/.opencode/setup.json" MIGRATE_PROJECT_NEW="$manifest" \
+		MIGRATE_USER_OLD="/nonexistent/u-setup.json" MIGRATE_USER_NEW="/nonexistent/u-prism.jsonc" \
+		bash "$MIGRATE_SETUP" >/dev/null 2>&1
+	local ms_rc=$?
+	set -e
+
+	if [ "$ms_rc" -ne 0 ]; then
+		echo "  v5 upgrade A — engine exited $ms_rc (expected 0)" >&2
+		failures=$((failures+1))
+	else
+		if [ "$(decode_field "$manifest" '.setup_version')" != "6" ]; then
+			echo "  v5 upgrade A — target left below setup_version 6" >&2
+			failures=$((failures+1))
+		fi
+		if [ "$(decode_field "$manifest" '.models.frontend')" != "openai/gpt-5.6-sol" ]; then
+			echo "  v5 upgrade A — models.frontend default missing" >&2
+			failures=$((failures+1))
+		fi
+		if [ "$(decode_field "$manifest" '.variants.frontend')" != "xhigh" ]; then
+			echo "  v5 upgrade A — variants.frontend default missing" >&2
+			failures=$((failures+1))
+		fi
+		if ! grep -qF "V5_UPGRADE_COMMENT" "$manifest"; then
+			echo "  v5 upgrade A — distinctive comment lost" >&2
+			failures=$((failures+1))
+		fi
+	fi
+
+	# ── Case B: both present and equal — target upgraded, redundant legacy removed ──
+	local project2 manifest2
+	project2=$(mktemp -d)
+	register_temp_dir "$project2"
+	make_project_root "$project2"
+	write_complete_v5_project "$project2" "V5 Coexist" "v5@coexist.test"
+	manifest2="$project2/prism.jsonc"
+	cp "$manifest2" "$project2/.opencode/setup.json"
+
+	set +e
+	HOME="$fake_home" GIT_CONFIG_NOSYSTEM=1 \
+		MIGRATE_PROJECT_OLD="$project2/.opencode/setup.json" MIGRATE_PROJECT_NEW="$manifest2" \
+		MIGRATE_USER_OLD="/nonexistent/u-setup.json" MIGRATE_USER_NEW="/nonexistent/u-prism.jsonc" \
+		bash "$MIGRATE_SETUP" >/dev/null 2>&1
+	local ms2_rc=$?
+	set -e
+
+	if [ "$ms2_rc" -ne 0 ]; then
+		echo "  v5 upgrade B — engine exited $ms2_rc (expected 0)" >&2
+		failures=$((failures+1))
+	else
+		if [ "$(decode_field "$manifest2" '.setup_version')" != "6" ]; then
+			echo "  v5 upgrade B — target left below setup_version 6" >&2
+			failures=$((failures+1))
+		fi
+		if [ "$(decode_field "$manifest2" '.models.frontend')" != "openai/gpt-5.6-sol" ]; then
+			echo "  v5 upgrade B — models.frontend default missing" >&2
+			failures=$((failures+1))
+		fi
+		if [ "$(decode_field "$manifest2" '.variants.frontend')" != "xhigh" ]; then
+			echo "  v5 upgrade B — variants.frontend default missing" >&2
+			failures=$((failures+1))
+		fi
+		if ! grep -qF "V5_UPGRADE_COMMENT" "$manifest2"; then
+			echo "  v5 upgrade B — distinctive comment lost" >&2
+			failures=$((failures+1))
+		fi
+		if [ -e "$project2/.opencode/setup.json" ]; then
+			echo "  v5 upgrade B — redundant legacy retained" >&2
+			failures=$((failures+1))
+		fi
+	fi
+
+	if [ "$failures" -eq 0 ]; then
+		pass "v5→v6 upgrade — old-absent/new-present and both-present branches upgrade in place with defaults and comments preserved"
+	else
+		fail "v5→v6 upgrade — $failures assertion(s) failed"
+	fi
+}
+
+echo ""
+echo "── Test 12: v5→v6 in-place upgrade via migrate-setup.sh ──"
+test_v5_to_v6_upgrade
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
+
 
 
 
