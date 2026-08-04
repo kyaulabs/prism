@@ -337,7 +337,7 @@ Stage only the three Task 2 files. Use subject `feat(harness): classify strict g
 - Consumes: Task 2 classifier contract and ADR-0050's pre-spec/post-spec distinction.
 - Produces: A brainstorming scope gate that runs before detailed grilling, routes `established` and `indeterminate` to a loaded wayfinder skill, and removes every manual sub-project/spec decomposition fallback. Wayfinder exits through `to-spec`; writing-plans consumes approved specs without re-decomposing them.
 
-- [ ] **Step 1: Write failing brainstorming and wayfinder contracts**
+- [x] **Step 1: Write failing brainstorming and wayfinder contracts**
 
 Create `BrainstormingSkillTest.php` using the helper pattern in `WayfinderSkillTest.php`. Pin these observable requirements:
 
@@ -370,7 +370,7 @@ it('does not retain manual sub-project decomposition', function (): void {
 
 Extend `WayfinderSkillTest.php` to assert the design-tab inbound handoff, router inbound route, `to-spec` exit, and the distinction from ticketing's implementation slices. Add a writing-plans assertion to the new test confirming its Scope Check says oversized input returns to wayfinder rather than producing multiple plans.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -380,7 +380,7 @@ php vendor/bin/pest tests/Unit/Harness/BrainstormingSkillTest.php tests/Unit/Har
 
 Expected: FAIL on the absent classifier scope gate and retained manual decomposition text.
 
-- [ ] **Step 3: Implement the established/indeterminate route**
+- [x] **Step 3: Implement the established/indeterminate route**
 
 Update the brainstorming checklist so scope assessment precedes grilling. The authoritative behavior must be equivalent to:
 
@@ -394,7 +394,7 @@ Update the brainstorming checklist so scope assessment precedes grilling. The au
 
 Remove the old “help the user decompose into sub-projects” text, retarget the late spec self-review to wayfinder, and add wayfinder to Cross-refs/Gotchas. In wayfinder, add the design-tab inbound route and state that its resolved map merges through `to-spec`; implementation slicing remains ticketing's responsibility. In writing-plans, replace the sub-project-plan fallback with: “If an approved spec is still oversized, halt and return it to wayfinder; do not create multiple plans here.”
 
-- [ ] **Step 4: Run focused tests and refactor wording**
+- [x] **Step 4: Run focused tests and refactor wording**
 
 Run:
 

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: WayfinderSkillTest.php kyau@nova 2026/07/20 -0700 Exp $
+# $KYAULabs: WayfinderSkillTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+
+
+
 
 
 
@@ -119,6 +122,30 @@ test('skill contrasts its boundary with the design tab and @from-issue', functio
     expect($content)->toContain('@from-issue');
 });
 
+test('design-tab scope gate hands established oversized work to wayfinder', function (): void {
+    $content = wayfinder_skill_content();
+
+    expect($content)->toMatch('/design tab/i');
+    expect($content)->toContain('classify-greenfield.sh');
+    expect($content)->toContain('established');
+    expect($content)->toContain('indeterminate');
+});
+
+test('router routes huge requests in and the map exits through to-spec', function (): void {
+    $content = wayfinder_skill_content();
+
+    expect($content)->toContain('/router');
+    expect($content)->toContain('to-spec');
+    expect($content)->toMatch('/pre-spec/i');
+});
+
+test('implementation slicing stays with ticketing after the map merges', function (): void {
+    $content = wayfinder_skill_content();
+
+    expect($content)->toContain('ticketing');
+    expect($content)->toMatch('/post-spec|implementation slic/i');
+});
+
 test('skill refers to tickets by name and plans rather than does', function (): void {
     $content = wayfinder_skill_content();
 
@@ -131,6 +158,7 @@ test('wayfinder skill has a Gotchas section', function (): void {
 
     expect($content)->toContain('## Gotchas');
 });
+
 
 
 

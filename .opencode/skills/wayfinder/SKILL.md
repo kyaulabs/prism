@@ -22,6 +22,11 @@ Load this skill when the work is **too big for one session** or **wrapped in
 unknowns you can't yet phrase as sharp questions**. It is the entry point the
 `/router` command sends "huge" / multi-subsystem requests to.
 
+The **design tab's scope gate** also sends requests here: brainstorming runs
+`bash .github/scripts/classify-greenfield.sh`, and `established` or
+`indeterminate` oversized work stops detailed grilling and hands off to this
+skill to chart the map.
+
 Do NOT use this skill when a smaller on-ramp fits:
 
 - A single, brainstormable new feature → **design** tab (brainstorming →
@@ -42,7 +47,9 @@ and does the thing. The pull to just do the work is usually the signal you've
 reached the edge of the map. An effort may override this in its **Notes** —
 carrying execution into the map — but absent that, produce decisions, not
 deliverables. The exit is the `to-spec` skill: merge the map's decisions into a
-spec when the way is clear.
+spec when the way is clear. Wayfinding is the pre-spec discovery and
+decomposition route; once the resolved map merges through `to-spec`,
+implementation slicing is the `ticketing` skill's post-spec responsibility.
 
 ## Refer by name
 
@@ -238,11 +245,14 @@ editing the tracker concurrently.
 ## Cross-refs
 
 - `ticketing` skill — the gh create-to-type-to-fields-to-labels + native
-  blocking pattern used to create the map and its tickets.
+  blocking pattern used to create the map and its tickets; also the post-spec
+  implementation-slicing mechanism this skill hands off to after `to-spec`.
 - `grilling` skill — interview primitive for naming the destination and mapping
   the frontier.
 - `prototype` skill — raising fidelity for `wayfinder:prototype` tickets.
 - `to-spec` skill — the merge exit; turns the cleared map into a spec.
+- `brainstorming` skill — the design-cycle scope gate; hands established and
+  indeterminate oversized work here instead of decomposing it ad-hoc.
 - `CONTEXT.md` — domain vocabulary every session orients to.
 - `/setup-labels` — repo-wide idempotent label creation (reads `labels.md`).
 - `/router` — routes "huge" requests to this skill.
@@ -255,6 +265,7 @@ editing the tracker concurrently.
 - Planning by default — produce decisions, not deliverables; merge to `to-spec`.
 - Create the `wayfinder:*` labels idempotently; never hard-code the repo name.
 - Exactly one `wayfinder:<type>` label per ticket.
+- Pre-spec: wayfinding and the map. Post-spec: `ticketing` slices implementation.
 
 ## Gotchas
 
@@ -271,3 +282,6 @@ editing the tracker concurrently.
 - *Blocking via body text instead of native blocking* — use
   `--add-blocked-by` so the frontier is visible in the tracker UI without
   opening the map.
+- *Slicing implementation on the map* — implementation slicing is `ticketing`'s
+  post-spec job. Once the map merges through `to-spec`, stop re-decomposing
+  the work here.
