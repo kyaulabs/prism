@@ -363,40 +363,35 @@ git+abuse@kyaulabs.com       git+abuse@kyaulabs.com abuse@example.com
 <username>                   <username>             kyau
 accent                       sky-blue (active)      light-purple
 
-Files to sweep (20 files; aurora/ excluded):
+Files to sweep (10 files; aurora/ excluded — template files only):
   AGENTS.md, CONTRIBUTING.md, .env.example, README.md, CODE_OF_CONDUCT.md,
   SECURITY.md, cliff.toml, composer.json, package.json,
-  .opencode/commands/deploy.md, .opencode/commands/prime.md,
-  .opencode/agents/debug.md, .opencode/agents/tdd.md,
-  .opencode/skills/aurora-page/SKILL.md, .opencode/skills/database/SKILL.md,
-  .opencode/skills/conventional-commits/SKILL.md,
-  .opencode/skills/writing-plans/SKILL.md,
-  .opencode/skills/finishing-a-development-branch/SKILL.md,
-  .opencode/docs/build-pipeline.md, cdn/sass/_tokens.scss
+  cdn/sass/_tokens.scss
+
+The sweep list is resolved against `$project_folder` only — the parent
+repository's own harness files (commands, agents, skills, docs) are NEVER
+swept. The sweep never runs on Prism itself.
 ```
 
 Ask: "Proceed with rewrites? (y/n)"
 
 ## 6. Apply
 
-For each file in the sweep list:
+The sweep NEVER runs on Prism itself — the parent repository is never rewritten.
+If `$project_folder` is empty or unset (scaffold mode `skip`, or legacy
+first-run without a scaffold), SKIP the sweep entirely — there is nothing
+to substitute. The substitution sweep runs ONLY inside the generated
+`$project_folder` (`clone`/`new` modes).
 
-1. Skip if the file does not exist (some may not apply to every project).
-2. Run the substitution script.
+When the sweep runs, for each file in the sweep list (resolved against
+`$project_folder`, never against the parent repo):
 
-   When `scaffold_mode` is `clone` or `new` (i.e. a `project_folder` was
-   recorded this run), pass `--target-dir "$project_folder"` so substitution
-   lands in the scaffolded subfolder:
+1. Skip if the file does not exist in the target (some may not apply to
+   every project).
+2. Run the substitution script, always scoped to the target:
 
    ```bash
    bash .github/scripts/setup-substitute.sh --target-dir "$project_folder" <file> "{app}" "{domain}" "{org}" "{repo}"
-   ```
-
-   When `scaffold_mode` is `skip` (or absent — legacy first-run), omit
-   `--target-dir` entirely (existing in-place behavior):
-
-   ```bash
-   bash .github/scripts/setup-substitute.sh <file> "{app}" "{domain}" "{org}" "{repo}"
    ```
 
    Replace `{app}`, `{domain}`, `{org}`, `{repo}` with the actual interview
@@ -406,7 +401,8 @@ For each file in the sweep list:
    if the file does not exist — skip missing files before calling it. The
    script is the single source of truth for substitution logic.
 
-3. For `cdn/sass/_tokens.scss` only: apply the accent toggle (see below).
+3. For `cdn/sass/_tokens.scss` only: apply the accent toggle inside the
+   target (see below).
 
 **Accent toggle** (`cdn/sass/_tokens.scss`):
 
@@ -431,29 +427,25 @@ Use the Edit tool for the accent toggle — it is a small targeted change.
 
 ## 7. Verify sweep
 
-After the sweep, confirm no old identity strings remain (excluding
-LICENSE and NOTICE, which are legal/attribution and must not be swept):
+After the sweep, confirm no old identity strings remain in the swept
+directory (`$project_folder`), excluding LICENSE and NOTICE, which are
+legal/attribution and must not be swept. Use the grep tool (never bash grep
+— bash grep is denied by runtime permissions) with pattern
+`kyau <git@kyaulabs.com>` and path `$project_folder`.
 
-```bash
-grep -rnF 'kyau <git@kyaulabs.com>' . \
-  --exclude-dir=.git --exclude-dir=aurora --exclude-dir=vendor \
-  --exclude-dir=node_modules --exclude-dir=cdn/css \
-  --exclude-dir=cdn/javascript \
-  --exclude=LICENSE --exclude=NOTICE
-```
+The grep tool must return zero matches in `$project_folder`. If any matches
+are found, the sweep was incomplete — re-run the substitution script on the
+reported files.
 
-This must return zero matches. If any matches are found, the sweep was
-incomplete — re-run the substitution script on the reported files.
-
-Also verify the abuse contact was replaced:
-
-```bash
-grep -rnF 'git+abuse@kyaulabs.com' . \
-  --exclude-dir=.git --exclude-dir=aurora --exclude-dir=vendor \
-  --exclude-dir=node_modules
-```
+Also verify the abuse contact was replaced: run the grep tool with pattern
+`git+abuse@kyaulabs.com` and path `$project_folder`.
 
 This must also return zero matches.
+
+Matches outside the swept directory — in the parent repo's `adr/`,
+`docs/plans`, `docs/specs`, `tests/`, or `setup.md` itself — are expected:
+identity tokens persist in immutable ADRs and historical docs. These
+matches are NOT sweep failures.
 
 ## 8. Patch manifests (in place, comment-preserving)
 
@@ -547,19 +539,9 @@ SECURITY.md                             1
 cliff.toml                              2
 composer.json                           1
 package.json                            1
-.opencode/commands/deploy.md            8
-.opencode/commands/prime.md             2
-.opencode/agents/debug.md               6
-.opencode/agents/tdd.md                 1
-.opencode/skills/aurora-page/SKILL.md   4
-.opencode/skills/database/SKILL.md      3
-.opencode/skills/conventional-commits/SKILL.md  4
-.opencode/skills/writing-plans/SKILL.md  1
-.opencode/skills/finishing-a-development-branch/SKILL.md  1
-.opencode/docs/build-pipeline.md        1
 cdn/sass/_tokens.scss                   accent: light-purple
 --------------------------------------  ------------
-TOTAL                                   61 replacements across 20 files
+TOTAL                                   31 replacements across 10 files
 ```
 
 Remind the user:
@@ -589,4 +571,4 @@ Remind the user:
 - Skip missing files silently (the script exits non-zero on missing files;
   check existence before calling it).
 - After successful rewrites, print the report and run the verification grep
-  (section 6). Do not commit or push anything.
+  (section 7). Do not commit or push anything.
