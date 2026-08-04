@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+
 
 
 # frontmatter_parser_stdin_test.sh — verifies the --stdin mode added to
@@ -39,6 +40,30 @@ else
 	fail "file mode: expected 'baz' got '$out'"
 fi
 
+# import mode returns the complete typed frontmatter object without
+# executing the CLI body
+out=$(node - "$P" <<'NODE'
+const { parseFrontmatter } = require(process.argv[2]);
+const doc = parseFrontmatter('---\nmode: subagent\ntemperature: 0.3\npermission:\n  lsp: allow\n---\nbody');
+process.stdout.write(JSON.stringify(doc));
+NODE
+)
+if [ "$out" = '{"mode":"subagent","temperature":0.3,"permission":{"lsp":"allow"}}' ]; then
+	pass "module mode returns the complete typed frontmatter object without CLI side effects"
+else
+	fail "module mode did not return the complete typed frontmatter object"
+fi
+
+# malformed YAML exits 1 and prefixes the diagnostic with the stdin label
+rc=0
+err=$(printf -- '---\nmode: [unclosed\n---\n' | node "$P" --stdin mode 2>&1) || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$err" | grep -q '^YAML parse error in <stdin>:'; then
+	pass "malformed YAML exits 1 with a parse error diagnostic"
+else
+	fail "malformed YAML: expected exit 1 with 'YAML parse error in <stdin>:' prefix, got rc=$rc err='$err'"
+fi
+
 print_summary "frontmatter_parser_stdin"
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

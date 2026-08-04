@@ -3,19 +3,21 @@
 
 
 
+
 // Check the FRONTEND agent routing contract (ADR-0049).
 // Usage: node check-frontend-agent-contract.js <opencode.jsonc> <frontend.md> <tdd.md>
 // Emits one stable 'frontend-contract: ' diagnostic per violation and exits 1;
 // emits nothing and exits 0 when the contract holds. Parses JSONC with the
 // shared string-aware comment stripper (./jsonc-strip), parses
-// both Markdown frontmatters with js-yaml, and preserves object key order via
-// Object.keys() — rule order matters because the last matching rule wins.
+// both Markdown frontmatters with the shared parser (./frontmatter-parser),
+// and preserves object key order via Object.keys() — rule order matters
+// because the last matching rule wins.
 
 'use strict';
 
 const fs = require('fs');
-const yaml = require('js-yaml');
 const { stripJsoncComments } = require('./jsonc-strip');
+const { parseFrontmatter } = require('./frontmatter-parser');
 
 const frontendSkills = [
 	'frontend-design',
@@ -110,28 +112,8 @@ function readJsoncFile(file) {
 }
 
 function readFrontmatter(file) {
-	let content;
 	try {
-		content = fs.readFileSync(file, 'utf8');
-	} catch {
-		return null;
-	}
-	content = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-	const lines = content.split('\n');
-	if (lines[0] !== '---') return null;
-	const fmLines = [];
-	let foundClosing = false;
-	for (let i = 1; i < lines.length; i++) {
-		if (lines[i] === '---') {
-			foundClosing = true;
-			break;
-		}
-		fmLines.push(lines[i]);
-	}
-	if (!foundClosing) return null;
-	try {
-		const doc = yaml.load(fmLines.join('\n'));
-		return doc && typeof doc === 'object' ? doc : null;
+		return parseFrontmatter(fs.readFileSync(file, 'utf8'));
 	} catch {
 		return null;
 	}
@@ -245,6 +227,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 
