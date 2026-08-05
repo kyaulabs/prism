@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
 
 
 
@@ -18,6 +18,27 @@ function setup_command_content(): string
     Assert::assertFileExists($path, '.opencode/commands/setup.md must exist');
 
     return (string) file_get_contents($path);
+}
+
+/**
+ * Extract one section of the /setup command between two markdown headings.
+ *
+ * Fails loudly if either marker is missing — a renamed or removed section
+ * heading must never degrade into a vacuous pass.
+ *
+ * @param  string $from  Text that starts the section (heading or lead-in).
+ * @param  string $toNext  Next section heading; the slice ends before it.
+ * @return string  The section text between the two markers.
+ */
+function setup_command_section(string $from, string $toNext): string
+{
+    $content = setup_command_content();
+    $start = strpos($content, $from);
+    Assert::assertNotFalse($start, "section start marker not found: {$from}");
+    $end = strpos($content, $toNext, $start);
+    Assert::assertNotFalse($end, "section end marker not found: {$toNext}");
+
+    return substr($content, $start, $end - $start);
 }
 
 describe('/setup command — prism manifest contract (ADR-0043)', function () {
@@ -165,15 +186,10 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
     });
 
     it('never writes toggle answers to the project manifest', function () {
-        $content = setup_command_content();
         // Toggle section must NOT invoke the project writer. Bound the search
         // from the toggles heading to the next major section start to avoid a
         // false-positive from the project-writer invocation in §8.
-        $togglesPos = (int) strpos($content, 'Integration toggles');
-        $nextSectionPos = strpos($content, "\n## 4. Build the token map", $togglesPos);
-        $togglesSection = $nextSectionPos !== false
-            ? substr($content, $togglesPos, $nextSectionPos - $togglesPos)
-            : substr($content, $togglesPos);
+        $togglesSection = setup_command_section('Integration toggles', "\n## 4. Build the token map");
         Assert::assertStringNotContainsString(
             'setup-write-project-config.sh',
             $togglesSection,
@@ -188,16 +204,114 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
         $restartRegion = substr($content, (int) strpos($content, 'restart'));
         Assert::assertStringContainsString('restart', $restartRegion);
     });
+
+    it('verifies the sweep with the grep tool, scoped to the swept directory', function () {
+        $verifySweepSection = setup_command_section('## 7. Verify sweep', "\n## 8. Patch manifests");
+        Assert::assertStringNotContainsString(
+            'grep -rnF',
+            $verifySweepSection,
+            '§7 must not instruct running grep via bash',
+        );
+        Assert::assertStringContainsString(
+            'grep tool',
+            $verifySweepSection,
+            '§7 must instruct using the grep tool',
+        );
+        Assert::assertStringContainsString(
+            '$project_folder',
+            $verifySweepSection,
+            '§7 must scope verification to the swept directory only',
+        );
+        Assert::assertStringContainsString(
+            'NOT sweep failures',
+            $verifySweepSection,
+            '§7 must note that matches in the parent repo are not sweep failures',
+        );
+    });
+
+    it('sweep list contains no Prism harness paths', function () {
+        $sweepList = setup_command_section('Files to sweep', "\n## 6. Apply");
+        Assert::assertStringNotContainsString(
+            '.opencode/',
+            $sweepList,
+            'sweep list must not target Prism harness files under .opencode/',
+        );
+        Assert::assertStringNotContainsString('SKILL.md', $sweepList);
+        Assert::assertStringNotContainsString('deploy.md', $sweepList);
+        Assert::assertStringNotContainsString('prime.md', $sweepList);
+        Assert::assertStringNotContainsString('debug.md', $sweepList);
+        Assert::assertStringNotContainsString('tdd.md', $sweepList);
+        Assert::assertStringNotContainsString('build-pipeline.md', $sweepList);
+    });
+
+    it('keeps only template files in the sweep list', function (string $file) {
+        $sweepList = setup_command_section('Files to sweep', "\n## 6. Apply");
+        Assert::assertStringContainsString(
+            $file,
+            $sweepList,
+            "sweep list must keep the template file {$file}",
+        );
+    })->with([
+        'AGENTS.md' => ['AGENTS.md'],
+        'CONTRIBUTING.md' => ['CONTRIBUTING.md'],
+        '.env.example' => ['.env.example'],
+        'README.md' => ['README.md'],
+        'CODE_OF_CONDUCT.md' => ['CODE_OF_CONDUCT.md'],
+        'SECURITY.md' => ['SECURITY.md'],
+        'cliff.toml' => ['cliff.toml'],
+        'composer.json' => ['composer.json'],
+        'package.json' => ['package.json'],
+        'cdn/sass/_tokens.scss' => ['cdn/sass/_tokens.scss'],
+    ]);
+
+    it('always scopes substitution to --target-dir "$project_folder"', function () {
+        $applySection = setup_command_section('## 6. Apply', "\n## 7. Verify sweep");
+        Assert::assertStringContainsString(
+            '--target-dir "$project_folder"',
+            $applySection,
+            '§6 must always scope substitution to the scaffolded project folder',
+        );
+        Assert::assertStringNotContainsString(
+            'omit',
+            $applySection,
+            '§6 must not instruct omitting --target-dir',
+        );
+        Assert::assertStringNotContainsString(
+            'in-place',
+            $applySection,
+            '§6 must not instruct in-place substitution on the parent repo',
+        );
+        Assert::assertStringNotContainsString(
+            'bash .github/scripts/setup-substitute.sh <file>',
+            $applySection,
+            '§6 must not contain a bare substitution invocation without --target-dir',
+        );
+    });
+
+    it('skips the sweep entirely when $project_folder is empty or unset', function () {
+        $applySection = setup_command_section('## 6. Apply', "\n## 7. Verify sweep");
+        Assert::assertStringContainsString(
+            '$project_folder',
+            $applySection,
+            '§6 must gate the sweep on $project_folder',
+        );
+        Assert::assertStringContainsString(
+            'empty or unset',
+            $applySection,
+            '§6 must trigger the gate when $project_folder is empty or unset',
+        );
+        Assert::assertStringContainsString(
+            'SKIP the sweep entirely',
+            $applySection,
+            '§6 must skip the sweep, never run it on the parent repo',
+        );
+        Assert::assertStringContainsString(
+            'never rewritten',
+            $applySection,
+            '§6 must state that the parent repository is never rewritten',
+        );
+    });
 });
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
