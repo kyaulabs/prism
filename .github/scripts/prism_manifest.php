@@ -867,6 +867,39 @@ function pm_resolve_dot(\stdClass $root, string $dotPath): mixed
 }
 
 /**
+ * Classify a decoded value into the shared scalar-kind vocabulary.
+ *
+ * Returns 'null', 'bool', 'string', or 'number' so get/values0 transport and
+ * the ADR-0053 presence truth table classify identical JSON shapes the same
+ * way. Objects and arrays are not scalars and fail closed here, so neither
+ * contract can silently diverge from the other.
+ *
+ * @param  mixed $value
+ * @return string  One of 'null', 'bool', 'string', 'number'.
+ * @throws PrismJsoncException  When the value is an object or array.
+ */
+function pm_scalar_kind(mixed $value): string
+{
+    if ($value === null) {
+        return 'null';
+    }
+
+    if (is_bool($value)) {
+        return 'bool';
+    }
+
+    if (is_string($value)) {
+        return 'string';
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return 'number';
+    }
+
+    throw new PrismJsoncException('value is not a scalar');
+}
+
+/**
  * Coerce a decoded value to its transport string form.
  *
  * Booleans render as true/false; null as the empty string; numbers via their
@@ -878,23 +911,12 @@ function pm_resolve_dot(\stdClass $root, string $dotPath): mixed
  */
 function pm_scalar_to_string(mixed $value): string
 {
-    if (is_bool($value)) {
-        return $value ? 'true' : 'false';
-    }
-
-    if ($value === null) {
-        return '';
-    }
-
-    if (is_string($value)) {
-        return $value;
-    }
-
-    if (is_int($value) || is_float($value)) {
-        return (string) $value;
-    }
-
-    throw new PrismJsoncException('value is not a scalar');
+    return match (pm_scalar_kind($value)) {
+        'null' => '',
+        'bool' => $value ? 'true' : 'false',
+        'string' => $value,
+        'number' => (string) $value,
+    };
 }
 
 /**
@@ -910,23 +932,12 @@ function pm_scalar_to_string(mixed $value): string
  */
 function pm_presence_bool(mixed $value): bool
 {
-    if ($value === null) {
-        return false;
-    }
-
-    if (is_bool($value)) {
-        return $value;
-    }
-
-    if (is_string($value)) {
-        return $value !== '';
-    }
-
-    if (is_int($value) || is_float($value)) {
-        return true;
-    }
-
-    throw new PrismJsoncException('value is not a scalar');
+    return match (pm_scalar_kind($value)) {
+        'null' => false,
+        'bool' => $value,
+        'string' => $value !== '',
+        'number' => true,
+    };
 }
 
 /**
@@ -964,6 +975,7 @@ final class PrismCliResult
     ) {
     }
 }
+
 
 
 
