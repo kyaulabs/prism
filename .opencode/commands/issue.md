@@ -1,5 +1,6 @@
 ---
 description: "Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Auto-detects mode from the argument. Aliases: /ticket (singular), /issues, /tickets (plural = from-spec only)."
+agent: tracker-operator
 ---
 
 Load the `ticketing` skill and execute its unified ticketing workflow.

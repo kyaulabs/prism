@@ -308,6 +308,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
 | `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
+| `@tracker-operator` | Executes ticketing/`/setup-labels` GitHub operations — gh reads allowed, mutations ask-gated (ADR-0052) |
 | `@frontend` | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources |
 
 ### Model Configuration
@@ -323,7 +324,7 @@ different `OPENCODE_MODEL_*` env var:
 | Tier | Env Var | Default | Agents |
 | --- | --- | --- | --- |
 | Primary | `OPENCODE_MODEL_PRIMARY` | `zai-coding-plan/glm-5.2` | build, tdd, debug, resolve-merge-conflicts, general |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openai/gpt-5.6-sol` | plan, from-issue, architect, consult |
+| Planner | `OPENCODE_MODEL_PLANNER` | `openai/gpt-5.6-sol` | plan, from-issue, architect, consult, tracker-operator |
 | Design | `OPENCODE_MODEL_DESIGN` | `openai/gpt-5.6-sol` | design |
 | Judge | `OPENCODE_MODEL_JUDGE` | `deepseek/deepseek-v4-pro` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |

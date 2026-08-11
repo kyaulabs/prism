@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
 
 
 
@@ -782,9 +783,14 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	# Extract frontmatter text (between first two --- delimiters)
 	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
 
-	# Check 1: edit: deny must be present
-	if ! echo "$fm" | grep -qE '^[[:space:]]*edit:[[:space:]]*"?deny"?[[:space:]]*$'; then
-		err "${agent_file}: agent '${agent_name}' claims read-only in description but lacks 'edit: deny' in permission block"
+	# Check 1: edit must be denied — flat 'edit: deny', or an object whose
+	# first rule is a '*' catch-all deny (object form used by scoped
+	# editors like from-issue, consult, and docs-writer; same semantics).
+	# Extract the edit block, then accept either form within it.
+	edit_section=$(echo "$fm" | awk '/^[[:space:]]*edit:/{e=1; print; next} e && /^[[:space:]]{0,2}[^[:space:]]/{e=0} e {print}')
+	if ! echo "$edit_section" | grep -qE '^[[:space:]]*edit:[[:space:]]*"?deny"?[[:space:]]*$' \
+		&& ! echo "$edit_section" | grep -qE '^[[:space:]]*"\*"[[:space:]]*:[[:space:]]*"?deny"?[[:space:]]*$'; then
+		err "${agent_file}: agent '${agent_name}' claims read-only in description but lacks 'edit: deny' (or a '*' catch-all deny) in permission block"
 		RO_VIOLATIONS=$((RO_VIOLATIONS + 1))
 		continue
 	fi
@@ -1385,6 +1391,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

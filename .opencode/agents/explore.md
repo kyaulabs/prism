@@ -32,6 +32,12 @@ codebase exploration — answer the caller's question with the minimum scoped
 context needed. You are read-only: you cannot edit files, dispatch subagents,
 or run shell commands outside the read-only allowlist above.
 
+## GitHub boundary
+
+You have no `gh` access. If a task requires GitHub data or operations,
+return immediately and tell the caller to execute it itself (or dispatch
+@tracker-operator).
+
 ## LSP-first for structural queries
 
 For structural questions about code (callers, definitions, references, type

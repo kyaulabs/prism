@@ -246,6 +246,11 @@
       "variant": "{env:OPENCODE_VARIANT_PLANNER}",
       "temperature": 0.1
     },
+    "tracker-operator": {
+      "model": "{env:OPENCODE_MODEL_PLANNER}",
+      "variant": "{env:OPENCODE_VARIANT_PLANNER}",
+      "temperature": 0.1
+    },
     "debug": {
       "model": "{env:OPENCODE_MODEL_PRIMARY}",
       "variant": "{env:OPENCODE_VARIANT_PRIMARY}",

@@ -16,7 +16,7 @@ variant, both driven by environment variable substitution (`{env:VAR}`):
 | Tier | Model env var | Variant env var | Default model | Default variant | Agents |
 | --- | --- | --- | --- | --- | --- |
 | PRIMARY | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `zai-coding-plan/glm-5.2` | `max` | build, tdd, debug, resolve-merge-conflicts, general |
-| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openai/gpt-5.6-sol` | `xhigh` | plan, from-issue, architect, consult |
+| PLANNER | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openai/gpt-5.6-sol` | `xhigh` | plan, from-issue, architect, consult, tracker-operator |
 | DESIGN | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openai/gpt-5.6-sol` | `xhigh` | design |
 | JUDGE | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
 | UTILITY | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep |

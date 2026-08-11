@@ -1,5 +1,6 @@
 ---
 description: Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges. Alias of /tickets. For single-issue creation, use /issue or /ticket.
+agent: tracker-operator
 ---
 
 Load the `ticketing` skill and execute its **From-spec decomposition

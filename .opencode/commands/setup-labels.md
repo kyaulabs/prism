@@ -1,6 +1,6 @@
 ---
 description: Idempotently create and update standardized issue labels on the GitHub repo via gh. Reads the vocabulary from docs/agents/labels.md. Safe to re-run — reports unchanged when all labels match.
-agent: build
+agent: tracker-operator
 ---
 
 Create or update the KYAULabs issue label vocabulary on the current GitHub
@@ -86,7 +86,7 @@ Meta labels (10):
 
 ## 3. Fetch existing labels
 
-Delegate to `@explore` with instructions to run:
+Run directly (you are the bound tracker-operator):
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -100,7 +100,7 @@ existing set. Report back:
 
 ## 4. Create or update each label
 
-For each of the 17 labels from Step 2, delegate to `@explore`:
+For each of the 17 labels from Step 2, run directly (you are the bound tracker-operator):
 
 **Label does not exist** → create:
 ```bash
