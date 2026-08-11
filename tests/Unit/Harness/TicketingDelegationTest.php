@@ -6,6 +6,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 #
 # Regression guard for issue #298: the ticketing workflow (ticketing skill,
 # /issue + aliases, /setup-labels) must never delegate `gh` commands to an
@@ -50,14 +53,15 @@ it('every gh command the ticketing skill delegates resolves allow or ask for the
     );
 });
 
-it('/setup-labels delegated gh commands resolve allow or ask for the declared executor (issue #298)', function (): void {
+it('/setup-labels gh commands resolve allow or ask for the declared executor (issue #298)', function (): void {
     $executor = ticketing_gh_executor();
     $rules = agent_bash_rules($executor);
     $commandFile = __DIR__ . '/../../../.opencode/commands/setup-labels.md';
 
     $denied = [];
-    // Steps 3-4 ("Fetch existing labels" / "Create or update each label") delegate to the executor.
-    foreach (gh_commands_in($commandFile, '/^## [34]\./') as [$cmd, $kind]) {
+    // Whole command runs as the bound tracker-operator — every gh command
+    // in the file must resolve allow/ask (issue #298, ADR-0052).
+    foreach (gh_commands_in($commandFile) as [$cmd, $kind]) {
         $verdict = gh_resolve($cmd, $rules);
         if ($verdict === 'deny') {
             $denied[] = "[{$kind}] {$cmd} → deny for @{$executor}";
@@ -102,5 +106,19 @@ it('@explore prompt documents the no-gh escalation path (issue #274 promise)', f
         . 'return immediately and tell the caller to execute GitHub operations itself',
     );
 });
+
+it('every ticketing-family command binds agent: tracker-operator (issue #298)', function (): void {
+    foreach (['issue', 'ticket', 'issues', 'tickets', 'setup-labels'] as $command) {
+        $path = __DIR__ . '/../../../.opencode/commands/' . $command . '.md';
+        $content = (string) file_get_contents($path);
+
+        Assert::assertMatchesRegularExpression(
+            '/^agent:\s*tracker-operator\s*$/m',
+            $content,
+            "/{$command} must bind agent: tracker-operator (issue #298)",
+        );
+    }
+});
+
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
