@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: SetupCommandPrismManifestTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+# $KYAULabs: SetupCommandPrismManifestTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -311,7 +314,48 @@ describe('/setup command — prism manifest contract (ADR-0043)', function () {
             '§6 must state that the parent repository is never rewritten',
         );
     });
+
+    it('reads MCP prerequisites via present and never get env.*', function (): void {
+        $togglesSection = setup_command_section('Integration toggles', "\n## 4. Build the token map");
+
+        Assert::assertStringContainsString(
+            'prism_manifest.php present "$PROJECT" "$USER_ARG" env.deepseek_api_key',
+            $togglesSection,
+        );
+        Assert::assertStringContainsString(
+            'prism_manifest.php present "$PROJECT" "$USER_ARG" env.searxng_url',
+            $togglesSection,
+        );
+        Assert::assertStringNotContainsString(
+            'get "$PROJECT" "$USER_ARG" env.',
+            $togglesSection,
+        );
+    });
+
+    it('validates presence literals and fails closed before writing', function (): void {
+        $togglesSection = setup_command_section('Integration toggles', "\n## 4. Build the token map");
+
+        Assert::assertStringContainsString('true|false', $togglesSection);
+        Assert::assertStringContainsString('aborting', $togglesSection);
+        Assert::assertStringContainsString('no write performed', $togglesSection);
+    });
+
+    it('computes active state from literal presence booleans', function (): void {
+        $togglesSection = setup_command_section('Integration toggles', "\n## 4. Build the token map");
+
+        Assert::assertStringContainsString(
+            'active = requested AND DS_PRESENT=true',
+            $togglesSection,
+        );
+        Assert::assertStringContainsString(
+            'active = requested AND SX_PRESENT=true',
+            $togglesSection,
+        );
+        Assert::assertStringContainsString('[ "$DS_PRESENT" = "true" ]', $togglesSection);
+        Assert::assertStringContainsString('[ "$SX_PRESENT" = "true" ]', $togglesSection);
+    });
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

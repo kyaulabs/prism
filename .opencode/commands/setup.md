@@ -262,9 +262,23 @@ OPENCODE_PLUGIN_OPENCODE_QUOTA=$(php .github/scripts/prism_manifest.php get "$PR
 : "${OPENCODE_MCP_DEEPSEEK_WEBSEARCH:=false}"
 : "${OPENCODE_MCP_SEARXNG:=false}"
 : "${OPENCODE_PLUGIN_OPENCODE_QUOTA:=false}"
-# Read prerequisites for the active-state report (never show the values).
-DS_KEY=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" env.deepseek_api_key)
-SX_URL=$(php .github/scripts/prism_manifest.php get "$PROJECT" "$USER_ARG" env.searxng_url)
+# Read prerequisites as presence booleans for the active-state report.
+if ! DS_PRESENT=$(php .github/scripts/prism_manifest.php present "$PROJECT" "$USER_ARG" env.deepseek_api_key); then
+    echo "✗ cannot determine DEEPSEEK_API_KEY presence; aborting /setup (no write performed)" >&2
+    exit 1
+fi
+if ! SX_PRESENT=$(php .github/scripts/prism_manifest.php present "$PROJECT" "$USER_ARG" env.searxng_url); then
+    echo "✗ cannot determine SEARXNG_URL presence; aborting /setup (no write performed)" >&2
+    exit 1
+fi
+case "$DS_PRESENT" in
+    true|false) ;;
+    *) echo "✗ cannot determine DEEPSEEK_API_KEY presence; aborting /setup (no write performed)" >&2; exit 1 ;;
+esac
+case "$SX_PRESENT" in
+    true|false) ;;
+    *) echo "✗ cannot determine SEARXNG_URL presence; aborting /setup (no write performed)" >&2; exit 1 ;;
+esac
 ```
 
 Ask one question at a time. Accept `y`/`yes` → `true`; `n`/`no` or Enter → `false`.
@@ -294,22 +308,18 @@ The writer patches only `mcp.deepseek_websearch`, `mcp.searxng`, and
 comment-preserving span patching). It validates each value as exactly `true` or
 `false` and refuses to write on any other input.
 
-After writing, report the requested preferences with their prerequisite gating
-(never print the key or URL values themselves). Compute active state:
-`active = requested AND non-empty prerequisite`:
+After writing, report requested preferences with prerequisite gating without
+printing key or URL values. Compute active state from the literal presence
+booleans captured before the write:
 
-```text
-Integration preferences written to ~/.config/opencode/prism.jsonc.
-  deepseek-websearch MCP:   requested=true   active=false (no DEEPSEEK_API_KEY set)
-  SearXNG MCP:              requested=false  active=false
-  @slkiser/opencode-quota:  requested=false
-```
+- deepseek-websearch: `active = requested AND DS_PRESENT=true`
+- SearXNG: `active = requested AND SX_PRESENT=true`
 
-When a prerequisite is non-empty, show `active=true` and omit the parenthetical.
-A requested MCP with a missing prerequisite (`env.deepseek_api_key` or
-`env.searxng_url` empty in the resolved manifest) remains inactive. Set the
-key/URL under the `env` section of `~/.config/opencode/prism.jsonc` and re-run
-`/setup` to activate.
+Compare with `[ "$DS_PRESENT" = "true" ]` and
+`[ "$SX_PRESENT" = "true" ]`; never test string emptiness because the literal
+`false` is non-empty. A requested MCP whose presence literal is `false` remains
+inactive and includes the existing missing-prerequisite parenthetical. When
+the literal is `true`, report `active=true` and omit that parenthetical.
 
 Finish with:
 
