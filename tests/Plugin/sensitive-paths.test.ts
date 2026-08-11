@@ -1,4 +1,6 @@
-// $KYAULabs: sensitive-paths.test.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+// $KYAULabs: sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
 
 
 
@@ -178,6 +180,58 @@ describe("setupScriptTrust is invocation-scoped (ADR-0048)", () => {
     });
 });
 
+describe("prism_manifest.php present trust is argv-shaped (ADR-0053)", () => {
+    it("trusts the exact present PROJECT USER_OR_DASH env.* shape", () => {
+        assert.equal(
+            sensitiveOperandCheck(
+                "php .github/scripts/prism_manifest.php present prism.jsonc ~/.config/opencode/prism.jsonc env.deepseek_api_key",
+                OPTS,
+            ),
+            null,
+        );
+        assert.equal(
+            sensitiveOperandCheck(
+                "php .github/scripts/prism_manifest.php present prism.jsonc ~/.config/opencode/prism.jsonc env.future_provider_token",
+                OPTS,
+            ),
+            null,
+        );
+    });
+
+    it("blocks present with a non-env.* dot path", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - models.primary", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - setup_version", OPTS));
+    });
+
+    it("blocks present with wrong arity", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc -", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - env.deepseek_api_key extra", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present", OPTS));
+    });
+
+    it("blocks present with option-shaped project or user arguments", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present - prism.jsonc env.deepseek_api_key", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc -x env.deepseek_api_key", OPTS));
+    });
+
+    it("blocks option or assignment tokens before present", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php --ignored present prism.jsonc - env.deepseek_api_key", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php X=1 present prism.jsonc - env.deepseek_api_key", OPTS));
+    });
+
+    it("blocks wrapped present invocations", () => {
+        assert.ok(sensitiveOperandCheck('sh -c "php prism_manifest.php present prism.jsonc - env.deepseek_api_key"', OPTS));
+        assert.ok(sensitiveOperandCheck("env X=1 php .github/scripts/prism_manifest.php present prism.jsonc - env.deepseek_api_key", OPTS));
+    });
+
+    it("preserves the existing trusted and untrusted subcommands", () => {
+        assert.equal(sensitiveOperandCheck("php .github/scripts/prism_manifest.php get prism.jsonc - app", OPTS), null);
+        assert.equal(sensitiveOperandCheck("php .github/scripts/prism_manifest.php validate prism.jsonc project", OPTS), null);
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php env0 prism.jsonc", OPTS));
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php values0 prism.jsonc - app env.deepseek_api_key", OPTS));
+    });
+});
+
 describe("sensitivePatternCheck (glob/grep patterns)", () => {
     const BASE = OPTS.projectDir;
     it("blocks absolute and ~ globs inside sensitive classes", () => {
@@ -200,6 +254,8 @@ describe("sensitivePatternCheck (glob/grep patterns)", () => {
         assert.equal(sensitivePatternCheck(undefined, BASE, OPTS), null);
     });
 });
+
+
 
 
 

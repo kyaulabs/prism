@@ -1,4 +1,6 @@
-// $KYAULabs: sensitive-paths.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
 
 
 
@@ -47,7 +49,7 @@ const SETUP_SCRIPTS = new Set([
     "prism_manifest.php",
 ]);
 
-const TRUSTED_PM_SUBCOMMANDS = new Set(["get", "validate"]);
+const TRUSTED_PM_SUBCOMMANDS = new Set(["get", "validate", "present"]);
 
 const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 
@@ -205,6 +207,17 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
             let j = i + 1;
             while (j < tokens.length && (tokens[j].startsWith("-") || tokens[j].includes("="))) j++;
             if (j >= tokens.length || !TRUSTED_PM_SUBCOMMANDS.has(tokens[j])) return "untrusted-subcommand";
+            if (tokens[j] === "present") {
+                const shapeOk =
+                    j === i + 1 &&
+                    tokens.length === j + 4 &&
+                    !tokens[j + 1].startsWith("-") &&
+                    !tokens[j + 1].includes("=") &&
+                    (tokens[j + 2] === "-" ||
+                        (!tokens[j + 2].startsWith("-") && !tokens[j + 2].includes("="))) &&
+                    tokens[j + 3].startsWith("env.");
+                if (!shapeOk) return "untrusted-subcommand";
+            }
         }
         const resolved = t.startsWith("~") ? normalize(opts.home + t.slice(1)) : normalize(resolvePath(opts.projectDir, t));
         const scriptsDir = normalize(resolvePath(opts.projectDir, ".github/scripts"));
@@ -286,6 +299,8 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
+
 
 
 
