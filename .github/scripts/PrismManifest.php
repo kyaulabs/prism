@@ -48,6 +48,18 @@ final class PrismManifest
     /** @var list<string> */
     private const array PLUGINS = ['opencode_quota'];
 
+    /** @var list<string> */
+    private const array PROTECTED_APP_ROOTS = [
+        'adr',
+        'aurora',
+        'backend',
+        'cdn',
+        'docs',
+        'node_modules',
+        'tests',
+        'vendor',
+    ];
+
     /**
      * Overlay an optional user manifest over the project manifest.
      *
@@ -202,8 +214,9 @@ final class PrismManifest
         self::requireVersion($manifest);
         self::requireTimestamp($manifest, 'timestamp');
         self::requireBoolean($manifest, 'configured');
+        self::requireAppName($manifest);
 
-        foreach (['app', 'domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
+        foreach (['domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
             self::requireNonEmptyString($manifest, $field);
         }
 
@@ -239,8 +252,9 @@ final class PrismManifest
 
         self::optionalTimestamp($manifest, 'timestamp');
         self::optionalBoolean($manifest, 'configured');
+        self::optionalAppName($manifest);
 
-        foreach (['app', 'domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
+        foreach (['domain', 'repo', 'signed_off_by_name', 'signed_off_by_email'] as $field) {
             self::optionalNonEmptyString($manifest, $field);
         }
 
@@ -359,6 +373,22 @@ final class PrismManifest
         }
 
         self::assertNonEmptyString($manifest, $field);
+    }
+
+    /**
+     * Require app to be a safe, non-protected project-local webroot segment.
+     *
+     * @param  \stdClass $manifest
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function requireAppName(\stdClass $manifest): void
+    {
+        if (!property_exists($manifest, 'app')) {
+            throw new PrismJsoncException('missing required field: app');
+        }
+
+        self::guardAppName($manifest->app);
     }
 
     /**
@@ -541,6 +571,20 @@ final class PrismManifest
     }
 
     /**
+     * Validate a present app webroot segment; no-op when absent.
+     *
+     * @param  \stdClass $manifest
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function optionalAppName(\stdClass $manifest): void
+    {
+        if (property_exists($manifest, 'app')) {
+            self::guardAppName($manifest->app);
+        }
+    }
+
+    /**
      * Validate a present ISO-8601 timestamp field; no-op when absent.
      *
      * @param  \stdClass $manifest
@@ -676,6 +720,24 @@ final class PrismManifest
     {
         if (!is_string($value) || $value === '') {
             throw new PrismJsoncException('field ' . $path . ' must be a non-empty string');
+        }
+    }
+
+    /**
+     * Guard the permission-bearing application webroot name.
+     *
+     * @param  mixed $value
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function guardAppName(mixed $value): void
+    {
+        if (
+            !is_string($value)
+            || preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{0,254}\z/', $value) !== 1
+            || in_array(strtolower($value), self::PROTECTED_APP_ROOTS, true)
+        ) {
+            throw new PrismJsoncException('field app must be a safe project-local webroot name');
         }
     }
 

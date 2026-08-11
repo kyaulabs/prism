@@ -1016,15 +1016,21 @@ FRONTEND_AGENT="${REPO_ROOT}/.opencode/agents/frontend.md"
 TDD_AGENT="${REPO_ROOT}/.opencode/agents/tdd.md"
 FRONTEND_SKILLS="${REPO_ROOT}/.opencode/skills"
 PRISM_MANIFEST="${REPO_ROOT}/prism.jsonc"
+PRISM_MANIFEST_CLI="${REPO_ROOT}/.github/scripts/prism_manifest.php"
 
 if [ -f "$PRISM_MANIFEST" ] && grep -q '"frontend"' "$PRISM_MANIFEST"; then
 	if [ -f "$FRONTEND_CONTRACT" ] && [ -f "$OPENCODE_JSONC" ] \
-		&& [ -f "$FRONTEND_AGENT" ] && [ -f "$TDD_AGENT" ]; then
-		contract_output=''
-		if ! contract_output=$(node "$FRONTEND_CONTRACT" "$OPENCODE_JSONC" "$FRONTEND_AGENT" "$TDD_AGENT" "$FRONTEND_SKILLS" 2>&1); then
-			while IFS= read -r line; do
-				[ -n "$line" ] && err "$line"
-			done <<< "$contract_output"
+		&& [ -f "$FRONTEND_AGENT" ] && [ -f "$TDD_AGENT" ] \
+		&& [ -f "$PRISM_MANIFEST_CLI" ]; then
+		if ! FRONTEND_APP=$(php "$PRISM_MANIFEST_CLI" get "$PRISM_MANIFEST" - app 2>/dev/null); then
+			err "frontend-contract: cannot resolve a validated app from prism.jsonc"
+		else
+			contract_output=''
+			if ! contract_output=$(node "$FRONTEND_CONTRACT" "$OPENCODE_JSONC" "$FRONTEND_AGENT" "$TDD_AGENT" "$FRONTEND_SKILLS" "$FRONTEND_APP" 2>&1); then
+				while IFS= read -r line; do
+					[ -n "$line" ] && err "$line"
+				done <<< "$contract_output"
+			fi
 		fi
 	else
 		err "frontend-contract: checker and agent inputs must all exist"

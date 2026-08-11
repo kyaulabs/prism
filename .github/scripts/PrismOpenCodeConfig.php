@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 # $KYAULabs: PrismOpenCodeConfig.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
 
-
-
-
 namespace KYAULabs\Prism;
 
 require_once __DIR__ . '/PrismJsoncException.php';
@@ -16,14 +13,23 @@ require_once __DIR__ . '/PrismJsoncException.php';
  *
  * {@see self::compose()} consumes a resolved manifest and an optional
  * inherited inline config string and produces compact, deterministic JSON.
- * It owns exactly two MCP enabled leaves and the membership of the
- * hard-pinned quota package; every other key is preserved. Secrets from the
- * resolved env are never copied into the inline output. Malformed or
- * incompatible input always fails closed.
+ * It owns exactly two MCP `enabled` leaves, the membership of the
+ * hard-pinned quota package, and exactly four literal
+ * `agent.frontend.permission.edit` leaves (ADR-0045, ADR-0051); every other
+ * key is preserved. Secrets from the resolved env are never copied into the
+ * inline output. Malformed or incompatible input always fails closed.
  */
 final class PrismOpenCodeConfig
 {
     private const string QUOTA_PLUGIN = '@slkiser/opencode-quota';
+
+    /** @var list<string> */
+    private const array FRONTEND_EDIT_SUFFIXES = [
+        '/*.php',
+        '/**/*.php',
+        '/*.html',
+        '/**/*.html',
+    ];
 
     /**
      * Compose OpenCode runtime config from a resolved manifest.
@@ -44,6 +50,11 @@ final class PrismOpenCodeConfig
             && self::nonEmptyStringPath($resolved, 'env.deepseek_api_key');
         $searxng->enabled = self::booleanPath($resolved, 'mcp.searxng')
             && self::nonEmptyStringPath($resolved, 'env.searxng_url');
+
+        self::applyFrontendEditRules(
+            $config,
+            self::requiredNonEmptyStringPath($resolved, 'app'),
+        );
 
         self::applyQuota($config, self::booleanPath($resolved, 'plugins.opencode_quota'));
 
@@ -163,6 +174,79 @@ final class PrismOpenCodeConfig
         }
 
         return $value;
+    }
+
+    /**
+     * Resolve a required non-empty manifest string.
+     *
+     * @param  \stdClass $root
+     * @param  string    $path
+     * @return string
+     * @throws PrismJsoncException
+     */
+    private static function requiredNonEmptyStringPath(\stdClass $root, string $path): string
+    {
+        $value = self::path($root, $path);
+
+        if (!is_string($value) || $value === '') {
+            throw new PrismJsoncException('manifest field ' . $path . ' must be a non-empty string');
+        }
+
+        return $value;
+    }
+
+    /**
+     * Append the four owned literal app edit leaves after inherited edit rules.
+     *
+     * Every key matching the owned-leaf shape (a safe app webroot segment plus
+     * one of the four literal suffixes) is removed first, so leaves owned by a
+     * foreign app inherited from an ambient OPENCODE_CONFIG_CONTENT cannot
+     * survive alongside the resolved app's own leaves. Stripping can never
+     * broaden effective access: the `.md` catch-all deny is preserved and
+     * anything not explicitly allowed falls to deny. Every unrelated key keeps
+     * its value and relative order.
+     *
+     * @param  \stdClass $config
+     * @param  string    $app
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function applyFrontendEditRules(\stdClass $config, string $app): void
+    {
+        $agent = self::objectProperty($config, 'agent', 'agent');
+        $frontend = self::objectProperty($agent, 'frontend', 'agent.frontend');
+        $permission = self::objectProperty($frontend, 'permission', 'agent.frontend.permission');
+        $edit = self::objectProperty($permission, 'edit', 'agent.frontend.permission.edit');
+
+        foreach (array_keys(get_object_vars($edit)) as $key) {
+            if (self::isOwnedLeafKey($key)) {
+                unset($edit->{$key});
+            }
+        }
+        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
+            $edit->{$app . $suffix} = 'allow';
+        }
+    }
+
+    /**
+     * Whether an edit key matches the owned-leaf shape: a safe app webroot
+     * segment immediately followed by one of the four literal edit suffixes.
+     *
+     * @param  string $key
+     * @return bool
+     */
+    private static function isOwnedLeafKey(string $key): bool
+    {
+        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
+            if (str_ends_with($key, $suffix)) {
+                $app = substr($key, 0, -strlen($suffix));
+                if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{0,254}\z/', $app) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
