@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@opencode-ai/plugin": "1.18.4",
-    "@slkiser/opencode-quota": "4.0.1"
+    "@opencode-ai/plugin": "1.18.16",
+    "@slkiser/opencode-quota": "4.6.1"
   }
 }

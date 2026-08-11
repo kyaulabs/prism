@@ -6,6 +6,9 @@ derived-from: obra/superpowers (MIT, © Jesse Vincent)
 
 # Executing Plans
 
+**Build-mode skill:** this runs in the `build` tab (or `from-issue`
+sessions) — the Plan agent must NOT load it (Plan is read-only, ADR-0006).
+
 Execute an implementation plan task by task, with structured review gates and
 clear halt thresholds. This skill sits between `writing-plans` (which produces
 the plan) and `@tdd` (which implements each task).
