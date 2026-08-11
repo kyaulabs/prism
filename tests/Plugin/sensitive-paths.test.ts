@@ -5,6 +5,7 @@
 
 
 
+
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, symlinkSync, mkdirSync, rmSync } from "node:fs";
@@ -219,6 +220,23 @@ describe("prism_manifest.php present trust is argv-shaped (ADR-0053)", () => {
         assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php X=1 present prism.jsonc - env.deepseek_api_key", OPTS));
     });
 
+    it("skips option and assignment tokens with one matcher across trusted and blocked shapes", () => {
+        // isOptionToken() drives both the skip before the trusted subcommand
+        // and the present shape guard, so a matcher bug cannot create
+        // trust/block asymmetry. Assignment tokens are skipped before the
+        // script and before get/validate, but the j === i + 1 check still
+        // rejects one between script and present.
+        assert.equal(
+            sensitiveOperandCheck("php FOO=1 .github/scripts/prism_manifest.php present prism.jsonc - env.deepseek_api_key", OPTS),
+            null,
+        );
+        assert.equal(
+            sensitiveOperandCheck("php .github/scripts/prism_manifest.php FOO=1 get prism.jsonc - app", OPTS),
+            null,
+        );
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php FOO=1 present prism.jsonc - env.deepseek_api_key", OPTS));
+    });
+
     it("blocks wrapped present invocations", () => {
         assert.ok(sensitiveOperandCheck('sh -c "php prism_manifest.php present prism.jsonc - env.deepseek_api_key"', OPTS));
         assert.ok(sensitiveOperandCheck("env X=1 php .github/scripts/prism_manifest.php present prism.jsonc - env.deepseek_api_key", OPTS));
@@ -254,6 +272,7 @@ describe("sensitivePatternCheck (glob/grep patterns)", () => {
         assert.equal(sensitivePatternCheck(undefined, BASE, OPTS), null);
     });
 });
+
 
 
 
