@@ -14,6 +14,7 @@
 
 
 
+
 # ── Cross-consumer regression suite for the prism manifest boundary ───────────
 #
 # Exercises every consumer entry point through the same fixture corpus to catch
@@ -1266,7 +1267,8 @@ test_present_command() {
   "setup_version": 6,
   "env": {
     "deepseek_api_key": "sk-live-PRESENT-CANARY-3b6d9c1e-DO_NOT_LEAK"
-  }
+  },
+  "retry_count": 0
 }
 JSON
 
@@ -1300,11 +1302,61 @@ JSON
 		failures=$((failures+1))
 	fi
 
+	# ADR-0053 truth-table rows: boolean true, boolean false, numeric zero,
+	# and a truly-absent key must each report the pinned one-bit value.
+	if php "$MANIFEST_CLI" present "$manifest" - experimental.lsp_tool >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "true" ]; then
+			echo "  present boolean true — got '$(cat "$present_out")' want 'true'" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present boolean true — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
+	if php "$MANIFEST_CLI" present "$manifest" - experimental.background_subagents >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "false" ]; then
+			echo "  present boolean false — got '$(cat "$present_out")' want 'false'" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present boolean false — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
+	if php "$MANIFEST_CLI" present "$manifest" "$user_manifest" retry_count >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "true" ]; then
+			echo "  present numeric zero — got '$(cat "$present_out")' want 'true'" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present numeric zero — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
+	if php "$MANIFEST_CLI" present "$manifest" - env.no_such_key >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "false" ]; then
+			echo "  present absent key — got '$(cat "$present_out")' want 'false'" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present absent key — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
 	set +e
 	php "$MANIFEST_CLI" present "$manifest" - >"$present_out" 2>"$present_err"
 	arity_rc=$?
+	if [ -s "$present_out" ]; then
+		echo "  present arity — stdout not empty: $(cat "$present_out")" >&2
+		failures=$((failures+1))
+	fi
 	php "$MANIFEST_CLI" present "$manifest" - models >"$present_out" 2>"$present_err"
 	scalar_rc=$?
+	if [ -s "$present_out" ]; then
+		echo "  present non-scalar — stdout not empty: $(cat "$present_out")" >&2
+		failures=$((failures+1))
+	fi
 	set -e
 
 	if [ "$arity_rc" -ne 2 ]; then
@@ -1615,6 +1667,7 @@ test_v5_to_v6_upgrade
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 

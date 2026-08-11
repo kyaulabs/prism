@@ -36,6 +36,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use KYAULabs\Prism\PrismJsoncException;
 use KYAULabs\Prism\PrismManifest;
@@ -1006,16 +1009,16 @@ describe('prism_manifest present', function (): void {
         }
     });
 
-    it('reports true for a set env.* value without leaking it', function (): void {
+    it('reports true for a set env.* value without leaking it on any stream', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
         $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
-            [$code, $stdout] = pm_dispatch(['present', $project, $user, 'env.deepseek_api_key']);
+            [$code, $stdout, $stderr] = pm_dispatch(['present', $project, $user, 'env.deepseek_api_key']);
 
             expect($code)->toBe(0)
                 ->and($stdout)->toBe('true')
-                ->and($stdout)->not->toContain('CANARY');
+                ->and($stdout . $stderr)->not->toContain('sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK');
         } finally {
             pm_clean($project);
             pm_clean($user);
@@ -1093,6 +1096,34 @@ describe('prism_manifest present', function (): void {
 
         try {
             [$code, $stdout] = pm_dispatch(['present', $project, $user, 'retry_count']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('reports false for a JSON null value', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'project_folder']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('false');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('reports true for the numeric string zero in a user overlay', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 6, "env": { "searxng_url": "0" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, $user, 'env.searxng_url']);
 
             expect($code)->toBe(0)
                 ->and($stdout)->toBe('true');
@@ -1717,6 +1748,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 
