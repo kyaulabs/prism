@@ -76,7 +76,7 @@ Markdown skills, Bash, Pest v4/PHPUnit 12, git + conventional commits.
 - Produces: accepted ADR-0052; CONTEXT.md glossary term `tracker operator
   agent`; CONTEXT.md ADR list entry — later tasks reference these.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/Unit/Harness/TrackerOperatorArchitectureTest.php`:
 
@@ -311,7 +311,7 @@ git commit -S -m $'docs(harness): record tracker-operator agent decision in ADR-
 - Produces: `tracker-operator` agent registered with the harness — Task 3's
   skill rewire and Task 4's command bindings resolve against it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `tests/Unit/Harness/TrackerOperatorContractTest.php`:
 
@@ -574,7 +574,7 @@ git commit -S -m $'feat(harness): add least-privilege tracker-operator agent\n\n
   `@tracker-operator`, which `ticketing_gh_executor()` reads — Task 4's
   `/setup-labels` test depends on this.
 
-- [ ] **Step 1: Confirm the regression test is RED**
+- [x] **Step 1: Confirm the regression test is RED**
 
 Run: `php vendor/bin/pest tests/Unit/Harness/TicketingDelegationTest.php --colors=never --no-coverage`
 Expected: 3 failed / 2 passed (RED — executor resolves to @explore, all
@@ -727,7 +727,7 @@ git commit -S -m $'fix(harness): rewire ticketing gh delegation to tracker-opera
 - Produces: the five commands execute as the operator subagent with its
   permission sandbox.
 
-- [ ] **Step 1: Write the failing test additions**
+- [x] **Step 1: Write the failing test additions**
 
 Append to `tests/Unit/Harness/TicketingDelegationTest.php`:
 
@@ -835,7 +835,7 @@ git commit -S -m $'fix(harness): bind ticketing commands to tracker-operator\n\n
 - Consumes: nothing new.
 - Produces: @explore's read-only contract is explicit about the gh boundary.
 
-- [ ] **Step 1: Confirm the failing test**
+- [x] **Step 1: Confirm the failing test**
 
 Run: `php vendor/bin/pest tests/Unit/Harness/TicketingDelegationTest.php --colors=never --no-coverage`
 Expected: the `@explore prompt documents the no-gh escalation path` test
@@ -879,7 +879,7 @@ git commit -S -m $'fix(harness): document @explore no-gh escalation clause\n\nDe
 - Produces: `gh label create*`/`gh label edit*` added to the never-allow
   guard; `gh api*` allow flagged.
 
-- [ ] **Step 1: Extend the guard (RED first — add a fixture assertion)**
+- [x] **Step 1: Extend the guard (RED first — add a fixture assertion)**
 
 In `tests/Unit/Harness/ArchTest.php`, extend the mutation patterns in
 `agent files do not grant allow for gh issue mutation commands`:
