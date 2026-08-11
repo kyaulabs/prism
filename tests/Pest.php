@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: Pest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -279,6 +282,144 @@ function agent_frontmatter(string $name): string
 }
 
 /**
+ * Extract the agent name the ticketing skill delegates gh execution to.
+ *
+ * @return string The subagent name declared in the skill's Cross-refs.
+ *
+ * @throws RuntimeException If the skill does not declare its gh executor.
+ */
+function ticketing_gh_executor(): string
+{
+    $skill = (string) file_get_contents(__DIR__ . '/../.opencode/skills/ticketing/SKILL.md');
+    if (preg_match('/`@([a-z-]+)` — delegated all gh CLI execution|delegated all gh CLI execution to `@([a-z-]+)`/', $skill, $m) === 1) {
+        return $m[1] ?? $m[2];
+    }
+
+    throw new RuntimeException('ticketing skill must declare its gh CLI execution agent in Cross-refs');
+}
+
+/**
+ * Glob (simple `*` wildcard) to regex, matched against the full command.
+ *
+ * @param  string $glob Glob pattern with `*` wildcards.
+ * @return string Anchored regex matching the full command string.
+ */
+function gh_glob_regex(string $glob): string
+{
+    $quoted = '';
+    for ($i = 0, $len = strlen($glob); $i < $len; $i++) {
+        $quoted .= $glob[$i] === '*' ? '.*' : preg_quote($glob[$i], '/');
+    }
+
+    return '/^' . $quoted . '$/';
+}
+
+/**
+ * Effective bash rules for an agent: global rules, then the agent's own
+ * (.md frontmatter, then inline opencode.jsonc agent section).
+ *
+ * @return list<array{0:string,1:string}> [pattern, verdict]
+ */
+function agent_bash_rules(string $name): array
+{
+    $config = load_opencode_config();
+    $rules = [];
+
+    foreach ($config['permission']['bash'] ?? [] as $pattern => $verdict) {
+        $rules[] = [(string) $pattern, (string) $verdict];
+    }
+
+    $frontmatter = agent_frontmatter($name);
+    if (preg_match('/^  bash:\s*\n(.*?)(?=^  (?:webfetch|task|lsp|edit|read|glob|grep|list|skill|external_directory):|\z)/ms', $frontmatter, $section) === 1) {
+        foreach (explode("\n", $section[1]) as $line) {
+            if (preg_match('/^    "?([^":]+)"?:\s*("?)(allow|deny|ask)\2\s*$/', $line, $m) === 1) {
+                $rules[] = [$m[1], $m[3]];
+            }
+        }
+    }
+
+    if (isset($config['agent'][$name]['permission']['bash'])) {
+        foreach ($config['agent'][$name]['permission']['bash'] as $pattern => $verdict) {
+            $rules[] = [(string) $pattern, (string) $verdict];
+        }
+    }
+
+    return $rules;
+}
+
+/**
+ * Resolve a command against ordered rules (last matching rule wins).
+ *
+ * @param  string              $command Full command string to resolve.
+ * @param  list<array{0:string,1:string}> $rules   [pattern, verdict] pairs.
+ * @return string              allow|ask|deny — the last matching rule's verdict.
+ */
+function gh_resolve(string $command, array $rules): string
+{
+    $verdict = 'deny'; // no matching rule falls to the catch-all semantics
+    foreach ($rules as [$pattern, $v]) {
+        if (preg_match(gh_glob_regex($pattern), $command) === 1) {
+            $verdict = $v;
+        }
+    }
+
+    return $verdict;
+}
+
+/**
+ * Extract gh commands from a workflow file's ```bash fences (optionally
+ * restricted to sections whose "## " heading matches $sectionRegex).
+ *
+ * @return list<array{0:string,1:string}> [command, read|mutation]
+ */
+function gh_commands_in(string $path, ?string $sectionRegex = null): array
+{
+    $lines = preg_split('/\r?\n/', (string) file_get_contents($path)) ?: [];
+    $commands = [];
+    $inFence = false;
+    $section = '';
+    $i = 0;
+    $count = count($lines);
+    while ($i < $count) {
+        $trimmed = trim($lines[$i]);
+        if (preg_match('/^## /', $trimmed) === 1) {
+            $section = $trimmed;
+        }
+        if (preg_match('/^```/', $trimmed) === 1) {
+            $inFence = !$inFence;
+            $i++;
+            continue;
+        }
+        if (!$inFence || ($sectionRegex !== null && preg_match($sectionRegex, $section) !== 1) || str_starts_with($trimmed, '#')) {
+            $i++;
+            continue;
+        }
+        $line = $trimmed;
+        while (str_ends_with($line, '\\') && $i + 1 < $count) {
+            $i++;
+            $line .= ' ' . trim($lines[$i]);
+        }
+        $pos = strpos($line, 'gh ');
+        if ($pos !== false) {
+            $cmd = trim(substr($line, $pos));
+            $cmd = (string) preg_replace('~2>/dev/null.*$~', '', $cmd);
+            $cmd = (string) preg_replace('~\|{2}.*$~', '', $cmd);
+            $cmd = (string) preg_replace('~;.*$~', '', $cmd);
+            $cmd = rtrim($cmd, ")'\"");
+            if (preg_match('/^gh (auth|issue|repo|api|label|--version)\b/', $cmd) === 1) {
+                $mutation = preg_match('/^gh (issue create|issue edit|issue comment|label create|label edit)\b/', $cmd) === 1
+                    || str_contains($cmd, '-X POST')
+                    || str_contains($cmd, 'mutation(');
+                $commands[] = [$cmd, $mutation ? 'mutation' : 'read'];
+            }
+        }
+        $i++;
+    }
+
+    return $commands;
+}
+
+/**
  * Return frontend-gated skill names ordered by their self-declared metadata.
  *
  * @return list<string>
@@ -308,6 +449,7 @@ function frontend_skill_names(): array
 
     return array_values($ordered);
 }
+
 
 
 
