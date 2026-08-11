@@ -372,9 +372,63 @@ test_malformed_app_value() {
 	local root
 	root="$(make_greenfield_fixture)"
 	# A non-empty app that is not a project-local webroot name (contains '/')
-	# must trip the classifier's app-value guard into indeterminate — even
-	# though the manifest itself validates (app is only required non-empty).
-	printf '{"app": "evil/app"}\n' | php "$REPO_ROOT/.github/scripts/prism_manifest.php" patch "$root/prism.jsonc" project 0644
+	# must trip the classifier's app-value guard into indeterminate. The app
+	# field is now validated at the manifest boundary too (guardAppName), so
+	# the patch command refuses the value fail-closed before the classifier
+	# gets a chance to run.
+	cat > "$root/prism.jsonc" <<'MANIFEST'
+{
+  "setup_version": 6,
+  "configured": true,
+  "timestamp": "2026-08-03T00:00:00Z",
+  "app": "evil/app",
+  "domain": "example.com",
+  "repo": "testowner/testrepo",
+  "signed_off_by_name": "tester",
+  "signed_off_by_email": "tester@example.com",
+  "accent": "sky-blue",
+  "scaffold_mode": "skip",
+  "project_folder": null,
+  "models": {
+    "primary": "test/model-p",
+    "planner": "test/model-pl",
+    "design": "test/model-d",
+    "judge": "test/model-j",
+    "utility": "test/model-u",
+    "frontend": "test/model-f"
+  },
+  "variants": {
+    "primary": "medium",
+    "planner": "medium",
+    "design": "medium",
+    "judge": "medium",
+    "utility": "medium",
+    "frontend": "medium"
+  },
+  "experimental": {
+    "lsp_tool": true,
+    "scout": true,
+    "background_subagents": false
+  },
+  "env": {
+    "deepseek_api_key": "",
+    "searxng_url": ""
+  }
+}
+MANIFEST
+
+	# The patch boundary rejects the unsafe app value fail-closed (exit 1).
+	local patch_rc patch_stderr
+	set +e
+	patch_stderr="$(printf '{"app": "evil/app"}\n' | php "$REPO_ROOT/.github/scripts/prism_manifest.php" patch "$root/prism.jsonc" project 0644 2>&1)"
+	patch_rc=$?
+	set -e
+
+	if [[ "$patch_rc" -eq 1 && "$patch_stderr" == *"field app must be a safe project-local webroot name"* ]]; then
+		pass "patch rejects evil/app — exit 1 fail-closed"
+	else
+		fail "patch rejects evil/app — expected exit 1 with fail-closed diagnostic"
+	fi
 
 	if assert_classification 2 indeterminate "$root"; then
 		pass "malformed app value — 2 indeterminate"
