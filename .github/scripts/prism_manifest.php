@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: prism_manifest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: prism_manifest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
 
 
 
@@ -12,7 +12,7 @@ namespace KYAULabs\Prism;
 /**
  * Shell-facing CLI for the ADR-0043 prism manifest boundary.
  *
- * Ten commands operate on schema-v6 JSONC manifests via the dependency-free
+ * Eleven commands operate on schema-v6 JSONC manifests via the dependency-free
  * {@see PrismJsoncDocument} parser and {@see PrismManifest} resolver/validator:
  *
  *   validate FILE project|user
@@ -20,6 +20,7 @@ namespace KYAULabs\Prism;
  *   env0    PROJECT [USER]
  *   get     PROJECT USER_OR_DASH DOT_PATH
  *   values0 PROJECT USER_OR_DASH DOT_PATH...
+ *   present PROJECT USER_OR_DASH DOT_PATH
  *   patch   FILE project|user OCTAL_MODE < updates.json
  *   upgrade-v6 FILE project|user OCTAL_MODE
  *   migrate-preview LEGACY project|user
@@ -156,8 +157,8 @@ function dispatch(array $argv, string $stdin): PrismCliResult
 
     $known = [
         'decode' => 1, 'validate' => 1, 'env0' => 1, 'get' => 1, 'values0' => 1,
-        'patch' => 1, 'upgrade-v6' => 1, 'migrate-preview' => 1, 'migrate' => 1,
-        'check-secrets' => 1,
+        'present' => 1, 'patch' => 1, 'upgrade-v6' => 1, 'migrate-preview' => 1,
+        'migrate' => 1, 'check-secrets' => 1,
     ];
 
     if (!isset($known[$command])) {
@@ -171,6 +172,7 @@ function dispatch(array $argv, string $stdin): PrismCliResult
             'env0' => cmd_env0($argv),
             'get' => cmd_get($argv),
             'values0' => cmd_values0($argv),
+            'present' => cmd_present($argv),
             'patch' => cmd_patch($argv, $stdin),
             'upgrade-v6' => cmd_upgrade_v6($argv),
             'migrate-preview' => cmd_migrate_preview($argv),
@@ -310,6 +312,29 @@ function cmd_values0(array $argv): PrismCliResult
     }
 
     return new PrismCliResult(0, stdout: pm_nul_pairs($pairs));
+}
+
+/**
+ * present PROJECT USER_OR_DASH DOT_PATH — report one resolved path's presence.
+ *
+ * Emits exactly `true` or `false` per the ADR-0053 scalar truth table,
+ * never the value itself. Absent/null, the empty string, and Boolean false
+ * report false; a non-empty string, Boolean true, and every number including
+ * numeric zero report true. Arrays and objects fail closed with exit 1.
+ *
+ * @param  array<int, string> $argv
+ * @return PrismCliResult
+ */
+function cmd_present(array $argv): PrismCliResult
+{
+    if (count($argv) !== 5) {
+        return new PrismCliResult(2, stderr: 'prism_manifest: present requires PROJECT USER_OR_DASH DOT_PATH');
+    }
+
+    [, , $projectFile, $userDash, $dotPath] = $argv;
+    $resolved = pm_load_resolved($projectFile, $userDash);
+
+    return new PrismCliResult(0, stdout: pm_presence_bool(pm_resolve_dot($resolved, $dotPath)) ? 'true' : 'false');
 }
 
 /**
@@ -873,6 +898,38 @@ function pm_scalar_to_string(mixed $value): string
 }
 
 /**
+ * Determine presence using the ADR-0053 scalar truth table.
+ *
+ * Absent/null, the empty string, and Boolean false are absent; a non-empty
+ * string, Boolean true, and every integer or float including numeric zero are
+ * present. Objects and arrays fail closed.
+ *
+ * @param  mixed $value
+ * @return bool
+ * @throws PrismJsoncException When the value is an object or array.
+ */
+function pm_presence_bool(mixed $value): bool
+{
+    if ($value === null) {
+        return false;
+    }
+
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_string($value)) {
+        return $value !== '';
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return true;
+    }
+
+    throw new PrismJsoncException('value is not a scalar');
+}
+
+/**
  * Coerce a decoded value to a NUL-safe transport string.
  *
  * Delegates to {@see pm_scalar_to_string} and then rejects any NUL byte,
@@ -907,6 +964,8 @@ final class PrismCliResult
     ) {
     }
 }
+
+
 
 
 

@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: PrismManifestCliTest.php kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: PrismManifestCliTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -986,6 +992,123 @@ describe('prism_manifest values0', function (): void {
     });
 });
 
+describe('prism_manifest present', function (): void {
+    it('reports false for an empty env.* string (unset MCP prerequisite)', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'env.deepseek_api_key']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('false');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('reports true for a set env.* value without leaking it', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, $user, 'env.deepseek_api_key']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true')
+                ->and($stdout)->not->toContain('CANARY');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('reports false when the env.* path is absent from the resolved view', function (): void {
+        $project = pm_fixture(str_replace(
+            '"env": { "deepseek_api_key": "", "searxng_url": "" }',
+            '"env": { "searxng_url": "" }',
+            pm_valid_project_jsonc(),
+        ));
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'env.deepseek_api_key']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('false');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('resolves the user overlay when the project value is empty', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 6, "env": { "searxng_url": "http://searx:8080" } }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, $user, 'env.searxng_url']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('fails closed on a non-scalar value with exit 1 and no stdout', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'models']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('reports boolean and numeric presence for non-env paths', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'experimental.lsp_tool']);
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true');
+
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'experimental.background_subagents']);
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('false');
+
+            [$code, $stdout] = pm_dispatch(['present', $project, '-', 'setup_version']);
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true');
+        } finally {
+            pm_clean($project);
+        }
+    });
+
+    it('reports true for a numeric zero in a user overlay', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 6, "retry_count": 0 }');
+
+        try {
+            [$code, $stdout] = pm_dispatch(['present', $project, $user, 'retry_count']);
+
+            expect($code)->toBe(0)
+                ->and($stdout)->toBe('true');
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
+
+    it('exits 2 for wrong arity', function (): void {
+        [$code] = pm_dispatch(['present', 'only-one-arg']);
+
+        expect($code)->toBe(2);
+    });
+});
+
 describe('prism_manifest patch', function (): void {
     it('patches a value, validates, and writes atomically at the requested mode', function (): void {
         $fixture = pm_fixture(pm_valid_project_jsonc());
@@ -1537,6 +1660,8 @@ describe('prism_manifest process boundary', function (): void {
         'env0 arity' => [['env0']],
         'get arity' => [['get', 'x', '-']],
         'values0 arity' => [['values0', 'x', '-']],
+        'present arity' => [['present', 'x', '-']],
+        'present extra' => [['present', 'x', '-', 'p', 'extra']],
         'patch arity' => [['patch', 'x']],
         'patch mode' => [['patch', 'x', 'bogus', '0644']],
         'patch octal' => [['patch', 'x', 'project', '644']],
@@ -1592,6 +1717,8 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
+
 
 
 

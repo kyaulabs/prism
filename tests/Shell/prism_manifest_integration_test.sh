@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_manifest_integration_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: prism_manifest_integration_test.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
 
 
 
@@ -1242,6 +1244,89 @@ echo ""
 echo "── Test 9: get/values0 redact env.* secrets; env0 keeps real values ──"
 test_env_redaction
 
+# ── Test 9b: present reports env.* presence without leaking values ─────────
+
+test_present_command() {
+	local project_root fake_home manifest user_manifest present_canary
+	local present_out present_err arity_rc scalar_rc failures
+	project_root=$(mktemp -d)
+	fake_home=$(mktemp -d)
+	register_temp_dir "$project_root"
+	register_temp_dir "$fake_home"
+
+	make_project_root "$project_root"
+	make_user_home "$fake_home"
+	write_default_project_manifest "$project_root"
+	manifest="$project_root/prism.jsonc"
+	user_manifest="$fake_home/.config/opencode/prism.jsonc"
+	present_canary="sk-live-PRESENT-CANARY-3b6d9c1e-DO_NOT_LEAK"
+
+	cat > "$user_manifest" <<'JSON'
+{
+  "setup_version": 6,
+  "env": {
+    "deepseek_api_key": "sk-live-PRESENT-CANARY-3b6d9c1e-DO_NOT_LEAK"
+  }
+}
+JSON
+
+	present_out=$(mktemp)
+	present_err=$(mktemp)
+	register_temp_dir "$present_out"
+	register_temp_dir "$present_err"
+	failures=0
+
+	if php "$MANIFEST_CLI" present "$manifest" "$user_manifest" env.deepseek_api_key >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "true" ]; then
+			echo "  present set — got '$(cat "$present_out")' want 'true'" >&2
+			failures=$((failures+1))
+		fi
+		if grep -qF "$present_canary" "$present_out" "$present_err"; then
+			echo "  present set — canary leaked to a result stream" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present set — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
+	if php "$MANIFEST_CLI" present "$manifest" - env.deepseek_api_key >"$present_out" 2>"$present_err"; then
+		if [ "$(cat "$present_out")" != "false" ]; then
+			echo "  present empty — got '$(cat "$present_out")' want 'false'" >&2
+			failures=$((failures+1))
+		fi
+	else
+		echo "  present empty — exited non-zero: $(cat "$present_err")" >&2
+		failures=$((failures+1))
+	fi
+
+	set +e
+	php "$MANIFEST_CLI" present "$manifest" - >"$present_out" 2>"$present_err"
+	arity_rc=$?
+	php "$MANIFEST_CLI" present "$manifest" - models >"$present_out" 2>"$present_err"
+	scalar_rc=$?
+	set -e
+
+	if [ "$arity_rc" -ne 2 ]; then
+		echo "  present arity — got rc $arity_rc want 2" >&2
+		failures=$((failures+1))
+	fi
+	if [ "$scalar_rc" -ne 1 ]; then
+		echo "  present non-scalar — got rc $scalar_rc want 1" >&2
+		failures=$((failures+1))
+	fi
+
+	if [ "$failures" -eq 0 ]; then
+		pass "present — true/false only, no canary leakage, fail-closed errors"
+	else
+		fail "present — $failures assertion(s) failed"
+	fi
+}
+
+echo ""
+echo "── Test 9b: present reports env.* presence without leaking values ──"
+test_present_command
+
 # ── Test 10: OPENCODE_SENSITIVE_PATHS unions project + user tiers (ADR-0048 §1) ──
 #
 # security.additional_sensitive_paths must union across tiers: the user tier can
@@ -1530,6 +1615,8 @@ test_v5_to_v6_upgrade
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
+
 
 
 
