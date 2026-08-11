@@ -217,18 +217,25 @@ Assets are built manually. No watchers.
 ## Dependency Lockfiles
 
 > [!IMPORTANT]
-> `composer.lock` and `package-lock.json` are committed to the repository.
-> This ensures deterministic, auditable dependency trees and allows
-> `audit-deps` to scan known vulnerabilities on a fresh clone without
-> installing unvetted packages first.
+> `composer.lock`, `package-lock.json`, and `pnpm-lock.yaml` are committed to
+> the repository. npm and pnpm are interchangeable package managers for the
+> JS dependency tree; their lockfiles must always resolve the same versions
+> (`pnpm-workspace.yaml` carries the build-script allowlist). This ensures
+> deterministic, auditable dependency trees and allows `audit-deps` to scan
+> known vulnerabilities on a fresh clone without installing unvetted packages
+> first.
 
 After any dependency change (adding, removing, or updating a package),
-regenerate and commit the updated lockfiles:
+regenerate **both** JS lockfiles so they stay in sync, and commit the
+updated lockfiles:
 
 ```bash
 composer update   # regenerates composer.lock
 npm install       # regenerates package-lock.json
-git add composer.lock package-lock.json
+pnpm install      # regenerates pnpm-lock.yaml (npm 12 crashes on a pnpm-layout
+                  # node_modules — run `npm install --package-lock-only` with
+                  # node_modules moved aside if it was installed by pnpm)
+git add composer.lock package-lock.json pnpm-lock.yaml
 ```
 
 ## Aurora Framework
@@ -283,7 +290,7 @@ manifest (`mcp.deepseek_websearch` / `mcp.searxng`) into
 section → `.envrc` → `{env:VAR}`; `DEEPSEEK_API_KEY` serves the
 deepseek-websearch MCP.
 
-The `@slkiser/opencode-quota` plugin (pinned at 4.0.1) is installed but not
+The `@slkiser/opencode-quota` plugin (pinned at 4.6.1) is installed but not
 loaded by default. It is toggled via `plugins.opencode_quota` in the user
 Prism manifest only — the project manifest always tracks `false`. Opt-in is
 controlled by `/setup` and composed into the `OPENCODE_CONFIG_CONTENT` plugin

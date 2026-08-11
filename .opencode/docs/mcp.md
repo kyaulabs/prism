@@ -14,7 +14,7 @@ composed from the resolved project + user manifest into
 
 ## Quota Plugin
 
-The `@slkiser/opencode-quota` package (pinned at 4.0.1) is installed but not
+The `@slkiser/opencode-quota` package (pinned at 4.6.1) is installed but not
 loaded by default. It is toggled via `plugins.opencode_quota` in the user
 Prism manifest only — the project manifest always tracks `false`. Opt-in is
 controlled by `/setup` and composed into the `OPENCODE_CONFIG_CONTENT` plugin

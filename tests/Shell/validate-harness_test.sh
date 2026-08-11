@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
 
 
 
@@ -1790,11 +1791,11 @@ EOF
 }
 EOF
 
-	# .opencode/package.json pins 1.18.4
+	# .opencode/package.json pins 1.18.16
 	cat > .opencode/package.json <<'EOF'
 {
 	"dependencies": {
-		"@opencode-ai/plugin": "1.18.4"
+		"@opencode-ai/plugin": "1.18.16"
 	}
 }
 EOF
@@ -1829,14 +1830,14 @@ EOF
 	cat > package.json <<'EOF'
 {
 	"devDependencies": {
-		"@opencode-ai/plugin": "1.18.4"
+		"@opencode-ai/plugin": "1.18.16"
 	}
 }
 EOF
 	cat > .opencode/package.json <<'EOF'
 {
 	"dependencies": {
-		"@opencode-ai/plugin": "1.18.4"
+		"@opencode-ai/plugin": "1.18.16"
 	}
 }
 EOF
@@ -3678,6 +3679,7 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
