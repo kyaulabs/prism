@@ -101,6 +101,10 @@ one schema and one reader.
   tokenizer; not a regex stripper) + `PrismManifest` (validation, recursive
   overlay). No `jq`, no Composer dependency.
 - **Invariants:**
+  - `app` is a permission-bearing project-local webroot segment matching
+    `^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`; project and user tiers reject the
+    protected roots `adr`, `aurora`, `backend`, `cdn`, `docs`, `node_modules`,
+    `tests`, and `vendor` case-insensitively (ADR-0051).
   - Project `env.*` values are always empty (secret-slot guard enforced at
     staged-blob and CI).
   - User `env.*` may be non-empty (real secrets, never committed).
@@ -215,6 +219,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0048-sensitive-path-enforcement-corrections.md` — Corrections to ADR-0047's implementation: project-plus-user union for `security.additional_sensitive_paths`, invocation-scoped `/setup` trust (depth-0 only), last-match-wins permission ordering invariant, deny set for every bash-object agent + `external_directory` check, `glob.pattern`/`grep.include` interception with fail-closed malformed args, symlink canonicalization, manifest-level validation of the security field, canary-only fixtures; partially supersedes ADR-0047
 - `adr/0049-frontend-model-tier-and-tdd-owned-agent.md` — Add schema-v6 FRONTEND model routing and a skill-gated implementation subagent owned by `@tdd`.
 - `adr/0050-oversized-brainstorming-wayfinder-greenfield-bootstrap.md` — Make wayfinder the sole pre-spec route for oversized work; strict-greenfield repositories get a walking-skeleton bootstrap before wayfinding
+- `adr/0051-runtime-agent-permission-composition.md` — Resolve app-scoped `@frontend` PHP/HTML edit permissions at runtime via `OPENCODE_CONFIG_CONTENT` composition, replacing the dead `<app>` placeholder; corrects ADR-0049's implementation and amends ADR-0045
 
 ## When to update this file
 
