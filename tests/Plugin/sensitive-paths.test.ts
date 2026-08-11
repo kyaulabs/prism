@@ -6,6 +6,7 @@
 
 
 
+
 import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, symlinkSync, mkdirSync, rmSync } from "node:fs";
@@ -204,6 +205,10 @@ describe("prism_manifest.php present trust is argv-shaped (ADR-0053)", () => {
         assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - setup_version", OPTS));
     });
 
+    it("blocks present with an assignment-shaped env.* dot path", () => {
+        assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - env.foo=bar", OPTS));
+    });
+
     it("blocks present with wrong arity", () => {
         assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc -", OPTS));
         assert.ok(sensitiveOperandCheck("php .github/scripts/prism_manifest.php present prism.jsonc - env.deepseek_api_key extra", OPTS));
@@ -272,6 +277,7 @@ describe("sensitivePatternCheck (glob/grep patterns)", () => {
         assert.equal(sensitivePatternCheck(undefined, BASE, OPTS), null);
     });
 });
+
 
 
 

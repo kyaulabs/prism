@@ -7,6 +7,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -216,15 +217,17 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
             if (tokens[j] === "present") {
                 // ADR-0053: the present trust boundary is the exact argv
                 // shape below — depth-0, no option/assignment tokens between
-                // script and subcommand, path-shaped operands, and an env.*
-                // dot path. Every other present shape is untrusted-subcommand.
+                // script and subcommand, non-option assignment-free path
+                // operands, and an env.* dot path. Every other present shape
+                // is untrusted-subcommand.
                 const shapeOk =
                     j === i + 1 &&
                     tokens.length === j + 4 &&
                     !isOptionToken(tokens[j + 1]) &&
                     (tokens[j + 2] === "-" ||
                         !isOptionToken(tokens[j + 2])) &&
-                    tokens[j + 3].startsWith("env.");
+                    tokens[j + 3].startsWith("env.") &&
+                    !isOptionToken(tokens[j + 3]);
                 if (!shapeOk) return "untrusted-subcommand";
             }
         }
@@ -308,6 +311,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
