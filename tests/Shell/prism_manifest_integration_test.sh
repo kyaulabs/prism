@@ -15,6 +15,7 @@
 
 
 
+
 # ── Cross-consumer regression suite for the prism manifest boundary ───────────
 #
 # Exercises every consumer entry point through the same fixture corpus to catch
@@ -1161,6 +1162,9 @@ test_env_redaction() {
 	write_default_project_manifest "$project_root"
 	manifest="$project_root/prism.jsonc"
 	user_manifest="$fake_home/.config/opencode/prism.jsonc"
+	# Deliberate leak-detection canary: an sk-live-shaped bait value whose
+	# only purpose is to pin that secret bytes never reach any stream.
+	# Not a real credential — naive secret scanners should leave it alone.
 	canary="sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK"
 
 	# User manifest carrying a real secret — the legitimate secret home.
@@ -1260,6 +1264,8 @@ test_present_command() {
 	write_default_project_manifest "$project_root"
 	manifest="$project_root/prism.jsonc"
 	user_manifest="$fake_home/.config/opencode/prism.jsonc"
+	# Deliberate leak-detection canary (see Test 9): pins that present emits
+	# only the one-bit result and never the secret on stdout or stderr.
 	present_canary="sk-live-PRESENT-CANARY-3b6d9c1e-DO_NOT_LEAK"
 
 	cat > "$user_manifest" <<'JSON'
@@ -1667,6 +1673,7 @@ test_v5_to_v6_upgrade
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 

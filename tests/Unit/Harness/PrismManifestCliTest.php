@@ -39,6 +39,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use KYAULabs\Prism\PrismJsoncDocument;
 use KYAULabs\Prism\PrismJsoncException;
 use KYAULabs\Prism\PrismManifest;
@@ -877,6 +880,9 @@ describe('prism_manifest get', function (): void {
 
     it('redacts an env.* value as [redacted] and never prints the secret', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
+        // Deliberate leak-detection canary — an sk-live-shaped bait fixture
+        // whose only purpose is to pin that redaction hides the secret bytes.
+        // Not a real credential; naive secret scanners should leave it alone.
         $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
@@ -979,6 +985,7 @@ describe('prism_manifest values0', function (): void {
 
     it('redacts an env.* value in the pair stream without leaking the secret', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
+        // Same deliberate leak-detection canary as the get redaction test.
         $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
@@ -1011,6 +1018,7 @@ describe('prism_manifest present', function (): void {
 
     it('reports true for a set env.* value without leaking it on any stream', function (): void {
         $project = pm_fixture(pm_valid_project_jsonc());
+        // Same deliberate leak-detection canary as the get redaction test.
         $user = pm_fixture('{ "setup_version": 6, "env": { "deepseek_api_key": "sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK" } }');
 
         try {
@@ -1748,6 +1756,7 @@ describe('prism_manifest real process boundary', function (): void {
             ->and($stdout)->toBe('');
     });
 });
+
 
 
 
