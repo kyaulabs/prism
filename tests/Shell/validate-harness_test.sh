@@ -3567,6 +3567,34 @@ git_init_test_repo "$T_CTR_TEMPLATE"
 	fi
 )
 
+# ── Test: {env:}/{file:} template token in frontend edit rules is caught ─────
+
+echo "── Test: FRONTEND contract — unresolved {env:} edit placeholder caught ──"
+T_CTR_ENV_TEMPLATE=$(mktemp -d)
+register_temp_dir "$T_CTR_ENV_TEMPLATE"
+git_init_test_repo "$T_CTR_ENV_TEMPLATE"
+(
+	cd "$T_CTR_ENV_TEMPLATE"
+	setup_contract_env
+	# Re-insert the shape 2a env-backed placeholder right after the edit catch-all.
+	awk '
+		/^    "\*": deny$/ && !inserted { print; print "    \"{env:OPENCODE_APP}/*.php\": allow"; inserted=1; next }
+		{ print }
+	' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	if [ "$(grep -cF '"{env:OPENCODE_APP}/*.php"' .opencode/agents/frontend.md)" -eq 1 ]; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: permission patterns must not contain unresolved template tokens"; then
+			pass "Caught unresolved {env:OPENCODE_APP} edit placeholder with the exact template-token diagnostic"
+		else
+			fail "Did not detect unresolved {env:OPENCODE_APP} edit placeholder (exit ${exit_code:-0})"
+		fi
+	else
+		fail "{env:OPENCODE_APP} placeholder mutation did not apply — test is vacuous"
+	fi
+)
+
 # ── Test: build prompt loading a denied frontend skill is caught ────────────
 
 echo "── Test: FRONTEND contract — build skill-load prompt drift caught ──"

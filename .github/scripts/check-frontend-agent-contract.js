@@ -281,6 +281,8 @@ const appScopeHolds = isSafeAppName(app)
 		'tests/Feature/HomeTest.php',
 		'aurora/index.php',
 		'vendor/index.php',
+		'opencode.jsonc',
+		'.github/scripts/check-frontend-agent-contract.js',
 	].every((candidate) => entryVerdict(effectiveEditRules, candidate) === 'deny');
 
 // ── The nine contract clauses, evaluated in one loop ────────────────────────

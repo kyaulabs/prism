@@ -172,7 +172,7 @@ describe('frontend permission contract (issue #296)', function () {
         foreach (['prism/index.php', 'prism/pages/home.php', 'prism/index.html', 'prism/pages/home.html'] as $path) {
             Assert::assertSame('allow', frontend_edit_verdict($effective, $path), "expected frontend edit allow for {$path}");
         }
-        foreach (['backend/index.php', 'tests/Feature/HomeTest.php', 'aurora/index.php', 'vendor/index.php'] as $path) {
+        foreach (['backend/index.php', 'tests/Feature/HomeTest.php', 'aurora/index.php', 'vendor/index.php', 'opencode.jsonc', '.github/scripts/check-frontend-agent-contract.js'] as $path) {
             Assert::assertSame('deny', frontend_edit_verdict($effective, $path), "expected frontend edit deny for {$path}");
         }
     });
