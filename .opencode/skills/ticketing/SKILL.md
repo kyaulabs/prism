@@ -10,6 +10,13 @@ single source of truth for all shared mechanics. Commands (`/issue`,
 `/ticket`, `/issues`, `/tickets`) are thin wrappers that load this skill
 and pass `$ARGUMENTS`.
 
+## Execution topology
+
+When a `/issue`-family or `/setup-labels` command invoked you, you ARE the
+tracker-operator — run the gh steps directly. In any other context
+(wayfinder, from-issue), dispatch `@tracker-operator` for every gh step;
+never run gh in your own context.
+
 ## Mode detection
 
 The mode is inferred from which command invoked the skill and the
@@ -69,9 +76,9 @@ Present these as toggles during the interview:
 - `help wanted` — open to contributors
 - `good first issue` — suitable for newcomers
 
-## Pre-flight (delegate to @explore)
+## Pre-flight (delegate to @tracker-operator)
 
-Dispatch `@explore` with instructions to run:
+Dispatch `@tracker-operator` with instructions to run:
 
 ```bash
 gh auth status
@@ -80,7 +87,7 @@ OWNER=$(gh repo view --json owner -q .owner.login)
 NAME=$(gh repo view --json name -q .name)
 gh api "orgs/$OWNER/issue-types"
 gh api "orgs/$OWNER/issue-fields"
-gh api "repos/$REPO/labels"
+gh label list --repo "$REPO" --json name
 ```
 
 Cache the returned issue type node IDs, field IDs + options, and label
@@ -89,7 +96,7 @@ names. If `gh auth status` fails, stop and tell the user to run
 
 ## The gh create to type to fields to labels pattern
 
-Delegate to `@explore`. Execute in order:
+Delegate to `@tracker-operator`. Execute in order:
 
 ```bash
 # 1. Detect repo dynamically — never hard-code
@@ -108,11 +115,10 @@ HEREDOC
 cat > /tmp/issue-body.md <<'HEREDOC'
 <body>
 HEREDOC
-TITLE=$(cat /tmp/issue-title.txt)
-gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/issue-body.md
+gh issue create --repo "$REPO" --title "$(cat /tmp/issue-title.txt)" --body-file /tmp/issue-body.md
 
 # 3. Get the issue's GraphQL node ID
-gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<N> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }'
+gh issue view <N> --repo "$REPO" --json id -q .id
 
 # 4. Set the issue type via GraphQL mutation
 gh api graphql -F nodeId="<NODE_ID>" -F typeId="<TYPE_NODE_ID>" -f query='mutation($nodeId:ID!,$typeId:ID!) { updateIssue(input: { id: $nodeId, issueTypeId: $typeId }) { issue { number issueType { name } } } }'
@@ -166,7 +172,7 @@ Present the 5 toggles. Default is none.
 
 Print a complete preview and wait for confirmation (y/n).
 
-### Step 7: Create issue (delegate to @explore)
+### Step 7: Create issue (delegate to @tracker-operator)
 
 Execute the gh pattern with finalized data.
 
@@ -180,8 +186,9 @@ Print issue number and GitHub URL.
 
 If `$ARGUMENTS` specifies a path, use it. Otherwise:
 
-```bash
-ls -t docs/plans/*.md 2>/dev/null | head -1
+```text
+Use the glob tool to list `docs/plans/*.md` and read the most recent plan
+file. If none exist, stop.
 ```
 
 If no plan files exist, stop. Read the plan file and confirm it follows
@@ -214,12 +221,10 @@ If the spec — or a prior `@architect` review of it — carries an
 `ADR-required:` line listing ADR numbers other than `none`, verify each
 exists in `adr/` before slicing:
 
-```bash
-# Parse the ADR-required: line from the spec/review, then:
-for n in 0021 0022; do
-    ls adr/${n}-*.md 2>/dev/null \
-        || echo "WARN: ADR ${n} listed as required but not found in adr/"
-done
+```text
+For each required ADR number N, use the glob tool to check `adr/NNNN-*.md`
+exists; report any missing as "WARN: ADR NNNN listed as required but not
+found in adr/".
 ```
 
 If any required ADR is missing, **WARN** the user and suggest writing it
@@ -257,7 +262,7 @@ preview step.
 Print a complete preview with epic + all tasks + fields + labels + any
 blocking edges. Wait for confirmation (y/n).
 
-### Step 9: Create epic + task issues (delegate to @explore)
+### Step 9: Create epic + task issues (delegate to @tracker-operator)
 
 Execute the gh pattern for the epic, then for each task. Task title
 format: `<type>(<scope>): <task title> task#N`.
@@ -278,8 +283,8 @@ If `gh --version` < 2.94.0, fall back to GraphQL:
 
 ```bash
 # Get node IDs for both issues
-TASK_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<TASK_NUM> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }' -q '.data.repository.issue.id')
-PREREQ_NODE=$(gh api graphql -F owner="$OWNER" -F name="$NAME" -F num=<PREREQ_NUM> -f query='query($owner:String!,$name:String!,$num:Int!){ repository(owner: $owner, name: $name) { issue(number: $num) { id } } }' -q '.data.repository.issue.id')
+TASK_NODE=$(gh issue view <TASK_NUM> --repo "$REPO" --json id -q .id)
+PREREQ_NODE=$(gh issue view <PREREQ_NUM> --repo "$REPO" --json id -q .id)
 
 # Wire via GraphQL
 gh api graphql -F taskId="$TASK_NODE" -F prereqId="$PREREQ_NODE" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
@@ -309,7 +314,7 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
 - `docs/agents/labels.md` — label vocabulary
 - ADR-0019 — original mapping decision (partially superseded by ADR-0020)
 - ADR-0020 — unified command architecture
-- `@explore` — delegated all gh CLI execution
+- `@tracker-operator` — delegated all gh CLI execution
 
 ## Rules
 
