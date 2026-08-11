@@ -25,9 +25,11 @@ is denied on the Plan agent) — dispatch `@explore` with the spec path to
 load its contents into context.
 
 **Plan delivery:** Present the plan as text in the conversation for user review.
-If the user wants the plan saved to disk, delegate file writing to
-`@docs-writer` with the path `docs/plans/YYYY-MM-DD-<feature-name>.md`.
-The Plan agent does not write files directly (`edit: deny`).
+If the user wants the plan saved to disk: in Plan mode (no edit access), direct
+them to the `build` tab — the Plan agent cannot write files (`edit: deny`),
+persistence is a build-mode concern. In build mode (edit access granted, e.g.
+`from-issue` Step 8), persist the plan to `docs/plans/YYYY-MM-DD-<topic>.md`
+yourself.
 
 **Plan lifecycle:** Plans are development artifacts. After the branch is
 finished (see `finishing-a-development-branch` skill), delete the plan and
@@ -191,19 +193,11 @@ dispatch.
 If you find issues, fix them inline. No need to re-review — just fix and move
 on. If you find a spec requirement with no task, add the task.
 
-## Execution handoff
+## Cycle boundary
 
-After presenting the plan and receiving user approval, hand off to the
-`executing-plans` skill:
-
-> "Plan complete. If you want this saved to `docs/plans/<filename>.md`,
-> I can delegate that to @docs-writer. Invoking the `executing-plans` skill
-> to execute it."
-
-Load the `executing-plans` skill and follow its process — it defines two
-execution modes (inline batch-with-checkpoints and @tdd-dispatch with
-two-stage review), per-task review gates, halt/re-plan thresholds, and
-context management across long plans.
+The Plan cycle ENDS at plan approval. Direct the user to the `build` tab
+for implementation. Do NOT invoke `executing-plans` yourself — execution
+is denied to Plan (ADR-0006).
 
 ## Remember
 
@@ -224,9 +218,13 @@ context management across long plans.
 - `@scout` agent — delegate web research and external dependency inspection.
   (Built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` — see
   `ADR-0024`.)
-- `@docs-writer` agent — delegate writing the plan file to disk if the user requests it.
-- `executing-plans` skill — the step after this one (executes the plan).
-- `@tdd` agent — executes each task in Red → Green → Refactor cycles.
+- `build` agent — persists the plan file to `docs/plans/` in build mode.
+- `executing-plans` skill — the build-mode step after this one (executes the
+  plan). Do NOT invoke `executing-plans` in Plan mode — execution is denied
+  to Plan (ADR-0006).
+- `@tdd` agent — executes each task in Red → Green → Refactor cycles (build
+  mode). Do NOT dispatch `@tdd` in Plan mode — the Plan cycle ends at
+  approval (ADR-0006).
 - `verification-before-completion` skill — run after each task is green.
 - `rcs-header` skill — apply RCS header + vim modeline to every new file.
 - `domain-context` skill — use `CONTEXT.md` vocabulary in task/variable names.
