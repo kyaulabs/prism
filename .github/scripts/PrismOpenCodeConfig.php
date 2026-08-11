@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 # $KYAULabs: PrismOpenCodeConfig.php kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
 
-
-
-
 namespace KYAULabs\Prism;
 
 require_once __DIR__ . '/PrismJsoncException.php';
@@ -201,9 +198,13 @@ final class PrismOpenCodeConfig
     /**
      * Append the four owned literal app edit leaves after inherited edit rules.
      *
-     * Existing copies of the owned leaves are removed first so catch-all or other
-     * inherited rules cannot remain after them. Every unrelated key keeps its
-     * value and relative order.
+     * Every key matching the owned-leaf shape (a safe app webroot segment plus
+     * one of the four literal suffixes) is removed first, so leaves owned by a
+     * foreign app inherited from an ambient OPENCODE_CONFIG_CONTENT cannot
+     * survive alongside the resolved app's own leaves. Stripping can never
+     * broaden effective access: the `.md` catch-all deny is preserved and
+     * anything not explicitly allowed falls to deny. Every unrelated key keeps
+     * its value and relative order.
      *
      * @param  \stdClass $config
      * @param  string    $app
@@ -217,12 +218,35 @@ final class PrismOpenCodeConfig
         $permission = self::objectProperty($frontend, 'permission', 'agent.frontend.permission');
         $edit = self::objectProperty($permission, 'edit', 'agent.frontend.permission.edit');
 
-        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
-            unset($edit->{$app . $suffix});
+        foreach (array_keys(get_object_vars($edit)) as $key) {
+            if (self::isOwnedLeafKey($key)) {
+                unset($edit->{$key});
+            }
         }
         foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
             $edit->{$app . $suffix} = 'allow';
         }
+    }
+
+    /**
+     * Whether an edit key matches the owned-leaf shape: a safe app webroot
+     * segment immediately followed by one of the four literal edit suffixes.
+     *
+     * @param  string $key
+     * @return bool
+     */
+    private static function isOwnedLeafKey(string $key): bool
+    {
+        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
+            if (str_ends_with($key, $suffix)) {
+                $app = substr($key, 0, -strlen($suffix));
+                if (preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{0,254}\z/', $app) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

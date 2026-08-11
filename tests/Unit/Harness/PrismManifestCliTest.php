@@ -87,7 +87,10 @@ function pm_run(array $args, string $stdin = ''): array
  * Dispatch a command in-process and return [exit, stdout, stderr].
  *
  * Exercises the pure command logic (covered by pcov) while asserting the same
- * process-boundary contract the subprocess helper verifies.
+ * process-boundary contract the subprocess helper verifies. The ambient
+ * OPENCODE_CONFIG_CONTENT exported by direnv is unset for the dispatch and
+ * restored afterwards, so env0 fixture tests compose from a clean slate
+ * instead of inheriting the host's composed inline config.
  *
  * @param  list<string> $args  Command arguments (without the script name).
  * @param  string       $stdin
@@ -95,7 +98,18 @@ function pm_run(array $args, string $stdin = ''): array
  */
 function pm_dispatch(array $args, string $stdin = ''): array
 {
-    $result = dispatch(array_merge(['script'], $args), $stdin);
+    $ambient = getenv('OPENCODE_CONFIG_CONTENT');
+    if ($ambient !== false) {
+        putenv('OPENCODE_CONFIG_CONTENT');
+    }
+
+    try {
+        $result = dispatch(array_merge(['script'], $args), $stdin);
+    } finally {
+        if ($ambient !== false) {
+            putenv('OPENCODE_CONFIG_CONTENT=' . $ambient);
+        }
+    }
 
     return [$result->exit, $result->stdout, $result->stderr];
 }

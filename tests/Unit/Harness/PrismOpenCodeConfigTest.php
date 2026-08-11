@@ -169,6 +169,41 @@ describe('PrismOpenCodeConfig::compose', function (): void {
             ]);
     });
 
+    it('strips foreign app-scoped owned leaves inherited from the ambient config', function (): void {
+        $base = json_encode([
+            'agent' => [
+                'frontend' => [
+                    'permission' => [
+                        'edit' => [
+                            'prism/*.php' => 'allow',
+                            'prism/**/*.php' => 'allow',
+                            'prism/*.html' => 'allow',
+                            'prism/**/*.html' => 'allow',
+                            '*' => 'deny',
+                            'custom/canary/**' => 'ask',
+                        ],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+        $config = json_decode(
+            PrismOpenCodeConfig::compose((object) ['app' => 'customer-portal'], $base),
+            false,
+            64,
+            JSON_THROW_ON_ERROR,
+        );
+
+        expect(get_object_vars($config->agent->frontend->permission->edit))->toBe([
+            '*' => 'deny',
+            'custom/canary/**' => 'ask',
+            'customer-portal/*.php' => 'allow',
+            'customer-portal/**/*.php' => 'allow',
+            'customer-portal/*.html' => 'allow',
+            'customer-portal/**/*.html' => 'allow',
+        ]);
+    });
+
     it('fails closed when app is absent or an inline permission ancestor is incompatible', function (\stdClass $resolved, ?string $base): void {
         expect(fn () => PrismOpenCodeConfig::compose($resolved, $base))
             ->toThrow(PrismJsoncException::class);
