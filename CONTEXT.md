@@ -54,6 +54,13 @@ represented by the `KYAULabs\Eval\Verdict` backed enum: `Pass`, `Fail`,
 `Timeout`, `Invalid`, `Skipped`, `Undetermined`. Behavior-level strings
 (`YES`, `NO`, `UNCLEAR`) are separate and live only in behavior arrays.
 
+### Tracker operator agent
+
+The subagent that executes the ticketing workflow's GitHub tracker
+operations (issues, labels, issue fields, blocking edges) via `gh`. Read-only
+`gh` commands allowed; every mutation ask-gated; catch-all deny. Canonical
+executor for the `ticketing` skill and `/setup-labels` (ADR-0052).
+
 ## Entities & Invariants
 
 Core domain objects and the rules that always hold for them.
@@ -220,6 +227,7 @@ one-line summary; the full record is in `adr/NNNN-*.md`.
 - `adr/0049-frontend-model-tier-and-tdd-owned-agent.md` — Add schema-v6 FRONTEND model routing and a skill-gated implementation subagent owned by `@tdd`.
 - `adr/0050-oversized-brainstorming-wayfinder-greenfield-bootstrap.md` — Make wayfinder the sole pre-spec route for oversized work; strict-greenfield repositories get a walking-skeleton bootstrap before wayfinding
 - `adr/0051-runtime-agent-permission-composition.md` — Resolve app-scoped `@frontend` PHP/HTML edit permissions at runtime via `OPENCODE_CONFIG_CONTENT` composition, replacing the dead `<app>` placeholder; corrects ADR-0049's implementation and amends ADR-0045
+- `adr/0052-tracker-operator-agent.md` — Dedicated least-privilege tracker-operator subagent owns ticketing/`/setup-labels` gh execution (reads allow, mutations ask); rewires `@explore` delegation; partially supersedes ADR-0019/0020 execution-topology clauses
 
 ## When to update this file
 
