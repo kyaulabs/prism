@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ArchTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
+# $KYAULabs: ArchTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -167,6 +170,9 @@ test('agent files do not grant allow for gh issue mutation commands', function (
     $patterns = [
         'gh issue edit*'    => '/^\s*"gh issue edit\*":\s*(\S+)/m',
         'gh issue comment*' => '/^\s*"gh issue comment\*":\s*(\S+)/m',
+        'gh label create*'  => '/^\s*"gh label create\*":\s*(\S+)/m',
+        'gh label edit*'    => '/^\s*"gh label edit\*":\s*(\S+)/m',
+        'gh api*'           => '/^\s*"gh api\*":\s*(\S+)/m',
     ];
 
     foreach ($files as $path) {
@@ -196,9 +202,9 @@ test('agent files do not grant allow for gh issue mutation commands', function (
     if ($failures !== []) {
         $message = sprintf(
             "Found %d agent file(s) with over-permissive gh issue mutation grants:\n\n%s\n\n"
-            . 'gh issue edit* and gh issue comment* are mutation-capable commands '
-            . 'that must never be granted at allow for any agent. '
-            . 'Use ask (prompts user approval) or deny.',
+            . 'gh issue edit*, gh issue comment*, gh label create*, gh label edit*, and\n'
+            . 'gh api* are mutation-capable commands that must never be granted at allow\n'
+            . 'for any agent. Use ask (prompts user approval) or deny.',
             count($failures),
             implode("\n", $failures),
         );
@@ -341,6 +347,7 @@ test('test files referencing aurora submodule guard with markTestSkipped', funct
         expect($failures)->toBeEmpty();
     }
 });
+
 
 
 
