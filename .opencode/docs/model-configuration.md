@@ -66,8 +66,9 @@ agent without a temperature, the test fails.
    field-by-field overlay on top of the project defaults per ADR-0043.
 3. `OPENCODE_CONFIG_CONTENT` — inline JSON composed by
    `prism_manifest.php env0` from the resolved manifest; Prism owns MCP
-   `enabled` leaves and quota plugin membership here, preserving all
-   unrelated inline config keys and plugin entries (ADR-0045).
+   `enabled` leaves, quota plugin membership, and four literal
+   `agent.frontend.permission.edit` leaves here, preserving all unrelated
+   inline config keys and plugin entries (ADR-0045, ADR-0051).
 
 ## 2. What `variant` actually is
 
@@ -175,9 +176,10 @@ opencode resolves `{env:VAR}` to a string, then rejects `"Expected number |
 undefined"` when the field requires a numeric type.
 
 **Override mechanism:** Prism composes `OPENCODE_CONFIG_CONTENT` from the resolved
-manifest, replacing only the two MCP `enabled` leaves and the quota plugin
-membership — all other keys and plugin entries are preserved. To change a
-single agent's temperature without editing the repo, use the inline JSON
+manifest, owning the two MCP `enabled` leaves, quota plugin membership, and
+four literal `agent.frontend.permission.edit` leaves — all other keys and
+plugin entries are preserved (ADR-0045, ADR-0051). To change a single
+agent's temperature without editing the repo, use the inline JSON
 mechanism directly:
 
 ```bash

@@ -65,6 +65,11 @@ setup_validator_env() {
 	cp "$REPO_ROOT/.github/scripts/jsonc-strip.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/prism_manifest.php" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/PrismManifest.php" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/PrismJsoncDocument.php" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/PrismJsoncException.php" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/PrismOpenCodeConfig.php" .github/scripts/
 	ln -s "$REPO_ROOT/node_modules" node_modules
 }
 
@@ -3015,7 +3020,7 @@ git_init_test_repo "$T_CTR_POS"
 	# for the "frontend-contract:" prefix alone would let a checker crash
 	# (unprefixed stack lines, non-zero exit) pass silently.
 	exit_code=0
-	output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills 2>&1) || exit_code=$?
+	output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills prism 2>&1) || exit_code=$?
 
 	if [ "$exit_code" -ne 0 ]; then
 		fail "Positive control: contract checker exited $exit_code on valid fixtures (checker crash or contract drift)"
@@ -3519,7 +3524,7 @@ git_init_test_repo "$T_CTR_CONFIG_REORDER"
 	# Guard: the reorder must have landed — "hidden": true now leads the block.
 	if grep -A1 '"frontend": {' opencode.jsonc | grep -qF '"hidden": true'; then
 		exit_code=0
-		output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills 2>&1) || exit_code=$?
+		output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills prism 2>&1) || exit_code=$?
 
 		if [ "$exit_code" -eq 0 ] && [ -z "$output" ]; then
 			pass "Reordered @frontend config keys pass the contract check"
@@ -3528,6 +3533,116 @@ git_init_test_repo "$T_CTR_CONFIG_REORDER"
 		fi
 	else
 		fail "frontend config reorder mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: reinserted <app> placeholder in frontend edit rules is caught ─────
+
+echo "── Test: FRONTEND contract — unresolved <app> edit placeholder caught ──"
+T_CTR_TEMPLATE=$(mktemp -d)
+register_temp_dir "$T_CTR_TEMPLATE"
+git_init_test_repo "$T_CTR_TEMPLATE"
+(
+	cd "$T_CTR_TEMPLATE"
+	setup_contract_env
+	# Re-insert the shape 2a placeholder right after the edit catch-all.
+	# Pre-existing <app> copies are removed first so the frontmatter never
+	# carries duplicate mapping keys (the YAML parser rejects those).
+	awk '
+		/"<app>\/[^"]*"/ { next }
+		/^    "\*": deny$/ && !inserted { print; print "    \"<app>/*.php\": allow"; inserted=1; next }
+		{ print }
+	' .opencode/agents/frontend.md > .opencode/agents/frontend.md.tmp && mv .opencode/agents/frontend.md.tmp .opencode/agents/frontend.md
+
+	if [ "$(grep -cF '"<app>/*.php"' .opencode/agents/frontend.md)" -eq 1 ]; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: permission patterns must not contain unresolved template tokens"; then
+			pass "Caught unresolved <app> edit placeholder with the exact template-token diagnostic"
+		else
+			fail "Did not detect unresolved <app> edit placeholder (exit ${exit_code:-0})"
+		fi
+	else
+		fail "<app> placeholder mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: build prompt loading a denied frontend skill is caught ────────────
+
+echo "── Test: FRONTEND contract — build skill-load prompt drift caught ──"
+T_CTR_PROMPT=$(mktemp -d)
+register_temp_dir "$T_CTR_PROMPT"
+git_init_test_repo "$T_CTR_PROMPT"
+(
+	cd "$T_CTR_PROMPT"
+	setup_contract_env
+	# Replace the @tdd → @frontend routing handoff with a direct denied
+	# skill-load instruction.
+	sed -i.bak 's/route through @tdd → @frontend/load the frontend-design skill first/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	# Guard: the bad instruction must be present and the routing handoff gone.
+	if grep -qF 'load the frontend-design skill first' opencode.jsonc && ! grep -qF 'route through @tdd' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: agent prompts must not instruct loading frontend skills denied by effective permissions"; then
+			pass "Caught build skill-load prompt drift with the exact prompt diagnostic"
+		else
+			fail "Did not detect build skill-load prompt drift (exit ${exit_code:-0})"
+		fi
+	else
+		fail "build skill-load prompt mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: build handoff without @frontend is caught ─────────────────────────
+
+echo "── Test: FRONTEND contract — build handoff missing @frontend caught ──"
+T_CTR_ROUTE=$(mktemp -d)
+register_temp_dir "$T_CTR_ROUTE"
+git_init_test_repo "$T_CTR_ROUTE"
+(
+	cd "$T_CTR_ROUTE"
+	setup_contract_env
+	# Strip the @frontend half of the @tdd → @frontend routing handoff.
+	sed -i.bak 's/@tdd → @frontend/@tdd/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	# Guard: the routing handoff must be gone while @tdd remains in the prompt.
+	if grep -qF '@tdd' opencode.jsonc && ! grep -qF '@tdd → @frontend' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: build prompt must route frontend work through @tdd → @frontend"; then
+			pass "Caught build handoff missing @frontend with the exact route diagnostic"
+		else
+			fail "Did not detect build handoff missing @frontend (exit ${exit_code:-0})"
+		fi
+	else
+		fail "build handoff mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: protected app argument to the checker is caught ───────────────────
+
+echo "── Test: FRONTEND contract — protected app argument rejected ──"
+T_CTR_APP=$(mktemp -d)
+register_temp_dir "$T_CTR_APP"
+git_init_test_repo "$T_CTR_APP"
+(
+	cd "$T_CTR_APP"
+	setup_contract_env
+
+	if [ -f opencode.jsonc ] && [ -f .opencode/agents/frontend.md ]; then
+		exit_code=0
+		output=$(node .github/scripts/check-frontend-agent-contract.js opencode.jsonc .opencode/agents/frontend.md .opencode/agents/tdd.md .opencode/skills backend 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: configured app must be a safe project-local webroot name"; then
+			pass "Rejected protected app argument with the exact app-safety diagnostic"
+		else
+			fail "Did not reject protected app argument (exit ${exit_code})"
+		fi
+	else
+		fail "contract fixture setup failed — test is vacuous"
 	fi
 )
 

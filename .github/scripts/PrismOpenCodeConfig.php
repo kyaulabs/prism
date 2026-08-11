@@ -16,14 +16,23 @@ require_once __DIR__ . '/PrismJsoncException.php';
  *
  * {@see self::compose()} consumes a resolved manifest and an optional
  * inherited inline config string and produces compact, deterministic JSON.
- * It owns exactly two MCP enabled leaves and the membership of the
- * hard-pinned quota package; every other key is preserved. Secrets from the
- * resolved env are never copied into the inline output. Malformed or
- * incompatible input always fails closed.
+ * It owns exactly two MCP `enabled` leaves, the membership of the
+ * hard-pinned quota package, and exactly four literal
+ * `agent.frontend.permission.edit` leaves (ADR-0045, ADR-0051); every other
+ * key is preserved. Secrets from the resolved env are never copied into the
+ * inline output. Malformed or incompatible input always fails closed.
  */
 final class PrismOpenCodeConfig
 {
     private const string QUOTA_PLUGIN = '@slkiser/opencode-quota';
+
+    /** @var list<string> */
+    private const array FRONTEND_EDIT_SUFFIXES = [
+        '/*.php',
+        '/**/*.php',
+        '/*.html',
+        '/**/*.html',
+    ];
 
     /**
      * Compose OpenCode runtime config from a resolved manifest.
@@ -44,6 +53,11 @@ final class PrismOpenCodeConfig
             && self::nonEmptyStringPath($resolved, 'env.deepseek_api_key');
         $searxng->enabled = self::booleanPath($resolved, 'mcp.searxng')
             && self::nonEmptyStringPath($resolved, 'env.searxng_url');
+
+        self::applyFrontendEditRules(
+            $config,
+            self::requiredNonEmptyStringPath($resolved, 'app'),
+        );
 
         self::applyQuota($config, self::booleanPath($resolved, 'plugins.opencode_quota'));
 
@@ -163,6 +177,52 @@ final class PrismOpenCodeConfig
         }
 
         return $value;
+    }
+
+    /**
+     * Resolve a required non-empty manifest string.
+     *
+     * @param  \stdClass $root
+     * @param  string    $path
+     * @return string
+     * @throws PrismJsoncException
+     */
+    private static function requiredNonEmptyStringPath(\stdClass $root, string $path): string
+    {
+        $value = self::path($root, $path);
+
+        if (!is_string($value) || $value === '') {
+            throw new PrismJsoncException('manifest field ' . $path . ' must be a non-empty string');
+        }
+
+        return $value;
+    }
+
+    /**
+     * Append the four owned literal app edit leaves after inherited edit rules.
+     *
+     * Existing copies of the owned leaves are removed first so catch-all or other
+     * inherited rules cannot remain after them. Every unrelated key keeps its
+     * value and relative order.
+     *
+     * @param  \stdClass $config
+     * @param  string    $app
+     * @return void
+     * @throws PrismJsoncException
+     */
+    private static function applyFrontendEditRules(\stdClass $config, string $app): void
+    {
+        $agent = self::objectProperty($config, 'agent', 'agent');
+        $frontend = self::objectProperty($agent, 'frontend', 'agent.frontend');
+        $permission = self::objectProperty($frontend, 'permission', 'agent.frontend.permission');
+        $edit = self::objectProperty($permission, 'edit', 'agent.frontend.permission.edit');
+
+        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
+            unset($edit->{$app . $suffix});
+        }
+        foreach (self::FRONTEND_EDIT_SUFFIXES as $suffix) {
+            $edit->{$app . $suffix} = 'allow';
+        }
     }
 
     /**

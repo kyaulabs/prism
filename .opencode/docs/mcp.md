@@ -117,15 +117,16 @@ prism.jsonc (project, empty defaults)
         ▼
 opencode.jsonc {env:VAR} resolution at server spawn
         +
-OPENCODE_CONFIG_CONTENT overrides MCP enabled leaves and quota membership
+OPENCODE_CONFIG_CONTENT overrides MCP enabled leaves + quota membership (MCP/plugin portion; four frontend edit leaves per ADR-0051)
 ```
 
 - The user-level override at `~/.config/opencode/prism.jsonc` takes precedence
   over the checked-in project-level file (ADR-0043 recursive overlay).
 - `prism_manifest.php env0` composes `OPENCODE_CONFIG_CONTENT` from the
-  resolved manifest, overriding only the two MCP `enabled` leaves and the
-  quota plugin entry; all unrelated inline config keys and plugin entries are
-  preserved.
+  resolved manifest; the MCP/plugin portion overrides only the two MCP
+  `enabled` leaves and the quota plugin entry, while ADR-0051 separately
+  owns four literal `agent.frontend.permission.edit` leaves; all unrelated
+  inline config keys and plugin entries are preserved.
 - Opencode's `{env:DEEPSEEK_API_KEY}` / `{env:SEARXNG_URL}` syntax resolves
   these exported variables at MCP server spawn time.
 

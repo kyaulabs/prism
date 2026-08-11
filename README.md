@@ -391,9 +391,10 @@ earlier ones):
 - **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
   top-level; per-agent `{env:VAR}` references still resolve from env vars)
 - **Inline config** — Prism composes `OPENCODE_CONFIG_CONTENT` from the
-  resolved manifest into the env0 stream, replacing only the two MCP
-  `enabled` leaves and quota plugin membership while preserving all
-  unrelated keys and plugin entries (ADR-0045)
+  resolved manifest into the env0 stream, owning the two MCP `enabled`
+  leaves, quota plugin membership, and four literal
+  `agent.frontend.permission.edit` leaves while preserving all unrelated
+  keys and plugin entries (ADR-0045, ADR-0051)
 
 **Choosing a model and variant:** The defaults are tuned for the three
 models shipped in `prism.jsonc`. To use a different

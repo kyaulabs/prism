@@ -5,10 +5,6 @@ temperature: 0.3
 permission:
   edit:
     "*": deny
-    "<app>/*.php": allow
-    "<app>/**/*.php": allow
-    "<app>/*.html": allow
-    "<app>/**/*.html": allow
     "cdn/sass/**": allow
     "cdn/js/**": allow
     "cdn/css/**": deny

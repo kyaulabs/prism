@@ -577,11 +577,42 @@ JSONC);
             pm_clean($oldFixture);
         }
     });
+
+    it('composes frontend edit leaves from the validated resolved user app without exporting OPENCODE_APP', function (): void {
+        $project = pm_fixture(pm_valid_project_jsonc());
+        $user = pm_fixture('{ "setup_version": 6, "app": "customer-portal" }');
+
+        try {
+            [$code, $stdout, $stderr] = pm_dispatch(['env0', $project, $user]);
+            $parts = pm_parse_nul_pairs($stdout);
+            $pairs = [];
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pairs[$parts[$i]] = $parts[$i + 1];
+            }
+
+            $inline = json_decode($pairs['OPENCODE_CONFIG_CONTENT'], false, 64, JSON_THROW_ON_ERROR);
+
+            expect($code)->toBe(0)
+                ->and($stderr)->toBe('')
+                ->and($pairs)->toHaveCount(22)
+                ->and($pairs)->not->toHaveKey('OPENCODE_APP')
+                ->and(get_object_vars($inline->agent->frontend->permission->edit))->toBe([
+                    'customer-portal/*.php' => 'allow',
+                    'customer-portal/**/*.php' => 'allow',
+                    'customer-portal/*.html' => 'allow',
+                    'customer-portal/**/*.html' => 'allow',
+                ]);
+        } finally {
+            pm_clean($project);
+            pm_clean($user);
+        }
+    });
 });
 
 describe('prism_manifest env0 sensitive-paths transport', function (): void {
     it('joins a valid additional_sensitive_paths list with newlines', function (): void {
         $resolved = (object) [
+            'app' => 'prism',
             'security' => (object) ['additional_sensitive_paths' => ['~/vault/', '/etc/myapp/keys/']],
         ];
 
@@ -593,7 +624,7 @@ describe('prism_manifest env0 sensitive-paths transport', function (): void {
     });
 
     it('emits an empty OPENCODE_SENSITIVE_PATHS when the field is absent', function (): void {
-        $pairs = pm_env_pairs((object) []);
+        $pairs = pm_env_pairs((object) ['app' => 'prism']);
         $index = array_search('OPENCODE_SENSITIVE_PATHS', $pairs, true);
 
         expect($index)->not->toBeFalse()
@@ -836,6 +867,32 @@ describe('prism_manifest get', function (): void {
             pm_clean($user);
         }
     });
+
+    it('get fails closed before returning an unsafe project or user app', function (string $projectJson, string $userJson): void {
+        $project = pm_fixture($projectJson);
+        $user = $userJson === '-' ? null : pm_fixture($userJson);
+
+        try {
+            [$code, $stdout] = pm_dispatch(['get', $project, $user ?? '-', 'app']);
+
+            expect($code)->toBe(1)
+                ->and($stdout)->toBe('');
+        } finally {
+            pm_clean($project);
+            if ($user !== null) {
+                pm_clean($user);
+            }
+        }
+    })->with([
+        'unsafe project app' => [
+            str_replace('"app": "prism"', '"app": "../backend"', pm_valid_project_jsonc()),
+            '-',
+        ],
+        'protected user app' => [
+            pm_valid_project_jsonc(),
+            '{ "setup_version": 6, "app": "backend" }',
+        ],
+    ]);
 });
 
 describe('prism_manifest values0', function (): void {

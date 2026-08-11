@@ -255,6 +255,38 @@ describe('PrismManifest::validateProject', function (): void {
         'env value non-string' => ['env.searxng_url', 5],
     ]);
 
+    it('accepts safe project-local app webroot names', function (string $app): void {
+        $manifest = pm_valid_project();
+        $manifest->app = $app;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->not->toThrow(PrismJsoncException::class);
+    })->with(['prism', 'shop-2', 'site_v2', 'portal.example']);
+
+    it('rejects unsafe or protected project app webroot names', function (string $app): void {
+        $manifest = pm_valid_project();
+        $manifest->app = $app;
+
+        expect(fn () => PrismManifest::validateProject($manifest))
+            ->toThrow(PrismJsoncException::class, 'field app must be a safe project-local webroot name');
+    })->with([
+        '../backend',
+        'foo/bar',
+        '<app>',
+        '{env:HOME}',
+        ' backend',
+        str_repeat('a', 256),
+        'adr',
+        'aurora',
+        'backend',
+        'Backend',
+        'cdn',
+        'docs',
+        'node_modules',
+        'tests',
+        'vendor',
+    ]);
+
     it('rejects a project manifest whose timestamp is not ISO-8601', function (): void {
         $manifest = pm_valid_project();
         $manifest->timestamp = 'not-a-date';
@@ -338,6 +370,13 @@ describe('PrismManifest::validateUser', function (): void {
         'experimental non-bool' => [(object) ['setup_version' => 6, 'experimental' => (object) ['scout' => 'yes']]],
         'env non-string value' => [(object) ['setup_version' => 6, 'env' => (object) ['deepseek_api_key' => 5]]],
     ]);
+
+    it('rejects unsafe or protected user app overrides', function (string $app): void {
+        $user = (object) ['setup_version' => 6, 'app' => $app];
+
+        expect(fn () => PrismManifest::validateUser($user))
+            ->toThrow(PrismJsoncException::class, 'field app must be a safe project-local webroot name');
+    })->with(['../backend', 'backend', 'Backend', 'cdn', 'tests', 'vendor']);
 });
 
 describe('PrismManifest::resolve sensitive-path union', function (): void {
