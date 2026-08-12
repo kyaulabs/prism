@@ -17,6 +17,7 @@
 
 
 
+
 # ── Cross-consumer regression suite for the prism manifest boundary ───────────
 #
 # Exercises every consumer entry point through the same fixture corpus to catch
@@ -1312,13 +1313,18 @@ JSON
 	# ADR-0053 truth-table rows: boolean true, boolean false, numeric zero,
 	# and a truly-absent key must each report the pinned one-bit value.
 	# expect_present <manifest> <user-or-dash> <dot-path> <expected> <label>
-	# — run one truth-table row: assert exit 0 and the pinned one-bit value
-	# on stdout, or fail with the captured diagnostic.
+	# — run one truth-table row: assert exit 0, the pinned one-bit value on
+	# stdout, and empty stderr (success never emits a trace or the secret),
+	# or fail with the captured diagnostic.
 	expect_present() {
 		local manifest="$1" user_or_dash="$2" dot_path="$3" expected="$4" label="$5"
 		if php "$MANIFEST_CLI" present "$manifest" "$user_or_dash" "$dot_path" >"$present_out" 2>"$present_err"; then
 			if [ "$(cat "$present_out")" != "$expected" ]; then
 				echo "  present $label — got '$(cat "$present_out")' want '$expected'" >&2
+				failures=$((failures+1))
+			fi
+			if [ -s "$present_err" ]; then
+				echo "  present $label — stderr not empty: $(cat "$present_err")" >&2
 				failures=$((failures+1))
 			fi
 		else
@@ -1663,6 +1669,7 @@ test_v5_to_v6_upgrade
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 
