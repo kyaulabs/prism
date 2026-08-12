@@ -35,6 +35,8 @@
 
 
 
+
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2284,6 +2286,126 @@ EOF
 	fi
 )
 
+# ── Test: .md agent dispatching an ask-gated agent is caught (issue #3292) ────
+
+echo ""
+echo "── Test: .md agent dispatching an ask-gated agent flagged ──"
+T_NAK1=$(mktemp -d)
+register_temp_dir "$T_NAK1"
+git_init_test_repo "$T_NAK1"
+(
+	cd "$T_NAK1"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Depth-2 ask hang drift class (upstream #13715): the dispatcher's task
+	# allowlist references a subagent carrying "git commit*": "ask" — opencode
+	# ≤1.18.16 cannot render the nested ask prompt, so the task hangs.
+	cat > .opencode/agents/dispatcher.md <<'EOF'
+---
+description: A coordinator that hands execution tasks to a gated worker.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": allow
+---
+EOF
+
+	cat > .opencode/agents/gated-worker.md <<'EOF'
+---
+description: A write-capable worker that gates commits at ask.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "dispatches 'gated-worker' which carries an 'ask' verdict"; then
+		pass "Caught .md agent dispatching an ask-gated agent (issue #3292)"
+	else
+		fail "Did not detect nested dispatch of an ask-gated agent"
+	fi
+)
+
+# ── Test: dispatch of a read-only agent and user-invoked ask-carrier NOT flagged ──
+
+echo ""
+echo "── Test: read-only dispatch target + user-invoked ask-carrier not flagged ──"
+T_NAK2=$(mktemp -d)
+register_temp_dir "$T_NAK2"
+git_init_test_repo "$T_NAK2"
+(
+	cd "$T_NAK2"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Dispatches only a read-only agent — no ask verdict anywhere in the chain.
+	cat > .opencode/agents/coordinator.md <<'EOF'
+---
+description: A coordinator that dispatches read-only evaluation.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "auditor": allow
+---
+EOF
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	# User-invoked ask-carrier: holds "git commit*": "ask" but nothing
+	# dispatches it, so its asks surface at depth 1 (issue #3292).
+	cat > .opencode/agents/ask-worker.md <<'EOF'
+---
+description: A worker that gates commits at ask.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+
+	if echo "$output" | grep -qF "dispatches 'auditor' which carries an 'ask' verdict"; then
+		fail "Read-only dispatch target was falsely flagged as ask-carrying"
+	elif echo "$output" | grep -qF "dispatches 'ask-worker'"; then
+		fail "User-invoked ask-carrier was falsely flagged as dispatched"
+	else
+		pass "Read-only dispatch target and user-invoked ask-carrier not flagged"
+	fi
+)
+
 # ── Test: GNU-only `sed -i -e` in shell tests flagged (BSD sed parity) ───────
 
 echo "── Test: sed -i -e (GNU-only) flagged in tests/Shell ──"
@@ -3679,6 +3801,8 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
+
 
 
 

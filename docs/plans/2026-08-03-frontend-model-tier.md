@@ -20,7 +20,7 @@
 - Keep PRIMARY, PLANNER, DESIGN, JUDGE, and UTILITY model/variant defaults unchanged.
 - `Implemented-by:` remains sourced from PRIMARY under ADR-0040; do not introduce dynamic frontend attribution.
 - Gate exactly `frontend-design`, `frontend-architecture`, `scss-mobile-first`, and `accessibility`. Keep `aurora-page` and `pest-browser` generally available.
-- The dispatch chain is `build → @tdd → @frontend`, including `build → @from-issue → @tdd → @frontend`; set `subagent_depth` to exactly `3`.
+- The dispatch chain is `build → @tdd → @frontend`; `@from-issue` stops after plan approval + branch creation and the user invokes `@tdd` directly (issue #3292), so the deepest nested chain remains `build → @tdd → @frontend`; set `subagent_depth` to exactly `3`.
 - `@tdd` owns behavior selection, test authorship, Red verification, Green verification, coverage, staging, commit-message production, and commits.
 - `@frontend` is terminal: scoped source edits and focused local checks only; no tests, dependencies, generated assets, web access, external paths, staging, commits, pushes, tags, or subagent dispatch.
 - All object-valued OpenCode permission rules put the catch-all first because the last matching rule wins.

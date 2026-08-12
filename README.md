@@ -306,7 +306,7 @@ Press `Tab` to switch between Build and Plan during a session.
 | `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
 | `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
 | `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
-| `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, and dispatches @tdd |
+| `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, halts for approval, creates the branch, and hands off to the user to invoke `@tdd` directly |
 | `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
 | `@tracker-operator` | Executes ticketing/`/setup-labels` GitHub operations — gh reads allowed, mutations ask-gated (ADR-0052) |
 | `@frontend` | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources |

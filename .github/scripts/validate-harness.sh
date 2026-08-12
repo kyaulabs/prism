@@ -32,6 +32,8 @@
 
 
 
+
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1005,6 +1007,55 @@ else
 	ok "${MD_GC_CHECKED} .md agent(s) checked for git-commit gating, ${MD_GC_VIOLATIONS} violation(s)"
 fi
 
+# ── Check nested subagent dispatch ask-reachability (.opencode/agents/*.md) ──
+# opencode ≤1.18.16 cannot render permission 'ask' prompts from subagents
+# dispatched by another subagent (depth ≥ 2, upstream #13715) — the nested
+# task hangs with no visible dialog (issue #3292). So no .md subagent's task
+# allowlist may reference an agent whose frontmatter carries an 'ask' verdict
+# in bash/edit: ask-gated agents must be user-invoked at depth 1 where the
+# prompt renders. Same loop shape as the .md git-commit gate above.
+
+echo "── Checking nested subagent dispatch ask-reachability ──"
+NESTED_ASK_CHECKED=0
+NESTED_ASK_VIOLATIONS=0
+
+for agent_file in "${AGENT_MD_FILES[@]}"; do
+	agent_name=$(basename "$agent_file" .md)
+	fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$agent_file")
+
+	# Extract the task: block (object form; a flat "task: deny" yields no
+	# entries and is skipped). Entries are 4-space indented "name": verdict.
+	task_sec=$(echo "$fm" | awk '/^[[:space:]]*task:/{t=1; print; next} t && /^[[:space:]]{0,2}[^[:space:]]/{t=0} t {print}')
+	[ -n "$task_sec" ] || continue
+
+	# "name": allow entries (the "*" catch-all is excluded by the name class).
+	dispatched=$(echo "$task_sec" | grep -oE '^[[:space:]]*"[a-z0-9-]+"[[:space:]]*:[[:space:]]*"?allow"?[[:space:]]*$' | sed -E 's/^[[:space:]]*"([a-z0-9-]+)".*/\1/') || true
+	[ -n "$dispatched" ] || continue
+
+	NESTED_ASK_CHECKED=$((NESTED_ASK_CHECKED + 1))
+
+	for target in $dispatched; do
+		target_file="${AGENTS_DIR_LOCAL}/${target}.md"
+		[ -f "$target_file" ] || continue  # built-in or no .md — out of scope
+
+		target_fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$target_file")
+		bash_sec=$(echo "$target_fm" | awk '/^[[:space:]]*bash:/{b=1; print; next} b && /^[[:space:]]{0,2}[^[:space:]]/{b=0} b {print}')
+		edit_sec=$(echo "$target_fm" | awk '/^[[:space:]]*edit:/{e=1; print; next} e && /^[[:space:]]{0,2}[^[:space:]]/{e=0} e {print}')
+
+		if echo "$bash_sec" | grep -qE '^[[:space:]]*"[^"]*"[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*$' \
+			|| echo "$edit_sec" | grep -qE '^[[:space:]]*"[^"]*"[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*$'; then
+			err "${agent_file}: agent '${agent_name}' task allowlist dispatches '${target}' which carries an 'ask' verdict in bash/edit — nested subagent dispatch cannot render 'ask' prompts in opencode ≤1.18.16 (issue #3292); the user must invoke '@${target}' directly at depth 1"
+			NESTED_ASK_VIOLATIONS=$((NESTED_ASK_VIOLATIONS + 1))
+		fi
+	done
+done
+
+if [ "$NESTED_ASK_CHECKED" -eq 0 ]; then
+	warn "No .md agents with a task allowlist found — nested dispatch ask check did not run"
+else
+	ok "${NESTED_ASK_CHECKED} .md agent(s) checked for nested-dispatch ask reachability, ${NESTED_ASK_VIOLATIONS} violation(s)"
+fi
+
 # ── Check FRONTEND agent routing contract (ADR-0049) ─────────────────────────
 # The dedicated Node checker mechanically pins the frontend routing contract:
 # subagent_depth 3, catch-all-first global skill denies, the @tdd task
@@ -1391,6 +1442,8 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
 
 
 
