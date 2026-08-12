@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -4213,8 +4217,11 @@ EOF
 		exit_code=0
 		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
+		# warn() strips the 'handoff-contract: WARN: ' prefix and re-emits as
+		# '  WARN:  <content>' — assert the relayed form, and that the crash
+		# guard (no structured ERROR seen) still fails the gate.
 		if [ "${exit_code:-0}" -ne 0 ] \
-			&& echo "$output" | grep -qF 'handoff-contract: WARN: .opencode/agents/from-issue.md is ask-gated' \
+			&& echo "$output" | grep -qF '  WARN:  .opencode/agents/from-issue.md is ask-gated' \
 			&& echo "$output" | grep -qF "checker failed (exit != 0) without a structured ERROR diagnostic"; then
 			pass "WARN-only checker crash fails closed with the WARN relayed and the crash flagged"
 		elif echo "$output" | grep -qF 'Documented handoff permissions compatible'; then
@@ -4227,10 +4234,134 @@ EOF
 	fi
 )
 
+# ── Test: checker crash WITH structured ERROR is not double-reported ────────
+
+echo "── Test: HANDOFF contract — crash with ERROR diagnostics not double-reported ──"
+T_HOFF_ERRCRASH=$(mktemp -d)
+register_temp_dir "$T_HOFF_ERRCRASH"
+git_init_test_repo "$T_HOFF_ERRCRASH"
+(
+	cd "$T_HOFF_ERRCRASH"
+	setup_handoff_contract_env
+
+	# A checker that emits a structured ERROR then exits non-zero (the normal
+	# violation mode): the wrapper must relay the ERROR exactly once and must
+	# NOT also fire the generic crash guard (no double-report). The gate
+	# still fails via the relayed ERROR.
+	cat > .github/scripts/check-handoff-permissions.js <<'EOF'
+#!/usr/bin/env node
+'use strict';
+console.error('handoff-contract: ERROR: .opencode/agents/from-issue.md:1: violation');
+process.exit(1);
+EOF
+
+	if grep -rq 'prism-handoff' .opencode; then
+		exit_code=0
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		error_count=$(echo "$output" | grep -cF '  ERROR: .opencode/agents/from-issue.md:1: violation' || true)
+		if [ "${exit_code:-0}" -ne 0 ] \
+			&& [ "$error_count" -eq 1 ] \
+			&& ! echo "$output" | grep -qF "checker failed (exit != 0) without a structured ERROR"; then
+			pass "Crash with ERROR diagnostics relayed once, no double-report (exit ${exit_code:-0})"
+		else
+			fail "Crash with ERROR diagnostics mis-reported (exit ${exit_code:-0}, ERROR lines: ${error_count})"
+		fi
+	else
+		fail "errcrash fixture setup failed — test is vacuous"
+	fi
+)
+
+# ── Test: permission: null container fails closed as indeterminate ──────────
+
+echo "── Test: HANDOFF contract — null permission container fails closed ──"
+T_HOFF_NULLPERM=$(mktemp -d)
+register_temp_dir "$T_HOFF_NULLPERM"
+git_init_test_repo "$T_HOFF_NULLPERM"
+(
+	cd "$T_HOFF_NULLPERM"
+	setup_handoff_contract_env
+
+	# An ACTOR whose frontmatter has an explicit 'permission: null' block:
+	# permissionRules must return null (fail closed), not fall through to
+	# the next composition layer where the global 'skill: *: allow' would
+	# silently pass. Skill is the action whose global default is permissive.
+	cat > .opencode/agents/null-perm-agent.md <<'EOF'
+---
+description: An agent with an explicit null permission block.
+mode: subagent
+permission: null
+---
+EOF
+
+	cat >> .opencode/agents/null-perm-agent.md <<'EOF'
+
+<!-- prism-handoff {"actor":"null-perm-agent","action":"skill","target":"grilling"} -->
+EOF
+
+	if grep -qF 'prism-handoff {"actor":"null-perm-agent","action":"skill","target":"grilling"}' .opencode/agents/null-perm-agent.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF 'is indeterminate (malformed permission record)'; then
+			pass "Null permission container fails closed as indeterminate"
+		else
+			fail "Null permission container did not fail closed (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "null-permission fixture mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: malformed agent is not promoted to a known mode ───────────────────
+
+echo "── Test: HANDOFF contract — malformed agent stays unknown ──"
+T_HOFF_MALFORMEDAGENT=$(mktemp -d)
+register_temp_dir "$T_HOFF_MALFORMEDAGENT"
+git_init_test_repo "$T_HOFF_MALFORMEDAGENT"
+(
+	cd "$T_HOFF_MALFORMEDAGENT"
+	setup_handoff_contract_env
+
+	# Frontmatter that never closes (no terminal ---): parseFrontmatter
+	# throws, loadAgents stores malformed:true, and agentMode must NOT
+	# promote the broken definition to 'primary' via the inline
+	# config.agent branch — a recommendation to it stays "not a known
+	# agent" and fails closed.
+	cat > .opencode/agents/broken-agent.md <<'EOF'
+---
+description: Broken frontmatter that will not parse.
+mode: subagent
+permission:
+EOF
+
+	cat >> .opencode/agents/from-issue.md <<'EOF'
+
+<!-- prism-handoff {"action":"recommend-primary","target":"broken-agent"} -->
+EOF
+
+	if grep -qF 'prism-handoff {"action":"recommend-primary","target":"broken-agent"}' .opencode/agents/from-issue.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF "target 'broken-agent' is not a known agent"; then
+			pass "Malformed agent stays unknown (not promoted to primary)"
+		else
+			fail "Malformed agent was promoted or mis-handled (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "malformed-agent fixture mutation did not apply — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
+
+
+
 
 
 

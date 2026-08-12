@@ -1,4 +1,8 @@
-// $KYAULabs: check-handoff-permissions.js kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+// $KYAULabs: check-handoff-permissions.js kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -141,15 +145,17 @@ function skillExists(root, target) {
 // to 'primary' (OpenCode's implicit mode for config-defined agents).
 
 function agentMode(config, agents, name) {
+	// A malformed Markdown agent (unparseable frontmatter) stays unknown
+	// regardless of an inline config.agent entry, which only adds
+	// model/variant (ADR-0022) and must not promote a broken definition.
+	if (agents[name] && agents[name].malformed) return null;
 	if (agents[name] && agents[name].mode) return agents[name].mode;
 	if (config.agent && config.agent[name]) {
 		return config.agent[name].mode || 'primary';
 	}
 	// A known, well-formed Markdown agent without an explicit mode defaults
-	// to 'primary' (OpenCode's implicit mode for agent definitions). A
-	// malformed agent (unparseable frontmatter) stays unknown so the caller
-	// fails closed instead of silently promoting it.
-	if (agents[name] && !agents[name].malformed) return 'primary';
+	// to 'primary' (OpenCode's implicit mode for agent definitions).
+	if (agents[name]) return 'primary';
 	return null;
 }
 
@@ -328,6 +334,10 @@ if (require.main === module) {
 }
 
 module.exports = { globMatches, applyPermission, effectivePermission, agentMode, scanDeclarations };
+
+
+
+
 
 
 
