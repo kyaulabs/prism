@@ -15,11 +15,11 @@ bootstrap, which precedes wayfinding (ADR-0050).
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+design tab (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`.
-2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
+1. **Brainstorm** the change in the **design tab** — the sole owner of the brainstorming skill (ADR-0054) → spec in `docs/specs/`.
+2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill — Design-owned, ADR-0054).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
 4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.
 5. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).

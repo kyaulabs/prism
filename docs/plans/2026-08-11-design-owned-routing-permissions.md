@@ -461,7 +461,7 @@ git commit -S -m $'fix(routing): route restricted design work to Design\n\nRefs:
 - Consumes: OpenCode skill permission merge semantics and the ADR-0049/0051 frontend contract checker.
 - Produces: global denies for `brainstorming`/`prototype`, Design-local allows, preserved frontend skill containment, and canonical docs with no non-Design direct-load instruction.
 
-- [ ] **Step 1: Write the failing effective-ownership tests**
+- [x] **Step 1: Write the failing effective-ownership tests**
 
 Create `tests/Unit/Harness/DesignOwnedSkillPermissionTest.php`:
 
@@ -511,7 +511,7 @@ it('canonical non-Design workflows contain no direct load instruction for Design
 // vim: ft=php sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the ownership test and verify Red**
+- [x] **Step 2: Run the ownership test and verify Red**
 
 Run:
 
@@ -522,7 +522,7 @@ php vendor/bin/pest tests/Unit/Harness/DesignOwnedSkillPermissionTest.php
 Expected: FAIL because both skills are globally allowed and Design has no
 local re-allows.
 
-- [ ] **Step 3: Apply the least-privilege skill rules and update the existing checker**
+- [x] **Step 3: Apply the least-privilege skill rules and update the existing checker**
 
 Change `opencode.jsonc` global skill rules to this exact order:
 
@@ -570,7 +570,7 @@ Add a clause requiring `matchesOrderedEntries(designSkill,
 designSkillRules)`. Update the existing global-rule diagnostic to say the
 global rules deny exactly the two Design-owned and four frontend skills.
 
-- [ ] **Step 4: Update shell mutations and canonical workflow wording**
+- [x] **Step 4: Update shell mutations and canonical workflow wording**
 
 In `validate-harness_test.sh`, update exact frontend-contract diagnostic
 expectations and add two vacuity-guarded mutations:
@@ -593,7 +593,7 @@ the Design tab rather than loading brainstorming. Update `AGENTS.md`,
 tab owns brainstorming/prototype and restricted callers hand off instead of
 loading them. Keep skill index rows; no skill is removed.
 
-- [ ] **Step 5: Verify ownership and commit**
+- [x] **Step 5: Verify ownership and commit**
 
 Run:
 

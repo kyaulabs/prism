@@ -1,4 +1,5 @@
-// $KYAULabs: check-frontend-agent-contract.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+// $KYAULabs: check-frontend-agent-contract.js kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
 
 
 
@@ -18,7 +19,9 @@
 // config record is compared order-insensitively. The tracked frontend agent
 // carries only the five static containment edit rules; the four literal
 // app-scoped PHP/HTML leaves are composed at runtime (ADR-0051) and validated
-// here against the configured app argument.
+// here against the configured app argument. The global skill rules also deny
+// the two Design-owned skills (`brainstorming`, `prototype`) with a
+// Design-only local re-allow (ADR-0054).
 
 'use strict';
 
@@ -226,10 +229,18 @@ try {
 	violation(`cannot derive ordered frontend skills from ${skillsRoot}`);
 }
 
+const designOwnedSkills = ['brainstorming', 'prototype'];
 const globalSkillRules = frontendSkills === null
 	? []
-	: [['*', 'allow'], ...frontendSkills.map((name) => [name, 'deny'])];
+	: [
+		['*', 'allow'],
+		...designOwnedSkills.map((name) => [name, 'deny']),
+		...frontendSkills.map((name) => [name, 'deny']),
+	];
 const tddTaskRules = [['*', 'deny'], ['frontend', 'allow']];
+const designSkillRules = designOwnedSkills.map((name) => [name, 'allow']);
+const designSkill = cfg && cfg.agent && cfg.agent.design
+	&& cfg.agent.design.permission && cfg.agent.design.permission.skill;
 const frontendSkillRules = frontendSkills === null
 	? []
 	: frontendSkills.map((name) => [name, 'allow']);
@@ -295,7 +306,8 @@ const appScopeHolds = isSafeAppName(app)
 // violations.
 const clauses = [
 	{ enabled: cfg !== null, ok: cfg !== null && cfg.subagent_depth === 3, message: 'subagent_depth must be exactly 3' },
-	{ enabled: cfg !== null && frontendSkills !== null, ok: matchesOrderedEntries(skill, globalSkillRules), message: "global skill rules must allow '*' first and deny exactly the four frontend skills" },
+	{ enabled: cfg !== null && frontendSkills !== null, ok: matchesOrderedEntries(skill, globalSkillRules), message: "global skill rules must allow '*' first and deny exactly the two Design-owned and four frontend skills" },
+	{ enabled: cfg !== null, ok: matchesOrderedEntries(designSkill, designSkillRules), message: 'design agent skill rules must allow exactly brainstorming and prototype' },
 	{ enabled: cfg !== null, ok: matchesUnorderedRecord(frontendConfig, expectedFrontendConfig), message: '@frontend config must be exactly model, variant, temperature 0.3, and hidden true with no permission override' },
 	{ enabled: tdd !== null, ok: matchesOrderedEntries(tddTask, tddTaskRules), message: "@tdd task rules must deny '*' first and allow only frontend" },
 	{ enabled: frontend !== null, ok: frontend.mode === 'subagent' && frontend.temperature === 0.3 && frontend.permission && frontend.permission.lsp === 'allow' && !('model' in frontend) && !('variant' in frontend), message: '@frontend frontmatter must set mode subagent, temperature 0.3, and lsp allow and omit model and variant' },
@@ -320,6 +332,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 

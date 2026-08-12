@@ -260,11 +260,11 @@ bootstrap (scaffold plus one thin vertical slice) precedes wayfinding
 The full engineering pipeline, end to end:
 
 ```text
-brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+design tab (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
-2. **Prototype** (if needed) — load the `prototype` skill; build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
+1. **Brainstorm** — in the **design tab**, the sole owner of the `brainstorming` skill (ADR-0054); refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
+2. **Prototype** (if needed) — in the **design tab**, the sole owner of the `prototype` skill (ADR-0054); build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
 3. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
 4. **Execute** — load the `executing-plans` skill; dispatch tasks to `@tdd` with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
 5. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.

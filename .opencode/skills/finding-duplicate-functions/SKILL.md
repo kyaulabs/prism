@@ -103,8 +103,8 @@ deepening) or just move sideways (bad — you're rearranging tokens)?
   is a companion scanner.
 - `systems-design` skill — deep-modules heuristic and architecture vocabulary.
 - `@explore` agent — use for the Phase 1 structural scan across many files.
-- `brainstorming` skill — if an extraction candidate is large, brainstorm the
-  extraction design before implementing.
+- **design tab** — owns `brainstorming`; if an extraction candidate is large,
+  hand the design there before implementing.
 
 ## Gotchas
 

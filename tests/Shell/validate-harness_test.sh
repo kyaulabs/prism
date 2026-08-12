@@ -40,6 +40,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -3393,13 +3394,63 @@ git_init_test_repo "$T_CTR_SKILL_GLOBAL"
 	if grep -qF '"accessibility": "allow"' opencode.jsonc; then
 		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the four frontend skills"; then
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the two Design-owned and four frontend skills"; then
 			pass "Caught global skill rule drift with the exact diagnostic"
 		else
 			fail "Did not detect global skill rule drift (exit ${exit_code:-0})"
 		fi
 	else
 		fail "global skill rule mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: global Design-owned skill widening is caught ───────────────────────
+
+echo "── Test: FRONTEND contract — global Design-owned skill widening caught ──"
+T_CTR_SKILL_DESIGN_GLOBAL=$(mktemp -d)
+register_temp_dir "$T_CTR_SKILL_DESIGN_GLOBAL"
+git_init_test_repo "$T_CTR_SKILL_DESIGN_GLOBAL"
+(
+	cd "$T_CTR_SKILL_DESIGN_GLOBAL"
+	setup_contract_env
+	sed -i.bak 's/"brainstorming": "deny"/"brainstorming": "allow"/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	if ! grep -qF '"brainstorming": "deny"' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the two Design-owned and four frontend skills"; then
+			pass "Caught global Design-owned skill widening with the exact diagnostic"
+		else
+			fail "Did not detect global Design-owned skill widening (exit ${exit_code:-0})"
+		fi
+	else
+		fail "global Design-owned skill mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: design agent prototype allow removal is caught ─────────────────────
+
+echo "── Test: FRONTEND contract — design agent prototype allow removal caught ──"
+T_CTR_SKILL_DESIGN_LOCAL=$(mktemp -d)
+register_temp_dir "$T_CTR_SKILL_DESIGN_LOCAL"
+git_init_test_repo "$T_CTR_SKILL_DESIGN_LOCAL"
+(
+	cd "$T_CTR_SKILL_DESIGN_LOCAL"
+	setup_contract_env
+	sed -i.bak 's/"prototype": "allow"/"prototype": "deny"/' opencode.jsonc
+	rm -f opencode.jsonc.bak
+
+	if ! grep -qF '"prototype": "allow"' opencode.jsonc; then
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: design agent skill rules must allow exactly brainstorming and prototype"; then
+			pass "Caught design agent prototype allow removal with the exact diagnostic"
+		else
+			fail "Did not detect design agent prototype allow removal (exit ${exit_code:-0})"
+		fi
+	else
+		fail "design agent prototype mutation did not apply — test is vacuous"
 	fi
 )
 
@@ -3701,7 +3752,7 @@ git_init_test_repo "$T_CTR_META_ORDER"
 	if grep -qF 'prism.frontend-skill-order: "5"' .opencode/skills/accessibility/SKILL.md; then
 		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the four frontend skills" && echo "$output" | grep -qF "frontend-contract: @frontend must allow exactly the four frontend skills"; then
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "frontend-contract: global skill rules must allow '*' first and deny exactly the two Design-owned and four frontend skills" && echo "$output" | grep -qF "frontend-contract: @frontend must allow exactly the four frontend skills"; then
 			pass "Caught metadata order drift with the exact global and frontend skill diagnostics"
 		else
 			fail "Did not detect metadata order drift (exit ${exit_code:-0})"
@@ -3946,6 +3997,7 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

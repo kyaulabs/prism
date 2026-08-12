@@ -97,7 +97,7 @@ wrong:
 | A task's tests won't go green after **3 attempts** | Halt that task. Re-plan it with the user — the plan's approach may be wrong. |
 | **2 consecutive tasks** need re-planning | Halt the entire plan. The plan's assumptions are wrong. Re-plan with `writing-plans`. |
 | A task's findings **invalidate the plan's assumptions** (architectural blocker, dependency conflict, discovered constraint) | Halt immediately. Suggest `@architect` review or re-plan with `writing-plans`. |
-| The user changes requirements mid-plan | Halt. Update the spec (see `brainstorming` skill), then re-plan with `writing-plans`. |
+| The user changes requirements mid-plan | Halt. Switch to the **design tab** — Design owns classifier-driven brainstorming — to update the spec, then re-plan with `writing-plans`. |
 
 **Never silently deviate from the plan.** If a task can't be done as written,
 halt and surface the discrepancy — don't improvise.
@@ -140,7 +140,7 @@ Long plans (10+ tasks) will exhaust context. Manage it proactively:
 - `verification-before-completion` skill — run after each task is green.
 - `@tdd` agent — executes each task in Red → Green → Refactor cycles.
 - `@architect` agent — insert before re-planning if a halt was architectural.
-- `brainstorming` skill — re-plan from scratch if requirements change.
+- **design tab** — owns `brainstorming` and `prototype`; re-plan from scratch if requirements change.
 - `conventional-commits` skill — validate commit messages.
 - `rcs-header` skill — fix missing RCS headers during code-quality review.
 - `.opencode/docs/context-management.md` — context thresholds and compaction.

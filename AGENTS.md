@@ -136,18 +136,18 @@ branch and hands off to the plan tab; bootstrap branches also require `/check`
 and `@code-review` plus the wayfinder map's immutable bootstrap-spec link in
 Notes before ADR-0027 cleanup.
 
-→  brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+→  **design tab** (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 
 `/router` maps a free-form request to the right on-ramp. Trivial
 zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
 test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
 
 ```text
-brainstorming / to-spec → prototype (if needed) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+design tab (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
 ```
 
-1. **Brainstorm** the change (brainstorming skill) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
-2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill).
+1. **Brainstorm** the change in the **design tab** — the sole owner of the brainstorming skill (ADR-0054) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
+2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill — Design-owned, ADR-0054).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
 4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.
 5. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
