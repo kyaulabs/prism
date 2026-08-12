@@ -35,6 +35,11 @@
 
 
 
+
+
+
+
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2284,6 +2289,268 @@ EOF
 	fi
 )
 
+# ── Test: .md agent dispatching an ask-gated agent is caught (issue #3292) ────
+
+echo ""
+echo "── Test: .md agent dispatching an ask-gated agent flagged ──"
+T_NAK1=$(mktemp -d)
+register_temp_dir "$T_NAK1"
+git_init_test_repo "$T_NAK1"
+(
+	cd "$T_NAK1"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Depth-2 ask hang drift class (upstream #13715): the dispatcher's task
+	# allowlist references a subagent carrying "git commit*": "ask" — opencode
+	# ≤1.18.16 cannot render the nested ask prompt, so the task hangs.
+	cat > .opencode/agents/dispatcher.md <<'EOF'
+---
+description: A coordinator that hands execution tasks to gated workers.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": allow
+    "edit-gated-worker": allow
+---
+EOF
+
+	cat > .opencode/agents/gated-worker.md <<'EOF'
+---
+description: A write-capable worker that gates commits at ask.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	# The edit-scope detector is exercised by a second worker gating edits at
+	# ask — both bash "ask" and edit "ask" must trip the reachability check.
+	cat > .opencode/agents/edit-gated-worker.md <<'EOF'
+---
+description: A worker that gates file edits at ask.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+  bash:
+    "*": "deny"
+    "ls*": allow
+  task: deny
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "dispatches 'gated-worker' which carries an 'ask' verdict"; then
+		pass "Caught .md agent dispatching an ask-gated agent (issue #3292)"
+	else
+		fail "Did not detect nested dispatch of an ask-gated agent"
+	fi
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "dispatches 'edit-gated-worker' which carries an 'ask' verdict"; then
+		pass "Caught .md agent dispatching an edit:ask-gated agent (issue #3292)"
+	else
+		fail "Did not detect nested dispatch of an edit:ask-gated agent"
+	fi
+)
+
+# ── Test: dispatch of a read-only agent and user-invoked ask-carrier NOT flagged ──
+
+echo ""
+echo "── Test: read-only dispatch target + user-invoked ask-carrier not flagged ──"
+T_NAK2=$(mktemp -d)
+register_temp_dir "$T_NAK2"
+git_init_test_repo "$T_NAK2"
+(
+	cd "$T_NAK2"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# Dispatches only a read-only agent — no ask verdict anywhere in the chain.
+	cat > .opencode/agents/coordinator.md <<'EOF'
+---
+description: A coordinator that dispatches read-only evaluation.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "auditor": allow
+---
+EOF
+
+	cat > .opencode/agents/auditor.md <<'EOF'
+---
+description: Read-only evaluation; does not modify files.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  webfetch: deny
+  task: deny
+---
+EOF
+
+	# User-invoked ask-carrier: holds "git commit*": "ask" but nothing
+	# dispatches it, so its asks surface at depth 1 (issue #3292).
+	cat > .opencode/agents/ask-worker.md <<'EOF'
+---
+description: A worker that gates commits at ask.
+mode: subagent
+permission:
+  bash:
+    "git add*": "allow"
+    "git commit*": "ask"
+    "git push*": "deny"
+  lsp: allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# The fixture repo is intentionally minimal (no opencode.jsonc/AGENTS.md),
+	# so the validator may exit non-zero for unrelated reasons. The nested
+	# check must have RUN and reported zero violations — asserting its OK line
+	# proves the dispatch scan was non-vacuous rather than skipped.
+	if ! echo "$output" | grep -qF "nested-dispatch ask reachability, 0 violation(s)"; then
+		fail "Nested-dispatch check did not run (or reported violations) in the read-only fixture"
+	elif echo "$output" | grep -qF "dispatches 'auditor' which carries an 'ask' verdict"; then
+		fail "Read-only dispatch target was falsely flagged as ask-carrying"
+	elif echo "$output" | grep -qF "dispatches 'ask-worker'"; then
+		fail "User-invoked ask-carrier was falsely flagged as dispatched"
+	else
+		pass "Read-only dispatch target and user-invoked ask-carrier not flagged"
+	fi
+)
+
+# ── Test: task allowlist "*" catch-all and ask-gated dispatch entries flagged ─
+
+echo ""
+echo "── Test: task allowlist '*' catch-all and 'ask'-gated dispatch entries flagged ──"
+T_NAK3=$(mktemp -d)
+register_temp_dir "$T_NAK3"
+git_init_test_repo "$T_NAK3"
+(
+	cd "$T_NAK3"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# The "*" catch-all is invisible to static graph analysis — a wildcard
+	# allow would let a subagent dispatch ask-carriers at depth ≥2 (issue
+	# #3292), so the gate must reject it explicitly.
+	cat > .opencode/agents/wildcard-dispatcher.md <<'EOF'
+---
+description: A coordinator with a wildcard task allowlist.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "uses the '*' catch-all"; then
+		pass "Caught wildcard task allowlist (issue #3292)"
+	else
+		fail "Did not detect wildcard task allowlist"
+	fi
+
+	# An 'ask'-verdict dispatch entry is itself a depth-≥2 hang: the dispatch
+	# prompt cannot render, blocking the nested task forever (issue #3292).
+	cat > .opencode/agents/ask-dispatch.md <<'EOF'
+---
+description: A coordinator with an ask-gated dispatch entry.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": ask
+---
+EOF
+
+	output2=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code2=$?
+
+	if [ "${exit_code2:-0}" -ne 0 ] && echo "$output2" | grep -qF "has an 'ask'-gated dispatch entry"; then
+		pass "Caught ask-gated dispatch entry (issue #3292)"
+	else
+		fail "Did not detect ask-gated dispatch entry"
+	fi
+
+	# YAML-legal trailing comments must not bypass the guards — a "# note"
+	# after the verdict is honored by opencode at runtime but would slip an
+	# un-tolerated "$" anchor (issue #3292).
+	cat > .opencode/agents/comment-bypass.md <<'EOF'
+---
+description: A coordinator whose ask-gated dispatch hides behind a comment.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": ask # triaged later
+---
+EOF
+
+	output3=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code3=$?
+
+	if [ "${exit_code3:-0}" -ne 0 ] && echo "$output3" | grep -qF "has an 'ask'-gated dispatch entry"; then
+		pass "Caught ask-gated dispatch entry with trailing comment (issue #3292)"
+	else
+		fail "Did not detect ask-gated dispatch entry with trailing comment"
+	fi
+
+	# The catch-all with an "ask" verdict is the same hang: every dispatch
+	# would prompt at depth ≥2 where prompts cannot render.
+	cat > .opencode/agents/wildcard-ask.md <<'EOF'
+---
+description: A coordinator whose wildcard task allowlist is ask-gated.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": ask
+---
+EOF
+
+	output4=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code4=$?
+
+	if [ "${exit_code4:-0}" -ne 0 ] && echo "$output4" | grep -qF "catch-all is 'ask'-gated"; then
+		pass "Caught ask-gated wildcard task allowlist (issue #3292)"
+	else
+		fail "Did not detect ask-gated wildcard task allowlist"
+	fi
+)
+
 # ── Test: GNU-only `sed -i -e` in shell tests flagged (BSD sed parity) ───────
 
 echo "── Test: sed -i -e (GNU-only) flagged in tests/Shell ──"
@@ -3679,6 +3946,11 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
+
+
+
+
 
 
 
