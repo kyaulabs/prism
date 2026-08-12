@@ -7,6 +7,7 @@
 
 
 
+
 'use strict';
 
 // Validate machine-readable prism-handoff declarations (ADR-0054) against the
@@ -38,7 +39,14 @@ const warnings = [];
 const { globMatches } = require('./glob-match');
 
 function applyPermission(value, target, state) {
-	if (typeof value === 'string') return { verdict: value, determinate: true };
+	// A flat-string verdict (e.g. "deny") applies to everything, but it must
+	// not mask a fail-closed state from an earlier composition layer: a null
+	// or malformed record is sticky, and invalid verdicts are rejected the
+	// same way the object branch rejects them.
+	if (typeof value === 'string') {
+		if (!['allow', 'ask', 'deny'].includes(value)) return { verdict: 'deny', determinate: false };
+		return { verdict: value, determinate: state.determinate };
+	}
 	if (value === undefined) return state;
 	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
 		return { verdict: 'deny', determinate: false };
@@ -334,6 +342,7 @@ if (require.main === module) {
 }
 
 module.exports = { globMatches, applyPermission, effectivePermission, agentMode, scanDeclarations };
+
 
 
 

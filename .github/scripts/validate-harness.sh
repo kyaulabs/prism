@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
 
 
 
@@ -1473,7 +1474,14 @@ HANDOFF_ERRORS_BEFORE=$ERRORS
 HANDOFF_DECL_COUNT=0
 
 if [ -d "${HARNESS_DIR}/agents" ] || [ -d "${HARNESS_DIR}/commands" ] || [ -d "${HARNESS_DIR}/skills" ]; then
-	HANDOFF_DECL_COUNT=$(grep -rl -- 'prism-handoff' "${HARNESS_DIR}/agents" "${HARNESS_DIR}/commands" "${HARNESS_DIR}/skills" 2>/dev/null | wc -l | tr -d ' ') || HANDOFF_DECL_COUNT=0
+	# Grep only the directories that exist: under set -o pipefail a missing
+	# path makes grep exit 2 even when it found matches elsewhere, which
+	# would clobber the count to 0 and silently skip the whole ADR-0054 gate.
+	search_paths=()
+	[ -d "${HARNESS_DIR}/agents" ] && search_paths+=("${HARNESS_DIR}/agents")
+	[ -d "${HARNESS_DIR}/commands" ] && search_paths+=("${HARNESS_DIR}/commands")
+	[ -d "${HARNESS_DIR}/skills" ] && search_paths+=("${HARNESS_DIR}/skills")
+	HANDOFF_DECL_COUNT=$(grep -rl -- 'prism-handoff' "${search_paths[@]}" 2>/dev/null | wc -l | tr -d ' ') || HANDOFF_DECL_COUNT=0
 fi
 
 if [ "$HANDOFF_DECL_COUNT" -gt 0 ]; then
@@ -1533,6 +1541,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

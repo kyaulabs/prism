@@ -48,6 +48,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -4354,10 +4355,89 @@ EOF
 	fi
 )
 
+# ── Test: partial harness dirs must not skip the ADR-0054 gate ──────────────
+
+echo "── Test: HANDOFF contract — partial harness dirs still run the gate ──"
+T_HOFF_PARTIALDIR=$(mktemp -d)
+register_temp_dir "$T_HOFF_PARTIALDIR"
+git_init_test_repo "$T_HOFF_PARTIALDIR"
+(
+	cd "$T_HOFF_PARTIALDIR"
+	setup_handoff_contract_env
+	# Remove two of the three declaration-search dirs: under set -o pipefail
+	# a missing path makes grep exit 2 even with matches elsewhere, which
+	# previously clobbered the declaration count to 0 and skipped the whole
+	# gate (fail-open). The gate must still run and surface the deny.
+	rm -rf .opencode/commands .opencode/skills
+
+	if [ ! -d .opencode/skills ] && grep -rq 'prism-handoff' .opencode/agents; then
+		exit_code=0
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if echo "$output" | grep -qF 'Checking documented handoff permissions (ADR-0054)'; then
+			pass "Partial harness dirs still run the ADR-0054 gate"
+		else
+			fail "Partial harness dirs skipped the ADR-0054 gate (exit ${exit_code:-0})"
+		fi
+	else
+		fail "partial-dir fixture setup failed — test is vacuous"
+	fi
+)
+
+# ── Test: flat-string allow must not mask a null permission layer ───────────
+
+echo "── Test: HANDOFF contract — flat allow cannot mask null permission ──"
+T_HOFF_FLATMASK=$(mktemp -d)
+register_temp_dir "$T_HOFF_FLATMASK"
+git_init_test_repo "$T_HOFF_FLATMASK"
+(
+	cd "$T_HOFF_FLATMASK"
+	setup_handoff_contract_env
+
+	# Actor frontmatter carries permission: null (fail-closed layer 2); an
+	# inline opencode.jsonc entry adds a flat "skill": "allow" (layer 3). The
+	# flat string must NOT overwrite the sticky fail-closed state — the
+	# handoff must resolve indeterminate, not silently pass.
+	cat > .opencode/agents/null-mask-actor.md <<'EOF'
+---
+description: Actor whose null permission must not be masked.
+mode: subagent
+permission: null
+---
+EOF
+
+	cat >> .opencode/agents/null-mask-actor.md <<'EOF'
+
+<!-- prism-handoff {"actor":"null-mask-actor","action":"skill","target":"grilling"} -->
+EOF
+
+	node -e "
+		const fs = require('fs');
+		const { stripJsoncComments } = require('./.github/scripts/jsonc-strip');
+		const j = JSON.parse(stripJsoncComments(fs.readFileSync('opencode.jsonc', 'utf8')));
+		j.agent['null-mask-actor'] = { model: 'x/y', permission: { skill: 'allow' } };
+		fs.writeFileSync('opencode.jsonc', JSON.stringify(j, null, 2));
+	"
+
+	if grep -qF 'prism-handoff {"actor":"null-mask-actor","action":"skill","target":"grilling"}' .opencode/agents/null-mask-actor.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF 'is indeterminate (malformed permission record)'; then
+			pass "Flat allow cannot mask a null permission layer (indeterminate)"
+		else
+			fail "Flat allow masked the null permission layer (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "flat-mask fixture mutation did not apply — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
