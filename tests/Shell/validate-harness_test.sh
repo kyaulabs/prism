@@ -41,6 +41,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -72,6 +73,11 @@ setup_validator_env() {
 	cp "$REPO_ROOT/.github/scripts/jsonc-strip.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
+	# The handoff checker is created by the ADR-0054 task; copy it once it exists
+	# so earlier validator fixtures keep working during the Red phase.
+	if [ -f "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" ]; then
+		cp "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" .github/scripts/
+	fi
 	cp "$REPO_ROOT/.github/scripts/prism_manifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismManifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismJsoncDocument.php" .github/scripts/
@@ -99,6 +105,26 @@ setup_contract_env() {
 		mkdir -p ".opencode/skills/$skill"
 		cp "$REPO_ROOT/.opencode/skills/$skill/SKILL.md" ".opencode/skills/$skill/SKILL.md"
 	done
+}
+
+# Seed the ADR-0054 handoff-contract fixtures: the real OpenCode config, every
+# agent file, and the four surfaces that carry prism-handoff declarations
+# (router.md, improve-architecture.md, from-issue.md, to-spec/SKILL.md). The
+# checker derives known agents/skills and effective permissions from these
+# copies, so they must be real files. Must be called from inside the temp repo
+# root. Usage: setup_handoff_contract_env
+setup_handoff_contract_env() {
+	setup_validator_env
+	cp "$REPO_ROOT/opencode.jsonc" opencode.jsonc
+	mkdir -p .opencode/agents .opencode/commands .opencode/skills
+	cp "$REPO_ROOT"/.opencode/agents/*.md .opencode/agents/
+	for skill_dir in "$REPO_ROOT"/.opencode/skills/*/; do
+		mkdir -p ".opencode/skills/$(basename "$skill_dir")"
+		cp "$skill_dir/SKILL.md" ".opencode/skills/$(basename "$skill_dir")/SKILL.md"
+	done
+	cp "$REPO_ROOT/.opencode/commands/router.md" .opencode/commands/
+	cp "$REPO_ROOT/.opencode/commands/improve-architecture.md" .opencode/commands/
+	cp "$REPO_ROOT/.opencode/skills/to-spec/SKILL.md" .opencode/skills/to-spec/SKILL.md
 }
 
 # ── Test 1: Finding 3 — vacuous PASS on relative HARNESS_DIR ──────────────────
@@ -3993,10 +4019,178 @@ git_init_test_repo "$T_CTR_APP"
 	fi
 )
 
+# ── Handoff-permission contract fixtures (ADR-0054) ──────────────────────────
+# Machine-readable prism-handoff declarations must resolve against the actor's
+# effective permissions: allow passes, ask warns (exit 0), deny/malformed/
+# unknown fail (exit 1). A missing checker must fail loud when declarations
+# exist.
+
+# ── Test: positive — real declarations and config are compatible ────────────
+
+echo "── Test: HANDOFF contract — real declarations pass ──"
+T_HOFF_POSITIVE=$(mktemp -d)
+register_temp_dir "$T_HOFF_POSITIVE"
+git_init_test_repo "$T_HOFF_POSITIVE"
+(
+	cd "$T_HOFF_POSITIVE"
+	setup_handoff_contract_env
+
+	if grep -rq 'prism-handoff' .opencode; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -eq 0 ] && [ -z "$output" ]; then
+			pass "Real handoff declarations and config produce no diagnostic"
+		else
+			fail "Real handoff declarations were rejected (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "handoff fixture setup did not copy declarations — test is vacuous"
+	fi
+)
+
+# ── Test: deny — autonomous skill handoff resolving to deny is an error ─────
+
+echo "── Test: HANDOFF contract — denied autonomous skill caught ──"
+T_HOFF_DENY=$(mktemp -d)
+register_temp_dir "$T_HOFF_DENY"
+git_init_test_repo "$T_HOFF_DENY"
+(
+	cd "$T_HOFF_DENY"
+	setup_handoff_contract_env
+	cat >> .opencode/agents/from-issue.md <<'EOF'
+
+<!-- prism-handoff {"actor":"from-issue","action":"skill","target":"prototype"} -->
+EOF
+
+	if grep -qF 'prism-handoff {"actor":"from-issue","action":"skill","target":"prototype"}' .opencode/agents/from-issue.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF 'handoff-contract: ERROR: .opencode/agents/from-issue.md' && echo "$output" | grep -qF 'is denied by effective permissions'; then
+			pass "Caught denied autonomous skill handoff with the exact diagnostic"
+		else
+			fail "Did not reject denied autonomous skill handoff (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "deny handoff mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: ask — ask-gated handoff warns without failing validation ──────────
+
+echo "── Test: HANDOFF contract — ask-gated handoff warns without failing ──"
+T_HOFF_ASK=$(mktemp -d)
+register_temp_dir "$T_HOFF_ASK"
+git_init_test_repo "$T_HOFF_ASK"
+(
+	cd "$T_HOFF_ASK"
+	setup_handoff_contract_env
+	cat >> .opencode/agents/from-issue.md <<'EOF'
+
+<!-- prism-handoff {"actor":"from-issue","action":"bash","target":"gh issue comment 300"} -->
+EOF
+
+	if grep -qF 'prism-handoff {"actor":"from-issue","action":"bash","target":"gh issue comment 300"}' .opencode/agents/from-issue.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -eq 0 ] && echo "$output" | grep -qF 'handoff-contract: WARN: .opencode/agents/from-issue.md' && echo "$output" | grep -qF 'is ask-gated'; then
+			pass "Ask-gated handoff warns without failing validation"
+		else
+			fail "Ask-gated handoff did not warn (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "ask handoff mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: malformed — invalid JSON declaration fails closed ─────────────────
+
+echo "── Test: HANDOFF contract — malformed declaration fails closed ──"
+T_HOFF_MALFORMED=$(mktemp -d)
+register_temp_dir "$T_HOFF_MALFORMED"
+git_init_test_repo "$T_HOFF_MALFORMED"
+(
+	cd "$T_HOFF_MALFORMED"
+	setup_handoff_contract_env
+	cat >> .opencode/agents/from-issue.md <<'EOF'
+
+<!-- prism-handoff {not-json} -->
+EOF
+
+	if grep -qF '<!-- prism-handoff {not-json} -->' .opencode/agents/from-issue.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF 'handoff-contract: ERROR: .opencode/agents/from-issue.md' && echo "$output" | grep -qF 'malformed prism-handoff'; then
+			pass "Malformed declaration fails closed with the exact diagnostic"
+		else
+			fail "Malformed declaration did not fail closed (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "malformed handoff mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: unknown actor — undeclared actor fails closed ─────────────────────
+
+echo "── Test: HANDOFF contract — unknown actor fails closed ──"
+T_HOFF_UNKNOWN_ACTOR=$(mktemp -d)
+register_temp_dir "$T_HOFF_UNKNOWN_ACTOR"
+git_init_test_repo "$T_HOFF_UNKNOWN_ACTOR"
+(
+	cd "$T_HOFF_UNKNOWN_ACTOR"
+	setup_handoff_contract_env
+	cat >> .opencode/agents/from-issue.md <<'EOF'
+
+<!-- prism-handoff {"actor":"missing-agent","action":"task","target":"explore"} -->
+EOF
+
+	if grep -qF 'prism-handoff {"actor":"missing-agent","action":"task","target":"explore"}' .opencode/agents/from-issue.md; then
+		exit_code=0
+		output=$(node .github/scripts/check-handoff-permissions.js opencode.jsonc .opencode 2>&1) || exit_code=$?
+
+		if [ "$exit_code" -ne 0 ] && echo "$output" | grep -qF 'handoff-contract: ERROR: .opencode/agents/from-issue.md' && echo "$output" | grep -qF "unknown prism-handoff actor 'missing-agent'"; then
+			pass "Unknown actor fails closed with the exact diagnostic"
+		else
+			fail "Unknown actor did not fail closed (exit ${exit_code}, output: ${output})"
+		fi
+	else
+		fail "unknown-actor handoff mutation did not apply — test is vacuous"
+	fi
+)
+
+# ── Test: missing checker fails loud while declarations exist ───────────────
+
+echo "── Test: HANDOFF contract — missing checker fails loud ──"
+T_HOFF_NOCHECK=$(mktemp -d)
+register_temp_dir "$T_HOFF_NOCHECK"
+git_init_test_repo "$T_HOFF_NOCHECK"
+(
+	cd "$T_HOFF_NOCHECK"
+	setup_handoff_contract_env
+	rm -f .github/scripts/check-handoff-permissions.js
+
+	if [ ! -f .github/scripts/check-handoff-permissions.js ] && grep -rq 'prism-handoff' .opencode; then
+		exit_code=0
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF 'handoff-contract:'; then
+			pass "Missing handoff checker fails loud with the exact diagnostic"
+		else
+			fail "Missing handoff checker did not fail loud (exit ${exit_code:-0})"
+		fi
+	else
+		fail "missing-checker fixture setup failed — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

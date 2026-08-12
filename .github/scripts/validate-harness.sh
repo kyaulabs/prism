@@ -37,6 +37,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -74,6 +75,7 @@ SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
 OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
+HANDOFF_CHECKER="${REPO_ROOT}/.github/scripts/check-handoff-permissions.js"
 
 ERRORS=0
 WARNINGS=0
@@ -1452,6 +1454,64 @@ if [ "$ERRORS" -eq "$SP_ERRORS_BEFORE" ]; then
 	ok "Sensitive-path deny contract satisfied (A wired, B marker, C/C2 deny sets)"
 fi
 
+# ── Check documented handoff permission compatibility (ADR-0054) ─────────────
+# Machine-readable prism-handoff declarations beside documented entry-point
+# handoffs must resolve against the actor's effective permissions: global
+# rules → agent Markdown frontmatter → inline opencode.jsonc overrides,
+# last-match-wins. allow passes, ask warns (exit 0), deny is a defect, and
+# malformed declarations, unknown actors/targets, and indeterminate
+# composition fail closed. The checker runs only when at least one declaration
+# exists; a missing checker then fails loud rather than passing vacuously.
+# The nested-dispatch ask-reachability check above stays separate: it guards
+# the frontmatter task allowlist itself; this check validates declared
+# handoffs against the composed permission surface.
+
+echo "── Checking documented handoff permissions (ADR-0054) ──"
+HANDOFF_ERRORS_BEFORE=$ERRORS
+HANDOFF_DECL_COUNT=0
+
+if [ -d "${HARNESS_DIR}/agents" ] || [ -d "${HARNESS_DIR}/commands" ] || [ -d "${HARNESS_DIR}/skills" ]; then
+	HANDOFF_DECL_COUNT=$(grep -rl -- 'prism-handoff' "${HARNESS_DIR}/agents" "${HARNESS_DIR}/commands" "${HARNESS_DIR}/skills" 2>/dev/null | wc -l | tr -d ' ') || HANDOFF_DECL_COUNT=0
+fi
+
+if [ "$HANDOFF_DECL_COUNT" -gt 0 ]; then
+	if [ ! -f "$HANDOFF_CHECKER" ]; then
+		err "handoff-contract: checker ${HANDOFF_CHECKER} missing while prism-handoff declarations exist (ADR-0054)"
+	else
+		handoff_crash=0
+		handoff_structured=0
+		handoff_output=''
+		if ! handoff_output=$(node "$HANDOFF_CHECKER" "$OPENCODE_JSONC" "$HARNESS_DIR" 2>&1); then
+			handoff_crash=1
+		fi
+		if [ -z "$handoff_output" ]; then
+			if [ "$handoff_crash" -eq 1 ]; then
+				err "handoff-contract: checker failed with no output (ADR-0054)"
+			fi
+		else
+			while IFS= read -r line; do
+				[ -n "$line" ] || continue
+				case "$line" in
+					handoff-contract:\ ERROR:*)
+						err "${line#handoff-contract: ERROR: }"
+						handoff_structured=1
+						;;
+					handoff-contract:\ WARN:*)
+						warn "${line#handoff-contract: WARN: }"
+						handoff_structured=1
+						;;
+				esac
+			done <<< "$handoff_output"
+			if [ "$handoff_crash" -eq 1 ] && [ "$handoff_structured" -eq 0 ]; then
+				err "handoff-contract: checker failed without a structured diagnostic (ADR-0054): ${handoff_output}"
+			fi
+		fi
+	fi
+	if [ "$ERRORS" -eq "$HANDOFF_ERRORS_BEFORE" ]; then
+		ok "Documented handoff permissions compatible (ADR-0054)"
+	fi
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
@@ -1469,6 +1529,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

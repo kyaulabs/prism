@@ -136,6 +136,7 @@ Do NOT propose interfaces yet. After the file is written, ask the user:
 
 ## 4. Design handoff (optional)
 
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
 Once the user picks a candidate, stop the command workflow and ask them to
 switch to the **design** tab. Carry forward the selected candidate, its concise
 problem statement, and the generated report path. Design owns the ADR-0050

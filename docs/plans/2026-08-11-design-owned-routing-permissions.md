@@ -629,7 +629,7 @@ git commit -S -m $'fix(permissions): reserve design-stage skills for Design\n\nR
 - Consumes: `stripJsoncComments(string): string`, `parseFrontmatter(string): object|null`, OpenCode global/agent permission records, and one-line `prism-handoff` JSON declarations.
 - Produces: CLI `node .github/scripts/check-handoff-permissions.js <opencode.jsonc> <.opencode-root>`, stable `handoff-contract: ERROR:`/`WARN:` diagnostics, exit 1 for denied or malformed contracts, and exit 0 for allow/recommendation/ask-only contracts.
 
-- [ ] **Step 1: Add failing shell fixtures for allow, deny, ask, and malformed contracts**
+- [x] **Step 1: Add failing shell fixtures for allow, deny, ask, and malformed contracts**
 
 Extend `setup_validator_env` to copy
 `.github/scripts/check-handoff-permissions.js` once it exists. Add a
@@ -659,7 +659,7 @@ Every mutation test must prove its mutation exists before invoking the checker
 and match the exact stable diagnostic prefix. Also test that a missing checker
 fails loud when at least one declaration exists.
 
-- [ ] **Step 2: Run the shell suite and verify Red**
+- [x] **Step 2: Run the shell suite and verify Red**
 
 Run:
 
@@ -670,7 +670,7 @@ bash tests/Shell/validate-harness_test.sh
 Expected: FAIL because the handoff checker and validator integration do not
 exist.
 
-- [ ] **Step 3: Implement the generic handoff permission checker**
+- [x] **Step 3: Implement the generic handoff permission checker**
 
 Create `.github/scripts/check-handoff-permissions.js` with these required
 elements:
@@ -743,7 +743,7 @@ Complete the file with functions that:
 Do not import the frontend checker. Keep the generic evaluator independent;
 the existing checker remains the stricter ADR-0049/0051 shape contract.
 
-- [ ] **Step 4: Declare the real handoffs and wire validation**
+- [x] **Step 4: Declare the real handoffs and wire validation**
 
 Place one-line declarations immediately before the matching prose/table row.
 Use these declarations across the four surfaces:
@@ -773,7 +773,7 @@ when declarations are present. Convert each `handoff-contract: ERROR:` line to
 `err`, each `WARN:` line to `warn`, fail loud on checker crash/no structured
 diagnostic, and report an `ok` line when no error is added.
 
-- [ ] **Step 5: Run complete verification and commit the closed contract**
+- [x] **Step 5: Run complete verification and commit the closed contract**
 
 Run:
 

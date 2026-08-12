@@ -23,6 +23,7 @@ Load this skill when:
 Do NOT load this skill when:
 - You are operating as `@consult` — Consult cannot write `docs/specs/`; retain
   its existing handoff to the **design** tab.
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
 - The design is still ambiguous — switch to the design tab, which owns
   classifier-driven brainstorming and prototyping.
 - You need to create a GitHub issue — use `/issue`. to-spec writes a spec FILE,
