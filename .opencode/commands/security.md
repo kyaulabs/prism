@@ -1,5 +1,6 @@
 ---
 description: Run Semgrep SAST scan and dependency CVE audit in one pass. Reports all findings grouped by severity with false-positive adjudication protocol.
+agent: build
 subtask: true
 ---
 

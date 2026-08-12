@@ -60,13 +60,20 @@ permission:
 ```yaml
 ---
 description: <What the command does — one sentence.>
-agent: build          # or "subtask: true" for subtask commands
+agent: build
+subtask: true
 ---
 ```
 
 - `agent: build` — the command runs in the build agent context (full tool
-  access).
-- `subtask: true` — forces a subagent invocation (isolated context; keeps the command out of the primary agent's context).
+  access). Required for every command that uses tools (bash blocks, subagent
+  dispatch, `websearch`/`webfetch`): an omitted `agent` runs the command in
+  the *invoking* agent, so from Plan/Chat it inherits their tool denials and
+  fails.
+- `subtask: true` — forces a subagent invocation (isolated context; keeps the
+  command out of the primary agent's context). Grants no permissions of its
+  own, so a tool-using subtask command needs BOTH `agent: build` and
+  `subtask: true` — `subtask` alone inherits the invoking tab's permissions.
 
 ## Body structure
 

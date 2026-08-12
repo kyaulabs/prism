@@ -49,6 +49,8 @@
 
 
 
+
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -4433,10 +4435,99 @@ EOF
 	fi
 )
 
+# ── Test: tool-using command without agent binding ERRORs (issue #302) ───────
+
+echo ""
+echo "── Test: tool-using command without agent binding ERRORs ──"
+T302_NOBIND=$(mktemp -d)
+register_temp_dir "$T302_NOBIND"
+git_init_test_repo "$T302_NOBIND"
+(
+	cd "$T302_NOBIND"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# The issue #302 drift class: a subtask command that runs bash but has no
+	# agent binding. subtask: true grants no permissions of its own, so the
+	# command inherits the invoking tab's tool denials and fails from
+	# Plan/Chat.
+	cat > .opencode/commands/tool-cmd.md <<'EOF'
+---
+description: A tool-using command with no agent binding.
+subtask: true
+---
+
+Run a tool:
+
+```bash
+php vendor/bin/pest --no-coverage
+```
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "tool-cmd" && echo "$output" | grep -qF "no agent binding"; then
+		pass "Caught tool-using command without agent binding (issue #302)"
+	else
+		fail "Did not detect tool-using command without agent binding (exit ${exit_code:-0})"
+	fi
+)
+
+# ── Test: tool-using command bound to build is not flagged (issue #302) ──────
+
+echo "── Test: tool-using command bound to build not flagged ──"
+T302_BOUND=$(mktemp -d)
+register_temp_dir "$T302_BOUND"
+git_init_test_repo "$T302_BOUND"
+(
+	cd "$T302_BOUND"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# Minimal inline build agent so the agent-existence check resolves.
+	cat > opencode.jsonc <<'EOF'
+{
+	"agent": {
+		"build": {
+			"mode": "primary"
+		}
+	}
+}
+EOF
+
+	# Positive control: the same tool-using body, now bound to build.
+	cat > .opencode/commands/tool-cmd.md <<'EOF'
+---
+description: A tool-using command bound to the build agent.
+agent: build
+subtask: true
+---
+
+Run a tool:
+
+```bash
+php vendor/bin/pest --no-coverage
+```
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	# tool-cmd must NOT be flagged for missing/unknown agent binding. (Other
+	# unrelated errors — e.g. missing AGENTS.md table rows — may fire and are
+	# fine; only the agent-binding diagnostics are asserted absent.)
+	if echo "$output" | grep -F "tool-cmd" | grep -qE "no agent binding|does not exist in the opencode.jsonc agent section"; then
+		fail "Tool-using command with agent: build was falsely flagged"
+	else
+		pass "Tool-using command with agent: build not flagged"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
+
 
 
 
