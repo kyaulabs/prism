@@ -15,6 +15,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -78,6 +81,12 @@ function nested_dispatch_agent_names(): array
 /**
  * Build the subagent dispatch graph from every agent's task allowlist.
  *
+ * @throws RuntimeException  If a task allowlist uses the "*" catch-all
+ *                           (invisible to static graph analysis — would
+ *                           permit dispatching any agent, including
+ *                           ask-carriers) or an explicit "ask" verdict
+ *                           (an ask-gated dispatch is itself the depth-≥2
+ *                           hang the invariant forbids).
  * @return array<string, list<string>>  Map of source agent → dispatched names
  *                                      (excluding the "*" catch-all).
  */
@@ -90,6 +99,18 @@ function nested_dispatch_graph(): array
         $targets = [];
 
         foreach (preg_split('/\r?\n/', $section) ?: [] as $line) {
+            if (preg_match('/^[ \t]{4}"\*"[ \t]*:[ \t]*"?allow"?[ \t]*$/', $line) === 1) {
+                throw new RuntimeException(
+                    "{$name}: task allowlist uses the '*' catch-all — 'ask'-gated agents "
+                    . 'would be dispatchable at depth ≥2 where prompts cannot render (issue #3292)',
+                );
+            }
+            if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?ask"?[ \t]*$/', $line, $m) === 1) {
+                throw new RuntimeException(
+                    "{$name}: task entry '{$m[1]}' is 'ask'-gated — the dispatch prompt itself "
+                    . 'would hang unrendered at depth ≥2 (issue #3292)',
+                );
+            }
             if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?allow"?[ \t]*$/', $line, $m) === 1) {
                 $targets[] = $m[1];
             }
@@ -218,6 +239,7 @@ it('negative control: user-invoked ask-carriers keep zero incoming dispatch edge
         );
     }
 });
+
 
 
 

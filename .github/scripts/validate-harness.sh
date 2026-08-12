@@ -35,6 +35,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1032,11 +1033,25 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 	task_sec=$(echo "$fm" | awk '/^[[:space:]]*task:/{t=1; print; next} t && /^[[:space:]]{0,2}[^[:space:]]/{t=0} t {print}')
 	[ -n "$task_sec" ] || continue
 
+	NESTED_ASK_CHECKED=$((NESTED_ASK_CHECKED + 1))
+
+	# The "*" catch-all is invisible to static graph analysis: it would
+	# permit dispatching any agent, including ask-carriers.
+	if echo "$task_sec" | grep -qE '^[[:space:]]*"\*"[[:space:]]*:[[:space:]]*"?allow"?[[:space:]]*$'; then
+		err "${agent_file}: agent '${agent_name}' task allowlist uses the '*' catch-all — 'ask'-gated agents would be dispatchable at depth ≥2 where prompts cannot render (issue #3292)"
+		NESTED_ASK_VIOLATIONS=$((NESTED_ASK_VIOLATIONS + 1))
+	fi
+
+	# An "ask"-verdict task entry is itself a depth-≥2 hang: the dispatch
+	# prompt cannot render, so the nested task blocks forever.
+	if echo "$task_sec" | grep -qE '^[[:space:]]*"[a-z0-9-]+"[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*$'; then
+		err "${agent_file}: agent '${agent_name}' task allowlist has an 'ask'-gated dispatch entry — the dispatch prompt itself would hang unrendered at depth ≥2 (issue #3292)"
+		NESTED_ASK_VIOLATIONS=$((NESTED_ASK_VIOLATIONS + 1))
+	fi
+
 	# "name": allow entries (the "*" catch-all is excluded by the name class).
 	dispatched=$(echo "$task_sec" | grep -oE '^[[:space:]]*"[a-z0-9-]+"[[:space:]]*:[[:space:]]*"?allow"?[[:space:]]*$' | sed -E 's/^[[:space:]]*"([a-z0-9-]+)".*/\1/') || true
 	[ -n "$dispatched" ] || continue
-
-	NESTED_ASK_CHECKED=$((NESTED_ASK_CHECKED + 1))
 
 	while IFS= read -r target; do
 		target_file="${AGENTS_DIR_LOCAL}/${target}.md"
@@ -1446,6 +1461,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

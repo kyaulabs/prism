@@ -38,6 +38,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2347,15 +2348,15 @@ permission:
 ---
 EOF
 
-	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if echo "$output" | grep -qF "dispatches 'gated-worker' which carries an 'ask' verdict"; then
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "dispatches 'gated-worker' which carries an 'ask' verdict"; then
 		pass "Caught .md agent dispatching an ask-gated agent (issue #3292)"
 	else
 		fail "Did not detect nested dispatch of an ask-gated agent"
 	fi
 
-	if echo "$output" | grep -qF "dispatches 'edit-gated-worker' which carries an 'ask' verdict"; then
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "dispatches 'edit-gated-worker' which carries an 'ask' verdict"; then
 		pass "Caught .md agent dispatching an edit:ask-gated agent (issue #3292)"
 	else
 		fail "Did not detect nested dispatch of an edit:ask-gated agent"
@@ -2419,14 +2420,83 @@ permission:
 ---
 EOF
 
-	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	if echo "$output" | grep -qF "dispatches 'auditor' which carries an 'ask' verdict"; then
+	# The fixture repo is intentionally minimal (no opencode.jsonc/AGENTS.md),
+	# so the validator may exit non-zero for unrelated reasons. The nested
+	# check must have RUN and reported zero violations — asserting its OK line
+	# proves the dispatch scan was non-vacuous rather than skipped.
+	if ! echo "$output" | grep -qF "nested-dispatch ask reachability, 0 violation(s)"; then
+		fail "Nested-dispatch check did not run (or reported violations) in the read-only fixture"
+	elif echo "$output" | grep -qF "dispatches 'auditor' which carries an 'ask' verdict"; then
 		fail "Read-only dispatch target was falsely flagged as ask-carrying"
 	elif echo "$output" | grep -qF "dispatches 'ask-worker'"; then
 		fail "User-invoked ask-carrier was falsely flagged as dispatched"
 	else
 		pass "Read-only dispatch target and user-invoked ask-carrier not flagged"
+	fi
+)
+
+# ── Test: task allowlist "*" catch-all and ask-gated dispatch entries flagged ─
+
+echo ""
+echo "── Test: task allowlist '*' catch-all and 'ask'-gated dispatch entries flagged ──"
+T_NAK3=$(mktemp -d)
+register_temp_dir "$T_NAK3"
+git_init_test_repo "$T_NAK3"
+(
+	cd "$T_NAK3"
+	mkdir -p .opencode/agents
+	setup_validator_env
+
+	# The "*" catch-all is invisible to static graph analysis — a wildcard
+	# allow would let a subagent dispatch ask-carriers at depth ≥2 (issue
+	# #3292), so the gate must reject it explicitly.
+	cat > .opencode/agents/wildcard-dispatcher.md <<'EOF'
+---
+description: A coordinator with a wildcard task allowlist.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": allow
+---
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF "uses the '*' catch-all"; then
+		pass "Caught wildcard task allowlist (issue #3292)"
+	else
+		fail "Did not detect wildcard task allowlist"
+	fi
+
+	# An 'ask'-verdict dispatch entry is itself a depth-≥2 hang: the dispatch
+	# prompt cannot render, blocking the nested task forever (issue #3292).
+	cat > .opencode/agents/ask-dispatch.md <<'EOF'
+---
+description: A coordinator with an ask-gated dispatch entry.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": ask
+---
+EOF
+
+	output2=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code2=$?
+
+	if [ "${exit_code2:-0}" -ne 0 ] && echo "$output2" | grep -qF "has an 'ask'-gated dispatch entry"; then
+		pass "Caught ask-gated dispatch entry (issue #3292)"
+	else
+		fail "Did not detect ask-gated dispatch entry"
 	fi
 )
 
@@ -3825,6 +3895,7 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
