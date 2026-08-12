@@ -30,12 +30,14 @@ defaults are `openai/gpt-5.6-sol` with variant `xhigh`. The sole consumer is a
 hidden `@frontend` subagent with literal temperature `0.3`.
 
 Frontend work remains TDD-owned. The implementation route is
-`build → @tdd → @frontend`, including nested routes that begin at
-`@from-issue`. `@tdd` consults `@frontend` before Red to obtain a standards
-checklist and permitted-file list, selects the observable behavior, creates
-and verifies the failing test, then delegates only the implementation and
-frontend refactoring for that slice. `@tdd` verifies Green, coverage, and
-commit readiness.
+`build → @tdd → @frontend`. `@tdd` consults `@frontend` before Red to obtain a
+standards checklist and permitted-file list, selects the observable behavior,
+creates and verifies the failing test, then delegates only the implementation
+and frontend refactoring for that slice. `@tdd` verifies Green, coverage, and
+commit readiness. Note: since the nested-dispatch ask contract (issue #3292),
+`@from-issue` does not dispatch `@tdd` or `@frontend` — it stops after plan
+approval + branch creation and the user invokes `@tdd` directly at depth 1,
+where `ask`-gated prompts render.
 
 OpenCode-native skill permissions gate exactly `frontend-design`,
 `frontend-architecture`, `scss-mobile-first`, and `accessibility`. All other
@@ -79,9 +81,11 @@ FRONTEND overrides and continue inheriting project defaults.
     remain intact.
 13. As a maintainer, I want exact skill-gate and dispatch permissions enforced
     by validation so that prompt drift cannot silently bypass the architecture.
-14. As a user entering through `@from-issue`, I want nested frontend dispatch
-    to work without bypassing the approved plan so that the issue on-ramp can
-    execute the same TDD pipeline as build.
+14. As a user entering through `@from-issue`, I want the issue on-ramp to
+    create the branch and hand off so that I can invoke `@tdd` directly and
+    execute the same TDD pipeline as build, without nested subagent dispatch
+    (which cannot render `ask`-gated prompts in opencode ≤1.18.16 — issue
+    #3292).
 15. As a maintainer, I want documentation and the domain glossary to describe
     six tiers and the frontend implementation slice consistently.
 

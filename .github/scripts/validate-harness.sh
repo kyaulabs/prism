@@ -34,6 +34,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1014,6 +1015,9 @@ fi
 # allowlist may reference an agent whose frontmatter carries an 'ask' verdict
 # in bash/edit: ask-gated agents must be user-invoked at depth 1 where the
 # prompt renders. Same loop shape as the .md git-commit gate above.
+# Scope: .opencode/agents/*.md frontmatters only. opencode.jsonc inline
+# agents (e.g. plan — a primary) are deliberately out of scope: primaries
+# run at depth 0-1 where 'ask' renders, and plan's targets are ask-free.
 
 echo "── Checking nested subagent dispatch ask-reachability ──"
 NESTED_ASK_CHECKED=0
@@ -1034,7 +1038,7 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 
 	NESTED_ASK_CHECKED=$((NESTED_ASK_CHECKED + 1))
 
-	for target in $dispatched; do
+	while IFS= read -r target; do
 		target_file="${AGENTS_DIR_LOCAL}/${target}.md"
 		[ -f "$target_file" ] || continue  # built-in or no .md — out of scope
 
@@ -1042,12 +1046,12 @@ for agent_file in "${AGENT_MD_FILES[@]}"; do
 		bash_sec=$(echo "$target_fm" | awk '/^[[:space:]]*bash:/{b=1; print; next} b && /^[[:space:]]{0,2}[^[:space:]]/{b=0} b {print}')
 		edit_sec=$(echo "$target_fm" | awk '/^[[:space:]]*edit:/{e=1; print; next} e && /^[[:space:]]{0,2}[^[:space:]]/{e=0} e {print}')
 
-		if echo "$bash_sec" | grep -qE '^[[:space:]]*"[^"]*"[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*$' \
-			|| echo "$edit_sec" | grep -qE '^[[:space:]]*"[^"]*"[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*$'; then
+		if echo "$bash_sec" | grep -qE '^[[:space:]]*"?[^":]+"?[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*(#.*)?$' \
+			|| echo "$edit_sec" | grep -qE '^[[:space:]]*"?[^":]+"?[[:space:]]*:[[:space:]]*"?ask"?[[:space:]]*(#.*)?$'; then
 			err "${agent_file}: agent '${agent_name}' task allowlist dispatches '${target}' which carries an 'ask' verdict in bash/edit — nested subagent dispatch cannot render 'ask' prompts in opencode ≤1.18.16 (issue #3292); the user must invoke '@${target}' directly at depth 1"
 			NESTED_ASK_VIOLATIONS=$((NESTED_ASK_VIOLATIONS + 1))
 		fi
-	done
+	done <<< "$dispatched"
 done
 
 if [ "$NESTED_ASK_CHECKED" -eq 0 ]; then
@@ -1442,6 +1446,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

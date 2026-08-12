@@ -12,6 +12,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -145,6 +148,20 @@ function nested_dispatch_dispatched(array $graph): array
     return array_values(array_unique($dispatched));
 }
 
+/**
+ * User-invoked agents that legitimately carry "ask" verdicts.
+ *
+ * Shared by both negative controls: adding a fifth ask-carrier must update
+ * this one list, not two divergent ones (each test omitting a member would
+ * silently weaken the other control).
+ *
+ * @return list<string>
+ */
+function nested_dispatch_user_invoked_ask_carriers(): array
+{
+    return ['debug', 'resolve-merge-conflicts', 'tracker-operator', 'from-issue', 'tdd'];
+}
+
 it('no subagent dispatches an agent carrying an ask verdict in bash/edit (issue #3292)', function (): void {
     $graph = nested_dispatch_graph();
     $carriers = nested_dispatch_ask_carriers();
@@ -175,7 +192,7 @@ it('negative control: ask detection and graph extraction are non-vacuous', funct
 
     // Ask detection must see the real ask-carriers (user-invoked agents whose
     // ask gates surface at depth 1 where rendering works).
-    foreach (['debug', 'resolve-merge-conflicts', 'tracker-operator', 'from-issue'] as $agent) {
+    foreach (nested_dispatch_user_invoked_ask_carriers() as $agent) {
         Assert::assertContains($agent, $carriers, "{$agent} carries 'ask' verdicts and must be detected");
     }
 
@@ -192,7 +209,7 @@ it('negative control: user-invoked ask-carriers keep zero incoming dispatch edge
 
     // These agents legitimately hold "ask" verdicts but nothing may dispatch
     // them — the user invokes each directly (issue #3292).
-    foreach (['debug', 'resolve-merge-conflicts', 'tracker-operator', 'from-issue', 'tdd'] as $agent) {
+    foreach (nested_dispatch_user_invoked_ask_carriers() as $agent) {
         Assert::assertNotContains(
             $agent,
             $dispatched,
@@ -201,6 +218,7 @@ it('negative control: user-invoked ask-carriers keep zero incoming dispatch edge
         );
     }
 });
+
 
 
 

@@ -37,6 +37,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2303,7 +2304,7 @@ git_init_test_repo "$T_NAK1"
 	# ≤1.18.16 cannot render the nested ask prompt, so the task hangs.
 	cat > .opencode/agents/dispatcher.md <<'EOF'
 ---
-description: A coordinator that hands execution tasks to a gated worker.
+description: A coordinator that hands execution tasks to gated workers.
 mode: subagent
 permission:
   edit: deny
@@ -2313,6 +2314,7 @@ permission:
   task:
     "*": deny
     "gated-worker": allow
+    "edit-gated-worker": allow
 ---
 EOF
 
@@ -2329,12 +2331,34 @@ permission:
 ---
 EOF
 
+	# The edit-scope detector is exercised by a second worker gating edits at
+	# ask — both bash "ask" and edit "ask" must trip the reachability check.
+	cat > .opencode/agents/edit-gated-worker.md <<'EOF'
+---
+description: A worker that gates file edits at ask.
+mode: subagent
+permission:
+  edit:
+    "*": "ask"
+  bash:
+    "*": "deny"
+    "ls*": allow
+  task: deny
+---
+EOF
+
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || true
 
 	if echo "$output" | grep -qF "dispatches 'gated-worker' which carries an 'ask' verdict"; then
 		pass "Caught .md agent dispatching an ask-gated agent (issue #3292)"
 	else
 		fail "Did not detect nested dispatch of an ask-gated agent"
+	fi
+
+	if echo "$output" | grep -qF "dispatches 'edit-gated-worker' which carries an 'ask' verdict"; then
+		pass "Caught .md agent dispatching an edit:ask-gated agent (issue #3292)"
+	else
+		fail "Did not detect nested dispatch of an edit:ask-gated agent"
 	fi
 )
 
@@ -3801,6 +3825,7 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
