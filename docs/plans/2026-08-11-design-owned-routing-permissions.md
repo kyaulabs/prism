@@ -39,7 +39,7 @@
 - Consumes: ADR-0030's Design cycle and hybrid split, ADR-0050's scope gate, ADR-0051's fail-closed effective-permission checker, and `CONTEXT.md` glossary conventions.
 - Produces: accepted ADR-0054, the canonical `design agent` ownership definition, the `documented handoff` term, and the architecture gate `ADR-required: 0054` used by later tasks.
 
-- [ ] **Step 1: Write the failing architecture contract test**
+- [x] **Step 1: Write the failing architecture contract test**
 
 Create `tests/Unit/Harness/DesignOwnedRoutingArchitectureTest.php`:
 
@@ -77,7 +77,7 @@ it('publishes the Design ownership and documented-handoff vocabulary', function 
 // vim: ft=php sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run:
 
@@ -87,7 +87,7 @@ php vendor/bin/pest tests/Unit/Harness/DesignOwnedRoutingArchitectureTest.php
 
 Expected: FAIL because ADR-0054 and its `CONTEXT.md` entries do not exist.
 
-- [ ] **Step 3: Write and accept ADR-0054**
+- [x] **Step 3: Write and accept ADR-0054**
 
 Create `adr/0054-design-owned-routing-and-handoff-permissions.md` with this complete content:
 
@@ -214,7 +214,7 @@ preserves the valid route while exposing its operational dependency.
 
 Do not change ADR-0030, ADR-0050, or ADR-0051.
 
-- [ ] **Step 4: Update the living context and verify Green**
+- [x] **Step 4: Update the living context and verify Green**
 
 Update `CONTEXT.md` as follows:
 
@@ -237,7 +237,7 @@ php vendor/bin/pest tests/Unit/Harness/DesignOwnedRoutingArchitectureTest.php
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the architectural decision**
+- [x] **Step 5: Commit the architectural decision**
 
 ```bash
 IDENTITY=$(bash .github/scripts/resolve-identity.sh)
