@@ -2,6 +2,7 @@
 
 
 
+
 'use strict';
 
 // Validate machine-readable prism-handoff declarations (ADR-0054) against the
@@ -60,7 +61,11 @@ function applyPermission(value, target, state) {
  * @return {*|null}              Rules, flat verdict, undefined, or null.
  */
 function permissionRules(container, action) {
-	if (container === undefined || container === null) return undefined;
+	if (container === undefined) return undefined;
+	// An explicit null (YAML empty value, or the null stored for a malformed
+	// agent) must fail closed — never fall through to a lower layer where a
+	// permissive allow could stand.
+	if (container === null) return null;
 	if (typeof container !== 'object' || Array.isArray(container)) return null;
 	return container[action];
 }
@@ -140,10 +145,11 @@ function agentMode(config, agents, name) {
 	if (config.agent && config.agent[name]) {
 		return config.agent[name].mode || 'primary';
 	}
-	// A known Markdown agent without an explicit mode: defaults to 'primary'
-	// (OpenCode's implicit mode for agent definitions) rather than being
-	// rejected as an unknown target.
-	if (agents[name]) return 'primary';
+	// A known, well-formed Markdown agent without an explicit mode defaults
+	// to 'primary' (OpenCode's implicit mode for agent definitions). A
+	// malformed agent (unparseable frontmatter) stays unknown so the caller
+	// fails closed instead of silently promoting it.
+	if (agents[name] && !agents[name].malformed) return 'primary';
 	return null;
 }
 
@@ -322,6 +328,7 @@ if (require.main === module) {
 }
 
 module.exports = { globMatches, applyPermission, effectivePermission, agentMode, scanDeclarations };
+
 
 
 

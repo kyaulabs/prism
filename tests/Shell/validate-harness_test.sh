@@ -43,6 +43,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -73,13 +74,13 @@ setup_validator_env() {
 	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/jsonc-strip.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
- 	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
- 	cp "$REPO_ROOT/.github/scripts/glob-match.js" .github/scripts/
- 	# The handoff checker is created by the ADR-0054 task; copy it once it exists
- 	# so earlier validator fixtures keep working during the Red phase.
- 	if [ -f "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" ]; then
- 		cp "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" .github/scripts/
- 	fi
+	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
+	cp "$REPO_ROOT/.github/scripts/glob-match.js" .github/scripts/
+	# The handoff checker is created by the ADR-0054 task; copy it once it exists
+	# so earlier validator fixtures keep working during the Red phase.
+	if [ -f "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" ]; then
+		cp "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" .github/scripts/
+	fi
 	cp "$REPO_ROOT/.github/scripts/prism_manifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismManifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismJsoncDocument.php" .github/scripts/
@@ -4212,8 +4213,10 @@ EOF
 		exit_code=0
 		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF 'checker failed (exit != 0)'; then
-			pass "WARN-only checker crash fails closed with the exact diagnostic"
+		if [ "${exit_code:-0}" -ne 0 ] \
+			&& echo "$output" | grep -qF 'handoff-contract: WARN: .opencode/agents/from-issue.md is ask-gated' \
+			&& echo "$output" | grep -qF "checker failed (exit != 0) without a structured ERROR diagnostic"; then
+			pass "WARN-only checker crash fails closed with the WARN relayed and the crash flagged"
 		elif echo "$output" | grep -qF 'Documented handoff permissions compatible'; then
 			fail "WARN-only checker crash passed silently (printed compatible)"
 		else
@@ -4228,6 +4231,7 @@ EOF
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

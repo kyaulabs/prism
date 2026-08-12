@@ -39,6 +39,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1480,28 +1481,34 @@ if [ "$HANDOFF_DECL_COUNT" -gt 0 ]; then
 		err "handoff-contract: checker ${HANDOFF_CHECKER} missing while prism-handoff declarations exist (ADR-0054)"
 	else
 		handoff_crash=0
+		handoff_structured_error=0
 		handoff_output=''
 		if ! handoff_output=$(node "$HANDOFF_CHECKER" "$OPENCODE_JSONC" "$HARNESS_DIR" 2>&1); then
 			handoff_crash=1
 		fi
-		# A checker crash is always a defect: WARN-only output must not mask
-		# a non-zero exit, and crash-with-no-output must not print the
-		# success line below (fail closed, ADR-0054).
-		if [ "$handoff_crash" -eq 1 ]; then
-			err "handoff-contract: checker failed (exit != 0) with output: ${handoff_output}"
-		fi
+		# Relay structured diagnostics first so a crash-with-violations is
+		# reported once per violation, not twice.
 		if [ -n "$handoff_output" ]; then
 			while IFS= read -r line; do
 				[ -n "$line" ] || continue
 				case "$line" in
 					handoff-contract:\ ERROR:*)
 						err "${line#handoff-contract: ERROR: }"
+						handoff_structured_error=1
 						;;
 					handoff-contract:\ WARN:*)
 						warn "${line#handoff-contract: WARN: }"
 						;;
 				esac
 			done <<< "$handoff_output"
+		fi
+		# A checker crash is always a defect: WARN-only output must not mask
+		# a non-zero exit, and a crash without structured ERROR lines must
+		# not print the success line below (fail closed, ADR-0054). When the
+		# checker exited non-zero WITH structured ERROR diagnostics, those
+		# already fail the gate — do not double-report them.
+		if [ "$handoff_crash" -eq 1 ] && [ "$handoff_structured_error" -eq 0 ]; then
+			err "handoff-contract: checker failed (exit != 0) without a structured ERROR diagnostic (ADR-0054): ${handoff_output}"
 		fi
 	fi
 	if [ "$ERRORS" -eq "$HANDOFF_ERRORS_BEFORE" ]; then
@@ -1526,6 +1533,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
