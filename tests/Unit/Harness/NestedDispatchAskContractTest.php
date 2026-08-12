@@ -21,6 +21,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -148,7 +151,7 @@ function nested_dispatch_ask_carriers(): array
 
         foreach (['bash', 'edit'] as $key) {
             $section = nested_dispatch_permission_section($frontmatter, $key);
-            if ($section !== '' && preg_match('/^[ \t]{4}"?[^":]+"?[ \t]*:[ \t]*"?ask"?[ \t]*$/m', $section) === 1) {
+            if ($section !== '' && preg_match('/^[ \t]{4}"?[^":]+"?[ \t]*:[ \t]*"?ask"?[ \t]*(#.*)?$/m', $section) === 1) {
                 $hasAsk = true;
             }
         }
@@ -250,6 +253,7 @@ it('negative control: user-invoked ask-carriers keep zero incoming dispatch edge
         );
     }
 });
+
 
 
 
