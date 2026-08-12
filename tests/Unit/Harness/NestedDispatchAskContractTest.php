@@ -18,6 +18,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -99,19 +102,27 @@ function nested_dispatch_graph(): array
         $targets = [];
 
         foreach (preg_split('/\r?\n/', $section) ?: [] as $line) {
-            if (preg_match('/^[ \t]{4}"\*"[ \t]*:[ \t]*"?allow"?[ \t]*$/', $line) === 1) {
+            // A catch-all with an "ask" verdict is the same hang: every
+            // dispatch would prompt at depth ≥2 where prompts cannot render.
+            if (preg_match('/^[ \t]{4}"\*"[ \t]*:[ \t]*"?ask"?[ \t]*(#.*)?$/', $line) === 1) {
+                throw new RuntimeException(
+                    "{$name}: task allowlist '*' catch-all is 'ask'-gated — every dispatch "
+                    . 'prompt would hang unrendered at depth ≥2 (issue #3292)',
+                );
+            }
+            if (preg_match('/^[ \t]{4}"\*"[ \t]*:[ \t]*"?allow"?[ \t]*(#.*)?$/', $line) === 1) {
                 throw new RuntimeException(
                     "{$name}: task allowlist uses the '*' catch-all — 'ask'-gated agents "
                     . 'would be dispatchable at depth ≥2 where prompts cannot render (issue #3292)',
                 );
             }
-            if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?ask"?[ \t]*$/', $line, $m) === 1) {
+            if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?ask"?[ \t]*(#.*)?$/', $line, $m) === 1) {
                 throw new RuntimeException(
                     "{$name}: task entry '{$m[1]}' is 'ask'-gated — the dispatch prompt itself "
                     . 'would hang unrendered at depth ≥2 (issue #3292)',
                 );
             }
-            if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?allow"?[ \t]*$/', $line, $m) === 1) {
+            if (preg_match('/^[ \t]{4}"([a-z0-9-]+)"[ \t]*:[ \t]*"?allow"?[ \t]*(#.*)?$/', $line, $m) === 1) {
                 $targets[] = $m[1];
             }
         }
@@ -239,6 +250,7 @@ it('negative control: user-invoked ask-carriers keep zero incoming dispatch edge
         );
     }
 });
+
 
 
 

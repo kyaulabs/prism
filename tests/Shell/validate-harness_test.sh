@@ -39,6 +39,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -2498,6 +2499,56 @@ EOF
 	else
 		fail "Did not detect ask-gated dispatch entry"
 	fi
+
+	# YAML-legal trailing comments must not bypass the guards — a "# note"
+	# after the verdict is honored by opencode at runtime but would slip an
+	# un-tolerated "$" anchor (issue #3292).
+	cat > .opencode/agents/comment-bypass.md <<'EOF'
+---
+description: A coordinator whose ask-gated dispatch hides behind a comment.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": deny
+    "gated-worker": ask # triaged later
+---
+EOF
+
+	output3=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code3=$?
+
+	if [ "${exit_code3:-0}" -ne 0 ] && echo "$output3" | grep -qF "has an 'ask'-gated dispatch entry"; then
+		pass "Caught ask-gated dispatch entry with trailing comment (issue #3292)"
+	else
+		fail "Did not detect ask-gated dispatch entry with trailing comment"
+	fi
+
+	# The catch-all with an "ask" verdict is the same hang: every dispatch
+	# would prompt at depth ≥2 where prompts cannot render.
+	cat > .opencode/agents/wildcard-ask.md <<'EOF'
+---
+description: A coordinator whose wildcard task allowlist is ask-gated.
+mode: subagent
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "ls*": allow
+  task:
+    "*": ask
+---
+EOF
+
+	output4=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code4=$?
+
+	if [ "${exit_code4:-0}" -ne 0 ] && echo "$output4" | grep -qF "catch-all is 'ask'-gated"; then
+		pass "Caught ask-gated wildcard task allowlist (issue #3292)"
+	else
+		fail "Did not detect ask-gated wildcard task allowlist"
+	fi
 )
 
 # ── Test: GNU-only `sed -i -e` in shell tests flagged (BSD sed parity) ───────
@@ -3895,6 +3946,7 @@ git_init_test_repo "$T_CTR_APP"
 
 print_summary "validate-harness"
 exit $?
+
 
 
 
