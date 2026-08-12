@@ -264,7 +264,7 @@ git commit -S -m $'fix(architecture): record design-owned handoff policy\n\nRefs
 - Consumes: Design's primary-tab workflow, From-Issue's existing `@explore`/`@architect`/`@tdd` task allowlist, and Consult's existing Design handoff.
 - Produces: shell-free Router recommendations, Design escalation/resume language, inline From-Issue fast-path taxonomy, and no Consult-to-spec writer claim.
 
-- [ ] **Step 1: Write failing route-contract tests**
+- [x] **Step 1: Write failing route-contract tests**
 
 Replace Router's ADR-0050 assertion with:
 
@@ -333,7 +333,7 @@ test('to-spec excludes Consult as a writer and redirects ambiguity to Design', f
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run:
 
@@ -343,7 +343,7 @@ php vendor/bin/pest tests/Unit/Harness/RouterCommandTest.php tests/Unit/Harness/
 
 Expected: FAIL on Router's classifier command, `/improve-architecture` loading brainstorming, From-Issue loading restricted skills, and `to-spec` claiming Consult.
 
-- [ ] **Step 3: Make Router and `/improve-architecture` recommendation-only**
+- [x] **Step 3: Make Router and `/improve-architecture` recommendation-only**
 
 Revise Router's permission note and routing rows to state:
 
@@ -378,7 +378,7 @@ If the user rejects the candidate with a load-bearing reason, offer an ADR
 before stopping, using the existing `CONTEXT.md`/ADR rules below.
 ```
 
-- [ ] **Step 4: Correct From-Issue, to-spec, and Design resume behavior**
+- [x] **Step 4: Correct From-Issue, to-spec, and Design resume behavior**
 
 In From-Issue, inline the chore taxonomy:
 
@@ -425,7 +425,7 @@ approval. When an issue escalation is settled, direct the user back to
 entry.
 ```
 
-- [ ] **Step 5: Verify Green and commit the routing fix**
+- [x] **Step 5: Verify Green and commit the routing fix**
 
 Run:
 

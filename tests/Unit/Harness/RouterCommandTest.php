@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RouterCommandTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+# $KYAULabs: RouterCommandTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -153,18 +156,17 @@ it('AGENTS.md Engineering Pipeline section contains the 3 on-ramps', function ()
     );
 });
 
-it('router routes HUGE work only to wayfinder and signals the strict-greenfield bootstrap (ADR-0050)', function () {
+it('router performs no shell work and sends scope classification to Design (ADR-0054)', function (): void {
     $router = (string) file_get_contents(__DIR__ . '/../../../.opencode/commands/router.md');
 
-    Assert::assertStringContainsString('HUGE', $router, 'router must keep a HUGE-work signal row');
-    Assert::assertStringContainsString('wayfinder', $router, 'router must route oversized work to wayfinder');
-    Assert::assertStringNotContainsString(
-        "brainstorming's decomposition guidance",
-        $router,
-        'router must not offer brainstorming decomposition as an alternate HUGE route (ADR-0050)',
-    );
-    Assert::assertStringContainsString('classify-greenfield.sh', $router, 'router must reference the strict-greenfield classifier signal');
+    Assert::assertStringContainsString('HUGE', $router);
+    Assert::assertStringContainsString('design', $router);
+    Assert::assertStringContainsString('wayfinder', $router);
+    Assert::assertStringNotContainsString('bash ', $router, '/router must perform no shell operation');
+    Assert::assertStringNotContainsString('classify-greenfield.sh', $router, 'Design owns the classifier');
+    Assert::assertMatchesRegularExpression('/strict greenfield.*design/is', $router);
 });
+
 
 
 
