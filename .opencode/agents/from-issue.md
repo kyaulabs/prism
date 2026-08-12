@@ -316,7 +316,7 @@ prompt (Step 9).
 - `grilling` skill — interview mechanics (load for triage questions)
 - `to-spec` skill — enhancement exit when the design emerged from grilling
 - `writing-plans` skill — implementation plan (Step 8)
-- `executing-plans` skill — the user runs it with @tdd after the handoff (Step 10)
+- `executing-plans` skill — Build-tab/user-run execution; never loaded here. After Step 10, the user invokes `@tdd` at depth 1.
 - `brainstorming` skill — Design-owned escalation target for ambiguity and scope classification; never loaded here
 - `prototype` skill — Design-owned escalation target for technical-viability questions; never loaded here
 - `wayfinder` skill — oversized-work route (ADR-0050); loaded by the design tab, never dispatched from here (Step 7)

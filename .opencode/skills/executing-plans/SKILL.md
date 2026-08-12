@@ -6,8 +6,9 @@ derived-from: obra/superpowers (MIT, © Jesse Vincent)
 
 # Executing Plans
 
-**Build-mode skill:** this runs in the `build` tab (or `from-issue`
-sessions) — the Plan agent must NOT load it (Plan is read-only, ADR-0006).
+**Build-mode skill:** this runs only in the `build` tab. `from-issue` plans
+and hands off; the user invokes `@tdd` at depth 1, and `from-issue` never loads
+this skill. The Plan agent must NOT load it (Plan is read-only, ADR-0006).
 
 Execute an implementation plan task by task, with structured review gates and
 clear halt thresholds. This skill sits between `writing-plans` (which produces
@@ -15,6 +16,21 @@ the plan) and `@tdd` (which implements each task).
 
 **Announce at start:** "I'm using the executing-plans skill to execute the
 plan at `docs/plans/<filename>.md`."
+
+## Parent capability contract
+
+The parent running this skill must be the `build` tab and must be able to:
+
+- edit every implementation path named by the plan and update plan checkboxes;
+- run the task's tests, linters, and `verification-before-completion` commands;
+- inspect task output and repository diffs;
+- stage changes and request approval for signed commits; and
+- dispatch `@tdd` when using @tdd-dispatch mode.
+
+If any required capability resolves to `deny`, do not load or partially run
+this skill. Hand the plan to the user in the `build` tab. Restricted planning
+coordinators such as `from-issue` must stop after planning and branch creation;
+the user invokes `@tdd` at depth 1.
 
 ## Choose an execution mode
 
