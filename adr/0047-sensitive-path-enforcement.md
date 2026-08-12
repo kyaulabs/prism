@@ -10,6 +10,9 @@ permission ordering, `glob.pattern`/`grep.include` tool-argument coverage,
 symlink canonicalization, and manifest-level validation of the security
 field).
 
+ADR-0053 partially supersedes only the get/validate-only trusted-subcommand
+clause by adding exact argv-shaped `present PROJECT USER_OR_DASH env.*` trust.
+
 ## Context
 
 Issue #288: no layer of the harness prevents an agent — or any of its

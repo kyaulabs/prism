@@ -1,4 +1,8 @@
-// $KYAULabs: sensitive-paths.ts kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
+
 
 
 
@@ -47,7 +51,7 @@ const SETUP_SCRIPTS = new Set([
     "prism_manifest.php",
 ]);
 
-const TRUSTED_PM_SUBCOMMANDS = new Set(["get", "validate"]);
+const TRUSTED_PM_SUBCOMMANDS = new Set(["get", "validate", "present"]);
 
 const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 
@@ -126,6 +130,11 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
     return null;
 }
 
+/** True when a token is option-prefixed or assignment-shaped (shared shape guard). */
+function isOptionToken(token: string): boolean {
+    return token.startsWith("-") || token.includes("=");
+}
+
 function normalizeRaw(raw: string, home: string): string {
     const p = raw.startsWith("~/") ? home + "/" + raw.slice(2) : raw;
     return normalize(p).replace(/\/+$/, "");
@@ -197,14 +206,30 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
     }
     for (; i < tokens.length; i++) {
         const t = tokens[i];
-        if (t.startsWith("-") || t.includes("=")) continue;
+        if (isOptionToken(t)) continue;
         const name = basename(t);
         if (depth > 0) return SETUP_SCRIPTS.has(name) ? "untrusted-subcommand" : "none";
         if (!SETUP_SCRIPTS.has(name)) return "none";
         if (name === "prism_manifest.php") {
             let j = i + 1;
-            while (j < tokens.length && (tokens[j].startsWith("-") || tokens[j].includes("="))) j++;
+            while (j < tokens.length && isOptionToken(tokens[j])) j++;
             if (j >= tokens.length || !TRUSTED_PM_SUBCOMMANDS.has(tokens[j])) return "untrusted-subcommand";
+            if (tokens[j] === "present") {
+                // ADR-0053: the present trust boundary is the exact argv
+                // shape below — depth-0, no option/assignment tokens between
+                // script and subcommand, non-option assignment-free path
+                // operands, and an env.* dot path. Every other present shape
+                // is untrusted-subcommand.
+                const shapeOk =
+                    j === i + 1 &&
+                    tokens.length === j + 4 &&
+                    !isOptionToken(tokens[j + 1]) &&
+                    (tokens[j + 2] === "-" ||
+                        !isOptionToken(tokens[j + 2])) &&
+                    tokens[j + 3].startsWith("env.") &&
+                    !isOptionToken(tokens[j + 3]);
+                if (!shapeOk) return "untrusted-subcommand";
+            }
         }
         const resolved = t.startsWith("~") ? normalize(opts.home + t.slice(1)) : normalize(resolvePath(opts.projectDir, t));
         const scriptsDir = normalize(resolvePath(opts.projectDir, ".github/scripts"));
@@ -286,6 +311,10 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
+
+
+
 
 
 

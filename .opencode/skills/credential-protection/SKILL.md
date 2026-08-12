@@ -55,9 +55,11 @@ whose executable resolves to one of the harness's own scripts under
 `.github/scripts/`: `migrate-setup.sh`, `setup-write-user-config.sh`,
 `setup-write-project-config.sh`, `setup-substitute.sh`, `setup-scaffold.sh`,
 `setup-rulesets.sh`, `check-setup-secrets.sh`, and `prism_manifest.php`.
-`prism_manifest.php` is trusted only for the `get`/`validate` subcommands —
-never `env0`/`values0`/`decode`, whose stdout can carry secrets (those
-subcommands are blocked even with a sensitive operand absent). All other
+`prism_manifest.php` is trusted only for the `get`/`validate` subcommands and
+the `present` subcommand in the exact argv shape
+`present PROJECT USER_OR_DASH env.*` (ADR-0053) — never `env0`/`values0`/
+`decode`, whose stdout can carry secrets. `present` prints only `true` or
+`false`, never the value; any other `present` shape is untrusted. All other
 path classes remain enforced for setup scripts.
 
 ## Reporting a bypass

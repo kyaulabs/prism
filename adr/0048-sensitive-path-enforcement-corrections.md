@@ -6,6 +6,9 @@ Date: 2026-08-02
 
 Accepted
 
+ADR-0053 partially supersedes only the get/validate-only trusted-subcommand
+clause by adding exact argv-shaped `present PROJECT USER_OR_DASH env.*` trust.
+
 ## Context
 
 ADR-0047 was accepted and its implementation (issue #288, Tasks 1–8) landed on
