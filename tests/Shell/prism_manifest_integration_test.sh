@@ -18,6 +18,7 @@
 
 
 
+
 # ── Cross-consumer regression suite for the prism manifest boundary ───────────
 #
 # Exercises every consumer entry point through the same fixture corpus to catch
@@ -1333,6 +1334,20 @@ JSON
 		fi
 	}
 
+	# expect_empty_streams <label> — assert the last captured error-path run
+	# left stdout empty and stderr non-empty (fail-closed stream contract).
+	expect_empty_streams() {
+		local label="$1"
+		if [ -s "$present_out" ]; then
+			echo "  present $label — stdout not empty: $(cat "$present_out")" >&2
+			failures=$((failures+1))
+		fi
+		if [ ! -s "$present_err" ]; then
+			echo "  present $label — stderr empty, diagnostic not emitted" >&2
+			failures=$((failures+1))
+		fi
+	}
+
 	expect_present "$manifest" - experimental.lsp_tool true "boolean true"
 	expect_present "$manifest" - experimental.background_subagents false "boolean false"
 	expect_present "$manifest" "$user_manifest" retry_count true "numeric zero"
@@ -1341,24 +1356,10 @@ JSON
 	set +e
 	php "$MANIFEST_CLI" present "$manifest" - >"$present_out" 2>"$present_err"
 	arity_rc=$?
-	if [ -s "$present_out" ]; then
-		echo "  present arity — stdout not empty: $(cat "$present_out")" >&2
-		failures=$((failures+1))
-	fi
-	if [ ! -s "$present_err" ]; then
-		echo "  present arity — stderr empty, diagnostic not emitted" >&2
-		failures=$((failures+1))
-	fi
+	expect_empty_streams arity
 	php "$MANIFEST_CLI" present "$manifest" - models >"$present_out" 2>"$present_err"
 	scalar_rc=$?
-	if [ -s "$present_out" ]; then
-		echo "  present non-scalar — stdout not empty: $(cat "$present_out")" >&2
-		failures=$((failures+1))
-	fi
-	if [ ! -s "$present_err" ]; then
-		echo "  present non-scalar — stderr empty, diagnostic not emitted" >&2
-		failures=$((failures+1))
-	fi
+	expect_empty_streams non-scalar
 	set -e
 
 	if [ "$arity_rc" -ne 2 ]; then
@@ -1669,6 +1670,7 @@ test_v5_to_v6_upgrade
 
 print_summary "prism_manifest_integration_test.sh"
 exit $?
+
 
 
 
