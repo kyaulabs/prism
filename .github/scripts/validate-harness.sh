@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -74,6 +78,7 @@ SKILLS_DIR="${HARNESS_DIR}/skills"
 AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
 OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
+HANDOFF_CHECKER="${REPO_ROOT}/.github/scripts/check-handoff-permissions.js"
 
 ERRORS=0
 WARNINGS=0
@@ -1452,6 +1457,73 @@ if [ "$ERRORS" -eq "$SP_ERRORS_BEFORE" ]; then
 	ok "Sensitive-path deny contract satisfied (A wired, B marker, C/C2 deny sets)"
 fi
 
+# ── Check documented handoff permission compatibility (ADR-0054) ─────────────
+# Machine-readable prism-handoff declarations beside documented entry-point
+# handoffs must resolve against the actor's effective permissions: global
+# rules → agent Markdown frontmatter → inline opencode.jsonc overrides,
+# last-match-wins. allow passes, ask warns (exit 0), deny is a defect, and
+# malformed declarations, unknown actors/targets, and indeterminate
+# composition fail closed. The checker runs only when at least one declaration
+# exists; a missing checker then fails loud rather than passing vacuously.
+# The nested-dispatch ask-reachability check above stays separate: it guards
+# the frontmatter task allowlist itself; this check validates declared
+# handoffs against the composed permission surface.
+
+echo "── Checking documented handoff permissions (ADR-0054) ──"
+HANDOFF_ERRORS_BEFORE=$ERRORS
+HANDOFF_DECL_COUNT=0
+
+if [ -d "${HARNESS_DIR}/agents" ] || [ -d "${HARNESS_DIR}/commands" ] || [ -d "${HARNESS_DIR}/skills" ]; then
+	# Grep only the directories that exist: under set -o pipefail a missing
+	# path makes grep exit 2 even when it found matches elsewhere, which
+	# would clobber the count to 0 and silently skip the whole ADR-0054 gate.
+	search_paths=()
+	[ -d "${HARNESS_DIR}/agents" ] && search_paths+=("${HARNESS_DIR}/agents")
+	[ -d "${HARNESS_DIR}/commands" ] && search_paths+=("${HARNESS_DIR}/commands")
+	[ -d "${HARNESS_DIR}/skills" ] && search_paths+=("${HARNESS_DIR}/skills")
+	HANDOFF_DECL_COUNT=$(grep -rl -- 'prism-handoff' "${search_paths[@]}" 2>/dev/null | wc -l | tr -d ' ') || HANDOFF_DECL_COUNT=0
+fi
+
+if [ "$HANDOFF_DECL_COUNT" -gt 0 ]; then
+	if [ ! -f "$HANDOFF_CHECKER" ]; then
+		err "handoff-contract: checker ${HANDOFF_CHECKER} missing while prism-handoff declarations exist (ADR-0054)"
+	else
+		handoff_crash=0
+		handoff_structured_error=0
+		handoff_output=''
+		if ! handoff_output=$(node "$HANDOFF_CHECKER" "$OPENCODE_JSONC" "$HARNESS_DIR" 2>&1); then
+			handoff_crash=1
+		fi
+		# Relay structured diagnostics first so a crash-with-violations is
+		# reported once per violation, not twice.
+		if [ -n "$handoff_output" ]; then
+			while IFS= read -r line; do
+				[ -n "$line" ] || continue
+				case "$line" in
+					handoff-contract:\ ERROR:*)
+						err "${line#handoff-contract: ERROR: }"
+						handoff_structured_error=1
+						;;
+					handoff-contract:\ WARN:*)
+						warn "${line#handoff-contract: WARN: }"
+						;;
+				esac
+			done <<< "$handoff_output"
+		fi
+		# A checker crash is always a defect: WARN-only output must not mask
+		# a non-zero exit, and a crash without structured ERROR lines must
+		# not print the success line below (fail closed, ADR-0054). When the
+		# checker exited non-zero WITH structured ERROR diagnostics, those
+		# already fail the gate — do not double-report them.
+		if [ "$handoff_crash" -eq 1 ] && [ "$handoff_structured_error" -eq 0 ]; then
+			err "handoff-contract: checker failed (exit != 0) without a structured ERROR diagnostic (ADR-0054): ${handoff_output}"
+		fi
+	fi
+	if [ "$ERRORS" -eq "$HANDOFF_ERRORS_BEFORE" ]; then
+		ok "Documented handoff permissions compatible (ADR-0054)"
+	fi
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""
@@ -1469,6 +1541,10 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
+
 
 
 

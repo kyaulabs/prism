@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ToSpecSkillTest.php kyau@nova 2026/07/15 -0700 Exp $
+# $KYAULabs: ToSpecSkillTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -65,11 +68,21 @@ test('to-spec skill defines a spec template targeting docs/specs/', function ():
     expect($content)->toContain('Out of Scope');
 });
 
+test('to-spec excludes Consult as a writer and redirects ambiguity to Design', function (): void {
+    $content = (string) file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
+
+    expect($content)->not->toMatch('/consumer.*@consult|@consult.*consumer/i')
+        ->and($content)->not->toMatch('/conversation \(@consult/i')
+        ->and($content)->toContain('operating as `@consult`')
+        ->and($content)->toContain('design tab');
+});
+
 test('to-spec skill has a Gotchas section', function (): void {
     $content = file_get_contents(__DIR__ . '/../../../.opencode/skills/to-spec/SKILL.md');
 
     expect($content)->toContain('## Gotchas');
 });
+
 
 
 

@@ -1,6 +1,6 @@
 ---
 name: to-spec
-description: "Use when you need to turn the current conversation and codebase understanding into a spec WITHOUT interviewing the user — synthesis only. Produces a docs/specs/ file using CONTEXT.md vocabulary and relevant ADRs, sketches test seams for confirmation, then finalizes. Exit path for @consult, @from-issue, or any session where the design is already clear from discussion."
+description: "Use when you need to turn the current conversation and codebase understanding into a spec WITHOUT interviewing the user — synthesis only. Produces a docs/specs/ file using CONTEXT.md vocabulary and relevant ADRs, sketches test seams for confirmation, then finalizes. Exit path for @from-issue or any session where the design is already clear from discussion."
 derived-from: mattpocock/skills (MIT, © Matt Pocock)
 ---
 
@@ -14,15 +14,18 @@ idea through grilling, to-spec captures a design that is already settled.
 ## When to use
 
 Load this skill when:
-- The design has emerged from a conversation (@consult, @from-issue,
-  or an exploratory session) and you need to record it as a spec.
+- The design has emerged from a conversation (@from-issue or an exploratory
+  session) and you need to record it as a spec.
 - The user says "write this up as a spec" / "turn this into a spec".
 - You have enough context to write a spec and the user does NOT want another
   interview round.
 
 Do NOT load this skill when:
-- The design is still ambiguous — use the `brainstorming` skill (which
-  interviews via `grilling`) instead.
+- You are operating as `@consult` — Consult cannot write `docs/specs/`; retain
+  its existing handoff to the **design** tab.
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
+- The design is still ambiguous — switch to the design tab, which owns
+  classifier-driven brainstorming and prototyping.
 - You need to create a GitHub issue — use `/issue`. to-spec writes a spec FILE,
   not a ticket.
 
@@ -123,7 +126,6 @@ Anything else relevant.
 - `grilling` skill — interview primitive; NOT loaded by to-spec
 - `writing-plans` skill — consumes the spec to-spec produces
 - `domain-context` skill — `CONTEXT.md` vocabulary sourcing
-- `@consult` agent — a consumer that exits via to-spec
 - `@architect` agent — run for cross-cutting specs before ticketing
 
 ## Gotchas
@@ -131,7 +133,8 @@ Anything else relevant.
 Known failure modes. Add entries when this skill causes a preventable mistake.
 
 - *Interviewing when you should synthesize* — if the design is unclear, you
-  loaded the wrong skill. Switch to `brainstorming` (which uses `grilling`).
+  loaded the wrong skill. Switch to the **design** tab, which owns
+  `brainstorming` and `grilling`.
 - *Publishing to the issue tracker* — to-spec writes a docs/specs/ file. Route
   to `/issue` for ticketing afterwards; do not create issues from to-spec.
 - *Skipping the seam gate* — the seam sketch confirmation is mandatory; it

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: ModelConfigTest.php kyau@cosmos.kyaulabs 2026/08/04 -0700 Exp $
+# $KYAULabs: ModelConfigTest.php kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
+
+
+
 
 
 
@@ -423,7 +426,7 @@ it('configures the hidden frontend agent on the FRONTEND tier', function (): voi
         ->and($frontend['hidden'])->toBeTrue();
 });
 
-it('gates exactly four frontend skills and re-enables them only for frontend', function (): void {
+it('gates exactly two Design-owned and four frontend skills, re-enabling them only for their owners', function (): void {
     $frontendSkills = frontend_skill_names();
     expect($frontendSkills)->toBe([
         'frontend-design',
@@ -433,9 +436,18 @@ it('gates exactly four frontend skills and re-enables them only for frontend', f
     ]);
 
     $config = load_opencode_config();
-    $expected = array_merge(['*' => 'allow'], array_fill_keys($frontendSkills, 'deny'));
+    $designOwned = ['brainstorming', 'prototype'];
+    $expected = array_merge(
+        ['*' => 'allow'],
+        array_fill_keys($designOwned, 'deny'),
+        array_fill_keys($frontendSkills, 'deny'),
+    );
 
     expect($config['permission']['skill'])->toBe($expected);
+    expect($config['agent']['design']['permission']['skill'])->toBe([
+        'brainstorming' => 'allow',
+        'prototype' => 'allow',
+    ]);
 
     $frontend = (string) file_get_contents(dirname(__DIR__, 3) . '/.opencode/agents/frontend.md');
     foreach ($frontendSkills as $skill) {
@@ -631,6 +643,7 @@ it('CODING_HARNESS variant column reflects xhigh for planner, design, and fronte
     Assert::assertStringContainsString('`xhigh`', $design[0][0], 'Design variant column is `xhigh`');
     Assert::assertStringContainsString('`xhigh`', $frontend[0][0], 'Frontend variant column is `xhigh`');
 });
+
 
 
 

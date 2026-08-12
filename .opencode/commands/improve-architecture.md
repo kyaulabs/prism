@@ -134,29 +134,22 @@ architecture vocabulary: shallow, no locality, leaks across seams, etc.>
 Do NOT propose interfaces yet. After the file is written, ask the user:
 "Which of these would you like to explore?"
 
-## 4. Grilling loop (optional)
+## 4. Design handoff (optional)
 
-Once the user picks a candidate, load the `brainstorming` skill to walk the
-design tree with them — constraints, dependencies, the shape of the deepened
-module, what sits behind the seam, what tests survive.
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
+Once the user picks a candidate, stop the command workflow and ask them to
+switch to the **design** tab. Carry forward the selected candidate, its concise
+problem statement, and the generated report path. Design owns the ADR-0050
+scope classifier, brainstorming, and any technical-viability prototype; this
+Build-bound command does not load those workflows itself.
 
-Side effects happen inline as decisions crystallize — keep the domain model
-current as you go:
-
-- **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the
-  term to `CONTEXT.md`. Create the file lazily if it doesn't exist.
-- **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md`
-  right there.
-- **User rejects the candidate with a load-bearing reason?** Offer an ADR,
-  framed as: _"Want me to record this as an ADR so future architecture
-  reviews don't re-suggest it?"_ Only offer when the reason would actually
-  be needed by a future explorer to avoid re-suggesting the same thing —
-  skip ephemeral reasons and self-evident ones.
+If the user rejects the candidate with a load-bearing reason, offer an ADR
+before stopping, using the existing `CONTEXT.md`/ADR rules below.
 
 ## Rules
 
 - Never edit source files. This command produces a report and optionally
-  updates `CONTEXT.md` / writes ADRs during the grilling loop.
+  updates `CONTEXT.md` / writes ADRs during the design handoff.
 - If `CONTEXT.md` does not exist, flag it — do not silently proceed without
   domain context. Suggest running `/prime`.
 - Do not duplicate `CONTEXT.md` content into the report; reference it via

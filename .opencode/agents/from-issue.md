@@ -87,6 +87,7 @@ gh issue view <NN>
 gh issue view <NN> --json title,body,labels,assignees,milestone,comments
 ```
 
+<!-- prism-handoff {"actor":"from-issue","action":"task","target":"explore"} -->
 Also read `AGENTS.md`, `CONTEXT.md` (if present), and dispatch `@explore` to
 find any `docs/plans/` or `docs/specs/` referencing `<NN>`. If a plan or spec
 already exists for this issue, say so and ask whether to skip straight to the
@@ -114,6 +115,8 @@ the same mapping as the `/issue` command and `docs/agents/labels.md`:
 Present your recommended Type with one-sentence reasoning. This is the first
 grilling turn — load the `grilling` skill (one-at-a-time, recommended answer,
 confirmation gate).
+
+<!-- prism-handoff {"actor":"from-issue","action":"skill","target":"grilling"} -->
 
 ### 3. Grill to resolve ambiguity
 
@@ -175,9 +178,12 @@ this.)
   investigation). Then STOP — `@debug` owns the investigation; the
   user re-invokes `@from-issue` (or proceeds to plan) once the root cause is
   known.
-- **Chore path:** describe the fast-path (the `brainstorming` skill defines
-  it). If it is a true zero-behavior-delta change, recommend the user proceed
-  directly. Do NOT write the source change yourself. STOP.
+
+<!-- prism-handoff {"action":"recommend-subagent","target":"debug"} -->
+- **Chore path:** fast-path only when the change has zero behavior delta:
+  typo, RCS header, docs, style-only, patch-deps, or test-only. Recommend the
+  user proceed directly in Build, then STOP. Otherwise reclassify and use the
+  matching bug/enhancement route.
 
 ### 7. Analyze the codebase (enhancement path)
 
@@ -187,25 +193,30 @@ when the routing matrix demands it:
 
 | Signal | Insert |
 | --- | --- |
+<!-- prism-handoff {"actor":"from-issue","action":"task","target":"architect"} -->
 | Non-trivial / cross-cutting | dispatch `@architect` for read-only validation against CONTEXT.md + ADRs |
-| Ambiguous / multiple approaches | load the `brainstorming` skill |
-| Technical viability uncertain | load the `prototype` skill |
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
+| Ambiguous / multiple approaches | STOP and recommend the **design** tab; its classifier and brainstorming workflow are outside this agent's bash/skill boundary |
+| Technical viability uncertain | STOP and recommend the **design** tab; prototype edits and commands are outside this agent's edit/bash boundary |
 
-**Oversized-scope stop (ADR-0050):** the `brainstorming` skill runs its scope
-gate before grilling. If it classifies the issue as oversized (multiple
-independent subsystems, or unknowns that cannot be expressed as sharp
-questions), STOP: do not decompose the work, do not create a wayfinder map or
-issues, and do not continue to Step 8. Direct the user to start a fresh
-design/wayfinder session — the design tab loads `wayfinder` for established or
+**Oversized-scope stop (ADR-0050):** recognize an oversized issue from the
+issue description and codebase evidence — multiple independent subsystems, or
+unknowns that cannot be expressed as sharp questions. STOP: do not decompose
+the work, do not create a wayfinder map or issues, and do not continue to
+Step 8. Direct the user to start a fresh **design** session — the design tab
+runs the scope classifier, then loads `wayfinder` for established or
 indeterminate repositories. `wayfinder` is not in this agent's `task`
 allowlist, so you do not dispatch it; the bug/enhancement/chore routing
 contract is unchanged.
 
 ### 8. Plan
 
+<!-- prism-handoff {"actor":"from-issue","action":"skill","target":"writing-plans"} -->
 Load the `writing-plans` skill and write a detailed implementation plan to
-`docs/plans/YYYY-MM-DD-<topic>.md` (you have edit access there). For an
-enhancement whose design emerged from grilling, you may instead load the
+`docs/plans/YYYY-MM-DD-<topic>.md` (you have edit access there).
+
+<!-- prism-handoff {"actor":"from-issue","action":"skill","target":"to-spec"} -->
+For an enhancement whose design emerged from grilling, you may instead load the
 `to-spec` skill and write a spec to `docs/specs/` first, then the plan. For a
 bug whose root cause is already known, write the fix plan directly.
 
@@ -236,6 +247,7 @@ Then STOP. Direct the user to invoke `@tdd` in the build tab (do NOT dispatch
 invokes it directly so its `ask`-gated `git commit*` prompts surface — nested
 subagent dispatch cannot render `ask` prompts in opencode ≤1.18.16, issue #3292).
 
+<!-- prism-handoff {"action":"recommend-subagent","target":"tdd"} -->
 `git add` / `git commit` prompt the user before running (`ask`). `git push` is
 denied — only the human pushes. After implementation, `/check` and `@code-review`
 are separate manual gates.
@@ -305,8 +317,8 @@ prompt (Step 9).
 - `to-spec` skill — enhancement exit when the design emerged from grilling
 - `writing-plans` skill — implementation plan (Step 8)
 - `executing-plans` skill — the user runs it with @tdd after the handoff (Step 10)
-- `brainstorming` skill — defines the chore fast-path; loaded when ambiguous
-- `prototype` skill — loaded when viability is uncertain
+- `brainstorming` skill — Design-owned escalation target for ambiguity and scope classification; never loaded here
+- `prototype` skill — Design-owned escalation target for technical-viability questions; never loaded here
 - `wayfinder` skill — oversized-work route (ADR-0050); loaded by the design tab, never dispatched from here (Step 7)
 - `/issue` command — Type→field mapping and the GraphQL/REST application pattern
 - `docs/agents/labels.md` — Type/Progress axes + meta labels

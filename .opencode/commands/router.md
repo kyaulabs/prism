@@ -1,5 +1,5 @@
 ---
-description: "Route a request to the right entry point. Reads the user's intent and points them at @consult, the design tab, @from-issue, @debug, the wayfinder, or the fast-path. Routes and stops — does not do the work. Runs as a plain command with the invoking agent's full permissions (commands cannot declare their own permission scope)."
+description: "Route a request to the right entry point. Reads the user's intent and points them at @consult, the design tab, @from-issue, @debug, the wayfinder, or the fast-path. Routes and stops — does not do the work. Performs no shell, edit, skill-load, or subagent-dispatch operation, so it works from every tab."
 ---
 
 You are a wayfinding router. Given the user's request in $ARGUMENTS, classify
@@ -7,22 +7,26 @@ it and point them at exactly ONE entry point. Do NOT do the work yourself —
 route and stop. If the intent is ambiguous, ask ONE clarifying question
 (grilling protocol) before routing.
 
-> **Permissions:** `/router` is a plain command — it runs with whatever
-> permissions the invoking agent has. It does not (and cannot) declare its
-> own `mode`/`permission` scope; any such keys in command frontmatter are
-> silently ignored by the runtime.
+> **Permissions:** `/router` is a plain command and works from every tab by
+> performing no shell, edit, skill-load, or subagent-dispatch operation. It
+> only recommends the compatible tab or user-invoked subagent and stops.
 
 ## Decision table
 
 | If the user wants to... | Route to |
 | --- | --- |
-| Ask a question / explore the codebase / think through a domain idea | `@consult "question"` |
+<!-- prism-handoff {"action":"recommend-subagent","target":"consult"} -->
+| Ask a question / explore the codebase / think through a domain idea | recommend the user invoke `@consult "question"` from a compatible Build/General context |
+<!-- prism-handoff {"action":"recommend-primary","target":"design"} -->
 | Build a NEW feature or behavior from an idea | switch to the **design** tab (brainstorming → spec → branch → plan → @tdd) |
-| Work an EXISTING GitHub issue | `@from-issue #NN` |
-| Investigate a BUG or regression | `@debug "repro steps"` |
-| Build something HUGE (multiple independent subsystems) | Decompose first — chart it with the `wayfinder` skill (the sole pre-spec decomposition route, ADR-0050) |
-| Build something HUGE in a fresh scaffold (strict greenfield — `bash .github/scripts/classify-greenfield.sh` confirms) | **design tab** — walking-skeleton bootstrap first, then wayfinder |
-| Make a trivial zero-behavior-delta change (typo, docs, RCS header, style, patch deps, test-only) | fast-path — implement directly, then verification-before-completion + /check |
+<!-- prism-handoff {"action":"recommend-subagent","target":"from-issue"} -->
+| Work an EXISTING GitHub issue | recommend the user invoke `@from-issue #NN` from a compatible Build/General context |
+<!-- prism-handoff {"action":"recommend-subagent","target":"debug"} -->
+| Investigate a BUG or regression | recommend the user invoke `@debug "repro steps"` from a compatible Build/General context |
+| Build something HUGE or potentially oversized | switch to the **design** tab — Design runs the ADR-0050 scope gate and routes established/indeterminate work to wayfinder |
+| Start from a fresh or possibly greenfield scaffold | switch to the **design** tab — Design determines strict greenfield and applies the walking-skeleton exception |
+<!-- prism-handoff {"action":"recommend-primary","target":"build"} -->
+| Make a trivial zero-behavior-delta change | switch to the **build** tab for the fast-path, then verification-before-completion + `/check` |
 
 ## Signal heuristics
 
@@ -30,8 +34,8 @@ route and stop. If the intent is ambiguous, ask ONE clarifying question
 - "bug" / "broken" / "crash" / "regression" / repro steps → `@debug`
 - a concrete new-feature description → **design** tab
 - "how does X work" / "what should I consider" / a question → `@consult`
-- spans multiple subsystems / "huge" / "platform" → decompose (wayfinder)
-- fresh scaffold / no commits / "greenfield" → run `bash .github/scripts/classify-greenfield.sh`; on `greenfield`, point to the design-tab walking-skeleton bootstrap, then wayfinder
+- spans multiple subsystems / "huge" / "platform" → **design** tab; Design routes established/indeterminate work to wayfinder
+- fresh scaffold / no commits / "greenfield" → **design** tab; Design owns classification and the walking-skeleton/wayfinder decision
 - typo / docs-only / header / lint fix / dep bump / test-only → fast-path
 
 Present the matched entry point as a single recommendation with a one-line
