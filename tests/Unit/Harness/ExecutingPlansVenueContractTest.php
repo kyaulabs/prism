@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 /**
@@ -81,6 +84,28 @@ it('restricts executing-plans to the build tab and excludes from-issue sessions'
         'from-issue cannot run executing-plans or dispatch @tdd; it plans and hands off instead.',
     );
 });
+
+it('requires a build-capable parent before either execution mode', function (): void {
+    $skill = executing_plans_skill_contents();
+
+    Assert::assertStringContainsString('## Parent capability contract', $skill);
+    Assert::assertStringContainsString('edit every implementation path', $skill);
+    Assert::assertStringContainsString('tests, linters, and `verification-before-completion`', $skill);
+    Assert::assertStringContainsString('stage changes and request approval for signed commits', $skill);
+    Assert::assertStringContainsString('dispatch `@tdd` when using @tdd-dispatch mode', $skill);
+    Assert::assertStringContainsString('If any required capability resolves to `deny`', $skill);
+    Assert::assertStringContainsString('Hand the plan to the user in the `build` tab', $skill);
+});
+
+it('marks executing-plans as never loaded by from-issue', function (): void {
+    $agent = agent_contents('from-issue');
+
+    Assert::assertStringContainsString(
+        '`executing-plans` skill — Build-tab/user-run execution; never loaded here.',
+        $agent,
+    );
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

@@ -17,6 +17,21 @@ the plan) and `@tdd` (which implements each task).
 **Announce at start:** "I'm using the executing-plans skill to execute the
 plan at `docs/plans/<filename>.md`."
 
+## Parent capability contract
+
+The parent running this skill must be the `build` tab and must be able to:
+
+- edit every implementation path named by the plan and update plan checkboxes;
+- run the task's tests, linters, and `verification-before-completion` commands;
+- inspect task output and repository diffs;
+- stage changes and request approval for signed commits; and
+- dispatch `@tdd` when using @tdd-dispatch mode.
+
+If any required capability resolves to `deny`, do not load or partially run
+this skill. Hand the plan to the user in the `build` tab. Restricted planning
+coordinators such as `from-issue` must stop after planning and branch creation;
+the user invokes `@tdd` at depth 1.
+
 ## Choose an execution mode
 
 ### Inline mode — parent executes tasks directly
