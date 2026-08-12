@@ -37,7 +37,8 @@ We add `present` to the setup trust set only for direct depth-0 argv shaped
 exactly as `present PROJECT USER_OR_DASH env.*`. No option or assignment token
 may appear between `prism_manifest.php` and `present`. The project argument
 must be path-shaped; the user argument must be path-shaped or `-`; the dot
-path may be any path beginning `env.`; no extra argument is accepted. Every
+path must begin with `env.` and contain no `=` (assignment-free); no extra
+argument is accepted. Every
 other `present` shape is `untrusted-subcommand`. Existing `get` and `validate`
 trust does not change, and `env0`, `values0`, and `decode` remain untrusted.
 
