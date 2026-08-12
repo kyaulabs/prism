@@ -42,6 +42,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -72,12 +73,13 @@ setup_validator_env() {
 	cp "$REPO_ROOT/.github/scripts/frontmatter-parser.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/jsonc-strip.js" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/inline-agent-permissions.js" .github/scripts/
-	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
-	# The handoff checker is created by the ADR-0054 task; copy it once it exists
-	# so earlier validator fixtures keep working during the Red phase.
-	if [ -f "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" ]; then
-		cp "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" .github/scripts/
-	fi
+ 	cp "$REPO_ROOT/.github/scripts/check-frontend-agent-contract.js" .github/scripts/
+ 	cp "$REPO_ROOT/.github/scripts/glob-match.js" .github/scripts/
+ 	# The handoff checker is created by the ADR-0054 task; copy it once it exists
+ 	# so earlier validator fixtures keep working during the Red phase.
+ 	if [ -f "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" ]; then
+ 		cp "$REPO_ROOT/.github/scripts/check-handoff-permissions.js" .github/scripts/
+ 	fi
 	cp "$REPO_ROOT/.github/scripts/prism_manifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismManifest.php" .github/scripts/
 	cp "$REPO_ROOT/.github/scripts/PrismJsoncDocument.php" .github/scripts/
@@ -4186,10 +4188,47 @@ git_init_test_repo "$T_HOFF_NOCHECK"
 	fi
 )
 
+# ── Test: checker crash after WARN-only output must not pass silently ───────
+
+echo "── Test: HANDOFF contract — WARN-only crash fails closed ──"
+T_HOFF_WARNCRASH=$(mktemp -d)
+register_temp_dir "$T_HOFF_WARNCRASH"
+git_init_test_repo "$T_HOFF_WARNCRASH"
+(
+	cd "$T_HOFF_WARNCRASH"
+	setup_handoff_contract_env
+
+	# A checker that emits a WARN diagnostic then exits non-zero: the wrapper
+	# must fail closed (a crash is always a defect) rather than printing the
+	# "compatible" success line because a WARN was seen.
+	cat > .github/scripts/check-handoff-permissions.js <<'EOF'
+#!/usr/bin/env node
+'use strict';
+console.error('handoff-contract: WARN: .opencode/agents/from-issue.md is ask-gated');
+process.exit(3);
+EOF
+
+	if grep -rq 'prism-handoff' .opencode; then
+		exit_code=0
+		output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+		if [ "${exit_code:-0}" -ne 0 ] && echo "$output" | grep -qF 'checker failed (exit != 0)'; then
+			pass "WARN-only checker crash fails closed with the exact diagnostic"
+		elif echo "$output" | grep -qF 'Documented handoff permissions compatible'; then
+			fail "WARN-only checker crash passed silently (printed compatible)"
+		else
+			fail "WARN-only checker crash not detected (exit ${exit_code:-0})"
+		fi
+	else
+		fail "warn-crash fixture setup failed — test is vacuous"
+	fi
+)
+
 # ── Summary ─────────────────────────────────────────────────────────────────────────────
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

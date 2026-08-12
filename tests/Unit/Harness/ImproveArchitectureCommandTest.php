@@ -8,6 +8,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 it('hands selected architecture candidates to Design instead of loading brainstorming', function (): void {
@@ -17,9 +20,10 @@ it('hands selected architecture candidates to Design instead of loading brainsto
 
     Assert::assertMatchesRegularExpression('/^agent:\s*build$/m', $command);
     Assert::assertStringContainsString('switch to the **design** tab', $command);
-    Assert::assertMatchesRegularExpression('/selected candidate.*report/is', $command);
+    Assert::assertMatchesRegularExpression('/selected candidate,\s+its concise/is', $command);
     Assert::assertStringNotContainsString('load the `brainstorming` skill', $command);
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

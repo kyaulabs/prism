@@ -6,6 +6,7 @@
 
 
 
+
 // Check the FRONTEND agent routing contract (ADR-0049).
 // Usage: node check-frontend-agent-contract.js <opencode.jsonc> <frontend.md> <tdd.md> <skills-root> <app>
 // Emits one stable 'frontend-contract: ' diagnostic per violation and exits 1;
@@ -29,6 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const { stripJsoncComments } = require('./jsonc-strip');
 const { parseFrontmatter } = require('./frontmatter-parser');
+const { globMatches } = require('./glob-match');
 
 const editRules = [
 	['*', 'deny'],
@@ -140,14 +142,6 @@ function appEditRules(app) {
 		[`${app}/*.html`, 'allow'],
 		[`${app}/**/*.html`, 'allow'],
 	];
-}
-
-function globMatches(pattern, value) {
-	const escaped = pattern
-		.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-		.replace(/\*/g, '.*')
-		.replace(/\?/g, '.');
-	return new RegExp(`^${escaped}$`).test(value);
 }
 
 function permissionVerdict(rules, value) {
@@ -332,6 +326,7 @@ if (violations.length > 0) {
 }
 
 process.exit(0);
+
 
 
 

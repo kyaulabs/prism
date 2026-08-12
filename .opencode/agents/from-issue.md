@@ -316,7 +316,6 @@ prompt (Step 9).
 - `grilling` skill — interview mechanics (load for triage questions)
 - `to-spec` skill — enhancement exit when the design emerged from grilling
 - `writing-plans` skill — implementation plan (Step 8)
-<!-- prism-handoff {"actor":"from-issue","action":"skill","target":"executing-plans"} -->
 - `executing-plans` skill — the user runs it with @tdd after the handoff (Step 10)
 - `brainstorming` skill — Design-owned escalation target for ambiguity and scope classification; never loaded here
 - `prototype` skill — Design-owned escalation target for technical-viability questions; never loaded here

@@ -1,6 +1,7 @@
 // $KYAULabs: check-handoff-permissions.js kyau@aura.kyaulabs 2026/08/11 -0700 Exp $
 
 
+
 'use strict';
 
 // Validate machine-readable prism-handoff declarations (ADR-0054) against the
@@ -29,14 +30,7 @@ const recommendationActions = new Map([
 ]);
 const errors = [];
 const warnings = [];
-
-function globMatches(pattern, value) {
-	const escaped = pattern
-		.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-		.replace(/\*/g, '.*')
-		.replace(/\?/g, '.');
-	return new RegExp(`^${escaped}$`).test(value);
-}
+const { globMatches } = require('./glob-match');
 
 function applyPermission(value, target, state) {
 	if (typeof value === 'string') return { verdict: value, determinate: true };
@@ -52,12 +46,34 @@ function applyPermission(value, target, state) {
 	return { verdict, determinate: state.determinate };
 }
 
+/**
+ * Resolve an action's permission rules from a permission container.
+ *
+ * Distinguishes three shapes per ADR-0054 composition: an absent key
+ * (undefined → fall through to the next layer), a flat-string verdict
+ * (e.g. {"skill": "deny"} → passed to applyPermission as-is), and a
+ * malformed container (non-object, array, or null → null so the caller
+ * fails closed instead of indexing into it and silently allowing).
+ *
+ * @param  {*}        container  The permission block (may be undefined).
+ * @param  {string}   action     Permission key to resolve (skill, task, ...).
+ * @return {*|null}              Rules, flat verdict, undefined, or null.
+ */
+function permissionRules(container, action) {
+	if (container === undefined || container === null) return undefined;
+	if (typeof container !== 'object' || Array.isArray(container)) return null;
+	return container[action];
+}
+
 function effectivePermission(config, agents, actor, action, target) {
 	let state = { verdict: 'allow', determinate: true };
-	state = applyPermission(config.permission && config.permission[action], target, state);
-	state = applyPermission(agents[actor] && agents[actor].permission && agents[actor].permission[action], target, state);
-	state = applyPermission(config.agent && config.agent[actor]
-		&& config.agent[actor].permission && config.agent[actor].permission[action], target, state);
+	state = applyPermission(permissionRules(config.permission, action), target, state);
+	state = applyPermission(permissionRules(agents[actor] && agents[actor].permission, action), target, state);
+	state = applyPermission(
+		permissionRules(config.agent && config.agent[actor] && config.agent[actor].permission, action),
+		target,
+		state,
+	);
 	return state;
 }
 
@@ -81,11 +97,15 @@ function loadAgents(agentsDir) {
 		let fm = null;
 		try {
 			fm = parseFrontmatter(content);
-		} catch (parseErr) {
-			fm = null;
+		} catch {
+			// Unparseable frontmatter stays null → malformed agent below.
 		}
 		if (fm && typeof fm === 'object') {
-			agents[name] = { mode: fm.mode || null, permission: fm.permission || null };
+			// Keep a missing permission:/mode: key as undefined (not null):
+			// applyPermission treats null as a malformed record, but an absent
+			// frontmatter block must fall through to the next composition
+			// layer (inline agent override, then global) per ADR-0054.
+			agents[name] = { mode: fm.mode, permission: fm.permission };
 		} else {
 			agents[name] = { mode: null, permission: null, malformed: true };
 		}
@@ -120,6 +140,10 @@ function agentMode(config, agents, name) {
 	if (config.agent && config.agent[name]) {
 		return config.agent[name].mode || 'primary';
 	}
+	// A known Markdown agent without an explicit mode: defaults to 'primary'
+	// (OpenCode's implicit mode for agent definitions) rather than being
+	// rejected as an unknown target.
+	if (agents[name]) return 'primary';
 	return null;
 }
 
@@ -298,6 +322,7 @@ if (require.main === module) {
 }
 
 module.exports = { globMatches, applyPermission, effectivePermission, agentMode, scanDeclarations };
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

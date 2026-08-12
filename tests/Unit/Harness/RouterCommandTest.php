@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 it('.opencode/commands/router.md exists and is readable', function () {
@@ -162,10 +165,11 @@ it('router performs no shell work and sends scope classification to Design (ADR-
     Assert::assertStringContainsString('HUGE', $router);
     Assert::assertStringContainsString('design', $router);
     Assert::assertStringContainsString('wayfinder', $router);
-    Assert::assertStringNotContainsString('bash ', $router, '/router must perform no shell operation');
+    Assert::assertStringNotContainsString('bash ', $router, 'router must perform no shell operation');
     Assert::assertStringNotContainsString('classify-greenfield.sh', $router, 'Design owns the classifier');
     Assert::assertMatchesRegularExpression('/strict greenfield.*design/is', $router);
 });
+
 
 
 

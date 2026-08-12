@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 use PHPUnit\Framework\Assert;
 
 it('globally denies Design-owned skills and re-allows them only for Design', function (): void {
@@ -17,7 +20,9 @@ it('globally denies Design-owned skills and re-allows them only for Design', fun
     Assert::assertSame('allow', $global['*'] ?? null);
     Assert::assertSame('deny', $global['brainstorming'] ?? null);
     Assert::assertSame('deny', $global['prototype'] ?? null);
-    Assert::assertSame(['brainstorming' => 'allow', 'prototype' => 'allow'], $design);
+    $designSkills = $design;
+    ksort($designSkills);
+    Assert::assertSame(['brainstorming' => 'allow', 'prototype' => 'allow'], $designSkills);
 
     foreach (['build', 'plan', 'chat', 'general', 'consult', 'from-issue', 'tdd'] as $agent) {
         $inline = $config['agent'][$agent]['permission']['skill'] ?? [];
@@ -41,10 +46,12 @@ it('canonical non-Design workflows contain no direct load instruction for Design
     ];
 
     foreach ($paths as $path) {
+        Assert::assertFileExists($path, $path);
         $content = (string) file_get_contents($path);
         Assert::assertDoesNotMatchRegularExpression('/\bload(?:s|ing)?(?: the)? `?(?:brainstorming|prototype)`? skill/i', $content, $path);
     }
 });
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

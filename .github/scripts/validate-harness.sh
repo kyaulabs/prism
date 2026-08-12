@@ -38,6 +38,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1479,32 +1480,28 @@ if [ "$HANDOFF_DECL_COUNT" -gt 0 ]; then
 		err "handoff-contract: checker ${HANDOFF_CHECKER} missing while prism-handoff declarations exist (ADR-0054)"
 	else
 		handoff_crash=0
-		handoff_structured=0
 		handoff_output=''
 		if ! handoff_output=$(node "$HANDOFF_CHECKER" "$OPENCODE_JSONC" "$HARNESS_DIR" 2>&1); then
 			handoff_crash=1
 		fi
-		if [ -z "$handoff_output" ]; then
-			if [ "$handoff_crash" -eq 1 ]; then
-				err "handoff-contract: checker failed with no output (ADR-0054)"
-			fi
-		else
+		# A checker crash is always a defect: WARN-only output must not mask
+		# a non-zero exit, and crash-with-no-output must not print the
+		# success line below (fail closed, ADR-0054).
+		if [ "$handoff_crash" -eq 1 ]; then
+			err "handoff-contract: checker failed (exit != 0) with output: ${handoff_output}"
+		fi
+		if [ -n "$handoff_output" ]; then
 			while IFS= read -r line; do
 				[ -n "$line" ] || continue
 				case "$line" in
 					handoff-contract:\ ERROR:*)
 						err "${line#handoff-contract: ERROR: }"
-						handoff_structured=1
 						;;
 					handoff-contract:\ WARN:*)
 						warn "${line#handoff-contract: WARN: }"
-						handoff_structured=1
 						;;
 				esac
 			done <<< "$handoff_output"
-			if [ "$handoff_crash" -eq 1 ] && [ "$handoff_structured" -eq 0 ]; then
-				err "handoff-contract: checker failed without a structured diagnostic (ADR-0054): ${handoff_output}"
-			fi
 		fi
 	fi
 	if [ "$ERRORS" -eq "$HANDOFF_ERRORS_BEFORE" ]; then
@@ -1529,6 +1526,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
