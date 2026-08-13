@@ -51,6 +51,7 @@
 
 
 
+
 # ── Repro-first tests for validate-harness.sh ──────────────────────────────────
 # Bugs under test (from Fable 5 audit):
 #   3. Vacuous PASS on empty/missing .opencode (HARNESS_DIR is relative)
@@ -4473,6 +4474,94 @@ EOF
 	fi
 )
 
+# ── Test: dispatch-verb heuristic catches reworded tool use (issue #302) ───────
+
+echo ""
+echo "── Test: dispatch-verb heuristic catches reworded tool use ──"
+T302_REWORD=$(mktemp -d)
+register_temp_dir "$T302_REWORD"
+git_init_test_repo "$T302_REWORD"
+(
+	cd "$T302_REWORD"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# Three rewordings that must still be detected as tool use: an
+	# intervening article, a new dispatch verb, and a digit-bearing agent
+	# name. All lack an agent binding and must be flagged.
+	cat > .opencode/commands/use-article.md <<'EOF'
+---
+description: Dispatch with an intervening article.
+subtask: true
+---
+
+Use the `@explore` agent to walk the codebase.
+EOF
+
+	cat > .opencode/commands/run-verb.md <<'EOF'
+---
+description: Dispatch with the Run verb.
+subtask: true
+---
+
+Run `@tdd` to implement the plan.
+EOF
+
+	cat > .opencode/commands/digit-name.md <<'EOF'
+---
+description: Dispatch to a digit-bearing agent name.
+subtask: true
+---
+
+Call `@test-audit2` to review the change.
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	for cmd in use-article run-verb digit-name; do
+		if echo "$output" | grep -F "$cmd" | grep -qF "no agent binding"; then
+			pass "Caught reworded tool-using command '$cmd' without agent binding"
+		else
+			fail "Missed reworded tool-using command '$cmd' without agent binding"
+		fi
+	done
+)
+
+# ── Test: MCP server name is not web tool use (issue #302) ─────────────────────
+
+echo ""
+echo "── Test: deepseek-websearch prose is not web tool use ──"
+T302_WEBPROSE=$(mktemp -d)
+register_temp_dir "$T302_WEBPROSE"
+git_init_test_repo "$T302_WEBPROSE"
+(
+	cd "$T302_WEBPROSE"
+	mkdir -p .opencode/commands
+	setup_validator_env
+
+	# Doc-only command whose body names the deepseek-websearch MCP server
+	# in prose — no bash block, no dispatch, no backticked tool reference.
+	# Word-boundary matching misreads the hyphen as a boundary and falsely
+	# classifies this as web tool use.
+	cat > .opencode/commands/setup-doc.md <<'EOF'
+---
+description: Document the deepseek-websearch MCP enablement flow.
+---
+
+Enable the deepseek-websearch MCP server only when the API key is present.
+EOF
+
+	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
+
+	if ! echo "$output" | grep -qF "1 command(s) checked"; then
+		fail "Vacuous scan — validator did not scan the fixture command"
+	elif echo "$output" | grep -F "setup-doc" | grep -qF "no agent binding"; then
+		fail "deepseek-websearch prose was falsely classified as web tool use"
+	else
+		pass "deepseek-websearch prose is not flagged as web tool use"
+	fi
+)
+
 # ── Test: tool-using command bound to build is not flagged (issue #302) ──────
 
 echo "── Test: tool-using command bound to build not flagged ──"
@@ -4510,15 +4599,30 @@ php vendor/bin/pest --no-coverage
 ```
 EOF
 
+	# Sibling no-binding command in the same scan. Asserting only the
+	# absence of diagnostics on tool-cmd lines is vacuous — if the scan
+	# ever skipped the fixture (or the dispatch detector missed a reworded
+	# tool use), the control would still pass. The sibling must actually
+	# be flagged for the positive control to prove anything.
+	cat > .opencode/commands/nobind-cmd.md <<'EOF'
+---
+description: A reworded tool-using command with no agent binding.
+subtask: true
+---
+
+Run `@tdd` to implement the plan.
+EOF
+
 	output=$(bash .github/scripts/validate-harness.sh 2>&1) || exit_code=$?
 
-	# tool-cmd must NOT be flagged for missing/unknown agent binding. (Other
-	# unrelated errors — e.g. missing AGENTS.md table rows — may fire and are
-	# fine; only the agent-binding diagnostics are asserted absent.)
-	if echo "$output" | grep -F "tool-cmd" | grep -qE "no agent binding|does not exist in the opencode.jsonc agent section"; then
+	if ! echo "$output" | grep -qF "2 command(s) checked"; then
+		fail "Positive control vacuous — validator did not scan both fixture commands"
+	elif ! echo "$output" | grep -F "nobind-cmd" | grep -qF "no agent binding"; then
+		fail "Sibling no-binding command was not flagged (reworded tool use slipped past the guard)"
+	elif echo "$output" | grep -F "tool-cmd" | grep -qE "no agent binding|does not exist in the opencode.jsonc agent section"; then
 		fail "Tool-using command with agent: build was falsely flagged"
 	else
-		pass "Tool-using command with agent: build not flagged"
+		pass "Positive control: agent: build not flagged while sibling no-binding command was"
 	fi
 )
 
@@ -4526,6 +4630,7 @@ EOF
 
 print_summary "validate-harness"
 exit $?
+
 
 
 

@@ -43,6 +43,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -214,9 +215,12 @@ agent_exists_in_openconfig() {
 # (issue #302). subtask: true only changes the invocation shape (forced
 # subagent session) — it grants no additional permissions.
 # Tool use is detected in the command template body: bash fenced blocks,
-# line-anchored dispatch verbs followed by a backticked @agent (the anchor
-# excludes prose like "recommend the user invoke `@consult`" — /router), and
-# websearch/webfetch references.
+# line-anchored dispatch verbs followed by a backticked @agent — an optional
+# "the"/"a" article between verb and agent, the Run/Execute verbs, and
+# digit-bearing agent names are accepted; the line anchor excludes prose
+# like "recommend the user invoke `@consult`" (/router) — and backticked
+# `websearch`/`webfetch` references (backticked-only so prose mentions of
+# the deepseek-websearch MCP server name are not mistaken for web use).
 # Usage: check_command_agent_binding <file>
 check_command_agent_binding() {
 	local file="$1" body tool_use=0 agent
@@ -227,13 +231,18 @@ check_command_agent_binding() {
 	if echo "$body" | grep -qE '```bash([^[:alnum:]_]|$)'; then
 		tool_use=1
 	fi
-	# Line-anchored dispatch verbs + backticked @agent
+	# Line-anchored dispatch verbs + backticked @agent (an optional
+	# "the"/"a" article between verb and agent, an extended verb set, and
+	# digit-bearing agent names are all accepted)
 	# shellcheck disable=SC2016  # backticks are a literal grep pattern, not expansion
-	if echo "$body" | grep -qiE '^[[:space:]]*([-*][[:space:]]+)?(Invoke|Dispatch|Use|Call|Delegate|Ask)[[:space:]]+`@[a-z][a-z-]*`'; then
+	if echo "$body" | grep -qiE '^[[:space:]]*([-*][[:space:]]+)?(Invoke|Dispatch|Use|Call|Delegate|Ask|Run|Execute)([[:space:]]+(the|a))?[[:space:]]+`@[a-z0-9][a-z0-9-]*`'; then
 		tool_use=1
 	fi
-	# websearch/webfetch references (whole-word — -w)
-	if echo "$body" | grep -qiwE 'websearch|webfetch'; then
+	# Backticked websearch/webfetch references — backticked-only so prose
+	# mentions of the deepseek-websearch MCP server name are not mistaken
+	# for web tool use (-w treats the hyphen as a word boundary)
+	# shellcheck disable=SC2016  # backticks are a literal grep pattern, not expansion
+	if echo "$body" | grep -qiE '`(websearch|webfetch)`'; then
 		tool_use=1
 	fi
 	[ "$tool_use" -eq 0 ] && return 0
@@ -1600,6 +1609,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
