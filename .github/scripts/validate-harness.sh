@@ -41,6 +41,9 @@
 
 
 
+
+
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -79,6 +82,7 @@ AGENTS_DIR="${HARNESS_DIR}/agents"
 COMMANDS_DIR="${HARNESS_DIR}/commands"
 OPENCODE_JSONC="${REPO_ROOT}/opencode.jsonc"
 HANDOFF_CHECKER="${REPO_ROOT}/.github/scripts/check-handoff-permissions.js"
+INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
 
 ERRORS=0
 WARNINGS=0
@@ -190,6 +194,69 @@ check_command_frontmatter_keys() {
 			err "${file}: invalid command frontmatter key '${key}' — commands allow only: description, agent, model, subtask (issue #204)"
 		fi
 	done <<< "$keys"
+}
+
+# Check that a named agent exists in opencode.jsonc's agent section.
+# Reuses the inline-agent-permissions.js JSONC parser and matches the emitted
+# name column exactly (grep -qxF — fixed string, no regex injection). Fails
+# closed: an absent opencode.jsonc or helper resolves to "not present".
+# Usage: agent_exists_in_openconfig <agent-name>
+agent_exists_in_openconfig() {
+	local agent="$1"
+	[ -f "$OPENCODE_JSONC" ] || return 1
+	node "$INLINE_HELPERS" "$OPENCODE_JSONC" 2>/dev/null \
+		| cut -d'|' -f1 | grep -qxF "$agent"
+}
+
+# A tool-using command must bind an explicit agent that exists in
+# opencode.jsonc's agent section. An omitted agent executes the command in
+# the CURRENT agent, so when invoked from Plan/Chat (restricted read-only
+# primaries) it inherits their bash/task/websearch denials and fails
+# (issue #302). subtask: true only changes the invocation shape (forced
+# subagent session) — it grants no additional permissions.
+# Tool use is detected in the command template body: bash fenced blocks,
+# line-anchored dispatch verbs followed by a backticked @agent — an optional
+# "the"/"a" article between verb and agent, the Run/Execute verbs, and
+# digit-bearing agent names are accepted; the line anchor excludes prose
+# like "recommend the user invoke `@consult`" (/router) — and backticked
+# `websearch`/`webfetch` references (backticked-only so prose mentions of
+# the deepseek-websearch MCP server name are not mistaken for web use).
+# Usage: check_command_agent_binding <file>
+check_command_agent_binding() {
+	local file="$1" body tool_use=0 agent
+	# Extract the command template body (everything after the frontmatter).
+	body=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { body=1; next } body { print }' "$file")
+
+	# bash fenced blocks
+	if echo "$body" | grep -qE '```bash([^[:alnum:]_]|$)'; then
+		tool_use=1
+	fi
+	# Line-anchored dispatch verbs + backticked @agent (an optional
+	# "the"/"a" article between verb and agent, an extended verb set, and
+	# digit-bearing agent names are all accepted)
+	# shellcheck disable=SC2016  # backticks are a literal grep pattern, not expansion
+	if echo "$body" | grep -qiE '^[[:space:]]*([-*][[:space:]]+)?(Invoke|Dispatch|Use|Call|Delegate|Ask|Run|Execute)([[:space:]]+(the|a))?[[:space:]]+`@[a-z0-9][a-z0-9-]*`'; then
+		tool_use=1
+	fi
+	# Backticked websearch/webfetch references — backticked-only so prose
+	# mentions of the deepseek-websearch MCP server name are not mistaken
+	# for web tool use (-w treats the hyphen as a word boundary)
+	# shellcheck disable=SC2016  # backticks are a literal grep pattern, not expansion
+	if echo "$body" | grep -qiE '`(websearch|webfetch)`'; then
+		tool_use=1
+	fi
+	[ "$tool_use" -eq 0 ] && return 0
+
+	agent=$(frontmatter_key "$file" "agent")
+	if [ -z "$agent" ]; then
+		err "${file}: tool-using command has no agent binding — it inherits the invoking tab's permissions (Plan/Chat deny these tools) — issue #302"
+		return 1
+	fi
+	if ! agent_exists_in_openconfig "$agent"; then
+		err "${file}: bound agent '${agent}' does not exist in the opencode.jsonc agent section"
+		return 1
+	fi
+	return 0
 }
 
 # ── Validate skills ──────────────────────────────────────────────────────────
@@ -307,6 +374,9 @@ else
 
 		# Validate frontmatter keys against the command allowlist (issue #204)
 		check_command_frontmatter_keys "$cmd_file"
+
+		# Tool-using commands must bind an agent that exists (issue #302)
+		check_command_agent_binding "$cmd_file" || true
 
 		# Register the command name (filename without .md)
 		cmd_name=$(basename "$cmd_file" .md)
@@ -877,8 +947,6 @@ fi
 echo "── Checking inline agent permission contracts (opencode.jsonc) ──"
 INLINE_RO_CHECKED=0
 INLINE_RO_VIOLATIONS=0
-
-INLINE_HELPERS="${REPO_ROOT}/.github/scripts/inline-agent-permissions.js"
 
 if [ -f "$INLINE_HELPERS" ] && [ -f "$OPENCODE_JSONC" ]; then
 	while IFS='|' read -r agent_name desc edit_val bash_restricted _git_commit _has_perm _sensitive_denies _read_sensitive_denies _order_ok; do
@@ -1541,6 +1609,9 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
+
+
 
 
 

@@ -1,5 +1,6 @@
 ---
 description: Toolchain health check. Verifies all required dev-toolchain tools are installed at the expected version floors. Reports a PASS/FAIL/SKIPPED table per tool and ends with a go/no-go summary. Compares against known-good versions from README.md.
+agent: build
 subtask: true
 ---
 

@@ -1,5 +1,6 @@
 ---
 description: Research a question using upstream sources, official docs, and the web. Produces a cited summary with a confidence rating. Pass --background for async dispatch (experimental, gated).
+agent: build
 subtask: true
 ---
 

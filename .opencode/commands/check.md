@@ -1,5 +1,6 @@
 ---
 description: Pre-push gate. Runs PHP CS fixer (dry-run), stylelint, eslint, and Pest with coverage (80% gate). Reports all failures grouped by tool before push.
+agent: build
 subtask: true
 ---
 
