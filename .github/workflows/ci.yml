@@ -73,6 +73,14 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install pi
+        # The harness validator (validate-harness.sh) and the
+        # check_skill_frontmatter shell test import-check the safety extension
+        # via `pi -e`. Pre-conversion the validator was opencode-based; the
+        # Stage 3 rewrite made it pi-dependent, so CI must install pi. Pinned
+        # for reproducibility (matches the pinned tool versions below).
+        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.1
+
       - name: TypeScript type-check
         run: npx tsc --noEmit
 
@@ -323,6 +331,11 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Install pi
+        # Needed by validate-harness.sh (extension import check) and the
+        # check_skill_frontmatter shell test. See the check job for rationale.
+        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.1
 
       - name: Install Homebrew bash 5 + GNU coreutils
         run: |
