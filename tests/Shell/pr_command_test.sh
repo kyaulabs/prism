@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+
 
 
 
@@ -463,8 +464,8 @@ fi
 
 # ── 13. living-document command index ────────────────────────────────────────
 
-assert_contains "$REPO_ROOT/AGENTS.md" '| `/pr` |' \
-	'AGENTS command table indexes /pr'
+assert_contains "$REPO_ROOT/packages/prism-core/AGENTS.md" '| `/pr` |' \
+	'core AGENTS command table indexes /pr'
 assert_contains "$REPO_ROOT/README.md" '| `/pr` |' \
 	'README slash-command table indexes /pr'
 assert_contains "$REPO_ROOT/CODING_HARNESS.md" '`/pr`' \
@@ -496,6 +497,7 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
 
 
 
