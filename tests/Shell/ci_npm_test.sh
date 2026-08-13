@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: ci_npm_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: ci_npm_test.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+
 
 
 
@@ -25,15 +26,18 @@ echo "── Test 1: ci.yml does not contain npm install ──"
 if [ ! -f "$CI_FILE" ]; then
     fail "ci.yml not found at ${CI_FILE}"
 else
-    # `npm ci` does not contain the substring `npm install`, so this
-    # grep has no false positives. Any match means someone used
-    # `npm install` instead of `npm ci`.
-    matches=$(grep -n 'npm install' "$CI_FILE" 2>/dev/null || true)
+    # `npm ci` does not contain the substring `npm install`. Forbid
+    # `npm install` for project dependencies (it reconciles lockfile drift;
+    # use `npm ci` -- Issue #73), but ALLOW `npm install -g <pkg>` for global
+    # CLI tool installs (e.g. pi), which are analogous to the pinned binary
+    # installs of shellcheck/gitleaks/semgrep above and do not touch the
+    # project lockfile.
+    matches=$(grep -n 'npm install' "$CI_FILE" 2>/dev/null | grep -v 'npm install -g' || true)
     if [ -n "$matches" ]; then
-        fail "ci.yml contains 'npm install' (should use 'npm ci'):"
+        fail "ci.yml contains a non-global 'npm install' (use 'npm ci' for project deps; only 'npm install -g' is allowed for tools):"
         echo "$matches" >&2
     else
-        pass "ci.yml does not contain 'npm install'"
+        pass "ci.yml has no non-global 'npm install'"
     fi
 fi
 
@@ -55,6 +59,7 @@ fi
 
 print_summary "ci_npm_test.sh"
 exit $?
+
 
 
 
