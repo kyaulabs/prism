@@ -1,5 +1,7 @@
 # 0046. Automated Release Pipeline
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-08-01
 
 ## Status

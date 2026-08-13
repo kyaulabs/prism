@@ -1,5 +1,7 @@
 # $KYAULabs: 0031-model-rebalance-and-footer-rename.md kyau@nova 2026/07/20 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0031. Model Rebalance for z.ai Pro Coding Plan and Commit Footer Rename
 
 Date: 2026-07-20

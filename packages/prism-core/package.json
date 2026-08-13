@@ -1,0 +1,12 @@
+{
+  "name": "@kyaulabs/prism-core",
+  "version": "0.1.0",
+  "description": "KYAULabs coding harness — language-agnostic core (pi)",
+  "license": "AGPL-3.0-only",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"]
+  }
+}

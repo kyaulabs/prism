@@ -1,5 +1,7 @@
 # 0053. Present-Subcommand Trust for the Prism Manifest CLI
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-08-11
 
 ## Status

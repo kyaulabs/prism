@@ -1,5 +1,7 @@
 # $KYAULabs: 0028-git-flow-branch-naming-enforcement.md kyau@nova 2026/07/19 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0028. Mechanically enforce Git Flow branch naming
 
 Date: 2026-07-19

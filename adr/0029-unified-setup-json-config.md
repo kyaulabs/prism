@@ -1,5 +1,7 @@
 # $KYAULabs: 0029-unified-setup-json-config.md kyau@nova 2026/07/19 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0029. Consolidate models.default.env + experimental.default.env into setup.json
 
 Date: 2026-07-19

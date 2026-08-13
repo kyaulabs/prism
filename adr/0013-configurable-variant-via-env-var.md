@@ -1,5 +1,7 @@
 # 0013. Configurable Variant via {env:VAR} Substitution
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-10
 
 ## Status

@@ -1,5 +1,7 @@
 # $KYAULabs: 0016-eval-case-dual-validation.md kyau@nova 2026/07/12 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0016. Eval Case Dual Validation: schema.json Canonical, validate() Hand-Rolled Mirror Guarded by Parity Test
 
 Date: 2026-07-12

@@ -1,5 +1,7 @@
 # 0002. First-Party Semgrep Rules Pack
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-14
 
 ## Status

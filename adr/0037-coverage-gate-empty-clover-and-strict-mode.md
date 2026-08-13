@@ -1,5 +1,7 @@
 # 0037. Coverage Gate: Empty-Clover Hard-Fail and Out-of-Source WARN/--strict
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-23
 
 Amends: [ADR-0009](0009-mechanized-changed-file-coverage-gate.md)

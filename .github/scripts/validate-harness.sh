@@ -44,6 +44,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -1284,7 +1285,7 @@ echo "── Checking for unpinned npx in opencode.jsonc command arrays ──"
 # spawn does not hang on the install prompt, and (b) pin the package to an exact
 # version (pkg@x.y.z) so a compromised or typosquatted release cannot execute.
 # See issue #205. Permanent disabled definitions are checked — they are the
-# tracked false defaults consumed by OPENCODE_CONFIG_CONTENT composition; their
+# tracked false defaults consumed by opencode config composition; their
 # pinned commands and -y flags must be safe-by-default when enabled. The
 # check is line-local (command arrays are single-line per opencode config
 # convention); @[0-9] matches the version pin and ignores the @scope prefix.
@@ -1609,6 +1610,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 

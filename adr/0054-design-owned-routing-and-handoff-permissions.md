@@ -1,5 +1,7 @@
 # 0054. Design-Owned Routing and Handoff Permission Compatibility
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-08-11
 
 ## Status

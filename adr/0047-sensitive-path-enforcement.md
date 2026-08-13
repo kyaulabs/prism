@@ -1,5 +1,7 @@
 # 0047. Sensitive-Path Enforcement Across All Agents
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-08-02
 
 ## Status

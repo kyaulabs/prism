@@ -1,7 +1,0 @@
-// -*- mode: jsonc -*-
-
-{
-  "$schema": "https://opencode.ai/tui.json"
-}
-
-// vim: ft=jsonc sts=2 sw=2 ts=2 et:

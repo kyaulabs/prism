@@ -990,3 +990,42 @@ Stage 7  →  DEFERRED (evals, more adapters, publish)    (do not execute)
 
 One branch, one commit per task, signed. Halt and surface (do not improvise)
 if any stage's verification gate fails or a settled decision looks wrong.
+
+---
+
+## Addendum (2026-08-12, in-flight)
+
+**Stage 0 Gate 3 deferral.** The Stage 0 verification gate
+
+`grep -rl "prism_manifest\|PrismManifest\|OPENCODE_CONFIG_CONTENT" .github/ packages/`
+
+is **deferred** to Stage 3 and re-asserted at Stage 6. Rationale surfaced
+during Stage 0 execution: the Stage 0 file list deletes the manifest/config
+machinery but leaves five `.github` files in place that still reference
+`prism_manifest.php`, and each of those files is itself scheduled for
+rewrite/drop/copy in **Stage 3** or for the comprehensive residue sweep in
+**Stage 6**. Making the grep green in Stage 0 would require doing Stage 3
+work out of order. The chosen resolution (maintainer-approved Option A —
+defer) keeps stage ordering intact.
+
+The five Stage-3/6-bound files (and their scheduled action):
+
+| File | Reference | Scheduled action |
+|---|---|---|
+| `.github/scripts/setup-scaffold.sh` | live `prism_manifest.php values0` call | Stage 3 Task 3.3 — dropped |
+| `.github/scripts/classify-greenfield.sh` | live `prism_manifest.php get` call | Stage 3 — copied to core + de-opencode-ified |
+| `.github/scripts/validate-harness.sh` | `PRISM_MANIFEST_CLI=…/prism_manifest.php` | Stage 3 Task 3.3 — rewritten |
+| `.github/scripts/resolve-identity.sh` | comment + `MANIFEST_CLI=…/prism_manifest.php` | Stage 3 Task 3.3 — rewritten |
+| `.github/hooks/pre-commit` | comment mentioning `prism_manifest.php` | Stage 6 — `.github/` residue sweep |
+
+**Re-assertion points.** (1) after Stage 3 lands the script rewrites/drops;
+(2) the full Stage 6 gate `grep -rin "opencode" packages/ docs/ adr/ README.md
+CODING_HARNESS.md .github/`. Both must return only allowed
+historical/attribution hits.
+
+**What Stage 0 still guarantees now.** The deleted machinery files themselves
+are gone (17 `git rm`s), `pi --no-session -p "echo ok"` runs with no opencode
+config present, and no `packages/` file references the manifest — so the
+stage's stated objective ("`pi` runs in the repo without referencing opencode
+config") holds at the config level. Gates 1, 2, 4, 5 are green; only the
+over-scoped `.github/` grep is deferred.

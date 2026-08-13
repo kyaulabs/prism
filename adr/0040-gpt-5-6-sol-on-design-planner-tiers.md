@@ -1,5 +1,7 @@
 # 0040. GPT-5.6 Sol on DESIGN+PLANNER Tiers and `Implemented-by` Commit Footer
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-27
 
 ## Status

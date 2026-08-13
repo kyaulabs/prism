@@ -3,6 +3,17 @@
 An ADR captures a single architectural decision: the context, the choice, and
 its consequences. ADRs are immutable once accepted — supersede, don't edit.
 
+## Two eras
+
+The ADR sequence spans two harness generations:
+
+- **0001–0054 — opencode-era (frozen).** Records from the opencode harness.
+  They are retained as historical context; each carries a banner noting it is
+  an opencode-era record superseded where moot by the pi migration
+  (ADR-0055). They are not edited — bodies stand as written.
+- **0055+ — pi-era.** Records from the pi harness begin at ADR-0055 (the
+  single-agent conversion philosophy) and continue the numbering.
+
 ## Format (Nygard)
 
 Each record: `adr/NNNN-kebab-case-title.md` where `NNNN` is the next sequence

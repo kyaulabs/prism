@@ -1,5 +1,7 @@
 # 0010. Standardize on `Fixes: #NN` for issue-closing references
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-09
 
 ## Status

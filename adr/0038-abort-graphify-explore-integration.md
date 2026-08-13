@@ -1,5 +1,7 @@
 # 0038. Abort Graphify @explore Integration (Phase 2)
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-26
 
 ## Status

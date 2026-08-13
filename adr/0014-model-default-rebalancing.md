@@ -1,5 +1,7 @@
 # $KYAULabs: 0014-model-default-rebalancing.md kyau@nova 2026/07/10 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0014. Model Default Rebalancing and Temperature Explicitness
 
 Date: 2026-07-10
