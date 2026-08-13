@@ -1,5 +1,0 @@
-# package.json and package-lock.json are tracked so the plugin SDK
-# dependency is available for tsc --noEmit in CI (see .github/workflows/ci.yml).
-# node_modules remains gitignored; CI populates it via npm install.
-node_modules
-bun.lock

@@ -1,11 +1,10 @@
 {
 	"name": "prism",
 	"private": true,
-	"description": "Coding harness for OpenCode that codifies disciplined, test-driven PHP development.",
+	"description": "Coding harness for pi that codifies disciplined, test-driven PHP development.",
 	"devDependencies": {
 		"@commitlint/config-conventional": "^21",
 		"@eslint/js": "^10",
-		"@opencode-ai/plugin": "1.18.16",
 		"@stylelint/language-server": "^1.1.1",
 		"@types/node": "^24",
 		"commitlint": "^21",
@@ -19,8 +18,5 @@
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
 		"uglify-js": "^3"
-	},
-	"scripts": {
-		"test:plugin": "node --import tsx --test tests/Plugin/*.test.ts"
 	}
 }

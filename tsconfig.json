@@ -14,9 +14,7 @@
     },
     "include": [
         "cdn/js/**/*.js",
-        ".github/scripts/**/*.js",
-        ".opencode/plugins/**/*.ts",
-        "tests/Plugin/**/*.ts",
+        "packages/**/*.js",
         "eslint.config.mjs",
         "commitlint.config.js"
     ],

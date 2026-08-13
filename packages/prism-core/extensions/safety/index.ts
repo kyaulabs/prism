@@ -1,6 +1,7 @@
 // $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
 
 
+
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
  *
@@ -105,17 +106,17 @@ function resolveSafeRelDirs(cwd: string): readonly string[] {
 }
 
 /**
- * Resolve the deny-floor extension surface. `PRISM_SENSITIVE_PATHS` is the
- * renamed successor to `OPENCODE_SENSITIVE_PATHS`; both are loaded for a
- * migration grace period. `loadAdditionalSensitivePaths` throws on a
- * malformed entry to fail closed (ADR-0047); we surface it loudly and keep
- * the core DEFAULT_PATTERNS deny floor in effect rather than aborting every
- * session over a bad env var.
+ * Resolve the deny-floor extension surface. `PRISM_SENSITIVE_PATHS` is a
+ * newline-joined list of `~/`-prefixed or absolute paths appended to the
+ * core deny floor. `loadAdditionalSensitivePaths` throws on a malformed
+ * entry to fail closed (ADR-0047); we surface it loudly and keep the core
+ * DEFAULT_PATTERNS deny floor in effect rather than aborting every session
+ * over a bad env var.
  */
 function resolveExtraPaths(): string[] {
     const paths: string[] = [];
-    for (const envValue of [process.env.PRISM_SENSITIVE_PATHS, process.env.OPENCODE_SENSITIVE_PATHS]) {
-        if (envValue === undefined || envValue === "") continue;
+    const envValue = process.env.PRISM_SENSITIVE_PATHS;
+    if (envValue !== undefined && envValue !== "") {
         try {
             paths.push(...loadAdditionalSensitivePaths(envValue));
         } catch (err) {
@@ -284,6 +285,7 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

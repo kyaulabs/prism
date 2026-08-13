@@ -9,6 +9,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -49,10 +50,7 @@ const SETUP_SCRIPTS = new Set([
     "setup-scaffold.sh",
     "setup-rulesets.sh",
     "check-setup-secrets.sh",
-    "prism_manifest.php",
 ]);
-
-const TRUSTED_PM_SUBCOMMANDS = new Set(["get", "validate", "present"]);
 
 const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 
@@ -211,27 +209,6 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
         const name = basename(t);
         if (depth > 0) return SETUP_SCRIPTS.has(name) ? "untrusted-subcommand" : "none";
         if (!SETUP_SCRIPTS.has(name)) return "none";
-        if (name === "prism_manifest.php") {
-            let j = i + 1;
-            while (j < tokens.length && isOptionToken(tokens[j])) j++;
-            if (j >= tokens.length || !TRUSTED_PM_SUBCOMMANDS.has(tokens[j])) return "untrusted-subcommand";
-            if (tokens[j] === "present") {
-                // ADR-0053: the present trust boundary is the exact argv
-                // shape below — depth-0, no option/assignment tokens between
-                // script and subcommand, non-option assignment-free path
-                // operands, and an env.* dot path. Every other present shape
-                // is untrusted-subcommand.
-                const shapeOk =
-                    j === i + 1 &&
-                    tokens.length === j + 4 &&
-                    !isOptionToken(tokens[j + 1]) &&
-                    (tokens[j + 2] === "-" ||
-                        !isOptionToken(tokens[j + 2])) &&
-                    tokens[j + 3].startsWith("env.") &&
-                    !isOptionToken(tokens[j + 3]);
-                if (!shapeOk) return "untrusted-subcommand";
-            }
-        }
         const resolved = t.startsWith("~") ? normalize(opts.home + t.slice(1)) : normalize(resolvePath(opts.projectDir, t));
         const scriptsDir = normalize(resolvePath(opts.projectDir, ".github/scripts"));
         return resolved.startsWith(scriptsDir + "/") ? "trusted" : "none";
@@ -312,6 +289,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

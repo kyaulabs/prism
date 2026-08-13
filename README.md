@@ -329,7 +329,6 @@ conventions during AI-assisted development. The harness lives under
 * **`CODING_HARNESS.md`** — orientation guide: pi mapping, pipeline overview, and pointers (the agent loads `AGENTS.md` as the authoritative source)
 * **`CONTEXT.md`** — domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
 * **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
-* **`docs/POSITIONING.md`** — Why this stack and harness exist (design rationale, differentiators)
 * **`NOTICE`** — Third-party attribution and provenance
 
 ### Quick-start loop

@@ -6,16 +6,16 @@ opencode-era safety stack — `sensitive-paths` + `pre-tool-use` +
 `tool_call` event.
 
 This directory is a **port**, not a rewrite. The pure logic is copied verbatim
-from `~/tmp/prism/.opencode/plugins/`; only the opencode wrapper became a pi
-extension.
+from the opencode-era plugins in the source repo; only the opencode wrapper
+became a pi extension.
 
 ## Files
 
 | File | Origin | Change |
 | --- | --- | --- |
-| `sensitive-paths.ts` | `.opencode/plugins/sensitive-paths.ts` | **Verbatim.** Pure path/operand classifier + deny floor. No opencode imports to strip. |
-| `denial-circuit-breaker.ts` | `.opencode/plugins/denial-circuit-breaker.ts` | **Verbatim.** Pure `DenialCircuitBreaker` state machine + the opencode-era `DenialOutcomeTracker` (kept for fidelity; the pi wrapper uses the breaker directly — see below). |
-| `pre-tool-use.ts` | `.opencode/plugins/pre-tool-use.ts` (classifier half) | **Near-verbatim.** `classifyCommand` and all helpers (`parseRm`, `findRmAnywhere`, `findGitSubcommand`, `expandShortFlags`, `resolveTarget`, `isWithinSafeZone`) are unchanged. One targeted edit: `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
+| `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim.** Pure path/operand classifier + deny floor. No opencode imports to strip. |
+| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim.** Pure `DenialCircuitBreaker` state machine + the opencode-era `DenialOutcomeTracker` (kept for fidelity; the pi wrapper uses the breaker directly — see below). |
+| `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim.** `classifyCommand` and all helpers (`parseRm`, `findRmAnywhere`, `findGitSubcommand`, `expandShortFlags`, `resolveTarget`, `isWithinSafeZone`) are unchanged. One targeted edit: `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
 | `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
 | `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
 
@@ -100,10 +100,8 @@ The deny floor is user/project-extensible via environment variables
 (`loadAdditionalSensitivePaths`, verbatim from opencode):
 
 - `PRISM_SENSITIVE_PATHS` — newline-joined `~/`-prefixed or absolute paths.
-- `OPENCODE_SENSITIVE_PATHS` — the legacy name; loaded too for a migration
-  grace period.
 
-Both are loaded and concatenated. A malformed entry throws inside
+Entries are concatenated onto the core deny floor. A malformed entry throws inside
 `loadAdditionalSensitivePaths` (fail closed, ADR-0047); the wrapper surfaces
 it loudly and keeps the core `DEFAULT_PATTERNS` deny floor active rather than
 aborting every session over a bad env var.

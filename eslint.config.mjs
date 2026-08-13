@@ -12,7 +12,7 @@ export default [
 		},
 	},
 	{
-		files: [".github/scripts/**/*.js"],
+		files: ["packages/**/*.js"],
 		languageOptions: {
 			globals: {
 				require: "readonly",

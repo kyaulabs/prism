@@ -31,7 +31,7 @@
         <include>
             <directory>backend</directory>
             <directory>.github/scripts</directory>
-            <directory>.opencode/evals/bin/includes</directory>
+            <directory>packages/prism-php-web/scripts</directory>
         </include>
     </source>
 

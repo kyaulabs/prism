@@ -2,9 +2,9 @@
 .php-cs-fixer.cache
 .phpunit.cache
 
-# Eval suite artifacts (see .opencode/evals/README.md)
-.opencode/evals/results/*
-!.opencode/evals/results/.gitkeep
+# pi runtime caches (per-project package/npm/git stores)
+.pi/npm/
+.pi/git/
 
 # Semgrep settings (API keys, registry tokens)
 .semgrep/settings.yml
