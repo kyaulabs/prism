@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: install-hooks.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
 
 
 
-# Run once after cloning: bash .github/scripts/install-hooks.sh
+
+
+
+
+# Run once after cloning: bash packages/prism-core/scripts/install-hooks.sh
 #
 # Uses git's native core.hooksPath mechanism instead of per-file symlinks.
 # This avoids worktree crashes, core.hooksPath bypass, exec-bit dirtiness,
@@ -24,6 +28,10 @@ git config core.hooksPath .github/hooks
 echo "✓ Hooks installed via core.hooksPath = .github/hooks"
 echo "  All commits will now run lint + gitleaks + commitlint."
 echo "  Prerequisite: 'npm install' (commit-msg now fails closed without commitlint — ADR-0025)."
+
+
+
+
 
 
 

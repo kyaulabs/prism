@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: jsonc_strip_parity_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: jsonc_strip_parity_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 set -euo pipefail
@@ -22,7 +26,7 @@ for case_file in "$CORPUS"/*.jsonc; do
 	js_output="$case_file.js.out"
 	php_output="$case_file.php.out"
 
-	node - "$REPO_ROOT/.github/scripts/jsonc-strip.js" "$case_file" > "$js_output" <<'NODE'
+	node - "$REPO_ROOT/packages/prism-core/scripts/jsonc-strip.js" "$case_file" > "$js_output" <<'NODE'
 const fs = require('fs');
 const { stripJsoncComments } = require(process.argv[2]);
 process.stdout.write(stripJsoncComments(fs.readFileSync(process.argv[3], 'utf8')));
@@ -39,6 +43,10 @@ NODE
 done
 
 print_summary "jsonc_strip_parity"
+
+
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

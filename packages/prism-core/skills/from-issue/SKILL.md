@@ -173,7 +173,7 @@ On approval:
 
 1. Create the feature branch using the issue's classified commit type as the
    `<type>` prefix:
-   `bash .github/scripts/new-branch.sh <type> <description>`
+   `bash packages/prism-core/scripts/new-branch.sh <type> <description>`
    The helper resolves identity, generates the branch hash, and selects the
    correct base branch. See ADR-0028.
 2. End this on-ramp workflow. Load `executing-plans` and `tdd` to implement the

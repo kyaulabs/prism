@@ -1,108 +1,50 @@
 #!/usr/bin/env bash
-# $KYAULabs: research_background_scout_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: research_background_scout_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
 
 
-
-
-
-# research_background_scout_test.sh — Harness contract test for Issue #141
-#
-# Asserts:
-#   1. adr/0024-experimental-subagent-dependencies.md exists, Status: Accepted
-#   2. CONTEXT.md defines `scout` and `background subagent`
-#   3. prism.jsonc experimental.lsp_tool and experimental.scout are true
-#   4. .envrc loads prism.jsonc via the env0 CLI
-#   5. AGENTS.md documents all three experimental opencode flags
-#   6. .opencode/commands/research.md handles --background
-#   7. .opencode/skills/research-background/SKILL.md exists
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+PROMPT="$REPO_ROOT/packages/prism-core/prompts/research.md"
+SKILL="$REPO_ROOT/packages/prism-core/skills/research-background/SKILL.md"
+PASS=0
+FAIL=0
 
-setup_result_file
+pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
+fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
-# ── 1. ADR-0024 ────────────────────────────────────────────────────────────
-
-if [ -f "$REPO_ROOT/adr/0024-experimental-subagent-dependencies.md" ]; then
-	# Check Status is Accepted (may have whitespace after colon)
-	if grep -q "^## Status" "$REPO_ROOT/adr/0024-experimental-subagent-dependencies.md" && \
-	   grep -q "^[Aa]ccepted" "$REPO_ROOT/adr/0024-experimental-subagent-dependencies.md"; then
-		pass "adr/0024-experimental-subagent-dependencies.md exists and Status is Accepted"
-	else
-		fail "adr/0024-experimental-subagent-dependencies.md exists but Status is not Accepted"
-	fi
+printf '%s\n' '── research background contract under pi ──'
+[ -f "$PROMPT" ] && pass 'research prompt exists' || fail 'research prompt missing'
+[ -f "$SKILL" ] && pass 'research-background skill exists' || fail 'research-background skill missing'
+if grep -q -- '--background' "$PROMPT" && grep -q 'human-started pi session' "$PROMPT"; then
+	pass 'background flag prepares a separate-session brief'
 else
-	fail "adr/0024-experimental-subagent-dependencies.md does not exist"
+	fail 'background flag contract missing'
 fi
-
-# ── 2. CONTEXT.md glossary ─────────────────────────────────────────────────
-# Search specifically within the glossary table rows (pipe-delimited terms in
-# Domain Glossary section) rather than across the entire file.
-
-if grep -qiE '^\|.*scout.*\|' "$REPO_ROOT/CONTEXT.md" && grep -qiE '^\|.*background subagent.*\|' "$REPO_ROOT/CONTEXT.md"; then
-	pass "CONTEXT.md defines scout and background subagent"
+if grep -q 'Do not spawn another process' "$PROMPT" && grep -q 'Do not spawn another agent process' "$SKILL"; then
+	pass 'autonomous sub-agent dispatch is forbidden'
 else
-	fail "CONTEXT.md missing scout or background subagent glossary entry"
+	fail 'no-sub-agent guard missing'
 fi
-
-# ── 3. prism.jsonc experimental section (queried via the CLI) ───────────────
-
-LSP=$(php "$REPO_ROOT/.github/scripts/prism_manifest.php" get "$REPO_ROOT/prism.jsonc" - experimental.lsp_tool)
-SCOUT=$(php "$REPO_ROOT/.github/scripts/prism_manifest.php" get "$REPO_ROOT/prism.jsonc" - experimental.scout)
-if [ "$LSP" = "true" ] && [ "$SCOUT" = "true" ]; then
-	pass "prism.jsonc experimental.lsp_tool and experimental.scout are true"
+if grep -q '`websearch`' "$PROMPT" && grep -q '`searxng`' "$PROMPT"; then
+	pass 'research routes current web work through CLI-shell skills'
 else
-	fail "prism.jsonc missing LSP or scout experimental flag (LSP=$LSP SCOUT=$SCOUT)"
+	fail 'search skills not referenced'
 fi
-
-# ── 4. .envrc loads prism.jsonc via the env0 CLI ────────────────────────────
-
-if grep -q 'prism_manifest\.php' "$REPO_ROOT/.envrc" && grep -q 'env0' "$REPO_ROOT/.envrc"; then
-	pass ".envrc loads prism.jsonc via the env0 CLI"
+if grep -q 'untrusted' "$PROMPT" && grep -q 'explicit permission' "$PROMPT"; then
+	pass 'external-data and network permission gates present'
 else
-	fail ".envrc does not load prism.jsonc via the env0 CLI (prism_manifest.php env0)"
+	fail 'research safety gates missing'
 fi
-
-# ── 5. AGENTS.md documents experimental flags ──────────────────────────────
-
-has_lsp_doc=false
-has_scout_doc=false
-has_bg_doc=false
-if grep -q 'OPENCODE_EXPERIMENTAL_LSP_TOOL' "$REPO_ROOT/AGENTS.md"; then
-	has_lsp_doc=true
-fi
-if grep -q 'OPENCODE_EXPERIMENTAL_SCOUT' "$REPO_ROOT/AGENTS.md"; then
-	has_scout_doc=true
-fi
-if grep -q 'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS' "$REPO_ROOT/AGENTS.md"; then
-	has_bg_doc=true
-fi
-if $has_lsp_doc && $has_scout_doc && $has_bg_doc; then
-	pass "AGENTS.md documents all three experimental opencode flags"
+if grep -q 'OPENCODE_' "$PROMPT" || grep -q 'prism.jsonc' "$PROMPT"; then
+	fail 'legacy env/manifest flags remain'
 else
-	fail "AGENTS.md missing one or more experimental flag references (LSP=$has_lsp_doc SCOUT=$has_scout_doc BACKGROUND=$has_bg_doc)"
+	pass 'legacy env/manifest flags removed'
 fi
 
-# ── 6. commands/research.md handles --background ───────────────────────────
-
-if grep -q -- '--background' "$REPO_ROOT/.opencode/commands/research.md"; then
-	pass ".opencode/commands/research.md handles --background"
-else
-	fail ".opencode/commands/research.md does not reference --background"
-fi
-
-# ── 7. research-background skill exists ────────────────────────────────────
-
-if [ -f "$REPO_ROOT/.opencode/skills/research-background/SKILL.md" ]; then
-	pass ".opencode/skills/research-background/SKILL.md exists"
-else
-	fail ".opencode/skills/research-background/SKILL.md does not exist"
-fi
-
-print_summary "research_background_scout"
-
+printf '\nresearch_background_scout_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]
 
 
 

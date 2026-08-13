@@ -136,7 +136,7 @@ message:
 - `Implemented-by:` with the model that wrote the implementation
 - `Tested-by:` with the model that ran verification/review
 - `Signed-off-by:` resolved through
-  `bash .github/scripts/resolve-identity.sh`
+  `bash packages/prism-core/scripts/resolve-identity.sh`
 
 Use model ID segments after the last `/`. There is no manifest or automatic
 model tier under pi. Validate a plan-provided commit message and correct it if

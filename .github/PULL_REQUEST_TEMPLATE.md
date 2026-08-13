@@ -82,8 +82,8 @@
   a reviewer can run to verify your changes work as expected.
   Use bullet points with code blocks if needed.
   Example:
-  - [ ] `direnv allow` and check `echo $OPENCODE_MODEL_PRIMARY`
-  - [ ] `bash .github/scripts/new-branch.sh feat test-branch` — creates correct branch
-  - [ ] `bash .github/scripts/validate-branch-name.sh feat/your-name-hash-desc` — exit 0
-  - [ ] `bash .github/scripts/resolve-identity.sh` — prints your identity
+  - [ ] `pi --list-models deepseek-v4-flash` — primary model is available
+  - [ ] `bash packages/prism-core/scripts/new-branch.sh feat test-branch` — creates correct branch
+  - [ ] `bash packages/prism-core/scripts/validate-branch-name.sh feat/your-name-hash-desc` — exit 0
+  - [ ] `bash packages/prism-core/scripts/resolve-identity.sh` — prints your identity
 -->

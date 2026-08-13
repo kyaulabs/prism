@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# $KYAULabs: check-script-executable-bits.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: check-script-executable-bits.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
 
 
 
 
-# ── Executable-bit guard for .github/scripts/*.sh ─────────────────────────────
-# Asserts every tracked .sh script under .github/scripts/ carries the executable
-# bit (git index mode 100755). Guards the Windows core.fileMode=false blind spot
+
+
+
+
+# ── Executable-bit guard for harness shell helpers ────────────────────────────
+# Asserts every tracked .sh script under .github/scripts/ and packages/* carries
+# the executable bit (git index mode 100755). Guards the Windows core.fileMode=false blind spot
 # that hides missing +x until CI runs on Linux/macOS — where Actions checkout
 # honors the stored index mode and direct invocation fails with Permission
 # denied (the PR #165 root cause).
@@ -21,10 +25,10 @@
 
 set -euo pipefail
 
-SCRIPTS_DIR=".github/scripts"
-
-# No scripts directory in this checkout — nothing to guard.
-[ -d "$SCRIPTS_DIR" ] || exit 0
+# No harness script directory in this checkout — nothing to guard.
+if [ ! -d .github/scripts ] && [ ! -d packages ]; then
+	exit 0
+fi
 
 fail=0
 while IFS= read -r script; do
@@ -36,9 +40,13 @@ while IFS= read -r script; do
 		printf '       Fix: git update-index --chmod=+x %s\n' "$script" >&2
 		fail=1
 	fi
-done < <(git ls-files "$SCRIPTS_DIR/*.sh")
+done < <(git ls-files '.github/scripts/*.sh' 'packages/**/*.sh')
 
 exit "$fail"
+
+
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

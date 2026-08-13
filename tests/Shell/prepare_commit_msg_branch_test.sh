@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -18,7 +22,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REAL_HOOK="$REPO_ROOT/.github/hooks/prepare-commit-msg"
-VALIDATOR="$REPO_ROOT/.github/scripts/validate-branch-name.sh"
+VALIDATOR="$REPO_ROOT/packages/prism-core/scripts/validate-branch-name.sh"
 
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
@@ -52,11 +56,11 @@ setup_repo_with_bases() {
 
 # ── Helper: install the validator script into a sandbox ────────────────────
 # The hook resolves REPO_ROOT via `git rev-parse --show-toplevel`, so the
-# validator must live at $SANDBOX/.github/scripts/validate-branch-name.sh.
+# validator must live at $SANDBOX/packages/prism-core/scripts/validate-branch-name.sh.
 install_validator() {
-	mkdir -p .github/scripts
-	cp "$VALIDATOR" .github/scripts/validate-branch-name.sh
-	chmod +x .github/scripts/validate-branch-name.sh
+	mkdir -p packages/prism-core/scripts
+	cp "$VALIDATOR" packages/prism-core/scripts/validate-branch-name.sh
+	chmod +x packages/prism-core/scripts/validate-branch-name.sh
 }
 
 # ── Test 1: Valid feature branch passes ───────────────────────────────────
@@ -370,6 +374,10 @@ register_temp_dir "$T7"
 
 print_summary "prepare_commit_msg_branch_test.sh"
 exit $?
+
+
+
+
 
 
 

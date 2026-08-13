@@ -1,4 +1,8 @@
-// $KYAULabs: jsonc-strip.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+// $KYAULabs: jsonc-strip.js kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 'use strict';
@@ -41,6 +45,10 @@ function stripJsoncComments(content) {
 }
 
 module.exports = { stripJsoncComments };
+
+
+
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

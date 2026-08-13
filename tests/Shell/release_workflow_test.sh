@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
 
 
 
@@ -10,7 +13,7 @@
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
-#   1. release.yml exists and follows ci.yml in quality-surface.manifest
+#   1. release.yml exists and the retired scaffold manifest is absent
 #   2. only a pull_request closed/main trigger (no push, no pull_request_target)
 #   3. merged + release/ head + same-repository job gate
 #   4. ubuntu-latest, no sudo, timeout present
@@ -49,7 +52,7 @@ setup_result_file
 RELEASE_FILE="$REPO_ROOT/.github/workflows/release.yml"
 MANIFEST="$REPO_ROOT/.github/scripts/quality-surface.manifest"
 
-# ── 1. release.yml exists and follows ci.yml in the manifest ─────────────────
+# ── 1. release.yml exists and retired scaffold manifest is absent ────────────
 
 if [ -f "$RELEASE_FILE" ]; then
 	pass "release.yml exists"
@@ -57,12 +60,10 @@ else
 	fail "release.yml missing at $RELEASE_FILE"
 fi
 
-ci_line=$(grep -nF '.github/workflows/ci.yml' "$MANIFEST" | head -1 | cut -d: -f1 || true)
-release_line=$(grep -nF '.github/workflows/release.yml' "$MANIFEST" | head -1 | cut -d: -f1 || true)
-if [ -n "$ci_line" ] && [ -n "$release_line" ] && [ "$release_line" -eq $((ci_line + 1)) ]; then
-	pass "release.yml listed immediately after ci.yml in quality-surface.manifest"
+if [ ! -e "$MANIFEST" ]; then
+	pass "retired quality-surface.manifest is absent"
 else
-	fail "quality-surface.manifest does not list release.yml right after ci.yml (ci=$ci_line release=${release_line:-missing})"
+	fail "quality-surface.manifest should be retired"
 fi
 
 # ── 2. Only a pull_request closed/main trigger ───────────────────────────────
@@ -441,9 +442,9 @@ fi
 
 # ── P13–P22. /release authoring contract (ADR-0046) ──────────────────────────
 # The local command authors the release PR; release.yml publishes. These
-# assertions pin .opencode/commands/release.md to the authoring half.
+# assertions pin the pi release prompt to the authoring half.
 
-RELEASE_CMD="$REPO_ROOT/.opencode/commands/release.md"
+RELEASE_CMD="$REPO_ROOT/packages/prism-core/prompts/release.md"
 
 # ── P13. Pre-flight stops on a dirty tree ────────────────────────────────────
 
@@ -528,9 +529,8 @@ fi
 
 if grep -qF 'git commit -S' "$RELEASE_CMD" && \
    grep -qF 'chore(release): v' "$RELEASE_CMD" && \
-   grep -qF 'OPENCODE_MODEL_PLANNER' "$RELEASE_CMD" && \
-   grep -qF 'OPENCODE_MODEL_PRIMARY' "$RELEASE_CMD" && \
-   grep -qF 'OPENCODE_MODEL_JUDGE' "$RELEASE_CMD" && \
+   grep -qF 'PI_MODEL' "$RELEASE_CMD" && \
+   grep -qF 'MODEL_ID' "$RELEASE_CMD" && \
    grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
    grep -qF 'Authored-by:' "$RELEASE_CMD" && \
    grep -qF 'Implemented-by:' "$RELEASE_CMD" && \
@@ -604,6 +604,9 @@ else
 fi
 
 print_summary "release_workflow"
+
+
+
 
 
 

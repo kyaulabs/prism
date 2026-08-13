@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate_branch_name_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: validate_branch_name_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -8,7 +12,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="$REPO_ROOT/.github/scripts/validate-branch-name.sh"
+SCRIPT="$REPO_ROOT/packages/prism-core/scripts/validate-branch-name.sh"
 
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
@@ -190,6 +194,10 @@ test_invalid_ignore_type
 
 print_summary "validate_branch_name_test.sh"
 exit $?
+
+
+
+
 
 
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -22,7 +26,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-SCRIPT="$REPO_ROOT/.github/scripts/setup-rulesets.sh"
+SCRIPT="$REPO_ROOT/packages/prism-core/scripts/setup-rulesets.sh"
 
 # ── Fake gh infrastructure ────────────────────────────────────────────────────
 # FAKE_GH_LOG  — log file for recorded invocations
@@ -1311,6 +1315,10 @@ test_no_delete_code_path
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
+
+
+
 
 
 

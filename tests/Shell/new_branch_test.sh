@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: new_branch_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+# $KYAULabs: new_branch_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -8,7 +12,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="$REPO_ROOT/.github/scripts/new-branch.sh"
+SCRIPT="$REPO_ROOT/packages/prism-core/scripts/new-branch.sh"
 
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
@@ -231,6 +235,10 @@ register_temp_dir "$T9"
 
 print_summary "new_branch_test.sh"
 exit $?
+
+
+
+
 
 
 

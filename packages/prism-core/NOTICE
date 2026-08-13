@@ -91,6 +91,26 @@ glebis/claude-skills
     - Applied as the structural schema for all 13 agent files under
       .opencode/agents/
 
+@kyaulabs/deepseek-websearch
+  URL: https://github.com/kyaulabs/deepseek-websearch-mcp
+  Copyright: Copyright 2026 KYAU Labs
+  License: MIT
+  What was adapted: DeepSeek Anthropic-compatible web-search request and
+    result-formatting flow, ported from an MCP server to a dependency-free
+    CLI-shell skill for pi (No MCP).
+  Used in:
+    - packages/prism-core/skills/websearch/SKILL.md
+    - packages/prism-core/skills/websearch/search.sh
+
+mcp-searxng
+  URL: https://github.com/ihor-sokoliuk/mcp-searxng
+  License: MIT
+  What was adapted: SearXNG search integration surface, ported from an MCP
+    server to a curl-based CLI-shell skill for pi (No MCP).
+  Used in:
+    - packages/prism-core/skills/searxng/SKILL.md
+    - packages/prism-core/skills/searxng/search.sh
+
 @earendil-works/pi-coding-agent
   URL: https://github.com/earendil-works/pi-coding-agent
   Copyright: Copyright (c) earendil-works

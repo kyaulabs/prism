@@ -1,4 +1,8 @@
-// $KYAULabs: frontmatter-parser.js kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+// $KYAULabs: frontmatter-parser.js kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -78,6 +82,10 @@ module.exports = { parseFrontmatter };
 if (require.main === module) {
 	process.exitCode = runCli(process.argv);
 }
+
+
+
+
 
 
 

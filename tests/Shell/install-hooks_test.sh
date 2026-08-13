@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -24,7 +28,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-REAL_SCRIPT="$REPO_ROOT/.github/scripts/install-hooks.sh"
+REAL_SCRIPT="$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
 
 if [ ! -f "$REAL_SCRIPT" ]; then
 	fail "Cannot find install-hooks.sh at $REAL_SCRIPT"
@@ -40,7 +44,7 @@ register_temp_dir "$T1"
 git_init_test_repo "$T1"
 (
 	cd "$T1"
-	mkdir -p .github/hooks .github/scripts
+	mkdir -p .github/hooks packages/prism-core/scripts
 	cat > .github/hooks/pre-commit <<'HOOKEOF'
 #!/usr/bin/env bash
 echo "pre-commit ran"
@@ -48,8 +52,8 @@ HOOKEOF
 	chmod +x .github/hooks/pre-commit
 	git add .github/hooks/pre-commit
 	git commit --quiet -m "init"
-	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
-	bash .github/scripts/install-hooks.sh > /dev/null 2>&1
+	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+	bash packages/prism-core/scripts/install-hooks.sh > /dev/null 2>&1
 
 	# Assert: core.hooksPath is set
 	hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
@@ -98,10 +102,10 @@ register_temp_dir "$T3"
 git_init_test_repo "$T3"
 (
 	cd "$T3"
-	mkdir -p .github/scripts
-	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
+	mkdir -p packages/prism-core/scripts
+	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
 	set +e
-	bash .github/scripts/install-hooks.sh >/dev/null 2>&1
+	bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1
 	ret=$?
 	set -e
 	if [ "$ret" -ne 0 ]; then
@@ -118,9 +122,9 @@ register_temp_dir "$T4"
 git_init_test_repo "$T4"
 (
 	cd "$T4"
-	mkdir -p .github/hooks .github/scripts
-	cp "$REAL_SCRIPT" .github/scripts/install-hooks.sh
-	if bash .github/scripts/install-hooks.sh > /dev/null 2>&1; then
+	mkdir -p .github/hooks packages/prism-core/scripts
+	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+	if bash packages/prism-core/scripts/install-hooks.sh > /dev/null 2>&1; then
 		pass "Handles empty .github/hooks without crash"
 	else
 		fail "Crashed on empty .github/hooks (nullglob bug)"
@@ -135,6 +139,10 @@ git_init_test_repo "$T4"
 
 print_summary "install-hooks"
 exit $?
+
+
+
+
 
 
 

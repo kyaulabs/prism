@@ -101,7 +101,7 @@ jobs:
             -print0 | xargs -0 -n1 php -l
 
       - name: Harness validation
-        run: bash .github/scripts/validate-harness.sh
+        run: bash packages/prism-core/scripts/validate-harness.sh
 
       # Pin shellcheck to a specific version for local/CI parity. The runner
       # image's bundled shellcheck lags upstream stable and its exit-code
@@ -140,9 +140,6 @@ jobs:
 
       - name: Check script executable bits
         run: bash .github/scripts/check-script-executable-bits.sh
-
-      - name: Check prism.jsonc secret hygiene
-        run: bash .github/scripts/check-setup-secrets.sh
 
       - name: Shell regression tests
         run: |
@@ -343,10 +340,6 @@ jobs:
       - name: Check script executable bits
         shell: bash
         run: bash .github/scripts/check-script-executable-bits.sh
-
-      - name: Check prism.jsonc secret hygiene
-        shell: bash
-        run: bash .github/scripts/check-setup-secrets.sh
 
       - name: Shell regression tests
         shell: bash

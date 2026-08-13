@@ -44,8 +44,8 @@ Every commit message must end with four footers:
 > model separately from the planning model.
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. Resolve it dynamically with
-  `bash .github/scripts/resolve-identity.sh`; the Stage 3 pi rewrite uses an
-  optional `~/.config/prism/identity` override and then git
+  `bash packages/prism-core/scripts/resolve-identity.sh`; it uses an optional
+  `~/.config/prism/identity` override and then git
   `user.name`/`user.email`, failing closed when neither resolves.
 
 These footers are mandatory for traceability. There is no model manifest or
@@ -92,8 +92,8 @@ directory, or feature area: `feat(core)`, `fix(db)`, `test(auth)`.
 ## Branch Naming
 
 Branch names follow Conventional Commit type prefixes per ADR-0028. See
-`.github/scripts/new-branch.sh` for the canonical creator and
-`.github/scripts/validate-branch-name.sh` for the regex.
+`packages/prism-core/scripts/new-branch.sh` for the canonical creator and
+`packages/prism-core/scripts/validate-branch-name.sh` for the regex.
 
 - `<type>/<username>-<hash>-<description>` — feature/standard work
   (`<type>` ∈ feat, fix, patch, docs, style, refactor, perf, test, build, ci,

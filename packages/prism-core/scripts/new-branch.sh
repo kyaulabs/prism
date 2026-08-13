@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: new-branch.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: new-branch.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 # new-branch.sh — Generate a Git Flow branch name and create the branch.
@@ -25,7 +29,7 @@ if [ -z "$TYPE" ] || [ -z "$DESC" ]; then
     exit 1
 fi
 
-# Locate resolve-identity.sh relative to this script (both live in .github/scripts/)
+# Locate resolve-identity.sh relative to this script (both live in prism-core/scripts/).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Validate type and pick base branch ────────────────────────────────────
@@ -118,6 +122,10 @@ fi
 
 git checkout -b "$BRANCH" || { echo "✗ Failed to create branch '$BRANCH'" >&2; exit 1; }
 echo "$BRANCH"
+
+
+
+
 
 
 

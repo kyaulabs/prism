@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-branch-name.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: validate-branch-name.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -27,7 +31,7 @@ EXEMPT_RE='^HEAD$'
 
 if [[ "$BRANCH" =~ $PROTECTED_RE ]]; then
     printf "✗ Branch '%s' is protected; commit on a work branch instead.\n" "$BRANCH" >&2
-    echo "  Run: bash .github/scripts/new-branch.sh <type> <description>" >&2
+    echo "  Run: bash packages/prism-core/scripts/new-branch.sh <type> <description>" >&2
     exit 3
 fi
 
@@ -48,9 +52,13 @@ cat >&2 <<EOF
     hotfix/<username>-<hash>-<description>
     release/<major>.<minor>.<patch>[-<prerelease>]
   Exempt: detached HEAD.
-  Run: bash .github/scripts/new-branch.sh <type> <description>
+  Run: bash packages/prism-core/scripts/new-branch.sh <type> <description>
 EOF
 exit 1
+
+
+
+
 
 
 

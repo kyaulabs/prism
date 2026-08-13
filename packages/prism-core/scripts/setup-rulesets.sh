@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-rulesets.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -292,6 +296,10 @@ case "$MODE" in
 		fi
 		;;
 esac
+
+
+
+
 
 
 
