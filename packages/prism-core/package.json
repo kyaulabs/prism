@@ -15,6 +15,9 @@
     "APPEND_SYSTEM.md",
     "NOTICE"
   ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
   "pi": {
     "extensions": ["./extensions"],
     "skills": ["./skills"],

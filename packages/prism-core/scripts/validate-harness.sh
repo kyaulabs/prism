@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+
 
 
 
@@ -138,6 +139,22 @@ done < <(find "$REPO_ROOT/packages" -type f -path '*/extensions/*/index.ts' -pri
 [ "$EXTENSION_COUNT" -gt 0 ] || err 'No extension entry points found.'
 ok "$EXTENSION_COUNT extension entry point(s) imported"
 
+printf '%s\n' '── Validating pi core peerDependencies ──'
+PEER_CHECK="$REPO_ROOT/packages/prism-core/scripts/check-peer-deps.js"
+if [ ! -f "$PEER_CHECK" ]; then
+	err "peer-dep checker missing: ${PEER_CHECK#$REPO_ROOT/}"
+else
+	MANIFEST_COUNT=0
+	while IFS= read -r -d '' pkg_json; do
+		MANIFEST_COUNT=$((MANIFEST_COUNT + 1))
+		while IFS= read -r line; do
+			[ -n "$line" ] && err "$line"
+		done < <(node "$PEER_CHECK" "$pkg_json" 2>/dev/null)
+	done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+		-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+	ok "$MANIFEST_COUNT package manifest(s) checked for pi core peerDependencies"
+fi
+
 printf '%s\n' '── Validating shell helpers ──'
 while IFS= read -r -d '' script; do
 	SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
@@ -176,6 +193,7 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
 
 
 
