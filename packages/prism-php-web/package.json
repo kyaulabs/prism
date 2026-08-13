@@ -4,8 +4,15 @@
   "description": "KYAULabs coding harness — PHP/web stack adapter (pi)",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package", "prism-adapter"],
+  "files": [
+    "skills",
+    "prompts",
+    "scripts",
+    "docs",
+    "safe-dirs.json",
+    "NOTICE"
+  ],
   "pi": {
-    "extensions": ["./extensions"],
     "skills": ["./skills"],
     "prompts": ["./prompts"]
   }

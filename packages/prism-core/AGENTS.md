@@ -1,7 +1,7 @@
 # AGENTS.md (prism-core, global)
 
 > **Global core instruction set.** This file deploys to `~/.pi/agent/AGENTS.md`
-> via `install-global.sh` (Stage 5) and is global — loaded every session via
+> via `install-global.sh` and is global — loaded every session via
 > `~/.pi/agent/AGENTS.md`, concatenating into every trusted project's system
 > prompt. Stack specifics (PHP/Aurora/SCSS/nginx/MariaDB) are **not** here;
 > they live in the active adapter's stack skill (e.g. `php-web-stack`).
@@ -207,7 +207,7 @@ prism ships as two pi packages (ADR-0058):
   **globally** (`pi install npm:@kyaulabs/prism-core`, or
   `pi install ./packages/prism-core` for local dev), so its skills, prompts,
   and the **safety extension** load in every trusted project. Its `AGENTS.md`
-  deploys to `~/.pi/agent/AGENTS.md` (via `install-global.sh`, Stage 5) and
+  deploys to `~/.pi/agent/AGENTS.md` (via `install-global.sh`) and
   concatenates into every session's system prompt — the core is "always
   running".
 - **`@kyaulabs/prism-php-web`** — the PHP/web stack adapter. Installed

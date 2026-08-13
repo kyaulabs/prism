@@ -4,6 +4,17 @@
   "description": "KYAULabs coding harness — language-agnostic core (pi)",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],
+  "files": [
+    "extensions",
+    "skills",
+    "prompts",
+    "scripts",
+    "docs",
+    "safe-dirs.json",
+    "AGENTS.md",
+    "APPEND_SYSTEM.md",
+    "NOTICE"
+  ],
   "pi": {
     "extensions": ["./extensions"],
     "skills": ["./skills"],
