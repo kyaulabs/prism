@@ -5,6 +5,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -40,8 +41,23 @@ else
 	pass 'obsolete bash-permission prefix check removed'
 fi
 
+printf '%s\n' '── validate-harness: retired config scan remains fail-closed ──'
+RETIRED_FIXTURE=$(mktemp "$REPO_ROOT/packages/prism-core/docs/.retired-config-test.XXXXXX")
+trap 'rm -f "$RETIRED_FIXTURE"' EXIT
+printf '%s\n' 'OPENCODE_MODEL_TEST' > "$RETIRED_FIXTURE"
+if output=$(bash "$VALIDATOR" 2>&1); then
+	fail 'retired config reference outside the verbatim checker was accepted'
+elif printf '%s\n' "$output" | grep -Fq "${RETIRED_FIXTURE#$REPO_ROOT/}:1: retired config reference"; then
+	pass 'retired config reference outside the verbatim checker is rejected'
+else
+	fail "retired config failure did not name fixture: $output"
+fi
+rm -f "$RETIRED_FIXTURE"
+trap - EXIT
+
 printf '\nvalidate-harness_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

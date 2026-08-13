@@ -5,6 +5,7 @@
 
 
 
+
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
 # legacy-config references. This replaces the prior harness permission/config
@@ -164,6 +165,7 @@ while IFS=: read -r file line text; do
 	[ -n "$file" ] || continue
 	case "$file" in
 		*/extensions/safety/sensitive-paths.ts) continue ;;
+		*/prism-php-web/scripts/check-frontend-agent-contract.js) continue ;;
 	esac
 	err "${file#$REPO_ROOT/}:$line: retired config reference: $text"
 done < <(grep -RInE "$retired_pattern" "$REPO_ROOT/packages" "$REPO_ROOT/.github" 2>/dev/null || true)
@@ -177,6 +179,7 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
 
 
 
