@@ -45,6 +45,7 @@
 
 
 
+
 set -euo pipefail
 
 # ── Prerequisite: bash 4+ required for associative arrays ──────────────────────
@@ -67,6 +68,18 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$REPO_ROOT" ]; then
 	echo "ERROR: Not in a git repository. Must be run from within a git checkout." >&2
 	exit 1
+fi
+
+# ── pi migration (ADR-0055): opencode.jsonc deleted in Stage 0 ───────────────
+# This validator checks the opencode-era harness (cross-references .opencode/
+# against opencode.jsonc) and is rewritten for the pi layout in Stage 3. While
+# opencode.jsonc is absent, skip cleanly so the pre-push CI-parity gate stays
+# green through the conversion window. Replaced wholesale by the Stage 3
+# pi-layout rewrite (see docs/plans/2026-08-12-opencode-to-pi-conversion.md,
+# Stage 3 Task 3.3).
+if [ ! -f "$REPO_ROOT/opencode.jsonc" ]; then
+	echo "ℹ opencode.jsonc absent (pi migration in progress) — validate-harness.sh deferred to Stage 3."
+	exit 0
 fi
 
 # ── Prerequisite: js-yaml must be resolvable for frontmatter parsing ─────────
@@ -1610,6 +1623,7 @@ else
 	echo "═══════════════════════════════════════════════════════════════"
 	exit 1
 fi
+
 
 
 
