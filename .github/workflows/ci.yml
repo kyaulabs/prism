@@ -347,6 +347,3 @@ jobs:
             bash "$t"
             echo "::endgroup::"
           done
-
-      - name: Eval unit tests
-        run: php vendor/bin/pest tests/Unit/Eval

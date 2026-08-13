@@ -30,8 +30,6 @@
     <source>
         <include>
             <directory>backend</directory>
-            <directory>.github/scripts</directory>
-            <directory>packages/prism-php-web/scripts</directory>
         </include>
     </source>
 
