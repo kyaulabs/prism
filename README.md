@@ -111,8 +111,9 @@ Prism is two pi packages living under `packages/`:
 
    ```bash
    cd /path/to/php-project
-   pi install -l npm:@kyaulabs/prism-php-web
-   # dev:  pi install -l /path/to/prism/packages/prism-php-web
+   # from a clone (works today — npm publish is deferred, see Stage 7):
+   pi install -l /path/to/prism/packages/prism-php-web
+   # once published:  pi install -l npm:@kyaulabs/prism-php-web
    ```
 
    On first run pi asks to **trust** the project (or save the decision with
