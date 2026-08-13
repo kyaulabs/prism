@@ -1,4 +1,4 @@
-﻿# <img src=".github/media/prism-icon.svg" alt="Prism Icon" height="38" align="absmiddle"/> Prism
+# <img src=".github/media/prism-icon.svg" alt="Prism Icon" height="38" align="absmiddle"/> Prism
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 
@@ -11,28 +11,40 @@
 
 ## About
 
-Prism is a coding harness for [OpenCode](https://opencode.ai) (an AI coding agent), built for developing PHP-based websites the test-driven way. It codifies an end-to-end engineering pipeline — brainstorm → plan → implement → verify → review — into a layered system of skills, agents, and slash commands. Mandatory TDD (Red → Green → Refactor), an 80% line-coverage gate, Conventional Commits with signed atomic history, and ADR-driven documentation keep every change small, verifiable, and ship-ready.
+Prism is a coding harness for [pi](https://pi.dev) (a minimal, extensible
+terminal coding agent by earendil-works), built for developing PHP-based
+websites the test-driven way. It codifies an end-to-end engineering pipeline —
+brainstorm → plan → implement → verify → review — into a layered system of
+**skills**, **prompt templates**, and **one safety extension**, shipped as two
+pi packages: a language-agnostic `prism-core` (installed globally, always
+running) and a `prism-php-web` stack adapter (installed per project).
+Mandatory TDD (Red → Green → Refactor), an 80% line-coverage gate,
+Conventional Commits with signed atomic history, and ADR-driven documentation
+keep every change small, verifiable, and ship-ready.
+
+Prism embraces pi's philosophy — **no tabs, no sub-agents, no plan mode, no
+MCP** — and re-expresses the harness's pipeline, discipline, and safety as
+pi-native skills + prompt templates + one extension. A single agent runs the
+whole pipeline by loading skills on demand (ADR-0055).
 
 * [About](#about)
-* [Dependencies](#dependencies)
+* [Install](#install)
+  * [Quick start](#quick-start)
+  * [Dependencies](#dependencies)
   * [Coverage driver](#coverage-driver)
   * [Gitleaks](#gitleaks)
   * [Harness tools](#harness-tools)
   * [Test setup](#test-setup)
 * [Git Hooks](#git-hooks)
-  * [Configuration](#configuration)
-  * [Install Script](#install-script)
 * [Issue Labels](#issue-labels)
 * [Coding Harness](#coding-harness)
   * [Quick-start loop](#quick-start-loop)
-  * [Primary agents](#primary-agents)
-  * [Built-in subagents](#built-in-subagents)
-  * [Custom agents](#custom-agents)
-  * [Slash commands](#slash-commands)
+  * [The pipeline (skills you load)](#the-pipeline-skills-you-load)
+  * [pi mapping](#pi-mapping)
+  * [Model strategy](#model-strategy)
+  * [Prompt templates (slash commands)](#prompt-templates-slash-commands)
   * [Skills (on-demand)](#skills-on-demand)
   * [Project context — living docs](#project-context--living-docs)
-  * [Activation](#activation)
-  * [Model Configuration](#model-configuration)
 * [Conventional Commits](#conventional-commits)
   * [Type](#type)
   * [Scope](#scope)
@@ -44,7 +56,78 @@ Prism is a coding harness for [OpenCode](https://opencode.ai) (an AI coding agen
   * [Manual changelog](#manual-changelog)
 * [Attribution](#attribution)
 
-## Dependencies
+## Install
+
+Prism is two pi packages living under `packages/`:
+
+| Package | Scope | Installs |
+| --- | --- | --- |
+| `@kyaulabs/prism-core` | **Global** — always running | skills, prompts, the safety extension, and the always-on `~/.pi/agent/AGENTS.md` |
+| `@kyaulabs/prism-php-web` | **Project-local** — opt-in per PHP project | `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, and the adapter `safe-dirs.json` |
+
+### Quick start
+
+1. **Install pi:**
+
+   ```bash
+   npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+   # or: curl -fsSL https://pi.dev/install.sh | sh
+   ```
+
+2. **Authenticate the model.** Prism targets DeepSeek (a built-in pi provider):
+
+   ```bash
+   pi            # then /login  → select DeepSeek
+   # or: export DEEPSEEK_API_KEY=sk-...
+   ```
+
+   Default model `deepseek-v4-flash`; cycle to `deepseek-v4-pro` for
+   review/audit with **Ctrl+P** (see [Model strategy](#model-strategy),
+   ADR-0057).
+
+3. **Install the core globally** (from a clone of this repo — the dev path):
+
+   ```bash
+   git clone <this repo> && cd prism
+   bash packages/prism-core/scripts/install-global.sh
+   ```
+
+   `install-global.sh` runs `pi install` on the local package **and** deploys
+   the always-on `~/.pi/agent/AGENTS.md` + `APPEND_SYSTEM.md` (pi packages
+   install skills/prompts/extensions but not `AGENTS.md` — ADR-0060). It is
+   idempotent: a pre-existing user-owned `AGENTS.md` is backed up to `*.bak`
+   and the prism block is appended (pi concatenates all `AGENTS.md` into every
+   session).
+
+   Published-package equivalent:
+
+   ```bash
+   pi install npm:@kyaulabs/prism-core
+   bash ~/.pi/agent/npm/@kyaulabs/prism-core/scripts/install-global.sh
+   ```
+
+4. **Install the PHP/web adapter inside a PHP project** (where
+   `composer.json` or `aurora/` is present):
+
+   ```bash
+   cd /path/to/php-project
+   # from a clone (works today — npm publish is deferred, see Stage 7):
+   pi install -l /path/to/prism/packages/prism-php-web
+   # once published:  pi install -l npm:@kyaulabs/prism-php-web
+   ```
+
+   On first run pi asks to **trust** the project (or save the decision with
+   `/trust`) so project-local resources load.
+
+5. **Tune resources** (optional): `pi config` enables/disables individual
+   skills, prompts, and extensions; `pi config -l` edits project overrides.
+
+This very repository **dogfoods** both packages from disk via
+[`.pi/settings.json`](.pi/settings.json) (skills/prompts/extension point at
+`../packages/...`), so a `pi` session opened here loads the core + adapter
+without any install step.
+
+### Dependencies
 
 Install project dependencies via Composer and npm.
 
@@ -68,9 +151,9 @@ php -d pcov.enabled=1 vendor/bin/pest --coverage
 ```
 
 The coverage gate enforces ≥80% line coverage on changed PHP files via
-`.github/scripts/coverage-gate.php`, wired into both CI and `/check`.
-When you add new source directories, register them in `phpunit.xml`'s
-`<source>` block so they enter the coverage denominator.
+`packages/prism-php-web/scripts/coverage-gate.php`, wired into both CI and
+`/check-php`. When you add new source directories, register them in
+`phpunit.xml`'s `<source>` block so they enter the coverage denominator.
 
 | Tool | Via | Purpose |
 | --- | --- | --- |
@@ -119,8 +202,8 @@ enable only when running tests with coverage:
     php -d pcov.enabled=1 vendor/bin/pest --coverage
     ```
 
-The project's `/check` command, `@tdd` agent, and verification skills already
-use the `-d pcov.enabled=1` flag. CI provisions PCOV enabled via
+The project's `/check-php` prompt, the `tdd-php` skill, and the verification
+skills already use the `-d pcov.enabled=1` flag. CI provisions PCOV enabled via
 [shivammathur/setup-php](https://github.com/shivammathur/setup-php) and does
 not need the flag.
 
@@ -130,22 +213,20 @@ Gitleaks scans commits for secrets at pre-commit time. Install globally via your
 
 ### Harness tools
 
-In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding agents:
+In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding capabilities:
 
 | Tool | Purpose | Install | Known-good version |
 | --- | --- | --- | --- |
-| [OpenCode](https://opencode.ai) | The coding harness platform | See [opencode.ai/docs](https://opencode.ai/docs/) | 1.17.13 |
-| [Semgrep](https://semgrep.dev) | SAST scanning (`@semgrep` agent) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
-| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`@code-review` agent) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
+| [pi](https://pi.dev) | The coding agent this harness targets | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | 0.84.1 |
+| [Semgrep](https://semgrep.dev) | SAST scanning (`/security`) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`code-review` skill) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
-| [jq](https://jqlang.github.io/jq/) | JSON extraction from prism.jsonc (`.envrc` sourcing) | [download](https://jqlang.github.io/jq/download/) | 1.6+ |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/setup` scaffold clone mode + `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
+| [GitHub CLI (`gh`)](https://cli.github.com) | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
 | [git-cliff](https://github.com/orhun/git-cliff) | Changelog generation (`/release`, manual fallback) | `cargo install git-cliff` or your package manager | 2.0+ |
 
 > Recommended floor versions, not hard pins — refresh on each release. `gh` is
-> optional — only needed for the `clone` option of `/setup`'s scaffold mode,
-> for `/release`, `/pr`, `/setup-labels`, and `/setup-rulesets`; `new`/`skip`
-> scaffold options and all other features work without it. `/pr` only prepares
+> optional — only needed for `/release`, `/pr`, `/setup-labels`, and
+> `/setup-rulesets`; all other features work without it. `/pr` only prepares
 > and displays the `gh pr create` command — the human executes it after
 > publishing the branch. `git-cliff` is also an npm devDependency — the
 > project-local wrapper — while `/release` needs the direct `git cliff` PATH
@@ -165,7 +246,7 @@ add or remove commit types.
 Run the install script once after cloning to activate the git hooks:
 
 ```text
-bash .github/scripts/install-hooks.sh
+bash packages/prism-core/scripts/install-hooks.sh
 ```
 
 The script sets `git config core.hooksPath .github/hooks` — git's native
@@ -236,240 +317,162 @@ See [`docs/agents/labels.md`](docs/agents/labels.md) for the full vocabulary wit
 
 ## Coding Harness
 
-This template ships with an [OpenCode](https://opencode.ai) coding harness — a collection of agents, skills, and commands that enforce project conventions during AI-assisted development. The harness lives under `.opencode/` and is wired into OpenCode via `opencode.jsonc`.
+This template ships with a [pi](https://pi.dev) coding harness — a collection
+of skills, prompt templates, and one safety extension that enforce project
+conventions during AI-assisted development. The harness lives under
+`packages/prism-core` (language-agnostic, global) and `packages/prism-php-web`
+(PHP/web adapter, project-local), wired into pi via the `pi` manifest in each
+`package.json`.
 
 **Reference docs:**
 
-* **`AGENTS.md`** — AI-facing instructions: stack, boundaries, conventions, and available tools (loaded by every session)
-* **`CODING_HARNESS.md`** — Orientation guide: built-in features, pipeline overview, and pointers (agents load `AGENTS.md` as the authoritative source)
-* **`CONTEXT.md`** — Domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
+* **`packages/prism-core/AGENTS.md`** — global AI-facing instructions: hard boundaries, conventions, the pipeline, and the skills/commands index (deploys to `~/.pi/agent/AGENTS.md`, loaded every session)
+* **`CODING_HARNESS.md`** — orientation guide: pi mapping, pipeline overview, and pointers (the agent loads `AGENTS.md` as the authoritative source)
+* **`CONTEXT.md`** — domain glossary, entities, invariants, boundaries, non-goals (living doc — agents read and update it)
 * **`adr/`** — Architecture Decision Records in Nygard format (living docs — supersede, don't edit)
-* **`opencode.jsonc`** — Wires instructions + agent definitions + permissions into the coding agent
-* **`docs/POSITIONING.md`** — Why this stack and harness exist (design rationale, differentiators)
 * **`NOTICE`** — Third-party attribution and provenance
 
 ### Quick-start loop
 
-New ideas enter through the **design tab** front door. Pre-spec work that is
-oversized — multiple independent subsystems, or unknowns that cannot be
-expressed as sharp questions — branches to `wayfinder` before detailed
+New ideas enter through the **brainstorming** skill front door. Pre-spec work
+that is oversized — multiple independent subsystems, or unknowns that cannot
+be expressed as sharp questions — branches to `wayfinder` before detailed
 grilling; the sole exception is strict greenfield, whose walking-skeleton
 bootstrap (scaffold plus one thin vertical slice) precedes wayfinding
 (ADR-0050).
 
-The full engineering pipeline, end to end:
+The full engineering pipeline, end to end — a **single agent** loading skills
+on demand (no tabs, no sub-agents — ADR-0055):
 
 ```text
-design tab (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → /check → code-review
 ```
 
-1. **Brainstorm** — in the **design tab**, the sole owner of the `brainstorming` skill (ADR-0054); refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
-2. **Prototype** (if needed) — in the **design tab**, the sole owner of the `prototype` skill (ADR-0054); build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
+1. **Brainstorm** — load the `brainstorming` skill; refine the idea through one-question-at-a-time grilling, propose 2–3 approaches, present the design in sections, get user approval. Saves a spec to `docs/specs/`.
+2. **Prototype** (if needed) — load the `prototype` skill; build throwaway code to answer technical viability questions before committing to a plan. Delete after capturing the answer.
 3. **Plan** — load the `writing-plans` skill; break the approved spec into bite-sized TDD tasks with exact file paths, interfaces, complete code, and verification commands. Saves a plan to `docs/plans/`.
-4. **Execute** — load the `executing-plans` skill; dispatch tasks to `@tdd` with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
-5. **Implement** — invoke `@tdd` per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage.
+4. **Execute** — load the `executing-plans` skill; implement each task inline using the `tdd` skill, with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
+5. **Implement** — load the `tdd` skill per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage (adapter `tdd-php`).
 6. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
-7. **Gate** — run `/check` (php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-8. **Review** — invoke `@code-review` before push.
+7. **Gate** — run `/check` (delegates to the adapter stack gate, e.g. `/check-php`: php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
+8. **Review** — load the `code-review` skill before push (suggest Ctrl+P to the judge model).
 
-For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks. For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix. For architectural entropy, run `/improve-architecture` on a cadence.
+For non-trivial or cross-cutting changes, run the `architect` skill after the
+spec and before ticketing/planning — it returns a go/no-go plus a parseable
+`ADR-required:` line. The ticketing skill (`/issue`) checks this line before
+slicing a spec into tasks. For bugs, prepend the `debug` skill before `tdd`
+on the fix. For architectural entropy, run `/improve-architecture` on a
+cadence.
 
-### Primary agents
+### The pipeline (skills you load)
 
-| Agent | Purpose |
+Under pi there are **no primary tabs and no sub-agents** (ADR-0055). One agent
+runs everything; you load a skill when the task calls for it. The opencode-era
+"Build / Plan / Design" tabs and fifteen `@subagents` collapsed into skills
+whose bodies are the former agent prompts. Two accepted trade-offs (ADR-0055):
+plan-read-only and per-skill gating are now **instruction-only** (no tool-level
+gate), and **automatic model tiering is gone** (cycle manually — see [Model
+strategy](#model-strategy)). Cheap rollback comes from pi session branching
+(`/tree`, `/fork`); slips are caught by `verification-before-completion` and
+`code-review`.
+
+| Skill (load on demand) | Replaces opencode-era |
 | --- | --- |
-| **Build** | Default mode — full tool access; enforces mandatory `@tdd` and the project's hard boundaries |
-| **Plan** | Restricted mode — analysis and planning only; cannot edit files or invoke code-modifying subagents |
+| `brainstorming` | the design tab |
+| `tdd` | the `@tdd` subagent |
+| `architect` | the `@architect` subagent |
+| `code-review` | the `@code-review` subagent |
+| `debug` | the `@debug` subagent |
+| `consult` / `from-issue` / `explore` | the matching `@subagents` |
+| `writing-plans` / `executing-plans` | plan-tab planning + dispatch |
 
-Press `Tab` to switch between Build and Plan during a session.
+### pi mapping
 
-### Built-in subagents
-
-| Agent | Purpose |
+| opencode concept | prism-on-pi destination |
 | --- | --- |
-| `@scout` | External docs + dependency research (clones upstream repos) — built-in experimental; requires `OPENCODE_EXPERIMENTAL_SCOUT=true` (auto-sourced per ADR-0024) |
-| `@general` | Multi-step research, full tool access |
-| `chat` | Read-only conversational tab on the UTILITY tier — general Q&A, code explanation, brainstorming |
+| `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
+| `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
+| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |
+| Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
+| Fifteen `@subagents` | **collapsed** → skills |
+| `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` (Agent Skills standard) |
+| `.opencode/commands/*.md` | `packages/*/prompts/*.md` (pi prompt templates) |
+| per-tool permission matrix | AGENTS.md hard-boundary prose + the **one** safety extension |
+| `sensitive-paths` + `pre-tool-use` + `denial-circuit-breaker` plugins | `packages/prism-core/extensions/safety/` (the sole extension, ADR-0056) |
+| `session-bootstrap` plugin | `~/.pi/agent/APPEND_SYSTEM.md` (pi-native, no extension) |
+| MCP servers (deepseek-websearch, searxng) | `websearch` + `searxng` CLI-shell skills (pi: "No MCP") |
 
-### Custom agents
+### Model strategy
 
-| Agent | When to use |
-| --- | --- |
-| `@tdd` | Any new feature or bug fix requiring tests (mandatory for new code) |
-| `@test-audit` | Auditing an existing test suite for quality |
-| `@code-review` | Reviewing staged changes before push (uses `ocr`) |
-| `@architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation |
-| `@resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
-| `@semgrep` | SAST scanning — diff audit + full scan (PHP/JS/secrets) |
-| `@standards-review` | Read-only review agent applying Fowler's 12 code smells as a structural-review baseline against the diff |
-| `@spec-review` | Read-only review agent that checks requirement coverage against acceptance criteria from the matching spec |
-| `@debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem. Build-mode agent with scoped investigation write (repro tests, harnesses, instrumentation); not invocable from Plan mode. |
-| `@docs-writer` | Generating PHPDoc, RCS headers, and documentation |
-| `@consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
-| `@from-issue` | Issue on-ramp — classifies type, grills one-at-a-time, applies Type + Progress, analyzes, plans, halts for approval, creates the branch, and hands off to the user to invoke `@tdd` directly |
-| `@explore` | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
-| `@tracker-operator` | Executes ticketing/`/setup-labels` GitHub operations — gh reads allowed, mutations ask-gated (ADR-0052) |
-| `@frontend` | Terminal frontend implementation specialist — invoked by `@tdd` for pre-Red standards consultation and post-Red implementation on approved paths; edits only handoff-approved presentation PHP/HTML, `cdn/sass`, and `cdn/js` sources |
+There is **no manifest/env tier layer** (ADR-0057). One primary model, one
+judge, manual cycling:
 
-### Model Configuration
+| Role | Model | When |
+| --- | --- | --- |
+| Primary | `deepseek/deepseek-v4-flash` | default for all pipeline work |
+| Judge | `deepseek/deepseek-v4-pro` | cycle with **Ctrl+P** for `code-review` / `spec-review` / `test-audit` / `architect` (those skills suggest the switch) |
 
-Models are assigned via environment variable substitution (`{env:VAR}`) in
-`opencode.jsonc` — no hard-coded model IDs. Per-agent `model`, `variant`,
-and `temperature` values live in the `agent` section of `opencode.jsonc`; the
-`.opencode/agents/*.md` files carry only `description`, `mode`, `temperature`
-(hard-coded literal), and `permission` (see ADR-0022 — the runtime rejects
-`model:`/`variant:` in sub-agent frontmatter). Six tiers, each mapped to a
-different `OPENCODE_MODEL_*` env var:
+- **Thinking:** raise/lower with **Shift+Tab**.
+- **Auth:** `/login deepseek` or `export DEEPSEEK_API_KEY`.
+- **Scoped cycling:** `enabledModels: ["deepseek-v4-flash", "deepseek-v4-pro"]`
+  (set in `settings.json` / [`.pi/settings.json`](.pi/settings.json)).
 
-| Tier | Env Var | Default | Agents |
-| --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `zai-coding-plan/glm-5.2` | build, tdd, debug, resolve-merge-conflicts, general |
-| Planner | `OPENCODE_MODEL_PLANNER` | `openai/gpt-5.6-sol` | plan, from-issue, architect, consult, tracker-operator |
-| Design | `OPENCODE_MODEL_DESIGN` | `openai/gpt-5.6-sol` | design |
-| Judge | `OPENCODE_MODEL_JUDGE` | `deepseek/deepseek-v4-pro` | code-review, standards-review, spec-review, test-audit, judge, explore |
-| Utility | `OPENCODE_MODEL_UTILITY` | `deepseek/deepseek-v4-flash` | compaction, title, summary, docs-writer, semgrep, chat |
-| Frontend | `OPENCODE_MODEL_FRONTEND` | `openai/gpt-5.6-sol` | frontend |
+Automatic tiering is gone by decision (B — ADR-0055/0057); review/audit run on
+the primary unless the human (or the agent, by suggesting it) manually Ctrl+P's
+to the judge.
 
-Frontend implementation stays TDD-owned: the four frontend skills
-(`frontend-design`, `frontend-architecture`, `scss-mobile-first`,
-`accessibility`) are gated to the hidden `@frontend` subagent, which `@tdd`
-consults before Red and delegates implementation to only after a failing test
-exists (ADR-0049).
+### Prompt templates (slash commands)
 
-**Default delivery:** A direnv `.envrc` automatically extracts the committed
-`prism.jsonc` models section (via `prism_manifest.php env0`) when you `cd` into the project.
-
-1. **Install the direnv shell hook** (one-time, per-shell):
-
-   ```fish
-   # fish
-   echo 'direnv hook fish | source' > ~/.config/fish/conf.d/direnv.fish
-   ```
-   ```bash
-   # bash
-   echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
-   ```
-   ```zsh
-   # zsh
-   echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
-   ```
-
-   Restart your shell, or `exec $SHELL -l`.
-
-2. **Trust the .envrc** (one-time, per-clone):
-
-   ```bash
-   cd /path/to/repo
-   direnv allow
-   echo $OPENCODE_MODEL_PRIMARY      # verify: zai-coding-plan/glm-5.2
-   ```
-
-Without direnv, add to your shell profile:
-```bash
-source /path/to/repo/.envrc
-```
-
-**Customizing via /setup:** Run `/setup` to interactively choose models for
-each tier. Choices are written to the user Prism manifest
-(`~/.config/opencode/prism.jsonc`), field-by-field overlay on top of
-project defaults (ADR-0043).
-
-**Config file precedence** (per OpenCode `config.mdx`; later sources override
-earlier ones):
-
-1. Remote config (`.well-known/opencode`)
-2. Global config (`~/.config/opencode/opencode.json`)
-3. `OPENCODE_CONFIG` custom path
-4. **Project config (`opencode.jsonc`)** ← `{env:VAR}` references live here
-5. `.opencode/` directories (agents, commands, etc.)
-6. `OPENCODE_CONFIG_CONTENT` (inline, runtime)
-7. Managed settings (admin-controlled, MDM, mobileconfig)
-
-**Override mechanisms** (in order of escalation):
-
-- **Change models in /setup** — writes user choices to `~/.config/opencode/prism.jsonc`
-- **Edit `prism.jsonc` models section** — change defaults committed to the repo
-- **CLI flag** — `opencode --model anthropic/claude-sonnet-4-5` (overrides
-  top-level; per-agent `{env:VAR}` references still resolve from env vars)
-- **Inline config** — Prism composes `OPENCODE_CONFIG_CONTENT` from the
-  resolved manifest into the env0 stream, owning the two MCP `enabled`
-  leaves, quota plugin membership, and four literal
-  `agent.frontend.permission.edit` leaves while preserving all unrelated
-  keys and plugin entries (ADR-0045, ADR-0051)
-
-**Choosing a model and variant:** The defaults are tuned for the three
-models shipped in `prism.jsonc`. To use a different
-model — or to confirm which `variant` values it accepts, what its context
-window is, and how to map a task onto a `variant` + `temperature` pair —
-see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).
-
-### Slash commands
+Pi prompt templates expand via `/name`. The core package's prompts live in
+`packages/prism-core/prompts/`; the adapter's in
+`packages/prism-php-web/prompts/`.
 
 | Command | Purpose |
 | --- | --- |
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
-| `/check` | Pre-push gate: php-cs-fixer + stylelint + eslint + pest --coverage (80%) |
+| `/check` | Pre-push gate — language-agnostic checks, then delegates to the adapter stack gate (e.g. `/check-php`) |
 | `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
 | `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command without creating the PR |
 | `/deploy` | Post-pull production deploy — asset rebuild, opcache clear, log tail |
-| `/router` | Route free-form user intent to the right entry point (on-ramp, agent, or fast-path) |
-| `/research` | Cited research via `@scout` + web (see `.opencode/docs/research.md`). Pass `--background` for async dispatch (experimental, gated). |
+| `/router` | Route free-form user intent to the right entry point (skill or fast-path) |
+| `/research` | Cited research via the `websearch`/`searxng` skills + web |
 | `/build-assets` | Rebuild minified CSS and JS from SCSS/JS sources |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders, sets accent theme, offers optional scaffold (clone an existing template via `gh`, or init a new subfolder) |
+| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders (adapter-aware) |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
-| `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks |
-| `/ticket` | Alias of `/issue` (singular mode) |
-| `/issues` | Decompose a plan or spec into a GitHub epic with vertical-slice task issues and native blocking edges |
-| `/tickets` | Alias of `/issues` (from-spec decomposition) |
+| `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |
 
-
-**`/setup` scaffold mode** — `/setup` offers an optional scaffold step (§2.5)
-for spinning up standalone projects from the template's quality surface (git
-hooks, CI, linters, shell-test harness):
-
-- **skip** (default) — configure the template in place; no scaffold.
-- **clone** `<owner/repo>` — clone an existing quality-surface template via
-  `gh repo clone`, then overlay the current quality surface. Requires `gh`
-  installed and authenticated (`gh auth login`).
-- **new** `<target>` — create a fresh subfolder, `git init`, and copy the
-  quality-surface manifest into it. No `gh` required.
-
-The scaffold is idempotent: re-running `/setup` short-circuits the prompt when
-a scaffold was already completed and the recorded `project_folder` still
-exists (drift — missing folder — re-prompts). See `adr/0026-project-scaffolding.md`.
-
-OpenCode also provides built-in slash commands (`/init`, `/undo`, `/redo`,
-`/share`, `/help`) — see `CODING_HARNESS.md` for the full list.
+pi's own built-in commands (`/login`, `/model`, `/settings`, `/tree`,
+`/fork`, `/compact`, `/skill:name`, `/trust`, …) are always available — see
+`/hotkeys` in a session.
 
 ### Skills (on-demand)
 
-Skills load when an agent needs them — they are not loaded into every session. Load one explicitly with the `skill` tool, or let the agent pull it when the task matches.
+Skills load when the task matches — progressive disclosure: only descriptions
+are always in context, full instructions load on demand via `read` or
+`/skill:name`. The authoritative index lives in
+[`packages/prism-core/AGENTS.md`](packages/prism-core/AGENTS.md); the adapter
+adds the PHP/web skills.
 
 | Category | Skills |
 | --- | --- |
 | Engineering pipeline | `brainstorming`, `grilling`, `prototype`, `to-spec`, `writing-plans`, `executing-plans`, `ticketing`, `wayfinder`, `verification-before-completion` |
-| Review triage | `receiving-code-review` |
+| Review triage | `receiving-code-review`, `code-review`, `spec-review`, `standards-review`, `test-audit` |
 | Branch lifecycle | `finishing-a-development-branch` |
-| Architecture hygiene | `systems-design`, `finding-duplicate-functions` |
-| Stack-specific | `aurora-page`, `rcs-header`, `security-coding`, `credential-protection`, `database` |
-| Frontend | `frontend-design`, `scss-mobile-first`, `frontend-architecture`, `accessibility` |
-| Testing | `pest-browser` |
-| Docs & process | `domain-context`, `adr`, `conventional-commits`, `audit-deps`, `writing-skills`, `opencode-docs`, `research-background` |
+| Architecture hygiene | `systems-design`, `architect`, `finding-duplicate-functions` |
+| Core discipline | `tdd`, `security-coding`, `credential-protection`, `conventional-commits`, `audit-deps`, `domain-context`, `adr`, `debug`, `explore`, `consult`, `from-issue`, `resolve-merge-conflicts`, `tracker-operator`, `docs-writer`, `writing-skills`, `pi-docs`, `research-background` |
+| PHP/web adapter | `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, `database`, `security-coding-php`, `pest-browser`, `scss-mobile-first`, `accessibility`, `frontend-architecture`, `frontend-design` |
+| Search (replaces MCP) | `websearch`, `searxng` |
 
 ### Project context — living docs
 
 * **`CONTEXT.md`** — the domain's *what* and *why*: glossary, entities, invariants, boundaries, non-goals. Agents read it before domain-coupled work and update it when domain language changes. Draft a fresh one with `/prime`.
-* **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run `@architect` before `writing-plans` to check for ADR conflicts on non-trivial changes.
-
-### Activation
-
-The harness is active in any OpenCode session opened in this repo — no manual steps beyond installing OpenCode and running `composer install` / `npm install`. Git hooks (lint, commitlint, amend/non-fast-forward guards, submodule sync) are activated separately via `bash .github/scripts/install-hooks.sh`.
+* **`adr/`** — Architecture Decision Records. Write an ADR (copy `adr/0000-template.md`) for hard-to-reverse or cross-cutting decisions. Supersede, never edit. Run the `architect` skill before `writing-plans` to check for ADR conflicts on non-trivial changes. (ADR-0055 banners records 0001–0054 as opencode-era; 0055+ are the pi era.)
 
 ## Conventional Commits
 
@@ -537,10 +540,10 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Authored-by',        # Required — the design/planning model from agent.plan.model (e.g., gpt-5.6-sol)
-  'Implemented-by',     # Required — the coding model from the PRIMARY tier (e.g., glm-5.2)
-  'Tested-by',          # Required — the verification model from agent.code-review.model (e.g., deepseek-v4-pro)
-  'Signed-off-by',      # Required — the user (e.g., kyau <git@kyaulabs.com>)
+  'Authored-by',        # Required — the design/planning model (e.g. glm-5.2)
+  'Implemented-by',     # Required — the implementation model (primary deepseek-v4-flash, or deepseek-v4-pro if Ctrl+P cycled)
+  'Tested-by',          # Required — the review model (deepseek-v4-pro if cycled for review, else the primary)
+  'Signed-off-by',      # Required — the user (e.g. kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
   'Fixes',
@@ -550,13 +553,14 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Authored-by`, `Implemented-by`, `Tested-by`, and `Signed-off-by` footers. If
-no user is explicitly named, the default `Signed-off-by` is `kyau
-<git@kyaulabs.com>`. `Authored-by` is sourced from `agent.plan.model`,
-`Implemented-by` from the PRIMARY tier (`agent.tdd.model`), and `Tested-by`
-from `agent.code-review.model` in `opencode.jsonc` — the segment after the
-last `/` (ADR-0040).
-e.g. `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
+Every commit must include `Authored-by`, `Implemented-by`, `Tested-by`, and
+`Signed-off-by` footers. If no user is explicitly named, the default
+`Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the model
+ID segment after the last `/` (ADR-0040): `deepseek/deepseek-v4-flash` →
+`deepseek-v4-flash`, `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
+`Signed-off-by:` is resolved dynamically via
+`bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
+per ADR-0029).
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
 placed at the top of the footer block immediately above `Authored-by:`.
@@ -580,7 +584,7 @@ Basic movement added.
 Refs: #123
 Refs: 676104e, a215868
 Authored-by: glm-5.2
-Implemented-by: glm-5.2
+Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
@@ -591,7 +595,7 @@ fix: array parsing issue
 Fixes: #42
 Cc: Z
 Authored-by: glm-5.2
-Implemented-by: glm-5.2
+Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>
@@ -605,7 +609,7 @@ chore(release): v0.0.1 [skip ci]
 
 Once you have published at least one proper commit using conventional commits syntax you will be able to generate a changelog. Releases follow the two-half pipeline (ADR-0046):
 
-1. **Authoring** — `/release` (see [Slash commands](#slash-commands) in the Coding Harness section) prepares the git-cliff changelog and a `release/X.Y.Z` release-branch PR to `main`; a maintainer merges it.
+1. **Authoring** — `/release` (see [Prompt templates](#prompt-templates-slash-commands)) prepares the git-cliff changelog and a `release/X.Y.Z` release-branch PR to `main`; a maintainer merges it.
 2. **Publication** — merging the release PR triggers `release.yml`, which creates the `vX.Y.Z` tag and GitHub Release at the merge commit and opens the `main` → `develop` back-merge PR for a maintainer to merge.
 
 Never create tags, Releases, or back-merge PRs locally — `release.yml` owns publication (ADR-0046). The low-level flow below is a fallback for preparing changelog content; it stops at a release-branch PR.
@@ -639,7 +643,7 @@ back-merge PR after the merge.
 
 ## Attribution
 
-* [OpenCode](https://opencode.ai) — the coding harness platform this template targets
+* [pi](https://pi.dev) (`@earendil-works/pi-coding-agent`, MIT, © earendil-works) — the coding agent this harness targets; extension/skill/prompt-template/package patterns
 * [Aurora](https://github.com/kyaulabs/aurora) — the PHP framework included as a submodule
 * [Pest](https://github.com/pestphp/pest) — the PHP testing framework (TDD)
 * [php-cs-fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer) — PHP code style (PSR-12)
@@ -647,7 +651,7 @@ back-merge PR after the merge.
 * [git-cliff](https://github.com/orhun/git-cliff) — changelog generation
 * [Semgrep](https://github.com/semgrep/semgrep) — static analysis security testing
 * [gitleaks](https://github.com/gitleaks/gitleaks) — secrets scanning at pre-commit
-* [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `@code-review` agent
+* [OpenCodeReview (ocr)](https://alibaba.github.io/open-code-review/) — code review tooling used by the `code-review` skill
 * [Superpowers](https://github.com/obra/superpowers) — engineering pipeline and core skill methodology (MIT, © Jesse Vincent)
 * [Superpowers Lab](https://github.com/obra/superpowers-lab) — two-phase semantic-duplication detection pattern (MIT, © Jesse Vincent)
 * [Superpowers Developing for Claude Code](https://github.com/obra/superpowers-developing-for-claude-code) — vendored-official-docs skill pattern (MIT, © Jesse Vincent)

@@ -1,5 +1,7 @@
 # 0018. Shell Test Helper Library
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-13
 
 ## Status

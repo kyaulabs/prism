@@ -1,6 +1,6 @@
 {
 	"name": "kyaulabs/prism",
-	"description": "Coding harness for OpenCode that codifies disciplined, test-driven PHP development.",
+	"description": "Coding harness for pi that codifies disciplined, test-driven PHP development.",
 	"type": "project",
 	"license": "AGPL-3.0-only",
 	"require": {
@@ -12,9 +12,6 @@
 		"opis/json-schema": "^2.0",
 		"pestphp/pest": "^4",
 		"pestphp/pest-plugin-browser": "^4"
-	},
-	"autoload": {
-		"classmap": [".opencode/evals/bin/includes/"]
 	},
 	"autoload-dev": {
 		"classmap": ["tests/"]

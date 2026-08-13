@@ -1,5 +1,7 @@
 # $KYAULabs: 0034-chat-primary-agent.md kyau@nova 2026/07/20 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0034. Chat primary agent (read-only, UTILITY tier)
 
 Date: 2026-07-20

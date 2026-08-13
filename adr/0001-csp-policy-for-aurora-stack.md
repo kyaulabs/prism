@@ -1,5 +1,7 @@
 # 0001. CSP Policy for the Aurora Stack
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-04
 
 ## Status

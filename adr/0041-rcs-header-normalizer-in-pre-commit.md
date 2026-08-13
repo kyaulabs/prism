@@ -1,5 +1,7 @@
 # 0041. RCS Header Normalizer in Pre-Commit Hook
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-28
 
 ## Status

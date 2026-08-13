@@ -1,5 +1,7 @@
 # $KYAULabs: 0015-index-based-linting-in-pre-commit-hook.md kyau@nova 2026/07/11 -0700 Exp $
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 # 0015. Index-Based Linting in Pre-Commit Hook
 
 Date: 2026-07-11

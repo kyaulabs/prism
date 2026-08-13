@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: ci_local_parity_test.sh kyau@nova 2026/07/18 -0700 Exp $
+# $KYAULabs: ci_local_parity_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -45,14 +49,14 @@ else
 fi
 
 # ── 4. conventional-commits warns about literal backslash-n ──────────────────
-if grep -qi "literal" "$REPO_ROOT/.opencode/skills/conventional-commits/SKILL.md"; then
+if grep -qi "literal" "$REPO_ROOT/packages/prism-core/skills/conventional-commits/SKILL.md"; then
 	pass "conventional-commits warns about literal backslash-n"
 else
 	fail "conventional-commits missing literal backslash-n warning"
 fi
 
 # ── 5. install-hooks notes the npm prerequisite ──────────────────────────────
-if grep -qF "npm install" "$REPO_ROOT/.github/scripts/install-hooks.sh"; then
+if grep -qF "npm install" "$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"; then
 	pass "install-hooks notes npm prerequisite"
 else
 	fail "install-hooks missing npm note"
@@ -73,20 +77,24 @@ else
 fi
 
 # ── 8. writing-plans commit example uses the canonical $'...' form ──────────
-if grep -qF "git commit -S -m \$'" "$REPO_ROOT/.opencode/skills/writing-plans/SKILL.md"; then
+if grep -qF "git commit -S -m \$'" "$REPO_ROOT/packages/prism-core/skills/writing-plans/SKILL.md"; then
 	pass "writing-plans uses canonical \$'...' commit form"
 else
 	fail "writing-plans commit example not reconciled to \$'...' form"
 fi
 
 # ── 9. doctor verifies local node_modules/commitlint (commit-msg fail-closed) ─
-if grep -qF "[ -d node_modules/commitlint ]" "$REPO_ROOT/.opencode/commands/doctor.md"; then
+if grep -qF "[ -x ./node_modules/.bin/commitlint ]" "$REPO_ROOT/packages/prism-core/prompts/doctor.md"; then
 	pass "doctor checks node_modules/commitlint presence"
 else
 	fail "doctor missing node_modules/commitlint check"
 fi
 
 print_summary "ci_local_parity"
+
+
+
+
 
 
 

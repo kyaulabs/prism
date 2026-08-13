@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
 
 
 
@@ -33,7 +35,7 @@ source "$LIB"
 setup_result_file
 
 # ── Static scan: ticketing SKILL.md ──────────────────────────────────────────
-TICKETING="$REPO_ROOT/.opencode/skills/ticketing/SKILL.md"
+TICKETING="$REPO_ROOT/packages/prism-core/skills/ticketing/SKILL.md"
 
 echo "── Skill shell injection scan ──────────────"
 
@@ -81,8 +83,8 @@ else
 fi
 
 # ── Static scan: finishing-a-development-branch SKILL.md + pr command ────────
-FINISHING="$REPO_ROOT/.opencode/skills/finishing-a-development-branch/SKILL.md"
-PR_COMMAND="$REPO_ROOT/.opencode/commands/pr.md"
+FINISHING="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"
+PR_COMMAND="$REPO_ROOT/packages/prism-core/prompts/pr.md"
 
 if [ ! -f "$FINISHING" ]; then
 	fail "finishing-a-development-branch/SKILL.md not found"
@@ -103,7 +105,7 @@ else
 fi
 
 if [ ! -f "$PR_COMMAND" ]; then
-	fail ".opencode/commands/pr.md not found"
+	fail "packages/prism-core/prompts/pr.md not found"
 else
 	# Check 4b: pr command reads title into a variable and passes it quoted
 	if grep -Fq 'TITLE=$(cat "$TITLE_FILE")' "$PR_COMMAND" \
@@ -120,11 +122,11 @@ else
 		fail "pr command: missing --body-file transport"
 	fi
 
-	# Check 4d: no obsolete --title-file anywhere in .opencode/
-	if grep -R -Fq -- '--title-file' "$REPO_ROOT/.opencode"; then
-		fail ".opencode/: obsolete --title-file option still present"
+	# Check 4d: no obsolete --title-file anywhere in prism-core.
+	if grep -R -Fq -- '--title-file' "$REPO_ROOT/packages/prism-core"; then
+		fail "prism-core: obsolete --title-file option still present"
 	else
-		pass ".opencode/: no obsolete --title-file option"
+		pass "prism-core: no obsolete --title-file option"
 	fi
 fi
 
@@ -244,6 +246,8 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
+
+
 
 
 

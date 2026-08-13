@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+
+
+
+
+
 
 
 
@@ -15,9 +20,9 @@ REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
-COMMAND_FILE="$REPO_ROOT/.opencode/commands/pr.md"
+COMMAND_FILE="$REPO_ROOT/packages/prism-core/prompts/pr.md"
 TEMPLATE_FILE="$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
-FINISHING_FILE="$REPO_ROOT/.opencode/skills/finishing-a-development-branch/SKILL.md"
+FINISHING_FILE="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"
 
 WORK_DIR="$(mktemp -d)"
 register_temp_dir "$WORK_DIR"
@@ -83,14 +88,14 @@ assert_no_obsolete_title_flag() {
 
 make_standard_fixture() {
 	local fixture="$1"
-	mkdir -p "$fixture/.github/scripts"
+	mkdir -p "$fixture/packages/prism-core/scripts"
 	git_init_test_repo "$fixture"
-	cp "$REPO_ROOT/.github/scripts/validate-branch-name.sh" "$fixture/.github/scripts/"
-	chmod +x "$fixture/.github/scripts/validate-branch-name.sh"
+	cp "$REPO_ROOT/packages/prism-core/scripts/validate-branch-name.sh" "$fixture/packages/prism-core/scripts/"
+	chmod +x "$fixture/packages/prism-core/scripts/validate-branch-name.sh"
 	(
 		cd "$fixture"
 		git branch -M develop
-		git add .github
+		git add packages
 		git commit --quiet -m 'chore: add branch validator'
 		printf 'base-1\n' > state.txt
 		git add state.txt
@@ -162,19 +167,19 @@ else
 	fail 'pr command file missing'
 fi
 
-# ── 2. frontmatter: agent: build and no unsupported key ─────────────────────
+# ── 2. frontmatter: pi keys only ───────────────────────────────────────────
 
 fm=$(awk 'NR==1 && /^---$/ { fm=1; next } fm && /^---$/ { exit } fm { print }' "$COMMAND_FILE" 2>/dev/null || true)
-if echo "$fm" | grep -Fq 'agent: build'; then
-	pass 'frontmatter declares agent: build'
+if echo "$fm" | grep -q '^description:' && echo "$fm" | grep -q '^argument-hint:'; then
+	pass 'frontmatter declares pi description and argument hint'
 else
-	fail 'frontmatter missing agent: build'
+	fail 'frontmatter missing pi description or argument hint'
 fi
 unsupported=0
 keys=$(echo "$fm" | grep -oE '^[A-Za-z_][A-Za-z0-9_-]*:' | sed 's/:$//' || true)
 while IFS= read -r key; do
 	[ -z "$key" ] && continue
-	if ! echo ' description agent model subtask ' | grep -qF " $key "; then
+	if ! echo ' description argument-hint ' | grep -qF " $key "; then
 		unsupported=1
 	fi
 done <<< "$keys"
@@ -324,9 +329,7 @@ assert_preflight_failure 'net-empty range is rejected' "$fixture" 'branch has no
 
 # ── 10. title validation behavior ───────────────────────────────────────────
 
-export OPENCODE_MODEL_PLANNER="${OPENCODE_MODEL_PLANNER:-test-planner}"
-export OPENCODE_MODEL_PRIMARY="${OPENCODE_MODEL_PRIMARY:-test-primary}"
-export OPENCODE_MODEL_JUDGE="${OPENCODE_MODEL_JUDGE:-test-judge}"
+export PI_MODEL="${PI_MODEL:-test-model}"
 
 COMMITLINT_AVAILABLE=false
 if [ -d "$REPO_ROOT/node_modules/commitlint" ] && [ -x "$REPO_ROOT/node_modules/.bin/commitlint" ]; then
@@ -432,10 +435,10 @@ else
 	fail 'finishing delegation still duplicates PR creation'
 fi
 
-if assert_no_obsolete_title_flag "$REPO_ROOT/.opencode"; then
-	pass 'opencode tree contains no obsolete PR title flag'
+if assert_no_obsolete_title_flag "$REPO_ROOT/packages/prism-core"; then
+	pass 'prism-core tree contains no obsolete PR title flag'
 else
-	fail 'opencode tree contains the obsolete PR title flag'
+	fail 'prism-core tree contains the obsolete PR title flag'
 fi
 
 mutation_dir=$(mktemp -d)
@@ -448,12 +451,12 @@ else
 	pass 'delegation mutation is detected'
 fi
 
-mkdir -p "$mutation_dir/opencode"
-cp "$COMMAND_FILE" "$mutation_dir/opencode/pr.md"
-printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/opencode/pr.md"
-sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/opencode/pr.md"
-rm -f "$mutation_dir/opencode/pr.md.bak"
-if assert_no_obsolete_title_flag "$mutation_dir/opencode"; then
+mkdir -p "$mutation_dir/prompts"
+cp "$COMMAND_FILE" "$mutation_dir/prompts/pr.md"
+printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/prompts/pr.md"
+sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/prompts/pr.md"
+rm -f "$mutation_dir/prompts/pr.md.bak"
+if assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
 	fail 'obsolete flag mutation was not detected'
 else
 	pass 'obsolete flag mutation is detected'
@@ -461,8 +464,8 @@ fi
 
 # ── 13. living-document command index ────────────────────────────────────────
 
-assert_contains "$REPO_ROOT/AGENTS.md" '| `/pr` |' \
-	'AGENTS command table indexes /pr'
+assert_contains "$REPO_ROOT/packages/prism-core/AGENTS.md" '| `/pr` |' \
+	'core AGENTS command table indexes /pr'
 assert_contains "$REPO_ROOT/README.md" '| `/pr` |' \
 	'README slash-command table indexes /pr'
 assert_contains "$REPO_ROOT/CODING_HARNESS.md" '`/pr`' \
@@ -494,6 +497,11 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
+
+
+
+
 
 
 

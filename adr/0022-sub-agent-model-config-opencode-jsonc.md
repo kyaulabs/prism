@@ -1,5 +1,7 @@
 # 0022. Sub-Agent Model Configuration Lives in opencode.jsonc, Not .md Frontmatter
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-16
 
 ## Status

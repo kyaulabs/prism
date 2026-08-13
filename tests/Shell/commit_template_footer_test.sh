@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@cosmos.kyaulabs 2026/08/02 -0700 Exp $
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
 
 
 
@@ -23,7 +26,7 @@ setup_result_file
 # The release commit is a normal chore(release): commit (not a merge/revert),
 # so commitlint's trailers-exist rule requires Authored-by/Implemented-by/
 # Tested-by/Signed-off-by. The old footerless double-quoted form must be gone.
-RELEASE="$REPO_ROOT/.opencode/commands/release.md"
+RELEASE="$REPO_ROOT/packages/prism-core/prompts/release.md"
 if grep -qF 'git commit -S -m "chore(release): vX.Y.Z"' "$RELEASE"; then
 	fail "release.md still uses footerless double-quoted commit form"
 else
@@ -37,23 +40,20 @@ else
 	fi
 fi
 
-# ── 2. build agent gates git tag* behind confirmation ───────────────────────
-# /release no longer creates local tags — release.yml owns tag creation after
-# the human merges the release PR. The "git tag*": "ask" gate is retained as a
-# general build-agent guard so any tag command still requires confirmation
-# (build's bash has "*": "allow", so without it a tag would need no prompt).
-build_block=$(sed -n '/"build": {/,/"plan": {/p' "$REPO_ROOT/opencode.jsonc")
-if echo "$build_block" | grep -qF '"git tag*": "ask"'; then
-	pass "build agent gates git tag* at ask"
+# ── 2. /release never creates a local tag ──────────────────────────────────
+# Under pi the old per-agent permission matrix is gone. The release prompt
+# itself carries the instruction-only safety contract: CI owns tag creation.
+if grep -qF 'Never create a tag' "$RELEASE" && ! grep -qE '^[[:space:]]*git tag' "$RELEASE"; then
+	pass "/release leaves tag creation to CI"
 else
-	fail "build agent does not gate git tag* (release tag ungated)"
+	fail "/release contains a local tag creation path"
 fi
 
 # ── 3. @resolve-merge-conflicts merge subject is Merge-prefixed (exempt) ─────
 # commitlint inspects only the message text (not git parents). A `chore: merge`
 # subject matches neither the Merge-/Revert- exemption nor carries trailers, so
 # the hook rejects it. Use a `Merge `-prefixed subject to trigger the exemption.
-RMC="$REPO_ROOT/.opencode/agents/resolve-merge-conflicts.md"
+RMC="$REPO_ROOT/packages/prism-core/skills/resolve-merge-conflicts/SKILL.md"
 if grep -qF 'Merge branch' "$RMC" && ! grep -qF 'chore: merge' "$RMC"; then
 	pass "resolve-merge-conflicts uses Merge-prefixed merge subject"
 else
@@ -61,6 +61,9 @@ else
 fi
 
 print_summary "commit_template_footer"
+
+
+
 
 
 

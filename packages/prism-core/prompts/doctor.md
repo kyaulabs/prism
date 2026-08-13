@@ -1,0 +1,172 @@
+---
+description: Toolchain health check. Verifies all required core harness tools are installed and reports adapter-owned checks separately. Reports a PASS/FAIL/SKIPPED table and ends with a go/no-go summary.
+---
+
+Check every language-agnostic tool the Prism pi harness depends on. Report a
+consolidated status table. Do not install, upgrade, authenticate, or modify
+anything.
+
+Stack runtimes, test frameworks, linters, coverage tools, and asset builders
+belong to the active adapter and are reported separately; this core prompt
+does not guess their commands.
+
+## 1. pi and models
+
+```bash
+set -o pipefail
+pi --version 2>/dev/null || echo "NOT_FOUND"
+pi --list-models deepseek-v4-flash 2>/dev/null || echo "NOT_FOUND"
+pi --list-models deepseek-v4-pro 2>/dev/null || echo "NOT_FOUND"
+```
+
+PASS requires pi to run and both `deepseek/deepseek-v4-flash` and
+`deepseek/deepseek-v4-pro` to appear in the model catalogue. Catalogue
+presence does not prove authentication. Never inspect the auth store; if a
+live request later reports an auth error, direct the user to `/login deepseek`.
+
+## 2. Core command-line tools
+
+```bash
+set -o pipefail
+git --version 2>/dev/null || echo "NOT_FOUND"
+bash --version 2>/dev/null | head -1 || echo "NOT_FOUND"
+node --version 2>/dev/null || echo "NOT_FOUND"
+npm --version 2>/dev/null || echo "NOT_FOUND"
+curl --version 2>/dev/null | head -1 || echo "NOT_FOUND"
+command -v openssl >/dev/null 2>&1 && openssl version || echo "NOT_FOUND"
+command -v jq >/dev/null 2>&1 && jq --version || echo "OPTIONAL_NOT_FOUND"
+```
+
+Floors: Bash >= 4 for the harness validator; Node.js >= 20; npm >= 9. `git`,
+`curl`, and `openssl` require maintained versions but have no project-pinned
+floor. `jq` is optional because the search scripts have a dependency-free
+Node.js fallback.
+
+## 3. Prism resources
+
+```bash
+pi list
+
+for path in \
+    packages/prism-core/AGENTS.md \
+    packages/prism-core/APPEND_SYSTEM.md \
+    packages/prism-core/extensions/safety/index.ts \
+    packages/prism-core/skills/brainstorming/SKILL.md \
+    packages/prism-core/prompts/router.md \
+    packages/prism-core/scripts/validate-harness.sh
+do
+    [ -e "$path" ] && echo "PASS $path" || echo "SKIPPED $path (package source not in this checkout)"
+done
+```
+
+In a normal consumer project, source paths are expected to be absent; use
+`pi list` and the current session's discovered resources instead. In the Prism
+source checkout, a missing listed path is FAIL.
+
+Run the package validator when present:
+
+```bash
+if [ -x packages/prism-core/scripts/validate-harness.sh ]; then
+    bash packages/prism-core/scripts/validate-harness.sh
+else
+    echo "SKIPPED: source validator not present in this checkout"
+fi
+```
+
+## 4. Commit pipeline
+
+```bash
+hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
+if [ "$hooks_path" = ".github/hooks" ]; then
+    echo "INSTALLED ($hooks_path)"
+else
+    echo "NOT_INSTALLED — run 'bash packages/prism-core/scripts/install-hooks.sh'"
+fi
+
+if [ -x ./node_modules/.bin/commitlint ]; then
+    ./node_modules/.bin/commitlint --version
+else
+    echo "commitlint (local) NOT_INSTALLED"
+fi
+
+git config user.name >/dev/null 2>&1 \
+    && git config user.email >/dev/null 2>&1 \
+    && echo "git identity CONFIGURED" \
+    || echo "git identity NOT_CONFIGURED"
+```
+
+A repository that ships the Prism hooks needs `.github/hooks` configured and
+local commitlint available; the commit-msg hook fails closed without it. A
+consumer that does not ship these hooks reports the section SKIPPED. Missing
+identity is blocking for signed commits because `resolve-identity.sh` fails
+closed.
+
+## 5. Search skill prerequisites
+
+```bash
+[ -n "${DEEPSEEK_API_KEY:-}" ] \
+    && echo "websearch CONFIGURED" \
+    || echo "websearch OPTIONAL_NOT_CONFIGURED — DEEPSEEK_API_KEY missing"
+[ -n "${SEARXNG_URL:-}" ] \
+    && echo "searxng CONFIGURED" \
+    || echo "searxng OPTIONAL_NOT_CONFIGURED — SEARXNG_URL missing"
+```
+
+Check presence only. Never print either value. Do not make a live request
+unless the user separately gives explicit permission to access the external
+service.
+
+## 6. GitHub CLI
+
+```bash
+if command -v gh >/dev/null 2>&1; then
+    gh --version | head -1
+    gh auth status >/dev/null 2>&1 \
+        && echo "AUTHENTICATED" \
+        || echo "NOT_AUTHENTICATED — run 'gh auth login'"
+else
+    echo "OPTIONAL_NOT_FOUND"
+fi
+```
+
+`gh` is required for ticketing, labels, rulesets, PR preparation, and release
+workflows, but not for local coding. Treat it as a feature-level soft fail.
+Do not run a GitHub API request.
+
+## 7. Active adapter
+
+Detect adapter evidence and resource availability. For example,
+`composer.json` or `aurora/` indicates the project-local `prism-php-web`
+adapter. Confirm the matching stack skill and check prompt are discoverable.
+Report exact stack-tool health as **DELEGATED** to that adapter; do not embed
+framework-specific version floors in this core prompt.
+
+If project evidence identifies an adapter but its resources are unavailable,
+report FAIL with the project-local install command. If no adapter applies,
+report SKIPPED.
+
+## Output
+
+For every tool or resource report:
+
+- **PASS** — present and usable at the required floor.
+- **WARN** — present but below the floor.
+- **FAIL** — a required core tool/resource is missing.
+- **SKIPPED** — optional, adapter-owned, or absent by design in a consumer
+  checkout.
+- **DELEGATED** — exact health is owned by the active adapter.
+
+End with one summary:
+
+- **GO** — all required core checks pass; list optional/delegated checks.
+- **NO-GO** — list every required core failure and the non-destructive
+  remediation command. Do not run it.
+
+## Rules
+
+- Never install, upgrade, authenticate, or modify anything. Report only.
+- Never read credential files or print environment-variable values.
+- A missing optional search integration or `gh` does not block local coding.
+- A missing core runtime, safety extension, global instruction bootstrap, or
+  required commit-pipeline component is blocking for the operation it guards.
+- Stack-specific checks belong to the active adapter.

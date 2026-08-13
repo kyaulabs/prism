@@ -1,180 +1,159 @@
 # Coding Harness
 
 Orientation guide for the KYAULabs coding-agent harness. This is a human
-reference — agents load `AGENTS.md` (authoritative) every session, so this
+reference — the agent loads `AGENTS.md` (authoritative) every session, so this
 file carries no per-session token cost.
 
 ## How the pieces fit together
 
-New ideas enter through the **design tab** front door. Pre-spec work that is
-oversized — multiple independent subsystems, or unknowns that cannot be
-expressed as sharp questions — branches to `wayfinder` before detailed
+Prism runs on [pi](https://pi.dev). Under pi there are **no tabs, no
+sub-agents, no plan mode, and no MCP** — a single agent runs the whole
+engineering pipeline by loading **skills** on demand (ADR-0055). Slash
+commands are **prompt templates**; the opencode permission matrix and three
+TypeScript plugins collapsed into **one safety extension** (ADR-0056); the
+six-tier model system collapsed to **one primary model + manual Ctrl+P
+cycling** (ADR-0057).
+
+New ideas enter through the **brainstorming** skill front door. Pre-spec work
+that is oversized — multiple independent subsystems, or unknowns that cannot
+be expressed as sharp questions — branches to `wayfinder` before detailed
 grilling; the sole exception is the strict-greenfield walking-skeleton
 bootstrap, which precedes wayfinding (ADR-0050).
 
-The full engineering pipeline, end to end:
+The full engineering pipeline, end to end — a single agent loading skills:
 
 ```text
-design tab (brainstorming / to-spec / prototype (if needed)) → @architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → @tdd (per task) → verification-before-completion → /check → @code-review
+brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → /check → code-review
 ```
 
-1. **Brainstorm** the change in the **design tab** — the sole owner of the brainstorming skill (ADR-0054) → spec in `docs/specs/`.
-2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill — Design-owned, ADR-0054).
-3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
-4. **Execute** the plan (executing-plans skill) → dispatch tasks to `@tdd`, review between tasks.
-5. **Implement** each task via `@tdd` (Red → Green → Refactor, vertical slices).
-6. **Verify** completion (verification-before-completion skill).
-7. **Gate** with `/check` (lint + coverage 80%).
-8. **Review** with `@code-review` before push.
+1. **Brainstorm** the change (load the `brainstorming` skill) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
+2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (`prototype` skill).
+3. **Plan** the implementation (`writing-plans` skill) → plan in `docs/plans/`.
+4. **Execute** the plan (`executing-plans` skill) → implement each task inline using the `tdd` skill, review between tasks.
+5. **Implement** each task via the `tdd` skill (Red → Green → Refactor, vertical slices).
+6. **Verify** completion (`verification-before-completion` skill).
+7. **Gate** with `/check` (delegates to the adapter stack gate, e.g. `/check-php`: lint + coverage 80%).
+8. **Review** with the `code-review` skill before push.
 
-For non-trivial or cross-cutting changes, run `@architect` after the spec and before ticketing/planning — it returns a go/no-go plus a parseable `ADR-required:` line. The ticketing skill (`/issue`) checks this line before slicing a spec into tasks.
-For bugs, use `@debug` (disciplined 6-phase loop) before `@tdd` on the fix.
+For non-trivial or cross-cutting changes, run the `architect` skill after the
+spec and before ticketing/planning — it returns a go/no-go plus a parseable
+`ADR-required:` line. The ticketing skill (`/issue`) checks this line before
+slicing a spec into tasks.
+For bugs, use the `debug` skill (disciplined 6-phase loop) before `tdd` on the
+fix.
 
 ## Where things live
 
-| File | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `AGENTS.md` | Stack, boundaries, directory structure, skills/agents/commands index (authoritative) |
+| `packages/prism-core/AGENTS.md` | Global core instructions — hard boundaries, conventions, pipeline, skills/commands index (deploys to `~/.pi/agent/AGENTS.md`) |
+| `packages/prism-core/APPEND_SYSTEM.md` | Anti-drift bootstrap — appended to the system prompt every turn (deploys to `~/.pi/agent/APPEND_SYSTEM.md`) |
+| `packages/prism-core/skills/` | Language-agnostic skills (loaded on demand via `/skill:name` or auto-invoked) |
+| `packages/prism-core/prompts/` | Core slash commands (pi prompt templates) |
+| `packages/prism-core/extensions/safety/` | The **one** safety extension — sensitive-path + `rm -rf` + `--no-verify` classifier + denial circuit-breaker (ADR-0056) |
+| `packages/prism-core/scripts/` | Language-agnostic helper scripts (`new-branch.sh`, `resolve-identity.sh`, `install-global.sh`, …) |
+| `packages/prism-php-web/` | The PHP/web adapter — `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, `/check-php`, `safe-dirs.json` |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
-| `opencode.jsonc` | Wires instructions + agent definitions + permissions |
 | `adr/` | Architecture Decision Records (Nygard format) |
-| `.opencode/agents/` | Custom subagent definitions |
-| `.opencode/commands/` | Custom slash commands |
-| `.opencode/skills/` | On-demand skills (loaded via the Skill tool) |
-| `.opencode/docs/` | Supporting reference docs for agents/commands |
+| `AGENTS.md` (repo root) | Repo-level project instructions (concatenates with the global core `AGENTS.md`) |
+| `.pi/settings.json` | This repo's own project settings — dogfoods both packages from disk |
 
-## Built-in OpenCode features
+## pi mapping
 
-### Primary agents (Tab to switch)
-
-| Agent | Purpose |
+| opencode concept | prism-on-pi destination |
 | --- | --- |
-| **Build** | Default mode — full tool access for development; enforces mandatory `@tdd` + hard boundaries |
-| **Plan** | Restricted mode — analysis and planning, no file changes |
-| **Design** | Brainstorming front door — grilling → exploration → design → spec → commit → branch; hands off to Plan |
+| `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
+| `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
+| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |
+| Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
+| Fifteen `@subagents` | **collapsed** → skills |
+| `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` |
+| `.opencode/commands/*.md` | `packages/*/prompts/*.md` (pi prompt templates) |
+| per-tool permission matrix | AGENTS.md hard-boundary prose + the one safety extension |
+| `sensitive-paths` + `pre-tool-use` + `denial-circuit-breaker` plugins | `packages/prism-core/extensions/safety/` (ADR-0056) |
+| `session-bootstrap` plugin | `~/.pi/agent/APPEND_SYSTEM.md` (pi-native) |
+| MCP servers (deepseek-websearch, searxng) | `websearch` + `searxng` CLI-shell skills |
 
-Plan mode is restricted from invoking code-modifying subagents (`@tdd`,
-`@resolve-merge-conflicts`, `@docs-writer`) — it can only invoke
-read-only/audit agents (`@test-audit`, `@code-review`, `@semgrep`,
-`@architect`, `@explore`, `@scout`). `@scout` is a built-in experimental
-subagent (requires `OPENCODE_EXPERIMENTAL_SCOUT=true` — auto-sourced per
-`ADR-0024`). `@debug` is a build-mode investigation
-agent with scoped write access (repro tests, throwaway harnesses, `[DEBUG-]`
-instrumentation) and is not invocable from Plan mode. Issue on-ramp via
-`@from-issue #NN` happens from the Build tab, not Plan — `@from-issue` can
-branch and commit, which is incompatible with Plan's
-read-only contract (issue #184, ADR-0006 Decision #3).
+## The pipeline (skills you load)
 
-### Plan Agent Complexity Assessment
+Under pi there are **no primary tabs and no sub-agents** (ADR-0055). One agent
+runs everything; you load a skill when the task calls for it. The
+opencode-era "Build / Plan / Design" tabs and fifteen `@subagents` collapsed
+into skills whose bodies are the former agent prompts. The authoritative
+skills index is in `packages/prism-core/AGENTS.md`.
 
-The plan agent uses the `max` variant by default (configurable via
-`OPENCODE_VARIANT_PLANNER`) — with abundant GLM quota, planning and design
-quality feeds downstream coding, so the variant is bumped to `max`
-(ADR-0031 §2). A **Complexity Assessment Protocol** in the agent's system prompt
-instructs it to classify task complexity and adjust reasoning depth:
+**Accepted trade-offs** (consequences of the single-agent decision — ADR-0055,
+do not re-fix):
 
-- **Complex tasks** (architecture, security, DB schema, cross-cutting refactors,
-  complex bugs): deeper reasoning, alternatives exploration, `@architect`
-  dispatch for validation.
-- **Simple tasks** (docs, style fixes, minor bugs, routine tests): concise,
-  skip alternative exploration.
+- **Plan-read-only and skill-gating are now instruction-only.** There is no
+  tool-level gate preventing edits during planning and no per-skill deny
+  matrix. Mitigations: the `brainstorming` skill keeps its own hard gate (no
+  implementation before an approved spec); pi session branching (`/tree`,
+  `/fork`) gives cheap rollback; `verification-before-completion` and
+  `code-review` catch slips.
+- **Automatic model tiering is gone.** Review/audit run on the primary model
+  unless the human (or the agent, by suggesting it) manually Ctrl+P's to the
+  judge. The `code-review`/`spec-review`/`test-audit` skills include a one-line
+  prompt to suggest the switch.
+- **Sub-agent context isolation is gone.** Long plans that once dispatched
+  `@tdd` per task now run inline. `executing-plans` keeps inline-only mode and
+  relies on proactive compaction (`/compact`) and `/handoff` for context
+  management.
 
-Dynamic per-turn variant switching (e.g., automatically escalating to `max`
-for complex tasks) is **not feasible** with opencode's current architecture —
-the model and variant are resolved statically at startup, before any plugin
-hook fires. See ADR-0011 for the full investigation. The closest plugin
-mechanism, `experimental.chat.system.transform` (ADR-0008), can only modify
-the system prompt, not the model variant.
+## Model strategy
 
-### Model Configuration
+There is **no manifest/env tier layer** (ADR-0057). One primary model, one
+judge, manual cycling:
 
-Models and variants are assigned via environment variable substitution
-(`{env:VAR}`) rather than hard-coded values. Six tiers with committed defaults
-in `prism.jsonc` (models section):
+| Role | Model | When |
+| --- | --- | --- |
+| Primary | `deepseek/deepseek-v4-flash` | default for all pipeline work |
+| Judge | `deepseek/deepseek-v4-pro` | cycle with **Ctrl+P** for `code-review` / `spec-review` / `test-audit` / `architect` |
 
-| Tier | Env Var | Variant Env Var | Default Model | Default Variant | Agents |
-| --- | --- | --- | --- | --- | --- |
-| Primary | `OPENCODE_MODEL_PRIMARY` | `OPENCODE_VARIANT_PRIMARY` | `zai-coding-plan/glm-5.2` | `max` | build, tdd, debug, resolve-merge-conflicts, general |
-| Planner | `OPENCODE_MODEL_PLANNER` | `OPENCODE_VARIANT_PLANNER` | `openai/gpt-5.6-sol` | `xhigh` | plan, from-issue, architect, consult, tracker-operator |
-| Design | `OPENCODE_MODEL_DESIGN` | `OPENCODE_VARIANT_DESIGN` | `openai/gpt-5.6-sol` | `xhigh` | design |
-| Judge | `OPENCODE_MODEL_JUDGE` | `OPENCODE_VARIANT_JUDGE` | `deepseek/deepseek-v4-pro` | `medium` | code-review, standards-review, spec-review, test-audit, judge, explore |
-| Utility | `OPENCODE_MODEL_UTILITY` | `OPENCODE_VARIANT_UTILITY` | `deepseek/deepseek-v4-flash` | `medium` | compaction, title, summary, docs-writer, semgrep, chat |
-| Frontend | `OPENCODE_MODEL_FRONTEND` | `OPENCODE_VARIANT_FRONTEND` | `openai/gpt-5.6-sol` | `xhigh` | frontend |
+- **Thinking:** raise/lower with **Shift+Tab**.
+- **Auth:** `/login deepseek` or `export DEEPSEEK_API_KEY`.
+- **Scoped cycling:** `enabledModels: ["deepseek-v4-flash", "deepseek-v4-pro"]`
+  in `settings.json` / `.pi/settings.json`.
 
-**Setup:** Install the direnv shell hook (one-time; see README for fish/bash/zsh
-commands), then `cd` into the project and run `direnv allow` to trust the
-`.envrc`. Without direnv, add `source /path/to/repo/.envrc` to your shell profile.
+## Search (replaces MCP)
 
-**Customize:** Run `/setup` and follow the Model and Variant Configuration prompts.
-Choices are written to the user Prism manifest (`~/.config/opencode/prism.jsonc`)
-— user overrides take precedence over committed defaults (ADR-0043).
+The two former MCP servers are CLI-shell skills (pi: "No MCP — build CLI
+tools with READMEs"):
 
-`variant` uses `{env:VAR}` substitution, consistent with the `model` field.
-`temperature` remains a hard-coded literal — opencode does not coerce string
-env var values to numeric (confirmed by prototype, see ADR-0013). See ADR-0011,
-ADR-0012, and ADR-0013 for the full design rationale.
+| Skill | Backed by | Env |
+| --- | --- | --- |
+| `websearch` | DeepSeek web-search API | `DEEPSEEK_API_KEY` |
+| `searxng` | a SearXNG instance | `SEARXNG_URL` |
 
-For guidance on picking `variant` / `temperature` for a non-default model —
-including per-provider lookup references and a task-type → variant decision
-frame — see [`.opencode/docs/model-configuration.md`](.opencode/docs/model-configuration.md).
+Both fail clearly (never silently) when their env var is unset and never log
+the key.
 
-### Optional Integration Toggles
+## pi built-in commands
 
-Two optional MCP servers (deepseek-websearch, mcp-searxng) and the quota plugin
-(`@slkiser/opencode-quota`) are controlled by Boolean preference fields in the
-user Prism manifest (`mcp.deepseek_websearch`, `mcp.searxng`,
-`plugins.opencode_quota`). Tracked `opencode.jsonc` permanently defines both
-MCP servers with `enabled: false` and omits a static quota plugin entry; actual
-enablement is composed from the resolved manifest into
-`OPENCODE_CONFIG_CONTENT` at env0 time. Run `/setup` to toggle preferences
-interactively, then `direnv allow` and restart OpenCode. See ADR-0045.
-
-### Built-in subagents
-
-| Agent | Purpose |
-| --- | --- |
-| **Explore** | Read-only codebase exploration — LSP-first for structural queries, glob/grep/read for text and prose |
-| **Scout** | External docs + dependency research (clones upstream repos) |
-| **General** | Multi-step research, full tool access |
-
-Invoke via `@mention`: `@explore find the auth implementation`.
-
-### Built-in slash commands
+pi's own commands are always available (`/hotkeys` for the full list):
 
 | Command | Purpose |
 | --- | --- |
-| `/init` | Analyze project and generate AGENTS.md |
-| `/undo` | Revert the last change made by the agent |
-| `/redo` | Redo a previously undone change |
-| `/share` | Create a shareable link to the current conversation |
-| `/help` | Show available commands and help |
+| `/login`, `/logout` | Manage provider credentials |
+| `/model`, `/scoped-models` | Switch model; manage Ctrl+P cycling set |
+| `/settings` | Thinking level, theme, delivery, transport |
+| `/tree`, `/fork`, `/clone` | Session branching (cheap rollback — replaces plan-mode safety) |
+| `/compact [prompt]` | Manually compact context (lossy; full history kept in the JSONL) |
+| `/skill:name` | Load and execute a skill |
+| `/trust` | Save project trust for future sessions |
+| `/config` | Enable/disable package resources |
+| `/help`, `/hotkeys` | Help and keyboard shortcuts |
 
-## Custom additions
+## Harness commands and skills
 
-Custom skills, agents, and commands are defined under `.opencode/`. The
-authoritative table of what's available is in `AGENTS.md` § Skills / Agents /
-Commands. This section exists so `writing-skills`'s cross-table-update rule
-has a landing point; the canonical list is in `AGENTS.md`.
-
-### Skills (process + domain)
-
-All custom skills live under `.opencode/skills/` and are loaded on demand
-via the `skill` tool. See `AGENTS.md` § Skills Available for the complete
-list with usage descriptions.
-
-### Custom agents
-
-All custom agents live under `.opencode/agents/` and are invoked via `@mention`.
-See `AGENTS.md` for the complete list with purpose descriptions.
-
-### Custom commands
-
-All custom commands live under `.opencode/commands/` and are invoked via `/slash`.
-See `AGENTS.md` for the complete list with purpose descriptions.
+Custom prompt templates live under `packages/*/prompts/` (the slash commands
+in `AGENTS.md` § Commands); custom skills under `packages/*/skills/` (the
+index in `AGENTS.md` § Skills Available). The `writing-skills` skill governs
+authoring new ones.
 
 The ordinary branch-completion path delegates pull request preparation to
-`/pr` after synchronization, plan/spec cleanup, `/check`, and all four
-`@code-review` axes. `/pr` displays a conventional title, a body containing
+`/pr` after synchronization, plan/spec cleanup, `/check`, and the
+`code-review` skill. `/pr` displays a conventional title, a body containing
 every pull request template section, and a human-run GitHub CLI command; it
 does not push or create the pull request. `/release` retains its separate
 release and back-merge PR procedure.

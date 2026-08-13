@@ -24,7 +24,7 @@ merged pull requests only (see ADR-0044).
 
 1. Fork the repo. From the `develop` branch, create a feature branch:
    ```bash
-   bash .github/scripts/new-branch.sh <type> <description>
+   bash packages/prism-core/scripts/new-branch.sh <type> <description>
    ```
    The helper resolves your username, generates the hash via `openssl rand -hex 2`,
    and creates the branch off `develop` (or `main` for hotfixes). See ADR-0028
@@ -42,10 +42,10 @@ merged pull requests only (see ADR-0044).
 
 1. Create a work branch off `develop` (or `main` for hotfixes). Release branches originate from `develop` via `/release` and target `main`.
    ```bash
-   bash .github/scripts/new-branch.sh <type> <description>
+   bash packages/prism-core/scripts/new-branch.sh <type> <description>
    ```
 2. Commit your changes with signed conventional-commit messages.
-3. Run `/check` and `@code-review` before opening a PR.
+3. Run `/check` and load the `code-review` skill before opening a PR.
 4. Open a pull request targeting `develop` (or `main` for hotfixes). Release PRs target `main`.
    Use the `finishing-a-development-branch` skill to prepare the PR command.
 5. A maintainer reviews and merges the PR. Never push directly to `develop`
@@ -78,17 +78,23 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 **Required trailers** (every non-merge, non-revert commit):
 
-- `Authored-by:` — the design/planning model (from `agent.plan.model` in `opencode.jsonc`)
-- `Implemented-by:` — the coding model (from the PRIMARY tier / `agent.tdd.model` in `opencode.jsonc`)
-- `Tested-by:` — the verification model (from `agent.code-review.model` in `opencode.jsonc`)
+- `Authored-by:` — the model that did the design/planning (e.g. `glm-5.2`)
+- `Implemented-by:` — the model that did the implementation
+- `Tested-by:` — the model that did the verification/review
+- `Signed-off-by:` — the human approver, resolved via
+  `bash packages/prism-core/scripts/resolve-identity.sh` (optional override
+  at `~/.config/prism/identity` → `git config user.name`/`user.email`; fails
+  closed, exit 3, if neither resolves).
+
+Under the single-agent, single-primary-model design (ADR-0057) the first
+three trailers are usually the same model — the primary in use for the
+session. Cycle to the judge model (`deepseek-v4-pro`) via **Ctrl+P** for the
+review/verification step and record that model in `Tested-by:`. The value is
+the bare model id (e.g. `glm-5.2`, `deepseek-v4-pro`).
 
 > **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer
 > names until a separate upstream PR lands. Aurora commits may need manual
 > footer adjustment until then. See ADR-0031.
-- `Signed-off-by:` — the human approver, resolved dynamically via
-  `bash .github/scripts/resolve-identity.sh` (3-tier fallback per ADR-0029:
-  `~/.config/opencode/prism.jsonc` → `prism.jsonc` → `git config`).
-  Ships as `kyau <git@kyaulabs.com>` until a user runs `/setup`.
 
 **Exemptions:**
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@cosmos.kyaulabs 2026/08/03 -0700 Exp $
+# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
+
+
 
 
 
@@ -13,7 +17,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
-P="$REPO_ROOT/.github/scripts/frontmatter-parser.js"
+P="$REPO_ROOT/packages/prism-core/scripts/frontmatter-parser.js"
 
 # stdin mode returns the value
 out=$(printf -- '---\nname: foo\ndescription: bar\n---\nbody' | node "$P" --stdin name)
@@ -64,6 +68,10 @@ else
 fi
 
 print_summary "frontmatter_parser_stdin"
+
+
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

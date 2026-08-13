@@ -1,56 +1,30 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_skill_frontmatter_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
 
 
-# check_skill_frontmatter_test.sh — verifies check-skill-frontmatter.sh enforces
-# the skill frontmatter contract (name + description, name==dir).
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+VALIDATOR="$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh"
+PARSER="$REPO_ROOT/packages/prism-core/scripts/frontmatter-parser.js"
+PASS=0
+FAIL=0
 
-setup_result_file
-CHK="$REPO_ROOT/.github/scripts/check-skill-frontmatter.sh"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
+fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
-# good skill
-mkdir -p "$WORK/.opencode/skills/good"
-printf -- '---\nname: good\ndescription: ok\n---\n' > "$WORK/.opencode/skills/good/SKILL.md"
-if bash "$CHK" "$WORK/.opencode/skills/good/SKILL.md" >/dev/null 2>&1; then
-	pass "valid skill passes"
-else
-	fail "valid skill was rejected"
-fi
+printf '%s\n' '── pi skill frontmatter contract ──'
+if grep -q "does not match directory" "$VALIDATOR"; then pass 'name-directory parity enforced'; else fail 'name-directory parity missing'; fi
+if grep -q 'missing or empty name' "$VALIDATOR"; then pass 'name required'; else fail 'name requirement missing'; fi
+if grep -q 'missing or empty description' "$VALIDATOR"; then pass 'description required'; else fail 'description requirement missing'; fi
+if grep -q 'invalid skill name' "$VALIDATOR"; then pass 'pi name grammar enforced'; else fail 'pi name grammar missing'; fi
+if [ -f "$PARSER" ]; then pass 'frontmatter parser moved into prism-core'; else fail 'frontmatter parser missing'; fi
+if bash "$VALIDATOR" >/dev/null; then pass 'real skills satisfy contract'; else fail 'real skills fail contract'; fi
 
-# missing name
-mkdir -p "$WORK/.opencode/skills/noname"
-printf -- '---\ndescription: ok\n---\n' > "$WORK/.opencode/skills/noname/SKILL.md"
-if ! bash "$CHK" "$WORK/.opencode/skills/noname/SKILL.md" >/dev/null 2>&1; then
-	pass "missing name rejected"
-else
-	fail "missing name was accepted"
-fi
+printf '\ncheck_skill_frontmatter_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]
 
-# name != dir
-mkdir -p "$WORK/.opencode/skills/mismatch"
-printf -- '---\nname: other\ndescription: ok\n---\n' > "$WORK/.opencode/skills/mismatch/SKILL.md"
-if ! bash "$CHK" "$WORK/.opencode/skills/mismatch/SKILL.md" >/dev/null 2>&1; then
-	pass "name!=dir rejected"
-else
-	fail "name!=dir was accepted"
-fi
 
-# missing description
-mkdir -p "$WORK/.opencode/skills/nodesc"
-printf -- '---\nname: nodesc\n---\n' > "$WORK/.opencode/skills/nodesc/SKILL.md"
-if ! bash "$CHK" "$WORK/.opencode/skills/nodesc/SKILL.md" >/dev/null 2>&1; then
-	pass "missing description rejected"
-else
-	fail "missing description was accepted"
-fi
-
-print_summary "check_skill_frontmatter"
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

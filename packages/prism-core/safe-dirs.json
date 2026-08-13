@@ -1,0 +1,8 @@
+{
+  "safe_rm_dirs": [
+    "node_modules",
+    ".git",
+    ".pi/npm",
+    ".pi/git"
+  ]
+}

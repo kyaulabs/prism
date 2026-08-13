@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: command_portability_test.sh kyau@cosmos.kyaulabs 2026/08/01 -0700 Exp $
+# $KYAULabs: command_portability_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+
+
 
 
 # $KYAULabs$
@@ -8,7 +10,7 @@
 set -euo pipefail
 
 # ── command portability test ──────────────────────────────────────────────────
-# Static scan of .opencode/commands/*.md and tests/Shell/*_test.sh for shell
+# Static scan of packages/*/prompts/*.md and tests/Shell/*_test.sh for shell
 # constructs that are incompatible with BSD grep (macOS). Catches GNU-only
 # `grep -P` (PCRE) which BSD grep rejects, breaking documented commands and
 # tests on macOS dev machines and macOS CI.
@@ -20,14 +22,14 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-COMMANDS_DIR="$REPO_ROOT/.opencode/commands"
+COMMANDS_DIR="$REPO_ROOT/packages/prism-core/prompts"
 SHELL_TESTS_DIR="$REPO_ROOT/tests/Shell"
 
 # Bail with SKIP (not FAIL) if the command directory is absent — vacuity is not
 # a failure for this guard (it only owns command docs, which may legitimately
 # not exist).
 if [ ! -d "$COMMANDS_DIR" ]; then
-	skip "no .opencode/commands/ directory — nothing to scan"
+	skip "no packages/prism-core/prompts/ directory — nothing to scan"
 	print_summary "command_portability_test"
 	exit $?
 fi
@@ -59,11 +61,13 @@ while IFS= read -r -d '' test_file; do
 done < <(find "$SHELL_TESTS_DIR" -maxdepth 1 -type f -name '*_test.sh' -print0)
 
 if [ "$hits" -eq 0 ]; then
-	pass "no GNU-only 'grep -P' in .opencode/commands/*.md or tests/Shell/*_test.sh"
+	pass "no GNU-only 'grep -P' in prism-core prompts or tests/Shell/*_test.sh"
 fi
 
 print_summary "command_portability_test"
 exit $?
+
+
 
 
 

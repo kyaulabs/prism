@@ -1,5 +1,7 @@
 # 0036. Safety Hook Fail-Closed Posture on Block Rules
 
+> **opencode-era record.** Superseded where moot by the pi migration (ADR-0055). Retained as historical context.
+
 Date: 2026-07-21
 
 ## Status

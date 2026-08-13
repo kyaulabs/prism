@@ -141,14 +141,14 @@ EOF
 	fi
 done
 
-if [ "$BRANCH_COUNT" -ge 1 ] && [ -x .github/scripts/validate-harness.sh ]; then
+if [ "$BRANCH_COUNT" -ge 1 ] && [ -x packages/prism-core/scripts/validate-harness.sh ]; then
 	# ── CI-parity gate (validate-harness) ────────────────────────────────
 	# Run validate-harness.sh BEFORE the push leaves the machine. The
 	# script-existence guard above skips this entire block in test repos
 	# and minimal checkouts. See ADR-0025.
 	echo "→ pre-push CI-parity gate (validate-harness)"
 	HLOG=$(mktemp)
-	if ! bash .github/scripts/validate-harness.sh >"$HLOG" 2>&1; then
+	if ! bash packages/prism-core/scripts/validate-harness.sh >"$HLOG" 2>&1; then
 		cat "$HLOG" >&2
 		echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
 		rm -f "$HLOG"
