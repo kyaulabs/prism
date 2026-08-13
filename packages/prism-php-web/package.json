@@ -15,5 +15,11 @@
   "pi": {
     "skills": ["./skills"],
     "prompts": ["./prompts"]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

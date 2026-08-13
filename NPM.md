@@ -60,21 +60,32 @@ Add to **`packages/prism-core/package.json`** only (the PHP adapter has no
 > `prism-php-web` ships only skills/prompts (no `extensions/`, no TS) — it
 > imports nothing from pi at runtime, so it needs **no** `peerDependencies`.
 
-### 2. Add `engines`, `type`, and `publishConfig` to both packages
+### 2. Add `engines` and `publishConfig` to both packages
 
 ```json
 {
-  "type": "module",
   "engines": { "node": ">=22.19.0" },
-  "publishConfig": { "access": "public", "provenance": true }
+  "publishConfig": { "access": "public" }
 }
 ```
 
 - `engines.node` mirrors pi's own floor (`>=22.19.0`).
 - `publishConfig.access: "public"` — scoped packages are **private by
   default**; this bakes public access in so you never forget `--access public`.
-- `publishConfig.provenance: true` — requests signed provenance automatically
-  when publishing from GitHub Actions (ignored for local publishes).
+
+> **Do not add `"type": "module"`.** The packages ship CommonJS helper
+> scripts (`frontmatter-parser.js`, `check-peer-deps.js`, `jsonc-strip.js`)
+> that `validate-harness.sh` runs directly via `node`; under
+> `"type": "module"` Node treats `.js` as ESM and `require()` throws
+> (`require is not defined in ES module scope`), breaking the validator. pi
+> loads the `.ts` extension through jiti regardless of `"type"`, so it is not
+> needed.
+
+> **Provenance is CI-only.** Omit `publishConfig.provenance` for manual
+> publishes — add it (or pass `--provenance`) only inside the GitHub Actions
+> workflow (see
+> [Publishing a release (automated)](#publishing-a-release-automated-recommended)),
+> where OIDC is available.
 
 ### 3. Add a per-package `README.md` (recommended)
 
@@ -326,7 +337,7 @@ deliberate policy decision requiring an ADR — do not change `license` silently
 ## Summary checklist (first publish)
 
 - [ ] `peerDependencies: { "@earendil-works/pi-coding-agent": "*" }` in `packages/prism-core/package.json`
-- [ ] `engines` + `type: module` + `publishConfig` in both `package.json`s
+- [ ] `engines` + `publishConfig` (no `"type": "module"`) in both `package.json`s
 - [ ] Per-package `README.md` (core + php-web)
 - [ ] `npm pack --dry-run` shows the expected files only
 - [ ] Local tarball `pi install` + extension smoke test passes
