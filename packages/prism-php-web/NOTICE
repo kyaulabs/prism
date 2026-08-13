@@ -91,6 +91,16 @@ glebis/claude-skills
     - Applied as the structural schema for all 13 agent files under
       .opencode/agents/
 
+@earendil-works/pi-coding-agent
+  URL: https://github.com/earendil-works/pi-coding-agent
+  Copyright: Copyright (c) earendil-works
+  License: MIT
+  What was adapted: pi's Agent Skills, prompt-template, and package patterns
+    used to express the PHP/web stack as a project-local adapter.
+  Used in:
+    - Applied as the packaging model for all resources under
+      packages/prism-php-web/
+
 ---
 
 The MIT license terms applicable to the above projects:
