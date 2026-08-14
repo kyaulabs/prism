@@ -32,15 +32,16 @@ Adopt a hybrid, scope-owned provisioning model:
    exact runtime dependencies: commitlint, the conventional commitlint config,
    and git-cliff.
 2. Semgrep and Open Code Review (`ocr`) remain externally installed mandatory
-   core prerequisites. Prism verifies their exact versions but never installs
-   them autonomously.
+   core prerequisites. Prism verifies Semgrep's exact version and OCR's bounded
+   compatible range, but never installs either tool autonomously.
 3. `prism-php-web` provisions its Composer and npm development tools into the
    consumer project's manifests and lockfiles only after a preview and literal
    `yes` approval.
 4. A real Node.js CLI named `prism-tool` provides stable machine operations;
    Pi prompt templates retain conversation, consent, and reporting ownership.
 5. Machine-readable package toolchain manifests are the canonical source for
-   ownership, exact versions, commands, and provisioning behavior.
+   ownership, exact managed versions, bounded external version requirements,
+   commands, and provisioning behavior.
 6. Candidate dependency graphs are resolved and audited under the consumer's
    project-owned `.pi/prism-tool/work/` area before consumer files are changed.
    Any known advisory blocks the update.
@@ -88,10 +89,10 @@ installed.
 
 Prism never installs these tools autonomously:
 
-| Capability | Tool/package | Exact version | Readiness rule |
+| Capability | Tool/package | Version requirement | Readiness rule |
 | --- | --- | --- | --- |
 | Static analysis | `semgrep` / PyPI `semgrep` | `1.173.0` | executable and exact version required; login optional |
-| External code review | `ocr` / npm `@alibaba-group/open-code-review` | `1.9.2` | executable and exact version always required; successful `ocr llm test` required at the defined cadence |
+| External code review | `ocr` / npm `@alibaba-group/open-code-review` | `>=1.9.1 <2.0.0` | executable and compatible 1.x version required; successful `ocr llm test` required at the defined cadence |
 
 A missing executable or version mismatch is a hard toolchain failure. It is
 not `SKIPPED`, optional, delegated, or a capability-only warning.
@@ -159,9 +160,13 @@ Each package ships a `toolchain.json` with a versioned schema:
 - `packages/prism-core/toolchain.json`
 - `packages/prism-php-web/toolchain.json`
 
-The manifests record package identity, command identity, exact version,
-provisioning mode (`bundled`, `external`, or `consumer-dev`), authentication
-mode, and adapter browser requirements. They contain no credentials, URLs with
+The manifests record package identity, command identity, either an exact
+version or a structured bounded external version requirement, provisioning
+mode (`bundled`, `external`, or `consumer-dev`), authentication mode, and
+adapter browser requirements. Exact `version` and bounded `versionRequirement`
+forms are mutually exclusive. Bundled and consumer-development components must
+use exact versions; OCR alone uses `versionRequirement` with minimum `1.9.1`
+and exclusive maximum `2.0.0`. They contain no credentials, URLs with
 embedded secrets, or arbitrary shell command strings.
 
 The core package's bundled npm versions are necessarily repeated in
@@ -186,9 +191,11 @@ prism-tool run TOOL_ID [ARGUMENT ...]
 ```
 
 The CLI owns package-root discovery, tool resolution, manifest validation,
-version parsing, subprocess boundaries, structured status, and exit codes. It
-does not own user interviews, login, code-egress approval, or arbitrary command
-execution. `run` accepts only tool IDs declared by the validated active
+version parsing, subprocess boundaries, structured status, and exit codes. OCR
+version parsing selects the installed version only from an anchored
+`open-code-review vX.Y.Z` product line, ignoring update advertisements and all
+other untrusted output. It does not own user interviews, login, code-egress
+approval, or arbitrary command execution. `run` accepts only tool IDs declared by the validated active
 contract and passes arguments as an argument array without shell evaluation.
 
 The active adapter supplies its own toolchain manifest and handler. The core
@@ -215,12 +222,13 @@ providers and cannot be dependencies of Git hooks.
    managed global `AGENTS.md` and `APPEND_SYSTEM.md` blocks as today.
 3. It exposes `prism-tool` through the managed launcher.
 4. It verifies bundled core dependency resolution.
-5. It verifies exact Semgrep and OCR executable versions.
+5. It verifies Semgrep's exact executable version and OCR's bounded compatible
+   executable version.
 6. It instructs the human to run OCR's interactive provider/model setup when
    needed; Prism never handles the key.
 7. After explicit network approval, it runs `ocr llm test`.
-8. Any failed mandatory check exits non-zero and reports exact pinned human-run
-   remediation. The core resources may be installed, but the Prism toolchain
+8. Any failed mandatory check exits non-zero and reports the declared safe
+   human-run remediation without relaying raw tool output. The core resources may be installed, but the Prism toolchain
    is not ready and no later setup stage proceeds.
 
 ### Adapter provisioning
@@ -255,7 +263,8 @@ providers and cannot be dependencies of Git hooks.
 
 - Toolchain manifests that are malformed, unsupported, duplicated, or out of
   parity fail closed.
-- Missing or mismatched Semgrep or OCR stops `prism-tool`, `/setup`, `/doctor`,
+- Missing Semgrep/OCR, an exact Semgrep mismatch, or an OCR version outside
+  `>=1.9.1 <2.0.0` stops `prism-tool`, `/setup`, `/doctor`,
   `/check`, `/security`, `/release`, `/pr`, and `code-review` before their main
   operation.
 - OCR connectivity is a hard readiness requirement during global/core setup,
@@ -299,18 +308,19 @@ interfaces or supplied through the user's environment. Presence checks never
 print values. `ocr llm test` output is reduced to sanitized PASS/FAIL evidence;
 credentials and provider responses are not logged.
 
-Direct tool versions are exact; generated lockfiles pin transitive versions.
-Both candidate and post-install graphs must have zero known advisories before
-the toolchain is GO.
+Managed direct package versions and Semgrep are exact; OCR is the sole bounded
+external exception at `>=1.9.1 <2.0.0`. Generated lockfiles pin transitive
+versions. Both candidate and post-install graphs must have zero known
+advisories before the toolchain is GO.
 
 ## Testing Decisions
 
 ### Manifest and resolver seam
 
 Unit tests validate each `toolchain.json` through the public loader. They cover
-schema versions, exact-version grammar, package/command allowlists, duplicate
-tool IDs, provisioning modes, authentication modes, and package-manifest
-parity. Resolver tests use isolated fake global/project package layouts to
+schema versions, exact-version grammar, mutually exclusive bounded-range
+grammar, range boundaries, package/command allowlists, duplicate tool IDs,
+provisioning modes, authentication modes, and package-manifest parity. Resolver tests use isolated fake global/project package layouts to
 prove published-package and local-source discovery without relying on the
 process working directory.
 
@@ -322,11 +332,13 @@ subprocess adapters. They prove:
 - bundled commitlint/git-cliff resolution;
 - argument-array forwarding without shell evaluation;
 - stable structured and human-readable status;
-- non-zero exits for missing/mismatched Semgrep or OCR;
+- non-zero exits for missing/mismatched Semgrep or OCR, including both OCR
+  range boundaries;
 - non-zero exits for declined/failed `ocr llm test` at live-readiness entry
   points, and no live call from executable/version-only entry points;
 - Semgrep local readiness without login;
 - no later command runs after a mandatory preflight failure; and
+- OCR installed-version selection ignores advertised-update noise; and
 - bounded, sanitized failures that never expose supplied canary secrets.
 
 No test reads a real credential file or contacts a live provider.
@@ -368,9 +380,11 @@ and multi-axis code review.
 
 - [ ] Core package dependencies pin commitlint `21.2.2`, its conventional
       config `21.2.2`, and git-cliff `2.13.1` exactly.
-- [ ] Semgrep `1.173.0` and OCR `1.9.2` are externally installed mandatory
-      prerequisites and are never installed autonomously.
-- [ ] Missing or mismatched Semgrep/OCR stops every Prism toolchain entry point.
+- [ ] Semgrep `1.173.0` and OCR `>=1.9.1 <2.0.0` are externally installed
+      mandatory prerequisites and are never installed autonomously.
+- [ ] Missing or mismatched Semgrep/OCR stops every Prism toolchain entry point;
+      OCR accepts the lower bound and later 1.x releases while rejecting older
+      or 2.x releases.
 - [ ] OCR readiness during global/core setup, `/setup`, `/doctor`, and
       immediately before `code-review` requires a separately approved
       successful `ocr llm test`; failure or refusal is NO-GO for that
@@ -393,8 +407,9 @@ and multi-axis code review.
 - [ ] Required tools fail rather than report `SKIPPED`.
 - [ ] No credential file is read and no token/key appears in output, commands,
       fixtures, or tracked files.
-- [ ] Root source-checkout manifests/lockfiles and CI pins are updated to the
-      same approved exact direct versions.
+- [ ] Root source-checkout manifests/lockfiles and CI pins use the approved
+      exact managed versions; CI provisions an OCR release inside its declared
+      compatible range.
 - [ ] Documentation distinguishes bundled core, external mandatory core, and
       consumer-project adapter tools.
 - [ ] `CONTEXT.md` uses Pi terminology for this boundary and defines
@@ -423,7 +438,8 @@ and multi-axis code review.
 
 This change introduces the domain term **toolchain contract**: the
 machine-readable, scope-owned declaration of Prism's required tools, exact
-versions, provisioning mode, readiness checks, and commands.
+managed versions or bounded external requirements, provisioning mode,
+readiness checks, and commands.
 
 `CONTEXT.md` must update its stale OpenCode-oriented Purpose and toolchain
 boundary language sufficiently to describe the Pi core/adapter model and add
@@ -452,8 +468,8 @@ resolution, ESLint imports, Stylelint configs, and project-lockfile parity.
 
 Prism could bundle OCR and attempt to install Semgrep during core setup. This
 couples the package to global npm/Python mutation and still cannot safely own
-provider credentials. Exact external prerequisite checks keep installation and
-authentication under human control.
+provider credentials. Declared external prerequisite checks keep installation
+and authentication under human control.
 
 ### Retain Pest 4
 
