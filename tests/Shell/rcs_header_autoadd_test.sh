@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: rcs_header_autoadd_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -49,6 +51,10 @@ if [ ! -f "$PRE_COMMIT" ]; then
 	fail "Cannot find pre-commit hook at $PRE_COMMIT"
 	exit 1
 fi
+
+# Route declared tools through the fake prism-tool boundary (Task 8).
+export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
+export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 
 # ── Test 1: Partial-stage blocks commit, working tree preserved ────────────────
 
@@ -520,6 +526,8 @@ rm -rf "$T9"
 
 print_summary "rcs_header_autoadd_test.sh"
 exit $?
+
+
 
 
 

@@ -28,6 +28,19 @@ pr_fail() {
     exit 1
 }
 
+# Mandatory local readiness (fail-closed); honors a PRISM_TOOL override for
+# isolated runs, otherwise requires the prism-tool launcher on PATH.
+PRISM_TOOL_PATH=""
+if [ -n "${PRISM_TOOL:-}" ]; then
+	PRISM_TOOL_PATH="$PRISM_TOOL"
+elif command -v prism-tool > /dev/null 2>&1; then
+	PRISM_TOOL_PATH="$(command -v prism-tool)"
+else
+	pr_fail 'prism-tool launcher is not installed (deploy via install-global.sh or /setup)'
+fi
+"$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1 \
+	|| pr_fail 'toolchain local readiness failed'
+
 BRANCH=$(git symbolic-ref --quiet --short HEAD) \
     || pr_fail 'detached HEAD; switch to a work branch'
 
@@ -139,8 +152,17 @@ set -euo pipefail
 : "${TITLE_FILE:?TITLE_FILE is required}"
 : "${VALIDATION_FILE:?VALIDATION_FILE is required}"
 : "${PI_MODEL:?current pi model is required}"
-[ -x ./node_modules/.bin/commitlint ] \
-    || { printf 'PR title validation failed: local commitlint is unavailable\n' >&2; exit 1; }
+PRISM_TOOL_PATH=""
+if [ -n "${PRISM_TOOL:-}" ]; then
+	PRISM_TOOL_PATH="$PRISM_TOOL"
+elif command -v prism-tool > /dev/null 2>&1; then
+	PRISM_TOOL_PATH="$(command -v prism-tool)"
+else
+	printf 'PR title validation failed: prism-tool launcher is unavailable\n' >&2
+	exit 1
+fi
+"$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1 \
+	|| { printf 'PR title validation failed: toolchain local readiness failed\n' >&2; exit 1; }
 
 TITLE=$(cat "$TITLE_FILE")
 [ -n "$TITLE" ] \
@@ -162,7 +184,7 @@ MODEL_ID="${PI_MODEL##*/}"
     printf 'Signed-off-by: %s\n' "$SIGNED_OFF_BY"
 } > "$VALIDATION_FILE"
 
-./node_modules/.bin/commitlint --edit "$VALIDATION_FILE"
+"$PRISM_TOOL_PATH" run commitlint -- --edit "$VALIDATION_FILE"
 ```
 <!-- pr-title-validation:end -->
 

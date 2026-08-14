@@ -24,17 +24,44 @@ language-neutral half; install it **globally** so it runs in every project.
 - **Research skills** — `websearch`, `searxng` (CLI-shell; no MCP).
 - The always-on `AGENTS.md` + `APPEND_SYSTEM.md`, deployed to `~/.pi/agent/`
   by `install-global.sh` so the core is "always running".
+- The managed `prism-tool` launcher, backed by the installed core package and
+  verified against mandatory Semgrep and OCR readiness.
 
 ## Install
 
+Semgrep `>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` must already be installed.
+Configure OCR directly with its own provider/model commands; Prism never reads
+or writes its credentials.
+
+From a Prism checkout, install the local core without registry access and
+separately approve the required OCR connectivity test:
+
 ```bash
-pi install npm:@kyaulabs/prism-core
+bash packages/prism-core/scripts/install-global.sh --ocr-test-approved=yes
 ```
 
-Then run `pi` in any project — the skills, prompts, and safety extension load
-in every trusted session. Authenticate the model with `/login` → DeepSeek, or
-`export DEEPSEEK_API_KEY=sk-...`. Default model `deepseek-v4-flash`; cycle to
-`deepseek-v4-pro` with **Ctrl+P** for review.
+To install the published npm package, approve registry access independently:
+
+```bash
+PRISM_CORE_SOURCE=npm:@kyaulabs/prism-core \
+  bash packages/prism-core/scripts/install-global.sh \
+  --network-approved=yes \
+  --ocr-test-approved=yes
+```
+
+The installer deploys `prism-tool` to `${PRISM_BIN_DIR:-$HOME/.local/bin}` and
+does not edit shell startup files or `PATH`. It refuses to overwrite or remove
+an unrelated executable. Remove only a Prism-owned launcher with:
+
+```bash
+bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
+```
+
+A readiness failure leaves the installed package, launcher, and context
+resources available for remediation but does not report toolchain GO. After a
+successful install, run `pi` in any trusted project. Authenticate the model
+with `/login`; the default model is `deepseek-v4-flash`, and **Ctrl+P** cycles
+to `deepseek-v4-pro` for review.
 
 ## Adapter
 
@@ -43,6 +70,18 @@ For PHP/Aurora web projects, add the stack adapter per-project:
 ```bash
 pi install -l npm:@kyaulabs/prism-php-web
 ```
+
+## Toolchain readiness
+
+The package declares its owned tools in `toolchain.json`: bundled core tools
+(commitlint, git-cliff) resolve through `prism-tool`; Semgrep
+`>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` are mandatory external
+prerequisites that Prism verifies but never installs, configures, or
+authenticates (ADR-0063). Registry access, consumer mutation, OCR
+connectivity, and OCR code egress are four separate approvals; `ocr llm test`
+runs only after its own connectivity approval at the defined cadence. CI
+provisions compatible Semgrep/OCR releases only to construct its ephemeral
+verification environment — runtime setup remains verification-only.
 
 ## License
 

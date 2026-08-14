@@ -44,20 +44,38 @@ native severity separate; do not re-rank across axes.
 
 #### Axis 1 — Tooling / style / lint
 
-Prefer existing project checks and the active adapter's `/check-<stack>`
-guidance. If the `ocr` CLI is available and the human explicitly approves its
-external data egress, run it as an additional read-only diff review:
+Run the fail-closed local readiness first (missing launcher or
+Semgrep/OCR mismatch blocks the review):
 
-- Verify `command -v ocr` first. If missing, mark the optional OCR component
-  SKIPPED; do not install it autonomously.
-- Choose `ocr review` (diff) or `ocr scan` (full path) based on scope.
-- Use `--audience agent --format json`.
+```bash
+prism-tool doctor --local-only
+```
+
+Ask exactly one question for OCR connectivity:
+
+```text
+Approve the OCR connectivity test (ocr llm test) now? (yes/no)
+```
+
+Accept only `--ocr-test-approved=yes` and run
+`prism-tool doctor --ocr-test-approved=yes`. A declined or failed live test
+makes this axis FAILED — OCR is mandatory, never discretionary. Then
+ask **separately** for code egress before transmitting any reviewed content:
+
+```text
+Approve sending the reviewed diff to the OCR external service? (yes/no)
+```
+
+Only with exact egress approval run OCR through the launcher as an additional
+read-only diff review:
+
+- Choose `prism-tool run ocr --code-egress-approved=yes -- review --audience agent --format json` (diff) or the `scan` form (full path) based on scope.
 - If it fails, retry ONCE with the same command. If it fails again, record the
   exact error and continue.
-- `ocr` transmits reviewed content to a third-party service. Never invoke it
-  without explicit permission and never send secrets.
+- A connectivity-test approval never authorizes code egress; never send
+  secrets.
 
-The axis still reports project lint/check evidence when OCR is skipped.
+The axis still reports project lint/check evidence when OCR is unavailable.
 
 #### Axis 2 — Standards review (Fowler baseline)
 

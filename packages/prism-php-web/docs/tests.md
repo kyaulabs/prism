@@ -2,7 +2,7 @@
 
 ## Bootstrap
 
-If `tests/Pest.php` does not exist, run `php vendor/bin/pest --init` before
+If `tests/Pest.php` does not exist, run `prism-tool run pest -- --init` before
 writing tests. This creates the Pest bootstrap. The agent should run this if
 it encounters a repo with no test bootstrap.
 

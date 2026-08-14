@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+# $KYAULabs: validate-harness.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
+
+
+
 
 
 
@@ -155,6 +160,99 @@ else
 	ok "$MANIFEST_COUNT package manifest(s) checked for pi core peerDependencies"
 fi
 
+printf '%s\n' '── Validating toolchain contracts ──'
+CONTRACT_LOADER="$REPO_ROOT/packages/prism-core/scripts/prism-tool/contract.js"
+if [ ! -f "$CONTRACT_LOADER" ]; then
+	err "toolchain contract loader missing: ${CONTRACT_LOADER#$REPO_ROOT/}"
+else
+	TOOLCHAIN_COUNT=0
+	while IFS= read -r -d '' pkg_json; do
+		if ! toolchain_output=$(node - "$CONTRACT_LOADER" "$pkg_json" 2>&1 <<'NODE'
+const path = require('node:path');
+const {assertPackageParity, loadContract} = require(process.argv[2]);
+const packagePath = path.resolve(process.argv[3]);
+const packageJson = require(packagePath);
+
+if (!packageJson.prism?.toolchain) process.exit(0);
+const packageRoot = path.dirname(packagePath);
+const contractPath = path.resolve(packageRoot, packageJson.prism.toolchain);
+const relative = path.relative(packageRoot, contractPath);
+if (relative.startsWith('..') || path.isAbsolute(relative)) {
+	throw new Error(`${packagePath}: prism.toolchain escapes package root`);
+}
+const contract = loadContract(contractPath);
+assertPackageParity(contract, packageJson);
+process.stdout.write(`${contract.package}\n`);
+NODE
+		); then
+			err "${pkg_json#$REPO_ROOT/}: $toolchain_output"
+		elif [ -n "$toolchain_output" ]; then
+			TOOLCHAIN_COUNT=$((TOOLCHAIN_COUNT + 1))
+			ok "$toolchain_output"
+		fi
+	done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+		-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+	ok "$TOOLCHAIN_COUNT toolchain contract(s) checked"
+fi
+
+printf '%s\n' '── Validating toolchain entry points ──'
+ENTRY_POINTS=(
+	"$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	"$REPO_ROOT/packages/prism-core/scripts/install-global.sh"
+	"$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
+	"$REPO_ROOT/packages/prism-php-web/scripts/prism-tool-adapter.js"
+)
+ENTRY_COUNT=0
+for entry in "${ENTRY_POINTS[@]}"; do
+	if [ ! -f "$entry" ]; then
+		err "toolchain entry point missing: ${entry#$REPO_ROOT/}"
+		continue
+	fi
+	ENTRY_COUNT=$((ENTRY_COUNT + 1))
+	mode="$(git ls-files -s -- "$entry" | awk '{print $1}')"
+	if [ "$mode" != "100755" ]; then
+		err "${entry#$REPO_ROOT/}: git index mode $mode (expected 100755)"
+	fi
+done
+ok "$ENTRY_COUNT toolchain entry point(s) executable"
+
+printf '%s\n' '── Validating package archive inclusions ──'
+INCLUDE_COUNT=0
+while IFS= read -r -d '' pkg_json; do
+	if ! inclusion_output=$(node - "$pkg_json" 2>&1 <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const pkg = require(process.argv[2]);
+const files = Array.isArray(pkg.files) ? pkg.files : [];
+const isCovered = (file) => {
+	const clean = file.replace(/^\.\//, '');
+	return files.some((entry) => {
+		const candidate = entry.replace(/^\.\//, '');
+		return candidate === clean || clean.startsWith(candidate + '/');
+	});
+};
+const required = [];
+if (pkg.prism?.toolchain) required.push('toolchain.json');
+if (pkg.name === '@kyaulabs/prism-core') {
+	required.push('safe-dirs.json', 'scripts/prism-tool.js', 'config/commitlint.config.cjs');
+}
+if (pkg.name === '@kyaulabs/prism-php-web') {
+	required.push('safe-dirs.json', 'scripts/prism-tool-adapter.js');
+}
+const missing = required.filter((file) => !isCovered(file));
+if (missing.length) {
+	throw new Error(`files array omits ${missing.join(', ')}`);
+}
+NODE
+	); then
+		err "${pkg_json#$REPO_ROOT/}: $inclusion_output"
+	else
+		INCLUDE_COUNT=$((INCLUDE_COUNT + 1))
+	fi
+done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+	-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+ok "$INCLUDE_COUNT package manifest(s) include owned archive paths"
+
 printf '%s\n' '── Validating shell helpers ──'
 while IFS= read -r -d '' script; do
 	SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
@@ -193,6 +291,11 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
+
+
+
+
 
 
 

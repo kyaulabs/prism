@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_msg_parity_test.sh kyau@nova 2026/07/16 -0700 Exp $
+# $KYAULabs: commit_msg_parity_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 # commit_msg_parity_test.sh — verifies the commit-msg hook is fail-closed and
@@ -27,13 +29,15 @@ else
 	pass "commit-msg fail-open guard removed (fail-closed)"
 fi
 
-# 3. fail-closed message present (blocks when commitlint absent)
-if grep -q "commitlint is not installed" "$HOOK"; then
-	pass "commit-msg fail-closed on missing commitlint"
+# 3. fail-closed message present (blocks when the launcher is absent)
+if grep -q "prism-tool launcher is not installed" "$HOOK"; then
+	pass "commit-msg fail-closed on missing launcher"
 else
-	fail "commit-msg missing fail-closed commitlint guard"
+	fail "commit-msg missing fail-closed launcher guard"
 fi
 
 print_summary "commit_msg_parity"
+
+
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

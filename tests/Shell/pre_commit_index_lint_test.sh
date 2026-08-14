@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_index_lint_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: pre_commit_index_lint_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -42,6 +44,12 @@ if [ ! -f "$PRE_COMMIT" ]; then
 	fail "Cannot find pre-commit hook at $PRE_COMMIT"
 	exit 1
 fi
+
+# Route declared tools through the fake prism-tool boundary (Task 8). The fake
+# delegates to the fixture's real linters via the symlinked vendor/node_modules;
+# fake in-range Semgrep/OCR sit on PATH for the mandatory doctor check.
+export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
+export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 
 # ── Linter availability flags (computed once) ──────────────────────────────────
 
@@ -572,6 +580,8 @@ fi
 
 print_summary "pre-commit index lint"
 exit $?
+
+
 
 
 

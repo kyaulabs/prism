@@ -4,17 +4,27 @@
   "description": "KYAULabs coding harness — language-agnostic core (pi)",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],
+  "bin": {
+    "prism-tool": "scripts/prism-tool.js"
+  },
   "files": [
     "extensions",
     "skills",
     "prompts",
     "scripts",
+    "config",
     "docs",
+    "toolchain.json",
     "safe-dirs.json",
     "AGENTS.md",
     "APPEND_SYSTEM.md",
     "NOTICE"
   ],
+  "dependencies": {
+    "@commitlint/config-conventional": "21.2.2",
+    "commitlint": "21.2.2",
+    "git-cliff": "2.13.1"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
@@ -22,6 +32,9 @@
     "extensions": ["./extensions"],
     "skills": ["./skills"],
     "prompts": ["./prompts"]
+  },
+  "prism": {
+    "toolchain": "./toolchain.json"
   },
   "engines": {
     "node": ">=22.19.0"

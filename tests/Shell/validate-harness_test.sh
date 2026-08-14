@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh git@aura.kyaulabs 2026/08/13 -0700 Exp $
+
+
+
 
 
 
@@ -26,7 +29,7 @@ else
 fi
 
 printf '%s\n' '── validate-harness: required checks are present ──'
-for marker in 'Validating skills' 'Validating prompt templates' 'Validating extension imports' 'Validating shell helpers' 'Checking retired config references'; do
+for marker in 'Validating skills' 'Validating prompt templates' 'Validating extension imports' 'Validating toolchain contracts' 'Validating shell helpers' 'Checking retired config references'; do
 	if grep -q "$marker" "$VALIDATOR"; then
 		pass "$marker check wired"
 	else
@@ -55,8 +58,36 @@ fi
 rm -f "$RETIRED_FIXTURE"
 trap - EXIT
 
+printf '%s\n' '── validate-harness: toolchain parity fails closed ──'
+TOOLCHAIN_FIXTURE=$(mktemp -d "$REPO_ROOT/packages/.toolchain-test.XXXXXX")
+trap 'rm -rf "$TOOLCHAIN_FIXTURE"' EXIT
+cp "$REPO_ROOT/packages/prism-core/toolchain.json" "$TOOLCHAIN_FIXTURE/toolchain.json"
+cat > "$TOOLCHAIN_FIXTURE/package.json" <<'JSON'
+{
+  "name": "@kyaulabs/prism-core",
+  "dependencies": {
+    "@commitlint/config-conventional": "21.2.2",
+    "commitlint": "^21",
+    "git-cliff": "2.13.1"
+  },
+  "prism": {"toolchain": "./toolchain.json"}
+}
+JSON
+if output=$(bash "$VALIDATOR" 2>&1); then
+	fail 'toolchain package dependency drift was accepted'
+elif printf '%s\n' "$output" | grep -Fq 'package dependency drift for commitlint'; then
+	pass 'toolchain package dependency drift is rejected'
+else
+	fail "toolchain parity failure did not name dependency drift: $output"
+fi
+rm -rf "$TOOLCHAIN_FIXTURE"
+trap - EXIT
+
 printf '\nvalidate-harness_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
+
+
 
 
 

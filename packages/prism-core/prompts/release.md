@@ -25,6 +25,11 @@ to its digits: when present, the release commit footer is exactly
 Stop immediately (exit 1) if any of these hold:
 
 ```bash
+# Mandatory local readiness (fail-closed; missing launcher or Semgrep/OCR failure blocks)
+prism-tool doctor --local-only || exit 1
+```
+
+```bash
 # Working tree must be clean (staged, unstaged, and untracked)
 if [ -n "$(git status --porcelain)" ]; then
     echo "✗ Working tree has uncommitted changes. Commit or stash first." >&2
@@ -50,9 +55,9 @@ fi
 ```
 
 ```bash
-# git-cliff 2.0+ is required; there is no alternative — CHANGELOG.md cannot
-# be produced without it. Direct a missing-tool user to /doctor.
-CLIFF_MAJOR=$(git cliff --version 2>/dev/null | grep -oE '^git-cliff [0-9]+' | grep -oE '[0-9]+$' || true)
+# git-cliff 2.0+ is required through the launcher; there is no alternative —
+# CHANGELOG.md cannot be produced without it. Direct a missing-tool user to /doctor.
+CLIFF_MAJOR=$(prism-tool run git-cliff -- --version 2>/dev/null | grep -oE '^git-cliff [0-9]+' | grep -oE '[0-9]+$' || true)
 if [ -z "$CLIFF_MAJOR" ] || [ "$CLIFF_MAJOR" -lt 2 ]; then
     echo "✗ git-cliff 2.0+ is required. Run /doctor to fix your toolchain." >&2
     exit 1
@@ -65,7 +70,7 @@ Stop when there are no releasable commits — with none pending, the unreleased
 changelog contains no list items:
 
 ```bash
-if ! git cliff --unreleased --strip header 2>/dev/null | grep -qE '^[-*] '; then
+if ! prism-tool run git-cliff -- --unreleased --strip header 2>/dev/null | grep -qE '^[-*] '; then
     echo "No releasable commits — nothing to release." >&2
     exit 1
 fi
@@ -78,7 +83,7 @@ LAST_RELEASE_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null 
 ```
 
 When no prior release tag exists, git-cliff cannot compute an initial
-version, so do not run `git cliff --bumped-version`. Ask the user exactly one
+version, so do not run `prism-tool run git-cliff -- --bumped-version`. Ask the user exactly one
 question — the initial version (e.g. `0.1.0`) — and STOP and wait for the
 reply:
 
@@ -90,12 +95,12 @@ Validate the reply against `^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$` before
 any shell or ref use; an invalid reply stops the release.
 
 When a prior release tag exists, let `cliff.toml` compute the bump with
-`git cliff --bumped-version` (breaking changes bump MINOR before 1.0.0 and
-MAJOR at 1.0.0+, `feat:` bumps MINOR, and `fix:`/`patch:` bump PATCH), then
-strip at most one leading `v`:
+`prism-tool run git-cliff -- --bumped-version` (breaking changes bump MINOR
+before 1.0.0 and MAJOR at 1.0.0+, `feat:` bumps MINOR, and
+`fix:`/`patch:` bump PATCH), then strip at most one leading `v`:
 
 ```bash
-VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+VERSION=$(prism-tool run git-cliff -- --bumped-version 2>/dev/null | sed 's/^v//')
 ```
 
 If the proposal is empty or invalid despite releasable commits, stop and
@@ -114,7 +119,7 @@ fi
 Present the pending commit range and bump rationale:
 
 ```bash
-git cliff --unreleased --strip header
+prism-tool run git-cliff -- --unreleased --strip header
 ```
 
 Then ask the final release-confirmation question — exactly one question in
@@ -140,7 +145,7 @@ The branch is `release/X.Y.Z` — the version carries no `v`.
 ## Generate the changelog
 
 ```bash
-git cliff --tag "v$VERSION" --output CHANGELOG.md
+prism-tool run git-cliff -- --tag "v$VERSION" --output CHANGELOG.md
 ```
 
 If scaffold links survive, replace `kyaulabs/template` with the repository

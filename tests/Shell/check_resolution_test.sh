@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_resolution_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: check_resolution_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -19,6 +21,12 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 HOOK="$REPO_ROOT/.github/hooks/pre-commit"
+
+# Route declared tools through the fake prism-tool boundary (Task 8). The fake
+# delegates to the fixture's real linters when present; fake in-range
+# Semgrep/OCR sit on PATH for the mandatory doctor check.
+export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
+export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 
 # ── Test A: Hook detects php-cs-fixer violations in staged PHP ─────────────
 
@@ -127,6 +135,8 @@ fi
 
 print_summary "check_resolution_test.sh"
 exit $?
+
+
 
 
 

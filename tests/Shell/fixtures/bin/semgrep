@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# $KYAULabs: semgrep kyau@nova 2026/08/14 -0700 Exp $
+# Fake in-range Semgrep for isolated hook tests (ADR-0063: >=1.173.0 <2.0.0).
+
+printf '1.173.0\n'
+
+# vim: ft=sh sts=4 sw=4 ts=4 et :

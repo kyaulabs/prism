@@ -27,7 +27,7 @@ The repo also carries **PHP/Aurora project heritage** (`aurora/` submodule,
 
 `composer.json` and `aurora/` are present, so load the **`php-web-stack`**
 skill for stack specifics: PHP 8.5+, MariaDB, nginx, SCSS → Dart Sass, vanilla
-JS, Pest v4 on PHPUnit 12, no-MVC, flat procedural PHP. The adapter's
+JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP. The adapter's
 `tdd-php`, `rcs-header`, `aurora-page`, `scss-mobile-first`, `database`,
 `security-coding-php`, and related skills apply for PHP work in `backend/`,
 `cdn/`, `tests/`, and `aurora/`.

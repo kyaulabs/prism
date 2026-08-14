@@ -2,21 +2,23 @@
 	"name": "prism",
 	"private": true,
 	"description": "Coding harness for pi that codifies disciplined, test-driven PHP development.",
+	"scripts": {
+		"test:node": "node --test tests/Node/*.test.js"
+	},
 	"devDependencies": {
-		"@commitlint/config-conventional": "^21",
-		"@eslint/js": "^10",
-		"@stylelint/language-server": "^1.1.1",
+		"@commitlint/config-conventional": "21.2.2",
+		"@eslint/js": "10.0.1",
 		"@types/node": "^24",
-		"commitlint": "^21",
-		"eslint": "^10",
-		"git-cliff": "^2",
+		"commitlint": "21.2.2",
+		"eslint": "10.8.1",
+		"git-cliff": "2.13.1",
 		"js-yaml": "^5.2.1",
-		"playwright": "^1.61.1",
-		"sass": "^1",
-		"stylelint": "^17",
-		"stylelint-config-standard-scss": "^17",
+		"playwright": "1.62.1",
+		"sass": "1.102.0",
+		"stylelint": "17.14.1",
+		"stylelint-config-standard-scss": "17.0.0",
 		"tsx": "^4.23.12",
 		"typescript": "^7.0.2",
-		"uglify-js": "^3"
+		"uglify-js": "3.19.3"
 	}
 }

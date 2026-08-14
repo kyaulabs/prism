@@ -1,7 +1,7 @@
 ---
 name: tdd-php
 description: "Use for the PHP/Pest-specific half of TDD: test framework, coverage tooling, lint. Load alongside the core tdd skill in PHP projects."
-compatibility: "PHP 8.5+, Pest PHP v4, PHPUnit 12, Composer"
+compatibility: "PHP 8.5+, Pest PHP 5, PHPUnit 13, Composer"
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 
@@ -34,7 +34,7 @@ needs it comes up. Treat their contents as mandatory once loaded.
 
 ## Pest bootstrap and test case
 
-If `tests/Pest.php` does not exist, run `php vendor/bin/pest --init` before
+If `tests/Pest.php` does not exist, run `prism-tool run pest -- --init` before
 writing tests. This creates the Pest bootstrap.
 
 > [!WARNING]
@@ -62,11 +62,11 @@ For the first behavior in the core `tdd` skill's tracer bullet:
 
 - **Red.** Write one Pest test for that behavior in the appropriate `tests/`
   subdirectory (`Unit/`, `Feature/`, `Integration/`, or `Browser/`). Run
-  `php vendor/bin/pest` and confirm it **fails** with a meaningful error, not
+  `prism-tool run pest --` and confirm it **fails** with a meaningful error, not
   a syntax error. Show the failing output.
 - **Green.** Write the minimum production code to make that one test pass —
   nothing more. Do not implement behaviors you haven't written a test for yet.
-  Run `php vendor/bin/pest` again and confirm it passes. Show the passing
+  Run `prism-tool run pest --` again and confirm it passes. Show the passing
   output.
 
 For each remaining behavior, one at a time:
@@ -76,8 +76,8 @@ For each remaining behavior, one at a time:
 - **Green.** Write only enough code to pass that test → run the suite →
   confirm everything is green.
 
-Use a focused Pest path or `--filter` during each cycle, then run the full
-applicable suite before completion.
+Use a focused Pest path or `--filter` during each cycle (`prism-tool run pest
+-- <path> --filter=...`), then run the full applicable suite before completion.
 
 ## Frontend slices
 
@@ -128,7 +128,7 @@ mock.
 Run:
 
 ```bash
-php -d pcov.enabled=1 vendor/bin/pest --coverage
+prism-tool run pest -- --coverage
 ```
 
 Report coverage for the files you touched. Minimum 80% line coverage on
@@ -150,10 +150,10 @@ interface).
 Run the adapter gate `/check-php`, which covers:
 
 ```bash
-php vendor/bin/php-cs-fixer fix --dry-run --diff
-npx stylelint "cdn/sass/**/*.scss"
-npx eslint "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
-php -d pcov.enabled=1 vendor/bin/pest --coverage
+prism-tool run php-cs-fixer -- fix --dry-run --diff
+prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
+prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+prism-tool run pest -- --coverage
 ```
 
 - PSR-12 code style is enforced by `php-cs-fixer`.

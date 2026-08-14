@@ -53,7 +53,29 @@ instead because it also deploys the global `AGENTS.md` and
 later to make those two context files always-on. Never overwrite an existing
 global context file by hand.
 
-## 3. DeepSeek model access
+## 3. Mandatory toolchain readiness
+
+Run the fail-closed local doctor before any setup stage that depends on
+declared tools:
+
+```bash
+prism-tool doctor --local-only
+```
+
+If Semgrep or OCR is missing or out of range (ADR-0063: Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`), report the human-run remediation —
+never install, configure, or authenticate either tool and never ask for or
+accept an API key. Then ask exactly one question:
+
+```text
+Approve the OCR connectivity test (ocr llm test) now? (yes/no)
+```
+
+Accept only `--ocr-test-approved=yes`; on approval run
+`prism-tool doctor --ocr-test-approved=yes`. A declined or failed live test
+makes the toolchain NO-GO for this setup.
+
+## 4. DeepSeek model access
 
 Verify that pi knows both scoped model IDs without exposing credentials:
 
@@ -72,7 +94,7 @@ If authentication is not configured, instruct the user to run
 `/login deepseek` themselves or export `DEEPSEEK_API_KEY` in their shell.
 Do not ask them to paste the key and do not write it to a project file.
 
-## 4. Detect and offer the project adapter
+## 5. Detect and offer the project adapter
 
 Inspect project-local evidence only:
 
@@ -102,7 +124,49 @@ globally. If no known adapter evidence is present, report that the core can
 run alone and ask which language adapter applies before any stack-specific
 work. Do not guess or install an unrelated adapter.
 
-## 5. Git hooks
+## 6. Provision the declared adapter toolchain
+
+After the adapter is installed, discover it and inspect the consumer project
+without mutation:
+
+```bash
+prism-tool setup inspect --json
+```
+
+Ask exactly one question for registry access (separate from the OCR
+connectivity approval above):
+
+```text
+Approve registry access to resolve and audit candidate dependency graphs? (yes/no)
+```
+
+Accept only `--network-approved=yes`, then run:
+
+```bash
+prism-tool setup resolve --adapter=PACKAGE --network-approved=yes --json
+```
+
+Display the exact candidate manifest/lock diff, the install commands, the
+browser download (Playwright Chromium only), and the resulting versions. Then
+ask exactly one question for mutation:
+
+```text
+Apply these audited manifests and lockfiles? (yes/no)
+```
+
+Accept only literal `--approval=yes`; any other reply declines and cleans the
+candidate workspace. On approval run:
+
+```bash
+prism-tool setup apply --adapter=PACKAGE --plan=PATH --approval=yes --json
+prism-tool setup verify --adapter=PACKAGE --network-approved=yes --json
+```
+
+The plan path comes from the resolve report; never accept an arbitrary path.
+Keep every approval one question per turn and never infer one approval from
+another.
+
+## 7. Git hooks
 
 If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
 `.github/hooks`, show:
@@ -116,7 +180,7 @@ Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
 that its project quality surface must provide the hooks installer; do not
 invent a path.
 
-## 6. Optional search skills
+## 8. Optional search skills
 
 Check presence only; never print values:
 
@@ -129,7 +193,7 @@ Explain that both integrations are CLI-shell skills, not MCP servers. Missing
 variables are non-blocking. The user sets them in their shell environment;
 Prism never stores them.
 
-## 7. Optional GitHub setup
+## 9. Optional GitHub setup
 
 If `gh` is available, ask whether the user wants to configure repository
 labels and rulesets. Do not contact GitHub before approval.
@@ -140,7 +204,7 @@ labels and rulesets. Do not contact GitHub before approval.
 If `gh` is missing or unauthenticated, report the local remediation
 (`gh auth login`) without attempting login.
 
-## 8. Validate and report
+## 10. Validate and report
 
 In a Prism source checkout, run:
 

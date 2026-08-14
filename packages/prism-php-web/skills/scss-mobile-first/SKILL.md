@@ -50,7 +50,11 @@ padding: clamp(1rem, 4vw, 2rem);
 ## Stylelint
 
 Config: `.stylelintrc.json`
-Run: `npx stylelint "cdn/sass/**/*.scss"`
+Run through the launcher:
+
+```bash
+prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
+```
 
 Stylelint runs automatically in the pre-commit hook on staged `.scss` files.
 Fix violations before committing — the hook blocks on failure.
@@ -59,7 +63,7 @@ Fix violations before committing — the hook blocks on failure.
 
 Edit files in `cdn/sass/`. Never edit `cdn/css/*.min.css` — those are generated.
 
-Compile:
+Compile through the launcher:
 ```bash
-sass --style=compressed cdn/sass/source.scss cdn/css/output.min.css
+prism-tool run sass -- --style=compressed cdn/sass/source.scss cdn/css/output.min.css
 ```
