@@ -1009,7 +1009,7 @@ git commit -S -m $'build(adapter): adopt exact pest 5 toolchain baseline\n\nAuth
 - Produces: one Pi-native `verify` job plus one package-smoke matrix, without legacy eval or OpenCode parity assumptions.
 - Clarifies: compatible-range Semgrep/OCR installation in ephemeral CI is environment provisioning; Prism runtime/setup remains verification-only.
 
-- [ ] **Step 1: Write the failing Pi CI contract test**
+- [x] **Step 1: Write the failing Pi CI contract test**
 
 The consolidated shell test parses `.github/workflows/ci.yml` and asserts:
 
@@ -1024,7 +1024,7 @@ The consolidated shell test parses `.github/workflows/ci.yml` and asserts:
 - package smoke checks both packed archives and an unrelated consumer cwd;
 - no `.opencode`, eval-agent, model-tier, or retired manifest job remains.
 
-- [ ] **Step 2: Run the CI contract test to verify Red**
+- [x] **Step 2: Run the CI contract test to verify Red**
 
 Run:
 
@@ -1034,7 +1034,7 @@ bash tests/Shell/pi_ci_contract_test.sh
 
 Expected: FAIL against the pre-Pi workflow structure and versions.
 
-- [ ] **Step 3: Rewrite CI around the active contracts**
+- [x] **Step 3: Rewrite CI around the active contracts**
 
 Create an Ubuntu `verify` job that checks out with submodules and no persisted credentials; configures PHP 8.5/PCOV and Node 24; installs locked dependencies with scripts disabled; installs pinned Pi; provisions a Semgrep release satisfying `>=1.173.0 <2.0.0` in an isolated venv and an OCR release satisfying `>=1.9.1 <2.0.0` globally with npm scripts disabled; runs `node packages/prism-core/scripts/prism-tool.js doctor --local-only`; then runs Node, shell, harness, type, executable-bit, PHP syntax, adapter lint, Pest/browser coverage, Semgrep, gitleaks, audits, and PR-range commitlint through the source CLI.
 
@@ -1042,7 +1042,7 @@ Keep Semgrep telemetry disabled and the first-party plus PHP/secrets/JavaScript 
 
 Do not carry forward old eval jobs or tests whose only purpose was to pin OpenCode-era runner/parity interpretations. Preserve current generic security controls when they remain useful, but the new consolidated test is authoritative.
 
-- [ ] **Step 4: Run local CI contract and suites to verify Green**
+- [x] **Step 4: Run local CI contract and suites to verify Green**
 
 Run:
 
@@ -1055,7 +1055,7 @@ bash packages/prism-core/scripts/validate-harness.sh
 
 Expected: all pass and no deleted legacy CI test remains referenced.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/ci.yml tests/Shell

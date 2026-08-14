@@ -5,6 +5,8 @@
 
 
 
+
+
 # pre_push_parity_test.sh — verifies pre-push runs the CI-parity backstop
 # (validate-harness + shell tests) before allowing a push (ADR-0025),
 # and asserts the protected-ref gate uses remote_ref (ADR-0044).
@@ -66,7 +68,45 @@ else
 	fail "pre-push doctor is not positioned before the harness checks"
 fi
 
+# ── Pi-native CI contract linkage (Task 11) ──────────────────────────────
+# The local pre-push gate and the CI verify job share the same toolchain
+# boundary; the consolidated contract test is authoritative over the legacy
+# per-concern CI tests.
+if [ -f "$REPO_ROOT/tests/Shell/pi_ci_contract_test.sh" ]; then
+	pass "Pi-native CI contract test is present"
+else
+	fail "Pi-native CI contract test is missing"
+fi
+if grep -qF 'validate-harness.sh' "$REPO_ROOT/.github/workflows/ci.yml" 2>/dev/null; then
+	pass "CI verify job runs the same harness validation as pre-push"
+else
+	fail "CI verify job does not run validate-harness"
+fi
+legacy_ci_tests=(
+	ci_download_integrity_test.sh
+	ci_no_composer_scripts_test.sh
+	ci_no_sudo_test.sh
+	ci_npm_test.sh
+	ci_persist_credentials_test.sh
+	ci_runner_hosted_test.sh
+	ci_runner_isolation_adr_test.sh
+	semgrep_ci_test.sh
+)
+legacy_present=0
+for legacy_test in "${legacy_ci_tests[@]}"; do
+	if [ -e "$REPO_ROOT/tests/Shell/$legacy_test" ]; then
+		legacy_present=1
+	fi
+done
+if [ "$legacy_present" -eq 0 ]; then
+	pass "no legacy per-concern CI test file remains"
+else
+	fail "legacy per-concern CI test file remains"
+fi
+
 print_summary "pre_push_parity"
+
+
 
 
 
