@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_placeholder_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: rcs_header_placeholder_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -22,6 +24,10 @@ if [ ! -f "$PRE_COMMIT" ]; then
 	fail "Cannot find pre-commit hook at $PRE_COMMIT"
 	exit 1
 fi
+
+# Route declared tools through the fake prism-tool boundary (Task 8).
+export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
+export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 
 # ── Test 1: Placeholder header (creator@host YYYY/MM/DD) rejected ────────────
 
@@ -120,6 +126,8 @@ git_init_test_repo "$T3"
 
 print_summary "rcs-header placeholder"
 exit $?
+
+
 
 
 

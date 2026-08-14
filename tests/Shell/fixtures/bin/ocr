@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# $KYAULabs: ocr kyau@nova 2026/08/14 -0700 Exp $
+# Fake in-range OCR for isolated hook tests (ADR-0063: >=1.9.1 <2.0.0).
+
+printf 'open-code-review v1.9.1 linux/amd64\n'
+
+# vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh git@aura.kyaulabs 2026/08/13 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -48,19 +50,33 @@ copy_commitlint_config() {
 		"$destination/packages/prism-core/config/commitlint.config.cjs"
 }
 
-# ── Test 1: Guard skips with notice when commitlint absent ───────────────────
-# A stub `npx` is placed first on PATH so the unguarded hook (before the fix)
-# fails fast without a network fetch. After the fix, the guard fires before
-# npx is ever reached.
+# install_launcher_hook <dir> — git-init a fixture, install the real hook, and
+# stage fake in-range Semgrep/OCR executables so the real source CLI's local
+# doctor passes. Git commits in the fixture must run with PRISM_TOOL pointing
+# at the source CLI and the fixture toolchain bin first on PATH.
+# shellcheck disable=SC2030,SC2031  # PRISM_TOOL/PATH exports are intentional and scoped to each fixture subshell
+install_launcher_hook() {
+	local dir="$1"
+	git_init_test_repo "$dir"
+	mkdir -p "$dir/toolchain-bin"
+	cp "$REPO_ROOT/tests/Shell/fixtures/bin/semgrep" "$dir/toolchain-bin/semgrep"
+	cp "$REPO_ROOT/tests/Shell/fixtures/bin/ocr" "$dir/toolchain-bin/ocr"
+	chmod +x "$dir/toolchain-bin/semgrep" "$dir/toolchain-bin/ocr"
+	cp "$REAL_HOOK" "$dir/.git/hooks/commit-msg"
+	chmod +x "$dir/.git/hooks/commit-msg"
+}
+
+# ── Test 1: Guard fails closed when the launcher is absent ───────────────────
+# A stub `npx` is placed first on PATH so a hook that bypasses the launcher
+# boundary (pre-fix state) fails fast without a network fetch. After the fix,
+# the launcher guard fires before npx is ever reached.
 
 echo ""
-echo "── Test 1: Guard fails closed when commitlint not installed ──"
+echo "── Test 1: Guard fails closed when launcher not installed ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
 	cd "$T1"
-	# Stub npx: exits non-zero with a known message. Only reached if the
-	# hook lacks a guard (the pre-fix state).
 	mkdir -p "$T1/bin"
 	cat > "$T1/bin/npx" <<'STUB'
 #!/usr/bin/env bash
@@ -73,12 +89,12 @@ STUB
 	printf 'feat: test\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
 
 	set +e
-	output=$(PATH="$T1/bin:$PATH" "$REAL_HOOK" msg 2>&1)
+	output=$(PATH="$T1/bin:$PATH" env -u PRISM_TOOL "$REAL_HOOK" msg 2>&1)
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 1 ] && echo "$output" | grep -qi "commitlint is not installed"; then
-		pass "Guard fails closed when commitlint absent (exit 1)"
+	if [ "$ret" -eq 1 ] && echo "$output" | grep -qi "prism-tool launcher is not installed"; then
+		pass "Guard fails closed when launcher absent (exit 1)"
 	else
 		fail "Guard did not fail closed (exit=$ret): $output"
 	fi
@@ -95,12 +111,9 @@ T2=$(mktemp -d)
 register_temp_dir "$T2"
 (
 	cd "$T2"
-	git_init_test_repo "$T2"
-	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
-	ln -s "$REPO_ROOT/node_modules" "$T2/node_modules"
-	copy_commitlint_config "$T2"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T2"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T2/toolchain-bin:$PATH"
 
 	VALID=$'feat: base commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
@@ -131,11 +144,9 @@ T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
 	cd "$T3"
-	git_init_test_repo "$T3"
-	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
-	copy_commitlint_config "$T3"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T3"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T3/toolchain-bin:$PATH"
 
 	VALID=$'feat: original\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
@@ -164,11 +175,9 @@ T4=$(mktemp -d)
 register_temp_dir "$T4"
 (
 	cd "$T4"
-	git_init_test_repo "$T4"
-	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
-	copy_commitlint_config "$T4"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T4"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T4/toolchain-bin:$PATH"
 
 	echo a > a; git add a
 	set +e
@@ -194,11 +203,9 @@ T5=$(mktemp -d)
 register_temp_dir "$T5"
 (
 	cd "$T5"
-	git_init_test_repo "$T5"
-	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
-	copy_commitlint_config "$T5"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T5"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T5/toolchain-bin:$PATH"
 
 	VALID=$'feat: valid commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a
@@ -485,6 +492,8 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
+
+
 
 
 

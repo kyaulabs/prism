@@ -23,19 +23,32 @@ EOF
 	exit 1
 fi
 
-# ── commitlint (fail-closed: CI parity requires local enforcement) ───────────
-# A missing node_modules/commitlint is a broken dev environment. CI enforces
+# ── prism-tool (fail-closed: CI parity requires local enforcement) ───────────
+# A missing prism-tool launcher is a broken dev environment. CI enforces
 # commitlint on every PR; for local parity the commit must block until the
-# toolchain is installed. See ADR-0025.
-if [ ! -d node_modules/commitlint ]; then
+# toolchain is installed. See ADR-0025, ADR-0061.
+PRISM_TOOL_PATH=""
+if [ -n "${PRISM_TOOL:-}" ]; then
+	PRISM_TOOL_PATH="$PRISM_TOOL"
+elif command -v prism-tool > /dev/null 2>&1; then
+	PRISM_TOOL_PATH="$(command -v prism-tool)"
+else
 	cat >&2 <<'EOF'
-✗ commitlint is not installed — cannot validate the commit message locally.
-  Run 'npm install' to install the toolchain, then re-run the commit.
-  (CI enforces commitlint on every PR; local parity requires it here too.)
+✗ prism-tool launcher is not installed — cannot validate the commit message locally.
+  Run 'bash packages/prism-core/scripts/install-global.sh' (or /setup) to deploy it,
+  then re-run the commit. (CI enforces commitlint on every PR; local parity requires it here too.)
 EOF
 	exit 1
 fi
 
-npx commitlint --edit "$MSG_FILE"
+if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
+	cat >&2 <<'EOF'
+✗ prism-tool local readiness failed — mandatory Semgrep/OCR check did not pass.
+  Fix readiness (see 'prism-tool doctor'), then re-run the commit.
+EOF
+	exit 1
+fi
+
+"$PRISM_TOOL_PATH" run commitlint -- --edit "$MSG_FILE"
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

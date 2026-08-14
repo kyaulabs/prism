@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_push_parity_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
+# $KYAULabs: pre_push_parity_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -47,7 +49,26 @@ else
 	fail "pre-push missing is_initial_protected_push helper"
 fi
 
+# ── Toolchain boundary (Task 8) ────────────────────────────────────────
+# The mandatory local doctor must run before the harness checks so a failed
+# readiness stops the push before validate-harness.
+if grep -qF 'doctor --local-only' "$HOOK"; then
+	pass "pre-push runs prism-tool local doctor"
+else
+	fail "pre-push missing prism-tool local doctor"
+fi
+doctor_line=$(grep -nF 'doctor --local-only' "$HOOK" | head -1 | cut -d: -f1)
+# shellcheck disable=SC2016  # $HLOG is a literal hook source pattern, not an expansion
+harness_line=$(grep -nF 'validate-harness.sh >"$HLOG"' "$HOOK" | head -1 | cut -d: -f1)
+if [ -n "$doctor_line" ] && [ -n "$harness_line" ] && [ "$doctor_line" -lt "$harness_line" ]; then
+	pass "pre-push runs local doctor before harness checks"
+else
+	fail "pre-push doctor is not positioned before the harness checks"
+fi
+
 print_summary "pre_push_parity"
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

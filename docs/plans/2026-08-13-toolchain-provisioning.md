@@ -772,13 +772,13 @@ git commit -S -m $'feat(core): deploy managed prism-tool launcher\n\nAuthored-by
 - Produces: hook-local `resolve_prism_tool()` that accepts an executable `PRISM_TOOL` override for isolated tests, otherwise requires `command -v prism-tool`.
 - Preserves: staged-blob linting and RCS normalization.
 
-- [ ] **Step 1: Write failing hook-boundary tests**
+- [x] **Step 1: Write failing hook-boundary tests**
 
 Create a fake `prism-tool` that logs NUL-delimited argv and delegates success/failure by tool ID. Assert each hook performs mandatory local doctor before its main operation; commit-msg invokes `run commitlint -- --edit MESSAGE`; pre-commit invokes adapter IDs only when matching staged files exist and never directly calls `npx` or `vendor/bin`; pre-push invokes local doctor before harness checks; a missing launcher fails closed with `/setup` remediation; a failed doctor prevents every later tool; and filenames/payloads with spaces remain one argument.
 
 Update existing hook fixtures to set `PRISM_TOOL` to the fake or real source CLI and provide fake in-range Semgrep and OCR executables. Replace assertions about local `node_modules/commitlint` and `npm install` remediation with launcher assertions, including the focused `commit_msg_parity_test.sh` contract.
 
-- [ ] **Step 2: Run focused hook tests to verify Red**
+- [x] **Step 2: Run focused hook tests to verify Red**
 
 Run:
 
@@ -790,7 +790,7 @@ bash tests/Shell/pre_commit_index_lint_test.sh
 
 Expected: new tests fail on direct local tool assumptions while existing behavior tests document the staged-index behavior that must remain.
 
-- [ ] **Step 3: Migrate hooks without changing index semantics**
+- [x] **Step 3: Migrate hooks without changing index semantics**
 
 At each hook start, resolve the launcher and run local doctor. Replace only tool invocations:
 
@@ -803,7 +803,7 @@ npx eslint                             -> prism-tool run eslint
 
 Retain PHP syntax, shellcheck, gitleaks, script-mode checks, conflict protection, branch protection, staged-temp checkout, and RCS normalization. Required declared tools no longer have skip branches. `install-hooks.sh` reports `prism-tool doctor --local-only` as prerequisite instead of `npm install`. Delete `ci_local_parity_test.sh`; its OpenCode-era textual assertions are replaced by the hook behavior tests here and the Pi-native CI contract in Task 11.
 
-- [ ] **Step 4: Run hook suites to verify Green**
+- [x] **Step 4: Run hook suites to verify Green**
 
 Run:
 
@@ -818,7 +818,7 @@ bash tests/Shell/commit_msg_parity_test.sh
 
 Expected: all pass; staged-blob behavior remains intact and declared tool skips/direct invocations are absent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/hooks packages/prism-core/scripts/install-hooks.sh tests/Shell/toolchain_hooks_test.sh tests/Shell/commit-msg_test.sh tests/Shell/check_resolution_test.sh tests/Shell/pre_commit_index_lint_test.sh tests/Shell/pre_push_parity_test.sh tests/Shell/ci_local_parity_test.sh tests/Shell/commit_msg_parity_test.sh
