@@ -147,7 +147,7 @@ pre-created.
 Run the test suite after `composer install`:
 
 ```text
-php -d pcov.enabled=1 vendor/bin/pest --coverage
+prism-tool run pest -- --coverage
 ```
 
 The coverage gate enforces ≥80% line coverage on changed PHP files via
@@ -168,6 +168,13 @@ The coverage gate enforces ≥80% line coverage on changed PHP files via
 | @commitlint/config-conventional | npm | Conventional commits preset for commitlint |
 | git-cliff | npm | Changelog generation (project-local wrapper) |
 | playwright | npm | Browser testing |
+
+Exact managed versions for every tool above are declared in the package
+toolchain contracts (`packages/prism-core/toolchain.json` and
+`packages/prism-php-web/toolchain.json`) and enforced by
+`tests/Node/source-toolchain-parity.test.js`; the test baseline is Pest
+5.1.1 on PHPUnit 13 with PHP 8.5+. See ADR-0063 for the bounded Semgrep/OCR
+compatibility policy.
 
 ### Coverage driver
 
@@ -199,7 +206,7 @@ enable only when running tests with coverage:
 2. Enable per-run with the `-d` flag:
 
     ```text
-    php -d pcov.enabled=1 vendor/bin/pest --coverage
+    prism-tool run pest -- --coverage
     ```
 
 The project's `/check-php` prompt, the `tdd-php` skill, and the verification

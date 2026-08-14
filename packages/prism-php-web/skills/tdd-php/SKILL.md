@@ -1,7 +1,7 @@
 ---
 name: tdd-php
 description: "Use for the PHP/Pest-specific half of TDD: test framework, coverage tooling, lint. Load alongside the core tdd skill in PHP projects."
-compatibility: "PHP 8.5+, Pest PHP v4, PHPUnit 12, Composer"
+compatibility: "PHP 8.5+, Pest PHP 5, PHPUnit 13, Composer"
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 

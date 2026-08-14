@@ -934,13 +934,13 @@ git commit -S -m $'docs(toolchain): route harness entrypoints through launcher\n
 - Consumes: both contracts.
 - Produces: source checkout whose direct manifest/locks equal the contracts and whose Pest 5/PHPUnit 13 suite passes on PHP 8.5.
 
-- [ ] **Step 1: Write failing source parity and baseline tests**
+- [x] **Step 1: Write failing source parity and baseline tests**
 
 Test that root `require-dev` exactly contains the three Composer contract versions; root npm approved dependencies match adapter/core contracts; locks resolve those exact direct versions; PHPUnit lock major is `13`; PHP is at least `8.5`; `ext-sockets` is loaded; and the language server is absent from package and lock.
 
 Use JSON parsing, not grep. The Composer lock assertions read `packages-dev`; npm assertions read `packages['node_modules/' + packageName].version`.
 
-- [ ] **Step 2: Run tests to verify Red and record baseline**
+- [x] **Step 2: Run tests to verify Red and record baseline**
 
 Run:
 
@@ -951,7 +951,7 @@ php -d pcov.enabled=1 vendor/bin/pest --coverage
 
 Expected: parity test fails on ranges, Pest 4/browser 4, PHPUnit 12, and older lock versions. Record the existing Pest suite result as characterization evidence before changing dependencies; if it is not green, halt and debug before upgrade.
 
-- [ ] **Step 3: Resolve and install exact source dependencies after approval**
+- [x] **Step 3: Resolve and install exact source dependencies after approval**
 
 After explicit registry/network approval, run candidate-style updates with scripts disabled:
 
@@ -965,7 +965,7 @@ npm ci --ignore-scripts
 
 Run structured Composer/npm audits and stop on any advisory. Update PHP adapter compatibility prose from Pest 4/PHPUnit 12 to Pest 5/PHPUnit 13 and use contract-owned setup commands. Do not add compatibility branches for Pest 4.
 
-- [ ] **Step 4: Run parity and full adapter suite to verify Green**
+- [x] **Step 4: Run parity and full adapter suite to verify Green**
 
 Run:
 
@@ -982,7 +982,7 @@ prism-tool run pest -- --coverage
 
 Expected: exact parity and all adapter checks pass; coverage remains at least 80% for changed PHP files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add composer.json composer.lock package.json package-lock.json packages/prism-php-web/skills/php-web-stack/SKILL.md packages/prism-php-web/skills/tdd-php/SKILL.md packages/prism-php-web/skills/pest-browser/SKILL.md README.md tests/Node/source-toolchain-parity.test.js

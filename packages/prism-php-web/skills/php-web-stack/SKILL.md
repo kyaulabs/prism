@@ -1,6 +1,6 @@
 ---
 name: php-web-stack
-description: "Use when working in a PHP/Aurora web project (composer.json or aurora/ present). Provides the stack (PHP 8.5+, MariaDB, nginx, SCSS, vanilla JS, Pest v4), no-MVC architecture, production env, and directory structure. Auto-load at session start in PHP projects."
+description: "Use when working in a PHP/Aurora web project (composer.json or aurora/ present). Provides the stack (PHP 8.5+, MariaDB, nginx, SCSS, vanilla JS, Pest 5), no-MVC architecture, production env, and directory structure. Auto-load at session start in PHP projects."
 compatibility: "PHP 8.5+, Composer, Aurora framework, MariaDB, nginx"
 metadata: { "prism-adapter": "php-web", "auto-load-globs": ["composer.json", "aurora/"] }
 ---
@@ -12,7 +12,7 @@ metadata: { "prism-adapter": "php-web", "auto-load-globs": ["composer.json", "au
 - Backend: PHP 8.5+ (flat procedural / class-based, no MVC, no router)
 - Frontend: HTML5, CSS3, JS ES6+, jQuery only when vanilla JS is insufficient
 - CSS: SCSS → Dart Sass → minified / JS: uglify-js → minified
-- Tests: Pest PHP v4 on PHPUnit 12
+- Tests: Pest PHP 5 on PHPUnit 13
 - Version Control: Git + Conventional Commits + signed commits
 
 ## Production Environment

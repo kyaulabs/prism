@@ -1,6 +1,6 @@
 ---
 name: pest-browser
-description: Use when writing browser tests with Pest v4. Covers plugin installation, Playwright setup, global config, CI workflow additions, and test examples. Reserve browser tests for critical UI flows only.
+description: Use when writing browser tests with Pest 5. Covers plugin installation, Playwright setup, global config, CI workflow additions, and test examples. Reserve browser tests for critical UI flows only.
 ---
 
 ## When to Use Browser Tests

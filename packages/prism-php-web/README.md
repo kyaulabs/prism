@@ -12,7 +12,7 @@ present.
 ## What it provides
 
 - **`php-web-stack`** — the stack: PHP 8.5+, MariaDB, nginx, SCSS → Dart Sass,
-  vanilla JS, Pest v4 on PHPUnit 12, no-MVC, flat procedural PHP.
+  vanilla JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP.
 - **`tdd-php`** — the PHP/Pest half of TDD (test framework, coverage tooling,
   lint), loaded alongside the core `tdd` skill.
 - **`security-coding-php`** — PHP/SQL bound-parameter patterns, Aurora CSRF,
