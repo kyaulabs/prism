@@ -222,6 +222,7 @@ cross-era constraints most relevant to current work are:
 - `adr/0025-ci-local-parity-principle.md` — keep local and CI gates behaviorally equivalent and fail closed.
 - `adr/0027-plans-specs-lifecycle.md` — commit approved development artifacts, then remove them at branch completion.
 - `adr/0028-git-flow-branch-naming-enforcement.md` — mechanically enforce work-branch naming.
+- `adr/0035-ci-runner-fork-isolation.md` — run CI checks on hosted ephemeral runners for fork-PR isolation while preserving gate equivalence with local checks.
 - `adr/0040-gpt-5-6-sol-on-design-planner-tiers.md` — retain the four commit-attribution footers; model-tier clauses are superseded.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — normalize required source headers in pre-commit.
 - `adr/0044-pr-only-protected-branches.md` — protect `main` and `develop` with PR-only integration.
