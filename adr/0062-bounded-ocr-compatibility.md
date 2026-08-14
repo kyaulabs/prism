@@ -4,7 +4,7 @@ Date: 2026-08-13
 
 ## Status
 
-Accepted
+Superseded by ADR-0063
 
 Supersedes ADR-0061. Depends on ADR-0025, ADR-0047, ADR-0048, ADR-0056,
 ADR-0058, ADR-0060, and ADR-0061.

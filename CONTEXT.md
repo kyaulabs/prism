@@ -97,7 +97,8 @@ The declaration that connects Prism resources to executable capabilities.
 The measured state required before a toolchain entry point proceeds.
 
 - Missing or mismatched Semgrep or OCR is always NO-GO.
-- Semgrep login is optional for local scanning.
+- Semgrep must satisfy `>=1.173.0 <2.0.0`; login remains optional for local
+  scanning.
 - OCR connectivity is tested during installation/setup, `/doctor`, and
   immediately before code review; other entry points verify only the local
   executable and the declared `>=1.9.1 <2.0.0` compatibility requirement.
@@ -239,7 +240,8 @@ Pi-era decisions:
 - `adr/0059-conversion-scope-deferred-evals-mcp-to-cli-skills.md` — bound the Pi port, defer evals, and replace MCP integrations with CLI skills.
 - `adr/0060-global-core-project-local-adapter-install.md` — install core globally, adapters locally, and deploy merge-safe always-on instructions.
 - `adr/0061-scope-owned-toolchain-contract.md` — superseded scope-owned toolchain baseline retained as historical context.
-- `adr/0062-bounded-ocr-compatibility.md` — retain exact managed tools and Semgrep while allowing OCR `>=1.9.1 <2.0.0`.
+- `adr/0062-bounded-ocr-compatibility.md` — superseded bounded-OCR policy retained as historical context.
+- `adr/0063-bounded-external-tool-compatibility.md` — retain exact managed tools while allowing bounded compatible Semgrep and OCR 1.x releases.
 
 ## When to update this file
 

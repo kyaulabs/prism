@@ -10,12 +10,12 @@
 
 **Tech Stack:** Node.js 22.19+ CommonJS and `node:test`, Bash 4+, Pi 0.84.1, npm, Composer, PHP 8.5, Pest 5/PHPUnit 13, Semgrep, OCR, GitHub Actions.
 
-**Revision:** Tasks 1 and 2 record the completed exact-version baseline. ADR-0062 revises OCR compatibility; Task 3 migrates the contract schema and readiness implementation to the bounded requirement before later tasks consume it.
+**Revision:** Tasks 1 and 2 record the completed exact-version baseline. ADR-0063 revises Semgrep and OCR compatibility; Task 3 migrates the contract schema and readiness implementation to bounded external requirements before later tasks consume them.
 
 ## Global constraints
 
 - Core bundled versions: `commitlint@21.2.2`, `@commitlint/config-conventional@21.2.2`, `git-cliff@2.13.1`.
-- Mandatory external requirements: exact `semgrep@1.173.0` and OCR `>=1.9.1 <2.0.0`. Prism runtime/setup verifies but never installs or configures them.
+- Mandatory external requirements: Semgrep `>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0`. Prism runtime/setup verifies but never installs or configures them.
 - PHP/web Composer versions: `friendsofphp/php-cs-fixer@3.95.18`, `pestphp/pest@5.1.1`, `pestphp/pest-plugin-browser@5.0.1`.
 - PHP/web npm versions: `sass@1.102.0`, `uglify-js@3.19.3`, `eslint@10.8.1`, `@eslint/js@10.0.1`, `stylelint@17.14.1`, `stylelint-config-standard-scss@17.0.0`, `playwright@1.62.1`.
 - Remove `@stylelint/language-server`; it has no approved owner in this feature.
@@ -28,7 +28,7 @@
 - No PHP/Pest/Aurora/SCSS/Composer logic enters the core package. Adapter behavior remains project-local.
 - Do not edit `aurora/` or generated minified assets.
 - Let the pre-commit normalizer add RCS headers/modelines to new `.js` and `.sh` files; do not hand-author provenance fields.
-- `CONTEXT.md` defines the Pi-era `toolchain contract`, scope entities, consent boundaries, and ADR-0062's bounded OCR exception; implementation must preserve that vocabulary and requires no further domain-context change unless a new term appears.
+- `CONTEXT.md` defines the Pi-era `toolchain contract`, scope entities, consent boundaries, and ADR-0063's bounded external compatibility policy; implementation must preserve that vocabulary and requires no further domain-context change unless a new term appears.
 - Before any dependency resolution during execution, halt for the required network approval. Lockfile updates occur only after approval.
 
 ## Threat model
@@ -81,7 +81,7 @@ JSON mode emits exactly:
   "command": "doctor",
   "status": "GO",
   "checks": [
-    {"id": "semgrep", "status": "PASS", "expected": "1.173.0", "actual": "1.173.0", "message": "exact version"}
+    {"id": "semgrep", "status": "PASS", "expected": ">=1.173.0 <2.0.0", "actual": "1.173.0", "message": "compatible version"}
   ]
 }
 ```
@@ -238,7 +238,7 @@ Use this exact contract shape. Core components are:
     {"id": "commitlint", "kind": "command", "ecosystem": "npm", "package": "commitlint", "version": "21.2.2", "provisioning": "bundled", "authentication": "none", "executable": "commitlint", "versionArguments": ["--version"], "argumentPolicy": {"mode": "passthrough"}},
     {"id": "commitlint-config-conventional", "kind": "library", "ecosystem": "npm", "package": "@commitlint/config-conventional", "version": "21.2.2", "provisioning": "bundled", "authentication": "none"},
     {"id": "git-cliff", "kind": "command", "ecosystem": "npm", "package": "git-cliff", "version": "2.13.1", "provisioning": "bundled", "authentication": "none", "executable": "git-cliff", "versionArguments": ["--version"], "argumentPolicy": {"mode": "passthrough"}},
-    {"id": "semgrep", "kind": "command", "ecosystem": "pypi", "package": "semgrep", "version": "1.173.0", "provisioning": "external", "authentication": "optional", "executable": "semgrep", "versionArguments": ["--version"], "argumentPolicy": {"mode": "first-token", "allowed": ["scan", "ci"]}},
+    {"id": "semgrep", "kind": "command", "ecosystem": "pypi", "package": "semgrep", "versionRequirement": {"mode": "range", "minimum": "1.173.0", "maximumExclusive": "2.0.0"}, "provisioning": "external", "authentication": "optional", "executable": "semgrep", "versionArguments": ["--version"], "argumentPolicy": {"mode": "first-token", "allowed": ["scan", "ci"]}},
     {"id": "ocr", "kind": "command", "ecosystem": "npm", "package": "@alibaba-group/open-code-review", "versionRequirement": {"mode": "range", "minimum": "1.9.1", "maximumExclusive": "2.0.0"}, "provisioning": "external", "authentication": "required", "executable": "ocr", "versionArguments": ["--version"], "argumentPolicy": {"mode": "first-token", "allowed": ["review", "scan"]}}
   ]
 }
@@ -267,7 +267,7 @@ The adapter contract uses the same fields and these components:
 }
 ```
 
-`contract.js` must export the three named functions; reject unknown top-level/component keys, non-object values, unsupported schema/role/kind/ecosystem/provisioning/authentication/policy values, invalid exact semver, absolute handler paths, duplicate IDs, command entries missing executable/version arguments/policy, library entries carrying executable fields, and adapter browser targets other than `chromium`. Exact `version` and structured `versionRequirement` are mutually exclusive. Only external OCR may use range mode with stable three-segment `minimum` and `maximumExclusive` values where minimum is lower than the exclusive maximum; bundled and consumer-development entries remain exact. Freeze the returned object recursively.
+`contract.js` must export the three named functions; reject unknown top-level/component keys, non-object values, unsupported schema/role/kind/ecosystem/provisioning/authentication/policy values, invalid exact semver, absolute handler paths, duplicate IDs, command entries missing executable/version arguments/policy, library entries carrying executable fields, and adapter browser targets other than `chromium`. Exact `version` and structured `versionRequirement` are mutually exclusive. Only the declared external Semgrep and OCR identities may use range mode with stable three-segment `minimum` and `maximumExclusive` values where minimum is lower than the exclusive maximum; bundled and consumer-development entries remain exact. Freeze the returned object recursively.
 
 Set core package metadata and dependencies:
 
@@ -439,7 +439,7 @@ git commit -S -m $'feat(toolchain): run bundled tools through core launcher\n\nA
 
 - [ ] **Step 1: Write failing readiness and sanitization tests**
 
-Use temporary fake `semgrep` and `ocr` executables. Cover exact Semgrep pass/mismatch, OCR lower-bound pass, later-1.x pass, below-minimum failure, `2.0.0` failure, mutually exclusive/invalid range contracts, anchored installed-version selection with advertised-update noise, missing command, malformed version evidence, timeout, output cap, Semgrep without login, doctor without OCR-test approval, approved `ocr llm test`, failed live test, and canary-secret output. Assert:
+Use temporary fake `semgrep` and `ocr` executables. For each tool cover lower-bound pass, later-1.x pass, below-minimum failure, and `2.0.0` failure. Cover mutually exclusive/invalid range contracts, Semgrep's exactly one anchored bare `X.Y.Z` line, OCR's exactly one anchored `open-code-review vX.Y.Z` line, advertised-update noise, missing command, malformed/duplicate version evidence, timeout, output cap, Semgrep without login, doctor without OCR-test approval, approved `ocr llm test`, failed live test, and canary-secret output. Assert:
 
 ```js
 assert.equal(result.status, 3);
@@ -461,7 +461,7 @@ Expected: FAIL because external preflight and doctor behavior are absent.
 
 - [ ] **Step 3: Implement fail-closed preflight and cadence**
 
-Resolve external executables from `PATH` without invoking a shell. Run each declared `versionArguments` with fixed bounds. Compare exact components as exact strings. For OCR, select the installed version only from an anchored `open-code-review vX.Y.Z` product line, ignore update advertisements and all other version tokens, then compare numeric major/minor/patch tuples against inclusive `1.9.1` and exclusive `2.0.0`. Reject prereleases and malformed or ambiguous evidence. Return checks with only tool ID, PASS/FAIL, the safe exact/range expectation, actual version when safe, and a fixed message. Never include raw stdout/stderr.
+Resolve external executables from `PATH` without invoking a shell. Run each declared `versionArguments` with fixed bounds. Compare exact managed components as exact strings. For Semgrep, select the installed version from exactly one anchored bare `X.Y.Z` line; for OCR, select it from exactly one anchored `open-code-review vX.Y.Z` product line. Ignore update advertisements and all other version tokens, then compare numeric major/minor/patch tuples against each component's inclusive minimum and exclusive maximum. Reject prereleases and malformed, duplicate, or ambiguous evidence. Return checks with only tool ID, PASS/FAIL, the safe exact/range expectation, actual version when safe, and a fixed message. Never include raw stdout/stderr.
 
 `doctor` always runs local checks. `--local-only` returns after local checks. Without `--local-only`, require exact OCR-test approval and internally invoke `ocr` with `['llm', 'test']`; reduce the result to `PASS` or one of `timeout`, `non-zero`, `malformed`, or `output-limit`. Do not persist connectivity state.
 
@@ -484,7 +484,7 @@ semgrep --version
 ocr --version
 ```
 
-Expected for later integration: Semgrep exactly `1.173.0` and OCR satisfying `>=1.9.1 <2.0.0`. If either requirement fails, stop and give the human the declared remediation; do not install either tool.
+Expected for later integration: Semgrep satisfying `>=1.173.0 <2.0.0` and OCR satisfying `>=1.9.1 <2.0.0`. If either requirement fails, stop and give the human the declared remediation; do not install either tool.
 
 - [ ] **Step 5: Commit**
 
@@ -775,7 +775,7 @@ git commit -S -m $'feat(core): deploy managed prism-tool launcher\n\nAuthored-by
 
 Create a fake `prism-tool` that logs NUL-delimited argv and delegates success/failure by tool ID. Assert each hook performs mandatory local doctor before its main operation; commit-msg invokes `run commitlint -- --edit MESSAGE`; pre-commit invokes adapter IDs only when matching staged files exist and never directly calls `npx` or `vendor/bin`; pre-push invokes local doctor before harness checks; a missing launcher fails closed with `/setup` remediation; a failed doctor prevents every later tool; and filenames/payloads with spaces remain one argument.
 
-Update existing hook fixtures to set `PRISM_TOOL` to the fake or real source CLI and provide fake exact Semgrep and in-range OCR executables. Replace assertions about local `node_modules/commitlint` and `npm install` remediation with launcher assertions, including the focused `commit_msg_parity_test.sh` contract.
+Update existing hook fixtures to set `PRISM_TOOL` to the fake or real source CLI and provide fake in-range Semgrep and OCR executables. Replace assertions about local `node_modules/commitlint` and `npm install` remediation with launcher assertions, including the focused `commit_msg_parity_test.sh` contract.
 
 - [ ] **Step 2: Run focused hook tests to verify Red**
 
@@ -894,7 +894,7 @@ prism-tool run uglify-js -- cdn/js/main.js -o cdn/javascript/main.min.js -c -m
 prism-tool run playwright -- install chromium
 ```
 
-Retain each prompt/skill's current behavioral constraints, frontmatter, and one-question gates. Do not duplicate version tables outside contracts; link to the contract and ADR-0062.
+Retain each prompt/skill's current behavioral constraints, frontmatter, and one-question gates. Do not duplicate version tables outside contracts; link to the contract and ADR-0063.
 
 - [ ] **Step 4: Run resource tests to verify Green**
 
@@ -1006,7 +1006,7 @@ git commit -S -m $'build(adapter): adopt exact pest 5 toolchain baseline\n\nAuth
 **Interfaces:**
 - Consumes: source CLI, exact locks, package tests, and existing protected-push script.
 - Produces: one Pi-native `verify` job plus one package-smoke matrix, without legacy eval or OpenCode parity assumptions.
-- Clarifies: exact Semgrep and compatible-range OCR installation in ephemeral CI is environment provisioning; Prism runtime/setup remains verification-only.
+- Clarifies: compatible-range Semgrep/OCR installation in ephemeral CI is environment provisioning; Prism runtime/setup remains verification-only.
 
 - [ ] **Step 1: Write the failing Pi CI contract test**
 
@@ -1014,7 +1014,7 @@ The consolidated shell test parses `.github/workflows/ci.yml` and asserts:
 
 - checkout remains credential-nonpersistent and protected-push verification remains on push events;
 - PHP is `8.5`, Node satisfies the core engine, and Pi is pinned `0.84.1`;
-- CI environment provisioning names Semgrep `1.173.0` exactly and OCR `>=1.9.1 <2.0.0` without selecting one patch release;
+- CI environment provisioning names Semgrep `>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` without selecting patch releases;
 - OCR uses npm `--ignore-scripts` and CI never runs `ocr llm test` or OCR review;
 - Composer/npm project installation disables lifecycle scripts and uses committed locks;
 - local CLI doctor runs before declared tools;
@@ -1035,7 +1035,7 @@ Expected: FAIL against the pre-Pi workflow structure and versions.
 
 - [ ] **Step 3: Rewrite CI around the active contracts**
 
-Create an Ubuntu `verify` job that checks out with submodules and no persisted credentials; configures PHP 8.5/PCOV and Node 24; installs locked dependencies with scripts disabled; installs pinned Pi; provisions pinned Semgrep in an isolated venv and an OCR release satisfying `>=1.9.1 <2.0.0` globally with npm scripts disabled; runs `node packages/prism-core/scripts/prism-tool.js doctor --local-only`; then runs Node, shell, harness, type, executable-bit, PHP syntax, adapter lint, Pest/browser coverage, Semgrep, gitleaks, audits, and PR-range commitlint through the source CLI.
+Create an Ubuntu `verify` job that checks out with submodules and no persisted credentials; configures PHP 8.5/PCOV and Node 24; installs locked dependencies with scripts disabled; installs pinned Pi; provisions a Semgrep release satisfying `>=1.173.0 <2.0.0` in an isolated venv and an OCR release satisfying `>=1.9.1 <2.0.0` globally with npm scripts disabled; runs `node packages/prism-core/scripts/prism-tool.js doctor --local-only`; then runs Node, shell, harness, type, executable-bit, PHP syntax, adapter lint, Pest/browser coverage, Semgrep, gitleaks, audits, and PR-range commitlint through the source CLI.
 
 Keep Semgrep telemetry disabled and the first-party plus PHP/secrets/JavaScript rule packs. Keep the browser server and stop it under `if: always()`. Install only Playwright Chromium. A separate `package-smoke` matrix on `ubuntu-latest` and `macos-latest` packs both packages with scripts disabled, inspects required files/bin modes, installs the core into a temporary Pi root, and invokes the CLI from an unrelated temporary project.
 
@@ -1106,7 +1106,7 @@ Update package files arrays only when the smoke test identifies an omitted owned
 - Pest 5-only baseline; and
 - CI environment provisioning versus runtime verification-only policy.
 
-Remove stale instructions that require root `node_modules`, direct `git cliff`, optional OCR, Pest 4, OpenCode, or package-source execution from consumer projects. Keep global `AGENTS.md` concise and point to ADR-0062/contracts rather than duplicating version tables.
+Remove stale instructions that require root `node_modules`, direct `git cliff`, optional OCR, Pest 4, OpenCode, or package-source execution from consumer projects. Keep global `AGENTS.md` concise and point to ADR-0063/contracts rather than duplicating version tables.
 
 - [ ] **Step 4: Run package and full repository verification**
 
@@ -1138,7 +1138,7 @@ semgrep --version
 ocr --version
 ```
 
-Expected: Semgrep `1.173.0` and OCR satisfying `>=1.9.1 <2.0.0`.
+Expected: Semgrep satisfying `>=1.173.0 <2.0.0` and OCR satisfying `>=1.9.1 <2.0.0`.
 
 - [ ] Ask separately for OCR connectivity approval, then run:
 
@@ -1186,6 +1186,6 @@ Expected: every suite passes and changed PHP files meet the 80% line-coverage fl
 - **Consent and security coverage:** Tasks 3, 5, 6, and 9 cover independent registry, mutation, OCR-connectivity, and OCR-egress gates; argument arrays, output bounds, symlinks, hashes, credentials, and cleanup are tested.
 - **Entry-point coverage:** Tasks 8, 9, and 11 cover hooks, prompts, skills, local checks, release/PR, security/review, and Pi-native CI without declared-tool skips.
 - **Transactional coverage:** Tasks 5 and 6 cover pre-apply byte identity, advisory blocking, per-file atomic replacement with rollback, post-apply desired-lock retention, deterministic retry, and final audits.
-- **Documentation/context coverage:** ADR-0062 supersedes ADR-0061 and `CONTEXT.md` records the bounded OCR exception; Tasks 9, 10, and 12 align active package resources and user documentation.
+- **Documentation/context coverage:** ADR-0063 supersedes ADR-0062 and `CONTEXT.md` records bounded external compatibility; Tasks 9, 10, and 12 align active package resources and user documentation.
 - **Type consistency:** `resolveTool`, `inspect`, `resolve`, `apply`, and `verify` use the same handler signatures throughout Tasks 4–6; approval flags and exit codes match the locked public CLI.
 - **Gaps:** none found.
