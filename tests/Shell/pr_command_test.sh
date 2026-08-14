@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -354,13 +355,19 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	validation_title=""
 	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
 	if [ "$rc" -eq 0 ] \
 		&& [ "$validation_title" = 'feat(commands): prepare pull request' ] \
-		&& grep -Fq 'Signed-off-by:' "$validation_file"; then
-		pass 'title validation accepts a conventional title with attribution trailers'
+		&& grep -Fq 'Implemented-by:' "$validation_file" \
+		&& grep -Fq 'Tested-by:' "$validation_file" \
+		&& grep -Fq 'Signed-off-by:' "$validation_file" \
+		&& ! grep -Fq 'Authored-by:' "$validation_file"; then
+		pass 'title validation accepts a conventional title with three attribution trailers'
 	else
 		fail 'title validation rejected a conventional title'
 	fi
@@ -503,6 +510,7 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -24,19 +25,19 @@ setup_result_file
 
 # ── 1. /release changelog commit carries required footers ───────────────────
 # The release commit is a normal chore(release): commit (not a merge/revert),
-# so commitlint's trailers-exist rule requires Authored-by/Implemented-by/
-# Tested-by/Signed-off-by. The old footerless double-quoted form must be gone.
+# so commitlint's trailers-exist rule requires Implemented-by/Tested-by/
+# Signed-off-by (ADR-0064). The old footerless double-quoted form must be gone.
 RELEASE="$REPO_ROOT/packages/prism-core/prompts/release.md"
 if grep -qF 'git commit -S -m "chore(release): vX.Y.Z"' "$RELEASE"; then
 	fail "release.md still uses footerless double-quoted commit form"
 else
-	if grep -qF "Authored-by:" "$RELEASE" \
-		&& grep -qF "Implemented-by:" "$RELEASE" \
+	if grep -qF "Implemented-by:" "$RELEASE" \
 		&& grep -qF "Tested-by:" "$RELEASE" \
-		&& grep -qF "Signed-off-by:" "$RELEASE"; then
-		pass "release.md changelog commit includes required footers"
+		&& grep -qF "Signed-off-by:" "$RELEASE" \
+		&& ! grep -qF "Authored-by:" "$RELEASE"; then
+		pass "release.md changelog commit includes three required footers"
 	else
-		fail "release.md changelog commit missing Authored-by/Implemented-by/Tested-by/Signed-off-by"
+		fail "release.md changelog commit missing Implemented-by/Tested-by/Signed-off-by (or still has Authored-by)"
 	fi
 fi
 
@@ -61,6 +62,7 @@ else
 fi
 
 print_summary "commit_template_footer"
+
 
 
 

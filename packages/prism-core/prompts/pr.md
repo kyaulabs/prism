@@ -176,11 +176,12 @@ esac
 
 SIGNED_OFF_BY=$(bash packages/prism-core/scripts/resolve-identity.sh)
 MODEL_ID="${PI_MODEL##*/}"
+OCR_MODEL=$(bash packages/prism-core/scripts/resolve-ocr-model.sh) \
+    || { printf 'PR title validation failed: OCR model could not be resolved (run: ocr config model)\n' >&2; exit 1; }
 {
     cat "$TITLE_FILE"
-    printf '\n\nAuthored-by: %s\n' "$MODEL_ID"
-    printf 'Implemented-by: %s\n' "$MODEL_ID"
-    printf 'Tested-by: %s\n' "$MODEL_ID"
+    printf '\n\nImplemented-by: %s\n' "$MODEL_ID"
+    printf 'Tested-by: %s\n' "$OCR_MODEL"
     printf 'Signed-off-by: %s\n' "$SIGNED_OFF_BY"
 } > "$VALIDATION_FILE"
 

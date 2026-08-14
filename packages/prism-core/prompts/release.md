@@ -200,16 +200,18 @@ if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_REF" | grep -qE '^R
     echo "✗ Release-issue footer is missing or malformed." >&2
     exit 1
 fi
+OCR_MODEL=$(bash packages/prism-core/scripts/resolve-ocr-model.sh) \
+    || { echo "✗ Release commit blocked: OCR model could not be resolved (run: ocr config model)." >&2; exit 1; }
 git add CHANGELOG.md
 if [ -n "$RELEASE_REF" ]; then
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
+    RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
         "$VERSION" "$RELEASE_REF" "$MODEL_ID" \
-        "$MODEL_ID" "$MODEL_ID" \
+        "$OCR_MODEL" \
         "$(bash packages/prism-core/scripts/resolve-identity.sh)")
 else
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
+    RELEASE_MSG=$(printf 'chore(release): v%s\n\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
         "$VERSION" "$MODEL_ID" \
-        "$MODEL_ID" "$MODEL_ID" \
+        "$OCR_MODEL" \
         "$(bash packages/prism-core/scripts/resolve-identity.sh)")
 fi
 git commit -S -m "$RELEASE_MSG"
