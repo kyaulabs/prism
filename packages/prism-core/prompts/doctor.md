@@ -44,6 +44,31 @@ Node.js fallback.
 
 ## 3. Prism resources
 
+First run the contract-owned readiness check (never install or configure
+Semgrep/OCR):
+
+```bash
+prism-tool doctor --local-only
+```
+
+This performs mandatory Semgrep/OCR version verification (ADR-0063: Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`). Then ask exactly one
+OCR-connectivity question before any live test:
+
+```text
+Approve the OCR connectivity test (ocr llm test) now? (yes/no)
+```
+
+Accept only `--ocr-test-approved=yes`, then run:
+
+```bash
+prism-tool doctor --ocr-test-approved=yes
+```
+
+A declined or failed live test makes that operation NO-GO; a connectivity
+approval never authorizes transmitting reviewed code (that is a separate
+code-egress approval).
+
 ```bash
 pi list
 
@@ -83,10 +108,10 @@ else
     echo "NOT_INSTALLED — run 'bash packages/prism-core/scripts/install-hooks.sh'"
 fi
 
-if [ -x ./node_modules/.bin/commitlint ]; then
-    ./node_modules/.bin/commitlint --version
+if command -v prism-tool > /dev/null 2>&1; then
+    prism-tool run commitlint -- --version
 else
-    echo "commitlint (local) NOT_INSTALLED"
+    echo "prism-tool launcher NOT_INSTALLED — deploy via install-global.sh or /setup"
 fi
 
 git config user.name >/dev/null 2>&1 \
@@ -96,10 +121,10 @@ git config user.name >/dev/null 2>&1 \
 ```
 
 A repository that ships the Prism hooks needs `.github/hooks` configured and
-local commitlint available; the commit-msg hook fails closed without it. A
-consumer that does not ship these hooks reports the section SKIPPED. Missing
-identity is blocking for signed commits because `resolve-identity.sh` fails
-closed.
+the prism-tool launcher available; the commit-msg hook fails closed without
+it. A consumer that does not ship these hooks reports the section SKIPPED.
+Missing identity is blocking for signed commits because
+`resolve-identity.sh` fails closed.
 
 ## 5. Search skill prerequisites
 

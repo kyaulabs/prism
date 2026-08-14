@@ -850,7 +850,7 @@ git commit -S -m $'refactor(hooks): route declared tools through prism-tool\n\nA
 - Consumes: complete public CLI.
 - Produces: conversation-owned one-question approval sequence and no direct declared-tool invocation in active resources.
 
-- [ ] **Step 1: Write failing resource contract tests**
+- [x] **Step 1: Write failing resource contract tests**
 
 `toolchain_entrypoints_test.sh` must assert:
 
@@ -865,7 +865,7 @@ git commit -S -m $'refactor(hooks): route declared tools through prism-tool\n\nA
 
 Exclude frozen ADRs, specs/plans, `aurora/`, and test fixtures from the stale-reference scan.
 
-- [ ] **Step 2: Run resource tests to verify Red**
+- [x] **Step 2: Run resource tests to verify Red**
 
 Run:
 
@@ -877,7 +877,7 @@ bash tests/Shell/pr_command_test.sh
 
 Expected: FAIL on current direct invocations and optional OCR semantics.
 
-- [ ] **Step 3: Rewrite active resources around the CLI**
+- [x] **Step 3: Rewrite active resources around the CLI**
 
 `/setup` performs local preflight, asks OCR-test permission, performs live preflight, detects the adapter, asks registry permission, runs `setup resolve`, shows exact diff/status, asks literal `yes`, then runs apply and approved browser/network verification. It never asks for keys or runs OCR config; it prints human-run configuration commands when readiness fails.
 
@@ -897,7 +897,7 @@ prism-tool run playwright -- install chromium
 
 Retain each prompt/skill's current behavioral constraints, frontmatter, and one-question gates. Do not duplicate version tables outside contracts; link to the contract and ADR-0063.
 
-- [ ] **Step 4: Run resource tests to verify Green**
+- [x] **Step 4: Run resource tests to verify Green**
 
 Run:
 
@@ -910,7 +910,7 @@ bash packages/prism-core/scripts/validate-harness.sh
 
 Expected: all pass and stale direct invocation scan is empty outside approved exclusions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/prompts packages/prism-core/skills/code-review packages/prism-core/skills/audit-deps packages/prism-php-web/prompts packages/prism-php-web/skills packages/prism-php-web/docs/tests.md tests/Shell/toolchain_entrypoints_test.sh tests/Shell/release_workflow_test.sh tests/Shell/pr_command_test.sh

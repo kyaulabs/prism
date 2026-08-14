@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+# $KYAULabs: pr_command_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -117,6 +119,8 @@ run_preflight() {
 	local fixture="$1" script="$2" output="$3"
 	(
 		cd "$fixture"
+		PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" \
+		PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH" \
 		bash "$script"
 	) > "$output" 2>&1
 }
@@ -332,9 +336,11 @@ assert_preflight_failure 'net-empty range is rejected' "$fixture" 'branch has no
 export PI_MODEL="${PI_MODEL:-test-model}"
 
 COMMITLINT_AVAILABLE=false
-if [ -d "$REPO_ROOT/node_modules/commitlint" ] && [ -x "$REPO_ROOT/node_modules/.bin/commitlint" ]; then
+if [ -f "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" ]; then
 	COMMITLINT_AVAILABLE=true
 fi
+LAUNCHER="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+TOOLCHAIN_PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 
 title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
@@ -344,11 +350,11 @@ injection_sentinel="$title_dir/pr_command_injection"
 backtick_sentinel="$title_dir/pr_command_backtick"
 
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
-	skip 'local commitlint unavailable — title-validation behavior checks skipped'
+	skip 'prism-tool source CLI unavailable — title-validation behavior checks skipped'
 else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	validation_title=""
 	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
 	if [ "$rc" -eq 0 ] \
@@ -361,7 +367,7 @@ else
 
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 0 ]; then
 		pass 'title validation rejects an uppercase over-length title'
 	else
@@ -377,7 +383,7 @@ PR_TITLE_PAYLOAD
 		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	preserved=1
 	if [ "$rc" -eq 0 ]; then preserved=0; fi
 	if [ -e "$injection_sentinel" ]; then preserved=0; fi
@@ -497,6 +503,8 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
+
 
 
 

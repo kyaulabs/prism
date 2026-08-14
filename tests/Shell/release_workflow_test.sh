@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -466,7 +468,7 @@ fi
 
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
-if grep -qF 'git cliff --version' "$RELEASE_CMD" && \
+if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \
    grep -qF -- '-lt 2' "$RELEASE_CMD" && \
    grep -qF '/doctor' "$RELEASE_CMD"; then
 	pass "P15: /release requires git-cliff 2.0+ and points to /doctor"
@@ -484,13 +486,13 @@ fi
 
 # ── P17. Tagged/tagless proposal paths; no shell read prompt ─────────────────
 
-if grep -qF 'git cliff --bumped-version' "$RELEASE_CMD" && \
+if grep -qF 'prism-tool run git-cliff -- --bumped-version' "$RELEASE_CMD" && \
    grep -qF 'no prior release tag' "$RELEASE_CMD" && \
    grep -qF 'initial version' "$RELEASE_CMD" && \
    grep -qF 'new-branch.sh release' "$RELEASE_CMD" && \
    ! grep -qF 'new-branch.sh release "v' "$RELEASE_CMD" && \
    ! grep -qE '(^|[^[:alpha:]])read[[:space:]]+' "$RELEASE_CMD"; then
-	pass "P17: /release proposes via git cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
+	pass "P17: /release proposes via prism-tool run git-cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
 else
 	fail "P17: /release proposal-path, tagless-initial-version, no-shell-read, or no-v branch contract violated"
 fi
@@ -507,10 +509,10 @@ fi
 
 # ── P18. Changelog generation ────────────────────────────────────────────────
 
-if grep -qF 'git cliff --tag "v' "$RELEASE_CMD" && grep -qF -- '--output CHANGELOG.md' "$RELEASE_CMD"; then
-	pass "P18: /release generates CHANGELOG.md with git cliff --tag \"vX.Y.Z\" --output CHANGELOG.md"
+if grep -qF 'prism-tool run git-cliff -- --tag "v' "$RELEASE_CMD" && grep -qF -- '--output CHANGELOG.md' "$RELEASE_CMD"; then
+	pass "P18: /release generates CHANGELOG.md with prism-tool run git-cliff --tag \"vX.Y.Z\" --output CHANGELOG.md"
 else
-	fail "P18: /release missing git cliff --tag vX.Y.Z --output CHANGELOG.md"
+	fail "P18: /release missing prism-tool run git-cliff --tag vX.Y.Z --output CHANGELOG.md"
 fi
 
 # ── P19. Repo identity and portable template-link replacement ────────────────
@@ -604,6 +606,8 @@ else
 fi
 
 print_summary "release_workflow"
+
+
 
 
 

@@ -5,40 +5,40 @@ description: Pre-push gate. Runs PHP CS fixer (dry-run), stylelint, eslint, and 
 Run the project's full pre-push check suite and report failures grouped by
 tool. Do not push or commit anything.
 
+## 0. Mandatory local readiness
+
+```bash
+prism-tool doctor --local-only
+```
+
+A missing launcher or failed Semgrep/OCR readiness is blocking; report the
+remediation and stop.
+
 ## 1. PHP code style
 
 ```bash
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix --dry-run --diff
-else
-	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
-fi
+prism-tool run php-cs-fixer -- fix --dry-run --diff
 ```
 
 If violations are found, list the affected files and a one-line summary of the
-fix. Do not auto-fix.
+fix. Do not auto-fix. The launcher resolves the adapter-owned fixer from the
+consumer project; a missing tool is a hard failure, never SKIPPED.
 
 ## 2. SCSS lint
 
 ```bash
-npx stylelint "cdn/sass/**/*.scss"
+prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
 ```
 
-Skip with a note if stylelint is not configured or no SCSS exists.
+Skip with a note if no SCSS source exists.
 
 ## 3. JS lint
 
 ```bash
-npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+prism-tool run eslint -- "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 ```
 
-Skip with a note if eslint is not configured or no JS source exists.
+Skip with a note if no JS source exists.
 
 ## 4. Tests with coverage
 
@@ -97,14 +97,14 @@ fi
 ```
 
 Then run the full suite with coverage (Clover XML feeds the changed-file
-gate). The dev server URL is passed via `PEST_BROWSER_BASE_URL` exactly as
-CI sets it:
+gate) through the launcher. The dev server URL is passed via
+`PEST_BROWSER_BASE_URL` exactly as CI sets it:
 
 ```bash
 if [ -n "$BROWSER_URL" ]; then
-    PEST_BROWSER_BASE_URL="$BROWSER_URL" php -d pcov.enabled=1 vendor/bin/pest --coverage
+    PEST_BROWSER_BASE_URL="$BROWSER_URL" prism-tool run pest -- --coverage
 else
-    php -d pcov.enabled=1 vendor/bin/pest --coverage
+    prism-tool run pest -- --coverage
 fi
 ```
 
