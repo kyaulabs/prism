@@ -1,0 +1,11 @@
+{
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "providers": {
+        "deepseek": {
+            "api_key": "sk-CANARY-MUST-NEVER-LEAK",
+            "model": "deepseek-v4-flash"
+        }
+    },
+    "llm": {}
+}
