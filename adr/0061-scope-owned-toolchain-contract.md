@@ -4,7 +4,7 @@ Date: 2026-08-13
 
 ## Status
 
-Accepted
+Superseded by ADR-0062
 
 Depends on ADR-0025, ADR-0047, ADR-0048, ADR-0056, ADR-0058, and ADR-0060.
 Partially supersedes ADR-0002's soft-prerequisite treatment of Semgrep; the

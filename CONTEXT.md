@@ -34,11 +34,11 @@ documentation, and conversation.
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, and the sole safety extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | active adapter | The project-local stack adapter selected by project evidence and made available to the current Pi session. Core workflows delegate stack-specific operations to it. |
-| toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact direct versions, provisioning modes, readiness checks, and allowed commands. |
+| toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
 | external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep and OCR are the initial prerequisites. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
-| toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions match, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
+| toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
 | consent boundary | One specific external effect requiring independent human approval. Registry access, consumer manifest mutation, OCR connectivity, and OCR code egress are separate boundaries; approval never transfers between them. |
 | candidate workspace | The adapter-owned ephemeral area used to resolve and audit proposed dependency graphs before approved consumer manifests or lockfiles change. It is not a general scratch directory. |
@@ -84,7 +84,8 @@ A project-local specialization of the Prism core.
 The declaration that connects Prism resources to executable capabilities.
 
 - Has one supported schema version and a unique package identity.
-- Uses stable allowlisted tool IDs and exact direct versions.
+- Uses stable allowlisted tool IDs, exact managed versions, and only ADR-approved
+  bounded requirements for external prerequisites.
 - Declares each tool as bundled, external, or consumer-development scope.
 - Contains no credentials, secret-bearing URLs, or arbitrary shell source.
 - Has mechanical parity with package manifests and active lockfile scopes.
@@ -99,7 +100,7 @@ The measured state required before a toolchain entry point proceeds.
 - Semgrep login is optional for local scanning.
 - OCR connectivity is tested during installation/setup, `/doctor`, and
   immediately before code review; other entry points verify only the local
-  executable and exact version.
+  executable and the declared `>=1.9.1 <2.0.0` compatibility requirement.
 - OCR connectivity approval never authorizes transmission of reviewed code.
 - A known dependency advisory at any severity prevents GO status.
 - Required tools are never silently skipped.
@@ -237,7 +238,8 @@ Pi-era decisions:
 - `adr/0058-core-adapter-package-split.md` — split the global language-agnostic core from project-local stack adapters.
 - `adr/0059-conversion-scope-deferred-evals-mcp-to-cli-skills.md` — bound the Pi port, defer evals, and replace MCP integrations with CLI skills.
 - `adr/0060-global-core-project-local-adapter-install.md` — install core globally, adapters locally, and deploy merge-safe always-on instructions.
-- `adr/0061-scope-owned-toolchain-contract.md` — provision and verify exact tools according to execution scope, consent, and fail-closed readiness.
+- `adr/0061-scope-owned-toolchain-contract.md` — superseded scope-owned toolchain baseline retained as historical context.
+- `adr/0062-bounded-ocr-compatibility.md` — retain exact managed tools and Semgrep while allowing OCR `>=1.9.1 <2.0.0`.
 
 ## When to update this file
 

@@ -195,8 +195,9 @@ version parsing, subprocess boundaries, structured status, and exit codes. OCR
 version parsing selects the installed version only from an anchored
 `open-code-review vX.Y.Z` product line, ignoring update advertisements and all
 other untrusted output. It does not own user interviews, login, code-egress
-approval, or arbitrary command execution. `run` accepts only tool IDs declared by the validated active
-contract and passes arguments as an argument array without shell evaluation.
+approval, or arbitrary command execution. `run` accepts only tool IDs declared
+by the validated active contract and passes arguments as an argument array
+without shell evaluation.
 
 The active adapter supplies its own toolchain manifest and handler. The core
 launcher discovers the installed project-local adapter through Pi's documented
@@ -228,8 +229,9 @@ providers and cannot be dependencies of Git hooks.
    needed; Prism never handles the key.
 7. After explicit network approval, it runs `ocr llm test`.
 8. Any failed mandatory check exits non-zero and reports the declared safe
-   human-run remediation without relaying raw tool output. The core resources may be installed, but the Prism toolchain
-   is not ready and no later setup stage proceeds.
+   human-run remediation without relaying raw tool output. The core resources
+   may be installed, but the Prism toolchain is not ready and no later setup
+   stage proceeds.
 
 ### Adapter provisioning
 
@@ -320,9 +322,10 @@ advisories before the toolchain is GO.
 Unit tests validate each `toolchain.json` through the public loader. They cover
 schema versions, exact-version grammar, mutually exclusive bounded-range
 grammar, range boundaries, package/command allowlists, duplicate tool IDs,
-provisioning modes, authentication modes, and package-manifest parity. Resolver tests use isolated fake global/project package layouts to
-prove published-package and local-source discovery without relying on the
-process working directory.
+provisioning modes, authentication modes, and package-manifest parity.
+Resolver tests use isolated fake global/project package layouts to prove
+published-package and local-source discovery without relying on the process
+working directory.
 
 ### CLI and mandatory-preflight seam
 
@@ -337,7 +340,7 @@ subprocess adapters. They prove:
 - non-zero exits for declined/failed `ocr llm test` at live-readiness entry
   points, and no live call from executable/version-only entry points;
 - Semgrep local readiness without login;
-- no later command runs after a mandatory preflight failure; and
+- no later command runs after a mandatory preflight failure;
 - OCR installed-version selection ignores advertised-update noise; and
 - bounded, sanitized failures that never expose supplied canary secrets.
 
@@ -414,8 +417,8 @@ and multi-axis code review.
       consumer-project adapter tools.
 - [ ] `CONTEXT.md` uses Pi terminology for this boundary and defines
       `toolchain contract`.
-- [ ] A new ADR records the hard-to-reverse provisioning, consent, and external
-      readiness decisions.
+- [ ] ADR-0062 records the hard-to-reverse provisioning, consent, bounded OCR
+      compatibility, and external readiness decisions.
 
 ## Out of Scope
 
@@ -447,8 +450,8 @@ the new glossary term. The accepted OpenCode-era ADRs remain frozen.
 
 The decision is cross-cutting and hard to reverse because it defines package
 ownership, executable resolution, project mutation, external authentication,
-and failure semantics. A new Pi-era ADR is required after architectural review
-and before implementation planning.
+and failure semantics. ADR-0062 supersedes ADR-0061 and records the approved
+bounded OCR compatibility exception.
 
 ## Alternatives Rejected
 
