@@ -41,7 +41,11 @@
       "kind": "command",
       "ecosystem": "pypi",
       "package": "semgrep",
-      "version": "1.173.0",
+      "versionRequirement": {
+        "mode": "range",
+        "minimum": "1.173.0",
+        "maximumExclusive": "2.0.0"
+      },
       "provisioning": "external",
       "authentication": "optional",
       "executable": "semgrep",
@@ -53,11 +57,16 @@
       "kind": "command",
       "ecosystem": "npm",
       "package": "@alibaba-group/open-code-review",
-      "version": "1.9.2",
+      "versionRequirement": {
+        "mode": "range",
+        "minimum": "1.9.1",
+        "maximumExclusive": "2.0.0"
+      },
       "provisioning": "external",
       "authentication": "required",
       "executable": "ocr",
       "versionArguments": ["--version"],
+      "executionTimeoutMs": 360000,
       "argumentPolicy": {"mode": "first-token", "allowed": ["review", "scan"]}
     }
   ]

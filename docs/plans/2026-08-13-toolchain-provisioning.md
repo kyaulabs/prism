@@ -437,7 +437,7 @@ git commit -S -m $'feat(toolchain): run bundled tools through core launcher\n\nA
 - Produces: mutually exclusive exact/range contract validation, `checkExternalTools({contract, env, run})`, `testOcrConnectivity({approved, run})`, `doctor()`.
 - Changes: every `run` performs local Semgrep/OCR version preflight before resolving its target.
 
-- [ ] **Step 1: Write failing readiness and sanitization tests**
+- [x] **Step 1: Write failing readiness and sanitization tests**
 
 Use temporary fake `semgrep` and `ocr` executables. For each tool cover lower-bound pass, later-1.x pass, below-minimum failure, and `2.0.0` failure. Cover mutually exclusive/invalid range contracts, Semgrep's exactly one anchored bare `X.Y.Z` line, OCR's exactly one anchored `open-code-review vX.Y.Z` line, advertised-update noise, missing command, malformed/duplicate version evidence, timeout, output cap, Semgrep without login, doctor without OCR-test approval, approved `ocr llm test`, failed live test, and canary-secret output. Assert:
 
@@ -449,7 +449,7 @@ assert.equal(readCounter('target-runs'), 0);
 
 Also assert `doctor --local-only` never invokes `ocr llm test`, while plain `doctor` requires `--ocr-test-approved=yes` and exits `2` when absent. Assert `run ocr --code-egress-approved=yes -- review --audience agent --format json` is allowed only after local preflight; missing egress approval exits `2` before OCR execution.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -459,15 +459,15 @@ node --test tests/Node/prism-tool-preflight.test.js
 
 Expected: FAIL because external preflight and doctor behavior are absent.
 
-- [ ] **Step 3: Implement fail-closed preflight and cadence**
+- [x] **Step 3: Implement fail-closed preflight and cadence**
 
 Resolve external executables from `PATH` without invoking a shell. Run each declared `versionArguments` with fixed bounds. Compare exact managed components as exact strings. For Semgrep, select the installed version from exactly one anchored bare `X.Y.Z` line; for OCR, select it from exactly one anchored `open-code-review vX.Y.Z` product line. Ignore update advertisements and all other version tokens, then compare numeric major/minor/patch tuples against each component's inclusive minimum and exclusive maximum. Reject prereleases and malformed, duplicate, or ambiguous evidence. Return checks with only tool ID, PASS/FAIL, the safe exact/range expectation, actual version when safe, and a fixed message. Never include raw stdout/stderr.
 
 `doctor` always runs local checks. `--local-only` returns after local checks. Without `--local-only`, require exact OCR-test approval and internally invoke `ocr` with `['llm', 'test']`; reduce the result to `PASS` or one of `timeout`, `non-zero`, `malformed`, or `output-limit`. Do not persist connectivity state.
 
-Every `run` calls local preflight first. OCR `review`/`scan` additionally require exact egress approval. The caller cannot use `run` for `ocr config`, `ocr llm test`, Semgrep login, or any first token outside the contract allowlist.
+Every `run` calls local preflight first. OCR `review`/`scan` additionally require exact egress approval and use the contract-owned six-minute execution timeout needed for reviews that may take five minutes; version probes and connectivity tests remain bounded at 30 seconds. Contract execution timeouts must be integer milliseconds from one second through ten minutes. The caller cannot use `run` for `ocr config`, `ocr llm test`, Semgrep login, or any first token outside the contract allowlist.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 

@@ -1,4 +1,9 @@
-// $KYAULabs: prism-tool-run.test.js git@aura.kyaulabs 2026/08/13 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
+
+
+
 
 
 
@@ -18,6 +23,24 @@ const {extractVersion, runBounded} = require('../../packages/prism-core/scripts/
 
 const corePackage = require('../../packages/prism-core/package.json');
 const rootPackage = require('../../package.json');
+
+function readyExternalEnvironment(directory) {
+	const bin = path.join(directory, 'external-bin');
+	fs.mkdirSync(bin, {recursive: true});
+	for (const [name, output] of [
+		['semgrep', '1.173.0'],
+		['ocr', 'open-code-review v1.9.1 linux/amd64'],
+	]) {
+		const executable = path.join(bin, name);
+		fs.writeFileSync(
+			executable,
+			`#!${process.execPath}\nif (process.argv[2] !== '--version') process.exit(97);\nprocess.stdout.write('${output}\\n');\n`,
+			{mode: 0o755}
+		);
+		fs.chmodSync(executable, 0o755);
+	}
+	return {...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`};
+}
 
 async function captureWrites(action) {
 	const stdout = [];
@@ -94,7 +117,7 @@ test('runs bundled git-cliff from an unrelated working directory', (t) => {
 	const result = spawnSync(
 		process.execPath,
 		[cli, 'run', 'git-cliff', '--', '--version'],
-		{cwd: directory, encoding: 'utf8'}
+		{cwd: directory, encoding: 'utf8', env: readyExternalEnvironment(directory)}
 	);
 
 	assert.equal(result.status, 0, result.stderr);
@@ -114,7 +137,7 @@ test('applies the core commit policy outside the Prism checkout', (t) => {
 	const result = spawnSync(
 		process.execPath,
 		[cli, 'run', 'commitlint', '--', '--edit', message],
-		{cwd: directory, encoding: 'utf8'}
+		{cwd: directory, encoding: 'utf8', env: readyExternalEnvironment(directory)}
 	);
 
 	assert.equal(result.status, 4);
@@ -126,6 +149,9 @@ test('rejects undeclared, library, malformed, and policy-bypassing runs', () => 
 		['run', 'missing', '--'],
 		['run', 'commitlint-config-conventional', '--'],
 		['run', 'ocr', '--', 'config'],
+		['run', 'ocr', '--', 'llm', 'test'],
+		['run', 'semgrep', '--', 'login'],
+		['run', 'ocr', '--code-egress-approved=true', '--', 'review'],
 		['run', 'git-cliff', '--version'],
 	];
 
@@ -280,6 +306,11 @@ test('forwards bounded stdin and arguments as inert data', async (t) => {
 		input: 'staged content\n',
 	});
 });
+
+
+
+
+
 
 
 

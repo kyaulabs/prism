@@ -1,4 +1,9 @@
-// $KYAULabs: contract.js git@aura.kyaulabs 2026/08/13 -0700 Exp $
+// $KYAULabs: contract.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
+
+
+
 
 
 
@@ -7,6 +12,9 @@
 const fs = require('node:fs');
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const MIN_EXECUTION_TIMEOUT_MS = 1000;
+const MAX_EXECUTION_TIMEOUT_MS = 600000;
+const STABLE_VERSION = /^(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})$/;
 const IDENTIFIER = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EXECUTABLE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)?)$/;
@@ -22,12 +30,14 @@ const COMPONENT_KEYS = new Set([
 	'authentication',
 	'ecosystem',
 	'executable',
+	'executionTimeoutMs',
 	'id',
 	'kind',
 	'package',
 	'provisioning',
 	'version',
 	'versionArguments',
+	'versionRequirement',
 ]);
 const BASE_COMPONENT_KEYS = new Set([
 	'authentication',
@@ -37,6 +47,7 @@ const BASE_COMPONENT_KEYS = new Set([
 	'package',
 	'provisioning',
 	'version',
+	'versionRequirement',
 ]);
 
 function fail(filePath, message) {
@@ -72,6 +83,49 @@ function assertStringArray(value, filePath, label) {
 	}
 }
 
+function compareStableVersions(left, right) {
+	const leftParts = left.split('.').map(Number);
+	const rightParts = right.split('.').map(Number);
+	for (let index = 0; index < leftParts.length; index += 1) {
+		if (leftParts[index] !== rightParts[index]) {
+			return leftParts[index] - rightParts[index];
+		}
+	}
+	return 0;
+}
+
+function validateVersion(component, filePath) {
+	const hasVersion = Object.prototype.hasOwnProperty.call(component, 'version');
+	const hasRequirement = Object.prototype.hasOwnProperty.call(component, 'versionRequirement');
+	if (hasVersion === hasRequirement) {
+		fail(filePath, `component ${component.id} requires exactly one version policy`);
+	}
+	if (hasVersion) {
+		if (!EXACT_VERSION.test(component.version)) {
+			fail(filePath, `component ${component.id} requires an exact version`);
+		}
+		return;
+	}
+	const requirement = component.versionRequirement;
+	if (!isRecord(requirement)) {
+		fail(filePath, `component ${component.id} version requirement must be an object`);
+	}
+	assertKnownKeys(
+		requirement,
+		new Set(['maximumExclusive', 'minimum', 'mode']),
+		filePath,
+		`component ${component.id} version requirement`
+	);
+	if (
+		requirement.mode !== 'range' ||
+		!STABLE_VERSION.test(requirement.minimum) ||
+		!STABLE_VERSION.test(requirement.maximumExclusive) ||
+		compareStableVersions(requirement.minimum, requirement.maximumExclusive) >= 0
+	) {
+		fail(filePath, `component ${component.id} has invalid version requirement`);
+	}
+}
+
 function validateArgumentPolicy(policy, filePath, componentId) {
 	if (!isRecord(policy)) {
 		fail(filePath, `component ${componentId} requires an argument policy`);
@@ -95,6 +149,27 @@ function validateArgumentPolicy(policy, filePath, componentId) {
 	fail(filePath, `component ${componentId} has unsupported argument policy`);
 }
 
+function isApprovedBoundedExternal(component, role) {
+	if (role !== 'core' || component.kind !== 'command' || component.provisioning !== 'external') {
+		return false;
+	}
+	if (component.id === 'semgrep') {
+		return (
+			component.ecosystem === 'pypi' &&
+			component.package === 'semgrep' &&
+			component.authentication === 'optional' &&
+			component.executable === 'semgrep'
+		);
+	}
+	return (
+		component.id === 'ocr' &&
+		component.ecosystem === 'npm' &&
+		component.package === '@alibaba-group/open-code-review' &&
+		component.authentication === 'required' &&
+		component.executable === 'ocr'
+	);
+}
+
 function validateComponent(component, role, filePath) {
 	if (!isRecord(component)) {
 		fail(filePath, 'component must be an object');
@@ -102,9 +177,7 @@ function validateComponent(component, role, filePath) {
 	assertKnownKeys(component, COMPONENT_KEYS, filePath, 'component');
 	assertString(component.id, IDENTIFIER, filePath, 'component id');
 	assertString(component.package, PACKAGE_NAME, filePath, `component ${component.id} package`);
-	if (!EXACT_VERSION.test(component.version)) {
-		fail(filePath, `component ${component.id} requires an exact version`);
-	}
+	validateVersion(component, filePath);
 	if (!['command', 'library'].includes(component.kind)) {
 		fail(filePath, `component ${component.id} has unsupported kind`);
 	}
@@ -126,6 +199,9 @@ function validateComponent(component, role, filePath) {
 	if (component.provisioning === 'bundled' && component.ecosystem !== 'npm') {
 		fail(filePath, `bundled component ${component.id} must use npm`);
 	}
+	if (component.versionRequirement && !isApprovedBoundedExternal(component, role)) {
+		fail(filePath, `component ${component.id} cannot use a bounded version requirement`);
+	}
 	if (component.kind === 'library') {
 		for (const key of Object.keys(component)) {
 			if (!BASE_COMPONENT_KEYS.has(key)) {
@@ -137,6 +213,16 @@ function validateComponent(component, role, filePath) {
 	assertString(component.executable, EXECUTABLE, filePath, `component ${component.id} executable`);
 	assertStringArray(component.versionArguments, filePath, `component ${component.id} version arguments`);
 	validateArgumentPolicy(component.argumentPolicy, filePath, component.id);
+	if (
+		component.executionTimeoutMs !== undefined &&
+		(
+			!Number.isInteger(component.executionTimeoutMs) ||
+			component.executionTimeoutMs < MIN_EXECUTION_TIMEOUT_MS ||
+			component.executionTimeoutMs > MAX_EXECUTION_TIMEOUT_MS
+		)
+	) {
+		fail(filePath, `component ${component.id} has invalid execution timeout`);
+	}
 }
 
 function validateContract(value, filePath) {
@@ -225,7 +311,17 @@ function loadContract(filePath) {
 	return deepFreeze(validateContract(value, filePath));
 }
 
-module.exports = { assertPackageParity, loadContract, validateContract };
+module.exports = {
+	assertPackageParity,
+	compareStableVersions,
+	loadContract,
+	validateContract,
+};
+
+
+
+
+
 
 
 
