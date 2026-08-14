@@ -32,8 +32,8 @@ Adopt a hybrid, scope-owned provisioning model:
    exact runtime dependencies: commitlint, the conventional commitlint config,
    and git-cliff.
 2. Semgrep and Open Code Review (`ocr`) remain externally installed mandatory
-   core prerequisites. Prism verifies Semgrep's exact version and OCR's bounded
-   compatible range, but never installs either tool autonomously.
+   core prerequisites. Prism verifies each tool against a bounded compatible
+   1.x range, but never installs either tool autonomously.
 3. `prism-php-web` provisions its Composer and npm development tools into the
    consumer project's manifests and lockfiles only after a preview and literal
    `yes` approval.
@@ -64,7 +64,7 @@ Adopt a hybrid, scope-owned provisioning model:
 - Keep credentials out of Prism files, command arguments, logs, and agent
   context.
 - Keep local development, CI, hooks, prompts, and published packages on the
-  same tool versions and resolution rules.
+  same tool requirements and resolution rules.
 
 ## Toolchain Contract
 
@@ -91,7 +91,7 @@ Prism never installs these tools autonomously:
 
 | Capability | Tool/package | Version requirement | Readiness rule |
 | --- | --- | --- | --- |
-| Static analysis | `semgrep` / PyPI `semgrep` | `1.173.0` | executable and exact version required; login optional |
+| Static analysis | `semgrep` / PyPI `semgrep` | `>=1.173.0 <2.0.0` | executable and compatible 1.x version required; login optional |
 | External code review | `ocr` / npm `@alibaba-group/open-code-review` | `>=1.9.1 <2.0.0` | executable and compatible 1.x version required; successful `ocr llm test` required at the defined cadence |
 
 A missing executable or version mismatch is a hard toolchain failure. It is
@@ -165,8 +165,9 @@ version or a structured bounded external version requirement, provisioning
 mode (`bundled`, `external`, or `consumer-dev`), authentication mode, and
 adapter browser requirements. Exact `version` and bounded `versionRequirement`
 forms are mutually exclusive. Bundled and consumer-development components must
-use exact versions; OCR alone uses `versionRequirement` with minimum `1.9.1`
-and exclusive maximum `2.0.0`. They contain no credentials, URLs with
+use exact versions. Semgrep uses `versionRequirement` with minimum `1.173.0`
+and exclusive maximum `2.0.0`; OCR uses minimum `1.9.1` and the same exclusive
+major-version maximum. They contain no credentials, URLs with
 embedded secrets, or arbitrary shell command strings.
 
 The core package's bundled npm versions are necessarily repeated in
@@ -192,9 +193,10 @@ prism-tool run TOOL_ID [ARGUMENT ...]
 
 The CLI owns package-root discovery, tool resolution, manifest validation,
 version parsing, subprocess boundaries, structured status, and exit codes. OCR
-version parsing selects the installed version only from an anchored
-`open-code-review vX.Y.Z` product line, ignoring update advertisements and all
-other untrusted output. It does not own user interviews, login, code-egress
+version parsing selects Semgrep's installed version only from exactly one
+anchored bare `X.Y.Z` line and OCR's installed version only from exactly one
+anchored `open-code-review vX.Y.Z` product line, ignoring update advertisements
+and all other untrusted output. It does not own user interviews, login, code-egress
 approval, or arbitrary command execution. `run` accepts only tool IDs declared
 by the validated active contract and passes arguments as an argument array
 without shell evaluation.
@@ -223,8 +225,7 @@ providers and cannot be dependencies of Git hooks.
    managed global `AGENTS.md` and `APPEND_SYSTEM.md` blocks as today.
 3. It exposes `prism-tool` through the managed launcher.
 4. It verifies bundled core dependency resolution.
-5. It verifies Semgrep's exact executable version and OCR's bounded compatible
-   executable version.
+5. It verifies the bounded compatible executable versions of Semgrep and OCR.
 6. It instructs the human to run OCR's interactive provider/model setup when
    needed; Prism never handles the key.
 7. After explicit network approval, it runs `ocr llm test`.
@@ -265,8 +266,8 @@ providers and cannot be dependencies of Git hooks.
 
 - Toolchain manifests that are malformed, unsupported, duplicated, or out of
   parity fail closed.
-- Missing Semgrep/OCR, an exact Semgrep mismatch, or an OCR version outside
-  `>=1.9.1 <2.0.0` stops `prism-tool`, `/setup`, `/doctor`,
+- Missing Semgrep/OCR, a Semgrep version outside `>=1.173.0 <2.0.0`, or an OCR
+  version outside `>=1.9.1 <2.0.0` stops `prism-tool`, `/setup`, `/doctor`,
   `/check`, `/security`, `/release`, `/pr`, and `code-review` before their main
   operation.
 - OCR connectivity is a hard readiness requirement during global/core setup,
@@ -310,8 +311,9 @@ interfaces or supplied through the user's environment. Presence checks never
 print values. `ocr llm test` output is reduced to sanitized PASS/FAIL evidence;
 credentials and provider responses are not logged.
 
-Managed direct package versions and Semgrep are exact; OCR is the sole bounded
-external exception at `>=1.9.1 <2.0.0`. Generated lockfiles pin transitive
+Managed direct package versions remain exact. Semgrep and OCR are bounded
+external prerequisites at `>=1.173.0 <2.0.0` and `>=1.9.1 <2.0.0`
+respectively. Generated lockfiles pin transitive
 versions. Both candidate and post-install graphs must have zero known
 advisories before the toolchain is GO.
 
@@ -335,13 +337,14 @@ subprocess adapters. They prove:
 - bundled commitlint/git-cliff resolution;
 - argument-array forwarding without shell evaluation;
 - stable structured and human-readable status;
-- non-zero exits for missing/mismatched Semgrep or OCR, including both OCR
+- non-zero exits for missing/mismatched Semgrep or OCR, including both tools'
   range boundaries;
 - non-zero exits for declined/failed `ocr llm test` at live-readiness entry
   points, and no live call from executable/version-only entry points;
 - Semgrep local readiness without login;
 - no later command runs after a mandatory preflight failure;
-- OCR installed-version selection ignores advertised-update noise; and
+- Semgrep and OCR installed-version selection ignores advertised-update noise;
+  and
 - bounded, sanitized failures that never expose supplied canary secrets.
 
 No test reads a real credential file or contacts a live provider.
@@ -383,11 +386,11 @@ and multi-axis code review.
 
 - [ ] Core package dependencies pin commitlint `21.2.2`, its conventional
       config `21.2.2`, and git-cliff `2.13.1` exactly.
-- [ ] Semgrep `1.173.0` and OCR `>=1.9.1 <2.0.0` are externally installed
-      mandatory prerequisites and are never installed autonomously.
+- [ ] Semgrep `>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` are externally
+      installed mandatory prerequisites and are never installed autonomously.
 - [ ] Missing or mismatched Semgrep/OCR stops every Prism toolchain entry point;
-      OCR accepts the lower bound and later 1.x releases while rejecting older
-      or 2.x releases.
+      each tool accepts its lower bound and later 1.x releases while rejecting
+      older or 2.x releases.
 - [ ] OCR readiness during global/core setup, `/setup`, `/doctor`, and
       immediately before `code-review` requires a separately approved
       successful `ocr llm test`; failure or refusal is NO-GO for that
@@ -411,14 +414,14 @@ and multi-axis code review.
 - [ ] No credential file is read and no token/key appears in output, commands,
       fixtures, or tracked files.
 - [ ] Root source-checkout manifests/lockfiles and CI pins use the approved
-      exact managed versions; CI provisions an OCR release inside its declared
-      compatible range.
+      exact managed versions; CI provisions Semgrep and OCR releases inside
+      their declared compatible ranges.
 - [ ] Documentation distinguishes bundled core, external mandatory core, and
       consumer-project adapter tools.
 - [ ] `CONTEXT.md` uses Pi terminology for this boundary and defines
       `toolchain contract`.
-- [ ] ADR-0062 records the hard-to-reverse provisioning, consent, bounded OCR
-      compatibility, and external readiness decisions.
+- [ ] ADR-0063 records the hard-to-reverse provisioning, consent, bounded
+      external compatibility, and readiness decisions.
 
 ## Out of Scope
 
@@ -450,8 +453,8 @@ the new glossary term. The accepted OpenCode-era ADRs remain frozen.
 
 The decision is cross-cutting and hard to reverse because it defines package
 ownership, executable resolution, project mutation, external authentication,
-and failure semantics. ADR-0062 supersedes ADR-0061 and records the approved
-bounded OCR compatibility exception.
+and failure semantics. ADR-0063 supersedes ADR-0062 and records the approved
+bounded Semgrep and OCR compatibility policy.
 
 ## Alternatives Rejected
 
