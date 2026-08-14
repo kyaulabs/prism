@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -86,7 +87,7 @@ STUB
 	chmod +x "$T1/bin/npx"
 
 	# Sample valid commit message (content irrelevant — guard fires first)
-	printf 'feat: test\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
+	printf 'feat: test\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
 
 	set +e
 	output=$(PATH="$T1/bin:$PATH" env -u PRISM_TOOL "$REAL_HOOK" msg 2>&1)
@@ -115,7 +116,7 @@ register_temp_dir "$T2"
 	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
 	export PATH="$T2/toolchain-bin:$PATH"
 
-	VALID=$'feat: base commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: base commit\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	git checkout -q -b feature
 	echo b > b; git add b; git commit -q -m "$VALID"
@@ -148,7 +149,7 @@ register_temp_dir "$T3"
 	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
 	export PATH="$T3/toolchain-bin:$PATH"
 
-	VALID=$'feat: original\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: original\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	TARGET=$(git rev-parse HEAD)
 
@@ -207,7 +208,7 @@ register_temp_dir "$T5"
 	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
 	export PATH="$T5/toolchain-bin:$PATH"
 
-	VALID=$'feat: valid commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: valid commit\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a
 	set +e
 	output=$(git commit -q -m "$VALID" 2>&1)
@@ -266,7 +267,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nCloses #40\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nCloses #40\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -289,7 +290,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nResolve: #50\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nResolve: #50\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -312,7 +313,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -335,7 +336,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nfixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nfixes: #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -350,15 +351,15 @@ else
 )
 fi
 
-# ── Test 11: Reject Fixes: placed after Authored-by: (placement) ───────────────────
+# ── Test 11: Reject Fixes: placed after Implemented-by: (placement) ───────────────
 
-echo "── Test 11: Fixes: after Authored-by: rejected ──"
+echo "── Test 11: Fixes: after Implemented-by: rejected ──"
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 11 (placement) — commitlint not installed"
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -366,9 +367,9 @@ else
 	set -e
 	rm -f "$MSG"
 	if [ "$ret" -ne 0 ]; then
-		pass "Test 11: Fixes: after Authored-by: rejected (placement)"
+		pass "Test 11: Fixes: after Implemented-by: rejected (placement)"
 	else
-		fail "Test 11: Fixes: after Authored-by: accepted (should be rejected) (exit=$ret): $output"
+		fail "Test 11: Fixes: after Implemented-by: accepted (should be rejected) (exit=$ret): $output"
 	fi
 )
 fi
@@ -381,7 +382,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes: #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -404,7 +405,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'feat(db): add index\n\nRefs: #123\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'feat(db): add index\n\nRefs: #123\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -427,7 +428,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -450,7 +451,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -473,7 +474,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'feat: missing impl\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'feat: missing impl\n\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -492,6 +493,7 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
+
 
 
 
