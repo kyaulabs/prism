@@ -9,6 +9,8 @@
 
 
 
+
+
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
 #
@@ -64,7 +66,7 @@ for argument in "$@"; do
             UNINSTALL_LAUNCHER=true
             ;;
         *)
-            echo "✗ unknown option: $argument" >&2
+            echo "✗ unknown option" >&2
             exit 2
             ;;
     esac
@@ -273,6 +275,8 @@ Next:
     (or  pi install -l ./packages/prism-php-web  for local dev).
   • Authenticate the model: /login deepseek  (or export DEEPSEEK_API_KEY).
 EOF
+
+
 
 
 

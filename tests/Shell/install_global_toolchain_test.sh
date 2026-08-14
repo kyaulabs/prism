@@ -3,6 +3,8 @@
 
 
 
+
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -401,6 +403,19 @@ if [ ! -s "$T8/pi-invocations" ]; then
 else
     fail "an invalid option reached Pi"
 fi
+output=""
+status=0
+output=$(HOME="$T8/home" \
+    PI_CODING_AGENT_DIR="$T8/pi-agent" \
+    PRISM_BIN_DIR="$T8/bin-dir" \
+    PI_INVOCATIONS="$T8/pi-invocations" \
+    PATH="$T8/bin:$PATH" \
+    bash "$INSTALLER" $'--unknown=CANARY-OPTION\nsecond-line' 2>&1) || status=$?
+if [ "$status" -ne 0 ] && ! grep -qF 'CANARY-OPTION' <<< "$output"; then
+    pass "invalid option diagnostics do not relay untrusted argument text"
+else
+    fail "invalid option diagnostics relayed untrusted argument text"
+fi
 
 T9=$(mktemp -d)
 register_temp_dir "$T9"
@@ -444,6 +459,8 @@ fi
 
 print_summary "install global toolchain"
 exit $?
+
+
 
 
 
