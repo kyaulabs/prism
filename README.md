@@ -220,24 +220,28 @@ Gitleaks scans commits for secrets at pre-commit time. Install globally via your
 
 ### Harness tools
 
-In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding capabilities:
+Tools resolve through the `prism-tool` launcher, never from the checkout's
+`node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
+contracts (`packages/prism-core/toolchain.json`,
+`packages/prism-php-web/toolchain.json`) and ADR-0063:
 
-| Tool | Purpose | Install | Known-good version |
+| Tool | Scope | Purpose | Version policy |
 | --- | --- | --- | --- |
-| [pi](https://pi.dev) | The coding agent this harness targets | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | 0.84.1 |
-| [Semgrep](https://semgrep.dev) | SAST scanning (`/security`) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
-| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`code-review` skill) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
-| [git-cliff](https://github.com/orhun/git-cliff) | Changelog generation (`/release`, manual fallback) | `cargo install git-cliff` or your package manager | 2.0+ |
+| [pi](https://pi.dev) | runtime | The coding agent this harness targets | 0.84.1 (pinned) |
+| [Semgrep](https://semgrep.dev) | mandatory external | SAST scanning (`/security`) | `>=1.173.0 <2.0.0` — verified, never installed |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | mandatory external | Code review (`code-review` skill) | `>=1.9.1 <2.0.0` — verified, never installed; `ocr llm test` only after connectivity approval |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | generic control | Secrets scanning at pre-commit | 8.30.1 (pinned) |
+| [GitHub CLI (`gh`)](https://cli.github.com) | optional | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | any recent |
+| commitlint / git-cliff | bundled core | Commit validation; changelog generation via `prism-tool run git-cliff` | exact contract versions |
+| php-cs-fixer, Pest 5, Playwright, sass, uglify-js, eslint, stylelint | consumer-dev | PHP/web adapter gates | exact contract versions (Pest 5 on PHPUnit 13) |
 
-> Recommended floor versions, not hard pins — refresh on each release. `gh` is
-> optional — only needed for `/release`, `/pr`, `/setup-labels`, and
-> `/setup-rulesets`; all other features work without it. `/pr` only prepares
-> and displays the `gh pr create` command — the human executes it after
-> publishing the branch. `git-cliff` is also an npm devDependency — the
-> project-local wrapper — while `/release` needs the direct `git cliff` PATH
-> binary at >= 2.0 (`cargo install git-cliff` or your package manager).
+`gh` is optional — only needed for `/release`, `/pr`, `/setup-labels`, and
+`/setup-rulesets`; all other features work without it. `/pr` only prepares and
+displays the `gh pr create` command — the human executes it after publishing
+the branch. Registry access, consumer mutation, OCR connectivity, and OCR
+code egress are four **separate** approval gates; CI provisions compatible
+Semgrep/OCR releases only to construct its ephemeral verification environment
+(runtime setup verifies, never installs).
 
 ## Git Hooks
 
@@ -624,13 +628,13 @@ Never create tags, Releases, or back-merge PRs locally — `release.yml` owns pu
 ### Manual changelog
 
 ```bash
-git cliff --tag v0.0.1
+prism-tool run git-cliff -- --tag v0.0.1
 ```
 
 After the initial run of git-cliff all subsequent runs should detect the version automatically.
 
 ```bash
-git cliff
+prism-tool run git-cliff --
 ```
 
 A typical low-level workflow should look like the following.
@@ -638,7 +642,7 @@ A typical low-level workflow should look like the following.
 ```bash
 git add -A                      # add all un-indexed and changed files to the commit
 git commit -S -a -m "<message>" # add a conventional commit message and sign the commit
-git cliff                       # generate a new changelog
+prism-tool run git-cliff --     # generate a new changelog
 git add CHANGELOG.md            # add the changelog file to the commit
 git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
 # Push the release branch and open the release PR to main (see the

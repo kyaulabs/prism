@@ -18,6 +18,18 @@ and **progress** (GitHub Progress field) — with optional **wayfinder** and
 **meta** labels. The full vocabulary is documented in
 `docs/agents/labels.md`.
 
+## Toolchain boundary
+
+Tools resolve through the `prism-tool` launcher, never from a consumer's
+`node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
+contracts: bundled core tools (commitlint, git-cliff), mandatory external
+prerequisites that Prism verifies but never installs (Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
+adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
+Registry access, consumer mutation, OCR connectivity, and OCR code egress are
+four separate approvals; CI environment provisioning of compatible Semgrep/OCR
+releases is not runtime verification.
+
 ## Hard Boundaries
 
 > [!IMPORTANT]

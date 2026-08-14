@@ -36,6 +36,18 @@ pi install -l npm:@kyaulabs/prism-php-web
 On first run pi asks to **trust** the project (or save the decision with
 `/trust`) so project-local resources load.
 
+## Consumer toolchain
+
+The adapter declares its exact consumer-development tools in
+`toolchain.json` (Pest 5 on PHPUnit 13, php-cs-fixer, Playwright Chromium,
+Dart Sass, uglify-js, eslint, stylelint). `prism-tool setup` provisions them
+into the consumer project's `composer.json`/`package.json` and lockfiles only
+after separate registry and literal-`yes` mutation approvals, then installs
+them from the audited locks with lifecycle scripts disabled. The candidate
+workspace (`.pi/prism-tool/work/`) is ownership-marked and safely recovered
+or cleaned after interruption; Playwright installs only the matching Chromium
+build.
+
 ## License
 
 AGPL-3.0-only. See [NOTICE](./NOTICE) for the attribution chain.

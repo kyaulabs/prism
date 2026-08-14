@@ -71,6 +71,18 @@ For PHP/Aurora web projects, add the stack adapter per-project:
 pi install -l npm:@kyaulabs/prism-php-web
 ```
 
+## Toolchain readiness
+
+The package declares its owned tools in `toolchain.json`: bundled core tools
+(commitlint, git-cliff) resolve through `prism-tool`; Semgrep
+`>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` are mandatory external
+prerequisites that Prism verifies but never installs, configures, or
+authenticates (ADR-0063). Registry access, consumer mutation, OCR
+connectivity, and OCR code egress are four separate approvals; `ocr llm test`
+runs only after its own connectivity approval at the defined cadence. CI
+provisions compatible Semgrep/OCR releases only to construct its ephemeral
+verification environment — runtime setup remains verification-only.
+
 ## License
 
 AGPL-3.0-only. See [NOTICE](./NOTICE) for the full attribution chain

@@ -1078,11 +1078,11 @@ git commit -S -m $'ci(toolchain): replace legacy workflow with pi verification\n
 - Consumes: all prior tasks.
 - Produces: packed-package inclusion/mode guarantees and one documented install/setup/recovery path.
 
-- [ ] **Step 1: Write failing package smoke tests**
+- [x] **Step 1: Write failing package smoke tests**
 
 Use `npm pack --json --ignore-scripts` into a temporary directory for each package. Inspect tar entries and assert core contains `toolchain.json`, config, all CLI modules, executable bin source, global installer, prompts, skills, and safety data; adapter contains contract, handler/modules, prompts, skills, docs, and safe data. Extract archives, create fake Pi global/project layouts, and assert core bundled resolution plus local and managed adapter discovery from an unrelated cwd. Assert an unrelated existing launcher remains unchanged.
 
-- [ ] **Step 2: Run package smoke test to verify Red**
+- [x] **Step 2: Run package smoke test to verify Red**
 
 Run:
 
@@ -1092,7 +1092,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL on any missing package file, mode, or installed-layout behavior not completed by earlier tasks.
 
-- [ ] **Step 3: Close packaging and documentation gaps**
+- [x] **Step 3: Close packaging and documentation gaps**
 
 Update package files arrays only when the smoke test identifies an omitted owned path. Extend harness validation to verify executable mode for the CLI/bin/adapter handler and package archive inclusion. Update documentation to distinguish:
 
@@ -1109,7 +1109,7 @@ Update package files arrays only when the smoke test identifies an omitted owned
 
 Remove stale instructions that require root `node_modules`, direct `git cliff`, optional OCR, Pest 4, OpenCode, or package-source execution from consumer projects. Keep global `AGENTS.md` concise and point to ADR-0063/contracts rather than duplicating version tables.
 
-- [ ] **Step 4: Run package and full repository verification**
+- [x] **Step 4: Run package and full repository verification**
 
 Run:
 
@@ -1123,7 +1123,7 @@ git diff --check
 
 Expected: all pass; packed resources are complete and docs contain no stale active-runtime instructions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/AGENTS.md packages/prism-core/README.md packages/prism-php-web/README.md README.md CODING_HARNESS.md packages/prism-core/scripts/validate-harness.sh tests/Node/toolchain-packaging.test.js tests/Shell/script_executable_bits_test.sh

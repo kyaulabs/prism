@@ -58,6 +58,33 @@ fix.
 | `AGENTS.md` (repo root) | Repo-level project instructions (concatenates with the global core `AGENTS.md`) |
 | `.pi/settings.json` | This repo's own project settings — dogfoods both packages from disk |
 
+## Toolchain
+
+Declared tools resolve through the `prism-tool` launcher, never from a
+consumer's `node_modules`/`vendor`/PATH. Scope is owned by the versioned
+package toolchain contracts (`packages/prism-core/toolchain.json`,
+`packages/prism-php-web/toolchain.json`) and ADR-0063:
+
+- **Bundled core tools** — commitlint and git-cliff ship as exact core
+dependencies and run via `prism-tool run <id>` from any project.
+- **Mandatory external prerequisites** — Semgrep `>=1.173.0 <2.0.0` and OCR
+`>=1.9.1 <2.0.0` are verified by every entry point but never installed,
+configured, or authenticated by Prism.
+- **Consumer-development adapter tools** — Pest 5 on PHPUnit 13,
+php-cs-fixer, Playwright (Chromium only), sass, uglify-js, eslint, and
+stylelint are provisioned into the consumer project's native manifests and
+lockfiles through `prism-tool setup`.
+
+Registry access, consumer mutation, OCR connectivity, and OCR code egress are
+four **separate** approval gates; `ocr llm test` runs only after its own
+connectivity approval at the defined cadence. CI provisions compatible
+Semgrep/OCR releases only to construct its ephemeral verification
+environment — that is environment provisioning, not runtime verification
+(which remains verification-only). A candidate workspace under
+`.pi/prism-tool/work/` is ownership-marked and recovered/cleaned safely after
+interruption; the managed launcher refuses to overwrite or remove unrelated
+executables.
+
 ## pi mapping
 
 | opencode concept | prism-on-pi destination |

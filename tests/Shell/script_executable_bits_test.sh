@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: script_executable_bits_test.sh kyau@nova 2026/07/19 -0700 Exp $
+# $KYAULabs: script_executable_bits_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+
+
 
 
 
@@ -102,7 +104,36 @@ test_executable_script_passes
 test_missing_scripts_dir_passes
 test_error_message_names_remediation
 
+# ── Repo entry-point modes (Task 12) ───────────────────────────────────────
+# The toolchain CLI, adapter handler, and installers must be 100755 in the
+# git index so fresh checkouts and packed archives ship executable entry
+# points (the CI runner honors the stored index mode).
+
+test_toolchain_entry_point_modes() {
+	local entry mode bad=0
+	for entry in \
+		packages/prism-core/scripts/prism-tool.js \
+		packages/prism-core/scripts/install-global.sh \
+		packages/prism-core/scripts/install-hooks.sh \
+		packages/prism-php-web/scripts/prism-tool-adapter.js; do
+		mode=$(git -C "$REPO_ROOT" ls-files -s -- "$entry" | awk '{print $1}')
+		if [ "$mode" != "100755" ]; then
+			echo "  entry $entry is $mode (expected 100755)" >&2
+			bad=1
+		fi
+	done
+	if [ "$bad" -eq 0 ]; then
+		pass "toolchain CLI, handler, and installers are 100755 in the git index"
+	else
+		fail "a toolchain entry point is not 100755 in the git index"
+	fi
+}
+
+test_toolchain_entry_point_modes
+
 print_summary "script_executable_bits_test.sh"
+
+
 
 
 
