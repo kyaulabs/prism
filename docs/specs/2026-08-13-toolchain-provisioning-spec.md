@@ -45,8 +45,10 @@ Adopt a hybrid, scope-owned provisioning model:
    project-owned `.pi/prism-tool/work/` area before consumer files are changed.
    Any known advisory blocks the update.
 7. Missing or mismatched Semgrep or OCR stops every Prism toolchain entry point.
-   OCR must also pass `ocr llm test`; Semgrep authentication remains optional
-   because local Semgrep scans work without login.
+   OCR must also pass `ocr llm test` during global/core setup, `/setup`,
+   `/doctor`, and immediately before `code-review`; other entry points perform
+   the local executable/version check only. Semgrep authentication remains
+   optional because local Semgrep scans work without login.
 
 ## Goals
 
@@ -89,7 +91,7 @@ Prism never installs these tools autonomously:
 | Capability | Tool/package | Exact version | Readiness rule |
 | --- | --- | --- | --- |
 | Static analysis | `semgrep` / PyPI `semgrep` | `1.173.0` | executable and exact version required; login optional |
-| External code review | `ocr` / npm `@alibaba-group/open-code-review` | `1.9.2` | executable, exact version, and successful `ocr llm test` required |
+| External code review | `ocr` / npm `@alibaba-group/open-code-review` | `1.9.2` | executable and exact version always required; successful `ocr llm test` required at the defined cadence |
 
 A missing executable or version mismatch is a hard toolchain failure. It is
 not `SKIPPED`, optional, delegated, or a capability-only warning.
@@ -98,12 +100,15 @@ Semgrep may run local scans without an account. `/doctor` reports cloud
 features as unavailable when no login is configured, but local-only status
 remains valid.
 
-OCR is stricter. Before Prism declares the toolchain ready, the human configures
-OCR directly with `ocr config provider` and `ocr config model`; Prism never
-receives the API key. After separate approval for the external connection,
-Prism runs `ocr llm test`. A declined test, failed connection, missing model,
-or authentication failure stops the toolchain. OCR review still requires a
-separate explicit code-egress approval because it transmits reviewed content.
+OCR is stricter. Before a live OCR readiness point, the human configures OCR
+directly with `ocr config provider` and `ocr config model`; Prism never receives
+the API key. After separate approval for the external connection, Prism runs
+`ocr llm test` during global/core setup, `/setup`, `/doctor`, and immediately
+before `code-review`. A declined test, failed connection, missing model, or
+authentication failure stops that operation. Other entry points perform only
+the mandatory local executable/version check and do not contact the provider.
+OCR review still requires a separate explicit code-egress approval because it
+transmits reviewed content.
 
 ### PHP/web adapter Composer tools
 
@@ -253,8 +258,10 @@ providers and cannot be dependencies of Git hooks.
 - Missing or mismatched Semgrep or OCR stops `prism-tool`, `/setup`, `/doctor`,
   `/check`, `/security`, `/release`, `/pr`, and `code-review` before their main
   operation.
-- OCR connectivity is a hard readiness requirement. `ocr llm test` receives a
-  separate network approval; declining or failing it is NO-GO.
+- OCR connectivity is a hard readiness requirement during global/core setup,
+  `/setup`, `/doctor`, and immediately before `code-review`. `ocr llm test`
+  receives separate network approval; declining or failing it is NO-GO for
+  that operation. Other entry points perform no live OCR connection.
 - Semgrep login is not required for local scanning. Authentication-dependent
   cloud features are reported separately without weakening the mandatory local
   executable/version gate.
@@ -316,7 +323,8 @@ subprocess adapters. They prove:
 - argument-array forwarding without shell evaluation;
 - stable structured and human-readable status;
 - non-zero exits for missing/mismatched Semgrep or OCR;
-- non-zero exits for declined/failed `ocr llm test`;
+- non-zero exits for declined/failed `ocr llm test` at live-readiness entry
+  points, and no live call from executable/version-only entry points;
 - Semgrep local readiness without login;
 - no later command runs after a mandatory preflight failure; and
 - bounded, sanitized failures that never expose supplied canary secrets.
@@ -363,8 +371,10 @@ and multi-axis code review.
 - [ ] Semgrep `1.173.0` and OCR `1.9.2` are externally installed mandatory
       prerequisites and are never installed autonomously.
 - [ ] Missing or mismatched Semgrep/OCR stops every Prism toolchain entry point.
-- [ ] OCR readiness requires a separately approved successful `ocr llm test`;
-      failure or refusal is NO-GO.
+- [ ] OCR readiness during global/core setup, `/setup`, `/doctor`, and
+      immediately before `code-review` requires a separately approved
+      successful `ocr llm test`; failure or refusal is NO-GO for that
+      operation, while other entry points perform no live OCR connection.
 - [ ] Semgrep remains usable for mandatory local scans without login.
 - [ ] The PHP/web adapter provisions the approved exact Composer/npm tools into
       the consumer project only after literal `yes`.
