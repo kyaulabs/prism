@@ -507,7 +507,7 @@ git commit -S -m $'feat(toolchain): enforce mandatory external readiness\n\nAuth
 - Produces: `discoverAdapter({projectRoot, piDir})`, `loadAdapterHandler(registration)`, adapter `resolveTool()` and `inspect()`.
 - Extends: `prism-tool run` to command components in one active adapter.
 
-- [ ] **Step 1: Write failing discovery fixtures**
+- [x] **Step 1: Write failing discovery fixtures**
 
 Build isolated fixtures for:
 
@@ -520,7 +520,7 @@ Build isolated fixtures for:
 
 Assert managed and local packages resolve to the same canonical registration, malicious/ambiguous fixtures exit `2`, and no test invokes `pi list`. Add a consumer fixture with fake `vendor/bin/pest` and `node_modules/.bin/eslint`; assert `run pest` and `run eslint` execute those exact canonical files from an unrelated cwd.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -530,7 +530,7 @@ node --test tests/Node/prism-tool-discovery.test.js
 
 Expected: FAIL because adapter discovery and handler resolution are absent.
 
-- [ ] **Step 3: Implement documented-path discovery and handler boundary**
+- [x] **Step 3: Implement documented-path discovery and handler boundary**
 
 Discovery checks only:
 
@@ -541,7 +541,7 @@ Canonicalize each package, contract, and handler path; require contract/handler 
 
 `project.js` resolves Composer commands only from the canonical project root's `vendor/bin` and npm commands only from its `node_modules/.bin`. It rejects absent, non-executable, symlink-escaped, or wrong-scope paths. `inspect()` reports PHP version, `ext-sockets`, manifest/lock presence, and component resolution without network or mutation.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 

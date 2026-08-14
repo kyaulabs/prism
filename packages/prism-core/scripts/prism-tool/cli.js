@@ -7,11 +7,14 @@
 
 
 
+
+
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 const {assertPackageParity, loadContract} = require('./contract');
+const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {runBounded} = require('./process');
 
@@ -170,6 +173,69 @@ function doctor(args, context) {
 	return checks.every((check) => check.status === 'PASS') ? EXIT.OK : EXIT.READINESS;
 }
 
+function setup(args, context) {
+	if (args.length < 1 || args[0] !== 'inspect' || args.slice(1).some((argument) => argument !== '--json')) {
+		process.stderr.write('usage: prism-tool setup inspect [--json]\n');
+		return EXIT.USAGE;
+	}
+	if (args.slice(1).filter((argument) => argument === '--json').length > 1) {
+		process.stderr.write('usage: prism-tool setup inspect [--json]\n');
+		return EXIT.USAGE;
+	}
+	const json = args.includes('--json');
+	const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+	let coreContract;
+	try {
+		coreContract = loadCoreContract(coreRoot);
+	} catch {
+		process.stderr.write('prism-tool: invalid core toolchain contract\n');
+		return EXIT.USAGE;
+	}
+	const readiness = checkExternalTools({
+		contract: coreContract,
+		env: context.env ?? process.env,
+		run: context.run ?? runBounded,
+	});
+	if (readiness.some(({status}) => status !== 'PASS')) {
+		process.stderr.write('prism-tool: mandatory external readiness failed\n');
+		return EXIT.READINESS;
+	}
+	const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+	let registration;
+	let handler;
+	try {
+		registration = discoverAdapter({
+			projectRoot,
+			piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+		});
+		handler = loadAdapterHandler(registration);
+	} catch {
+		process.stderr.write('prism-tool: active adapter discovery failed\n');
+		return EXIT.USAGE;
+	}
+	const result = handler.inspect({
+		contract: registration.contract,
+		projectRoot,
+		run: context.run ?? runBounded,
+	});
+	const report = {
+		schemaVersion: 1,
+		command: 'setup inspect',
+		adapter: registration.packageName,
+		status: result.status,
+		checks: [...readiness, ...result.checks],
+		data: result.data,
+	};
+	if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
+	else {
+		for (const check of report.checks) {
+			process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+		}
+		process.stdout.write(`${report.status}\n`);
+	}
+	return result.status === 'GO' ? EXIT.OK : EXIT.TOOL;
+}
+
 function runDeclaredTool(args, context) {
 	let parsed;
 	try {
@@ -186,7 +252,22 @@ function runDeclaredTool(args, context) {
 		process.stderr.write('prism-tool: invalid core toolchain contract\n');
 		return EXIT.USAGE;
 	}
-	const component = contract.components.find(({id}) => id === parsed.toolId);
+	let component = contract.components.find(({id}) => id === parsed.toolId);
+	let adapterHandler;
+	const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+	if (!component) {
+		try {
+			const registration = discoverAdapter({
+				projectRoot,
+				piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+			});
+			component = registration.contract.components.find(({id}) => id === parsed.toolId);
+			adapterHandler = loadAdapterHandler(registration);
+		} catch {
+			process.stderr.write('prism-tool: active adapter discovery failed\n');
+			return EXIT.USAGE;
+		}
+	}
 	if (!component || component.kind !== 'command') {
 		process.stderr.write('prism-tool: unknown tool id\n');
 		return EXIT.USAGE;
@@ -225,11 +306,18 @@ function runDeclaredTool(args, context) {
 			process.stderr.write('prism-tool: mandatory external readiness failed\n');
 			return EXIT.READINESS;
 		}
-	} else {
+	} else if (component.provisioning === 'bundled') {
 		try {
 			executable = resolveBundledComponent(coreRoot, component);
 		} catch {
 			process.stderr.write('prism-tool: bundled tool is unavailable\n');
+			return EXIT.TOOL;
+		}
+	} else {
+		try {
+			executable = adapterHandler.resolveTool({component, projectRoot});
+		} catch {
+			process.stderr.write('prism-tool: adapter tool is unavailable\n');
 			return EXIT.TOOL;
 		}
 	}
@@ -241,7 +329,9 @@ function runDeclaredTool(args, context) {
 		return EXIT.USAGE;
 	}
 	const result = (context.run ?? runBounded)(executable, toolArgs, {
-		cwd: context.cwd ?? process.cwd(),
+		cwd: component.provisioning === 'consumer-dev'
+			? fs.realpathSync(projectRoot)
+			: context.cwd ?? process.cwd(),
 		env,
 		input,
 		maxBuffer: context.maxBuffer,
@@ -261,15 +351,14 @@ function main(argv, context = {}) {
 	const [command, ...args] = argv;
 	if (command === 'run') return runDeclaredTool(args, context);
 	if (command === 'doctor') return doctor(args, context);
-	if (command === 'setup') {
-		process.stderr.write('prism-tool: setup is not implemented\n');
-		return EXIT.USAGE;
-	}
+	if (command === 'setup') return setup(args, context);
 	process.stderr.write('prism-tool: unknown command\n');
 	return EXIT.USAGE;
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
+
 
 
 
