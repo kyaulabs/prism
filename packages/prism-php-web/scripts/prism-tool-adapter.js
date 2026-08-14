@@ -6,16 +6,41 @@
 
 
 
+
+
 'use strict';
 
 const {inspect, resolveTool} = require('./toolchain/project');
-const {resolveCandidate} = require('./toolchain/transaction');
+const {
+	applyCandidate,
+	resolveCandidate,
+	verifyInstalledProject,
+} = require('./toolchain/transaction');
+const {recoverWorkspace} = require('./toolchain/workspace');
+
+function apply(options) {
+	if (options.approved !== true) {
+		recoverWorkspace({projectRoot: options.projectRoot, adapter: options.contract.package});
+		return {
+			status: 'NO-GO',
+			checks: [{id: 'candidate-application', status: 'FAIL', message: 'mutation approval required'}],
+			data: {reason: 'approval required'},
+		};
+	}
+	return applyCandidate(options);
+}
 
 function resolve(options) {
 	return resolveCandidate(options);
 }
 
-module.exports = {inspect, resolve, resolveTool};
+function verify(options) {
+	return verifyInstalledProject(options);
+}
+
+module.exports = {apply, inspect, resolve, resolveTool, verify};
+
+
 
 
 

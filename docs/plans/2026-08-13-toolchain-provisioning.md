@@ -649,13 +649,13 @@ git commit -S -m $'feat(adapter): resolve and audit candidate toolchains\n\nAuth
 - Produces: `applyCandidate()`, `installLockedGraph()`, `verifyInstalledGraph()`.
 - Enforces: literal approval, stale-plan hashes, atomic files, Chromium-only download, retained desired locks after post-apply failure.
 
-- [ ] **Step 1: Write failing apply and recovery tests**
+- [x] **Step 1: Write failing apply and recovery tests**
 
 Cover every non-literal approval value (`no`, `y`, `YES`, empty, whitespace) and assert no file changes. Cover stale original hash, candidate hash mismatch, adapter/project mismatch, replaced ownership marker, atomic replacement failure with pre-install rollback, successful four-file application, `composer install --no-scripts --no-interaction`, `npm ci --ignore-scripts`, `node_modules/.bin/playwright install chromium`, rejection of extra browser targets, post-install audit findings, browser failure, and final exact component verification.
 
 For post-apply install/browser failure assert candidate manifests/locks remain, exit is `5`, output names the fixed retry operation, and no backup file remains. For a replacement failure before package installation assert all four original states, including absent files, are restored byte-for-byte.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -665,7 +665,7 @@ node --test tests/Node/prism-tool-apply.test.js
 
 Expected: FAIL because apply/install/verify behavior is absent.
 
-- [ ] **Step 3: Implement approval-bound application and final verification**
+- [x] **Step 3: Implement approval-bound application and final verification**
 
 Core parses `--approval=yes` before dispatch and passes boolean `true`; the adapter never accepts raw approval text. Validate plan schema, canonical project/adapter, ownership marker, all original current hashes, all candidate workspace hashes, and zero audit totals.
 
@@ -673,7 +673,7 @@ For each consumer file, write a mode-preserving sibling temp file, `fsync` it, a
 
 Use only fixed argument arrays listed in Task 5 and this task. Browser install must resolve the installed Playwright executable through `resolveTool()` and pass `['install', 'chromium']`. Re-run both structured audits, parse consumer locks to confirm every exact package version, invoke every command component's version check, and clean the owned workspace on handled completion.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 
@@ -683,7 +683,7 @@ npm run test:node
 
 Expected: all approval, stale-plan, atomicity, retry, Chromium-only, post-audit, and exact-version tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/cli.js packages/prism-php-web/scripts tests/Node/prism-tool-apply.test.js

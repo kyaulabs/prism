@@ -11,6 +11,8 @@
 
 
 
+
+
 'use strict';
 
 const fs = require('node:fs');
@@ -175,7 +177,196 @@ function doctor(args, context) {
 	return checks.every((check) => check.status === 'PASS') ? EXIT.OK : EXIT.READINESS;
 }
 
+class SetupOperationError extends Error {
+	constructor(exitCode, message) {
+		super(message);
+		this.exitCode = exitCode;
+	}
+}
+
+function renderSetupOperationError(error) {
+	if (error instanceof SetupOperationError) {
+		process.stderr.write(`${error.message}\n`);
+		return error.exitCode;
+	}
+	process.stderr.write('prism-tool: setup operation failed\n');
+	return EXIT.TOOL;
+}
+
+function prepareSetupAdapter(adapterName, context) {
+	const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+	const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+	let coreContract;
+	try {
+		coreContract = loadCoreContract(coreRoot);
+	} catch {
+		throw new SetupOperationError(EXIT.USAGE, 'prism-tool: invalid core toolchain contract');
+	}
+	const readiness = checkExternalTools({
+		contract: coreContract,
+		env: context.env ?? process.env,
+		run: context.run ?? runBounded,
+	});
+	if (readiness.some(({status}) => status !== 'PASS')) {
+		throw new SetupOperationError(EXIT.READINESS, 'prism-tool: mandatory external readiness failed');
+	}
+	let registration;
+	let handler;
+	try {
+		registration = discoverAdapter({
+			projectRoot,
+			piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+		});
+		handler = loadAdapterHandler(registration);
+	} catch {
+		throw new SetupOperationError(EXIT.USAGE, 'prism-tool: active adapter discovery failed');
+	}
+	if (registration.packageName !== adapterName) {
+		throw new SetupOperationError(EXIT.USAGE, 'prism-tool: requested adapter is not active');
+	}
+	return {handler, projectRoot, readiness, registration};
+}
+
 function setup(args, context) {
+	if (args[0] === 'verify') {
+		const controls = args.slice(1);
+		const networkApprovals = controls.filter((argument) => argument.startsWith('--network-approved='));
+		if (networkApprovals.length !== 1 || networkApprovals[0] !== '--network-approved=yes') {
+			process.stderr.write('prism-tool: network approval required\n');
+			return EXIT.USAGE;
+		}
+		const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+		const jsonCount = controls.filter((argument) => argument === '--json').length;
+		if (
+			adapters.length !== 1 ||
+			adapters[0].length === '--adapter='.length ||
+			jsonCount > 1 ||
+			controls.some((argument) =>
+				!argument.startsWith('--network-approved=') &&
+				!argument.startsWith('--adapter=') &&
+				argument !== '--json'
+			)
+		) {
+			process.stderr.write('usage: prism-tool setup verify --adapter=PACKAGE [--json] --network-approved=yes\n');
+			return EXIT.USAGE;
+		}
+		let prepared;
+		try {
+			prepared = prepareSetupAdapter(adapters[0].slice('--adapter='.length), context);
+		} catch (error) {
+			return renderSetupOperationError(error);
+		}
+		const {handler, projectRoot, readiness, registration} = prepared;
+		if (typeof handler.verify !== 'function') {
+			process.stderr.write('prism-tool: adapter verify operation is unavailable\n');
+			return EXIT.USAGE;
+		}
+		const result = handler.verify({
+			contract: registration.contract,
+			projectRoot,
+			run: context.run ?? runBounded,
+		});
+		const report = {
+			schemaVersion: 1,
+			command: 'setup verify',
+			adapter: registration.packageName,
+			status: result.status,
+			checks: [...readiness, ...result.checks],
+			data: result.data,
+		};
+		if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+		else {
+			for (const check of report.checks) {
+				process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+			}
+			process.stdout.write(`${report.status}\n`);
+		}
+		return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+	}
+	if (args[0] === 'apply') {
+		const controls = args.slice(1);
+		const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+		if (approvals.length !== 1 || approvals[0] !== '--approval=yes') {
+			const declinedAdapters = controls.filter((argument) => argument.startsWith('--adapter='));
+			if (declinedAdapters.length === 1 && declinedAdapters[0].length > '--adapter='.length) {
+				const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+				try {
+					const registration = discoverAdapter({
+						projectRoot,
+						piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+					});
+					if (registration.packageName === declinedAdapters[0].slice('--adapter='.length)) {
+						const handler = loadAdapterHandler(registration);
+						if (typeof handler.apply === 'function') {
+							handler.apply({
+								approved: false,
+								contract: registration.contract,
+								projectRoot,
+							});
+						}
+					}
+				} catch {
+					process.stderr.write('prism-tool: candidate workspace cleanup failed\n');
+				}
+			}
+			process.stderr.write('prism-tool: mutation approval required\n');
+			return EXIT.USAGE;
+		}
+		const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+		const plans = controls.filter((argument) => argument.startsWith('--plan='));
+		const jsonCount = controls.filter((argument) => argument === '--json').length;
+		if (
+			adapters.length !== 1 ||
+			adapters[0].length === '--adapter='.length ||
+			plans.length !== 1 ||
+			plans[0].length === '--plan='.length ||
+			jsonCount > 1 ||
+			controls.some((argument) =>
+				!argument.startsWith('--approval=') &&
+				!argument.startsWith('--adapter=') &&
+				!argument.startsWith('--plan=') &&
+				argument !== '--json'
+			)
+		) {
+			process.stderr.write('usage: prism-tool setup apply --adapter=PACKAGE --plan=PATH [--json] --approval=yes\n');
+			return EXIT.USAGE;
+		}
+		let prepared;
+		try {
+			prepared = prepareSetupAdapter(adapters[0].slice('--adapter='.length), context);
+		} catch (error) {
+			return renderSetupOperationError(error);
+		}
+		const {handler, projectRoot, readiness, registration} = prepared;
+		if (typeof handler.apply !== 'function') {
+			process.stderr.write('prism-tool: adapter apply operation is unavailable\n');
+			return EXIT.USAGE;
+		}
+		const result = handler.apply({
+			approved: true,
+			contract: registration.contract,
+			projectRoot,
+			planPath: plans[0].slice('--plan='.length),
+			run: context.run ?? runBounded,
+		});
+		const report = {
+			schemaVersion: 1,
+			command: 'setup apply',
+			adapter: registration.packageName,
+			status: result.status,
+			checks: [...readiness, ...result.checks],
+			data: result.data,
+		};
+		if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+		else {
+			for (const check of report.checks) {
+				process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+			}
+			if (result.data?.retry) process.stdout.write(`retry\t${result.data.retry}\n`);
+			process.stdout.write(`${report.status}\n`);
+		}
+		return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+	}
 	if (args[0] === 'resolve') {
 		const controls = args.slice(1);
 		const networkApprovals = controls.filter((argument) => argument.startsWith('--network-approved='));
@@ -198,40 +389,13 @@ function setup(args, context) {
 			process.stderr.write('usage: prism-tool setup resolve --adapter=PACKAGE [--json] --network-approved=yes\n');
 			return EXIT.USAGE;
 		}
-		const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
-		const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-		let coreContract;
+		let prepared;
 		try {
-			coreContract = loadCoreContract(coreRoot);
-		} catch {
-			process.stderr.write('prism-tool: invalid core toolchain contract\n');
-			return EXIT.USAGE;
+			prepared = prepareSetupAdapter(adapters[0].slice('--adapter='.length), context);
+		} catch (error) {
+			return renderSetupOperationError(error);
 		}
-		const readiness = checkExternalTools({
-			contract: coreContract,
-			env: context.env ?? process.env,
-			run: context.run ?? runBounded,
-		});
-		if (readiness.some(({status}) => status !== 'PASS')) {
-			process.stderr.write('prism-tool: mandatory external readiness failed\n');
-			return EXIT.READINESS;
-		}
-		let registration;
-		let handler;
-		try {
-			registration = discoverAdapter({
-				projectRoot,
-				piDir: context.piDir ?? path.join(projectRoot, '.pi'),
-			});
-			handler = loadAdapterHandler(registration);
-		} catch {
-			process.stderr.write('prism-tool: active adapter discovery failed\n');
-			return EXIT.USAGE;
-		}
-		if (registration.packageName !== adapters[0].slice('--adapter='.length)) {
-			process.stderr.write('prism-tool: requested adapter is not active\n');
-			return EXIT.USAGE;
-		}
+		const {handler, projectRoot, readiness, registration} = prepared;
 		if (typeof handler.resolve !== 'function') {
 			process.stderr.write('prism-tool: adapter resolve operation is unavailable\n');
 			return EXIT.USAGE;
@@ -442,6 +606,8 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
+
 
 
 

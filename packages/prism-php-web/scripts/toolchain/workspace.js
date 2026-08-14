@@ -4,6 +4,8 @@
 
 
 
+
+
 'use strict';
 
 const fs = require('node:fs');
@@ -80,6 +82,77 @@ function recoverWorkspace({projectRoot, adapter}) {
 	return true;
 }
 
+function writeAtomic(filePath, content, mode, rename) {
+	const tempPath = path.join(
+		path.dirname(filePath),
+		`.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+	);
+	let descriptor;
+	try {
+		descriptor = fs.openSync(tempPath, 'wx', mode);
+		fs.writeFileSync(descriptor, content);
+		fs.fsyncSync(descriptor);
+		fs.closeSync(descriptor);
+		descriptor = undefined;
+		fs.chmodSync(tempPath, mode);
+		rename(tempPath, filePath);
+	} catch (error) {
+		if (descriptor !== undefined) fs.closeSync(descriptor);
+		fs.rmSync(tempPath, {force: true});
+		throw error;
+	}
+}
+
+function replaceConsumerFiles({projectRoot, workspaceRoot, names, rename = fs.renameSync}) {
+	const backupRoot = path.join(workspaceRoot, 'backups');
+	const candidateRoot = path.join(workspaceRoot, 'candidate');
+	fs.mkdirSync(backupRoot, {mode: 0o700});
+	const originals = new Map();
+	try {
+		for (const name of names) {
+			const targetPath = path.join(projectRoot, name);
+			let targetStat;
+			try {
+				targetStat = fs.lstatSync(targetPath);
+			} catch (error) {
+				if (error.code !== 'ENOENT') throw error;
+			}
+			if (!targetStat) {
+				originals.set(name, {exists: false, mode: 0o600});
+				continue;
+			}
+			if (targetStat.isSymbolicLink() || !targetStat.isFile()) {
+				throw new Error('consumer file changed before replacement');
+			}
+			const mode = targetStat.mode & 0o777;
+			const content = fs.readFileSync(targetPath);
+			const backupPath = path.join(backupRoot, name);
+			fs.writeFileSync(backupPath, content, {flag: 'wx', mode: 0o600});
+			fs.chmodSync(backupPath, 0o600);
+			originals.set(name, {exists: true, mode, backupPath});
+		}
+		for (const name of names) {
+			const original = originals.get(name);
+			const content = fs.readFileSync(path.join(candidateRoot, name));
+			writeAtomic(path.join(projectRoot, name), content, original.mode, rename);
+		}
+		fs.rmSync(backupRoot, {recursive: true, force: false});
+	} catch (error) {
+		for (const name of names) {
+			const original = originals.get(name);
+			if (!original) continue;
+			const targetPath = path.join(projectRoot, name);
+			if (!original.exists) {
+				fs.rmSync(targetPath, {force: true});
+				continue;
+			}
+			writeAtomic(targetPath, fs.readFileSync(original.backupPath), original.mode, rename);
+		}
+		fs.rmSync(backupRoot, {recursive: true, force: true});
+		throw error;
+	}
+}
+
 function createWorkspace({projectRoot, adapter}) {
 	if (!ADAPTER_NAME.test(adapter)) throw new Error('workspace adapter is invalid');
 	const expected = workspacePath(projectRoot);
@@ -98,7 +171,9 @@ function createWorkspace({projectRoot, adapter}) {
 	return {root: fs.realpathSync(expected.root), markerPath};
 }
 
-module.exports = {createWorkspace, recoverWorkspace};
+module.exports = {createWorkspace, readOwnedWorkspace, recoverWorkspace, replaceConsumerFiles};
+
+
 
 
 
