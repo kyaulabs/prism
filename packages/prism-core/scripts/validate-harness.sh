@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+# $KYAULabs: validate-harness.sh git@aura.kyaulabs 2026/08/13 -0700 Exp $
+
+
+
 
 
 
@@ -155,6 +158,41 @@ else
 	ok "$MANIFEST_COUNT package manifest(s) checked for pi core peerDependencies"
 fi
 
+printf '%s\n' '── Validating toolchain contracts ──'
+CONTRACT_LOADER="$REPO_ROOT/packages/prism-core/scripts/prism-tool/contract.js"
+if [ ! -f "$CONTRACT_LOADER" ]; then
+	err "toolchain contract loader missing: ${CONTRACT_LOADER#$REPO_ROOT/}"
+else
+	TOOLCHAIN_COUNT=0
+	while IFS= read -r -d '' pkg_json; do
+		if ! toolchain_output=$(node - "$CONTRACT_LOADER" "$pkg_json" 2>&1 <<'NODE'
+const path = require('node:path');
+const {assertPackageParity, loadContract} = require(process.argv[2]);
+const packagePath = path.resolve(process.argv[3]);
+const packageJson = require(packagePath);
+
+if (!packageJson.prism?.toolchain) process.exit(0);
+const packageRoot = path.dirname(packagePath);
+const contractPath = path.resolve(packageRoot, packageJson.prism.toolchain);
+const relative = path.relative(packageRoot, contractPath);
+if (relative.startsWith('..') || path.isAbsolute(relative)) {
+	throw new Error(`${packagePath}: prism.toolchain escapes package root`);
+}
+const contract = loadContract(contractPath);
+assertPackageParity(contract, packageJson);
+process.stdout.write(`${contract.package}\n`);
+NODE
+		); then
+			err "${pkg_json#$REPO_ROOT/}: $toolchain_output"
+		elif [ -n "$toolchain_output" ]; then
+			TOOLCHAIN_COUNT=$((TOOLCHAIN_COUNT + 1))
+			ok "$toolchain_output"
+		fi
+	done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+		-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+	ok "$TOOLCHAIN_COUNT toolchain contract(s) checked"
+fi
+
 printf '%s\n' '── Validating shell helpers ──'
 while IFS= read -r -d '' script; do
 	SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
@@ -193,6 +231,9 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
+
+
 
 
 

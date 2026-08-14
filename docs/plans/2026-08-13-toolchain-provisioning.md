@@ -148,7 +148,7 @@ The literal strings `sha256` and `sha256-or-absent` above describe validated low
 - Produces: package metadata keys `prism.toolchain`, `prism.adapter`, and `prism.handler`.
 - Consumes: no implementation task output.
 
-- [ ] **Step 1: Write the failing contract and parity tests**
+- [x] **Step 1: Write the failing contract and parity tests**
 
 Create `tests/Node/helpers.js` with `makeTempDir()`, `writeJson()`, `writeExecutable()`, and `sha256()` helpers using only Node core modules. Create `tests/Node/toolchain-contract.test.js` with these complete observable cases:
 
@@ -212,7 +212,7 @@ test('pins every approved root npm tool exactly and drops the unowned language s
 
 Extend `tests/Shell/validate-harness_test.sh` to require a `Validating toolchain contracts` section and to inject a temporary parity mismatch under a copied package fixture, expecting a named failure.
 
-- [ ] **Step 2: Run tests to verify Red**
+- [x] **Step 2: Run tests to verify Red**
 
 Run:
 
@@ -223,7 +223,7 @@ bash tests/Shell/validate-harness_test.sh
 
 Expected: Node fails because `contract.js` and both contracts are absent; the shell test fails because harness validation has no contract phase.
 
-- [ ] **Step 3: Implement contracts, metadata, pins, and validation**
+- [x] **Step 3: Implement contracts, metadata, pins, and validation**
 
 Use this exact contract shape. Core components are:
 
@@ -290,7 +290,7 @@ Set adapter metadata:
 
 Add `toolchain.json` to both package files arrays. Update root approved npm pins exactly and remove the language server. After explicit network approval, run `npm install --ignore-scripts` to regenerate `package-lock.json`. Extend `validate-harness.sh` to load every package contract through `contract.js` and run package parity. Task 2 adds the bin/config package entries together with the files they expose, so this task never publishes a dangling path.
 
-- [ ] **Step 4: Run tests and audits to verify Green**
+- [x] **Step 4: Run tests and audits to verify Green**
 
 Run:
 
@@ -304,7 +304,7 @@ npm pack --dry-run --ignore-scripts ./packages/prism-php-web
 
 Expected: all tests pass, audit reports zero advisories, and both dry runs list `toolchain.json`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json package-lock.json packages/prism-core/package.json packages/prism-core/toolchain.json packages/prism-core/scripts/prism-tool/contract.js packages/prism-php-web/package.json packages/prism-php-web/toolchain.json tests/Node packages/prism-core/scripts/validate-harness.sh tests/Shell/validate-harness_test.sh
