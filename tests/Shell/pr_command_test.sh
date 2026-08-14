@@ -14,6 +14,7 @@
 
 
 
+
 # $KYAULabs$
 
 set -euo pipefail
@@ -374,7 +375,10 @@ else
 
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 0 ]; then
 		pass 'title validation rejects an uppercase over-length title'
 	else
@@ -390,7 +394,10 @@ PR_TITLE_PAYLOAD
 		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	preserved=1
 	if [ "$rc" -eq 0 ]; then preserved=0; fi
 	if [ -e "$injection_sentinel" ]; then preserved=0; fi
@@ -510,6 +517,7 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
 
 
 
