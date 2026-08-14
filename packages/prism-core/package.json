@@ -4,11 +4,15 @@
   "description": "KYAULabs coding harness — language-agnostic core (pi)",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],
+  "bin": {
+    "prism-tool": "scripts/prism-tool.js"
+  },
   "files": [
     "extensions",
     "skills",
     "prompts",
     "scripts",
+    "config",
     "docs",
     "toolchain.json",
     "safe-dirs.json",

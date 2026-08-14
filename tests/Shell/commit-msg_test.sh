@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh git@aura.kyaulabs 2026/08/13 -0700 Exp $
+
+
+
 
 
 
@@ -36,6 +39,14 @@ fi
 # mirroring the hook's own guard. CI always has node_modules installed.
 # shellcheck disable=SC2034  # used in Task 2 (merge/revert exemption)
 COMMITLINT_AVAILABLE=$([ -d "$REPO_ROOT/node_modules/commitlint" ] && echo true || echo false)
+
+copy_commitlint_config() {
+	local destination="$1"
+	mkdir -p "$destination/packages/prism-core/config"
+	cp "$REPO_ROOT/commitlint.config.js" "$destination/commitlint.config.js"
+	cp "$REPO_ROOT/packages/prism-core/config/commitlint.config.cjs" \
+		"$destination/packages/prism-core/config/commitlint.config.cjs"
+}
 
 # ── Test 1: Guard skips with notice when commitlint absent ───────────────────
 # A stub `npx` is placed first on PATH so the unguarded hook (before the fix)
@@ -87,7 +98,7 @@ register_temp_dir "$T2"
 	git_init_test_repo "$T2"
 	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
 	ln -s "$REPO_ROOT/node_modules" "$T2/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T2/commitlint.config.js"
+	copy_commitlint_config "$T2"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
@@ -122,7 +133,7 @@ register_temp_dir "$T3"
 	cd "$T3"
 	git_init_test_repo "$T3"
 	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T3/commitlint.config.js"
+	copy_commitlint_config "$T3"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
@@ -155,7 +166,7 @@ register_temp_dir "$T4"
 	cd "$T4"
 	git_init_test_repo "$T4"
 	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T4/commitlint.config.js"
+	copy_commitlint_config "$T4"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
@@ -185,7 +196,7 @@ register_temp_dir "$T5"
 	cd "$T5"
 	git_init_test_repo "$T5"
 	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T5/commitlint.config.js"
+	copy_commitlint_config "$T5"
 	cp "$REAL_HOOK" .git/hooks/commit-msg
 	chmod +x .git/hooks/commit-msg
 
@@ -219,7 +230,7 @@ register_temp_dir "$T6"
 	cd "$T6"
 	git_init_test_repo "$T6"
 	ln -s "$REPO_ROOT/node_modules" "$T6/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T6/commitlint.config.js"
+	copy_commitlint_config "$T6"
 
 	# Non-standard merge message — does NOT match isIgnored's ^Merge branch
 	# pattern, so commitlint evaluates our trailersExist rule. Our rule
@@ -474,6 +485,9 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
+
+
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

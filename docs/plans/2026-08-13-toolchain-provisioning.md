@@ -323,13 +323,14 @@ git commit -S -m $'feat(toolchain): define package toolchain contracts\n\nAuthor
 - Modify: `commitlint.config.js`
 - Modify: `eslint.config.mjs`
 - Modify: `package.json`
+- Modify: `tests/Shell/commit-msg_test.sh`
 
 **Interfaces:**
 - Consumes: `loadContract()` from Task 1.
 - Produces: `runBounded(command, args, options)`, `extractVersion(output)`, `resolveBundledComponent(coreRoot, component)`, `main(argv, context)`.
 - Produces: `prism-tool run commitlint -- --edit FILE` and `prism-tool run git-cliff -- ARGUMENTS`.
 
-- [ ] **Step 1: Write failing CLI process tests**
+- [x] **Step 1: Write failing CLI process tests**
 
 Create process-level tests that invoke `node packages/prism-core/scripts/prism-tool.js` from a temporary unrelated directory. Assert that `run git-cliff -- --version` returns `2.13.1`; a fake component ID returns exit `2`; an OCR `config` first argument is rejected without execution; an argument containing spaces, semicolon, command substitution text, and a newline reaches a fake executable as one unchanged argument; and output over 1 MiB or a process exceeding 30 seconds returns exit `4` with no raw output. Inject a 50 ms timeout through the exported `main()` context rather than a production bypass environment variable.
 
@@ -340,7 +341,7 @@ const payload = 'value with spaces;$(printf injected)\nsecond-line';
 assert.deepEqual(JSON.parse(captured), [payload]);
 ```
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -350,7 +351,7 @@ node --test tests/Node/prism-tool-run.test.js
 
 Expected: FAIL because the entry point, process runner, CLI dispatcher, and package-owned commitlint config do not exist.
 
-- [ ] **Step 3: Implement the bounded runner and bundled resolver**
+- [x] **Step 3: Implement the bounded runner and bundled resolver**
 
 `process.js` uses `spawnSync(command, args, {cwd, env, input, encoding: 'utf8', timeout: 30000, maxBuffer: 1048576, windowsHide: true})`; it never uses `shell`, `exec`, or string concatenation. It returns `{status, stdout, stderr, timedOut}` after replacing control characters in diagnostic summaries. `extractVersion()` returns the first standalone `major.minor.patch` token and rejects absent or multiple conflicting tokens.
 
@@ -398,7 +399,7 @@ module.exports = require('./packages/prism-core/config/commitlint.config.cjs');
 
 The commitlint launcher always appends `--config` with the core config path and rejects caller-supplied `--config`, preventing configuration bypass. Add `"test:node": "node --test tests/Node/*.test.js"` to root scripts and include `tests/Node/**/*.js` in the package-JS ESLint scope.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 
@@ -411,10 +412,10 @@ bash tests/Shell/commit-msg_test.sh
 
 Expected: Node and commit hook regression tests pass; versions are exactly `21.2.2` and `2.13.1`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool.js packages/prism-core/scripts/prism-tool packages/prism-core/config packages/prism-core/package.json commitlint.config.js eslint.config.mjs package.json tests/Node/prism-tool-run.test.js
+git add packages/prism-core/scripts/prism-tool.js packages/prism-core/scripts/prism-tool packages/prism-core/config packages/prism-core/package.json commitlint.config.js eslint.config.mjs package.json tests/Node/prism-tool-run.test.js tests/Shell/commit-msg_test.sh
 git commit -S -m $'feat(toolchain): run bundled tools through core launcher\n\nAuthored-by: gpt-5.6-sol\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-pro\nSigned-off-by: kyau <git@kyaulabs.com>'
 ```
 

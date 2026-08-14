@@ -12,9 +12,10 @@ export default [
 		},
 	},
 	{
-		files: ["packages/**/*.js"],
+		files: ["commitlint.config.js", "packages/**/*.js", "tests/Node/**/*.js"],
 		languageOptions: {
 			globals: {
+				Buffer: "readonly",
 				require: "readonly",
 				process: "readonly",
 				console: "readonly",
