@@ -703,13 +703,13 @@ git commit -S -m $'feat(adapter): apply audited toolchains transactionally\n\nAu
 - Produces: managed launcher at `${PRISM_BIN_DIR:-$HOME/.local/bin}/prism-tool`.
 - Extends: installer flags `--network-approved=yes` and `--ocr-test-approved=yes` without shell prompting.
 
-- [ ] **Step 1: Write failing isolated installer tests**
+- [x] **Step 1: Write failing isolated installer tests**
 
 Run the real installer with temporary `HOME`, `PI_CODING_AGENT_DIR`, `PRISM_BIN_DIR`, and fake `pi`, Semgrep, OCR, and Node package roots. Assert local-source install requires no registry approval, npm source requires exact network approval, OCR live test requires exact approval, the launcher is mode `0755`, invokes the installed core CLI, refreshes idempotently, does not edit shell startup files, rejects an unrelated existing executable, replaces only a launcher containing both Prism ownership sentinels, and removes only a managed launcher under `--uninstall-launcher`.
 
 Also assert failed mandatory readiness leaves installed package/context resources in place but returns nonzero and never reports toolchain GO.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -719,7 +719,7 @@ bash tests/Shell/install_global_toolchain_test.sh
 
 Expected: FAIL because launcher deployment and approval flags do not exist.
 
-- [ ] **Step 3: Implement narrow launcher ownership**
+- [x] **Step 3: Implement narrow launcher ownership**
 
 Keep existing merge-safe context deployment unchanged. Parse only the three documented options; reject unknown flags. For npm package installation require exact network approval and run Pi with `npm_config_ignore_scripts=true`. Local source installation remains local.
 
@@ -734,7 +734,7 @@ exec node '/canonical/pi/npm/node_modules/@kyaulabs/prism-core/scripts/prism-too
 
 Single-quote the already canonical trusted path by rejecting newline, carriage return, NUL, and single quote; do not interpolate an unvalidated path. Refuse unrelated files/symlinks. Never edit `PATH`; report when the bin directory is absent from it. After deployment run local doctor, then live doctor only with exact OCR approval. Runtime setup does not install Semgrep/OCR.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 
@@ -745,7 +745,7 @@ npm pack --dry-run --ignore-scripts ./packages/prism-core
 
 Expected: installer tests pass and package dry-run marks `scripts/prism-tool.js` as a bin entry.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/scripts/install-global.sh packages/prism-core/package.json packages/prism-core/README.md tests/Shell/install_global_toolchain_test.sh
