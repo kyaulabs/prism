@@ -576,7 +576,7 @@ git commit -S -m $'feat(toolchain): discover project adapters through pi metadat
 - Produces: `createWorkspace()`, `recoverWorkspace()`, `normalizeComposerAudit()`, `normalizeNpmAudit()`, `resolveCandidate()`.
 - Produces: ownership-marked candidate plan and human-readable manifest/lock diff.
 
-- [ ] **Step 1: Write failing transaction tests with fake package managers**
+- [x] **Step 1: Write failing transaction tests with fake package managers**
 
 Fixtures must prove no subprocess runs without `--network-approved=yes`; workspace is exactly `.pi/prism-tool/work`; lifecycle scripts are disabled; Composer and npm receive exact approved package/version pairs; valid non-zero audit output with findings is parsed as findings; malformed audit output is a tool failure; critical/high/moderate/low findings each return exit `5`; candidate conflict leaves consumer files byte-identical; symlink manifests and mismatched ownership markers fail; handled success/failure/decline cleans the owned workspace; interrupted state is recovered only when marker project/adapter realpaths match.
 
@@ -590,7 +590,7 @@ Use concrete fake audit documents:
 {"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":1,"high":0,"critical":0}},"vulnerabilities":{"fixture":{"severity":"moderate","via":[{"source":1,"title":"fixture"}]}}}
 ```
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -600,23 +600,24 @@ node --test tests/Node/prism-tool-resolve.test.js
 
 Expected: FAIL because workspace, audit, and resolution modules are absent.
 
-- [ ] **Step 3: Implement isolated resolution and zero-advisory gate**
+- [x] **Step 3: Implement isolated resolution and zero-advisory gate**
 
 After exact network approval:
 
 1. Canonicalize the project and reject symlink manifest/lock targets.
 2. Recover only a matching ownership-marked workspace, then create a fresh mode-`0700` workspace and mode-`0600` marker.
 3. Copy present manifests/locks and record concrete SHA-256 or `absent` for each consumer path.
-4. Run Composer candidate resolution in the workspace with `composer update friendsofphp/php-cs-fixer:3.95.18 pestphp/pest:5.1.1 pestphp/pest-plugin-browser:5.0.1 --with-all-dependencies --no-install --no-scripts --no-interaction`.
-5. Run npm candidate resolution in the workspace with `npm install --package-lock-only --ignore-scripts --save-dev --save-exact` plus the seven exact npm pairs from Global constraints.
-6. Run `composer audit --locked --format=json` and `npm audit --package-lock-only --json`; parse valid JSON regardless of process status.
-7. Reject every nonzero severity total and malformed/oversized/timeout output.
-8. Write the candidate plan with real SHA-256 digests and fixed `browserTargets: ["chromium"]`.
-9. Produce diff text with `git diff --no-index --` as data only; never evaluate it.
+4. Add or replace the candidate Composer root requirements with `composer require --dev --no-update --no-scripts --no-interaction friendsofphp/php-cs-fixer:3.95.18 pestphp/pest:5.1.1 pestphp/pest-plugin-browser:5.0.1`; this mutates only the workspace manifest and supports consumers with missing or incompatible prior constraints.
+5. Run Composer candidate resolution in the workspace with `composer update friendsofphp/php-cs-fixer:3.95.18 pestphp/pest:5.1.1 pestphp/pest-plugin-browser:5.0.1 --with-all-dependencies --no-install --no-scripts --no-interaction`.
+6. Run npm candidate resolution in the workspace with `npm install --package-lock-only --ignore-scripts --save-dev --save-exact` plus the seven exact npm pairs from Global constraints.
+7. Run `composer audit --locked --format=json` and `npm audit --package-lock-only --json`; parse valid JSON regardless of process status.
+8. Reject every nonzero severity total and malformed/oversized/timeout output.
+9. Write the candidate plan with real SHA-256 digests and fixed `browserTargets: ["chromium"]`.
+10. Produce diff text with `git diff --no-index --` as data only; never evaluate it.
 
 Add only `.pi/prism-tool/work` to the core safe-directory declaration and safety documentation. Cleanup canonicalizes and verifies the ownership marker before recursive removal.
 
-- [ ] **Step 4: Run tests to verify Green**
+- [x] **Step 4: Run tests to verify Green**
 
 Run:
 

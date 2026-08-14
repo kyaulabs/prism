@@ -81,7 +81,8 @@ resolves them per session (`session_start`), in this order:
    (it **replaces** the core default).
 2. **Core default** `packages/prism-core/safe-dirs.json` (next to this
    extension), shape `{ "safe_rm_dirs": ["node_modules", ".git", ".pi/npm",
-   ".pi/git"] }`.
+   ".pi/git", ".pi/prism-tool/work"] }`. The candidate workspace is the
+   only safe Prism setup path; its parent remains outside the cleanup zone.
 3. **Hardcoded fallback** `["node_modules", ".pi/npm", ".pi/git"]`.
 
 OS temp dirs (`/tmp`, `/var/tmp`, `os.tmpdir()`) are hardcoded in

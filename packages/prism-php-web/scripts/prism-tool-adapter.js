@@ -4,11 +4,20 @@
 
 
 
+
+
 'use strict';
 
 const {inspect, resolveTool} = require('./toolchain/project');
+const {resolveCandidate} = require('./toolchain/transaction');
 
-module.exports = {inspect, resolveTool};
+function resolve(options) {
+	return resolveCandidate(options);
+}
+
+module.exports = {inspect, resolve, resolveTool};
+
+
 
 
 

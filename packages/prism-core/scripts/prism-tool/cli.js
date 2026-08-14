@@ -9,6 +9,8 @@
 
 
 
+
+
 'use strict';
 
 const fs = require('node:fs');
@@ -174,6 +176,89 @@ function doctor(args, context) {
 }
 
 function setup(args, context) {
+	if (args[0] === 'resolve') {
+		const controls = args.slice(1);
+		const networkApprovals = controls.filter((argument) => argument.startsWith('--network-approved='));
+		if (networkApprovals.length !== 1 || networkApprovals[0] !== '--network-approved=yes') {
+			process.stderr.write('prism-tool: network approval required\n');
+			return EXIT.USAGE;
+		}
+		const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+		const jsonCount = controls.filter((argument) => argument === '--json').length;
+		if (
+			adapters.length !== 1 ||
+			adapters[0].length === '--adapter='.length ||
+			jsonCount > 1 ||
+			controls.some((argument) =>
+				!argument.startsWith('--network-approved=') &&
+				!argument.startsWith('--adapter=') &&
+				argument !== '--json'
+			)
+		) {
+			process.stderr.write('usage: prism-tool setup resolve --adapter=PACKAGE [--json] --network-approved=yes\n');
+			return EXIT.USAGE;
+		}
+		const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+		const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+		let coreContract;
+		try {
+			coreContract = loadCoreContract(coreRoot);
+		} catch {
+			process.stderr.write('prism-tool: invalid core toolchain contract\n');
+			return EXIT.USAGE;
+		}
+		const readiness = checkExternalTools({
+			contract: coreContract,
+			env: context.env ?? process.env,
+			run: context.run ?? runBounded,
+		});
+		if (readiness.some(({status}) => status !== 'PASS')) {
+			process.stderr.write('prism-tool: mandatory external readiness failed\n');
+			return EXIT.READINESS;
+		}
+		let registration;
+		let handler;
+		try {
+			registration = discoverAdapter({
+				projectRoot,
+				piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+			});
+			handler = loadAdapterHandler(registration);
+		} catch {
+			process.stderr.write('prism-tool: active adapter discovery failed\n');
+			return EXIT.USAGE;
+		}
+		if (registration.packageName !== adapters[0].slice('--adapter='.length)) {
+			process.stderr.write('prism-tool: requested adapter is not active\n');
+			return EXIT.USAGE;
+		}
+		if (typeof handler.resolve !== 'function') {
+			process.stderr.write('prism-tool: adapter resolve operation is unavailable\n');
+			return EXIT.USAGE;
+		}
+		const result = handler.resolve({
+			contract: registration.contract,
+			projectRoot,
+			workspaceRoot: path.join(projectRoot, '.pi', 'prism-tool', 'work'),
+			run: context.run ?? runBounded,
+		});
+		const report = {
+			schemaVersion: 1,
+			command: 'setup resolve',
+			adapter: registration.packageName,
+			status: result.status,
+			checks: [...readiness, ...result.checks],
+			data: result.data,
+		};
+		if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+		else {
+			for (const check of report.checks) {
+				process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+			}
+			process.stdout.write(`${report.status}\n`);
+		}
+		return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+	}
 	if (args.length < 1 || args[0] !== 'inspect' || args.slice(1).some((argument) => argument !== '--json')) {
 		process.stderr.write('usage: prism-tool setup inspect [--json]\n');
 		return EXIT.USAGE;
@@ -357,6 +442,8 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
+
 
 
 
