@@ -49,7 +49,7 @@ credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
 
 - **Fresh clone:** `git submodule update --init` (`aurora/` is a submodule:
   `kyaulabs/aurora`, branch `main`).
-- **Hooks:** `bash packages/prism-core/scripts/install-hooks.sh` (pre-commit,
+- **Hooks:** `bash "$(prism-tool resolve scripts)/install-hooks.sh"` (pre-commit,
   commit-msg, pre-push).
 - **Gate:** `/check` → delegates to `/check-php` (php-cs-fixer + stylelint +
   eslint + Pest coverage ≥ 80%).
@@ -57,7 +57,7 @@ credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
   `cdn/sass` or `cdn/js` sources change. Never edit generated
   `cdn/css/*.min.css` or `cdn/javascript/*.min.js`.
 - **Identity:** commit `Signed-off-by` resolves via
-  `packages/prism-core/scripts/resolve-identity.sh` (optional
+  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"` (optional
   `~/.config/prism/identity` override → `git config`; fail-closed).
 
 ## Deeper docs

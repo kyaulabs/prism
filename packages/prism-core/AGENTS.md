@@ -30,6 +30,14 @@ Registry access, consumer mutation, OCR connectivity, and OCR code egress are
 four separate approvals; CI environment provisioning of compatible Semgrep/OCR
 releases is not runtime verification.
 
+Harness scripts resolve the same way: instruction-layer references use
+`bash "$(prism-tool resolve scripts)/<tool>.sh"` (skill scripts:
+`prism-tool resolve skills`), which prefers the checkout copy when the
+working directory is inside a prism checkout and otherwise resolves to the
+installed package. Never invoke `packages/prism-core/...` bash paths
+literally; if `prism-tool` is unavailable in a prism checkout, fall back to
+the checkout copy at `packages/prism-core/` from the repository root.
+
 ## Hard Boundaries
 
 > [!IMPORTANT]
@@ -136,7 +144,7 @@ For architectural entropy, run `/improve-architecture` on a cadence.
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on
 failure.
 Commit message format is enforced by `.github/hooks/commit-msg` via commitlint.
-To activate hooks after cloning: `bash packages/prism-core/scripts/install-hooks.sh`
+To activate hooks after cloning: `bash "$(prism-tool resolve scripts)/install-hooks.sh"`
 
 For linting details and responsive/mobile-first CSS rules, see the active
 adapter's stack skill (e.g. `scss-mobile-first`).
@@ -148,7 +156,7 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   pushes to these branches are blocked by local hooks, GitHub rulesets, and
   CI verification. See ADR-0044.
 - Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
-  created via `bash packages/prism-core/scripts/new-branch.sh <type> <desc>`. Allowed types
+  created via `bash "$(prism-tool resolve scripts)/new-branch.sh <type> <desc>"`. Allowed types
   mirror commitlint vocabulary (minus `ignore`): feat, fix, patch, docs, style,
   refactor, perf, test, build, ci, chore, revert. Plus `release/<semver>` and
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
@@ -157,12 +165,12 @@ adapter's stack skill (e.g. `scss-mobile-first`).
 - Every commit must include `Implemented-by:` (the model pi is using — the
   active session model), `Tested-by:` (the model open-code-review is
   configured with — resolved via
-  `bash packages/prism-core/scripts/resolve-ocr-model.sh`), and
+  `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"`), and
   `Signed-off-by:` (user) footers, in pipeline order `Implemented-by` →
   `Tested-by` → `Signed-off-by` (ADR-0064). Each model footer is the model
   ID segment after the last `/` (e.g. `deepseek-v4-flash`, `deepseek-v4-pro`).
   `Signed-off-by:` is resolved dynamically via
-  `bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
+  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"` (git-config fallback
   per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Implemented-by:`. Use `Refs: #NN` for non-closing references.
 - Model selection is single-model with manual cycling — see **Model strategy**
   below (ADR-0057). There is no manifest/env tier layer.
