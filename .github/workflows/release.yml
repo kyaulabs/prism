@@ -130,6 +130,36 @@ jobs:
             exit 1
           fi
 
+          # Cap the release body at GitHub's 125,000-character limit: wc -c
+          # bytes >= characters for UTF-8, so a 120,000-byte budget is a
+          # conservative proxy. When over budget, cut at the last line
+          # boundary that fits and append a footer; notes.md keeps the full
+          # section for the attached asset.
+          TRUNCATE_BUDGET=120000
+          if [ "$(wc -c < body.md)" -gt "$TRUNCATE_BUDGET" ]; then
+            footer="
+
+...truncated at GitHub's 125,000-character release-body limit. Full changelog attached as full-changelog-v${VERSION}.md, and in CHANGELOG.md."
+            footer_bytes=$(printf '%s' "$footer" | wc -c)
+            keep_budget=$((TRUNCATE_BUDGET - footer_bytes))
+            : > body_capped.md
+            size=0
+            while IFS= read -r line; do
+              line_bytes=$(printf '%s\n' "$line" | wc -c)
+              if [ $((size + line_bytes)) -le "$keep_budget" ]; then
+                printf '%s\n' "$line" >> body_capped.md
+                size=$((size + line_bytes))
+              else
+                break
+              fi
+            done < body.md
+            printf '%s\n' "$footer" >> body_capped.md
+            mv body_capped.md body.md
+            echo "RELEASE_BODY_TRUNCATED=yes" >> "${GITHUB_ENV:-/dev/null}"
+          else
+            echo "RELEASE_BODY_TRUNCATED=no" >> "${GITHUB_ENV:-/dev/null}"
+          fi
+
       - name: Publish release
         run: |
           set -euo pipefail
@@ -162,10 +192,17 @@ jobs:
             esac
           fi
 
+          # The Release body is body.md (possibly capped); the full section
+          # rides as an asset only when the cap was applied.
+          attach_args=()
+          if [ "${RELEASE_BODY_TRUNCATED:-no}" = "yes" ]; then
+            attach_args=(--attach "notes.md#full-changelog-v${VERSION}.md")
+          fi
+
           # Four explicit publication states.
           if [ "$tag_exists" = "no" ] && [ "$release_exists" = "no" ]; then
             # Neither tag nor Release exists: publish at the merge SHA.
-            gh release create "v$VERSION" --target "$MERGE_SHA" --title "v$VERSION" --notes-file notes.md
+            gh release create "v$VERSION" --target "$MERGE_SHA" --title "v$VERSION" --notes-file body.md "${attach_args[@]}"
           elif [ "$tag_exists" = "yes" ] && [ "$release_exists" = "yes" ]; then
             # Both exist: an idempotent rerun is valid only when the tag
             # resolves to the recorded merge SHA.
