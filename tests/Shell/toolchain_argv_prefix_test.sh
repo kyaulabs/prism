@@ -16,6 +16,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -132,8 +133,8 @@ fi
 # The launcher's readiness gate also version-checks semgrep and ocr; guard
 # on the ranges declared in the core toolchain contract so the smoke never
 # fails (or skips) for an unrelated version drift.
-SEMGREP_VER="$(semgrep --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-OCR_VER="$(ocr --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+SEMGREP_VER="$(semgrep --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+OCR_VER="$(ocr --version 2>/dev/null | grep -oE '^open-code-review v[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
 in_range() {
 	local tool="$1" version="$2"
 	[ -n "$version" ] || return 1
@@ -171,6 +172,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

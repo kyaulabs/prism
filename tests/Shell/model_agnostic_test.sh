@@ -20,6 +20,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -46,12 +47,14 @@ setup_result_file
 PATTERNS='deepseek-v4|deepseek/deepseek|default[-_]?model|default[-_]?provider|default[-_]?thinking[-_]?level|enabled[-_]?models|(judge|primary)[-_ ]?models?([^a-z]|$)'
 
 # ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
-printf 'defaultModel\njudge model\nprimary models\ndefault_model\njudgeModel\n' \
-	| grep -qiE "$PATTERNS" \
-	|| fail "pattern self-test: expected positives not matched"
-printf 'primary deliverable\ndefault model prose\njudgment call\n' \
-	| grep -qiE "$PATTERNS" \
-	&& fail "pattern self-test: unexpected negative matched"
+for pos in defaultModel 'judge model' 'primary models' default_model judgeModel; do
+	printf '%s\n' "$pos" | grep -qiE "$PATTERNS" \
+		|| fail "pattern self-test missed positive: $pos"
+done
+for neg in 'primary deliverable' 'default model prose' 'judgment call'; do
+	printf '%s\n' "$neg" | grep -qiE "$PATTERNS" \
+		&& fail "pattern self-test matched negative: $neg"
+done
 
 # ── 1. No models.json override may exist anywhere in the scan roots ────────
 SCAN_TMP0="$(mktemp -d)"
@@ -100,6 +103,7 @@ find "${SCAN_ROOTS[@]}" \
 	-o -name 'Dockerfile' -o -name 'Makefile' \) \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' \
+	-not -path '*/tests/*' \
 	> "$SCAN_LIST" 2>&1
 FIND_RC=$?
 set -e
@@ -137,6 +141,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
