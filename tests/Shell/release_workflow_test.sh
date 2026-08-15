@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -18,7 +24,8 @@
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
 #   1. release.yml exists and the retired scaffold manifest is absent
-#   2. only a pull_request closed/main trigger (no push, no pull_request_target)
+#   2. only a pull_request closed/main trigger plus workflow_dispatch (no
+#      push, no pull_request_target)
 #   3. merged + release/ head + same-repository job gate
 #   4. ubuntu-latest, no sudo, timeout present
 #   5. job permissions exactly contents: write + pull-requests: write
@@ -30,10 +37,10 @@
 #      markdown label [$VERSION] anywhere in a "## " line), captures the
 #      heading plus body up to the next "## ", requires exactly one section,
 #      and fails when the body has no non-whitespace line
-#   9. rerun logic distinguishes neither/both/partial tag+Release states,
-#      probes the tag locally with git rev-parse (lightweight- and
-#      annotated-tag safe), verifies it resolves to the merge SHA, and
-#      never exits before back-merge handling
+#   9. rerun logic distinguishes neither/both/tag-only/bad-tag states, auto-
+#      recovers tag-without-Release at the merge SHA, probes the tag locally
+#      with git rev-parse (lightweight- and annotated-tag safe), verifies it
+#      resolves to the merge SHA, and never exits before back-merge handling
 #  10. publication is gh release create with --target/--title/--notes-file;
 #      the workflow runs no git cliff, no git push, no auto-merge
 #  11. back-merge checks an existing open PR and develop...main, then opens
@@ -70,25 +77,28 @@ else
 	fail "quality-surface.manifest should be retired"
 fi
 
-# ── 2. Only a pull_request closed/main trigger ───────────────────────────────
+# ── 2. pull_request closed/main + workflow_dispatch trigger ──────────────────
 
 if grep -qE '^[[:space:]]*on:' "$RELEASE_FILE" && \
    grep -qE '^[[:space:]]*pull_request:' "$RELEASE_FILE" && \
    grep -qF 'types: [closed]' "$RELEASE_FILE" && \
    grep -qF 'branches: [main]' "$RELEASE_FILE" && \
+   grep -qF 'workflow_dispatch:' "$RELEASE_FILE" && \
+   grep -qE 'merge_sha:' "$RELEASE_FILE" && \
    ! grep -qE '^[[:space:]]*push:' "$RELEASE_FILE" && \
    ! grep -qF 'pull_request_target:' "$RELEASE_FILE"; then
-	pass "only pull_request closed-on-main trigger; no push or pull_request_target"
+	pass "pull_request closed-on-main plus workflow_dispatch trigger; no push or pull_request_target"
 else
-	fail "trigger is not exactly pull_request types:[closed] branches:[main]"
+	fail "trigger is not pull_request types:[closed] branches:[main] plus workflow_dispatch"
 fi
 
 # ── 3. merged + release/ head + same-repository job gate ─────────────────────
 
-if grep -qF 'merged == true' "$RELEASE_FILE" && \
+if grep -qF "github.event_name == 'workflow_dispatch'" "$RELEASE_FILE" && \
+   grep -qF 'merged == true' "$RELEASE_FILE" && \
    grep -qF "startsWith(github.event.pull_request.head.ref, 'release/')" "$RELEASE_FILE" && \
    grep -qF 'github.event.pull_request.head.repo.full_name == github.repository' "$RELEASE_FILE"; then
-	pass "job gate requires merged, release/ head, and same-repository ownership"
+	pass "job gate requires dispatch, merged release/ head, and same-repository ownership"
 else
 	fail "job gate missing merged == true, startsWith release/, or same-repo check"
 fi
@@ -300,6 +310,14 @@ cat > "$fixture_dir/blank.md" <<'EOF'
 - [Fix] repair back-merge ([deadbeef](https://github.com/kyaulabs/template/commit/deadbeef))
 EOF
 
+# Oversized section — body must be capped with a footer; notes.md full.
+cat > "$fixture_dir/oversized.md" <<'EOF'
+# Changelog
+
+## [💾](https://github.com/kyaulabs/template/releases/tag/v1.2.3) [1.2.3](https://github.com/kyaulabs/template/compare/v1.1.0...v1.2.3) - (2026-08-01)
+EOF
+awk 'BEGIN { for (i = 1; i <= 3000; i++) print "- [Feat] filler line " i " with enough padding text to inflate the section far beyond the 120000-byte body budget" }' >> "$fixture_dir/oversized.md"
+
 if extract_block=$(extract_run_block "$RELEASE_FILE" "Extract changelog notes"); then
 	if sim_dir=$(run_extraction_fixture "$fixture_dir/real.md" "1.2.3" 0); then
 		pass "real cliff.toml heading section is found by the extraction run block"
@@ -345,8 +363,38 @@ if extract_block=$(extract_run_block "$RELEASE_FILE" "Extract changelog notes");
 	else
 		fail "whitespace-only section body did not fail extraction"
 	fi
+	if sim_dir=$(run_extraction_fixture "$fixture_dir/oversized.md" "1.2.3" 0); then
+		if grep -qF 'truncated at GitHub' "$sim_dir/body.md"; then
+			pass "oversized body is capped with the truncation footer"
+		else
+			fail "oversized body missing the truncation footer"
+		fi
+		if grep -qF 'filler line 3000' "$sim_dir/notes.md"; then
+			pass "full section is preserved in notes.md for the asset"
+		else
+			fail "notes.md lost the tail of the full section"
+		fi
+		if grep -qF 'filler line 3000' "$sim_dir/body.md"; then
+			fail "capped body still contains the tail beyond the budget"
+		else
+			pass "capped body stops at the budget boundary"
+		fi
+	else
+		fail "oversized section extraction failed (expected rc=0)"
+	fi
 else
 	fail "could not extract the changelog-extraction run block from release.yml"
+fi
+
+# ── 8c. Body cap + conditional asset contract ────────────────────────────────
+
+if grep -qF 'TRUNCATE_BUDGET' "$RELEASE_FILE" && \
+   grep -qF 'RELEASE_BODY_TRUNCATED' "$RELEASE_FILE" && \
+   grep -qF -- '--attach' "$RELEASE_FILE" && \
+   grep -qF 'full-changelog-v${VERSION}.md' "$RELEASE_FILE"; then
+	pass "body cap (TRUNCATE_BUDGET), truncation flag, and conditional full-changelog asset present"
+else
+	fail "body-cap or asset contract violated"
 fi
 
 # ── 9. Rerun states: local rev-parse tag probe, four states, no early exit ───
@@ -358,11 +406,13 @@ if grep -qF 'tag_exists' "$RELEASE_FILE" && \
    grep -qF 'releases/tags/v$VERSION' "$RELEASE_FILE" && \
    grep -qF 'HTTP 404' "$RELEASE_FILE" && \
    grep -qF '!= "$MERGE_SHA"' "$RELEASE_FILE" && \
+   grep -qF 'release_exists" = "no" ] && [ "$tag_commit" = "$MERGE_SHA"' "$RELEASE_FILE" && \
+   grep -qF 'recovering' "$RELEASE_FILE" && \
    ! grep -qF 'git ls-remote' "$RELEASE_FILE" && \
    ! grep -qF 'exit 0' "$RELEASE_FILE"; then
-	pass "neither/both/partial states distinguished; 404 counts as absent; local lightweight-safe tag probe; existing tag verified against merge SHA; no early exit before back-merge"
+	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe; no early exit before back-merge"
 else
-	fail "publication-state rerun logic, 404 classification, tag-probe, or early-exit contract violated"
+	fail "publication-state rerun logic, tag-only recovery, 404 classification, tag-probe, or early-exit contract violated"
 fi
 
 # ── 9b. Executable simulation: local tag probe handles lightweight and annotated ──
@@ -407,6 +457,29 @@ fi
 # for both tag kinds, which is the precondition of the workflow's both-exist
 # idempotent state; the wrong-target guard '!= "$MERGE_SHA"' stays pinned.
 
+# ── 9c. Package tags via the git refs API; no npm publish or git push ────────
+
+PKG_CONFIG="$REPO_ROOT/.prism/release.json"
+if [ -f "$PKG_CONFIG" ] && \
+   grep -qF '"packages"' "$PKG_CONFIG" && \
+   grep -qF 'packages/prism-core' "$PKG_CONFIG" && \
+   grep -qF 'packages/prism-php-web' "$PKG_CONFIG"; then
+	pass "9c: .prism/release.json declares the release packages"
+else
+	fail "9c: .prism/release.json missing or does not declare both packages"
+fi
+
+if grep -qF '.prism/release.json' "$RELEASE_FILE" && \
+   grep -qF 'git/refs' "$RELEASE_FILE" && \
+   grep -qF 'gh api -X POST' "$RELEASE_FILE" && \
+   grep -qF '### 📦 Packages' "$RELEASE_FILE" && \
+   ! grep -qF 'npm publish' "$RELEASE_FILE" && \
+   ! grep -qF 'git push' "$RELEASE_FILE"; then
+	pass "package tags created via git refs API from .prism/release.json; Packages block present; no npm publish or git push"
+else
+	fail "package-tag or Packages-block contract violated"
+fi
+
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──
 
 if grep -qF 'gh release create' "$RELEASE_FILE" && \
@@ -437,9 +510,9 @@ fi
 
 # ── 12. Release-specific concurrency, no cancellation ────────────────────────
 
-if grep -qF 'release-${{ github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
+if grep -qF 'release-${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
    grep -qF 'cancel-in-progress: false' "$RELEASE_FILE"; then
-	pass "concurrency is release-specific (immutable merge-SHA key) with cancel-in-progress: false"
+	pass "concurrency is release-specific (unified merge-SHA key) with cancel-in-progress: false"
 else
 	fail "concurrency is not release-specific or cancels in-flight runs"
 fi
@@ -608,7 +681,44 @@ else
 	fail "P22: /release still contains local tag/publication/back-merge operations"
 fi
 
+# ── P23. Config-driven per-package versions; no hardcoded glob discovery ─────
+
+if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
+   grep -qF -- '--include-path' "$RELEASE_CMD" && \
+   grep -qF 'npm version' "$RELEASE_CMD" && \
+   grep -qF -- '--no-git-tag-version' "$RELEASE_CMD" && \
+   ! grep -qE 'packages/\*' "$RELEASE_CMD"; then
+	pass "P23: /release discovers packages via .prism/release.json only and bumps with npm version --no-git-tag-version"
+else
+	fail "P23: /release package discovery is hardcoded or the bump command is missing"
+fi
+
+# ── P24. Pipeline never runs npm publish; commands are inert text only ───────
+
+if grep -qF 'npm publish' "$RELEASE_CMD" && \
+   ! bash_block_contains "$RELEASE_CMD" 'npm publish'; then
+	pass "P24: /release prints npm publish commands as inert text only, never in a bash block"
+else
+	fail "P24: /release npm publish command is executable or absent"
+fi
+
+# ── P25. Release-body pre-flight flags the 125,000-character limit ───────────
+
+if grep -qE '125,?000' "$RELEASE_CMD" && \
+   grep -qE '120,?000' "$RELEASE_CMD" && \
+   grep -qiF 'truncat' "$RELEASE_CMD"; then
+	pass "P25: /release pre-flights the changelog section against the release-body limit"
+else
+	fail "P25: /release body pre-flight missing"
+fi
+
 print_summary "release_workflow"
+
+
+
+
+
+
 
 
 

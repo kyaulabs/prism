@@ -51,6 +51,7 @@ documentation, and conversation.
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
 | walking-skeleton bootstrap | The sole strict-greenfield exception to immediate wayfinding: scaffold plus one thin vertical slice, still following specification, planning, TDD, verification, checking, and review. |
 | wayfinder map | A shared map of investigation tickets used to resolve oversized uncertainty one bounded question at a time before synthesis into a specification. |
+| package release | A release event that publishes the repo's GitHub Release and bumps the declared release-managed npm packages (`.prism/release.json`) to independently computed versions, tagging each; `npm publish` remains a human-run step. |
 | tracker operator | The least-privilege workflow that performs approved GitHub issue, label, field, and blocking-edge operations for ticketing. External tracker content remains untrusted data. |
 
 ## Entities & Invariants
