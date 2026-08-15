@@ -663,7 +663,7 @@ git commit -S -m $'ci(release): tag release packages from prism config\n\nAuthor
 - Consumes: `.prism/release.json`; `CHANGELOG.md` section; package `package.json` files.
 - Produces: per-package bumps on the release branch; npm publish lines in the inert handoff; oversized-section question.
 
-- [ ] **Step 1: Update the guard (Red)**
+- [x] **Step 1: Update the guard (Red)**
 
 Append after P22:
 
@@ -700,12 +700,12 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run the guard — expect FAIL**
+- [x] **Step 2: Run the guard — expect FAIL**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: FAIL on P23–P25 (prompt unchanged so far).
 
-- [ ] **Step 3: Add the body pre-flight to release.md**
+- [x] **Step 3: Add the body pre-flight to release.md**
 
 After the "Generate the changelog" section's template-link replacement, add:
 
@@ -731,7 +731,7 @@ fi
 ```
 ```
 
-- [ ] **Step 4: Add the per-package version section to release.md**
+- [x] **Step 4: Add the per-package version section to release.md**
 
 Before the "Commit the changelog" section, add:
 
@@ -767,7 +767,7 @@ The `chore(release): vX.Y.Z` commit carries the bumped `package.json` files,
 so the versions land in the merge commit.
 ```
 
-- [ ] **Step 5: Update the commit block to add bumped package.json files**
+- [x] **Step 5: Update the commit block to add bumped package.json files**
 
 In the "Commit the changelog" section, change the `git add CHANGELOG.md` line to:
 
@@ -778,7 +778,7 @@ for pkg in ${BUMPED_PKGS:-}; do
 done
 ```
 
-- [ ] **Step 6: Add the npm publish lines to the handoff**
+- [x] **Step 6: Add the npm publish lines to the handoff**
 
 In the handoff text block (after the `gh pr create` line), add the
 render-per-bumped-package lines, and extend the closing statement:
@@ -790,12 +790,12 @@ render-per-bumped-package lines, and extend the closing statement:
 #   (one line per bumped package; none when no package bumped)
 ```
 
-- [ ] **Step 7: Run the guard — expect PASS**
+- [x] **Step 7: Run the guard — expect PASS**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: all PASS, including P13–P22 (no `read ` command added, no `git push`/`gh pr create` in bash blocks, `chore(release): v` + three-footers preserved) and P23–P25.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/prism-core/prompts/release.md tests/Shell/release_workflow_test.sh
