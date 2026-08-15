@@ -1,4 +1,5 @@
-// $KYAULabs: cli.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -225,6 +226,41 @@ function prepareSetupAdapter(adapterName, context) {
 		throw new SetupOperationError(EXIT.USAGE, 'prism-tool: requested adapter is not active');
 	}
 	return {handler, projectRoot, readiness, registration};
+}
+
+const RESOLVE_KINDS = new Set(['scripts', 'skills']);
+
+function resolveKindDir(args, context) {
+	const kind = args[0];
+	if (args.length !== 1 || !RESOLVE_KINDS.has(kind)) {
+		process.stderr.write('usage: prism-tool resolve scripts|skills\n');
+		return EXIT.USAGE;
+	}
+	const isDir = (candidate) => {
+		try {
+			return fs.statSync(candidate).isDirectory();
+		} catch {
+			return false;
+		}
+	};
+	let current = fs.realpathSync(context.cwd ?? process.cwd());
+	while (true) {
+		const candidate = path.join(current, 'packages', 'prism-core', kind);
+		if (isDir(candidate)) {
+			process.stdout.write(`${candidate}\n`);
+			return EXIT.OK;
+		}
+		const parent = path.dirname(current);
+		if (parent === current) break;
+		current = parent;
+	}
+	const own = path.resolve(__dirname, '../..', kind);
+	if (!isDir(own)) {
+		process.stderr.write(`prism-tool: installed ${kind} directory is missing\n`);
+		return EXIT.USAGE;
+	}
+	process.stdout.write(`${own}\n`);
+	return EXIT.OK;
 }
 
 function setup(args, context) {
@@ -601,11 +637,13 @@ function main(argv, context = {}) {
 	if (command === 'run') return runDeclaredTool(args, context);
 	if (command === 'doctor') return doctor(args, context);
 	if (command === 'setup') return setup(args, context);
+	if (command === 'resolve') return resolveKindDir(args, context);
 	process.stderr.write('prism-tool: unknown command\n');
 	return EXIT.USAGE;
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 
