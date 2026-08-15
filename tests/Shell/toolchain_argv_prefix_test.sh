@@ -15,6 +15,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -140,9 +141,10 @@ in_range() {
 const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
 const comp = c.components.find((x) => x.id === process.argv[2]);
 if (!comp || !comp.versionRequirement) process.exit(1);
-const v = process.argv[3].split(".").map(Number);
-const min = comp.versionRequirement.minimum.split(".").map(Number);
-const max = comp.versionRequirement.maximumExclusive.split(".").map(Number);
+const norm = (s) => { const v = s.split(".").map(Number); while (v.length < 3) v.push(0); return v; };
+const v = norm(process.argv[3]);
+const min = norm(comp.versionRequirement.minimum);
+const max = norm(comp.versionRequirement.maximumExclusive);
 const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 process.exit(cmp(v, min) >= 0 && cmp(v, max) < 0 ? 0 : 1);
 ' "$REPO_ROOT/packages/prism-core/toolchain.json" "$tool" "$version" 2>/dev/null
@@ -169,6 +171,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

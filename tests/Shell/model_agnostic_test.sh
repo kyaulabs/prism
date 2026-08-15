@@ -17,6 +17,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -77,7 +78,7 @@ SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
 find "${SCAN_ROOTS[@]}" \
 	-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
-	-o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
+	-o -name '*.php' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
 	-not -path '*/skills/websearch/*' \
 	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' \
 	> "$SCAN_LIST" 2>&1
@@ -117,6 +118,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
