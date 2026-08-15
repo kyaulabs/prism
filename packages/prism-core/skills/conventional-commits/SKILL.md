@@ -16,41 +16,33 @@ description: Use when writing or reviewing commit messages. Covers the required 
 - Subject line: lowercase, no period at end, max 100 characters
 - Body: wrap at 72 characters, explain *why* not *what*
 - Signed commits required (`git commit -S`)
-- Every commit must include `Authored-by:`, `Implemented-by:`, `Tested-by:`, and `Signed-off-by:` footers
+- Every commit must include `Implemented-by:`, `Tested-by:`, and `Signed-off-by:` footers
 
 ## Required Footers
 
-Every commit message must end with four footers:
+Every commit message must end with three footers:
 
-- **`Authored-by:`** — the model that performed design/planning. Use the
-  active model ID segment after the last `/` (for example,
+- **`Implemented-by:`** — the model pi is using (the active session model).
+  Use the model ID segment after the last `/` (for example,
   `deepseek/deepseek-v4-flash` → `deepseek-v4-flash`).
-- **`Implemented-by:`** — the model that implemented the change. Use the
-  active model ID segment after the last `/`. The default is
-  `deepseek-v4-flash` unless the human manually cycled models.
-- **`Tested-by:`** — the model that performed verification/review. Use the
-  active model ID segment after the last `/`. This is `deepseek-v4-pro` when
-  the human cycles to the judge for review, otherwise the primary model.
-
-> [!CAUTION]
-> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
-> model ID. The Authored-by / Implemented-by / Tested-by footers track which
-> configured models designed, implemented, and verified the change — not which
-> agent role orchestrated it.
->
-> `Tested-by:` extends the Linux kernel convention ("I ran the tests") to cover
-> the full verification pipeline (review, audit, judge, explore). See ADR-0031.
-> `Implemented-by:` is a harness addition (ADR-0040) attributing the coding
-> model separately from the planning model.
+- **`Tested-by:`** — the model open-code-review is configured with. Resolve
+  it with `bash packages/prism-core/scripts/resolve-ocr-model.sh` (reads
+  only the `model` key from `~/.opencodereview/config.json`; fails closed,
+  exit 3, when the config is missing or unreadable).
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. Resolve it dynamically with
   `bash packages/prism-core/scripts/resolve-identity.sh`; it uses an optional
   `~/.config/prism/identity` override and then git
   `user.name`/`user.email`, failing closed when neither resolves.
 
-These footers are mandatory for traceability. There is no model manifest or
-automatic tiering under pi; use the models that actually authored,
-implemented, and tested the change (ADR-0057).
+> [!CAUTION]
+> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
+> model ID. The Implemented-by / Tested-by footers track which configured
+> models implemented and verified the change — not which agent role
+> orchestrated it.
+>
+> `Tested-by:` records the model the review tool (open-code-review) uses;
+> `Implemented-by:` attributes the coding model. See ADR-0064.
 
 ## Valid Types
 
@@ -109,10 +101,10 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 
 - **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing
   keyword. Place it at the **top of the footer block**, immediately above
-  `Authored-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
+  `Implemented-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
   `Resolves`, `Resolved`, `Fix`, `Fixed`, and colon-less forms (`Fixes #42`).
 - **`Refs: #NN`** — references an issue *without* closing it. Same footer
-  block, above `Authored-by:`.
+  block, above `Implemented-by:`.
 - Lowercase `fixes:` is rejected — the token is Sentence-case.
 
 ## Examples
@@ -120,7 +112,6 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 ```
 feat(auth): add remember-me cookie to login flow
 
-Authored-by: deepseek-v4-flash
 Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
@@ -130,7 +121,6 @@ Signed-off-by: <resolved via resolve-identity.sh>
 fix(db): parameterize the user search query
 
 Fixes: #42
-Authored-by: deepseek-v4-flash
 Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
@@ -139,7 +129,6 @@ Signed-off-by: <resolved via resolve-identity.sh>
 ```
 test(auth): add boundary cases for empty credentials
 
-Authored-by: deepseek-v4-flash
 Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Signed-off-by: <resolved via resolve-identity.sh>
@@ -164,7 +153,7 @@ standard set.
 
 Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
 exempt from trailer enforcement — their auto-generated messages cannot carry
-`Authored-by:`/`Implemented-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
+`Implemented-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
 installed (fresh clone without `npm install`), the hook fails closed and
 blocks the commit; run `npm install` to restore the local toolchain. CI
 enforces the policy on every PR commit.
@@ -184,10 +173,10 @@ enforces the policy on every PR commit.
 
 ```bash
 # CORRECT — single -m with $'...\n...' embedded newlines
-git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nAuthored-by: model\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <email>'
+git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <email>'
 
 # WRONG — multiple -m flags insert blank lines between each, breaking trailers
-git commit -S -m "type[scope]: subject" -m "Body." -m "Authored-by: model" -m "Implemented-by: model" -m "Tested-by: model"
+git commit -S -m "type[scope]: subject" -m "Body." -m "Implemented-by: model" -m "Tested-by: model" -m "Signed-off-by: user <email>"
 ```
 
 If the commit fails due to the commit-msg hook, the commit was **not created**.

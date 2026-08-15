@@ -146,7 +146,7 @@ Expected: PASS
 
 ```bash
 git add tests/exact/path/to/test-file exact/path/to/source-file
-git commit -S -m $'feat(scope): concise subject describing the change\n\nAuthored-by: <active-planning-model>\nImplemented-by: <active-implementation-model>\nTested-by: <active-review-model>\nSigned-off-by: <resolved via resolve-identity.sh>'
+git commit -S -m $'feat(scope): concise subject describing the change\n\nImplemented-by: <active-session-model>\nTested-by: <resolved via resolve-ocr-model.sh>\nSigned-off-by: <resolved via resolve-identity.sh>'
 ```
 
 > *Replace every angle-bracket field with task-specific content. Use the
@@ -169,7 +169,7 @@ failures** — never write them:
   code steps)
 - References to types, functions, or methods not defined in any task
 - Bare commit messages missing scope or required footers — use the full
-  conventional-commits format (type[scope]: subject + Authored-by + Implemented-by + Tested-by + Signed-off-by)
+  conventional-commits format (type[scope]: subject + Implemented-by + Tested-by + Signed-off-by)
 
 ## Self-review
 

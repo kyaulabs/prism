@@ -78,19 +78,20 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 **Required trailers** (every non-merge, non-revert commit):
 
-- `Authored-by:` — the model that did the design/planning (e.g. `glm-5.2`)
-- `Implemented-by:` — the model that did the implementation
-- `Tested-by:` — the model that did the verification/review
+- `Implemented-by:` — the model that did the implementation (the active
+  session model)
+- `Tested-by:` — the model open-code-review is configured with, resolved via
+  `bash packages/prism-core/scripts/resolve-ocr-model.sh`
 - `Signed-off-by:` — the human approver, resolved via
   `bash packages/prism-core/scripts/resolve-identity.sh` (optional override
   at `~/.config/prism/identity` → `git config user.name`/`user.email`; fails
   closed, exit 3, if neither resolves).
 
-Under the single-agent, single-primary-model design (ADR-0057) the first
-three trailers are usually the same model — the primary in use for the
-session. Cycle to the judge model (`deepseek-v4-pro`) via **Ctrl+P** for the
-review/verification step and record that model in `Tested-by:`. The value is
-the bare model id (e.g. `glm-5.2`, `deepseek-v4-pro`).
+Under the single-agent, single-primary-model design (ADR-0057) the
+`Implemented-by:` footer is the session model in use. `Tested-by:` is the
+model open-code-review is configured to review with (resolved via
+`resolve-ocr-model.sh`). Each value is the bare model id (e.g.
+`deepseek-v4-flash`, `deepseek-v4-pro`).
 
 > **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer
 > names until a separate upstream PR lands. Aurora commits may need manual

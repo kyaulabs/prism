@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -527,18 +528,19 @@ else
 	fail "P19: /release repo-identity or portable link-replacement contract violated"
 fi
 
-# ── P20. Signed chore(release) commit with four dynamic ADR-0040 footers ─────
+# ── P20. Signed chore(release) commit with three dynamic footers ───────────
 
 if grep -qF 'git commit -S' "$RELEASE_CMD" && \
    grep -qF 'chore(release): v' "$RELEASE_CMD" && \
    grep -qF 'PI_MODEL' "$RELEASE_CMD" && \
    grep -qF 'MODEL_ID' "$RELEASE_CMD" && \
    grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
-   grep -qF 'Authored-by:' "$RELEASE_CMD" && \
+   grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD" && \
    grep -qF 'Implemented-by:' "$RELEASE_CMD" && \
    grep -qF 'Tested-by:' "$RELEASE_CMD" && \
-   grep -qF 'Signed-off-by:' "$RELEASE_CMD"; then
-	pass "P20: /release creates a signed chore(release) commit with four dynamically resolved footers"
+   grep -qF 'Signed-off-by:' "$RELEASE_CMD" && \
+   ! grep -qF 'Authored-by:' "$RELEASE_CMD"; then
+	pass "P20: /release creates a signed chore(release) commit with three dynamically resolved footers"
 else
 	fail "P20: /release signed-commit or dynamic-footer contract violated"
 fi
@@ -606,6 +608,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

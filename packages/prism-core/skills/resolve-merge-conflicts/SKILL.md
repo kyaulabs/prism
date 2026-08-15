@@ -61,8 +61,8 @@ user which stack applies rather than guessing commands.
 ### If merging
 Run `git commit -S` (signed commit required) to complete the merge. Use a
 `Merge `-prefixed subject so commitlint's merge/revert exemption applies
-(merge commits are exempt from the Authored-by/Implemented-by/Tested-by/
-Signed-off-by rule — see `commitlint.config.js`). Do NOT add the four footers
+(merge commits are exempt from the Implemented-by/Tested-by/Signed-off-by
+rule — see `commitlint.config.js`). Do NOT add the three footers
 to a merge commit:
 
 ```

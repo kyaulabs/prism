@@ -132,9 +132,9 @@ message:
 
 - type and optional scope from the work performed
 - lowercase subject, no period, at most 100 characters
-- `Authored-by:` with the model that planned the work
 - `Implemented-by:` with the model that wrote the implementation
-- `Tested-by:` with the model that ran verification/review
+- `Tested-by:` with the model open-code-review is configured with (via
+  `resolve-ocr-model.sh`)
 - `Signed-off-by:` resolved through
   `bash packages/prism-core/scripts/resolve-identity.sh`
 

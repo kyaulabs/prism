@@ -551,9 +551,8 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Authored-by',        # Required — the design/planning model (e.g. glm-5.2)
-  'Implemented-by',     # Required — the implementation model (primary deepseek-v4-flash, or deepseek-v4-pro if Ctrl+P cycled)
-  'Tested-by',          # Required — the review model (deepseek-v4-pro if cycled for review, else the primary)
+  'Implemented-by',     # Required — the model pi is using (the active session model)
+  'Tested-by',          # Required — the model open-code-review is configured with (via resolve-ocr-model.sh)
   'Signed-off-by',      # Required — the user (e.g. kyau <git@kyaulabs.com>)
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
@@ -564,17 +563,20 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Authored-by`, `Implemented-by`, `Tested-by`, and
+Every commit must include `Implemented-by`, `Tested-by`, and
 `Signed-off-by` footers. If no user is explicitly named, the default
 `Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the model
-ID segment after the last `/` (ADR-0040): `deepseek/deepseek-v4-flash` →
+ID segment after the last `/` (ADR-0064): `deepseek/deepseek-v4-flash` →
 `deepseek-v4-flash`, `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
+`Tested-by:` is resolved via
+`bash packages/prism-core/scripts/resolve-ocr-model.sh` (the model
+open-code-review is configured with).
 `Signed-off-by:` is resolved dynamically via
 `bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
 per ADR-0029).
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
-placed at the top of the footer block immediately above `Authored-by:`.
+placed at the top of the footer block immediately above `Implemented-by:`.
 commitlint rejects all other GitHub closing keywords (`Closes`, `Resolve`,
 `Fix`, `Fixed`, etc.) and no-colon forms (`Fixes #42`). Use `Refs: #NN` for
 non-closing references, in the same top-of-footer block.
@@ -594,7 +596,6 @@ Basic movement added.
 
 Refs: #123
 Refs: 676104e, a215868
-Authored-by: glm-5.2
 Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Signed-off-by: kyau <git@kyaulabs.com>
@@ -605,7 +606,6 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
-Authored-by: glm-5.2
 Implemented-by: deepseek-v4-flash
 Tested-by: deepseek-v4-pro
 Reviewed-by: Z

@@ -18,7 +18,7 @@ const CLOSING_RE = new RegExp(
 // Colon is required (Fixes #42 or refs: #42 are rejected/mis-cased earlier by
 // the CLOSING_RE checks). The /i flag catches lowercase `refs:` as well.
 const ISSUE_REF_RE = /^\s*(Fixes|Refs):\s*#\d+\s*$/i;
-const AUTHORED_BY_RE = /^\s*Authored-by:\s/;
+const IMPLEMENTED_BY_RE = /^\s*Implemented-by:\s/;
 
 const isMergeOrRevert = (parsed) => {
 	const isMerge =
@@ -32,7 +32,7 @@ const isMergeOrRevert = (parsed) => {
 const trailersExist = (parsed, when, trailers) => {
 	// Exempt merge commits and reverts from trailer enforcement.
 	// `git merge --no-ff` and `git revert` produce auto-generated messages
-	// that cannot carry Authored-by/Tested-by/Signed-off-by trailers. CI applies
+	// that cannot carry Implemented-by/Tested-by/Signed-off-by trailers. CI applies
 	// the same exemption via this config, so merges/reverts pass everywhere.
 	if (isMergeOrRevert(parsed)) {
 		return [true, ''];
@@ -65,7 +65,7 @@ const issueRefConvention = (parsed, when) => {
 	const lines = (parsed.raw || '').split('\n');
 	const violations = [];
 	const issueRefIdxs = [];
-	let authoredByIdx = -1;
+	let implementedByIdx = -1;
 
 	lines.forEach((line, i) => {
 		const m = line.match(CLOSING_RE);
@@ -92,14 +92,14 @@ const issueRefConvention = (parsed, when) => {
 		if (ISSUE_REF_RE.test(line)) {
 			issueRefIdxs.push(i);
 		}
-		if (AUTHORED_BY_RE.test(line) && authoredByIdx === -1) {
-			authoredByIdx = i;
+		if (IMPLEMENTED_BY_RE.test(line) && implementedByIdx === -1) {
+			implementedByIdx = i;
 		}
 	});
 
-	if (authoredByIdx !== -1 && issueRefIdxs.some((idx) => idx > authoredByIdx)) {
+	if (implementedByIdx !== -1 && issueRefIdxs.some((idx) => idx > implementedByIdx)) {
 		violations.push(
-			'issue-reference trailers (`Fixes:`, `Refs:`) must appear before `Authored-by:`'
+			'issue-reference trailers (`Fixes:`, `Refs:`) must appear before `Implemented-by:`'
 		);
 	}
 
@@ -134,7 +134,7 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
-		'trailers-exist': [2, 'always', ['Authored-by:', 'Implemented-by:', 'Tested-by:', 'Signed-off-by:']],
+		'trailers-exist': [2, 'always', ['Implemented-by:', 'Tested-by:', 'Signed-off-by:']],
 		'issue-ref-convention': [2, 'always'],
 		'signed-off-by': [0],
 	},

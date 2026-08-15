@@ -154,16 +154,16 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill.
 - Signed commits required.
-- Every commit must include `Authored-by:` (the active planning model),
-  `Implemented-by:` (the active implementation model — the primary
-  `deepseek-v4-flash` unless Ctrl+P cycled), `Tested-by:` (the active review
-  model — `deepseek-v4-pro` if cycled for review, else the primary), and
-  `Signed-off-by:` (user) footers, in pipeline order `Authored-by` →
-  `Implemented-by` → `Tested-by` → `Signed-off-by` (ADR-0040). Each model
-  footer is the model ID segment after the last `/` (e.g. `deepseek-v4-flash`,
-  `deepseek-v4-pro`). `Signed-off-by:` is resolved dynamically via
+- Every commit must include `Implemented-by:` (the model pi is using — the
+  active session model), `Tested-by:` (the model open-code-review is
+  configured with — resolved via
+  `bash packages/prism-core/scripts/resolve-ocr-model.sh`), and
+  `Signed-off-by:` (user) footers, in pipeline order `Implemented-by` →
+  `Tested-by` → `Signed-off-by` (ADR-0064). Each model footer is the model
+  ID segment after the last `/` (e.g. `deepseek-v4-flash`, `deepseek-v4-pro`).
+  `Signed-off-by:` is resolved dynamically via
   `bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
-  per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Authored-by:`. Use `Refs: #NN` for non-closing references.
+  per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Implemented-by:`. Use `Refs: #NN` for non-closing references.
 - Model selection is single-model with manual cycling — see **Model strategy**
   below (ADR-0057). There is no manifest/env tier layer.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
@@ -171,7 +171,7 @@ adapter's stack skill (e.g. `scss-mobile-first`).
 After implementing any change — whether via the `tdd` skill, a direct fix, an
 issue tracker resolution, or a fast-path trivial change — produce a commit
 message in conventional commits format before committing. Load the
-`conventional-commits` skill and produce: type[scope]: subject + Authored-by +
+`conventional-commits` skill and produce: type[scope]: subject +
 Implemented-by + Tested-by + Signed-off-by footers. The commit-msg hook blocks
 invalid messages, but the message should be well-formed before you reach the
 hook.

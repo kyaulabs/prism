@@ -1,4 +1,5 @@
-// $KYAULabs: prism-tool-run.test.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -131,7 +132,7 @@ test('applies the core commit policy outside the Prism checkout', (t) => {
 	const message = path.join(directory, 'message.txt');
 	fs.writeFileSync(
 		message,
-		'feat: missing implementation attribution\n\nAuthored-by: model\nTested-by: model\nSigned-off-by: user <user@example.com>\n'
+		'feat: missing implementation attribution\n\nTested-by: model\nSigned-off-by: user <user@example.com>\n'
 	);
 
 	const result = spawnSync(
@@ -182,7 +183,7 @@ test('rejects commitlint configuration overrides', (t) => {
 	const message = path.join(directory, 'message.txt');
 	fs.writeFileSync(
 		message,
-		'feat: valid attribution\n\nAuthored-by: model\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <user@example.com>\n'
+		'feat: valid attribution\n\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <user@example.com>\n'
 	);
 
 	const result = spawnSync(
@@ -306,6 +307,7 @@ test('forwards bounded stdin and arguments as inert data', async (t) => {
 		input: 'staged content\n',
 	});
 });
+
 
 
 
