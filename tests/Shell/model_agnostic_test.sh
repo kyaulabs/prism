@@ -7,6 +7,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -46,7 +47,7 @@ while IFS= read -r f; do
 	[ -n "$f" ] && FILES+=("$f")
 done < <(
 	find "$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web" \
-		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.json' -o -name '*.ts' \) \
+		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \) \
 		-not -path '*/skills/websearch/*' 2>/dev/null
 	printf '%s\n' \
 		"$REPO_ROOT/settings.json" \
@@ -72,6 +73,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

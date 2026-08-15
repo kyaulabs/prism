@@ -6,6 +6,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -43,12 +44,9 @@ if grep -q "validateArgvPrefix" "$CONTRACT_JS"; then
 else
 	fail "contract.js lacks the argvPrefix validator"
 fi
-
-if bash "$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh" >/dev/null 2>&1; then
-	pass "validate-harness accepts the argvPrefix contract"
-else
-	fail "validate-harness rejects the adapter contract"
-fi
+# Schema acceptance of the adapter contract is covered functionally by
+# validate-harness_test.sh (which runs the full validator in the suite);
+# this test does not repeat that whole-repo run.
 
 # ── 3. Behavior smoke: launcher prepends the prefix ─────────────────────────
 # Functional proof: validate-harness (above) accepts the contract; the
@@ -90,15 +88,16 @@ case "$DEFAULT_SCAN_DIR" in
 esac
 
 # Negative control: pest run directly (no launcher) with the driver forced
-# off must FAIL — proves this environment is red-capable for the regression.
+# off must FAIL with the driver-absence symptom — proves this environment
+# is red-capable for the regression, for the right reason.
 set +e
-(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage --testsuite=Unit) >/dev/null 2>&1
+CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage --testsuite=Unit 2>&1)
 CONTROL_RC=$?
 set -e
-if [ "$CONTROL_RC" -ne 0 ]; then
-	pass "negative control: direct pest with driver off fails (rc=$CONTROL_RC)"
+if [ "$CONTROL_RC" -ne 0 ] && printf '%s' "$CTRL_OUT" | grep -qE "coverage driver"; then
+	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
 else
-	fail "negative control: direct pest with driver off unexpectedly passed"
+	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
 fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
@@ -114,6 +113,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
