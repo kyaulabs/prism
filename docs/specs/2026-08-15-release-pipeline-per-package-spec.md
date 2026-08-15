@@ -100,13 +100,24 @@ tag-state machine still applies.
 
 ### D4 — Per-package version computation (`/release`)
 
-For each package in `packages/*` with a `package.json`:
+Package discovery is **configurable, not baked in**: `/release` reads
+`.prism/release.json` from the repo root — `{ "packages": ["path", …] }`
+— listing relative directory paths of release-managed packages. Absent or
+empty `packages` → the per-package logic is skipped entirely (today's
+behavior; zero change for consumers who do not configure it).
+Present-but-malformed (bad paths, `..`, missing `package.json`) → fail
+closed with a clear error. This repo commits the file declaring
+`packages/prism-core` and `packages/prism-php-web`.
+
+For each declared package:
 
 ```
-git-cliff --bumped-version --include-path 'packages/<pkg>/*' --tag-pattern '<pkg>@.*'
+git-cliff --bumped-version --include-path '<pkg>/*' --tag-pattern '<prefix>@.*'
 ```
 
-Strip the `<pkg>@` prefix. Verified against this repo: `prism-core@0.2.0`,
+where `<prefix>` is the package's `package.json` `name` with the scope
+stripped (`@kyaulabs/prism-core` → `prism-core`). Strip the `<prefix>@`
+prefix from the result. Verified against this repo: `prism-core@0.2.0`,
 `prism-php-web@0.2.0`. A package reporting "nothing to bump" is **skipped**
 entirely — no bump, no tag, no npm command. The repo version is computed
 as today (all commits, `v*` tags).
@@ -124,6 +135,9 @@ land in the merge commit (release.yml never pushes, ADR-0046).
 After the repo Release is handled, create a `pkg@ver` tag via the git refs
 API for every package whose merged-tree `package.json` version has no
 `pkg@ver` tag already resolving to the merge SHA (idempotent reruns skip).
+The package list comes from the **same** `.prism/release.json` read from
+the checked-out merge SHA — one source of truth between authoring and
+publishing (a consumer copying the workflow gets identical behavior).
 The tags are load-bearing: the next `/release` bumps from them; missing
 tags would double-count released commits.
 
@@ -155,16 +169,21 @@ Not a hard stop — the pipeline now handles oversized bodies gracefully.
   gains the per-package bump + npm-print assertions.
 - Rewrite `NPM.md`'s manual flow: the pipeline owns bumps + tags; the
   human owns only `npm publish`.
-- Amend ADR-0046: per-package versions/tags, dispatch trigger, body cap
-  + asset, auto-recovery.
+- Write **ADR-0066** (pi-era): supersedes ADR-0046's publication-state
+  clause and extends it with per-package versions/tags (configurable via
+  `.prism/release.json`), dispatch recovery, body cap + asset,
+  auto-recovery. ADR-0046 remains untouched (frozen record).
+- Add a "package release" entry to the `CONTEXT.md` glossary.
 
 ## Implementation Surface
 
 - `.github/workflows/release.yml`
 - `packages/prism-core/prompts/release.md`
+- `.prism/release.json` (new, committed for this repo)
 - `tests/Shell/release_workflow_test.sh`
 - `NPM.md`
-- `adr/0046-automated-release-pipeline.md` (amendment)
+- `CONTEXT.md` (glossary entry)
+- `adr/0066-…` (new pi-era record; ADR-0046 untouched)
 
 ## Acceptance Criteria
 
@@ -174,9 +193,12 @@ Not a hard stop — the pipeline now handles oversized bodies gracefully.
 2. Tag-exists-no-Release state publishes on rerun without manual repair.
 3. `workflow_dispatch` completes a release when no PR event exists,
    with the same validation and state machine.
-4. `/release` computes per-package bumps; unchanged packages are skipped;
-   bumped `package.json` files land on the release branch.
-5. `release.yml` tags every bumped package at the merge SHA.
+4. `/release` computes per-package bumps only from packages declared in
+   `.prism/release.json`; absent/empty config → today's behavior with no
+   per-package logic; malformed config → fail closed; unchanged packages
+   are skipped; bumped `package.json` files land on the release branch.
+5. `release.yml` tags every bumped package at the merge SHA, reading the
+   same config file from the checked-out merge SHA.
 6. The pipeline contains no `npm publish`; `/release` prints the
    human-run commands.
 7. Release body lists bumped packages when any exist.
