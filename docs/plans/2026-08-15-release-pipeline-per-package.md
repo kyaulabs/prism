@@ -309,7 +309,7 @@ git commit -S -m $'ci(release): add workflow_dispatch recovery trigger\n\nAuthor
 - Consumes: `VERSION` env, `body.md`/`notes.md` from extraction.
 - Produces: `RELEASE_BODY_TRUNCATED` env (`yes`/`no`); `body.md` capped with footer; `notes.md` full.
 
-- [ ] **Step 1: Add the guard sim fixture + static pin (Red)**
+- [x] **Step 1: Add the guard sim fixture + static pin (Red)**
 
 In section 8b, after the `blank.md` fixture, add:
 
@@ -362,12 +362,12 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run the guard — expect FAIL**
+- [x] **Step 2: Run the guard — expect FAIL**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: FAIL on the oversized fixture (extract block has no cap yet → body.md contains filler line 3000) and on the 8c static pin.
 
-- [ ] **Step 3: Implement the cap in the extract step**
+- [x] **Step 3: Implement the cap in the extract step**
 
 After the existing non-blank body check (line 117), append:
 
@@ -404,7 +404,7 @@ After the existing non-blank body check (line 117), append:
           fi
 ```
 
-- [ ] **Step 4: Update the publish step to use body.md + conditional asset**
+- [x] **Step 4: Update the publish step to use body.md + conditional asset**
 
 In the "Publish release" step, before the state machine, add:
 
@@ -422,12 +422,12 @@ Change the `gh release create` call (line 154) to:
             gh release create "v$VERSION" --target "$MERGE_SHA" --title "v$VERSION" --notes-file body.md "${attach_args[@]}"
 ```
 
-- [ ] **Step 5: Run the guard — expect PASS**
+- [x] **Step 5: Run the guard — expect PASS**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: all PASS, including the oversized fixture (body capped, footer present, notes.md full) and the 8c pin.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/release.yml tests/Shell/release_workflow_test.sh
