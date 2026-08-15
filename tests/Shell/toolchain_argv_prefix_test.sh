@@ -13,6 +13,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -127,28 +128,26 @@ if ! command -v semgrep >/dev/null 2>&1 || ! command -v ocr >/dev/null 2>&1; the
 	exit $?
 fi
 # The launcher's readiness gate also version-checks semgrep and ocr; guard
-# on their declared floors so a wrong version cannot fail the smoke for an
-# unrelated reason.
+# on the contract's declared ranges (semgrep >=1.173.0 <2.0.0, ocr >=1.9.1
+# <2.0.0) so a wrong version cannot fail the smoke for an unrelated reason.
 SEMGREP_VER="$(semgrep --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
 OCR_VER="$(ocr --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-case "$SEMGREP_VER" in
-	1.17[3-9].*|1.18.*|1.19.*)
-		;;
-	*)
-		skip "semgrep version $SEMGREP_VER outside the ready range — launcher smoke skipped"
-		print_summary "toolchain_argv_prefix"
-		exit $?
-		;;
-esac
-case "$OCR_VER" in
-	1.9.*)
-		;;
-	*)
-		skip "ocr version $OCR_VER outside the ready range — launcher smoke skipped"
-		print_summary "toolchain_argv_prefix"
-		exit $?
-		;;
-esac
+if [ -n "$SEMGREP_VER" ]; then
+	node -e 'const v = process.argv[1].split(".").map(Number); process.exit(v[0] === 1 && (v[1] > 173 || (v[1] === 173 && v[2] >= 0)) ? 0 : 1);' "$SEMGREP_VER" 2>/dev/null \
+		|| { skip "semgrep version $SEMGREP_VER outside the ready range — launcher smoke skipped"; print_summary "toolchain_argv_prefix"; exit $?; }
+else
+	skip "semgrep version unreadable — launcher smoke skipped"
+	print_summary "toolchain_argv_prefix"
+	exit $?
+fi
+if [ -n "$OCR_VER" ]; then
+	node -e 'const v = process.argv[1].split(".").map(Number); process.exit(v[0] === 1 && (v[1] > 9 || (v[1] === 9 && v[2] >= 1)) ? 0 : 1);' "$OCR_VER" 2>/dev/null \
+		|| { skip "ocr version $OCR_VER outside the ready range — launcher smoke skipped"; print_summary "toolchain_argv_prefix"; exit $?; }
+else
+	skip "ocr version unreadable — launcher smoke skipped"
+	print_summary "toolchain_argv_prefix"
+	exit $?
+fi
 set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
@@ -161,6 +160,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

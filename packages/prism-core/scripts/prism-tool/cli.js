@@ -20,6 +20,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -617,7 +618,7 @@ function runDeclaredTool(args, context) {
 	// otherwise. The interpreter itself must exist or the failure is opaque;
 	// check it before consuming stdin.
 	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
-	if (component.argvPrefix && !resolveExecutable(argv[0], env)) {
+	if (!context.run && component.argvPrefix && !resolveExecutable(argv[0], env)) {
 		process.stderr.write(`prism-tool: argv prefix command ${argv[0]} is unavailable\n`);
 		return EXIT.READINESS;
 	}
@@ -658,6 +659,7 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 
