@@ -13,6 +13,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -54,22 +55,34 @@ SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packag
 for root in "${SCAN_ROOTS[@]}"; do
 	[ -d "$root" ] || fail "missing scan root: $root"
 done
-FILES=()
-while IFS= read -r f; do
-	[ -n "$f" ] && FILES+=("$f")
-done < <(
-	find "${SCAN_ROOTS[@]}" \
-		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
-		-o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
-		-not -path '*/skills/websearch/*' \
-		-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' 2>/dev/null
+# Fail closed: a find failure must not make the scan vacuously pass.
+SCAN_LIST="$(mktemp)"
+register_temp_dir "$(dirname "$SCAN_LIST")"
+set +e
+find "${SCAN_ROOTS[@]}" \
+	-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
+	-o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
+	-not -path '*/skills/websearch/*' \
+	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' \
+	> "$SCAN_LIST" 2>&1
+FIND_RC=$?
+set -e
+if [ "$FIND_RC" -ne 0 ]; then
+	fail "scan find failed: $(head -1 "$SCAN_LIST")"
+else
 	printf '%s\n' \
 		"$REPO_ROOT/settings.json" \
+		"$REPO_ROOT/AGENTS.md" \
+		"$REPO_ROOT/CONTEXT.md" \
 		"$REPO_ROOT/README.md" \
 		"$REPO_ROOT/CODING_HARNESS.md" \
 		"$REPO_ROOT/CONTRIBUTING.md" \
-		"$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
-)
+		"$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md" >> "$SCAN_LIST"
+fi
+FILES=()
+while IFS= read -r f; do
+	[ -n "$f" ] && FILES+=("$f")
+done < "$SCAN_LIST"
 
 VIOLATIONS=0
 for f in "${FILES[@]}"; do
@@ -95,6 +108,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

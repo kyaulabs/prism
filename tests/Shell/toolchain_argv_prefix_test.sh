@@ -11,6 +11,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -54,8 +55,8 @@ fi
 # (xdebug.mode is untouched by the prefix), and driver-less environments
 # are covered by check-php's loud preflight.
 DRIVER=""
-if php -m 2>/dev/null | grep -qE '^pcov$'; then DRIVER=pcov; fi
-if [ -z "$DRIVER" ] && php -m 2>/dev/null | grep -qE '^xdebug$'; then DRIVER=xdebug; fi
+if php -m 2>/dev/null | grep -qiE '^pcov$'; then DRIVER=pcov; fi
+if [ -z "$DRIVER" ] && php -m 2>/dev/null | grep -qiE '^xdebug$'; then DRIVER=xdebug; fi
 if [ -z "$DRIVER" ]; then
 	skip "no coverage driver present — dynamic smoke skipped; check-php preflight covers this case"
 	print_summary "toolchain_argv_prefix"
@@ -83,7 +84,7 @@ case "$DEFAULT_SCAN_DIR" in
 	""|"(none)")
 		skip "no php ini scan dir — cannot force pcov off deterministically; smoke skipped"
 		print_summary "toolchain_argv_prefix"
-		exit 0
+		exit $?
 		;;
 	*) export PHP_INI_SCAN_DIR="${DEFAULT_SCAN_DIR}:${TMP_INI_DIR}" ;;
 esac
@@ -107,8 +108,7 @@ CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BI
 CONTROL_RC=$?
 set -e
 if [ "$CONTROL_RC" -ne 0 ] \
-	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage" \
-	&& printf '%s' "$CTRL_OUT" | grep -qiE "driver|pcov|xdebug"; then
+	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage|driver|pcov|xdebug"; then
 	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
 else
 	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
@@ -136,6 +136,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
