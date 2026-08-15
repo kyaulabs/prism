@@ -35,7 +35,7 @@ elif command -v prism-tool > /dev/null 2>&1; then
 else
 	cat >&2 <<'EOF'
 ✗ prism-tool launcher is not installed — cannot validate the commit message locally.
-  Run 'bash packages/prism-core/scripts/install-global.sh' (or /setup) to deploy it,
+  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it,
   then re-run the commit. (CI enforces commitlint on every PR; local parity requires it here too.)
 EOF
 	exit 1

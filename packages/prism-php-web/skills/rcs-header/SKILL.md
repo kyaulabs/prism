@@ -48,7 +48,7 @@ headers and `vim: ft=` modelines, rebuilds the file with exactly one canonical
 header (committer identity + commit date) and one modeline, and re-stages if the
 content changed. A placeholder guard blocks commits containing literal
 `creator@host` or `YYYY/MM/DD` template text. Run
-`bash packages/prism-core/scripts/install-hooks.sh` once after cloning to activate it.
+`bash "$(prism-tool resolve scripts)/install-hooks.sh"` once after cloning to activate it.
 
 ## Vim Modeline (REQUIRED at end of every source file)
 

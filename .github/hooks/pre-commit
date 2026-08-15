@@ -22,7 +22,7 @@ elif command -v prism-tool > /dev/null 2>&1; then
 else
 	cat >&2 <<'EOF'
 ✗ prism-tool launcher is not installed.
-  Run 'bash packages/prism-core/scripts/install-global.sh' (or /setup) to deploy it.
+  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it.
 EOF
 	exit 1
 fi
