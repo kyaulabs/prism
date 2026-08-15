@@ -24,6 +24,7 @@
       "provisioning": "consumer-dev",
       "authentication": "none",
       "executable": "pest",
+      "argvPrefix": ["php", "-d", "pcov.enabled=1"],
       "versionArguments": ["--version"],
       "argumentPolicy": {"mode": "passthrough"}
     },

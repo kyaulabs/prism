@@ -1,4 +1,5 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -613,7 +614,8 @@ function runDeclaredTool(args, context) {
 		process.stderr.write('prism-tool: stdin exceeds limit\n');
 		return EXIT.USAGE;
 	}
-	const result = (context.run ?? runBounded)(executable, toolArgs, {
+	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
+	const result = (context.run ?? runBounded)(argv[0], argv.slice(1), {
 		cwd: component.provisioning === 'consumer-dev'
 			? fs.realpathSync(projectRoot)
 			: context.cwd ?? process.cwd(),
@@ -643,6 +645,7 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 

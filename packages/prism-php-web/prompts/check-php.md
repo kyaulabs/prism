@@ -96,6 +96,24 @@ if [ -n "$(find tests/Browser -name '*.php' -print -quit 2>/dev/null)" ] \
 fi
 ```
 
+**Coverage-driver preflight** — without a driver the suite exits 1 silently
+(Pest/PHPUnit abort before running any tests). pcov loaded-but-disabled is
+fine: the launcher injects `php -d pcov.enabled=1` via the toolchain
+`argvPrefix`. Only a totally missing driver is blocking:
+
+```bash
+COVERAGE_DRIVER=""
+php -m 2>/dev/null | grep -qE '^pcov$' && COVERAGE_DRIVER=pcov
+php -m 2>/dev/null | grep -qE '^xdebug$' && COVERAGE_DRIVER=xdebug
+if [ -z "$COVERAGE_DRIVER" ]; then
+    echo "FAIL: no PHP coverage driver loaded (pcov or xdebug)."
+    echo "      Install pcov (pecl install pcov) or enable xdebug, then re-run."
+    echo "      pcov.enabled=0 is fine — the pest launcher injects -d pcov.enabled=1."
+    exit 1
+fi
+echo "→ coverage driver: $COVERAGE_DRIVER"
+```
+
 Then run the full suite with coverage (Clover XML feeds the changed-file
 gate) through the launcher. The dev server URL is passed via
 `PEST_BROWSER_BASE_URL` exactly as CI sets it:
