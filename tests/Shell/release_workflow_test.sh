@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -83,7 +84,7 @@ if grep -qE '^[[:space:]]*on:' "$RELEASE_FILE" && \
    grep -qF 'types: [closed]' "$RELEASE_FILE" && \
    grep -qF 'branches: [main]' "$RELEASE_FILE" && \
    grep -qF 'workflow_dispatch:' "$RELEASE_FILE" && \
-   grep -qF 'merge_sha' "$RELEASE_FILE" && \
+   grep -qE 'merge_sha:' "$RELEASE_FILE" && \
    ! grep -qE '^[[:space:]]*push:' "$RELEASE_FILE" && \
    ! grep -qF 'pull_request_target:' "$RELEASE_FILE"; then
 	pass "pull_request closed-on-main plus workflow_dispatch trigger; no push or pull_request_target"
@@ -712,6 +713,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

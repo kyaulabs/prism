@@ -36,6 +36,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
       MERGE_SHA: ${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
+      VERSION_INPUT: ${{ inputs.version }}
     steps:
       - name: Checkout merged release commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -59,9 +60,11 @@ jobs:
           fi
 
           # The version is a validated dispatch input, or branch-derived on
-          # PR close: strip only the leading release/ prefix.
+          # PR close: strip only the leading release/ prefix. The input
+          # arrives via an env var (never inline interpolation) so a crafted
+          # value cannot execute as shell syntax before validation.
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            version="${{ inputs.version }}"
+            version="$VERSION_INPUT"
           else
             version="${HEAD_REF#release/}"
             if [ "$version" = "$HEAD_REF" ]; then
@@ -184,11 +187,15 @@ jobs:
                 echo "::error::package path '$pkg' has no package.json" >&2
                 exit 1
               fi
-              name=$(jq -r '.name' "$pkg/package.json")
-              ver=$(jq -r '.version' "$pkg/package.json")
+              name=$(jq -r '.name // empty' "$pkg/package.json")
+              ver=$(jq -r '.version // empty' "$pkg/package.json")
               case "$name" in
                 ""|*" "*) echo "::error::package '$pkg' has no usable name" >&2; exit 1 ;;
               esac
+              if ! printf '%s' "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+                echo "::error::package '$pkg' has no usable version: '$ver'" >&2
+                exit 1
+              fi
               # Tag prefix: package.json name with the scope stripped.
               prefix=${name#*/}
               if git rev-parse -q --verify "refs/tags/${prefix}@${ver}^{commit}" >/dev/null 2>&1; then
