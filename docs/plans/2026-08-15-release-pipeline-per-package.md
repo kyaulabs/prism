@@ -530,7 +530,7 @@ git commit -S -m $'ci(release): auto-recover tag-without-release state\n\nAuthor
 - Consumes: `.prism/release.json` from the merge-commit checkout; `MERGE_SHA`; `body.md` (post-truncation); `VERSION`.
 - Produces: `prefix@ver` tags at the merge SHA; `### 📦 Packages` block appended to `body.md`.
 
-- [ ] **Step 1: Create the config + update the guard (Red)**
+- [x] **Step 1: Create the config + update the guard (Red)**
 
 Create `.prism/release.json`:
 
@@ -573,12 +573,12 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run the guard — expect FAIL**
+- [x] **Step 2: Run the guard — expect FAIL**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: FAIL on 9b2/9c (config file exists → 9b2 passes; 9c fails — no `.prism/release.json` in the workflow yet).
 
-- [ ] **Step 3: Add the "Tag release packages" step**
+- [x] **Step 3: Add the "Tag release packages" step**
 
 Insert a new step between "Extract changelog notes" and "Publish release":
 
@@ -639,12 +639,12 @@ Insert a new step between "Extract changelog notes" and "Publish release":
           fi
 ```
 
-- [ ] **Step 4: Run the guard — expect PASS**
+- [x] **Step 4: Run the guard — expect PASS**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .prism/release.json .github/workflows/release.yml tests/Shell/release_workflow_test.sh
