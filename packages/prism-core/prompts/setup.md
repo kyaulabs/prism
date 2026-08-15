@@ -75,24 +75,49 @@ Accept only `--ocr-test-approved=yes`; on approval run
 `prism-tool doctor --ocr-test-approved=yes`. A declined or failed live test
 makes the toolchain NO-GO for this setup.
 
-## 4. DeepSeek model access
+## 4. Optional: your model preferences
 
-Verify that pi knows both scoped model IDs without exposing credentials:
+The harness is model-agnostic (ADR-0067): it never selects, prescribes, or
+restricts models or thinking levels. Model and thinking control is yours at
+any time — **Ctrl+P** cycles models, **Shift+Tab** sets the thinking level.
+This step optionally writes *your* choices as session defaults to
+`~/.pi/agent/settings.json`. Every question is skippable; declining any
+question leaves the user's pi configuration untouched.
 
-```bash
-pi --list-models deepseek-v4-flash
-pi --list-models deepseek-v4-pro
+Ask, one question at a time:
+
+1. Provider — list pi's built-in providers as facts (e.g. `deepseek`); no
+   recommendation. Skippable.
+2. Default model — the user names a model ID; validate with
+   `pi --list-models <id>`; if unknown, list the catalogue and let them
+   pick. Skippable.
+3. Ctrl+P pool — "Do you want to restrict which models Ctrl+P cycles
+   through?" Default answer: no restriction (every model usable). If yes,
+   collect model IDs and validate each. Skippable.
+4. Thinking level — one of pi's levels (`off`, `minimal`, `low`, `medium`,
+   `high`, `xhigh`, `max`) or skip to leave pi's own default. Skippable.
+
+Then one consent gate:
+
+```text
+Write these to ~/.pi/agent/settings.json? (yes/no)
 ```
 
-The expected strategy is:
+Accept only `yes`. On approval, merge exactly the four preference keys the
+user answered — provider, default model, Ctrl+P pool, and thinking level —
+into the existing file with Node.js (a core floor, per doctor):
 
-- primary: `deepseek/deepseek-v4-flash`
-- review/audit judge: `deepseek/deepseek-v4-pro` via Ctrl+P
-- thinking level: Shift+Tab
+```bash
+node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));Object.assign(o,JSON.parse(process.argv[2]));fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$HOME/.pi/agent/settings.json" '<merged-json>'
+```
 
-If authentication is not configured, instruct the user to run
-`/login deepseek` themselves or export `DEEPSEEK_API_KEY` in their shell.
-Do not ask them to paste the key and do not write it to a project file.
+Never delete or alter other keys, never create or touch `models.json`, and
+never read credential files. Any reply other than `yes` leaves the file
+untouched.
+
+If authentication is not configured, instruct the user to run `/login`
+themselves or export the provider's API key in their shell. Do not ask them
+to paste a key and do not write it to a project file.
 
 ## 5. Detect and offer the project adapter
 

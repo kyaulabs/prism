@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -273,8 +274,9 @@ Next:
   • Run 'pi config' to enable/disable individual resources.
   • Inside a PHP project:  pi install -l npm:@kyaulabs/prism-php-web
     (or  pi install -l ./packages/prism-php-web  for local dev).
-  • Authenticate the model: /login deepseek  (or export DEEPSEEK_API_KEY).
+  • Authenticate your provider: /login <provider>  (or export its API key).
 EOF
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve-ocr-model.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: resolve-ocr-model.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -11,7 +12,7 @@
 # config, or any other field; fails closed (exit 3, empty stdout) on every
 # error path. PRISM_OCR_CONFIG overrides the config path (test seam only).
 #
-# Output: bare model id on stdout (e.g. "deepseek-v4-flash")
+# Output: bare model id on stdout (bare ID segment after the last "/")
 # Exit: 0 success, 3 when no valid model resolves
 
 set -euo pipefail
@@ -55,6 +56,7 @@ case "$MODEL" in
 esac
 
 printf '%s\n' "${MODEL##*/}"
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

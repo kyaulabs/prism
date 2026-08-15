@@ -10,19 +10,17 @@ Stack runtimes, test frameworks, linters, coverage tools, and asset builders
 belong to the active adapter and are reported separately; this core prompt
 does not guess their commands.
 
-## 1. pi and models
+## 1. pi runtime
 
 ```bash
 set -o pipefail
 pi --version 2>/dev/null || echo "NOT_FOUND"
-pi --list-models deepseek-v4-flash 2>/dev/null || echo "NOT_FOUND"
-pi --list-models deepseek-v4-pro 2>/dev/null || echo "NOT_FOUND"
 ```
 
-PASS requires pi to run and both `deepseek/deepseek-v4-flash` and
-`deepseek/deepseek-v4-pro` to appear in the model catalogue. Catalogue
-presence does not prove authentication. Never inspect the auth store; if a
-live request later reports an auth error, direct the user to `/login deepseek`.
+PASS requires pi to run. The harness prescribes no models (ADR-0067); model
+availability and authentication are user-managed. Never inspect the auth
+store; if a live request later reports an auth error, direct the user to
+`/login` for their provider.
 
 ## 2. Core command-line tools
 
