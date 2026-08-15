@@ -144,44 +144,26 @@ Confirm the safety extension loads and a known-blocked command is blocked
 
 ---
 
-## Publishing a release (manual)
+## Publishing a release (manual, post-merge)
 
-The two packages are coupled (the adapter's `safe-dirs.json` contract comes
-from core), so **version them in lockstep** while pre-1.0.
+The `/release` pipeline owns version bumps and tags; humans own `npm publish`.
+After the release PR merges, `release.yml` has already tagged every bumped
+package (`prism-core@0.2.0`-style) at the merge SHA.
 
 ```bash
-# 0. ensure tree is clean, on the release commit, up to date
-git status -s           # empty
-
-# 1. bump BOTH package.json versions (no auto tag — we tag distinctly below)
-cd packages/prism-core   && npm version 0.2.0 --no-git-tag-version && cd -
-cd packages/prism-php-web && npm version 0.2.0 --no-git-tag-version && cd -
-
-# 2. commit the bump
-git add packages/prism-core/package.json packages/prism-php-web/package.json
-git commit -S -m "chore(packages): release v0.2.0"
-
-# 3. create one tag PER package (distinct names avoid collision)
-git tag prism-core@0.2.0
-git tag prism-php-web@0.2.0
-
-# 4. publish each from its own directory
-cd packages/prism-core   && npm publish --access public && cd -   # OTP prompt if 2FA on writes
-cd packages/prism-php-web && npm publish --access public && cd -
-
-# 5. push the commit + tags
-git push && git push --tags
+# For each bumped package printed by /release (run after the merge):
+cd packages/prism-core   && npm publish --access public   # OTP prompt if 2FA on writes
+cd packages/prism-php-web && npm publish --access public
 ```
 
-> **Tag shape matters.** Do **not** use bare `v0.2.0` — it collides between the
-> two packages and with the app's own release tags from `release.yml`. Use
-> `prism-core@<ver>` / `prism-php-web@<ver>`. (The app's GitHub-Release flow,
-> `/release` + `release.yml`, is a **separate** pipeline for the repo itself —
-> ADR-0046 — and does not touch npm.)
+> **Tag shape.** Package tags are `prism-core@<ver>` / `prism-php-web@<ver>` —
+> never bare `v*` (that is the repo release tag from `release.yml`). The
+> pipeline creates them; do not tag manually.
 
-**SemVer while pre-1.0:** `0.x.y`. Breaking changes bump the minor (`0.2.0 →
-0.3.0`); fixes/additions bump the patch (`0.2.0 → 0.2.1`). At 1.0, move to
-standard SemVer and consider splitting the versions if the coupling loosens.
+**Versioning while pre-1.0:** each package versions independently. Breaking
+changes bump the minor (`0.2.0 → 0.3.0`); fixes/additions bump the patch
+(`0.2.0 → 0.2.1`). Bumps are computed automatically per package from its own
+commit history; a package with no changes is not republished.
 
 ### `npm publish` quick reference
 
@@ -227,10 +209,11 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
 ```
 
-With this in place, the manual publish step 4 above is replaced by `git push
---tags`; CI does the upload and signs provenance. The `NPM_AUTOMATION_TOKEN`
-secret must be a **granular** token (publish rights on `@kyaulabs/prism-*`);
-legacy classic tokens do not participate in provenance.
+With this in place, the human `npm publish` step above is replaced by
+tag pushes; CI does the upload and signs provenance. The
+`NPM_AUTOMATION_TOKEN` secret must be a **granular** token (publish rights
+on `@kyaulabs/prism-*`); legacy classic tokens do not participate in
+provenance.
 
 > The repo's existing `.github/workflows/release.yml` is the **app** release
 > (git-cliff changelog → GitHub Release → back-merge PR). It is unrelated to
@@ -242,20 +225,19 @@ legacy classic tokens do not participate in provenance.
 
 ### Maintainer (cutting a new version)
 
-Same flow as the first publish — bump, commit, tag, publish:
+Bumps and tags come from the release pipeline — run `/release` (ADR-0066):
+it computes each package's version, bumps `package.json` on the release
+branch, and `release.yml` tags every bumped package after merge. The
+maintainer then publishes each bumped package after the merge:
 
 ```bash
-cd packages/prism-core   && npm version 0.2.1 --no-git-tag-version && cd -
-cd packages/prism-php-web && npm version 0.2.1 --no-git-tag-version && cd -
-git add packages/*/package.json
-git commit -S -m "chore(packages): release v0.2.1"
-git tag prism-core@0.2.1 && git tag prism-php-web@0.2.1
-git push && git push --tags    # CI publishes; or `npm publish` each manually
+# For each bumped package printed by /release (run after the merge):
+cd packages/prism-core && npm publish --access public   # OTP prompt if 2FA on writes
+cd packages/prism-php-web && npm publish --access public
 ```
 
-If you maintain a `CHANGELOG.md` per package (optional), update it in the same
-commit. Keep the two packages on the same version unless you have a reason to
-diverge.
+If you maintain a `CHANGELOG.md` per package (optional), update it in the
+release commit. Each package versions independently from its own history.
 
 ### Consumer (getting updates)
 
@@ -344,4 +326,4 @@ deliberate policy decision requiring an ADR — do not change `license` silently
 - [ ] npm account in `@kyaulabs`, 2FA on, `npm login` works
 - [ ] `NPM_AUTOMATION_TOKEN` granular secret in GitHub (for CI)
 - [ ] `.github/workflows/publish-packages.yml` merged
-- [ ] Bump both versions in lockstep, commit, distinct tags, push tags → publish
+- [ ] Bump/tag via the release pipeline (ADR-0066), then `npm publish` per bumped package
