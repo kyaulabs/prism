@@ -9,6 +9,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -94,6 +95,12 @@ function validateArgvPrefix(component, filePath) {
 		if (!ARGV_TOKEN.test(token)) {
 			fail(filePath, `component ${component.id} argv prefix token is not a safe argv token`);
 		}
+	}
+	// argv[0] is spawned as the command (interpreter or executable) by
+	// cli.js, which resolves it via PATH — it must be a bare executable
+	// name, not a flag.
+	if (!EXECUTABLE.test(component.argvPrefix[0])) {
+		fail(filePath, `component ${component.id} argv prefix command is not a valid executable name`);
 	}
 }
 
@@ -332,6 +339,7 @@ module.exports = {
 	loadContract,
 	validateContract,
 };
+
 
 
 
