@@ -185,7 +185,7 @@ git commit -S -m $'docs(adr): adopt per-package release versions (ADR-0066)\n\nA
 **Interfaces:**
 - Produces: `inputs.merge_sha || github.event.pull_request.merge_commit_sha` (concurrency group, env `MERGE_SHA`, checkout `ref`); `workflow_dispatch` inputs `version`/`merge_sha`; `GITHUB_EVENT_NAME`-branched version derivation.
 
-- [ ] **Step 1: Update the drift guard (Red)**
+- [x] **Step 1: Update the drift guard (Red)**
 
 Replace guard section 2's condition with (keep its pass/fail messages updated):
 
@@ -219,12 +219,12 @@ Replace section 12's condition's first grep with:
 if grep -qF 'release-${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
 ```
 
-- [ ] **Step 2: Run the guard — expect FAIL**
+- [x] **Step 2: Run the guard — expect FAIL**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: FAIL on the updated assertions (no `workflow_dispatch:` yet, no unified concurrency key).
 
-- [ ] **Step 3: Implement the workflow changes**
+- [x] **Step 3: Implement the workflow changes**
 
 ```yaml
 on:
@@ -285,12 +285,12 @@ Version derivation (replace lines 50-57):
           fi
 ```
 
-- [ ] **Step 4: Run the guard — expect PASS**
+- [x] **Step 4: Run the guard — expect PASS**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: all PASS (assertions 2, 3, 12 updated; 6 and 7 still satisfied — the unified expressions contain `github.event.pull_request.merge_commit_sha` and the validation lines precede the `GITHUB_ENV` export).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/release.yml tests/Shell/release_workflow_test.sh
