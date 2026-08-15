@@ -17,6 +17,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -454,6 +455,29 @@ fi
 # for both tag kinds, which is the precondition of the workflow's both-exist
 # idempotent state; the wrong-target guard '!= "$MERGE_SHA"' stays pinned.
 
+# ── 9c. Package tags via the git refs API; no npm publish or git push ────────
+
+PKG_CONFIG="$REPO_ROOT/.prism/release.json"
+if [ -f "$PKG_CONFIG" ] && \
+   grep -qF '"packages"' "$PKG_CONFIG" && \
+   grep -qF 'packages/prism-core' "$PKG_CONFIG" && \
+   grep -qF 'packages/prism-php-web' "$PKG_CONFIG"; then
+	pass "9c: .prism/release.json declares the release packages"
+else
+	fail "9c: .prism/release.json missing or does not declare both packages"
+fi
+
+if grep -qF '.prism/release.json' "$RELEASE_FILE" && \
+   grep -qF 'git/refs' "$RELEASE_FILE" && \
+   grep -qF 'gh api -X POST' "$RELEASE_FILE" && \
+   grep -qF '### 📦 Packages' "$RELEASE_FILE" && \
+   ! grep -qF 'npm publish' "$RELEASE_FILE" && \
+   ! grep -qF 'git push' "$RELEASE_FILE"; then
+	pass "package tags created via git refs API from .prism/release.json; Packages block present; no npm publish or git push"
+else
+	fail "package-tag or Packages-block contract violated"
+fi
+
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──
 
 if grep -qF 'gh release create' "$RELEASE_FILE" && \
@@ -656,6 +680,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

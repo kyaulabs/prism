@@ -1,0 +1,3 @@
+{
+  "packages": ["packages/prism-core", "packages/prism-php-web"]
+}

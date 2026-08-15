@@ -160,6 +160,61 @@ jobs:
             echo "RELEASE_BODY_TRUNCATED=no" >> "${GITHUB_ENV:-/dev/null}"
           fi
 
+      - name: Tag release packages
+        run: |
+          set -euo pipefail
+
+          # Packages are release-managed only when declared in
+          # .prism/release.json at the repo root (read from the merge
+          # commit): {"packages": ["relative/dir", ...]}. Malformed
+          # declarations fail the release.
+          config_file=".prism/release.json"
+          tagged=""
+          if [ -f "$config_file" ]; then
+            if ! jq -e '.packages | type == "array"' "$config_file" >/dev/null 2>&1; then
+              echo "::error::$config_file must contain a packages array" >&2
+              exit 1
+            fi
+            while IFS= read -r pkg; do
+              [ -n "$pkg" ] || continue
+              case "$pkg" in
+                /*|*..*|*" "*) echo "::error::invalid package path '$pkg' in $config_file" >&2; exit 1 ;;
+              esac
+              if [ ! -f "$pkg/package.json" ]; then
+                echo "::error::package path '$pkg' has no package.json" >&2
+                exit 1
+              fi
+              name=$(jq -r '.name' "$pkg/package.json")
+              ver=$(jq -r '.version' "$pkg/package.json")
+              case "$name" in
+                ""|*" "*) echo "::error::package '$pkg' has no usable name" >&2; exit 1 ;;
+              esac
+              # Tag prefix: package.json name with the scope stripped.
+              prefix=${name#*/}
+              if git rev-parse -q --verify "refs/tags/${prefix}@${ver}^{commit}" >/dev/null 2>&1; then
+                existing=$(git rev-parse "refs/tags/${prefix}@${ver}^{commit}")
+                if [ "$existing" = "$MERGE_SHA" ]; then
+                  echo "tag ${prefix}@${ver} already at the merge SHA; skipping"
+                  continue
+                fi
+                echo "::error::tag ${prefix}@${ver} exists at $existing, expected merge SHA $MERGE_SHA" >&2
+                exit 1
+              fi
+              gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                -f "ref=refs/tags/${prefix}@${ver}" -f "sha=$MERGE_SHA" >/dev/null
+              echo "tagged ${prefix}@${ver} at $MERGE_SHA"
+              tagged="$tagged ${prefix}@${ver}"
+            done <<< "$(jq -r '.packages[]' "$config_file")"
+          else
+            echo "no $config_file; no package tags"
+          fi
+
+          # Append the Packages block when any package was tagged. Runs
+          # after the body cap, so the block always survives truncation.
+          if [ -n "$tagged" ]; then
+            printf '\n### 📦 Packages\n\n%s\n' "$tagged" >> body.md
+          fi
+
       - name: Publish release
         run: |
           set -euo pipefail
