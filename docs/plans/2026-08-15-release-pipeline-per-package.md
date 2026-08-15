@@ -34,7 +34,7 @@
 **Interfaces:**
 - Produces: ADR-0066 (supersedes ADR-0046's publication-state clause), glossary term "package release", NPM.md flow describing pipeline-owned bumps/tags.
 
-- [ ] **Step 1: Write ADR-0066** following `adr/0000-template.md` (Nygard, Status Accepted, pi-era):
+- [x] **Step 1: Write ADR-0066** following `adr/0000-template.md` (Nygard, Status Accepted, pi-era):
 
 ```markdown
 # 0066. Per-Package Release Versions
@@ -132,7 +132,7 @@ Forces:
   listing package versions, is sufficient.
 ```
 
-- [ ] **Step 2: Add the glossary entry to `CONTEXT.md`**
+- [x] **Step 2: Add the glossary entry to `CONTEXT.md`**
 
 In the Domain Glossary table (after the `wayfinder map` row), add:
 
@@ -140,7 +140,7 @@ In the Domain Glossary table (after the `wayfinder map` row), add:
 | package release | A release event that publishes the repo's GitHub Release and bumps the declared release-managed npm packages (`.prism/release.json`) to independently computed versions, tagging each; `npm publish` remains a human-run step. |
 ```
 
-- [ ] **Step 3: Rewrite the NPM.md manual-publish section**
+- [x] **Step 3: Rewrite the NPM.md manual-publish section**
 
 Replace the "Publishing a release (manual)" section (NPM.md lines ~149–180: the lockstep bash block, the tag-shape note, and the SemVer note) with:
 
@@ -167,7 +167,7 @@ changes bump the minor (`0.2.0 → 0.3.0`); fixes/additions bump the patch
 commit history; a package with no changes is not republished.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add adr/0066-per-package-release-versions.md CONTEXT.md NPM.md
