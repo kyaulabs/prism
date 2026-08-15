@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -113,6 +114,11 @@ if [ -f "$T1/pi-agent/AGENTS.md" ] && [ -f "$T1/pi-agent/APPEND_SYSTEM.md" ]; th
     pass "always-on context resources remain deployed"
 else
     fail "always-on context resources were not deployed"
+fi
+if grep -q 'bash packages/prism-core/' "$T1/pi-agent/AGENTS.md"; then
+    fail "deployed AGENTS.md retains checkout-relative script references"
+else
+    pass "deployed AGENTS.md has no checkout-relative script references"
 fi
 printf 'shell-startup-sentinel\n' > "$T1/home/.bashrc"
 printf 'profile-sentinel\n' > "$T1/home/.profile"
@@ -459,6 +465,7 @@ fi
 
 print_summary "install global toolchain"
 exit $?
+
 
 
 
