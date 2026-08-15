@@ -44,7 +44,7 @@ fi
 BRANCH=$(git symbolic-ref --quiet --short HEAD) \
     || pr_fail 'detached HEAD; switch to a work branch'
 
-bash "$(prism-tool resolve scripts)/validate-branch-name.sh" "$BRANCH" \
+bash "$("$PRISM_TOOL_PATH" resolve scripts)/validate-branch-name.sh" "$BRANCH" \
     || pr_fail 'branch is protected or does not satisfy ADR-0028'
 
 [ -z "$(git status --porcelain)" ] \
@@ -174,9 +174,9 @@ case "$TITLE" in
         ;;
 esac
 
-SIGNED_OFF_BY=$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")
+SIGNED_OFF_BY=$(bash "$("$PRISM_TOOL_PATH" resolve scripts)/resolve-identity.sh")
 MODEL_ID="${PI_MODEL##*/}"
-OCR_MODEL=$(bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh") \
+OCR_MODEL=$(bash "$("$PRISM_TOOL_PATH" resolve scripts)/resolve-ocr-model.sh") \
     || { printf 'PR title validation failed: OCR model could not be resolved (run: ocr config model)\n' >&2; exit 1; }
 {
     cat "$TITLE_FILE"
