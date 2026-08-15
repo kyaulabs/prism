@@ -5,11 +5,17 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
 # docs/, CHANGELOG.md, NOTICE), tests/ (OCR fixtures are arbitrary test data),
 # and the websearch skill's DeepSeek backend (functional tool dependency).
+#
+# Limitation (deliberate): the banned-token list is tailored to the known
+# offenders — DeepSeek model IDs and the four pi config keys. Generic
+# pinning keys for other providers are not scanned; extend PATTERNS when a
+# new offender appears.
 
 set -euo pipefail
 
@@ -30,7 +36,13 @@ else
 fi
 
 # ── 2. Living surfaces carry no model prescription ──────────────────────────
-mapfile -t FILES < <(
+# Portable scan (no mapfile — bash 3.2 on macOS lacks it; see
+# hook_portability_test.sh). One grep per file, one FAIL per file so the
+# summary tally counts files, not lines.
+FILES=()
+while IFS= read -r f; do
+	[ -n "$f" ] && FILES+=("$f")
+done < <(
 	find "$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" \
 		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.json' -o -name '*.ts' \) \
 		-not -path '*/skills/websearch/*' 2>/dev/null
@@ -45,21 +57,20 @@ mapfile -t FILES < <(
 VIOLATIONS=0
 for f in "${FILES[@]}"; do
 	[ -f "$f" ] || continue
-	if grep -HnEi "$PATTERNS" "$f" >/dev/null 2>&1; then
+	MATCHES="$(grep -HnEi "$PATTERNS" "$f" 2>/dev/null | head -5 || true)"
+	if [ -n "$MATCHES" ]; then
 		VIOLATIONS=$((VIOLATIONS + 1))
-		while IFS= read -r line; do
-			fail "prescription in $f: $line"
-		done < <(grep -HnEi "$PATTERNS" "$f" 2>/dev/null | head -5)
+		fail "model prescription in $f"
+		printf '%s\n' "$MATCHES" >&2
 	fi
 done
 
-if [ "$VIOLATIONS" -gt 0 ]; then
-	fail "$VIOLATIONS file(s) still carry model prescription"
-else
+if [ "$VIOLATIONS" -eq 0 ]; then
 	pass "no model prescription in living surfaces"
 fi
 
 print_summary "model_agnostic"
+
 
 
 

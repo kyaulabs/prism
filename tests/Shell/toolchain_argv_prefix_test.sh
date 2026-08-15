@@ -5,13 +5,12 @@
 
 
 
-
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
-# override prefix, the core contract validator accepts the field, the
-# launcher spawns pest through the prefix, and coverage runs green even when
-# pcov is disabled system-wide.
+# override prefix, the core contract validator accepts and validates the
+# field, the launcher spawns pest through the prefix, and coverage runs
+# green even when pcov is forced disabled.
 
 set -euo pipefail
 
@@ -24,24 +23,25 @@ ADAPTER_TOOLCHAIN="$REPO_ROOT/packages/prism-php-web/toolchain.json"
 CONTRACT_JS="$REPO_ROOT/packages/prism-core/scripts/prism-tool/contract.js"
 CLI_JS="$REPO_ROOT/packages/prism-core/scripts/prism-tool/cli.js"
 TOOL_LAUNCHER="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+PEST_BIN="$REPO_ROOT/vendor/bin/pest"
 
 # ── 1. Adapter contract declares the pest argvPrefix ───────────────────────
 PEST_PREFIX=$(node -e '
 const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-const p = c.components.find((x) => x.id === "pest");
+const p = (c && Array.isArray(c.components)) ? c.components.find((x) => x.id === "pest") : null;
 process.stdout.write(JSON.stringify(p && p.argvPrefix || null));
-' "$ADAPTER_TOOLCHAIN")
+' "$ADAPTER_TOOLCHAIN" 2>/dev/null) || PEST_PREFIX="<unparseable>"
 if [ "$PEST_PREFIX" = '["php","-d","pcov.enabled=1"]' ]; then
 	pass "adapter pest component declares argvPrefix"
 else
 	fail "adapter pest component argvPrefix missing or wrong: $PEST_PREFIX"
 fi
 
-# ── 2. Validator accepts argvPrefix; validate-harness stays green ──────────
-if grep -q "'argvPrefix'" "$CONTRACT_JS"; then
-	pass "contract validator knows argvPrefix"
+# ── 2. Validator accepts and validates argvPrefix ───────────────────────────
+if grep -q "validateArgvPrefix" "$CONTRACT_JS"; then
+	pass "contract validator validates argvPrefix"
 else
-	fail "contract.js lacks argvPrefix in the component schema"
+	fail "contract.js lacks the argvPrefix validator"
 fi
 
 if bash "$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh" >/dev/null 2>&1; then
@@ -51,32 +51,61 @@ else
 fi
 
 # ── 3. Launcher prepends the prefix in runDeclaredTool ─────────────────────
-if grep -q "argvPrefix" "$CLI_JS"; then
+if grep -q "argvPrefix ?? \[\]" "$CLI_JS"; then
 	pass "cli.js applies argvPrefix in runDeclaredTool"
 else
-	fail "cli.js does not apply argvPrefix"
+	fail "cli.js does not prepend argvPrefix"
 fi
 
-# ── 4. Dynamic coverage smoke (red when the driver is disabled) ────────────
+# ── 4. Deterministic coverage smoke (forced pcov-off) ───────────────────────
+# Only run when a coverage driver exists at all; with none, check-php's
+# preflight owns the loud failure and this smoke cannot work.
 DRIVER=""
 if php -m 2>/dev/null | grep -qE '^pcov$'; then DRIVER=pcov; fi
-if php -m 2>/dev/null | grep -qE '^xdebug$'; then DRIVER=xdebug; fi
+if [ -z "$DRIVER" ] && php -m 2>/dev/null | grep -qE '^xdebug$'; then DRIVER=xdebug; fi
 if [ -z "$DRIVER" ]; then
 	skip "no coverage driver present — dynamic smoke skipped; check-php preflight covers this case"
+	print_summary "toolchain_argv_prefix"
+	exit 0
+fi
+
+# Force the driver off for the smoke: append a scan-dir ini that sets
+# pcov.enabled=0 after the system scan dir (later files win), so the ONLY
+# way coverage stays green is the launcher's injected `-d pcov.enabled=1`.
+TMP_INI_DIR="$(mktemp -d)"
+register_temp_dir "$TMP_INI_DIR"
+printf 'pcov.enabled = 0\n' > "$TMP_INI_DIR/pcov-off.ini"
+DEFAULT_SCAN_DIR="$(php --ini 2>/dev/null | sed -n 's/^Scan for additional .ini files in: "\(.*\)"$/\1/p; s/^Scan for additional .ini files in: \(.*\)$/\1/p' | head -1)"
+case "$DEFAULT_SCAN_DIR" in
+	""|"(none)") ;;
+	*) export PHP_INI_SCAN_DIR="${DEFAULT_SCAN_DIR}:${TMP_INI_DIR}" ;;
+esac
+
+# Negative control: pest run directly (no launcher) with the driver forced
+# off must FAIL — proves this environment is red-capable for the regression.
+set +e
+php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage --testsuite=Unit >/dev/null 2>&1
+CONTROL_RC=$?
+set -e
+if [ "$CONTROL_RC" -ne 0 ]; then
+	pass "negative control: direct pest with driver off fails (rc=$CONTROL_RC)"
 else
-	set +e
-	(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage --testsuite=Unit) >/dev/null 2>&1
-	RC=$?
-	set -e
-	if [ "$RC" -eq 0 ]; then
-		pass "pest coverage smoke passes with $DRIVER"
-	else
-		fail "pest coverage smoke failed with $DRIVER present (rc=$RC)"
-	fi
+	fail "negative control: direct pest with driver off unexpectedly passed"
+fi
+
+# Positive: the launcher (which injects -d pcov.enabled=1) must be green in
+# the same forced-off environment.
+set +e
+(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage --testsuite=Unit) >/dev/null 2>&1
+LAUNCHER_RC=$?
+set -e
+if [ "$LAUNCHER_RC" -eq 0 ]; then
+	pass "pest coverage smoke passes via launcher with driver forced off ($DRIVER)"
+else
+	fail "pest coverage smoke failed via launcher with driver forced off (rc=$LAUNCHER_RC)"
 fi
 
 print_summary "toolchain_argv_prefix"
-
 
 
 
