@@ -11,6 +11,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -46,12 +47,17 @@ fi
 # ── 2. Living surfaces carry no model prescription ──────────────────────────
 # Portable scan (no mapfile — bash 3.2 on macOS lacks it; see
 # hook_portability_test.sh). One grep per file, one FAIL per file so the
-# summary tally counts files, not lines.
+# summary tally counts files, not lines. Fail closed: a missing scan root
+# (wrong checkout shape) must not make the scan vacuously pass.
+SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web")
+for root in "${SCAN_ROOTS[@]}"; do
+	[ -d "$root" ] || fail "missing scan root: $root"
+done
 FILES=()
 while IFS= read -r f; do
 	[ -n "$f" ] && FILES+=("$f")
 done < <(
-	find "$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web" \
+	find "${SCAN_ROOTS[@]}" \
 		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
 		-o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
 		-not -path '*/skills/websearch/*' \
@@ -80,6 +86,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
