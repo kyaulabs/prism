@@ -19,6 +19,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -44,14 +45,24 @@ setup_result_file
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
 PATTERNS='deepseek-v4|deepseek/deepseek|default[-_]?model|default[-_]?provider|default[-_]?thinking[-_]?level|enabled[-_]?models|(judge|primary)[-_ ]?models?([^a-z]|$)'
 
+# ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
+printf 'defaultModel\njudge model\nprimary models\ndefault_model\njudgeModel\n' \
+	| grep -qiE "$PATTERNS" \
+	|| fail "pattern self-test: expected positives not matched"
+printf 'primary deliverable\ndefault model prose\njudgment call\n' \
+	| grep -qiE "$PATTERNS" \
+	&& fail "pattern self-test: unexpected negative matched"
+
 # ── 1. No models.json override may exist anywhere in the scan roots ────────
 SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
-find "$REPO_ROOT/.pi" "$REPO_ROOT/packages" -name 'models.json' -not -path '*/node_modules/*' > "$SCAN_TMP0/list" 2>/dev/null
+find "$REPO_ROOT/.pi" "$REPO_ROOT/packages" -name 'models.json' -not -path '*/node_modules/*' > "$SCAN_TMP0/list" 2>&1
 MODELS_RC=$?
 set -e
-if [ "$MODELS_RC" -eq 0 ] && [ -s "$SCAN_TMP0/list" ]; then
+if [ "$MODELS_RC" -ne 0 ]; then
+	fail "models.json scan errored: $(head -1 "$SCAN_TMP0/list")"
+elif [ -s "$SCAN_TMP0/list" ]; then
 	fail "models.json still exists — the primary/judge display overrides must be deleted (ADR-0067): $(head -1 "$SCAN_TMP0/list")"
 else
 	pass "no models.json in the scan roots"
@@ -121,11 +132,12 @@ for f in "${FILES[@]}"; do
 	fi
 done
 
-if [ "$VIOLATIONS" -eq 0 ]; then
+if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 	pass "no model prescription in living surfaces"
 fi
 
 print_summary "model_agnostic"
+
 
 
 

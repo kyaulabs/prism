@@ -11,6 +11,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -99,9 +100,8 @@ function validateArgvPrefix(component, filePath) {
 	}
 	// argv[0] is spawned as the command (interpreter or executable) by
 	// cli.js, which resolves it via PATH — it must be a bare executable
-	// name, not a flag. Guard the empty case explicitly rather than relying
-	// on assertStringArray's non-empty rule.
-	if (component.argvPrefix.length === 0 || !EXECUTABLE.test(component.argvPrefix[0])) {
+	// name, not a flag. assertStringArray above already rejects empty.
+	if (!EXECUTABLE.test(component.argvPrefix[0])) {
 		fail(filePath, `component ${component.id} argv prefix command is not a valid executable name`);
 	}
 }
@@ -341,6 +341,7 @@ module.exports = {
 	loadContract,
 	validateContract,
 };
+
 
 
 
