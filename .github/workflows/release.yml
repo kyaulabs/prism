@@ -4,9 +4,19 @@ on:
   pull_request:
     branches: [main]
     types: [closed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (X.Y.Z, optional prerelease, no leading v)
+        required: true
+        type: string
+      merge_sha:
+        description: 40-hex merge commit SHA to publish at
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.event.pull_request.merge_commit_sha }}
+  group: release-${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
   cancel-in-progress: false
 
 jobs:
@@ -18,18 +28,19 @@ jobs:
       contents: write
       pull-requests: write
     if: >-
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/') &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
-      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+      MERGE_SHA: ${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
     steps:
       - name: Checkout merged release commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -47,16 +58,19 @@ jobs:
             exit 1
           fi
 
-          # The version is branch-derived: strip only the leading release/
-          # prefix and require the exact release grammar (no v, optional
-          # prerelease, no build metadata).
-          version="${HEAD_REF#release/}"
-          if [ "$version" = "$HEAD_REF" ]; then
-            echo "Error: head ref is not a release branch: $HEAD_REF" >&2
-            exit 1
+          # The version is a validated dispatch input, or branch-derived on
+          # PR close: strip only the leading release/ prefix.
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${HEAD_REF#release/}"
+            if [ "$version" = "$HEAD_REF" ]; then
+              echo "Error: head ref is not a release branch: $HEAD_REF" >&2
+              exit 1
+            fi
           fi
           if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "Error: invalid release version in branch name: $version" >&2
+            echo "Error: invalid release version: $version" >&2
             exit 1
           fi
 

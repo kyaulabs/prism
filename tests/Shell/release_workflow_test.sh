@@ -14,11 +14,13 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
 #   1. release.yml exists and the retired scaffold manifest is absent
-#   2. only a pull_request closed/main trigger (no push, no pull_request_target)
+#   2. only a pull_request closed/main trigger plus workflow_dispatch (no
+#      push, no pull_request_target)
 #   3. merged + release/ head + same-repository job gate
 #   4. ubuntu-latest, no sudo, timeout present
 #   5. job permissions exactly contents: write + pull-requests: write
@@ -70,25 +72,28 @@ else
 	fail "quality-surface.manifest should be retired"
 fi
 
-# ── 2. Only a pull_request closed/main trigger ───────────────────────────────
+# ── 2. pull_request closed/main + workflow_dispatch trigger ──────────────────
 
 if grep -qE '^[[:space:]]*on:' "$RELEASE_FILE" && \
    grep -qE '^[[:space:]]*pull_request:' "$RELEASE_FILE" && \
    grep -qF 'types: [closed]' "$RELEASE_FILE" && \
    grep -qF 'branches: [main]' "$RELEASE_FILE" && \
+   grep -qF 'workflow_dispatch:' "$RELEASE_FILE" && \
+   grep -qF 'merge_sha' "$RELEASE_FILE" && \
    ! grep -qE '^[[:space:]]*push:' "$RELEASE_FILE" && \
    ! grep -qF 'pull_request_target:' "$RELEASE_FILE"; then
-	pass "only pull_request closed-on-main trigger; no push or pull_request_target"
+	pass "pull_request closed-on-main plus workflow_dispatch trigger; no push or pull_request_target"
 else
-	fail "trigger is not exactly pull_request types:[closed] branches:[main]"
+	fail "trigger is not pull_request types:[closed] branches:[main] plus workflow_dispatch"
 fi
 
 # ── 3. merged + release/ head + same-repository job gate ─────────────────────
 
-if grep -qF 'merged == true' "$RELEASE_FILE" && \
+if grep -qF "github.event_name == 'workflow_dispatch'" "$RELEASE_FILE" && \
+   grep -qF 'merged == true' "$RELEASE_FILE" && \
    grep -qF "startsWith(github.event.pull_request.head.ref, 'release/')" "$RELEASE_FILE" && \
    grep -qF 'github.event.pull_request.head.repo.full_name == github.repository' "$RELEASE_FILE"; then
-	pass "job gate requires merged, release/ head, and same-repository ownership"
+	pass "job gate requires dispatch, merged release/ head, and same-repository ownership"
 else
 	fail "job gate missing merged == true, startsWith release/, or same-repo check"
 fi
@@ -437,9 +442,9 @@ fi
 
 # ── 12. Release-specific concurrency, no cancellation ────────────────────────
 
-if grep -qF 'release-${{ github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
+if grep -qF 'release-${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}' "$RELEASE_FILE" && \
    grep -qF 'cancel-in-progress: false' "$RELEASE_FILE"; then
-	pass "concurrency is release-specific (immutable merge-SHA key) with cancel-in-progress: false"
+	pass "concurrency is release-specific (unified merge-SHA key) with cancel-in-progress: false"
 else
 	fail "concurrency is not release-specific or cancels in-flight runs"
 fi
@@ -609,6 +614,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 
