@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -275,6 +276,20 @@ while IFS=: read -r file line text; do
 	err "${file#$REPO_ROOT/}:$line: stale script reference: $text"
 done < <(grep -RInE "\\.${legacy_script_prefix}/(new-branch|validate-branch-name|classify-greenfield|install-hooks|frontmatter-parser|glob-match|resolve-identity|validate-harness|jsonc-strip)\\.(sh|js)" "$REPO_ROOT/packages" 2>/dev/null || true)
 
+printf '%s\n' '── Checking instruction-layer script references ──'
+while IFS=: read -r file line text; do
+	[ -n "$file" ] || continue
+	err "${file#$REPO_ROOT/}:$line: checkout-relative script reference: $text"
+done < <(grep -RInE 'bash packages/prism-core/(scripts|skills)/' \
+	"$REPO_ROOT/AGENTS.md" \
+	"$REPO_ROOT/packages/prism-core/AGENTS.md" \
+	"$REPO_ROOT/packages/prism-core/skills" \
+	"$REPO_ROOT/packages/prism-core/prompts" \
+	"$REPO_ROOT/packages/prism-php-web/skills" \
+	"$REPO_ROOT/packages/prism-php-web/prompts" \
+	"$REPO_ROOT/.github/hooks" \
+	2>/dev/null || true)
+
 printf '%s\n' '── Checking retired config references ──'
 retired_pattern="$(printf '%s' 'prism-manifest|Prism-Manifest|OPENCODE-CONFIG-CONTENT|OPENCODE-MODEL-|OPENCODE-VARIANT-' | tr '-' '_')"
 while IFS=: read -r file line text; do
@@ -291,6 +306,7 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
 
 
 

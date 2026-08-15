@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_push_parity_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: pre_push_parity_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -61,7 +62,7 @@ else
 fi
 doctor_line=$(grep -nF 'doctor --local-only' "$HOOK" | head -1 | cut -d: -f1)
 # shellcheck disable=SC2016  # $HLOG is a literal hook source pattern, not an expansion
-harness_line=$(grep -nF 'validate-harness.sh >"$HLOG"' "$HOOK" | head -1 | cut -d: -f1)
+harness_line=$(grep -nF 'validate-harness.sh" >"$HLOG"' "$HOOK" | head -1 | cut -d: -f1)
 if [ -n "$doctor_line" ] && [ -n "$harness_line" ] && [ "$doctor_line" -lt "$harness_line" ]; then
 	pass "pre-push runs local doctor before harness checks"
 else
@@ -105,6 +106,7 @@ else
 fi
 
 print_summary "pre_push_parity"
+
 
 
 

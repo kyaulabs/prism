@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh git@aura.kyaulabs 2026/08/13 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -29,7 +30,7 @@ else
 fi
 
 printf '%s\n' '── validate-harness: required checks are present ──'
-for marker in 'Validating skills' 'Validating prompt templates' 'Validating extension imports' 'Validating toolchain contracts' 'Validating shell helpers' 'Checking retired config references'; do
+for marker in 'Validating skills' 'Validating prompt templates' 'Validating extension imports' 'Validating toolchain contracts' 'Validating shell helpers' 'Checking retired config references' 'Checking instruction-layer script references'; do
 	if grep -q "$marker" "$VALIDATOR"; then
 		pass "$marker check wired"
 	else
@@ -85,6 +86,7 @@ trap - EXIT
 
 printf '\nvalidate-harness_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

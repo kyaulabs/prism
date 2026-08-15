@@ -136,7 +136,7 @@ message:
 - `Tested-by:` with the model open-code-review is configured with (via
   `resolve-ocr-model.sh`)
 - `Signed-off-by:` resolved through
-  `bash packages/prism-core/scripts/resolve-identity.sh`
+  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"`
 
 Use model ID segments after the last `/`. There is no manifest or automatic
 model tier under pi. Validate a plan-provided commit message and correct it if
