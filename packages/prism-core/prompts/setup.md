@@ -86,7 +86,7 @@ question leaves the user's pi configuration untouched.
 
 Ask, one question at a time:
 
-1. Provider — list pi's built-in providers as facts (e.g. `deepseek`); no
+1. Provider — list pi's built-in providers as facts; no
    recommendation. Skippable.
 2. Default model — the user names a model ID; validate with
    `pi --list-models <id>`; if unknown, list the catalogue and let them
