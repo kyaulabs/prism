@@ -18,6 +18,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -679,7 +680,39 @@ else
 	fail "P22: /release still contains local tag/publication/back-merge operations"
 fi
 
+# ── P23. Config-driven per-package versions; no hardcoded glob discovery ─────
+
+if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
+   grep -qF -- '--include-path' "$RELEASE_CMD" && \
+   grep -qF 'npm version' "$RELEASE_CMD" && \
+   grep -qF -- '--no-git-tag-version' "$RELEASE_CMD" && \
+   ! grep -qE 'packages/\*' "$RELEASE_CMD"; then
+	pass "P23: /release discovers packages via .prism/release.json only and bumps with npm version --no-git-tag-version"
+else
+	fail "P23: /release package discovery is hardcoded or the bump command is missing"
+fi
+
+# ── P24. Pipeline never runs npm publish; commands are inert text only ───────
+
+if grep -qF 'npm publish' "$RELEASE_CMD" && \
+   ! bash_block_contains "$RELEASE_CMD" 'npm publish'; then
+	pass "P24: /release prints npm publish commands as inert text only, never in a bash block"
+else
+	fail "P24: /release npm publish command is executable or absent"
+fi
+
+# ── P25. Release-body pre-flight flags the 125,000-character limit ───────────
+
+if grep -qE '125,?000' "$RELEASE_CMD" && \
+   grep -qE '120,?000' "$RELEASE_CMD" && \
+   grep -qiF 'truncat' "$RELEASE_CMD"; then
+	pass "P25: /release pre-flights the changelog section against the release-body limit"
+else
+	fail "P25: /release body pre-flight missing"
+fi
+
 print_summary "release_workflow"
+
 
 
 

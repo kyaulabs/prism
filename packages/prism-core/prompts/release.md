@@ -163,6 +163,57 @@ fi
 
 Show the generated version section for review.
 
+## Pre-flight the release-body size
+
+Measure the generated `v$VERSION` section (bytes >= characters for UTF-8, so
+120,000 bytes is a conservative proxy for GitHub's 125,000-character
+release-body limit). When the block below reports `oversized`, ask the human
+exactly one question — proceed (on merge `release.yml` truncates the body at
+the limit and attaches the full changelog as `full-changelog-vX.Y.Z.md`) or
+abort and trim the changelog at the source — and STOP for an explicit `yes`
+before continuing.
+
+```bash
+section_bytes=$(awk -v v="[$VERSION]" '
+    /^## / { if (in_sec) exit; if (index($0, v)) in_sec = 1; next }
+    in_sec { print }
+' CHANGELOG.md | wc -c)
+if [ "$section_bytes" -gt 120000 ]; then
+    echo "oversized: ${section_bytes} bytes"
+fi
+```
+
+## Compute and bump per-package versions
+
+Release-managed packages are declared in `.prism/release.json` at the repo
+root — `{ "packages": ["relative/dir", ...] }`. When the file is absent or its
+`packages` array empty, skip this entire section: no per-package behavior.
+When present but malformed (absolute path, `..`, whitespace, missing
+`package.json`, unparseable JSON), stop the release.
+
+For each declared package, compute its bump from commits touching that path
+since its last `<prefix>@*` tag. The prefix is the package's `package.json`
+`name` with the scope stripped (`@kyaulabs/prism-core` → `prism-core`). A
+computed version equal to the current `package.json` version means the
+package has nothing to bump — skip it entirely (no bump, no tag, no npm
+command). Otherwise bump it and record the package dir in `BUMPED_PKGS`
+(space-separated, conversation context) for the commit and handoff:
+
+```bash
+# For each declared package path PKG:
+PKG_NAME=$(node -e 'process.stdout.write(require(process.argv[1]).name)' "$PKG/package.json")
+PKG_PREFIX=${PKG_NAME#*/}
+PKG_CUR=$(node -e 'process.stdout.write(require(process.argv[1]).version)' "$PKG/package.json")
+PKG_NEXT=$(prism-tool run git-cliff -- --bumped-version --include-path "$PKG/*" --tag-pattern "${PKG_PREFIX}@.*" 2>/dev/null | sed "s/^${PKG_PREFIX}@//")
+if [ "$PKG_NEXT" != "$PKG_CUR" ]; then
+    (cd "$PKG" && npm version "$PKG_NEXT" --no-git-tag-version)
+    BUMPED_PKGS="$BUMPED_PKGS $PKG"
+fi
+```
+
+The `chore(release): vX.Y.Z` commit carries the bumped `package.json` files,
+so the versions land in the merge commit.
+
 ## Commit the changelog
 
 Resolve the four ADR-0040 footers from the current pi session, then create
@@ -203,6 +254,12 @@ fi
 OCR_MODEL=$(bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh") \
     || { echo "✗ Release commit blocked: OCR model could not be resolved (run: ocr config model)." >&2; exit 1; }
 git add CHANGELOG.md
+# BUMPED_PKGS: space-separated package dirs from the per-package step
+# (empty when no package bumped); the agent renders the validated value.
+BUMPED_PKGS=""
+for pkg in $BUMPED_PKGS; do
+    git add "$pkg/package.json"
+done
 if [ -n "$RELEASE_REF" ]; then
     RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
         "$VERSION" "$RELEASE_REF" "$MODEL_ID" \
@@ -230,11 +287,18 @@ git push -u origin release/X.Y.Z
 gh pr create --base main --head release/X.Y.Z \
     --title "Release vX.Y.Z" \
     --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA and opens the back-merge PR for a human to merge."
+
+# After the release PR merges, publish each bumped package (release.yml
+# already tagged them; npm prompts for OTP if 2FA is enabled):
+#   cd <pkg> && npm publish --access public
+#   (one line per bumped package; none when no package bumped)
 ```
 
 State that after the human merges the PR, `release.yml` creates the unsigned
-`vX.Y.Z` tag and GitHub Release at the merge SHA and opens the
-`main` → `develop` back-merge PR, which a human reviews and merges. Stop there.
+`vX.Y.Z` tag and GitHub Release at the merge SHA, tags every bumped package
+(`<prefix>@<ver>`), and opens the `main` → `develop` back-merge PR, which a
+human reviews and merges. The printed `npm publish` commands run after the
+merge. Stop there.
 
 ## Rules
 
