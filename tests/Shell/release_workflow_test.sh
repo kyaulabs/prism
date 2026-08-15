@@ -16,6 +16,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -33,10 +34,10 @@
 #      markdown label [$VERSION] anywhere in a "## " line), captures the
 #      heading plus body up to the next "## ", requires exactly one section,
 #      and fails when the body has no non-whitespace line
-#   9. rerun logic distinguishes neither/both/partial tag+Release states,
-#      probes the tag locally with git rev-parse (lightweight- and
-#      annotated-tag safe), verifies it resolves to the merge SHA, and
-#      never exits before back-merge handling
+#   9. rerun logic distinguishes neither/both/tag-only/bad-tag states, auto-
+#      recovers tag-without-Release at the merge SHA, probes the tag locally
+#      with git rev-parse (lightweight- and annotated-tag safe), verifies it
+#      resolves to the merge SHA, and never exits before back-merge handling
 #  10. publication is gh release create with --target/--title/--notes-file;
 #      the workflow runs no git cliff, no git push, no auto-merge
 #  11. back-merge checks an existing open PR and develop...main, then opens
@@ -402,11 +403,13 @@ if grep -qF 'tag_exists' "$RELEASE_FILE" && \
    grep -qF 'releases/tags/v$VERSION' "$RELEASE_FILE" && \
    grep -qF 'HTTP 404' "$RELEASE_FILE" && \
    grep -qF '!= "$MERGE_SHA"' "$RELEASE_FILE" && \
+   grep -qF 'release_exists" = "no" ] && [ "$tag_commit" = "$MERGE_SHA"' "$RELEASE_FILE" && \
+   grep -qF 'recovering' "$RELEASE_FILE" && \
    ! grep -qF 'git ls-remote' "$RELEASE_FILE" && \
    ! grep -qF 'exit 0' "$RELEASE_FILE"; then
-	pass "neither/both/partial states distinguished; 404 counts as absent; local lightweight-safe tag probe; existing tag verified against merge SHA; no early exit before back-merge"
+	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe; no early exit before back-merge"
 else
-	fail "publication-state rerun logic, 404 classification, tag-probe, or early-exit contract violated"
+	fail "publication-state rerun logic, tag-only recovery, 404 classification, tag-probe, or early-exit contract violated"
 fi
 
 # ── 9b. Executable simulation: local tag probe handles lightweight and annotated ──
@@ -653,6 +656,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 

@@ -199,10 +199,16 @@ jobs:
             attach_args=(--attach "notes.md#full-changelog-v${VERSION}.md")
           fi
 
-          # Four explicit publication states.
+          # Explicit publication states; the tag-only state auto-recovers
+          # when the tag resolves to the merge SHA.
           if [ "$tag_exists" = "no" ] && [ "$release_exists" = "no" ]; then
             # Neither tag nor Release exists: publish at the merge SHA.
             gh release create "v$VERSION" --target "$MERGE_SHA" --title "v$VERSION" --notes-file body.md "${attach_args[@]}"
+          elif [ "$tag_exists" = "yes" ] && [ "$release_exists" = "no" ] && [ "$tag_commit" = "$MERGE_SHA" ]; then
+            # Tag exists at the merge SHA but no Release: recover by binding
+            # the Release to the existing tag (no --target needed).
+            echo "recovering: tag v$VERSION exists at the merge SHA; creating the Release"
+            gh release create "v$VERSION" --title "v$VERSION" --notes-file body.md "${attach_args[@]}"
           elif [ "$tag_exists" = "yes" ] && [ "$release_exists" = "yes" ]; then
             # Both exist: an idempotent rerun is valid only when the tag
             # resolves to the recorded merge SHA.
@@ -212,7 +218,8 @@ jobs:
             fi
             echo "release v$VERSION already exists at the merge SHA; skipping publication"
           else
-            # Exactly one exists: partial state requires manual recovery.
+            # Residual partial states (wrong-target tag, Release-only)
+            # require manual recovery.
             echo "::error::partial release state for v$VERSION: tag_exists=$tag_exists release_exists=$release_exists" >&2
             echo "::error::delete or repair the stray tag/Release manually, then rerun the workflow" >&2
             exit 1
