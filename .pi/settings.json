@@ -1,9 +1,5 @@
 {
   "skills": ["../packages/prism-core/skills", "../packages/prism-php-web/skills"],
   "prompts": ["../packages/prism-core/prompts", "../packages/prism-php-web/prompts"],
-  "extensions": ["../packages/prism-core/extensions"],
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-flash",
-  "defaultThinkingLevel": "medium",
-  "enabledModels": ["deepseek-v4-flash", "deepseek-v4-pro"]
+  "extensions": ["../packages/prism-core/extensions"]
 }
