@@ -19,6 +19,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -611,20 +612,21 @@ function runDeclaredTool(args, context) {
 			return EXIT.TOOL;
 		}
 	}
+	// argvPrefix prepends interpreter/flag tokens (e.g. php -d key=value) so
+	// argv[0] is the interpreter when a prefix is declared, the executable
+	// otherwise. The interpreter itself must exist or the failure is opaque;
+	// check it before consuming stdin.
+	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
+	if (component.argvPrefix && !resolveExecutable(argv[0], env)) {
+		process.stderr.write(`prism-tool: argv prefix command ${argv[0]} is unavailable\n`);
+		return EXIT.READINESS;
+	}
 	let input;
 	try {
 		input = readBoundedStdin(context);
 	} catch {
 		process.stderr.write('prism-tool: stdin exceeds limit\n');
 		return EXIT.USAGE;
-	}
-	// argvPrefix prepends interpreter/flag tokens (e.g. php -d key=value) so
-	// argv[0] is the interpreter when a prefix is declared, the executable
-	// otherwise. The interpreter itself must exist or the failure is opaque.
-	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
-	if (component.argvPrefix && !resolveExecutable(argv[0], env)) {
-		process.stderr.write(`prism-tool: argv prefix command ${argv[0]} is unavailable\n`);
-		return EXIT.READINESS;
 	}
 	const result = (context.run ?? runBounded)(argv[0], argv.slice(1), {
 		cwd: component.provisioning === 'consumer-dev'
@@ -656,6 +658,7 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 

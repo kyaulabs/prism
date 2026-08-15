@@ -12,6 +12,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -108,7 +109,8 @@ CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BI
 CONTROL_RC=$?
 set -e
 if [ "$CONTROL_RC" -ne 0 ] \
-	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage|driver|pcov|xdebug"; then
+	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage" \
+	&& printf '%s' "$CTRL_OUT" | grep -qiE "driver|pcov|xdebug"; then
 	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
 else
 	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
@@ -124,6 +126,29 @@ if ! command -v semgrep >/dev/null 2>&1 || ! command -v ocr >/dev/null 2>&1; the
 	print_summary "toolchain_argv_prefix"
 	exit $?
 fi
+# The launcher's readiness gate also version-checks semgrep and ocr; guard
+# on their declared floors so a wrong version cannot fail the smoke for an
+# unrelated reason.
+SEMGREP_VER="$(semgrep --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+OCR_VER="$(ocr --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+case "$SEMGREP_VER" in
+	1.17[3-9].*|1.18.*|1.19.*)
+		;;
+	*)
+		skip "semgrep version $SEMGREP_VER outside the ready range — launcher smoke skipped"
+		print_summary "toolchain_argv_prefix"
+		exit $?
+		;;
+esac
+case "$OCR_VER" in
+	1.9.*)
+		;;
+	*)
+		skip "ocr version $OCR_VER outside the ready range — launcher smoke skipped"
+		print_summary "toolchain_argv_prefix"
+		exit $?
+		;;
+esac
 set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
@@ -136,6 +161,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

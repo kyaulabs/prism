@@ -14,6 +14,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -56,8 +57,9 @@ for root in "${SCAN_ROOTS[@]}"; do
 	[ -d "$root" ] || fail "missing scan root: $root"
 done
 # Fail closed: a find failure must not make the scan vacuously pass.
-SCAN_LIST="$(mktemp)"
-register_temp_dir "$(dirname "$SCAN_LIST")"
+SCAN_TMP="$(mktemp -d)"
+register_temp_dir "$SCAN_TMP"
+SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
 find "${SCAN_ROOTS[@]}" \
 	-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
@@ -99,7 +101,7 @@ for f in "${FILES[@]}"; do
 	if [ "$GREP_RC" -eq 0 ]; then
 		VIOLATIONS=$((VIOLATIONS + 1))
 		fail "model prescription in $f"
-		printf '%s\n' "$MATCHES" | head -5 >&2
+		printf '%s\n' "$MATCHES" | head -5 >&2 || true
 	fi
 done
 
@@ -108,6 +110,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
