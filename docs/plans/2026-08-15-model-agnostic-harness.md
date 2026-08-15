@@ -33,7 +33,7 @@
 **Interfaces:**
 - Produces: the living-surface scan + banned-pattern assertions that Tasks 2–7 drive to green. Later tasks re-run `bash tests/Shell/model_agnostic_test.sh` and expect the banned-surface count to shrink to zero.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```bash
 #!/usr/bin/env bash
@@ -104,18 +104,18 @@ print_summary "model_agnostic"
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: FAIL — matches in `AGENTS.md`, `README.md`, `CODING_HARNESS.md`, `CONTRIBUTING.md`, `prompts/setup.md`, `prompts/doctor.md`, `scripts/validate-harness.sh`, `scripts/install-global.sh`, `scripts/resolve-ocr-model.sh`, the four skills, `conventional-commits`, `settings.json`, `.pi/settings.json`, and `models.json` exists. This is the Red proving the sweep is needed.
 
-- [ ] **Step 3: chmod +x**
+- [x] **Step 3: chmod +x**
 
 ```bash
 chmod +x tests/Shell/model_agnostic_test.sh
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/Shell/model_agnostic_test.sh
@@ -134,7 +134,7 @@ git commit -S -m $'test(harness): add model-agnosticism contract test\n\nImpleme
 **Interfaces:**
 - Consumes: none. Produces: config surfaces free of the four banned keys; `models.json` absent (Task 1 assertion 1 goes green).
 
-- [ ] **Step 1: Edit `.pi/settings.json`**
+- [x] **Step 1: Edit `.pi/settings.json`**
 
 Remove `"defaultProvider": "deepseek"`, `"defaultModel": "deepseek-v4-flash"`, `"defaultThinkingLevel": "medium"`, and `"enabledModels": [...]`. Result:
 
@@ -146,7 +146,7 @@ Remove `"defaultProvider": "deepseek"`, `"defaultModel": "deepseek-v4-flash"`, `
 }
 ```
 
-- [ ] **Step 2: Edit `settings.json`**
+- [x] **Step 2: Edit `settings.json`**
 
 Remove the same four keys. Result:
 
@@ -158,18 +158,18 @@ Remove the same four keys. Result:
 }
 ```
 
-- [ ] **Step 3: Delete `models.json`**
+- [x] **Step 3: Delete `models.json`**
 
 ```bash
 git rm models.json
 ```
 
-- [ ] **Step 4: Run the contract test (partial green)**
+- [x] **Step 4: Run the contract test (partial green)**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: assertion 1 (models.json absent) PASS; file-scan FAILs now only for docs/skills/prompts/scripts — no FAIL mentions `settings.json` or `.pi/`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .pi/settings.json settings.json
@@ -186,7 +186,7 @@ git commit -S -m $'feat(config): drop model and thinking pins from pi settings\n
 **Interfaces:**
 - Produces: the canonical "Model strategy" text Tasks 4–7 mirror in skills and repo docs.
 
-- [ ] **Step 1: Replace the "Model strategy" section**
+- [x] **Step 1: Replace the "Model strategy" section**
 
 Old text:
 
@@ -218,7 +218,7 @@ preferred provider, default model, Ctrl+P pool, and thinking level to your pi
 config — every question is skippable and the write is consent-gated.
 ```
 
-- [ ] **Step 2: Git Workflow bullet — model-selection sentence**
+- [x] **Step 2: Git Workflow bullet — model-selection sentence**
 
 Old:
 
@@ -234,7 +234,7 @@ New:
   strategy** below (ADR-0067). There is no manifest/env tier layer.
 ```
 
-- [ ] **Step 3: Git Workflow bullet — footer example neutralization**
+- [x] **Step 3: Git Workflow bullet — footer example neutralization**
 
 Old:
 
@@ -252,7 +252,7 @@ New:
   model ID segment after the last `/` (e.g. `provider/model-id` → `model-id`).
 ```
 
-- [ ] **Step 4: Skills table — drop the three judge-suggestion notes**
+- [x] **Step 4: Skills table — drop the three judge-suggestion notes**
 
 Old (three rows):
 
@@ -270,12 +270,12 @@ New (same rows, suffix removed):
 | `test-audit` | Auditing an existing test suite for quality |
 ```
 
-- [ ] **Step 5: Run the contract test**
+- [x] **Step 5: Run the contract test**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: no FAIL lines for `AGENTS.md`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/prism-core/AGENTS.md
@@ -296,7 +296,7 @@ git commit -S -m $'feat(harness): make AGENTS.md model-agnostic\n\nImplemented-b
 **Interfaces:**
 - Consumes: Task 3's canonical statement (skills no longer suggest models). Produces: skill surfaces free of `deepseek-v4-pro` and `deepseek-v4-flash`.
 
-- [ ] **Step 1: Remove the judge-cycle paragraph from the four review skills**
+- [x] **Step 1: Remove the judge-cycle paragraph from the four review skills**
 
 In each of `architect`, `code-review`, `spec-review`, `test-audit` SKILL.md, delete the following paragraph (it sits near the top, after the frontmatter):
 
@@ -308,7 +308,7 @@ if they decline.
 
 If the exact wording differs slightly in a file, remove the sentence(s) mentioning `deepseek-v4-pro` with Ctrl+P and keep the surrounding prose coherent.
 
-- [ ] **Step 2: Neutralize `conventional-commits/SKILL.md` — Required Footers example**
+- [x] **Step 2: Neutralize `conventional-commits/SKILL.md` — Required Footers example**
 
 Old:
 
@@ -326,16 +326,16 @@ New:
   `provider/model-id` → `model-id`).
 ```
 
-- [ ] **Step 3: Neutralize `conventional-commits/SKILL.md` — example footers**
+- [x] **Step 3: Neutralize `conventional-commits/SKILL.md` — example footers**
 
 Replace every `Implemented-by: deepseek-v4-flash` with `Implemented-by: <active-model-id>` and every `Tested-by: deepseek-v4-pro` with `Tested-by: <ocr-model-id>` throughout the Examples section (three blocks shown in the current file; sweep the whole file).
 
-- [ ] **Step 4: Run the contract test**
+- [x] **Step 4: Run the contract test**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: no FAIL lines under `skills/`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/architect/SKILL.md packages/prism-core/skills/code-review/SKILL.md packages/prism-core/skills/spec-review/SKILL.md packages/prism-core/skills/test-audit/SKILL.md packages/prism-core/skills/conventional-commits/SKILL.md
@@ -356,7 +356,7 @@ git commit -S -m $'feat(skills): remove model-switch suggestions and neutralize 
 **Interfaces:**
 - Consumes: Task 3's canonical statement. Produces: `/setup`'s new optional model-preference step (the user-facing "way to setup defaults and providers for Ctrl+P"); doctor/validator no longer require any model.
 
-- [ ] **Step 1: Replace `setup.md` section 4**
+- [x] **Step 1: Replace `setup.md` section 4**
 
 Old text (whole section):
 
@@ -429,7 +429,7 @@ themselves or export the provider's API key in their shell. Do not ask them
 to paste a key and do not write it to a project file.
 ```
 
-- [ ] **Step 2: Replace `doctor.md` section 1**
+- [x] **Step 2: Replace `doctor.md` section 1**
 
 Old text:
 
@@ -465,7 +465,7 @@ store; if a live request later reports an auth error, direct the user to
 `/login` for their provider.
 ```
 
-- [ ] **Step 3: Neutralize `validate-harness.sh`**
+- [x] **Step 3: Neutralize `validate-harness.sh`**
 
 Old (extension-import validation loop):
 
@@ -479,7 +479,7 @@ New:
 		--no-extensions -e "$extension_entry" --list-models \
 ```
 
-- [ ] **Step 4: Neutralize `install-global.sh` post-install hint**
+- [x] **Step 4: Neutralize `install-global.sh` post-install hint**
 
 Old:
 
@@ -493,7 +493,7 @@ New:
   • Authenticate your provider: /login <provider>  (or export its API key).
 ```
 
-- [ ] **Step 5: Neutralize `resolve-ocr-model.sh` comment example**
+- [x] **Step 5: Neutralize `resolve-ocr-model.sh` comment example**
 
 Old:
 
@@ -507,17 +507,17 @@ New:
 # Output: bare model id on stdout (bare ID segment after the last "/")
 ```
 
-- [ ] **Step 6: Run the contract test**
+- [x] **Step 6: Run the contract test**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: no FAIL lines under `prompts/` or `scripts/`.
 
-- [ ] **Step 7: Verify the validator still runs**
+- [x] **Step 7: Verify the validator still runs**
 
 Run: `bash packages/prism-core/scripts/validate-harness.sh`
 Expected: completes without error (the extension-import loop works with the model filter removed).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md packages/prism-core/prompts/doctor.md packages/prism-core/scripts/validate-harness.sh packages/prism-core/scripts/install-global.sh packages/prism-core/scripts/resolve-ocr-model.sh
@@ -538,7 +538,7 @@ git commit -S -m $'feat(prompts): add user-driven model setup step, generic doct
 **Interfaces:**
 - Consumes: Task 3's canonical statement. Produces: doc surfaces free of model prescription; `/setup` pointer present.
 
-- [ ] **Step 1: `README.md` (root) — auth snippet + default-model sentence**
+- [x] **Step 1: `README.md` (root) — auth snippet + default-model sentence**
 
 Old:
 
@@ -565,22 +565,22 @@ New:
    ADR-0067).
 ```
 
-- [ ] **Step 2: `README.md` (root) — pipeline step 8**
+- [x] **Step 2: `README.md` (root) — pipeline step 8**
 
 Old: `8. **Review** — load the `code-review` skill before push (suggest Ctrl+P to the judge model).`
 New: `8. **Review** — load the `code-review` skill before push.`
 
-- [ ] **Step 3: `README.md` (root) — trade-off sentence**
+- [x] **Step 3: `README.md` (root) — trade-off sentence**
 
 Old: `and **automatic model tiering is gone** (cycle manually — see [Model strategy](#model-strategy)).`
 New: `and **the harness prescribes no models** — model and thinking are yours to set at any time (see [Model strategy](#model-strategy)).`
 
-- [ ] **Step 4: `README.md` (root) — conversion-table row**
+- [x] **Step 4: `README.md` (root) — conversion-table row**
 
 Old: `| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |`
 New: `| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |`
 
-- [ ] **Step 5: `README.md` (root) — Model strategy section**
+- [x] **Step 5: `README.md` (root) — Model strategy section**
 
 Old:
 
@@ -617,22 +617,22 @@ names, restricts, and suggests no model:
   question is skippable and the write is consent-gated.
 ```
 
-- [ ] **Step 6: `packages/prism-core/README.md` — post-install sentence**
+- [x] **Step 6: `packages/prism-core/README.md` — post-install sentence**
 
 Old: `Authenticate the model\nwith `/login`; the default model is `deepseek-v4-flash`, and **Ctrl+P** cycles\nto `deepseek-v4-pro` for review.`
 New: `Authenticate with `/login`\nfor your provider. Model and thinking selection is yours at any time —\n**Ctrl+P** cycles models, **Shift+Tab** sets thinking; the harness prescribes\nnothing (ADR-0067). Run `/setup` to write your own session defaults.`
 
-- [ ] **Step 7: `CODING_HARNESS.md` — orientation paragraph**
+- [x] **Step 7: `CODING_HARNESS.md` — orientation paragraph**
 
 Old: `the\nsix-tier model system collapsed to **one primary model + manual Ctrl+P\ncycling** (ADR-0057).`
 New: `the\nsix-tier model system collapsed to **no prescribed model at all** — model and\nthinking selection is yours at any time (ADR-0067).`
 
-- [ ] **Step 8: `CODING_HARNESS.md` — conversion-table row**
+- [x] **Step 8: `CODING_HARNESS.md` — conversion-table row**
 
 Old: `| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |`
 New: `| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |`
 
-- [ ] **Step 9: `CODING_HARNESS.md` — trade-off bullet**
+- [x] **Step 9: `CODING_HARNESS.md` — trade-off bullet**
 
 Old:
 
@@ -651,7 +651,7 @@ New:
   restrictions. Ctrl+P cycles models and Shift+Tab sets thinking at any time.
 ```
 
-- [ ] **Step 10: `CODING_HARNESS.md` — Model strategy section**
+- [x] **Step 10: `CODING_HARNESS.md` — Model strategy section**
 
 Old:
 
@@ -688,7 +688,7 @@ names, restricts, and suggests no model:
   question is skippable and the write is consent-gated.
 ```
 
-- [ ] **Step 11: `CONTRIBUTING.md` — footer paragraph**
+- [x] **Step 11: `CONTRIBUTING.md` — footer paragraph**
 
 Old:
 
@@ -710,17 +710,17 @@ last `/` (e.g. `provider/model-id` → `model-id`). The harness prescribes no
 models (ADR-0067).
 ```
 
-- [ ] **Step 12: `.github/PULL_REQUEST_TEMPLATE.md` — example checklist line**
+- [x] **Step 12: `.github/PULL_REQUEST_TEMPLATE.md` — example checklist line**
 
 Old: `  - [ ] `pi --list-models deepseek-v4-flash` — primary model is available`
 New: `  - [ ] `pi --list-models` — model catalogue lists your providers`
 
-- [ ] **Step 13: Run the contract test**
+- [x] **Step 13: Run the contract test**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: **all PASS** — the sweep is green.
 
-- [ ] **Step 14: Commit**
+- [x] **Step 14: Commit**
 
 ```bash
 git add README.md packages/prism-core/README.md CODING_HARNESS.md CONTRIBUTING.md .github/PULL_REQUEST_TEMPLATE.md
@@ -739,7 +739,7 @@ git commit -S -m $'docs(harness): neutralize model references in repo docs\n\nIm
 **Interfaces:**
 - Consumes: everything above. Produces: the durable record; ADR-0057 marked Superseded; CONTEXT.md's Pi-era list current.
 
-- [ ] **Step 1: Write ADR-0067**
+- [x] **Step 1: Write ADR-0067**
 
 ```markdown
 # 0067. Model-Agnostic Harness; User-Driven Model Configuration
@@ -820,7 +820,7 @@ pin, restriction, or suggestion in the harness violates that.
   document.
 ```
 
-- [ ] **Step 2: Mark ADR-0057 superseded**
+- [x] **Step 2: Mark ADR-0057 superseded**
 
 Edit `adr/0057-single-model-manual-cycling-manifest-deleted.md`: change
 
@@ -842,7 +842,7 @@ model + judge, manual cycling prescription) are replaced by ADR-0067. The
 manifest/env-layer retirement it records remains in effect.
 ```
 
-- [ ] **Step 3: Update CONTEXT.md Pi-era list**
+- [x] **Step 3: Update CONTEXT.md Pi-era list**
 
 In `CONTEXT.md` "Pi-era decisions", change
 
@@ -862,12 +862,12 @@ and add after the last Pi-era entry (verify whether 0064/0065/0066 entries are p
 - `adr/0067-model-agnostic-harness-user-driven-model-config.md` — the harness selects no model or thinking level; `/setup` writes only the user's choices; commit footers record passively.
 ```
 
-- [ ] **Step 4: Run the contract test (still green)**
+- [x] **Step 4: Run the contract test (still green)**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: all PASS (ADR/CONTEXT files are outside the scan set, but confirm nothing regressed).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add adr/0067-model-agnostic-harness-user-driven-model-config.md adr/0057-single-model-manual-cycling-manifest-deleted.md CONTEXT.md
@@ -880,12 +880,12 @@ git commit -S -m $'docs(adr): adopt model-agnostic harness (ADR-0067)\n\nSuperse
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Contract test**
+- [x] **Step 1: Contract test**
 
 Run: `bash tests/Shell/model_agnostic_test.sh`
 Expected: all PASS.
 
-- [ ] **Step 2: Full Shell suite**
+- [x] **Step 2: Full Shell suite**
 
 ```bash
 tests=( tests/Shell/*_test.sh )
@@ -894,17 +894,17 @@ for t in "${tests[@]}"; do echo "== $t"; bash "$t" || echo "FAILED: $t"; done
 
 Expected: every suite PASSes (mirrors CI step `Shell regression tests`). Note: `validate-harness_test.sh` and `install_global_toolchain_test.sh` must pass with the validator change; `resolve-ocr-model_test.sh` is untouched and must stay green.
 
-- [ ] **Step 3: Validator**
+- [x] **Step 3: Validator**
 
 Run: `bash packages/prism-core/scripts/validate-harness.sh`
 Expected: exit 0, no errors.
 
-- [ ] **Step 4: /check**
+- [x] **Step 4: /check**
 
 Run the adapter stack gate: `/check` (php-cs-fixer + stylelint + eslint + Pest coverage ≥ 80%).
 Expected: green. This is a docs/config sweep; no PHP behavior changed, but the gate must pass on the changed files.
 
-- [ ] **Step 5: Spec acceptance walk-through**
+- [x] **Step 5: Spec acceptance walk-through**
 
 - Criterion 1 (no living surface prescribes): `bash tests/Shell/model_agnostic_test.sh` green.
 - Criterion 2 (grep over living surfaces): `grep -rn "deepseek" packages/prism-core README.md CODING_HARNESS.md CONTRIBUTING.md .github/PULL_REQUEST_TEMPLATE.md settings.json .pi 2>/dev/null | grep -vi "DEEPSEEK_API_KEY\|websearch"` returns only `skills/websearch/` hits.
