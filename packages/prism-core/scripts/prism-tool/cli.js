@@ -15,6 +15,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -614,6 +615,9 @@ function runDeclaredTool(args, context) {
 		process.stderr.write('prism-tool: stdin exceeds limit\n');
 		return EXIT.USAGE;
 	}
+	// argvPrefix prepends interpreter/flag tokens (e.g. php -d key=value) so
+	// argv[0] is the interpreter when a prefix is declared, the executable
+	// otherwise.
 	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
 	const result = (context.run ?? runBounded)(argv[0], argv.slice(1), {
 		cwd: component.provisioning === 'consumer-dev'
@@ -645,6 +649,7 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 

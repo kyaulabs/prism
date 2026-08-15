@@ -7,6 +7,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -22,7 +23,6 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 ADAPTER_TOOLCHAIN="$REPO_ROOT/packages/prism-php-web/toolchain.json"
-CONTRACT_JS="$REPO_ROOT/packages/prism-core/scripts/prism-tool/contract.js"
 TOOL_LAUNCHER="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
 PEST_BIN="$REPO_ROOT/vendor/bin/pest"
 
@@ -37,20 +37,13 @@ if [ "$PEST_PREFIX" = '["php","-d","pcov.enabled=1"]' ]; then
 else
 	fail "adapter pest component argvPrefix missing or wrong: $PEST_PREFIX"
 fi
-
-# ── 2. Validator accepts and validates argvPrefix ───────────────────────────
-if grep -q "validateArgvPrefix" "$CONTRACT_JS"; then
-	pass "contract validator validates argvPrefix"
-else
-	fail "contract.js lacks the argvPrefix validator"
-fi
-# Schema acceptance of the adapter contract is covered functionally by
+# Validator acceptance of argvPrefix is covered functionally by
 # validate-harness_test.sh (which runs the full validator in the suite);
 # this test does not repeat that whole-repo run.
 
 # ── 3. Behavior smoke: launcher prepends the prefix ─────────────────────────
-# Functional proof: validate-harness (above) accepts the contract; the
-# forced-off smoke below proves the prefix is applied at spawn time.
+# Functional proof: the forced-off smoke below proves the prefix is applied
+# at spawn time; validator schema acceptance is covered by the suite.
 
 # ── 4. Deterministic coverage smoke (forced pcov-off) ───────────────────────
 # The argvPrefix targets pcov specifically. Only run when pcov is the
@@ -67,6 +60,11 @@ if [ -z "$DRIVER" ]; then
 fi
 if [ "$DRIVER" != "pcov" ]; then
 	skip "driver is $DRIVER — pcov-only smoke skipped; the argvPrefix injection is exercised in CI"
+	print_summary "toolchain_argv_prefix"
+	exit 0
+fi
+if [ ! -x "$PEST_BIN" ]; then
+	skip "vendor/bin/pest missing (composer install not run) — dynamic smoke skipped"
 	print_summary "toolchain_argv_prefix"
 	exit 0
 fi
@@ -94,7 +92,7 @@ set +e
 CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage --testsuite=Unit 2>&1)
 CONTROL_RC=$?
 set -e
-if [ "$CONTROL_RC" -ne 0 ] && printf '%s' "$CTRL_OUT" | grep -qE "coverage driver"; then
+if [ "$CONTROL_RC" -ne 0 ] && printf '%s' "$CTRL_OUT" | grep -qiE "coverage.*driver"; then
 	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
 else
 	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
@@ -113,6 +111,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
