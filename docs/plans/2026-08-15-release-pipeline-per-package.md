@@ -446,7 +446,7 @@ git commit -S -m $'ci(release): cap release body and attach full changelog\n\nAu
 - Consumes: `tag_exists`/`tag_commit`/`release_exists` probes.
 - Produces: recovery branch — tag exists at merge SHA with no Release → `gh release create` without `--target`.
 
-- [ ] **Step 1: Update the guard (Red)**
+- [x] **Step 1: Update the guard (Red)**
 
 In section 9's condition, append the recovery-branch pins:
 
@@ -468,12 +468,12 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run the guard — expect FAIL**
+- [x] **Step 2: Run the guard — expect FAIL**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: FAIL on the two new pins (`release_exists" = "no" ] && [ "$tag_commit" = "$MERGE_SHA"` and `recovering` absent).
 
-- [ ] **Step 3: Implement the recovery branch**
+- [x] **Step 3: Implement the recovery branch**
 
 Replace the state machine (lines 151-168) with:
 
@@ -505,12 +505,12 @@ Replace the state machine (lines 151-168) with:
           fi
 ```
 
-- [ ] **Step 4: Run the guard — expect PASS**
+- [x] **Step 4: Run the guard — expect PASS**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/release.yml tests/Shell/release_workflow_test.sh
