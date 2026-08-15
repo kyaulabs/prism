@@ -4,7 +4,11 @@ Date: 2026-08-12
 
 ## Status
 
-Accepted
+Superseded by ADR-0067
+
+Retained as historical context; its model-selection clauses (single primary
+model + judge, manual cycling prescription) are replaced by ADR-0067. The
+manifest/env-layer retirement it records remains in effect.
 
 Depends on ADR-0055. Supersedes the opencode-era model/manifest machinery
 (ADR-0012, ADR-0013, ADR-0014, ADR-0022, ADR-0030, ADR-0031, ADR-0040,
