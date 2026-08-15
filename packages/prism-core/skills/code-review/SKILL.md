@@ -8,10 +8,6 @@ description: "Use before push to run a read-only, four-axis review of a staged, 
 Run four review axes in the single agent and assemble their findings into one
 report. Do NOT auto-fix anything — report only.
 
-For the strongest cross-model review, suggest that the human cycle to
-`deepseek-v4-pro` with Ctrl+P before continuing. Proceed on the current model
-if they decline.
-
 ## Coordinator workflow
 
 ### 1. Empty-diff guard (MUST run first)

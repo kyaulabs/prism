@@ -7,10 +7,6 @@ Act as a software architect. Evaluate a proposed change against the project's
 recorded context and decisions before any code is written. This workflow is
 read-only and does not invoke implementation skills.
 
-For the strongest cross-model review, suggest that the human cycle to
-`deepseek-v4-pro` with Ctrl+P before continuing. Proceed on the current model
-if they decline.
-
 ## The proposed change
 
 The change to evaluate is described in the invocation message you receive
