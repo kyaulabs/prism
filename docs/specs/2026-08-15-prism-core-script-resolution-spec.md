@@ -103,13 +103,26 @@ This fallback note preserves the launcher-free dogfooding path.
 
 ### 4.3 Git hooks
 
-`.github/hooks/prepare-commit-msg` and `.github/hooks/pre-push` resolve their
-script (`validate-branch-name.sh`, `validate-harness.sh`) in this order:
+`.github/hooks/prepare-commit-msg` resolves `validate-branch-name.sh` in this
+order:
 
-1. Checkout copy: `-x "$REPO_ROOT/packages/prism-core/scripts/<tool>.sh"` —
-   preserves today's dogfooding behavior exactly.
-2. Launcher: `"$(prism-tool resolve scripts)/<tool>.sh"` — consumer installs.
-3. Otherwise: current fail-closed / skip semantics (unchanged messages).
+1. Checkout copy: `-x "$REPO_ROOT/packages/prism-core/scripts/validate-branch-name.sh"`
+   — preserves today's dogfooding behavior exactly (and removes the CWD
+   dependence by anchoring on `$REPO_ROOT`).
+2. Launcher: `"$(prism-tool resolve scripts)/validate-branch-name.sh"` — any
+   repo carrying these hooks without the checkout copy.
+3. Otherwise: current skip semantics via the existing `[ -x "$VALIDATOR" ]`
+   guards.
+
+`.github/hooks/pre-push`'s validate-harness gate stays **checkout-only by
+design** (ADR-0025 CI-parity: it validates the prism package tree in the repo
+being pushed; running it against a consumer tree would be meaningless). The
+fix anchors its guard on `$REPO_ROOT` and updates its guidance messages to
+the resolver form — the invocation itself is unchanged.
+
+Hook guidance messages that say `Run 'bash packages/prism-core/scripts/
+install-global.sh'` (in `commit-msg`, `pre-commit`, `pre-push`,
+`prepare-commit-msg`) switch to the resolver form.
 
 Hook guidance messages that say `Run 'bash packages/prism-core/scripts/
 install-global.sh'` (in `commit-msg`, `pre-commit`, `pre-push`,
@@ -143,7 +156,7 @@ install-global.sh'` (in `commit-msg`, `pre-commit`, `pre-push`,
 | `packages/prism-core/prompts/{setup-rulesets,setup,check,release,pr,doctor}.md` | 16 refs → resolver form |
 | `packages/prism-php-web/skills/rcs-header/SKILL.md` | 1 ref → resolver form |
 | `.github/hooks/prepare-commit-msg` | Resolver-based validator lookup + message forms |
-| `.github/hooks/pre-push` | Resolver-based validate-harness lookup + message form |
+| `.github/hooks/pre-push` | `$REPO_ROOT`-anchored guard + message forms |
 | `.github/hooks/commit-msg`, `.github/hooks/pre-commit` | Message forms only |
 | `packages/prism-core/scripts/validate-harness.sh` | New instruction-layer reference check |
 | `tests/Shell/prism_tool_resolve_test.sh` | New resolver tests |
@@ -178,7 +191,10 @@ Exempt (documentation/historical): `packages/prism-core/README.md`, root
    (AGENTS.md files, `skills/`, `prompts/`, `.github/hooks/`) is empty.
 3. `validate-harness.sh` passes with the new check wired; its test asserts
    the marker.
-4. New `prism_tool_resolve_test.sh` passes (walk, fallback, usage, failure).
+4. New `prism_tool_resolve_test.sh` passes (checkout walk, own-install fallback,
+   usage errors). The unresolvable-install error path is defensive code — it
+   cannot be simulated from a healthy checkout (the own install always
+   exists), so it is not unit-tested.
 5. Full shell test suite green; `/check` (delegating to `/check-php`) green.
 6. `install_global_toolchain_test.sh` asserts the deployed AGENTS.md carries
    no `bash packages/prism-core/` literal.
