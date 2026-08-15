@@ -8,6 +8,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -18,7 +19,7 @@ const MAX_EXECUTION_TIMEOUT_MS = 600000;
 const STABLE_VERSION = /^(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})$/;
 const IDENTIFIER = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EXECUTABLE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const ARGV_TOKEN = /^-?[A-Za-z0-9][A-Za-z0-9._:=@/-]{0,127}$/;
+const ARGV_TOKEN = /^-{0,2}[A-Za-z0-9][A-Za-z0-9._:=@/-]{0,127}$/;
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)?)$/;
 const TOP_LEVEL_KEYS = new Set([
 	'browserTargets',
@@ -331,6 +332,7 @@ module.exports = {
 	loadContract,
 	validateContract,
 };
+
 
 
 

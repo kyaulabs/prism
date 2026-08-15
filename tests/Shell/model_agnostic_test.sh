@@ -6,6 +6,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -15,7 +16,8 @@
 # Limitation (deliberate): the banned-token list is tailored to the known
 # offenders — DeepSeek model IDs and the four pi config keys. Generic
 # pinning keys for other providers are not scanned; extend PATTERNS when a
-# new offender appears.
+# new offender appears. Historical records (adr/, docs/, CHANGELOG.md,
+# NOTICE) are outside the scan roots by construction, not by exclusion.
 
 set -euo pipefail
 
@@ -26,7 +28,7 @@ setup_result_file
 
 # Banned tokens: model-prescription surfaces. "DeepSeek API" (websearch
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
-PATTERNS='deepseek-v4|deepseek/deepseek|defaultModel|defaultProvider|defaultThinkingLevel|enabledModels|judge model|primary model'
+PATTERNS='deepseek-v4|deepseek/deepseek|defaultModel|defaultProvider|defaultThinkingLevel|enabledModels|\bjudge model\b|\bprimary model\b'
 
 # ── 1. models.json must not exist ───────────────────────────────────────────
 if [ -e "$REPO_ROOT/models.json" ]; then
@@ -43,7 +45,7 @@ FILES=()
 while IFS= read -r f; do
 	[ -n "$f" ] && FILES+=("$f")
 done < <(
-	find "$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" \
+	find "$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web" \
 		-type f \( -name '*.md' -o -name '*.sh' -o -name '*.json' -o -name '*.ts' \) \
 		-not -path '*/skills/websearch/*' 2>/dev/null
 	printf '%s\n' \
@@ -70,6 +72,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

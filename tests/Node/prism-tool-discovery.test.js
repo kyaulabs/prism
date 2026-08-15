@@ -1,4 +1,5 @@
-// $KYAULabs: prism-tool-discovery.test.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -128,7 +129,7 @@ test('runs adapter Composer and npm commands from their project while cwd is unr
 
 	assert.deepEqual(results.map(({status}) => status), [0, 0]);
 	assert.deepEqual(invocations, [
-		{command: fs.realpathSync(pest), args: ['--version'], cwd: fs.realpathSync(projectRoot)},
+		{command: 'php', args: ['-d', 'pcov.enabled=1', fs.realpathSync(pest), '--version'], cwd: fs.realpathSync(projectRoot)},
 		{command: fs.realpathSync(eslint), args: ['--version'], cwd: fs.realpathSync(projectRoot)},
 	]);
 });
@@ -457,6 +458,7 @@ test('rejects an adapter component ID that collides with the core contract', (t)
 		/adapter component collides with core component commitlint/
 	);
 });
+
 
 
 
