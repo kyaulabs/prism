@@ -16,6 +16,7 @@
 
 
 
+
 'use strict';
 
 const fs = require('node:fs');
@@ -617,8 +618,12 @@ function runDeclaredTool(args, context) {
 	}
 	// argvPrefix prepends interpreter/flag tokens (e.g. php -d key=value) so
 	// argv[0] is the interpreter when a prefix is declared, the executable
-	// otherwise.
+	// otherwise. The interpreter itself must exist or the failure is opaque.
 	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
+	if (component.argvPrefix && component.argvPrefix.length > 0 && !resolveExecutable(argv[0], env)) {
+		process.stderr.write(`prism-tool: argv prefix interpreter ${argv[0]} is unavailable\n`);
+		return EXIT.READINESS;
+	}
 	const result = (context.run ?? runBounded)(argv[0], argv.slice(1), {
 		cwd: component.provisioning === 'consumer-dev'
 			? fs.realpathSync(projectRoot)
@@ -649,6 +654,7 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
 
 
 

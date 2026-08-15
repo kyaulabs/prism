@@ -9,6 +9,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -16,10 +17,12 @@
 # and the websearch skill's DeepSeek backend (functional tool dependency).
 #
 # Limitation (deliberate): the banned-token list is tailored to the known
-# offenders — DeepSeek model IDs and the four pi config keys. Generic
+# offenders — DeepSeek model IDs, the four pi config keys, and judge/primary
+# model phrases (incl. camelCase, kebab, and plural variants). Generic
 # pinning keys for other providers are not scanned; extend PATTERNS when a
-# new offender appears. Historical records (adr/, docs/, CHANGELOG.md,
-# NOTICE) are outside the scan roots by construction, not by exclusion.
+# new offender appears. Repo-root historical records (adr/, docs/,
+# CHANGELOG.md, NOTICE) are outside the scan roots by construction; package
+# docs (packages/*/docs) are living surfaces and ARE scanned.
 
 set -euo pipefail
 
@@ -30,7 +33,7 @@ setup_result_file
 
 # Banned tokens: model-prescription surfaces. "DeepSeek API" (websearch
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
-PATTERNS='deepseek-v4|deepseek/deepseek|defaultModel|defaultProvider|defaultThinkingLevel|enabledModels|(^|[^a-z])judge model([^a-z]|$)|(^|[^a-z])primary model([^a-z]|$)'
+PATTERNS='deepseek-v4|deepseek/deepseek|defaultModel|defaultProvider|defaultThinkingLevel|enabledModels|(^|[^a-z])(judge|primary)[-_ ]?models?([^a-z]|$)'
 
 # ── 1. models.json must not exist ───────────────────────────────────────────
 if [ -e "$REPO_ROOT/models.json" ]; then
@@ -75,6 +78,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

@@ -5,6 +5,7 @@
 
 
 
+
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -95,6 +96,7 @@ test('runs adapter Composer and npm commands from their project while cwd is unr
 	writeExecutable(pest, 'exit 0');
 	writeExecutable(eslint, 'exit 0');
 	const externalBin = path.join(projectRoot, 'external-bin');
+	writeExecutable(path.join(externalBin, 'php'), 'exit 0');
 	writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
 	writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
 	const invocations = [];
@@ -458,6 +460,7 @@ test('rejects an adapter component ID that collides with the core contract', (t)
 		/adapter component collides with core component commitlint/
 	);
 });
+
 
 
 

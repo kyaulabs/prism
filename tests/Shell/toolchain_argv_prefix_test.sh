@@ -8,6 +8,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -87,30 +88,37 @@ esac
 
 # Negative control: pest run directly (no launcher) with the driver forced
 # off must FAIL with the driver-absence symptom — proves this environment
-# is red-capable for the regression, for the right reason.
+# is red-capable for the regression, for the right reason. Uses one fast,
+# deterministic test file so the control never couples to unrelated suite
+# health.
 set +e
-CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage --testsuite=Unit 2>&1)
+CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
 CONTROL_RC=$?
 set -e
-if [ "$CONTROL_RC" -ne 0 ] && printf '%s' "$CTRL_OUT" | grep -qiE "coverage.*driver"; then
+if [ "$CONTROL_RC" -ne 0 ] \
+	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage" \
+	&& printf '%s' "$CTRL_OUT" | grep -qiE "driver|pcov|xdebug"; then
 	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
 else
 	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
+	printf '%s\n' "$CTRL_OUT" | tail -5 >&2
 fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
-# the same forced-off environment.
+# the same forced-off environment, on the same focused test file.
 set +e
-(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage --testsuite=Unit) >/dev/null 2>&1
+SMOKE_OUT=$(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
 set -e
 if [ "$LAUNCHER_RC" -eq 0 ]; then
 	pass "pest coverage smoke passes via launcher with driver forced off ($DRIVER)"
 else
 	fail "pest coverage smoke failed via launcher with driver forced off (rc=$LAUNCHER_RC)"
+	printf '%s\n' "$SMOKE_OUT" | tail -5 >&2
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
