@@ -16,6 +16,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -39,7 +40,7 @@ setup_result_file
 
 # Banned tokens: model-prescription surfaces. "DeepSeek API" (websearch
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
-PATTERNS='deepseek-v4|deepseek/deepseek|defaultModel|defaultProvider|defaultThinkingLevel|enabledModels|(judge|primary)[-_ ]?models?([^a-z]|$)'
+PATTERNS='deepseek-v4|deepseek/deepseek|default[-_]?model|default[-_]?provider|default[-_]?thinking[-_]?level|enabled[-_]?models|(judge|primary)[-_ ]?models?([^a-z]|$)'
 
 # ── 1. models.json must not exist ───────────────────────────────────────────
 if [ -e "$REPO_ROOT/models.json" ]; then
@@ -56,6 +57,18 @@ fi
 SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web")
 for root in "${SCAN_ROOTS[@]}"; do
 	[ -d "$root" ] || fail "missing scan root: $root"
+done
+ROOT_FILES=(
+	"$REPO_ROOT/settings.json"
+	"$REPO_ROOT/AGENTS.md"
+	"$REPO_ROOT/CONTEXT.md"
+	"$REPO_ROOT/README.md"
+	"$REPO_ROOT/CODING_HARNESS.md"
+	"$REPO_ROOT/CONTRIBUTING.md"
+	"$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
+)
+for file in "${ROOT_FILES[@]}"; do
+	[ -f "$file" ] || fail "missing scan target: $file"
 done
 # Fail closed: a find failure must not make the scan vacuously pass.
 SCAN_TMP="$(mktemp -d)"
@@ -104,6 +117,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
