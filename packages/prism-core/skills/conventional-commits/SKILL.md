@@ -26,12 +26,12 @@ Every commit message must end with three footers:
   Use the model ID segment after the last `/` (for example,
   `deepseek/deepseek-v4-flash` → `deepseek-v4-flash`).
 - **`Tested-by:`** — the model open-code-review is configured with. Resolve
-  it with `bash packages/prism-core/scripts/resolve-ocr-model.sh` (reads
+  it with `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"` (reads
   only the `model` key from `~/.opencodereview/config.json`; fails closed,
   exit 3, when the config is missing or unreadable).
 - **`Signed-off-by:`** — the human user approving the change, formatted as
   `Name <email>`. Resolve it dynamically with
-  `bash packages/prism-core/scripts/resolve-identity.sh`; it uses an optional
+  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"`; it uses an optional
   `~/.config/prism/identity` override and then git
   `user.name`/`user.email`, failing closed when neither resolves.
 
@@ -84,8 +84,8 @@ directory, or feature area: `feat(core)`, `fix(db)`, `test(auth)`.
 ## Branch Naming
 
 Branch names follow Conventional Commit type prefixes per ADR-0028. See
-`packages/prism-core/scripts/new-branch.sh` for the canonical creator and
-`packages/prism-core/scripts/validate-branch-name.sh` for the regex.
+`bash "$(prism-tool resolve scripts)/new-branch.sh"` for the canonical creator and
+`bash "$(prism-tool resolve scripts)/validate-branch-name.sh"` for the regex.
 
 - `<type>/<username>-<hash>-<description>` — feature/standard work
   (`<type>` ∈ feat, fix, patch, docs, style, refactor, perf, test, build, ci,

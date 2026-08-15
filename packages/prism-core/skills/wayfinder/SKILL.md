@@ -23,7 +23,7 @@ unknowns you can't yet phrase as sharp questions**. It is the entry point the
 `/router` command sends "huge" / multi-subsystem requests to.
 
 The `brainstorming` skill's scope gate also sends requests here: it runs
-`bash packages/prism-core/scripts/classify-greenfield.sh`, and `established` or
+`bash "$(prism-tool resolve scripts)/classify-greenfield.sh"`, and `established` or
 `indeterminate` oversized work stops detailed grilling and hands off to this
 skill to chart the map.
 
@@ -36,7 +36,7 @@ Do NOT use this skill when a smaller on-ramp fits:
 - A question or domain exploration → load `consult`.
 - A bug or regression → load `debug`.
 - A **strict greenfield** repository — classifier result `greenfield` from
-  `bash packages/prism-core/scripts/classify-greenfield.sh`. The repository must
+  `bash "$(prism-tool resolve scripts)/classify-greenfield.sh"`. The repository must
   bootstrap first: the approved walking-skeleton spec rides the human-pushed
   single-root seed (ADR-0044) onto `develop` and completes through `/check`
   and `code-review` before a fresh session may chart the remainder map.
