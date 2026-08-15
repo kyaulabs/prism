@@ -10,6 +10,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -58,17 +59,17 @@ if [ -z "$DRIVER" ] && php -m 2>/dev/null | grep -qE '^xdebug$'; then DRIVER=xde
 if [ -z "$DRIVER" ]; then
 	skip "no coverage driver present — dynamic smoke skipped; check-php preflight covers this case"
 	print_summary "toolchain_argv_prefix"
-	exit 0
+	exit $?
 fi
 if [ "$DRIVER" != "pcov" ]; then
 	skip "driver is $DRIVER — pcov-only smoke skipped; the argvPrefix injection is exercised in CI"
 	print_summary "toolchain_argv_prefix"
-	exit 0
+	exit $?
 fi
 if [ ! -x "$PEST_BIN" ]; then
 	skip "vendor/bin/pest missing (composer install not run) — dynamic smoke skipped"
 	print_summary "toolchain_argv_prefix"
-	exit 0
+	exit $?
 fi
 
 # Force pcov off for the smoke: append a scan-dir ini that sets
@@ -86,6 +87,15 @@ case "$DEFAULT_SCAN_DIR" in
 		;;
 	*) export PHP_INI_SCAN_DIR="${DEFAULT_SCAN_DIR}:${TMP_INI_DIR}" ;;
 esac
+
+# Verify the forced-off state actually holds in this environment; without
+# it the positive smoke would not prove the injection.
+FORCED_STATE="$(php -r 'echo ini_get("pcov.enabled");' 2>/dev/null || true)"
+if [ "$FORCED_STATE" != "0" ]; then
+	skip "could not force pcov off (state=$FORCED_STATE) — smoke skipped"
+	print_summary "toolchain_argv_prefix"
+	exit $?
+fi
 
 # Negative control: pest run directly (no launcher) with the driver forced
 # off must FAIL with the driver-absence symptom — proves this environment
@@ -106,7 +116,14 @@ else
 fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
-# the same forced-off environment, on the same focused test file.
+# the same forced-off environment, on the same focused test file. The
+# launcher gates on semgrep/ocr readiness first — without them the smoke
+# would fail for the wrong reason, so guard on their presence.
+if ! command -v semgrep >/dev/null 2>&1 || ! command -v ocr >/dev/null 2>&1; then
+	skip "semgrep/ocr readiness gate not satisfiable — launcher smoke skipped"
+	print_summary "toolchain_argv_prefix"
+	exit $?
+fi
 set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
@@ -119,6 +136,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
