@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare-commit-msg_test.sh kyau@nova 2026/07/13 -0700 Exp $
+# $KYAULabs: prepare-commit-msg_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -49,6 +50,7 @@ register_temp_dir "$T1"
 (
 	cd "$T1"
 	git_init_test_repo .
+	git checkout -q -b fix/test-1a2b-cases
 
 	# Install the hook
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
@@ -81,6 +83,7 @@ register_temp_dir "$T2"
 (
 	cd "$T2"
 	git_init_test_repo .
+	git checkout -q -b fix/test-1a2b-cases
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -127,6 +130,7 @@ register_temp_dir "$T3"
 (
 	cd "$T3"
 	git_init_test_repo .
+	git checkout -q -b fix/test-1a2b-cases
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -162,6 +166,7 @@ register_temp_dir "$T4"
 (
 	cd "$T4"
 	git_init_test_repo .
+	git checkout -q -b fix/test-1a2b-cases
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -196,6 +201,7 @@ register_temp_dir "$T5"
 (
 	cd "$T5"
 	git_init_test_repo .
+	git checkout -q -b fix/test-1a2b-cases
 
 	cp "$REAL_HOOK" .git/hooks/prepare-commit-msg
 	chmod +x .git/hooks/prepare-commit-msg
@@ -228,6 +234,7 @@ register_temp_dir "$T5"
 
 print_summary "prepare-commit-msg_test.sh"
 exit $?
+
 
 
 

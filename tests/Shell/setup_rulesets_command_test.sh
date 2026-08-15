@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_command_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: setup_rulesets_command_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+
 
 
 
@@ -19,13 +20,14 @@ printf '%s\n' '── setup-rulesets pi prompt template ──'
 [ -f "$PROMPT" ] && pass 'prompt exists' || fail 'prompt missing'
 if head -10 "$PROMPT" | grep -q '^description:'; then pass 'description present'; else fail 'description missing'; fi
 if head -10 "$PROMPT" | grep -qE '^(agent|subtask|mode|permission):'; then fail 'opencode-only frontmatter remains'; else pass 'pi frontmatter only'; fi
-for marker in --dry-run --apply --check 'yes/no' untrusted 'packages/prism-core/scripts/setup-rulesets.sh'; do
+for marker in --dry-run --apply --check 'yes/no' untrusted 'resolve scripts)/setup-rulesets.sh'; do
 	if grep -q -- "$marker" "$PROMPT"; then pass "$marker present"; else fail "$marker missing"; fi
 done
 if grep -q 'kyaulabs/prism' "$PROMPT"; then fail 'repository is hard-coded'; else pass 'repository is detected dynamically'; fi
 
 printf '\nsetup_rulesets_command_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

@@ -13,6 +13,7 @@
 
 
 
+
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
 # Asserts the security-critical surface of .github/workflows/release.yml:
@@ -490,8 +491,8 @@ fi
 if grep -qF 'prism-tool run git-cliff -- --bumped-version' "$RELEASE_CMD" && \
    grep -qF 'no prior release tag' "$RELEASE_CMD" && \
    grep -qF 'initial version' "$RELEASE_CMD" && \
-   grep -qF 'new-branch.sh release' "$RELEASE_CMD" && \
-   ! grep -qF 'new-branch.sh release "v' "$RELEASE_CMD" && \
+   grep -qF 'new-branch.sh" release "$VERSION"' "$RELEASE_CMD" && \
+   ! grep -qF 'new-branch.sh" release "v' "$RELEASE_CMD" && \
    ! grep -qE '(^|[^[:alpha:]])read[[:space:]]+' "$RELEASE_CMD"; then
 	pass "P17: /release proposes via prism-tool run git-cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
 else
@@ -608,6 +609,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 
