@@ -59,9 +59,10 @@ bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
 
 A readiness failure leaves the installed package, launcher, and context
 resources available for remediation but does not report toolchain GO. After a
-successful install, run `pi` in any trusted project. Authenticate the model
-with `/login`; the default model is `deepseek-v4-flash`, and **Ctrl+P** cycles
-to `deepseek-v4-pro` for review.
+successful install, run `pi` in any trusted project. Authenticate with `/login`
+for your provider. Model and thinking selection is yours at any time —
+**Ctrl+P** cycles models, **Shift+Tab** sets thinking; the harness prescribes
+nothing (ADR-0067). Run `/setup` to write your own session defaults.
 
 ## Adapter
 

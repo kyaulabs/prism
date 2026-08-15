@@ -82,7 +82,7 @@
   a reviewer can run to verify your changes work as expected.
   Use bullet points with code blocks if needed.
   Example:
-  - [ ] `pi --list-models deepseek-v4-flash` — primary model is available
+  - [ ] `pi --list-models` — model catalogue lists your providers
   - [ ] `bash packages/prism-core/scripts/new-branch.sh feat test-branch` — creates correct branch
   - [ ] `bash packages/prism-core/scripts/validate-branch-name.sh feat/your-name-hash-desc` — exit 0
   - [ ] `bash packages/prism-core/scripts/resolve-identity.sh` — prints your identity

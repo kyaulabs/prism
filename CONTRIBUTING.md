@@ -87,11 +87,11 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
   at `~/.config/prism/identity` → `git config user.name`/`user.email`; fails
   closed, exit 3, if neither resolves).
 
-Under the single-agent, single-primary-model design (ADR-0057) the
-`Implemented-by:` footer is the session model in use. `Tested-by:` is the
-model open-code-review is configured to review with (resolved via
-`resolve-ocr-model.sh`). Each value is the bare model id (e.g.
-`deepseek-v4-flash`, `deepseek-v4-pro`).
+`Implemented-by:` is the session model in use; `Tested-by:` is the model
+open-code-review is configured to review with (resolved via
+`resolve-ocr-model.sh`). Each value is the bare model ID segment after the
+last `/` (e.g. `provider/model-id` → `model-id`). The harness prescribes no
+models (ADR-0067).
 
 > **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer
 > names until a separate upstream PR lands. Aurora commits may need manual

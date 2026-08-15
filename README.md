@@ -77,13 +77,12 @@ Prism is two pi packages living under `packages/`:
 2. **Authenticate the model.** Prism targets DeepSeek (a built-in pi provider):
 
    ```bash
-   pi            # then /login  → select DeepSeek
-   # or: export DEEPSEEK_API_KEY=sk-...
+   pi            # then /login → select your provider
    ```
 
-   Default model `deepseek-v4-flash`; cycle to `deepseek-v4-pro` for
-   review/audit with **Ctrl+P** (see [Model strategy](#model-strategy),
-   ADR-0057).
+   Model and thinking selection is yours at any time — **Ctrl+P** cycles
+   models, **Shift+Tab** sets thinking (see [Model strategy](#model-strategy),
+   ADR-0067).
 
 3. **Install the core globally** (from a clone of this repo — the dev path):
 
@@ -366,7 +365,7 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 5. **Implement** — load the `tdd` skill per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage (adapter `tdd-php`).
 6. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
 7. **Gate** — run `/check` (delegates to the adapter stack gate, e.g. `/check-php`: php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-8. **Review** — load the `code-review` skill before push (suggest Ctrl+P to the judge model).
+8. **Review** — load the `code-review` skill before push.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -382,8 +381,8 @@ runs everything; you load a skill when the task calls for it. The opencode-era
 "Build / Plan / Design" tabs and fifteen `@subagents` collapsed into skills
 whose bodies are the former agent prompts. Two accepted trade-offs (ADR-0055):
 plan-read-only and per-skill gating are now **instruction-only** (no tool-level
-gate), and **automatic model tiering is gone** (cycle manually — see [Model
-strategy](#model-strategy)). Cheap rollback comes from pi session branching
+gate), and **the harness prescribes no models** — model and thinking are yours to set
+at any time (see [Model strategy](#model-strategy)). Cheap rollback comes from pi session branching
 (`/tree`, `/fork`); slips are caught by `verification-before-completion` and
 `code-review`.
 
@@ -403,7 +402,7 @@ strategy](#model-strategy)). Cheap rollback comes from pi session branching
 | --- | --- |
 | `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
 | `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
-| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |
+| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |
 | Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
 | Fifteen `@subagents` | **collapsed** → skills |
 | `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` (Agent Skills standard) |
@@ -415,18 +414,15 @@ strategy](#model-strategy)). Cheap rollback comes from pi session branching
 
 ### Model strategy
 
-There is **no manifest/env tier layer** (ADR-0057). One primary model, one
-judge, manual cycling:
+There is **no manifest/env tier layer** (ADR-0067). The harness prescribes,
+names, restricts, and suggests no model:
 
-| Role | Model | When |
-| --- | --- | --- |
-| Primary | `deepseek/deepseek-v4-flash` | default for all pipeline work |
-| Judge | `deepseek/deepseek-v4-pro` | cycle with **Ctrl+P** for `code-review` / `spec-review` / `test-audit` / `architect` (those skills suggest the switch) |
-
+- **Model:** cycle with **Ctrl+P** at any time.
 - **Thinking:** raise/lower with **Shift+Tab**.
-- **Auth:** `/login deepseek` or `export DEEPSEEK_API_KEY`.
-- **Scoped cycling:** `enabledModels: ["deepseek-v4-flash", "deepseek-v4-pro"]`
-  (set in `settings.json` / [`.pi/settings.json`](.pi/settings.json)).
+- **Auth:** `/login` for your provider or export the provider's API key.
+- **Session defaults:** run `/setup` to write your preferred provider,
+  default model, Ctrl+P pool, and thinking level to your pi config — every
+  question is skippable and the write is consent-gated.
 
 Automatic tiering is gone by decision (B — ADR-0055/0057); review/audit run on
 the primary unless the human (or the agent, by suggesting it) manually Ctrl+P's
@@ -565,9 +561,9 @@ token (Sentence-case) = {
 
 Every commit must include `Implemented-by`, `Tested-by`, and
 `Signed-off-by` footers. If no user is explicitly named, the default
-`Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the model
-ID segment after the last `/` (ADR-0064): `deepseek/deepseek-v4-flash` →
-`deepseek-v4-flash`, `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
+`Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the bare
+model ID segment after the last `/` (ADR-0064): `provider/model-id` →
+`model-id`.
 `Tested-by:` is resolved via
 `bash packages/prism-core/scripts/resolve-ocr-model.sh` (the model
 open-code-review is configured with).
@@ -596,8 +592,8 @@ Basic movement added.
 
 Refs: #123
 Refs: 676104e, a215868
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
 
@@ -606,8 +602,8 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
