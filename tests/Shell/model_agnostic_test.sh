@@ -18,6 +18,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -43,11 +44,17 @@ setup_result_file
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
 PATTERNS='deepseek-v4|deepseek/deepseek|default[-_]?model|default[-_]?provider|default[-_]?thinking[-_]?level|enabled[-_]?models|(judge|primary)[-_ ]?models?([^a-z]|$)'
 
-# ── 1. models.json must not exist ───────────────────────────────────────────
-if [ -e "$REPO_ROOT/models.json" ]; then
-	fail "models.json still exists — the primary/judge display overrides must be deleted (ADR-0067)"
+# ── 1. No models.json override may exist anywhere in the scan roots ────────
+SCAN_TMP0="$(mktemp -d)"
+register_temp_dir "$SCAN_TMP0"
+set +e
+find "$REPO_ROOT/.pi" "$REPO_ROOT/packages" -name 'models.json' -not -path '*/node_modules/*' > "$SCAN_TMP0/list" 2>/dev/null
+MODELS_RC=$?
+set -e
+if [ "$MODELS_RC" -eq 0 ] && [ -s "$SCAN_TMP0/list" ]; then
+	fail "models.json still exists — the primary/judge display overrides must be deleted (ADR-0067): $(head -1 "$SCAN_TMP0/list")"
 else
-	pass "models.json absent"
+	pass "no models.json in the scan roots"
 fi
 
 # ── 2. Living surfaces carry no model prescription ──────────────────────────
@@ -78,8 +85,9 @@ SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
 find "${SCAN_ROOTS[@]}" \
 	-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
-	-o -name '*.php' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \) \
-	-not -path '*/skills/websearch/*' \
+	-o -name '*.php' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \
+	-o -name 'Dockerfile' -o -name 'Makefile' \) \
+	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' \
 	> "$SCAN_LIST" 2>&1
 FIND_RC=$?
@@ -98,7 +106,7 @@ VIOLATIONS=0
 for f in "${FILES[@]}"; do
 	[ -f "$f" ] || continue
 	set +e
-	MATCHES="$(grep -HnEi "$PATTERNS" "$f" 2>&1)"
+	MATCHES="$(grep -HnEi -- "$PATTERNS" "$f" 2>&1)"
 	GREP_RC=$?
 	set -e
 	if [ "$GREP_RC" -gt 1 ]; then
@@ -118,6 +126,7 @@ if [ "$VIOLATIONS" -eq 0 ]; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
