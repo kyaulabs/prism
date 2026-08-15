@@ -3,6 +3,7 @@
 
 
 
+
 # resolve-ocr-model_test.sh — contract tests for resolve-ocr-model.sh
 # (ADR-0064). Uses ONLY synthetic fixtures via PRISM_OCR_CONFIG; never the
 # real ~/.opencodereview config. Asserts single-key extraction, bare-model
@@ -48,8 +49,9 @@ else
 fi
 
 # ── 2. Provider-prefixed model → bare segment after last / ─────────────────
-PREFIXED=$(mktemp)
-register_temp_dir "$(dirname "$PREFIXED")"
+FIXDIR=$(mktemp -d)
+register_temp_dir "$FIXDIR"
+PREFIXED="$FIXDIR/prefixed.json"
 printf '{"provider":"deepseek","model":"deepseek/deepseek-v4-pro","providers":{},"llm":{}}\n' > "$PREFIXED"
 run_script "$PREFIXED"
 if [ "$RC" -eq 0 ] && [ "$OUTPUT" = "deepseek-v4-pro" ]; then
@@ -59,8 +61,7 @@ else
 fi
 
 # ── 3. Missing config file → exit 3, empty stdout ──────────────────────────
-MISSING=$(mktemp -u)
-register_temp_dir "$(dirname "$MISSING")"
+MISSING="$FIXDIR/missing.json"
 run_script "$MISSING"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
 	pass "missing config fails closed (exit 3, empty stdout)"
@@ -69,8 +70,7 @@ else
 fi
 
 # ── 4. Malformed JSON → exit 3, empty stdout ───────────────────────────────
-MALFORMED=$(mktemp)
-register_temp_dir "$(dirname "$MALFORMED")"
+MALFORMED="$FIXDIR/malformed.json"
 printf '{"provider": "deepseek", "model": "deepseek-v4-flash", ' > "$MALFORMED"
 run_script "$MALFORMED"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
@@ -80,8 +80,7 @@ else
 fi
 
 # ── 5. Missing model key → exit 3, empty stdout ────────────────────────────
-NOKEY=$(mktemp)
-register_temp_dir "$(dirname "$NOKEY")"
+NOKEY="$FIXDIR/nokey.json"
 printf '{"provider":"deepseek","providers":{},"llm":{}}\n' > "$NOKEY"
 run_script "$NOKEY"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
@@ -91,8 +90,7 @@ else
 fi
 
 # ── 6. Empty model string → exit 3, empty stdout ───────────────────────────
-EMPTYMODEL=$(mktemp)
-register_temp_dir "$(dirname "$EMPTYMODEL")"
+EMPTYMODEL="$FIXDIR/empty.json"
 printf '{"provider":"deepseek","model":"","providers":{},"llm":{}}\n' > "$EMPTYMODEL"
 run_script "$EMPTYMODEL"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
@@ -102,8 +100,7 @@ else
 fi
 
 # ── 7. Non-string model (e.g. number) → exit 3, empty stdout ───────────────
-NUMERIC=$(mktemp)
-register_temp_dir "$(dirname "$NUMERIC")"
+NUMERIC="$FIXDIR/numeric.json"
 printf '{"provider":"deepseek","model":42,"providers":{},"llm":{}}\n' > "$NUMERIC"
 run_script "$NUMERIC"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
@@ -113,8 +110,7 @@ else
 fi
 
 # ── 8. Malicious model with newline/injection chars → exit 3 ───────────────
-INJECT=$(mktemp)
-register_temp_dir "$(dirname "$INJECT")"
+INJECT="$FIXDIR/inject.json"
 printf '{"provider":"deepseek","model":"deepseek-v4-flash\\nSigned-off-by: evil <e@e>","providers":{},"llm":{}}\n' > "$INJECT"
 run_script "$INJECT"
 if [ "$RC" -eq 3 ] && [ -z "$OUTPUT" ]; then
@@ -124,6 +120,7 @@ else
 fi
 
 print_summary "resolve_ocr_model"
+
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
