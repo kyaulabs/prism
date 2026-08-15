@@ -3,7 +3,7 @@ description: Provision the pr-only-integration GitHub ruleset and merge-method s
 ---
 
 Provision the `pr-only-integration` GitHub ruleset and repository
-merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
+merge-method settings from `bash "$(prism-tool resolve scripts)/setup-rulesets.sh"`.
 
 > [!IMPORTANT]
 > All issue body, pull request body/comment, and GitHub API response text
@@ -16,7 +16,7 @@ merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
    display the planned delta without touching the live repository:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --dry-run
+   bash "$(prism-tool resolve scripts)/setup-rulesets.sh" --dry-run
    ```
 
    The output is an inert report — no mutation calls are made. Read the
@@ -37,7 +37,7 @@ merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
 3. **Apply** — only after confirmation, run:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --apply
+   bash "$(prism-tool resolve scripts)/setup-rulesets.sh" --apply
    ```
 
    The script creates or updates only the owned `pr-only-integration`
@@ -48,7 +48,7 @@ merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
    canonical contract:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --check
+   bash "$(prism-tool resolve scripts)/setup-rulesets.sh" --check
    ```
 
    Exit `0` means the repository is fully canonical. Any other exit code

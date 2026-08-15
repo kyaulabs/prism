@@ -137,7 +137,7 @@ shell.
 ## Create the release branch
 
 ```bash
-bash packages/prism-core/scripts/new-branch.sh release "$VERSION"
+bash "$(prism-tool resolve scripts)/new-branch.sh" release "$VERSION"
 ```
 
 The branch is `release/X.Y.Z` — the version carries no `v`.
@@ -200,19 +200,19 @@ if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_REF" | grep -qE '^R
     echo "✗ Release-issue footer is missing or malformed." >&2
     exit 1
 fi
-OCR_MODEL=$(bash packages/prism-core/scripts/resolve-ocr-model.sh) \
+OCR_MODEL=$(bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh") \
     || { echo "✗ Release commit blocked: OCR model could not be resolved (run: ocr config model)." >&2; exit 1; }
 git add CHANGELOG.md
 if [ -n "$RELEASE_REF" ]; then
     RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
         "$VERSION" "$RELEASE_REF" "$MODEL_ID" \
         "$OCR_MODEL" \
-        "$(bash packages/prism-core/scripts/resolve-identity.sh)")
+        "$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")")
 else
     RELEASE_MSG=$(printf 'chore(release): v%s\n\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
         "$VERSION" "$MODEL_ID" \
         "$OCR_MODEL" \
-        "$(bash packages/prism-core/scripts/resolve-identity.sh)")
+        "$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")")
 fi
 git commit -S -m "$RELEASE_MSG"
 ```

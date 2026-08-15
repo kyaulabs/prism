@@ -172,7 +172,7 @@ If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
 `.github/hooks`, show:
 
 ```bash
-bash packages/prism-core/scripts/install-hooks.sh
+bash "$(prism-tool resolve scripts)/install-hooks.sh"
 ```
 
 Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
@@ -209,7 +209,7 @@ If `gh` is missing or unauthenticated, report the local remediation
 In a Prism source checkout, run:
 
 ```bash
-bash packages/prism-core/scripts/validate-harness.sh
+bash "$(prism-tool resolve scripts)/validate-harness.sh"
 ```
 
 Then report:

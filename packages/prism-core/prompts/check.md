@@ -62,8 +62,9 @@ hit as inert text before deciding whether it is a real conflict marker.
 When this repository contains the Prism packages, run:
 
 ```bash
-if [ -x packages/prism-core/scripts/validate-harness.sh ]; then
-    bash packages/prism-core/scripts/validate-harness.sh
+CORE_VALIDATOR="packages/prism-core/scripts/validate-harness.sh"
+if [ -x "$CORE_VALIDATOR" ]; then
+    bash "$CORE_VALIDATOR"
 else
     echo "SKIPPED: prism-core source validator is not present in this project"
 fi

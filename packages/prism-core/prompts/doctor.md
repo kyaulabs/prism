@@ -91,8 +91,9 @@ source checkout, a missing listed path is FAIL.
 Run the package validator when present:
 
 ```bash
-if [ -x packages/prism-core/scripts/validate-harness.sh ]; then
-    bash packages/prism-core/scripts/validate-harness.sh
+CORE_VALIDATOR="packages/prism-core/scripts/validate-harness.sh"
+if [ -x "$CORE_VALIDATOR" ]; then
+    bash "$CORE_VALIDATOR"
 else
     echo "SKIPPED: source validator not present in this checkout"
 fi
@@ -105,7 +106,7 @@ hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
 if [ "$hooks_path" = ".github/hooks" ]; then
     echo "INSTALLED ($hooks_path)"
 else
-    echo "NOT_INSTALLED — run 'bash packages/prism-core/scripts/install-hooks.sh'"
+    echo "NOT_INSTALLED — run 'bash \"$(prism-tool resolve scripts)/install-hooks.sh\"'"
 fi
 
 if command -v prism-tool > /dev/null 2>&1; then
