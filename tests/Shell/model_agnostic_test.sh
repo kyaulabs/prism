@@ -24,6 +24,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -136,7 +137,7 @@ VIOLATIONS=0
 for f in "${FILES[@]}"; do
 	[ -f "$f" ] || continue
 	set +e
-	MATCHES="$(grep -HnIi -- "$PATTERNS" "$f" 2>&1)"
+	MATCHES="$(grep -HnIiE -- "$PATTERNS" "$f" 2>&1)"
 	GREP_RC=$?
 	set -e
 	if [ "$GREP_RC" -gt 1 ]; then
@@ -156,6 +157,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
