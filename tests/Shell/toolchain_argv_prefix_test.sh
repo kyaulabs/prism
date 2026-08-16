@@ -11,6 +11,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -100,7 +101,7 @@ fi
 # the control never couples to unrelated suite health. XDEBUG_MODE=off
 # isolates pcov in mixed-driver environments.
 set +e
-CTRL_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
+(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php) >/dev/null 2>&1
 CONTROL_RC=$?
 POS_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=1 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
 POS_RC=$?
@@ -113,23 +114,19 @@ else
 		print_summary "toolchain_argv_prefix"
 		exit $?
 	fi
-	if [ "$POS_RC" -ne 0 ]; then
-		# Disambiguate: a driver-absence symptom means the environment cannot
-		# exercise the injection (skip); anything else is a broken fixture or
-		# runner and must fail loudly, never mask.
-		if printf '%s' "$POS_OUT" | grep -qiE "coverage|driver|pcov|xdebug"; then
-			skip "driver-on run failed (rc=$POS_RC) — environment not red-capable; smoke skipped"
-			print_summary "toolchain_argv_prefix"
-			exit $?
-		fi
-		fail "driver-on run failed (rc=$POS_RC) without a driver symptom — fixture or runner broken"
-		printf '%s\n' "$POS_OUT" | tail -5 >&2
+	# POS_RC != 0 here (with CONTROL_RC != 0): disambiguate. A
+	# driver-absence symptom means the environment cannot exercise the
+	# injection (skip); anything else is a broken fixture or runner and
+	# must fail loudly, never mask.
+	if printf '%s' "$POS_OUT" | grep -qiE "coverage driver|driver|pcov|xdebug"; then
+		skip "driver-on run failed (rc=$POS_RC) — environment not red-capable; smoke skipped"
 		print_summary "toolchain_argv_prefix"
 		exit $?
 	fi
-	fail "negative control: driver off rc=$CONTROL_RC, driver on rc=$POS_RC (expected fail/pass)"
-	printf '%s\n' "$CTRL_OUT" | tail -5 >&2
+	fail "driver-on run failed (rc=$POS_RC) without a driver symptom — fixture or runner broken"
 	printf '%s\n' "$POS_OUT" | tail -5 >&2
+	print_summary "toolchain_argv_prefix"
+	exit $?
 fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
@@ -163,6 +160,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

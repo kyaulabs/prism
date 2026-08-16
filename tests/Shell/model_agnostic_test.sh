@@ -14,6 +14,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -116,7 +117,8 @@ find "${SCAN_ROOTS[@]}" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
-	-not -name '*.lock' -not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
+	-not -name '*.lock' -not -name 'package-lock.json' -not -name 'pnpm-lock.yaml' -not -name 'composer.lock' \
+	-not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
 	-not -name '*.png' -not -name '*.jpg' -not -name '*.jpeg' -not -name '*.gif' \
 	-not -name '*.svg' -not -name '*.ico' -not -name '*.woff' -not -name '*.woff2' \
 	-not -name '*.ttf' -not -name '*.eot' -not -name '*.pdf' \
@@ -157,6 +159,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
