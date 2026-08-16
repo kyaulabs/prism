@@ -14,7 +14,7 @@ became a pi extension.
 | File | Origin | Change |
 | --- | --- | --- |
 | `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim.** Pure path/operand classifier + deny floor. No opencode imports to strip. |
-| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim.** Pure `DenialCircuitBreaker` state machine + the opencode-era `DenialOutcomeTracker` (kept for fidelity; the pi wrapper uses the breaker directly — see below). |
+| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim.** Pure `DenialCircuitBreaker` state machine. The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
 | `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim.** `classifyCommand` and all helpers (`parseRm`, `findRmAnywhere`, `findGitSubcommand`, `expandShortFlags`, `resolveTarget`, `isWithinSafeZone`) are unchanged. One targeted edit: `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
 | `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
 | `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
@@ -56,8 +56,8 @@ denial.** So the wrapper drives the pure `DenialCircuitBreaker` directly:
 
 Blocked bash calls never reach `tool_execution_end` (the tool did not run), so
 only successful executions reset the streak. The opencode-era
-`DenialOutcomeTracker` (the part/`after` correlator) is retained verbatim in
-`denial-circuit-breaker.ts` for fidelity but is not used by the pi wrapper.
+`DenialOutcomeTracker` (the part/`after` correlator) was deleted as dead code
+— the pi wrapper drives the breaker directly.
 
 ## Fail-closed invariants (ADR-0036)
 

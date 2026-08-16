@@ -815,19 +815,19 @@ git commit -S -m $'refactor(safety): share path-token resolution and unwrap dept
 - Produces: `denial-circuit-breaker.ts` exports only `DenialCircuitBreakerOptions`,
   `DenialObservation`, `DenialCircuitBreaker`.
 
-- [ ] **Step 1: Verify dead code**
+- [x] **Step 1: Verify dead code**
 
 Run: `grep -rn "DenialOutcomeTracker\|ToolCallSnapshot" packages/ tests/ --include="*.ts" | grep -v denial-circuit-breaker.ts`
 Expected: no output (exit 1).
 
-- [ ] **Step 2: Delete the dead block**
+- [x] **Step 2: Delete the dead block**
 
 Delete everything in `denial-circuit-breaker.ts` after the `DenialCircuitBreaker`
 class's closing brace (line 145) and before the trailing blank lines + vim
 modeline — i.e. the `ToolCallSnapshot` docblock/interface,
 `DenialOutcomeTrackerOptions`, and the `DenialOutcomeTracker` class (~215 lines).
 
-- [ ] **Step 3: Run the full node suite — expect PASS**
+- [x] **Step 3: Run the full node suite — expect PASS**
 
 Run: `npm run test:node`
 Expected: all PASS, including `safety-circuit-breaker.test.ts`.
