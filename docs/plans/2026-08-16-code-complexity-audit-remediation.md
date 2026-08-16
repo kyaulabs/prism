@@ -671,7 +671,7 @@ git commit -S -m $'refactor(safety): split classifyCommandImpl into per-policy r
   `SENSITIVE_FALLBACK_RE`, `setupScriptTrust`, `tokenizeCommand`, `tryUnwrapSegment`.
 - Produces: `judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOptions): SensitiveMatch | null`.
 
-- [ ] **Step 1: Extract the predicate**
+- [x] **Step 1: Extract the predicate**
 
 In `sensitive-paths.ts`, before `sensitiveOperandCheckImpl`, insert:
 
@@ -702,7 +702,7 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 }
 ```
 
-- [ ] **Step 2: Replace the inline token loop**
+- [x] **Step 2: Replace the inline token loop**
 
 In `sensitiveOperandCheckImpl`, replace the whole token loop (the 9-line comment
 plus the three-way ladder) with:
@@ -714,7 +714,7 @@ plus the three-way ladder) with:
         }
 ```
 
-- [ ] **Step 3: Run the sensitive-paths tests — expect PASS**
+- [x] **Step 3: Run the sensitive-paths tests — expect PASS**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: all PASS.
