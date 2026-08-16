@@ -6,6 +6,7 @@
 
 
 
+
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -134,6 +135,39 @@ test('runs adapter Composer and npm commands from their project while cwd is unr
 		{command: 'php', args: ['-d', 'pcov.enabled=1', fs.realpathSync(pest), '--version'], cwd: fs.realpathSync(projectRoot)},
 		{command: fs.realpathSync(eslint), args: ['--version'], cwd: fs.realpathSync(projectRoot)},
 	]);
+});
+
+test('fails closed when the argvPrefix command is unavailable', (t) => {
+	const projectRoot = makeTempDir();
+	const unrelated = makeTempDir();
+	t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+	t.after(() => fs.rmSync(unrelated, {recursive: true, force: true}));
+	const adapterRoot = path.resolve(__dirname, '../../packages/prism-php-web');
+	writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+		skills: [path.join(adapterRoot, 'skills')],
+	});
+	writeExecutable(path.join(projectRoot, 'vendor', 'bin', 'pest'), 'exit 0');
+	// semgrep/ocr stubs satisfy the core readiness gate (in-range versions);
+	// php is deliberately absent so the prefix check must fail closed
+	// before any spawn. The stub dir carries its own node binary so the
+	// stubs' node shebangs resolve with PATH limited to the stub dir.
+	const externalBin = path.join(projectRoot, 'external-bin');
+	fs.mkdirSync(externalBin, {recursive: true});
+	fs.symlinkSync(process.execPath, path.join(externalBin, 'node'));
+	fs.writeFileSync(path.join(externalBin, 'semgrep'), "#!/usr/bin/env node\nconsole.log('1.174.0')\n", {mode: 0o755});
+	fs.writeFileSync(path.join(externalBin, 'ocr'), "#!/usr/bin/env node\nconsole.log('open-code-review v1.9.2 linux/amd64')\n", {mode: 0o755});
+
+	const result = captureWrites(() => main(['run', 'pest', '--', '--version'], {
+		projectRoot,
+		cwd: unrelated,
+		env: {PATH: externalBin},
+		run: undefined,
+		input: '',
+	}));
+
+	assert.equal(result.status, 3);
+	assert.match(result.stderr, /command php required for tool pest is unavailable/);
+	assert.equal(result.stdout, '');
 });
 
 test('setup inspect discovers the source adapter and emits a read-only JSON report', (t) => {
@@ -460,6 +494,7 @@ test('rejects an adapter component ID that collides with the core contract', (t)
 		/adapter component collides with core component commitlint/
 	);
 });
+
 
 
 
