@@ -15,6 +15,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -70,7 +71,8 @@ SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
 find "$REPO_ROOT" \
-	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \) -prune -o \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \
+	-o -path '*/adr' -o -path '*/docs' \) -prune -o \
 	-type f \( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2> "$SCAN_TMP0/find.err"
 MODELS_RC=$?
 set -e
@@ -87,10 +89,11 @@ fi
 # hook_portability_test.sh). One grep per file, one FAIL per file so the
 # summary tally counts files, not lines. Fail closed: a missing scan root
 # (wrong checkout shape) must not make the scan vacuously pass.
-SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages")
-for root in "${SCAN_ROOTS[@]}"; do
-	[ -d "$root" ] || fail "missing scan root: $root"
-done
+# The whole repo root is the surface; historical records (adr/, docs/,
+# CHANGELOG.md) and non-living trees are pruned, so no root-level file
+# type can evade the contract.
+SCAN_ROOTS=("$REPO_ROOT")
+[ -d "$REPO_ROOT" ] || fail "missing scan root: $REPO_ROOT"
 ROOT_FILES=(
 	"$REPO_ROOT/settings.json"
 	"$REPO_ROOT/AGENTS.md"
@@ -109,12 +112,14 @@ SCAN_TMP="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP"
 SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
-# Deny-list scan: every file under the roots is a living surface unless
+# Deny-list scan: every file under the root is a living surface unless
 # explicitly excluded — a future file type cannot evade the contract.
-# Pruned dirs are not descended into. Symlinks are not followed: a link
-# pointing outside the repo must never be scanned.
+# Pruned dirs are not descended into (non-living trees plus the
+# historical records adr/, docs/, CHANGELOG.md). Symlinks are not
+# followed: a link pointing outside the repo must never be scanned.
 find "${SCAN_ROOTS[@]}" \
-	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \
+	-o -path '*/aurora' -o -path '*/adr' -o -path '*/docs' \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -name '*.lock' -not -name 'package-lock.json' -not -name 'pnpm-lock.yaml' -not -name 'composer.lock' \
@@ -127,8 +132,6 @@ FIND_RC=$?
 set -e
 if [ "$FIND_RC" -ne 0 ] || [ -s "$SCAN_TMP/find.err" ]; then
 	fail "scan find failed: $(head -1 "$SCAN_TMP/find.err")"
-else
-	printf '%s\n' "${ROOT_FILES[@]}" >> "$SCAN_LIST"
 fi
 FILES=()
 while IFS= read -r f; do
@@ -159,6 +162,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
