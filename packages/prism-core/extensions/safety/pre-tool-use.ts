@@ -1,4 +1,5 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -217,140 +218,183 @@ export function classifyCommand(command: string, opts: ClassifyOptions): Finding
     }
 }
 
+interface RuleCtx {
+    projectDir: string;
+    home: string;
+    safeRelDirs: readonly string[];
+}
+
+type SegmentRule = (tokens: string[], ctx: RuleCtx) => Finding | null;
+
+type CommandRule = (command: string, tokens: string[], ctx: RuleCtx) => Finding | null;
+
+const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
+
+// Whole-command rules run after the segment phase, in this order: block
+// results win over warns (ADR-0023/0036), matching the pre-refactor
+// statement order.
+const COMMAND_RULES: readonly CommandRule[] = [
+    sqlDropWarn,
+    gitResetWarn,
+    gitPushDeleteWarn,
+    gitForcePushBlock,
+    gitNoVerifyBlock,
+];
+
 function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
-    const projectDir = opts.projectDir;
-    const safeRelDirs = opts.safeRelDirs ?? SAFE_REL_DIRS;
+    const ctx: RuleCtx = {
+        projectDir: opts.projectDir,
+        home: process.env.HOME || "/",
+        safeRelDirs: opts.safeRelDirs ?? SAFE_REL_DIRS,
+    };
+    for (const segment of command.split(/[;&|\n]/)) {
+        const tokens = tokenizeCommand(segment);
+        if (tokens.length === 0) continue;
 
-    // BLOCK: rm -rf outside safe zones
-        const home = process.env.HOME || "/";
-        const segments = command.split(/[;&|\n]/);
-        for (const segment of segments) {
-            const segTokens = tokenizeCommand(segment);
-            if (segTokens.length === 0) continue;
-
-            // Try wrapper unwrapping first
-            const innerCmd = tryUnwrapSegment(segTokens);
-            if (innerCmd !== null) {
-                const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
-                if (innerFinding.severity !== null) return innerFinding;
-                continue;
-            }
-
-            // Try rm at head (with basename matching, sudo skip)
-            let parsed = parseRmTokens(segTokens, 0);
-
-            // If not at head, scan anywhere in the token stream
-            let foundIdx = -1;
-            if (!parsed) {
-                foundIdx = findRmAnywhere(segTokens);
-                if (foundIdx > 0) {
-                    parsed = parseRmTokens(segTokens, foundIdx);
-                }
-            }
-
-            if (!parsed || !(parsed.recursive && parsed.force)) continue;
-
-            // rm -rf with no operands: if rm was not at head (wrapper like xargs)
-            // or the head is xargs, block conservatively (operands from stdin)
-            if (parsed.operands.length === 0) {
-                if (foundIdx > 0 || segTokens[0] === "xargs") {
-                    return {
-                        severity: "block",
-                        reason: "rm -rf detected with unresolvable targets (likely piped/stdin input)",
-                    };
-                }
-                continue;
-            }
-            for (const operand of parsed.operands) {
-                const abs = resolveTarget(operand, projectDir, home);
-                if (abs === null || !isWithinSafeZone(abs, projectDir, safeRelDirs)) {
-                    return {
-                        severity: "block",
-                        reason: `rm -rf targets path outside safe zones: ${operand}`,
-                    };
-                }
-            }
+        const innerCmd = tryUnwrapSegment(tokens);
+        if (innerCmd !== null) {
+            const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
+            if (innerFinding.severity !== null) return innerFinding;
+            continue;
         }
-        // BLOCK: find -delete / find -exec rm — unconditional block.
-        // Inserted before warn-level checks so block wins over any warning.
-        {
-            const segments = command.split(/[;&|\n]/);
-            for (const segment of segments) {
-                const segTokens = tokenizeCommand(segment);
-                if (segTokens.length === 0) continue;
-                if (basename(segTokens[0]) !== "find") continue;
-
-                for (let i = 0; i < segTokens.length; i++) {
-                    const t = segTokens[i];
-                    if (t === "-delete") {
-                        return {
-                            severity: "block",
-                            reason: "find -delete removes files; destructive action blocked",
-                        };
-                    }
-                    if ((t === "-exec" || t === "-execdir") && i + 1 < segTokens.length) {
-                        if (basename(segTokens[i + 1]) === "rm") {
-                            return {
-                                severity: "block",
-                                reason: "find -exec/-execdir rm removes files; destructive action blocked",
-                            };
-                        }
-                    }
-                }
-            }
+        for (const rule of SEGMENT_RULES) {
+            const finding = rule(tokens, ctx);
+            if (finding !== null) return finding;
         }
-        // WARN: destructive SQL drops
-        if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
-            return { severity: "warn", reason: "SQL DROP statement destroys data" };
-        }
-        // WARN: git reset --hard (discards uncommitted work)
-        if (/\bgit\s+reset\s+--hard\b/.test(command)) {
-            return { severity: "warn", reason: "git reset --hard discards uncommitted changes" };
-        }
-        // WARN: git push --delete (removes a remote ref)
-        if (/\bgit\s+push\s+(?:[-\w]+\s+)*--delete\b/.test(command)) {
-            return { severity: "warn", reason: "git push --delete removes a remote ref" };
-        }
-        // BLOCK: git push --force / -f
-        // Uses findGitSubcommand to skip global options and expandShortFlags
-        // to catch bundled flags like -uf. --force won't match --force-with-lease
-        // because expandShortFlags leaves long flags intact.
-        {
-            const tokens = tokenizeCommand(command);
-            const gitInfo = findGitSubcommand(tokens);
-            if (gitInfo && gitInfo.subcmd === "push") {
-                const expanded = gitInfo.rest.flatMap(expandShortFlags);
-                if (expanded.includes("-f") || expanded.includes("--force")) {
-                    return { severity: "block", reason: "git push --force rewrites published history" };
-                }
-            }
-        }
-        // BLOCK: --no-verify / scoped -n — prevents bypassing pre-commit,
-        // commit-msg, and pre-push hooks. --no-verify is never legitimate for
-        // agent work, so block it on any git command. -n means --no-verify ONLY
-        // on `git commit` (on other commands -n is --dry-run/--no-commit/
-        // max-count and must not be blocked). See ADR-0025.
-        {
-            const tokens = tokenizeCommand(command);
-            const gitInfo = findGitSubcommand(tokens);
-            if (gitInfo) {
-                const expanded = gitInfo.rest.flatMap(expandShortFlags);
-                if (
-                    expanded.includes("--no-verify") ||
-                    (gitInfo.subcmd === "commit" && expanded.includes("-n"))
-                ) {
-                    return {
-                        severity: "block",
-                        reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
-                    };
-                }
-            }
-        }
-        return { severity: null, reason: "" };
+    }
+    const commandTokens = tokenizeCommand(command);
+    for (const rule of COMMAND_RULES) {
+        const finding = rule(command, commandTokens, ctx);
+        if (finding !== null) return finding;
+    }
+    return { severity: null, reason: "" };
 }
+
+/** BLOCK: rm -rf outside safe zones, including piped/xargs conservatism. */
+function rmRfRule(tokens: string[], ctx: RuleCtx): Finding | null {
+    let parsed = parseRmTokens(tokens, 0);
+    let foundIdx = -1;
+    if (!parsed) {
+        foundIdx = findRmAnywhere(tokens);
+        if (foundIdx > 0) {
+            parsed = parseRmTokens(tokens, foundIdx);
+        }
+    }
+    if (!parsed || !(parsed.recursive && parsed.force)) return null;
+
+    if (parsed.operands.length === 0) {
+        if (foundIdx > 0 || tokens[0] === "xargs") {
+            return {
+                severity: "block",
+                reason: "rm -rf detected with unresolvable targets (likely piped/stdin input)",
+            };
+        }
+        return null;
+    }
+    for (const operand of parsed.operands) {
+        const abs = resolveTarget(operand, ctx.projectDir, ctx.home);
+        if (abs === null || !isWithinSafeZone(abs, ctx.projectDir, ctx.safeRelDirs)) {
+            return {
+                severity: "block",
+                reason: `rm -rf targets path outside safe zones: ${operand}`,
+            };
+        }
+    }
+    return null;
+}
+
+/** BLOCK: find -delete / find -exec/-execdir rm — unconditional. */
+function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
+    if (basename(tokens[0]) !== "find") return null;
+    for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t === "-delete") {
+            return {
+                severity: "block",
+                reason: "find -delete removes files; destructive action blocked",
+            };
+        }
+        if ((t === "-exec" || t === "-execdir") && i + 1 < tokens.length) {
+            if (basename(tokens[i + 1]) === "rm") {
+                return {
+                    severity: "block",
+                    reason: "find -exec/-execdir rm removes files; destructive action blocked",
+                };
+            }
+        }
+    }
+    return null;
+}
+
+/** WARN: destructive SQL drops. */
+function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
+    if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
+        return { severity: "warn", reason: "SQL DROP statement destroys data" };
+    }
+    return null;
+}
+
+/** WARN: git reset --hard (discards uncommitted work). */
+function gitResetWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
+    if (/\bgit\s+reset\s+--hard\b/.test(command)) {
+        return { severity: "warn", reason: "git reset --hard discards uncommitted changes" };
+    }
+    return null;
+}
+
+/** WARN: git push --delete (removes a remote ref). */
+function gitPushDeleteWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
+    if (/\bgit\s+push\s+(?:[-\w]+\s+)*--delete\b/.test(command)) {
+        return { severity: "warn", reason: "git push --delete removes a remote ref" };
+    }
+    return null;
+}
+
+/**
+ * BLOCK: git push --force / -f.
+ *
+ * Skips global options via findGitSubcommand and catches bundled flags like
+ * -uf via expandShortFlags. --force-with-lease is untouched because
+ * expandShortFlags leaves long flags intact.
+ */
+function gitForcePushBlock(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const gitInfo = findGitSubcommand(tokens);
+    if (gitInfo && gitInfo.subcmd === "push") {
+        const expanded = gitInfo.rest.flatMap(expandShortFlags);
+        if (expanded.includes("-f") || expanded.includes("--force")) {
+            return { severity: "block", reason: "git push --force rewrites published history" };
+        }
+    }
+    return null;
+}
+
+/**
+ * BLOCK: --no-verify / scoped -n — prevents bypassing pre-commit, commit-msg,
+ * and pre-push hooks. --no-verify is never legitimate for agent work, so it
+ * blocks on any git command. -n means --no-verify ONLY on `git commit` (on
+ * other commands -n is --dry-run/--no-commit/max-count and must not be
+ * blocked). See ADR-0025.
+ */
+function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const gitInfo = findGitSubcommand(tokens);
+    if (gitInfo) {
+        const expanded = gitInfo.rest.flatMap(expandShortFlags);
+        if (
+            expanded.includes("--no-verify") ||
+            (gitInfo.subcmd === "commit" && expanded.includes("-n"))
+        ) {
+            return {
+                severity: "block",
+                reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
+            };
+        }
+    }
+    return null;
+}
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
