@@ -6,6 +6,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -69,7 +70,7 @@ fi
 TMP_INI_DIR="$(mktemp -d)"
 register_temp_dir "$TMP_INI_DIR"
 printf 'pcov.enabled = 0\n' > "$TMP_INI_DIR/pcov-off.ini"
-DEFAULT_SCAN_DIR="$(php --ini 2>/dev/null | sed -n 's/^Scan for additional .ini files in: "\(.*\)"$/\1/p; s/^Scan for additional .ini files in: \(.*\)$/\1/p' | head -1)"
+DEFAULT_SCAN_DIR="$(php --ini 2>/dev/null | sed -n 's/^Scan for additional .ini files in: "\(.*\)"$/\1/p; s/^Scan for additional .ini files in: \(.*\)$/\1/p' | head -1 || true)"
 case "$DEFAULT_SCAN_DIR" in
 	""|"(none)")
 		skip "no php ini scan dir — cannot force pcov off deterministically; smoke skipped"
@@ -139,6 +140,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

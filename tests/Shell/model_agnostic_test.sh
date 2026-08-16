@@ -11,6 +11,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -43,12 +44,13 @@ setup_result_file
 # intentionally exempt; the (judge|primary) branch allows a space because
 # those phrases are prescription even in prose. Trailing ([^a-z]|$) keeps
 # every alternative from matching inside unrelated identifiers.
-PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek-v4([^a-z_]|$)|default[-_]?model([^a-z_]|$)|default[-_]?provider([^a-z_]|$)|default[-_]?thinking[-_]?level([^a-z_]|$)|enabled[-_]?models([^a-z_]|$)|(judge|primary)[-_ ]?models?([^a-z_]|$)'
+PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek-v4([^a-z_]|$)|default[-_]?models?([^a-z_]|$)|default[-_]?providers?([^a-z_]|$)|default[-_]?thinking[-_]?levels?([^a-z_]|$)|enabled[-_]?models?([^a-z_]|$)|(judge|primary)[-_ ]?models?([^a-z_]|$)'
 
 # ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
 for pos in \
 	'deepseek-v4-flash' 'deepseek/deepseek-v4-pro' \
-	defaultModel default_model default-model 'defaultProvider": "x' defaultThinkingLevel default-thinking-level default-provider \
+	defaultModel default_model default-model defaultModels default_providers default-thinking-levels \
+	'defaultProvider": "x' defaultThinkingLevel default-thinking-level default-provider \
 	enabledModels enabled_models enabled-models \
 	'judge model' judge-model judge_model judgeModel \
 	'primary models' primary-model primary_model primaryModel; do
@@ -64,9 +66,9 @@ done
 SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
-find "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
-	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
-	-type f -iname 'models.json' -print > "$SCAN_TMP0/list" 2>&1
+find "$REPO_ROOT" "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \) -prune -o \
+	-type f \( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2>&1
 MODELS_RC=$?
 set -e
 if [ "$MODELS_RC" -ne 0 ]; then
@@ -153,6 +155,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
