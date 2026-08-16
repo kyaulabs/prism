@@ -7,6 +7,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -26,6 +27,21 @@ set -e
 	&& pass 'websearch missing-key error is clear' || fail "websearch missing-key rc=$web_rc"
 [ "$searx_rc" -eq 4 ] && grep -q 'SEARXNG_URL is not set' /tmp/prism-searx-error \
 	&& pass 'searxng missing-URL error is clear' || fail "searxng missing-URL rc=$searx_rc"
+
+printf '%s\n' '── shared search validation helpers ──'
+set +e
+bash "$SEARX" >/dev/null 2>/tmp/prism-usage-error
+usage_rc=$?
+set -e
+[ "$usage_rc" -eq 2 ] && grep -q 'Usage: search.sh <query>' /tmp/prism-usage-error \
+	&& pass 'usage guard exits 2' || fail "usage guard rc=$usage_rc"
+
+set +e
+SEARXNG_URL=https://example.com SEARXNG_RESULT_LIMIT=00 bash "$SEARX" query >/dev/null 2>/tmp/prism-posint-error
+posint_rc=$?
+set -e
+[ "$posint_rc" -eq 2 ] && grep -q 'SEARXNG_RESULT_LIMIT must be a positive integer' /tmp/prism-posint-error \
+	&& pass 'leading-zero limit rejected' || fail "leading-zero limit rc=$posint_rc"
 
 printf '%s\n' '── search skills: secret handling ──'
 if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
@@ -53,6 +69,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

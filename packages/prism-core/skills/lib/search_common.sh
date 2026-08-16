@@ -2,6 +2,7 @@
 # $KYAULabs: search_common.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -38,13 +39,12 @@ require_env() {
 }
 
 require_posint() {
-	case "$2" in
-		''|*[!0-9]*|0)
-			printf '%s: %s must be a positive integer.\n' "$SKILL" "$1" >&2
-			exit 2
-			;;
-	esac
+	if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: %s must be a positive integer.\n' "$SKILL" "$1" >&2
+		exit 2
+	fi
 }
+
 
 
 
