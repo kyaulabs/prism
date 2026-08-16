@@ -18,6 +18,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -124,45 +125,17 @@ fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
 # the same forced-off environment, on the same focused test file. The
-# launcher gates on semgrep/ocr readiness first — without them the smoke
-# would fail for the wrong reason, so guard on their presence.
-if ! command -v semgrep >/dev/null 2>&1 || ! command -v ocr >/dev/null 2>&1; then
-	skip "semgrep/ocr readiness gate not satisfiable — launcher smoke skipped"
-	print_summary "toolchain_argv_prefix"
-	exit $?
-fi
-# The launcher's readiness gate also version-checks semgrep and ocr; guard
-# on the ranges declared in the core toolchain contract so the smoke never
-# fails (or skips) for an unrelated version drift.
-SEMGREP_VER="$(semgrep --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-OCR_VER="$(ocr --version 2>/dev/null | grep -oE '^open-code-review v[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-in_range() {
-	local tool="$1" version="$2"
-	[ -n "$version" ] || return 1
-	node -e '
-const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-const comp = c.components.find((x) => x.id === process.argv[2]);
-if (!comp || !comp.versionRequirement) process.exit(1);
-const norm = (s) => { const v = s.split(".").map(Number); while (v.length < 3) v.push(0); return v; };
-const v = norm(process.argv[3]);
-const min = norm(comp.versionRequirement.minimum);
-const max = norm(comp.versionRequirement.maximumExclusive);
-const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-process.exit(cmp(v, min) >= 0 && cmp(v, max) < 0 ? 0 : 1);
-' "$REPO_ROOT/packages/prism-core/toolchain.json" "$tool" "$version" 2>/dev/null
-}
-if ! in_range semgrep "$SEMGREP_VER"; then
-	skip "semgrep version $SEMGREP_VER outside the contract range — launcher smoke skipped"
-	print_summary "toolchain_argv_prefix"
-	exit $?
-fi
-if ! in_range ocr "$OCR_VER"; then
-	skip "ocr version $OCR_VER outside the contract range — launcher smoke skipped"
-	print_summary "toolchain_argv_prefix"
-	exit $?
-fi
+# launcher gates every run on the core contract's external tools
+# (semgrep/ocr) before dispatching any component — stub them on PATH with
+# in-range versions so the smoke always exercises the injection,
+# independent of the host's real tooling.
+STUB_DIR="$(mktemp -d)"
+register_temp_dir "$STUB_DIR"
+printf '#!/usr/bin/env bash\nprintf "1.174.0\\n"\n' > "$STUB_DIR/semgrep"
+printf '#!/usr/bin/env bash\nprintf "open-code-review v1.9.2 linux/amd64\\n"\n' > "$STUB_DIR/ocr"
+chmod +x "$STUB_DIR/semgrep" "$STUB_DIR/ocr"
 set +e
-SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
+SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off PATH="$STUB_DIR:$PATH" node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
 set -e
 if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qE "Total:"; then
@@ -173,6 +146,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

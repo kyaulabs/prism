@@ -22,6 +22,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -45,14 +46,22 @@ setup_result_file
 
 # Banned tokens: model-prescription surfaces. "DeepSeek API" (websearch
 # backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
-PATTERNS='deepseek-v4|deepseek/deepseek|default[-_]?model|default[-_]?provider|default[-_]?thinking[-_]?level|enabled[-_]?models|(judge|primary)[-_ ]?models?([^a-z]|$)'
+# Deliberate asymmetry: the four pi config keys match camelCase/kebab/snake
+# forms only — spaced prose ("default model") is ordinary English and is
+# intentionally exempt; the (judge|primary) branch allows a space because
+# those phrases are prescription even in prose. Trailing ([^a-z]|$) keeps
+# every alternative from matching inside unrelated identifiers.
+PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek([^a-z_]|$)|default[-_]?model([^a-z_]|$)|default[-_]?provider([^a-z_]|$)|default[-_]?thinking[-_]?level([^a-z_]|$)|enabled[-_]?models([^a-z_]|$)|(judge|primary)[-_ ]?models?([^a-z_]|$)'
 
 # ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
-for pos in defaultModel 'judge model' 'primary models' default_model judgeModel; do
+for pos in \
+	'deepseek-v4-flash' 'deepseek/deepseek-v4-pro' \
+	defaultModel default_model 'defaultProvider": "x' defaultThinkingLevel default-thinking-level \
+	enabledModels enabled_models 'judge model' 'primary models' judgeModel; do
 	printf '%s\n' "$pos" | grep -qiE "$PATTERNS" \
 		|| fail "pattern self-test missed positive: $pos"
 done
-for neg in 'primary deliverable' 'default model prose' 'judgment call'; do
+for neg in 'primary deliverable' 'default model prose' 'judgment call' default_model_id; do
 	printf '%s\n' "$neg" | grep -qiE "$PATTERNS" \
 		&& fail "pattern self-test matched negative: $neg"
 done
@@ -144,6 +153,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
