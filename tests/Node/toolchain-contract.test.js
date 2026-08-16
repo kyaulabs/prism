@@ -1,4 +1,6 @@
-// $KYAULabs: toolchain-contract.test.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
+
 
 
 
@@ -94,7 +96,7 @@ test('declares the approved bounded external compatibility requirements', () => 
 		minimum: '1.9.1',
 		maximumExclusive: '2.0.0',
 	});
-	assert.equal(components.get('ocr').executionTimeoutMs, 360000);
+	assert.equal(components.get('ocr').executionTimeoutMs, 600000);
 });
 
 test('accepts the bounded OCR external version requirement', () => {
@@ -359,6 +361,8 @@ test('declares the exact PHP web adapter components and registration', () => {
 		handler: './scripts/prism-tool-adapter.js',
 	});
 });
+
+
 
 
 
