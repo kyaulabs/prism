@@ -3,6 +3,7 @@
 
 
 
+
 # ── Counter-style test reporters for tests/Shell/*_test.sh ─────────────────────
 #
 # Source this file after REPO_ROOT is set:
@@ -24,8 +25,9 @@ _COUNTER_HELPERS_LOADED=1
 PASS=0
 FAIL=0
 
-pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
+pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
+fail() { printf '  FAIL %s\n' "$*" >&2; FAIL=$((FAIL + 1)); }
+
 
 
 

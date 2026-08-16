@@ -9,6 +9,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -48,12 +49,18 @@ printf '%s\n' '── shared search validation helpers: unit contract ──'
 # Hermetic checks of the lib's exit codes, sourcing it directly so a missing
 # curl/node on the host cannot mask the assertion under test.
 unit_rc() {
-	local expected="$1" label="$2"; shift 2
+	local expected="$1" label="$2" err_file; shift 2
+	err_file=$(mktemp)
 	set +e
-	SKILL='test' bash -c 'source "$1"; "${@:2}"' _ "$LIB" "$@" >/dev/null 2>&1
+	SKILL='test' bash -c 'unset DEEPSEEK_API_KEY SEARXNG_URL; source "$1"; "${@:2}"' _ "$LIB" "$@" >/dev/null 2>"$err_file"
 	local rc=$?
 	set -e
-	[ "$rc" -eq "$expected" ] && pass "$label" || fail "$label rc=$rc"
+	if [ "$rc" -eq "$expected" ]; then
+		pass "$label"
+	else
+		fail "$label rc=$rc: $(head -1 "$err_file" 2>/dev/null)"
+	fi
+	rm -f "$err_file"
 }
 
 unit_rc 2 'usage_guard exits 2' usage_guard 0
@@ -91,6 +98,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

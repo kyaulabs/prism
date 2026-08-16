@@ -9,6 +9,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -229,11 +230,16 @@ test_path_without_prism_tool() {
 		fail "path_without_prism_tool kept launcher dir: $stripped"
 	fi
 
-	# No-op when no prism-tool is on PATH (fake dir removed from PATH).
-	PATH="/usr/bin:/bin"
+	# No-op when no prism-tool is on PATH (controlled empty dirs only —
+	# never /usr/bin:/bin, which could hold a real launcher on some hosts).
+	noop_a=$(mktemp -d)
+	register_temp_dir "$noop_a"
+	noop_b=$(mktemp -d)
+	register_temp_dir "$noop_b"
+	PATH="$noop_a:$noop_b"
 	stripped=$(path_without_prism_tool)
 	PATH="$original_path"
-	if [ "$stripped" = "/usr/bin:/bin" ]; then
+	if [ "$stripped" = "$noop_a:$noop_b" ]; then
 		pass "path_without_prism_tool is a no-op without a launcher"
 	else
 		fail "path_without_prism_tool altered PATH without a launcher: $stripped"
@@ -260,6 +266,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

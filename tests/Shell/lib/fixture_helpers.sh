@@ -3,6 +3,7 @@
 
 
 
+
 # ── Temp-dir fixture helpers for tests/Shell/*_test.sh ─────────────────────────
 #
 # Source this file after REPO_ROOT is set:
@@ -30,7 +31,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; printf '%s' "$d"; }
+fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; git -C "$d" config commit.gpgsign false; printf '%s' "$d"; }
+
 
 
 
