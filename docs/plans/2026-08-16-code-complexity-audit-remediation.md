@@ -266,12 +266,12 @@ test("non-string or empty input passes", () => {
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the new tests — expect PASS**
+- [x] **Step 2: Run the new tests — expect PASS**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/Node/safety-sensitive-paths.test.ts
@@ -349,7 +349,7 @@ git commit -S -m $'fix(security): restore glued .env.example exemption\n\nImplem
   `reset(sessionID): void`, `clearAll(): void`.
 - Produces: pins the breaker contract Task 7 must not disturb.
 
-- [ ] **Step 1: Write the characterization tests**
+- [x] **Step 1: Write the characterization tests**
 
 `tests/Node/safety-circuit-breaker.test.ts`:
 
@@ -425,12 +425,12 @@ test("reset and clearAll return to never-seen state", () => {
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the full node suite — expect PASS**
+- [x] **Step 2: Run the full node suite — expect PASS**
 
 Run: `npm run test:node`
 Expected: all existing JS tests + the three new TS files PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/Node/safety-circuit-breaker.test.ts
