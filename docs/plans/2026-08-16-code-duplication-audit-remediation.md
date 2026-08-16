@@ -69,7 +69,7 @@ characterization suite), no new dependencies.
   `pass <msg>` (stdout, increments `PASS`) and `fail <msg>` (stderr,
   increments `FAIL`). Consumed by the six test files (and Task 2's two files).
 
-- [ ] **Step 1: Baseline — record current pass/fail counts**
+- [x] **Step 1: Baseline — record current pass/fail counts**
 
 Run:
 `bash tests/Shell/check_skill_frontmatter_test.sh; echo rc=$?; bash tests/Shell/setup_rulesets_command_test.sh; echo rc=$?; bash tests/Shell/search_skills_test.sh; echo rc=$?; bash tests/Shell/validate-harness_test.sh; echo rc=$?; timeout 15 bash tests/Shell/resolve_identity_test.sh; echo rc=$?`
@@ -77,7 +77,7 @@ Expected: 5/1 (rc=1), 10/0 (rc=0), 6/0 (rc=0), 7/1 (rc=1), 5/0 (rc=0), then
 classify_greenfield hangs at the history section (timeout kills it, rc=124) —
 all pre-existing, all re-verified after each task.
 
-- [ ] **Step 2: Create the shared module**
+- [x] **Step 2: Create the shared module**
 
 Write `tests/Shell/lib/counter_helpers.sh` (no `$KYAULabs:` header — the hook
 adds it):
@@ -109,7 +109,7 @@ fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 3: Swap the four counter-only test files**
+- [x] **Step 3: Swap the four counter-only test files**
 
 In each of `check_skill_frontmatter_test.sh`, `setup_rulesets_command_test.sh`,
 `search_skills_test.sh`, `validate-harness_test.sh`, replace this exact 5-line
@@ -129,7 +129,7 @@ with:
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 ```
 
-- [ ] **Step 4: Swap `classify_greenfield_test.sh` and `resolve_identity_test.sh`**
+- [x] **Step 4: Swap `classify_greenfield_test.sh` and `resolve_identity_test.sh`**
 
 In each of these two, replace the exact block (lines 12–23):
 
@@ -158,14 +158,14 @@ source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 > inline in these two files; Task 2 replaces that remaining block. Each task's
 > state is independently testable.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 `bash -n tests/Shell/classify_greenfield_test.sh tests/Shell/check_skill_frontmatter_test.sh tests/Shell/resolve_identity_test.sh tests/Shell/setup_rulesets_command_test.sh tests/Shell/search_skills_test.sh tests/Shell/validate-harness_test.sh && bash tests/Shell/check_skill_frontmatter_test.sh; bash tests/Shell/setup_rulesets_command_test.sh; bash tests/Shell/search_skills_test.sh; bash tests/Shell/validate-harness_test.sh; timeout 15 bash tests/Shell/resolve_identity_test.sh`
 Expected: identical counts to Step 1 (5/1, 10/0, 6/0, 7/1, 5/0; classify hangs
 as before).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/Shell/lib/counter_helpers.sh tests/Shell/classify_greenfield_test.sh tests/Shell/check_skill_frontmatter_test.sh tests/Shell/resolve_identity_test.sh tests/Shell/setup_rulesets_command_test.sh tests/Shell/search_skills_test.sh tests/Shell/validate-harness_test.sh
@@ -187,7 +187,7 @@ git commit -S -m $'refactor(shell-test): extract shared counter reporters\n\nImp
   (mktemp -d + `git init -q`, registers dir, prints path). Consumed by the two
   test files.
 
-- [ ] **Step 1: Create the shared module**
+- [x] **Step 1: Create the shared module**
 
 Write `tests/Shell/lib/fixture_helpers.sh`:
 
@@ -220,7 +220,7 @@ fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; prin
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Replace the remaining inline block in both files**
+- [x] **Step 2: Replace the remaining inline block in both files**
 
 In `classify_greenfield_test.sh` and `resolve_identity_test.sh`, replace the
 block left inline by Task 1 (after Task 1's edit it is `TMP_DIRS=()` through
@@ -245,14 +245,14 @@ source "$REPO_ROOT/tests/Shell/lib/fixture_helpers.sh"
 
 (the `counter_helpers.sh` source line from Task 1 stays in place above it).
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run:
 `bash -n tests/Shell/classify_greenfield_test.sh tests/Shell/resolve_identity_test.sh && timeout 15 bash tests/Shell/resolve_identity_test.sh; echo rc=$?`
 Expected: `resolve_identity` 5/0 rc=0; `classify_greenfield` still hangs at
 history (rc=124 via timeout — identical to baseline).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/Shell/lib/fixture_helpers.sh tests/Shell/classify_greenfield_test.sh tests/Shell/resolve_identity_test.sh
@@ -274,7 +274,7 @@ git commit -S -m $'refactor(shell-test): extract shared fixture helpers\n\nImple
 - Produces: `index.ts` imports `DEFAULT_THRESHOLD` from
   `./denial-circuit-breaker.ts`; `TRIP_THRESHOLD` deleted.
 
-- [ ] **Step 1: Export the breaker's default**
+- [x] **Step 1: Export the breaker's default**
 
 In `denial-circuit-breaker.ts`, change line 43:
 
@@ -288,7 +288,7 @@ to:
 export const DEFAULT_THRESHOLD = 3;
 ```
 
-- [ ] **Step 2: Import it in `index.ts` and delete the local constant**
+- [x] **Step 2: Import it in `index.ts` and delete the local constant**
 
 Change the import (line 15):
 
@@ -315,7 +315,7 @@ to:
 const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
 ```
 
-- [ ] **Step 3: Update the README row**
+- [x] **Step 3: Update the README row**
 
 In `packages/prism-core/extensions/safety/README.md`, change the
 `denial-circuit-breaker.ts` table row:
@@ -330,13 +330,13 @@ to:
 | `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npm run test:node && npx tsc --noEmit && npx eslint packages/prism-core/extensions/safety`
 Expected: all node tests pass (safety-classify, safety-circuit-breaker,
 safety-sensitive-paths), tsc clean, eslint no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/denial-circuit-breaker.ts packages/prism-core/extensions/safety/index.ts packages/prism-core/extensions/safety/README.md
@@ -359,7 +359,7 @@ git commit -S -m $'refactor(safety): single-source breaker trip threshold\n\nImp
   defaults `safeRelDirs` to `[]`; tests pass
   `safeRelDirs: ["node_modules", "vendor"]` explicitly.
 
-- [ ] **Step 1: Delete the index.ts fallback list**
+- [x] **Step 1: Delete the index.ts fallback list**
 
 In `index.ts`, delete lines 63–64:
 
@@ -404,7 +404,7 @@ and update its comment from `Defaults keep the gate usable even before the
 first session_start fires.` to `Fail-closed until session_start resolves the
 safe zones.`
 
-- [ ] **Step 2: Delete the classifier's fallback list**
+- [x] **Step 2: Delete the classifier's fallback list**
 
 In `pre-tool-use.ts`, delete lines 46–52:
 
@@ -448,7 +448,7 @@ to:
         safeRelDirs: opts.safeRelDirs ?? [],
 ```
 
-- [ ] **Step 3: Make the classifier tests explicit**
+- [x] **Step 3: Make the classifier tests explicit**
 
 In `tests/Node/safety-classify.test.ts`, change line 9:
 
@@ -466,7 +466,7 @@ const OPTS = { projectDir: "/repo", safeRelDirs: ["node_modules", "vendor"] };
 cases; `/tmp/*` stays clean via `SAFE_ABS_DIRS`; all block cases are outside
 both.)
 
-- [ ] **Step 4: Update the README fallback bullet**
+- [x] **Step 4: Update the README fallback bullet**
 
 In `packages/prism-core/extensions/safety/README.md`, replace:
 
@@ -481,12 +481,12 @@ with:
    JSON source resolves (every `rm -rf` is blocked).
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run: `npm run test:node && npx tsc --noEmit && npx eslint packages/prism-core/extensions/safety`
 Expected: all node tests pass, tsc clean, eslint clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/index.ts packages/prism-core/extensions/safety/pre-tool-use.ts packages/prism-core/extensions/safety/README.md tests/Node/safety-classify.test.ts
@@ -509,7 +509,7 @@ git commit -S -m $'refactor(safety): fail closed when safe-dirs config is missin
   (exit 3), `require_env <VAR>` (exit 4), `require_posint <VAR> <value>`
   (exit 2). Exit codes and message texts byte-identical to today's scripts.
 
-- [ ] **Step 1: Create the shared module**
+- [x] **Step 1: Create the shared module**
 
 Write `packages/prism-core/skills/lib/search_common.sh`:
 
@@ -564,7 +564,7 @@ require_posint() {
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Rewrite the searxng preamble**
+- [x] **Step 2: Rewrite the searxng preamble**
 
 In `packages/prism-core/skills/searxng/search.sh`, replace lines 14–43 (the
 usage guard through the `SEARXNG_URL` env check) with:
@@ -596,7 +596,7 @@ with:
 require_posint SEARXNG_RESULT_LIMIT "$RESULT_LIMIT"
 ```
 
-- [ ] **Step 3: Rewrite the websearch preamble**
+- [x] **Step 3: Rewrite the websearch preamble**
 
 In `packages/prism-core/skills/websearch/search.sh`, replace lines 14–31
 (usage guard through the `DEEPSEEK_API_KEY` env check) with:
@@ -628,7 +628,7 @@ with:
 require_posint WEBSEARCH_MAX_TOKENS "$MAX_TOKENS"
 ```
 
-- [ ] **Step 4: Extend the test grep coverage**
+- [x] **Step 4: Extend the test grep coverage**
 
 In `tests/Shell/search_skills_test.sh`, add a `LIB` variable next to
 `WEB`/`SEARX`:
@@ -650,7 +650,7 @@ if grep -qE 'printf[^\n]*\$\{?SEARXNG_URL|echo[^\n]*\$\{?SEARXNG_URL' "$SEARX" "
 (The lib contains `"${!1:-}"` — never a literal key name — so the greps stay
 clean and meaningful.)
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 `bash -n packages/prism-core/skills/searxng/search.sh packages/prism-core/skills/websearch/search.sh packages/prism-core/skills/lib/search_common.sh && bash tests/Shell/search_skills_test.sh`
@@ -664,7 +664,7 @@ env -u SEARXNG_URL bash packages/prism-core/skills/searxng/search.sh query; echo
 
 Expected: rc=4 with the exact existing messages.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/prism-core/skills/lib/search_common.sh packages/prism-core/skills/searxng/search.sh packages/prism-core/skills/websearch/search.sh tests/Shell/search_skills_test.sh
