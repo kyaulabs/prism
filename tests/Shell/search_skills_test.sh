@@ -6,11 +6,13 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 WEB="$REPO_ROOT/packages/prism-core/skills/websearch/search.sh"
 SEARX="$REPO_ROOT/packages/prism-core/skills/searxng/search.sh"
+LIB="$REPO_ROOT/packages/prism-core/skills/lib/search_common.sh"
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 
 printf '%s\n' '── search skills: setup errors ──'
@@ -26,12 +28,12 @@ set -e
 	&& pass 'searxng missing-URL error is clear' || fail "searxng missing-URL rc=$searx_rc"
 
 printf '%s\n' '── search skills: secret handling ──'
-if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB"; then
+if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
 	fail 'websearch can print the key value'
 else
 	pass 'websearch does not print the key value'
 fi
-if grep -qE 'printf[^\n]*\$\{?SEARXNG_URL|echo[^\n]*\$\{?SEARXNG_URL' "$SEARX"; then
+if grep -qE 'printf[^\n]*\$\{?SEARXNG_URL|echo[^\n]*\$\{?SEARXNG_URL' "$SEARX" "$LIB"; then
 	fail 'searxng can print the configured URL value'
 else
 	pass 'searxng does not print the configured URL value'
@@ -51,6 +53,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
