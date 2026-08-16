@@ -62,7 +62,12 @@ PHP 8.5 CLI, eslint 10 flat config, GitHub Actions.
   `packages/prism-core/extensions/safety/pre-tool-use.ts` (public, unchanged).
 - Produces: the behavior matrix later tasks must keep green.
 
-- [ ] **Step 1: Write the characterization tests**
+- [x] **Step 1: Write the characterization tests**
+
+> Executed: as written, with one correction — the depth guard fires only after
+> FOUR nested unwraps (3 evals stay clean); the plan's original
+> `eval eval eval echo hi → block` expectation was wrong (verified against the
+> code).
 
 `tests/Node/safety-classify.test.ts`:
 
@@ -156,7 +161,8 @@ test("wrapper unwrap: clean inner passes, destructive inner blocks", () => {
 
 test("unwrap depth guard blocks deeply nested clean wrappers", () => {
     assert.deepEqual(classifyCommand("eval eval echo hi", OPTS), CLEAN);
-    assert.equal(classifyCommand("eval eval eval echo hi", OPTS).severity, "block");
+    assert.deepEqual(classifyCommand("eval eval eval echo hi", OPTS), CLEAN);
+    assert.equal(classifyCommand("eval eval eval eval echo hi", OPTS).severity, "block");
 });
 
 test("non-string command fails closed", () => {
@@ -168,7 +174,7 @@ test("non-string command fails closed", () => {
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Extend the test runner to include TS tests**
+- [x] **Step 2: Extend the test runner to include TS tests**
 
 In `package.json`, change:
 
@@ -176,12 +182,13 @@ In `package.json`, change:
 "test:node": "node --test tests/Node/*.test.js tests/Node/*.test.ts"
 ```
 
-- [ ] **Step 3: Run the new tests — expect PASS**
+- [x] **Step 3: Run the new tests — expect PASS**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: all tests PASS (characterization — current behavior is the contract).
+Result: 18/18 PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/Node/safety-classify.test.ts package.json
