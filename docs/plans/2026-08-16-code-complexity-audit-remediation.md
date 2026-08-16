@@ -893,7 +893,7 @@ git commit -S -m $'chore(tsc): type-check safety extension and node tests\n\nImp
 - Produces: identical CLI contract for CI (`ci.yml:246`) and
   `tests/Shell/coverage_gate_test.sh:20` — both invoke `.github/scripts/coverage-gate.php`.
 
-- [ ] **Step 1: Replace the duplicate with a shim**
+- [x] **Step 1: Replace the duplicate with a shim**
 
 `.github/scripts/coverage-gate.php` becomes:
 
@@ -914,12 +914,12 @@ require __DIR__ . '/../../packages/prism-php-web/scripts/coverage-gate.php';
 // vim: ft=php sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the shell test suite**
+- [x] **Step 2: Run the shell test suite**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: all tests PASS (it drives `.github/scripts/coverage-gate.php`).
 
-- [ ] **Step 3: Byte-diff both entry points on a fixture**
+- [x] **Step 3: Byte-diff both entry points on a fixture**
 
 ```bash
 mkdir -p /tmp/cg-fixture/src
