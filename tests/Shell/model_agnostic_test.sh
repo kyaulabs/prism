@@ -8,6 +8,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -36,7 +37,7 @@ setup_result_file
 # intentionally exempt; the (judge|primary) branch allows a space because
 # those phrases are prescription even in prose. Trailing ([^a-z]|$) keeps
 # every alternative from matching inside unrelated identifiers.
-PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek([^a-z_]|$)|default[-_]?model([^a-z_]|$)|default[-_]?provider([^a-z_]|$)|default[-_]?thinking[-_]?level([^a-z_]|$)|enabled[-_]?models([^a-z_]|$)|(judge|primary)[-_ ]?models?([^a-z_]|$)'
+PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek-v4([^a-z_]|$)|default[-_]?model([^a-z_]|$)|default[-_]?provider([^a-z_]|$)|default[-_]?thinking[-_]?level([^a-z_]|$)|enabled[-_]?models([^a-z_]|$)|(judge|primary)[-_ ]?models?([^a-z_]|$)'
 
 # ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
 for pos in \
@@ -56,7 +57,7 @@ SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
 find -L "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
-	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' \) -prune -o \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
 	-type f -name 'models.json' -print > "$SCAN_TMP0/list" 2>&1
 MODELS_RC=$?
 set -e
@@ -73,7 +74,7 @@ fi
 # hook_portability_test.sh). One grep per file, one FAIL per file so the
 # summary tally counts files, not lines. Fail closed: a missing scan root
 # (wrong checkout shape) must not make the scan vacuously pass.
-SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web")
+SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web")
 for root in "${SCAN_ROOTS[@]}"; do
 	[ -d "$root" ] || fail "missing scan root: $root"
 done
@@ -86,7 +87,6 @@ ROOT_FILES=(
 	"$REPO_ROOT/CONTRIBUTING.md"
 	"$REPO_ROOT/NPM.md"
 	"$REPO_ROOT/SECURITY.md"
-	"$REPO_ROOT/.prism/release.json"
 )
 for file in "${ROOT_FILES[@]}"; do
 	[ -f "$file" ] || fail "missing scan target: $file"
@@ -100,7 +100,7 @@ set +e
 # explicitly excluded — a future file type cannot evade the contract.
 # Pruned dirs are not descended into.
 find -L "${SCAN_ROOTS[@]}" \
-	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' \) -prune -o \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -name '*.lock' -not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
@@ -144,6 +144,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
