@@ -1,4 +1,13 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
+
+
+
+
+
+
+
+
 
 
 
@@ -606,6 +615,15 @@ function runDeclaredTool(args, context) {
 			return EXIT.TOOL;
 		}
 	}
+	// argvPrefix prepends interpreter/flag tokens (e.g. php -d key=value) so
+	// argv[0] is the interpreter when a prefix is declared, the executable
+	// otherwise. The interpreter itself must exist or the failure is opaque;
+	// check it before consuming stdin.
+	const argv = [...(component.argvPrefix ?? []), executable, ...toolArgs];
+	if (!context.run && component.argvPrefix?.length && !resolveExecutable(argv[0], env)) {
+		process.stderr.write(`prism-tool: command ${argv[0]} required for tool ${component.id} is unavailable\n`);
+		return EXIT.READINESS;
+	}
 	let input;
 	try {
 		input = readBoundedStdin(context);
@@ -613,7 +631,7 @@ function runDeclaredTool(args, context) {
 		process.stderr.write('prism-tool: stdin exceeds limit\n');
 		return EXIT.USAGE;
 	}
-	const result = (context.run ?? runBounded)(executable, toolArgs, {
+	const result = (context.run ?? runBounded)(argv[0], argv.slice(1), {
 		cwd: component.provisioning === 'consumer-dev'
 			? fs.realpathSync(projectRoot)
 			: context.cwd ?? process.cwd(),
@@ -643,6 +661,15 @@ function main(argv, context = {}) {
 }
 
 module.exports = {EXIT, doctor, main, resolveBundledComponent};
+
+
+
+
+
+
+
+
+
 
 
 

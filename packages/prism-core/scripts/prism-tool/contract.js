@@ -1,4 +1,9 @@
-// $KYAULabs: contract.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
+
+
+
+
 
 
 
@@ -17,6 +22,7 @@ const MAX_EXECUTION_TIMEOUT_MS = 600000;
 const STABLE_VERSION = /^(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})$/;
 const IDENTIFIER = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EXECUTABLE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const ARGV_TOKEN = /^-{0,2}[A-Za-z0-9][A-Za-z0-9._:=@/-]{0,127}$/;
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)?)$/;
 const TOP_LEVEL_KEYS = new Set([
 	'browserTargets',
@@ -27,6 +33,7 @@ const TOP_LEVEL_KEYS = new Set([
 ]);
 const COMPONENT_KEYS = new Set([
 	'argumentPolicy',
+	'argvPrefix',
 	'authentication',
 	'ecosystem',
 	'executable',
@@ -80,6 +87,22 @@ function assertStringArray(value, filePath, label) {
 		if (typeof item !== 'string' || item.length === 0 || item.length > 128 || /[\0\r\n]/.test(item)) {
 			fail(filePath, `${label} contains an invalid value`);
 		}
+	}
+}
+
+function validateArgvPrefix(component, filePath) {
+	if (component.argvPrefix === undefined) return;
+	assertStringArray(component.argvPrefix, filePath, `component ${component.id} argv prefix`);
+	for (const token of component.argvPrefix) {
+		if (!ARGV_TOKEN.test(token)) {
+			fail(filePath, `component ${component.id} argv prefix token is not a safe argv token`);
+		}
+	}
+	// argv[0] is spawned as the command (interpreter or executable) by
+	// cli.js, which resolves it via PATH — it must be a bare executable
+	// name, not a flag. assertStringArray above already rejects empty.
+	if (!EXECUTABLE.test(component.argvPrefix[0])) {
+		fail(filePath, `component ${component.id} argv prefix command is not a valid executable name`);
 	}
 }
 
@@ -212,6 +235,7 @@ function validateComponent(component, role, filePath) {
 	}
 	assertString(component.executable, EXECUTABLE, filePath, `component ${component.id} executable`);
 	assertStringArray(component.versionArguments, filePath, `component ${component.id} version arguments`);
+	validateArgvPrefix(component, filePath);
 	validateArgumentPolicy(component.argumentPolicy, filePath, component.id);
 	if (
 		component.executionTimeoutMs !== undefined &&
@@ -317,6 +341,11 @@ module.exports = {
 	loadContract,
 	validateContract,
 };
+
+
+
+
+
 
 
 

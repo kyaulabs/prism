@@ -167,13 +167,13 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   configured with — resolved via
   `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"`), and
   `Signed-off-by:` (user) footers, in pipeline order `Implemented-by` →
-  `Tested-by` → `Signed-off-by` (ADR-0064). Each model footer is the model
-  ID segment after the last `/` (e.g. `deepseek-v4-flash`, `deepseek-v4-pro`).
+  `Tested-by` → `Signed-off-by` (ADR-0064). Each model footer is the bare
+  model ID segment after the last `/` (e.g. `provider/model-id` → `model-id`).
   `Signed-off-by:` is resolved dynamically via
   `bash "$(prism-tool resolve scripts)/resolve-identity.sh"` (git-config fallback
   per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Implemented-by:`. Use `Refs: #NN` for non-closing references.
-- Model selection is single-model with manual cycling — see **Model strategy**
-  below (ADR-0057). There is no manifest/env tier layer.
+- Model and thinking selection is entirely the human's — see **Model
+  strategy** below (ADR-0067). There is no manifest/env tier layer.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
 After implementing any change — whether via the `tdd` skill, a direct fix, an
@@ -208,16 +208,12 @@ carried by prose instead:
 
 ## Model strategy
 
-- **Primary:** `deepseek/deepseek-v4-flash` — the default for all pipeline
-  work (brainstorm, plan, TDD, implement, verify).
-- **Judge:** `deepseek/deepseek-v4-pro` — cycle to it with **Ctrl+P** for
-  review/audit work (`code-review`, `spec-review`, `test-audit`,
-  `architect`); those skills suggest the switch. Cycle back with Ctrl+P.
-- **Thinking:** raise/lower the thinking level with **Shift+Tab**.
-
-There is **no automatic model tiering** (ADR-0057): the agent runs on the
-primary unless the human (or the agent, by suggesting it) manually Ctrl+P's
-to the judge.
+Model and thinking selection is entirely the human's (ADR-0067). Pi gives
+full control at any time: **Ctrl+P** cycles models, **Shift+Tab** sets the
+thinking level. The harness never prescribes, names, restricts, or suggests a
+model. Sessions start on pi's own defaults; run `/setup` to write your own
+preferred provider, default model, Ctrl+P pool, and thinking level to your pi
+config — every question is skippable and the write is consent-gated.
 
 ## How this harness is installed
 
@@ -274,10 +270,10 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `audit-deps` | Scanning dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, prompts, or docs in the harness packages |
 | `architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation; returns go/no-go + `ADR-required:` line |
-| `code-review` | Reviewing staged changes before push (suggest Ctrl+P to the judge model) |
-| `spec-review` | Read-only review that checks requirement coverage against the branch's spec (suggest Ctrl+P to the judge model) |
+| `code-review` | Reviewing staged changes before push |
+| `spec-review` | Read-only review that checks requirement coverage against the branch's spec |
 | `standards-review` | Read-only structural review applying Fowler's 12 code smells against the diff; reports by severity, does not auto-fix |
-| `test-audit` | Auditing an existing test suite for quality (suggest Ctrl+P to the judge model) |
+| `test-audit` | Auditing an existing test suite for quality |
 | `debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem |
 | `explore` | Focused codebase exploration — read-only. Answers with the minimum scoped context needed |
 | `consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |

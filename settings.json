@@ -1,8 +1,4 @@
 {
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-flash",
-  "defaultThinkingLevel": "medium",
-  "enabledModels": ["deepseek-v4-flash", "deepseek-v4-pro"],
   "compaction": { "enabled": true, "reserveTokens": 16384, "keepRecentTokens": 20000 },
   "retry": { "enabled": true, "maxRetries": 3 },
   "enableSkillCommands": true

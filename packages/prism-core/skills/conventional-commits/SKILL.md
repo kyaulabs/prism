@@ -24,7 +24,7 @@ Every commit message must end with three footers:
 
 - **`Implemented-by:`** — the model pi is using (the active session model).
   Use the model ID segment after the last `/` (for example,
-  `deepseek/deepseek-v4-flash` → `deepseek-v4-flash`).
+  `provider/model-id` → `model-id`).
 - **`Tested-by:`** — the model open-code-review is configured with. Resolve
   it with `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"` (reads
   only the `model` key from `~/.opencodereview/config.json`; fails closed,
@@ -112,8 +112,8 @@ The `prepare-commit-msg` hook rejects commits on non-conforming branches.
 ```
 feat(auth): add remember-me cookie to login flow
 
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
@@ -121,16 +121,16 @@ Signed-off-by: <resolved via resolve-identity.sh>
 fix(db): parameterize the user search query
 
 Fixes: #42
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 
 ```
 test(auth): add boundary cases for empty credentials
 
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Signed-off-by: <resolved via resolve-identity.sh>
 ```
 

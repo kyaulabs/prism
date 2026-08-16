@@ -239,13 +239,15 @@ Pi-era decisions:
 
 - `adr/0055-pi-migration-embrace-single-agent.md` — express Prism through Pi's single-agent skills and prompt-template model.
 - `adr/0056-safety-extension-sole-extension.md` — retain exactly one fail-closed safety extension.
-- `adr/0057-single-model-manual-cycling-manifest-deleted.md` — use Pi-native model settings and manual cycling; retire the Prism manifest.
+- `adr/0057-single-model-manual-cycling-manifest-deleted.md` — superseded by ADR-0067; retained as historical context.
 - `adr/0058-core-adapter-package-split.md` — split the global language-agnostic core from project-local stack adapters.
 - `adr/0059-conversion-scope-deferred-evals-mcp-to-cli-skills.md` — bound the Pi port, defer evals, and replace MCP integrations with CLI skills.
 - `adr/0060-global-core-project-local-adapter-install.md` — install core globally, adapters locally, and deploy merge-safe always-on instructions.
 - `adr/0061-scope-owned-toolchain-contract.md` — superseded scope-owned toolchain baseline retained as historical context.
 - `adr/0062-bounded-ocr-compatibility.md` — superseded bounded-OCR policy retained as historical context.
 - `adr/0063-bounded-external-tool-compatibility.md` — retain exact managed tools while allowing bounded compatible Semgrep and OCR 1.x releases.
+- `adr/0066-per-package-release-versions.md` — release-managed npm packages version independently, tagged from the merge result.
+- `adr/0067-model-agnostic-harness-user-driven-model-config.md` — the harness selects no model or thinking level; `/setup` writes only the user's choices; commit footers record passively.
 
 ## When to update this file
 

@@ -1,4 +1,6 @@
-// $KYAULabs: prism-tool-preflight.test.js git@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
+
 
 
 
@@ -626,7 +628,7 @@ test('approved OCR run executes only the allowlisted review with inert arguments
 
 	assert.equal(result.status, 0);
 	assert.equal(result.stdout, 'review complete\n');
-	assert.equal(calls.at(-1).options.timeout, 360000);
+	assert.equal(calls.at(-1).options.timeout, 600000);
 	assert.deepEqual(JSON.parse(fs.readFileSync(invocations, 'utf8')), [
 		'review',
 		'--audience',
@@ -668,6 +670,8 @@ test('Semgrep local scan runs without login or network approval', async (t) => {
 		'packages/prism-core/config/semgrep',
 	]);
 });
+
+
 
 
 

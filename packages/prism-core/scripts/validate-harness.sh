@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+
 
 
 
@@ -135,7 +136,7 @@ while IFS= read -r -d '' extension_entry; do
 	tmp_agent_dir="$(mktemp -d)"
 	if ! PI_CODING_AGENT_DIR="$tmp_agent_dir" PI_OFFLINE=1 \
 		pi --no-session --no-context-files --no-skills --no-prompt-templates \
-		--no-extensions -e "$extension_entry" --list-models deepseek-v4-flash \
+		--no-extensions -e "$extension_entry" --list-models \
 		>/dev/null 2>"$tmp_agent_dir/error.log"; then
 		err "$relative: pi failed to import extension: $(tr '\n' ' ' < "$tmp_agent_dir/error.log" | head -c 500)"
 	fi
@@ -306,6 +307,7 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
+
 
 
 

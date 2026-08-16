@@ -11,8 +11,8 @@ sub-agents, no plan mode, and no MCP** — a single agent runs the whole
 engineering pipeline by loading **skills** on demand (ADR-0055). Slash
 commands are **prompt templates**; the opencode permission matrix and three
 TypeScript plugins collapsed into **one safety extension** (ADR-0056); the
-six-tier model system collapsed to **one primary model + manual Ctrl+P
-cycling** (ADR-0057).
+six-tier model system collapsed to **no prescribed model at all** — model and
+thinking selection is yours at any time (ADR-0067).
 
 New ideas enter through the **brainstorming** skill front door. Pre-spec work
 that is oversized — multiple independent subsystems, or unknowns that cannot
@@ -91,7 +91,7 @@ executables.
 | --- | --- |
 | `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
 | `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
-| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |
+| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |
 | Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
 | Fifteen `@subagents` | **collapsed** → skills |
 | `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` |
@@ -118,10 +118,9 @@ do not re-fix):
   implementation before an approved spec); pi session branching (`/tree`,
   `/fork`) gives cheap rollback; `verification-before-completion` and
   `code-review` catch slips.
-- **Automatic model tiering is gone.** Review/audit run on the primary model
-  unless the human (or the agent, by suggesting it) manually Ctrl+P's to the
-  judge. The `code-review`/`spec-review`/`test-audit` skills include a one-line
-  prompt to suggest the switch.
+- **Model and thinking selection is the human's.** The harness prescribes
+  nothing (ADR-0067): no primary/judge roles, no suggestions, no
+  restrictions. Ctrl+P cycles models and Shift+Tab sets thinking at any time.
 - **Sub-agent context isolation is gone.** Long plans that once dispatched
   `@tdd` per task now run inline. `executing-plans` keeps inline-only mode and
   relies on proactive compaction (`/compact`) and `/handoff` for context
@@ -129,18 +128,15 @@ do not re-fix):
 
 ## Model strategy
 
-There is **no manifest/env tier layer** (ADR-0057). One primary model, one
-judge, manual cycling:
+There is **no manifest/env tier layer** (ADR-0067). The harness prescribes,
+names, restricts, and suggests no model:
 
-| Role | Model | When |
-| --- | --- | --- |
-| Primary | `deepseek/deepseek-v4-flash` | default for all pipeline work |
-| Judge | `deepseek/deepseek-v4-pro` | cycle with **Ctrl+P** for `code-review` / `spec-review` / `test-audit` / `architect` |
-
+- **Model:** cycle with **Ctrl+P** at any time.
 - **Thinking:** raise/lower with **Shift+Tab**.
-- **Auth:** `/login deepseek` or `export DEEPSEEK_API_KEY`.
-- **Scoped cycling:** `enabledModels: ["deepseek-v4-flash", "deepseek-v4-pro"]`
-  in `settings.json` / `.pi/settings.json`.
+- **Auth:** `/login` for your provider or export the provider's API key.
+- **Session defaults:** run `/setup` to write your preferred provider,
+  default model, Ctrl+P pool, and thinking level to your pi config — every
+  question is skippable and the write is consent-gated.
 
 ## Search (replaces MCP)
 
