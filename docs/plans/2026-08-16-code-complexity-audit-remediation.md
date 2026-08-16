@@ -1027,7 +1027,13 @@ git commit -S -m $'refactor(tooling): extract print_report from coverage-gate ma
 **Gate:** registry access (npm view / npm install) is a consent boundary — get
 human approval before Step 1.
 
-- [ ] **Step 1: Compatibility check (human approval first)**
+- [x] **Step 1: Compatibility check (human approval first)**
+
+> **DROPPED (drop-gate):** `typescript-eslint@8.67.0` peers require
+> `typescript >=4.8.4 <6.1.0`; the repo pins `^7.0.2` (Go-native compiler).
+> No version supports TS 7. Installing would break the peer contract or need
+> `--legacy-peer-deps`. Per the spec risk clause, C2 is dropped: the A
+> refactor removed the offenders and C1 restored tsc coverage.
 
 Run: `npm view typescript-eslint@latest peerDependencies --json`
 Expected: a version whose eslint peer range includes 10.x, compatible with the
