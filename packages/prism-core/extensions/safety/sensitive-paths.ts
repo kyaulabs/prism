@@ -1,14 +1,4 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
@@ -56,7 +46,7 @@ const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 
 const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
-const MAX_UNWRAP_DEPTH = 3;
+export const MAX_UNWRAP_DEPTH = 3;
 
 const SENSITIVE_FALLBACK_RE =
     /\.env(\.|$)|\bauth\.json\b|mcp-auth\.json|intelephense|opencodereview|\.config\/opencode|\.ssh\/|\.aws\/|\.netrc|git-credentials|\/etc\/ssl\//;
@@ -69,7 +59,7 @@ const SENSITIVE_FALLBACK_RE =
  * remains denied. Mirrors the basename exemption in sensitivePathMatch.
  */
 function isEnvExampleRef(token: string): boolean {
-    const bare = token.replace(/^-[^=]*@?/, "").replace(/^@/, "");
+    const bare = token.replace(/^-{1,2}[^=@]*[=@]/, "").replace(/^@/, "");
     return (bare.split("/").pop() ?? "") === ".env.example";
 }
 
@@ -216,14 +206,33 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
     return "none";
 }
 
-function resolveOperand(token: string, opts: SensitivePathOptions): string | null {
+/**
+ * Resolve one command token to an absolute path, or null when it cannot be
+ * resolved safely (metacharacters, or `=`-assignments when rejected).
+ *
+ * Shared by the bash classifier (pre-tool-use.ts) and the sensitive-path
+ * check so quote-strip / ~-expand / bail semantics cannot drift between the
+ * two gates (audit finding 5). `rejectAssignments` preserves resolveOperand's
+ * historical `=` bail; the classifier's rm-operand path intentionally stays
+ * `=`-tolerant.
+ */
+export function resolvePathToken(token: string, projectDir: string, home: string,
+                                 opts: { rejectAssignments?: boolean } = {}): string | null {
     let p = token.trim();
-    if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
+    if (
+        (p.startsWith('"') && p.endsWith('"')) ||
+        (p.startsWith("'") && p.endsWith("'"))
+    ) {
         p = p.slice(1, -1);
     }
-    if (p.startsWith("~")) p = opts.home + p.slice(1);
-    if (p.includes("=") || /[*?$`(<]/.test(p)) return null;
-    return normalize(resolvePath(opts.projectDir, p));
+    if (p.startsWith("~")) p = home + p.slice(1);
+    if (opts.rejectAssignments && p.includes("=")) return null;
+    if (/[*?$`(<]/.test(p)) return null;
+    return normalize(resolvePath(projectDir, p));
+}
+
+function resolveOperand(token: string, opts: SensitivePathOptions): string | null {
+    return resolvePathToken(token, opts.projectDir, opts.home, { rejectAssignments: true });
 }
 
 export function sensitiveOperandCheck(command: string, opts: SensitivePathOptions): SensitiveMatch | null {
@@ -233,6 +242,31 @@ export function sensitiveOperandCheck(command: string, opts: SensitivePathOption
     } catch {
         return { className: "unresolvable" };
     }
+}
+
+/**
+ * Judge one command token against the deny floor (ADR-0047/0048 §5).
+ *
+ * Review follow-up (ADR-0048): the class-specific fallback runs against
+ * tokens that resolve without a denied-class match (or that are
+ * option-prefixed), so argv-prefix and glued-token forms
+ * (-d@~/.ssh/id_rsa, @~/.ssh/id_rsa, user@host:~/.ssh/id_rsa,
+ * --output=~/.aws/credentials) cannot bypass the deny floor.
+ * .env.example references stay exempt (basename-scoped), and a
+ * trusted-setup prism-user-manifest skip suppresses the fallback so
+ * /setup scripts keep their narrow exception.
+ */
+function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOptions): SensitiveMatch | null {
+    const abs = token.startsWith("-") ? null : resolveOperand(token, opts);
+    const match = abs === null ? null : sensitivePathMatch(abs, opts);
+    if (match) {
+        if (match.className === "prism-user-manifest" && trustedSetup) return null;
+        return match;
+    }
+    if (!isEnvExampleRef(token) && SENSITIVE_FALLBACK_RE.test(token)) {
+        return { className: "dynamic" };
+    }
+    return null;
 }
 
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
@@ -251,23 +285,8 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
         const trustedSetup = trust === "trusted";
         for (const token of tokens) {
-            // Review follow-up (ADR-0048): the class-specific fallback runs
-            // against tokens that resolve without a denied-class match (or
-            // that are option-prefixed), so argv-prefix and glued-token
-            // forms (-d@~/.ssh/id_rsa, @~/.ssh/id_rsa, user@host:~/.ssh/
-            // id_rsa, --output=~/.aws/credentials) cannot bypass the deny
-            // floor. .env.example references stay exempt (basename-scoped),
-            // and a trusted-setup prism-user-manifest skip suppresses the
-            // fallback so /setup scripts keep their narrow exception.
-            const abs = token.startsWith("-") ? null : resolveOperand(token, opts);
-            const match = abs === null ? null : sensitivePathMatch(abs, opts);
-            if (match) {
-                if (match.className === "prism-user-manifest" && trustedSetup) continue;
-                return match;
-            }
-            if (!isEnvExampleRef(token) && SENSITIVE_FALLBACK_RE.test(token)) {
-                return { className: "dynamic" };
-            }
+            const match = judgeToken(token, trustedSetup, opts);
+            if (match) return match;
         }
     }
     return null;
@@ -289,6 +308,21 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

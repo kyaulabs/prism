@@ -1,4 +1,5 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -102,7 +103,7 @@ function writeBundledFixture(directory, options) {
 }
 
 test('registers the Node test suite in the source checkout', () => {
-	assert.equal(rootPackage.scripts?.['test:node'], 'node --test tests/Node/*.test.js');
+	assert.equal(rootPackage.scripts?.['test:node'], 'node --test tests/Node/*.test.js tests/Node/*.test.ts');
 });
 
 test('publishes an executable prism-tool bin with its core config', () => {
@@ -307,6 +308,7 @@ test('forwards bounded stdin and arguments as inert data', async (t) => {
 		input: 'staged content\n',
 	});
 });
+
 
 
 
