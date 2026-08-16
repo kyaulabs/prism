@@ -6,19 +6,13 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 SCRIPT="$REPO_ROOT/packages/prism-core/scripts/resolve-identity.sh"
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
-TMP_DIRS=()
-
-cleanup() {
-	for dir in "${TMP_DIRS[@]}"; do rm -rf "$dir"; done
-}
-trap cleanup EXIT
-
-fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; printf '%s' "$d"; }
+source "$REPO_ROOT/tests/Shell/lib/fixture_helpers.sh"
 
 printf '%s\n' '── resolve-identity: git fallback ──'
 dir=$(fixture)
@@ -76,6 +70,7 @@ fi
 
 printf '\nresolve_identity_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
