@@ -207,7 +207,13 @@ git commit -S -m $'test(safety): characterize classifyCommand behavior\n\nImplem
   from `packages/prism-core/extensions/safety/sensitive-paths.ts` (public, unchanged).
 - Produces: the deny-floor behavior matrix later tasks must keep green.
 
-- [ ] **Step 1: Write the characterization tests**
+- [x] **Step 1: Write the characterization tests**
+
+> Executed with one deviation: `cat -d@.env.example` is pinned as `dynamic`
+> (denied) — the characterization exposed a latent bug in `isEnvExampleRef`:
+> the `^-[^=]*@?` prefix strip greedily consumes the `@`, so short-option
+> glued forms fall through to the fallback. Reported to the user; approved
+> fix B (restore documented ADR-0048 intent) lands as Task 2A.
 
 `tests/Node/safety-sensitive-paths.test.ts`:
 
@@ -270,6 +276,61 @@ Expected: all PASS.
 ```bash
 git add tests/Node/safety-sensitive-paths.test.ts
 git commit -S -m $'test(safety): characterize sensitive-path operand checks\n\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-flash\nSigned-off-by: kyau <kyau@kyau.net>'
+```
+
+---
+
+### Task 2A: fix glued `.env.example` exemption (user-approved deviation B)
+
+**Files:**
+- Modify: `packages/prism-core/extensions/safety/sensitive-paths.ts:69-73`
+- Modify: `tests/Node/safety-sensitive-paths.test.ts` (flip one expectation, add `--opt=` case)
+
+**Interfaces:**
+- Consumes: `isEnvExampleRef` (private) — restores the behavior its own
+  docblock and commit 83b68af document.
+- Produces: `-d@.env.example` / `--opt=.env.example` / `@.env.example` exempt;
+  `-d@~/.ssh/id_rsa.env.example`, `--output=~/.aws/credentials`, bare `-d`
+  unchanged (denied / clean).
+
+- [ ] **Step 1: Fix the prefix-strip regex**
+
+In `isEnvExampleRef`, change:
+
+```ts
+const bare = token.replace(/^-[^=]*@?/, "").replace(/^@/, "");
+```
+
+to:
+
+```ts
+const bare = token.replace(/^-{1,2}[^=@]*[=@]/, "").replace(/^@/, "");
+```
+
+Verified against all six documented forms: `-d@.env.example` and
+`--opt=.env.example` strip to `.env.example` (exempt); `@.env.example`
+unchanged; `-d@~/.ssh/id_rsa.env.example` still denied (basename guard);
+`--output=~/.aws/credentials` still denied; bare `-d` still clean.
+
+- [ ] **Step 2: Flip the expectation + add the `--opt=` case**
+
+In the test, replace the pinned `dynamic` assertion with:
+
+```ts
+    assert.equal(sensitiveOperandCheck("cat -d@.env.example", OPTS), null);
+    assert.equal(sensitiveOperandCheck("cat --opt=.env.example", OPTS), null);
+```
+
+- [ ] **Step 3: Run — expect PASS**
+
+Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
+Expected: 7/7 PASS (previously failing assertion now green).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/prism-core/extensions/safety/sensitive-paths.ts tests/Node/safety-sensitive-paths.test.ts
+git commit -S -m $'fix(security): restore glued .env.example exemption\n\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-flash\nSigned-off-by: kyau <kyau@kyau.net>'
 ```
 
 ---
