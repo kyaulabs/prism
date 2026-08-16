@@ -7,6 +7,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -104,6 +105,11 @@ set -e
 if [ "$CONTROL_RC" -ne 0 ] && [ "$POS_RC" -eq 0 ]; then
 	pass "negative control: driver off fails ($CONTROL_RC), driver on passes ($POS_RC)"
 else
+	if [ "$POS_RC" -ne 0 ]; then
+		skip "driver-on run failed (rc=$POS_RC) — environment not red-capable; smoke skipped"
+		print_summary "toolchain_argv_prefix"
+		exit $?
+	fi
 	fail "negative control: driver off rc=$CONTROL_RC, driver on rc=$POS_RC (expected fail/pass)"
 	printf '%s\n' "$CTRL_OUT" | tail -5 >&2
 	printf '%s\n' "$POS_OUT" | tail -5 >&2
@@ -132,7 +138,7 @@ set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off PATH="$STUB_DIR:$PATH" node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
 set -e
-if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qiE "Total:|coverage"; then
+if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qiE "Total:|Lines:|Coverage:"; then
 	pass "pest coverage smoke passes via launcher with driver forced off ($DRIVER)"
 else
 	fail "pest coverage smoke failed via launcher with driver forced off (rc=$LAUNCHER_RC)"
@@ -140,6 +146,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

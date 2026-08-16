@@ -12,6 +12,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -66,7 +67,7 @@ done
 SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
-find "$REPO_ROOT" "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
+find "$REPO_ROOT" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \) -prune -o \
 	-type f \( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2>&1
 MODELS_RC=$?
@@ -155,6 +156,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
