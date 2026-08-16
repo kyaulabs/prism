@@ -1,4 +1,5 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -44,15 +45,7 @@ import {
     sensitivePatternCheck,
     type SensitivePathOptions,
 } from "./sensitive-paths.ts";
-import { DenialCircuitBreaker } from "./denial-circuit-breaker.ts";
-
-/**
- * Consecutive bash denials required to trip the circuit breaker (ADR-0042 /
- * issue #274). Matches the upstream doom_loop identical-input threshold and
- * the opencode-era constant. Kept as a single module-level constant so the
- * breaker config and the redacted escalation always report the same value.
- */
-const TRIP_THRESHOLD = 3;
+import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "./denial-circuit-breaker.ts";
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
 
@@ -150,7 +143,7 @@ function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): bool
 
 export default function (pi: ExtensionAPI) {
     /** Per-session consecutive-bash-denial circuit breaker (ADR-0042). */
-    const breaker = new DenialCircuitBreaker({ threshold: TRIP_THRESHOLD });
+    const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
 
     /** Resolved per session (session_start). Defaults keep the gate usable
      *  even before the first session_start fires. */
@@ -285,6 +278,7 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
+
 
 
 
