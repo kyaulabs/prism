@@ -961,7 +961,7 @@ git commit -S -m $'refactor(ci): shim coverage-gate to the canonical package cop
   `array{passed:list, failed:list, warned:list, skipped:list}` and `exit_code_for`.
 - Produces: `print_report(array $result, int $min): void` with byte-identical output.
 
-- [ ] **Step 1: Extract the printer**
+- [x] **Step 1: Extract the printer**
 
 In `packages/prism-php-web/scripts/coverage-gate.php`, add before `main()`:
 
@@ -996,7 +996,7 @@ function print_report(array $result, int $min): void
 }
 ```
 
-- [ ] **Step 2: Slim `main()`**
+- [x] **Step 2: Slim `main()`**
 
 Replace the header echo + four print loops in `main()` with:
 
@@ -1004,7 +1004,7 @@ Replace the header echo + four print loops in `main()` with:
     print_report($result, $min);
 ```
 
-- [ ] **Step 3: Verify byte-identical output**
+- [x] **Step 3: Verify byte-identical output**
 
 Run: `bash tests/Shell/coverage_gate_test.sh` — all PASS.
 Then re-run Task 9's Step 3 fixture byte-diff (both entry points) — `BYTE-IDENTICAL`.

@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: coverage-gate.php kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: coverage-gate.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
 
 
 
@@ -260,6 +263,35 @@ function exit_code_for(array $result, bool $strict): int
  *                                  (default 'php://stdin'); overridable by tests.
  * @return int
  */
+/**
+ * Print the per-file coverage gate report.
+ *
+ * Output format is part of the CLI contract (asserted by
+ * tests/Shell/coverage_gate_test.sh) and must stay byte-identical.
+ *
+ * @param array{passed:list, failed:list, warned:list, skipped:list} $result
+ * @param int $min
+ * @return void
+ */
+function print_report(array $result, int $min): void
+{
+    echo "Changed-file coverage gate (min {$min}%):\n\n";
+    printf("  %-55s %8s   %s\n", 'File', 'Coverage', 'Gate');
+    foreach ($result['passed'] as [$f, $pct, $c, $t]) {
+        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'PASS', $c, $t);
+    }
+    foreach ($result['failed'] as [$f, $pct, $c, $t]) {
+        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'FAIL', $c, $t);
+    }
+    foreach ($result['warned'] as [$f, $reason]) {
+        fwrite(STDERR, sprintf("  %-55s %8s   %s  (%s)\n", $f, '-', 'WARN', $reason));
+    }
+    foreach ($result['skipped'] as [$f, $reason]) {
+        printf("  %-55s %8s   %s  (%s)\n", $f, '-', 'SKIP', $reason);
+    }
+    echo "\n";
+}
+
 function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
 {
     $args = parse_args($argv);
@@ -297,21 +329,7 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
 
     $result = classify_changed_files($changedFiles, $coverage, $rootPrefix, $min);
 
-    echo "Changed-file coverage gate (min {$min}%):\n\n";
-    printf("  %-55s %8s   %s\n", 'File', 'Coverage', 'Gate');
-    foreach ($result['passed'] as [$f, $pct, $c, $t]) {
-        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'PASS', $c, $t);
-    }
-    foreach ($result['failed'] as [$f, $pct, $c, $t]) {
-        printf("  %-55s %7.1f%%   %s  (%d/%d)\n", $f, $pct, 'FAIL', $c, $t);
-    }
-    foreach ($result['warned'] as [$f, $reason]) {
-        fwrite(STDERR, sprintf("  %-55s %8s   %s  (%s)\n", $f, '-', 'WARN', $reason));
-    }
-    foreach ($result['skipped'] as [$f, $reason]) {
-        printf("  %-55s %8s   %s  (%s)\n", $f, '-', 'SKIP', $reason);
-    }
-    echo "\n";
+    print_report($result, $min);
 
     $code = exit_code_for($result, $strict);
     if ($result['failed'] !== []) {
@@ -326,6 +344,7 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     }
     return $code;
 }
+
 
 
 
