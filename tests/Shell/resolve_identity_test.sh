@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve_identity_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: resolve_identity_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -9,8 +10,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 SCRIPT="$REPO_ROOT/packages/prism-core/scripts/resolve-identity.sh"
-PASS=0
-FAIL=0
+source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 TMP_DIRS=()
 
 cleanup() {
@@ -18,8 +18,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; printf '%s' "$d"; }
 
 printf '%s\n' '── resolve-identity: git fallback ──'
@@ -78,6 +76,7 @@ fi
 
 printf '\nresolve_identity_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

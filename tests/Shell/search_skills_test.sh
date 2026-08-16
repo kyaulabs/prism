@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: search_skills_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: search_skills_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -10,11 +11,7 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 WEB="$REPO_ROOT/packages/prism-core/skills/websearch/search.sh"
 SEARX="$REPO_ROOT/packages/prism-core/skills/searxng/search.sh"
-PASS=0
-FAIL=0
-
-pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
+source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 
 printf '%s\n' '── search skills: setup errors ──'
 set +e
@@ -54,6 +51,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
