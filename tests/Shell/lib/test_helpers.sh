@@ -11,6 +11,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -179,14 +180,17 @@ path_without_prism_tool() {
 		printf '%s' "$PATH"
 		return 0
 	fi
+	local -a parts
 	IFS=: read -r -a parts <<< "$PATH"
 	for part in "${parts[@]}"; do
-		if [ -n "$part" ] && [ "$part" != "$launcher_dir" ]; then
+		# Preserve empty components (POSIX PATH: empty = current dir).
+		if [ -z "$part" ] || [ "$part" != "$launcher_dir" ]; then
 			out="${out:+$out:}$part"
 		fi
 	done
 	printf '%s' "$out"
 }
+
 
 
 

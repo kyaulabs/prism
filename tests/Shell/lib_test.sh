@@ -10,6 +10,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -232,6 +233,7 @@ test_path_without_prism_tool() {
 
 	# No-op when no prism-tool is on PATH (controlled empty dirs only —
 	# never /usr/bin:/bin, which could hold a real launcher on some hosts).
+	local noop_a noop_b
 	noop_a=$(mktemp -d)
 	register_temp_dir "$noop_a"
 	noop_b=$(mktemp -d)
@@ -266,6 +268,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

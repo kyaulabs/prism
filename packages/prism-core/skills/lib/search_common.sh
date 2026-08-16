@@ -5,6 +5,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -31,25 +32,26 @@ usage_guard() {
 }
 
 require_cmd() {
-	if ! command -v "$1" >/dev/null 2>&1; then
-		printf '%s: %s\n' "$SKILL" "$2" >&2
+	if ! command -v "${1:-}" >/dev/null 2>&1; then
+		printf '%s: %s\n' "${SKILL:-}" "${2:-command is required}" >&2
 		exit 3
 	fi
 }
 
 require_env() {
 	if [ -z "${!1:-}" ]; then
-		printf '%s: %s is not set. Configure it in the environment; never pass it as an argument.\n' "$SKILL" "$1" >&2
+		printf '%s: %s is not set. Configure it in the environment; never pass it as an argument.\n' "${SKILL:-}" "${1:-VARIABLE}" >&2
 		exit 4
 	fi
 }
 
 require_posint() {
-	if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
-		printf '%s: %s must be a positive integer.\n' "$SKILL" "$1" >&2
+	if ! [[ "${2:-}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: %s must be a positive integer.\n' "${SKILL:-}" "${1:-VARIABLE}" >&2
 		exit 2
 	fi
 }
+
 
 
 
