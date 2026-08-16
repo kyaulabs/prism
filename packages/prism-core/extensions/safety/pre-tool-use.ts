@@ -14,6 +14,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -339,17 +340,25 @@ function gitPushDeleteWarn(command: string, _tokens: string[], _ctx: RuleCtx): F
 }
 
 /**
+ * Expand a git command's subcommand flags after skipping global options.
+ * Returns null when the token stream is not a git command.
+ */
+function expandedGitFlags(tokens: string[]): { subcmd: string; expanded: string[] } | null {
+    const gitInfo = findGitSubcommand(tokens);
+    if (gitInfo === null) return null;
+    return { subcmd: gitInfo.subcmd, expanded: gitInfo.rest.flatMap(expandShortFlags) };
+}
+
+/**
  * BLOCK: git push --force / -f.
  *
- * Skips global options via findGitSubcommand and catches bundled flags like
- * -uf via expandShortFlags. --force-with-lease is untouched because
- * expandShortFlags leaves long flags intact.
+ * Catches bundled flags like -uf via expandShortFlags. --force-with-lease is
+ * untouched because expandShortFlags leaves long flags intact.
  */
 function gitForcePushBlock(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
-    const gitInfo = findGitSubcommand(tokens);
-    if (gitInfo && gitInfo.subcmd === "push") {
-        const expanded = gitInfo.rest.flatMap(expandShortFlags);
-        if (expanded.includes("-f") || expanded.includes("--force")) {
+    const git = expandedGitFlags(tokens);
+    if (git && git.subcmd === "push") {
+        if (git.expanded.includes("-f") || git.expanded.includes("--force")) {
             return { severity: "block", reason: "git push --force rewrites published history" };
         }
     }
@@ -364,13 +373,9 @@ function gitForcePushBlock(_command: string, tokens: string[], _ctx: RuleCtx): F
  * blocked). See ADR-0025.
  */
 function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
-    const gitInfo = findGitSubcommand(tokens);
-    if (gitInfo) {
-        const expanded = gitInfo.rest.flatMap(expandShortFlags);
-        if (
-            expanded.includes("--no-verify") ||
-            (gitInfo.subcmd === "commit" && expanded.includes("-n"))
-        ) {
+    const git = expandedGitFlags(tokens);
+    if (git) {
+        if (git.expanded.includes("--no-verify") || (git.subcmd === "commit" && git.expanded.includes("-n"))) {
             return {
                 severity: "block",
                 reason: "--no-verify bypasses commit/push hooks (pre-commit, commit-msg, pre-push); local CI-parity checks must run",
@@ -379,6 +384,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 
