@@ -17,6 +17,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -107,9 +108,9 @@ fi
 # off must FAIL with the driver-absence symptom — proves this environment
 # is red-capable for the regression, for the right reason. Uses one fast,
 # deterministic test file so the control never couples to unrelated suite
-# health.
+# health. XDEBUG_MODE=off isolates pcov in mixed-driver environments.
 set +e
-CTRL_OUT=$(cd "$REPO_ROOT" && php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
+CTRL_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
 CONTROL_RC=$?
 set -e
 if [ "$CONTROL_RC" -ne 0 ] \
@@ -161,7 +162,7 @@ if ! in_range ocr "$OCR_VER"; then
 	exit $?
 fi
 set +e
-SMOKE_OUT=$(cd "$REPO_ROOT" && node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
+SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
 set -e
 if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qE "Total:"; then
@@ -172,6 +173,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
