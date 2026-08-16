@@ -848,6 +848,11 @@ git commit -S -m $'refactor(safety): drop dead DenialOutcomeTracker code\n\nImpl
 
 - [x] **Step 1: Extend tsconfig include**
 
+> Deviation (spec risk clause): `index.ts` is excluded — it imports the pi SDK
+> (`@earendil-works/pi-coding-agent`, declared but not installed locally; types
+> resolve via the global pi store at runtime). The three pure modules + tests
+> are explicitly included instead of the `**/*.ts` glob.
+
 In `tsconfig.json`, add to `include`:
 
 ```json
