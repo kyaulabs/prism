@@ -10,6 +10,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -113,7 +114,16 @@ else
 		exit $?
 	fi
 	if [ "$POS_RC" -ne 0 ]; then
-		skip "driver-on run failed (rc=$POS_RC) — environment not red-capable; smoke skipped"
+		# Disambiguate: a driver-absence symptom means the environment cannot
+		# exercise the injection (skip); anything else is a broken fixture or
+		# runner and must fail loudly, never mask.
+		if printf '%s' "$POS_OUT" | grep -qiE "coverage|driver|pcov|xdebug"; then
+			skip "driver-on run failed (rc=$POS_RC) — environment not red-capable; smoke skipped"
+			print_summary "toolchain_argv_prefix"
+			exit $?
+		fi
+		fail "driver-on run failed (rc=$POS_RC) without a driver symptom — fixture or runner broken"
+		printf '%s\n' "$POS_OUT" | tail -5 >&2
 		print_summary "toolchain_argv_prefix"
 		exit $?
 	fi
@@ -153,6 +163,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
