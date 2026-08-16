@@ -846,7 +846,7 @@ git commit -S -m $'refactor(safety): drop dead DenialOutcomeTracker code\n\nImpl
 **Files:**
 - Modify: `tsconfig.json` (`include`)
 
-- [ ] **Step 1: Extend tsconfig include**
+- [x] **Step 1: Extend tsconfig include**
 
 In `tsconfig.json`, add to `include`:
 
@@ -855,14 +855,14 @@ In `tsconfig.json`, add to `include`:
 "tests/Node/*.test.ts",
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `npx tsc --noEmit`
 Expected: exits 0. **If latent type errors surface:** fix them forward in the
 same commit (they are pre-existing, now exposed); if they balloon beyond a few
 lines, halt and re-plan with the user (spec risk clause).
 
-- [ ] **Step 3: Run the full node suite — expect PASS**
+- [x] **Step 3: Run the full node suite — expect PASS**
 
 Run: `npm run test:node`
 Expected: all PASS.
