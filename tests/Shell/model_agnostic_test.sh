@@ -9,6 +9,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -24,6 +25,10 @@
 # and package docs (packages/*/docs) are scanned and must stay clean.
 
 set -euo pipefail
+
+# Deterministic matching regardless of the caller's locale: bracket
+# expressions and case-folding must not depend on collation.
+export LC_ALL=C
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
@@ -74,7 +79,7 @@ fi
 # hook_portability_test.sh). One grep per file, one FAIL per file so the
 # summary tally counts files, not lines. Fail closed: a missing scan root
 # (wrong checkout shape) must not make the scan vacuously pass.
-SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages/prism-core" "$REPO_ROOT/packages/prism-php-web")
+SCAN_ROOTS=("$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages")
 for root in "${SCAN_ROOTS[@]}"; do
 	[ -d "$root" ] || fail "missing scan root: $root"
 done
@@ -144,6 +149,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

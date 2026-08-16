@@ -22,6 +22,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -132,12 +133,15 @@ fi
 # the same forced-off environment, on the same focused test file. The
 # launcher gates every run on the core contract's external tools
 # (semgrep/ocr) before dispatching any component — stub them on PATH with
-# in-range versions so the smoke always exercises the injection,
-# independent of the host's real tooling.
+# versions read from the contract's own ranges so the smoke always
+# exercises the injection, independent of the host's real tooling and of
+# future range adjustments.
 STUB_DIR="$(mktemp -d)"
 register_temp_dir "$STUB_DIR"
-printf '#!/usr/bin/env bash\nprintf "1.174.0\\n"\n' > "$STUB_DIR/semgrep"
-printf '#!/usr/bin/env bash\nprintf "open-code-review v1.9.2 linux/amd64\\n"\n' > "$STUB_DIR/ocr"
+SEMGREP_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "semgrep").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json")"
+OCR_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "ocr").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json")"
+printf '#!/usr/bin/env bash\nprintf "%s\\n"\n' "$SEMGREP_STUB_VER" > "$STUB_DIR/semgrep"
+printf '#!/usr/bin/env bash\nprintf "open-code-review v%s linux/amd64\\n"\n' "$OCR_STUB_VER" > "$STUB_DIR/ocr"
 chmod +x "$STUB_DIR/semgrep" "$STUB_DIR/ocr"
 set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off PATH="$STUB_DIR:$PATH" node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
@@ -151,6 +155,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
