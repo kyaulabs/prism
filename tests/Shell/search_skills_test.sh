@@ -8,6 +8,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -43,6 +44,27 @@ set -e
 [ "$posint_rc" -eq 2 ] && grep -q 'SEARXNG_RESULT_LIMIT must be a positive integer' /tmp/prism-posint-error \
 	&& pass 'leading-zero limit rejected' || fail "leading-zero limit rc=$posint_rc"
 
+printf '%s\n' '── shared search validation helpers: unit contract ──'
+# Hermetic checks of the lib's exit codes, sourcing it directly so a missing
+# curl/node on the host cannot mask the assertion under test.
+unit_rc() {
+	local expected="$1" label="$2"; shift 2
+	set +e
+	SKILL='test' bash -c 'source "$1"; "${@:2}"' _ "$LIB" "$@" >/dev/null 2>&1
+	local rc=$?
+	set -e
+	[ "$rc" -eq "$expected" ] && pass "$label" || fail "$label rc=$rc"
+}
+
+unit_rc 2 'usage_guard exits 2' usage_guard 0
+unit_rc 3 'require_cmd exits 3' require_cmd prism-nonexistent-tool 'tool is required.'
+unit_rc 4 'require_env exits 4' require_env DEEPSEEK_API_KEY
+unit_rc 2 'require_posint rejects empty' require_posint MAX  ''
+unit_rc 2 'require_posint rejects zero' require_posint MAX 0
+unit_rc 2 'require_posint rejects leading zero' require_posint MAX 00
+unit_rc 2 'require_posint rejects non-numeric' require_posint MAX abc
+unit_rc 0 'require_posint accepts valid' require_posint MAX 10
+
 printf '%s\n' '── search skills: secret handling ──'
 if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
 	fail 'websearch can print the key value'
@@ -69,6 +91,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

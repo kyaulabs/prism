@@ -3,6 +3,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -14,6 +15,8 @@
 #   - require_cmd <exe> <body>: '<SKILL>: <body>' (e.g. 'curl is required.')  exit 3
 #   - require_env <VAR>:    '<SKILL>: <VAR> is not set. Configure it in the
 #                            environment; never pass it as an argument.'      exit 4
+#                            (the variable must be set AND non-empty; an empty
+#                            value is treated as missing — fail closed)
 #   - require_posint <VAR> <value>: '<SKILL>: <VAR> must be a positive
 #                            integer.'                                        exit 2
 
@@ -44,6 +47,7 @@ require_posint() {
 		exit 2
 	fi
 }
+
 
 
 
