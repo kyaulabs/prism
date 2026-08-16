@@ -1,5 +1,6 @@
 // $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -19,10 +20,8 @@ test("env files denied; .env.example exempt including glued forms", () => {
     assert.equal(sensitiveOperandCheck("cat .env", OPTS)?.className, "env");
     assert.equal(sensitiveOperandCheck("cat .env.local", OPTS)?.className, "env");
     assert.equal(sensitiveOperandCheck("cat .env.example", OPTS), null);
-    // Anomaly pinned pre-fix: -d@.env.example falls through to dynamic
-    // (isEnvExampleRef prefix regex bug); user-approved fix flips this in
-    // the follow-up fix(security) commit.
-    assert.equal(sensitiveOperandCheck("cat -d@.env.example", OPTS)?.className, "dynamic");
+    assert.equal(sensitiveOperandCheck("cat -d@.env.example", OPTS), null);
+    assert.equal(sensitiveOperandCheck("cat --opt=.env.example", OPTS), null);
 });
 
 test("glued and option-prefixed credential forms fall back to dynamic", () => {
@@ -47,6 +46,7 @@ test("non-string or empty input passes", () => {
     assert.equal(sensitiveOperandCheck(undefined as unknown as string, OPTS), null);
     assert.equal(sensitiveOperandCheck("", OPTS), null);
 });
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

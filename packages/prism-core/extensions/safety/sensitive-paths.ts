@@ -1,4 +1,5 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -69,7 +70,7 @@ const SENSITIVE_FALLBACK_RE =
  * remains denied. Mirrors the basename exemption in sensitivePathMatch.
  */
 function isEnvExampleRef(token: string): boolean {
-    const bare = token.replace(/^-[^=]*@?/, "").replace(/^@/, "");
+    const bare = token.replace(/^-{1,2}[^=@]*[=@]/, "").replace(/^@/, "");
     return (bare.split("/").pop() ?? "") === ".env.example";
 }
 
@@ -289,6 +290,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

@@ -293,7 +293,7 @@ git commit -S -m $'test(safety): characterize sensitive-path operand checks\n\nI
   `-d@~/.ssh/id_rsa.env.example`, `--output=~/.aws/credentials`, bare `-d`
   unchanged (denied / clean).
 
-- [ ] **Step 1: Fix the prefix-strip regex**
+- [x] **Step 1: Fix the prefix-strip regex**
 
 In `isEnvExampleRef`, change:
 
@@ -312,7 +312,7 @@ Verified against all six documented forms: `-d@.env.example` and
 unchanged; `-d@~/.ssh/id_rsa.env.example` still denied (basename guard);
 `--output=~/.aws/credentials` still denied; bare `-d` still clean.
 
-- [ ] **Step 2: Flip the expectation + add the `--opt=` case**
+- [x] **Step 2: Flip the expectation + add the `--opt=` case**
 
 In the test, replace the pinned `dynamic` assertion with:
 
@@ -321,12 +321,12 @@ In the test, replace the pinned `dynamic` assertion with:
     assert.equal(sensitiveOperandCheck("cat --opt=.env.example", OPTS), null);
 ```
 
-- [ ] **Step 3: Run — expect PASS**
+- [x] **Step 3: Run — expect PASS**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: 7/7 PASS (previously failing assertion now green).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts tests/Node/safety-sensitive-paths.test.ts
@@ -652,7 +652,7 @@ Run: `npx tsc --noEmit`
 Expected: exits 0 (extension files currently fall outside tsconfig include —
 this step is a no-op smoke check until Task 8).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts
@@ -719,7 +719,7 @@ plus the three-way ladder) with:
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts
@@ -796,7 +796,7 @@ function resolveTarget(token: string, projectDir: string, home: string): string 
 Run: `npm run test:node`
 Expected: all PASS (classify + sensitive-paths + breaker + existing JS tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts packages/prism-core/extensions/safety/pre-tool-use.ts
@@ -832,7 +832,7 @@ modeline — i.e. the `ToolCallSnapshot` docblock/interface,
 Run: `npm run test:node`
 Expected: all PASS, including `safety-circuit-breaker.test.ts`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/denial-circuit-breaker.ts
@@ -867,7 +867,7 @@ lines, halt and re-plan with the user (spec risk clause).
 Run: `npm run test:node`
 Expected: all PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tsconfig.json
@@ -937,7 +937,7 @@ diff /tmp/out-ci.txt /tmp/out-pkg.txt && echo BYTE-IDENTICAL
 
 Expected: `BYTE-IDENTICAL` and both runs exit 0 with a PASS line.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/scripts/coverage-gate.php
@@ -1004,7 +1004,7 @@ Replace the header echo + four print loops in `main()` with:
 Run: `bash tests/Shell/coverage_gate_test.sh` — all PASS.
 Then re-run Task 9's Step 3 fixture byte-diff (both entry points) — `BYTE-IDENTICAL`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-php-web/scripts/coverage-gate.php
