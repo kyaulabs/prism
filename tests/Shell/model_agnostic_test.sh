@@ -10,6 +10,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -47,12 +48,14 @@ PATTERNS='deepseek-v4([^a-z_]|$)|deepseek/deepseek-v4([^a-z_]|$)|default[-_]?mod
 # ── 0. Pattern self-test (the ADR-0067 guarantee rides on this regex) ─────
 for pos in \
 	'deepseek-v4-flash' 'deepseek/deepseek-v4-pro' \
-	defaultModel default_model 'defaultProvider": "x' defaultThinkingLevel default-thinking-level default-provider \
-	enabledModels enabled_models enabled-models 'judge model' 'primary models' judgeModel; do
+	defaultModel default_model default-model 'defaultProvider": "x' defaultThinkingLevel default-thinking-level default-provider \
+	enabledModels enabled_models enabled-models \
+	'judge model' judge-model judge_model judgeModel \
+	'primary models' primary-model primary_model primaryModel; do
 	printf '%s\n' "$pos" | grep -qiE "$PATTERNS" \
 		|| fail "pattern self-test missed positive: $pos"
 done
-for neg in 'primary deliverable' 'default model prose' 'judgment call' default_model_id; do
+for neg in 'primary deliverable' 'default model prose' 'judgment call' default_model_id defaultModelId; do
 	printf '%s\n' "$neg" | grep -qiE "$PATTERNS" \
 		&& fail "pattern self-test matched negative: $neg"
 done
@@ -61,9 +64,9 @@ done
 SCAN_TMP0="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP0"
 set +e
-find -L "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
+find "$REPO_ROOT/.pi" "$REPO_ROOT/.github" "$REPO_ROOT/.prism" "$REPO_ROOT/packages" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
-	-type f -name 'models.json' -print > "$SCAN_TMP0/list" 2>&1
+	-type f -iname 'models.json' -print > "$SCAN_TMP0/list" 2>&1
 MODELS_RC=$?
 set -e
 if [ "$MODELS_RC" -ne 0 ]; then
@@ -103,8 +106,9 @@ SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
 # Deny-list scan: every file under the roots is a living surface unless
 # explicitly excluded — a future file type cannot evade the contract.
-# Pruned dirs are not descended into.
-find -L "${SCAN_ROOTS[@]}" \
+# Pruned dirs are not descended into. Symlinks are not followed: a link
+# pointing outside the repo must never be scanned.
+find "${SCAN_ROOTS[@]}" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
@@ -149,6 +153,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

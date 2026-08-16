@@ -5,24 +5,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -56,11 +38,7 @@ fi
 # validate-harness_test.sh (which runs the full validator in the suite);
 # this test does not repeat that whole-repo run.
 
-# ── 2. Behavior smoke: launcher prepends the prefix ─────────────────────────
-# Functional proof: the forced-off smoke below proves the prefix is applied
-# at spawn time; validator schema acceptance is covered by the suite.
-
-# ── 3. Deterministic coverage smoke (forced pcov-off) ───────────────────────
+# ── 2. Deterministic coverage smoke (forced pcov-off) ───────────────────────
 # The argvPrefix targets pcov specifically. Only run when pcov is the
 # loaded driver; xdebug-only environments cannot exercise the injection
 # (xdebug.mode is untouched by the prefix), and driver-less environments
@@ -155,25 +133,6 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
