@@ -12,6 +12,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -58,7 +59,7 @@ const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 
 const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
-const MAX_UNWRAP_DEPTH = 3;
+export const MAX_UNWRAP_DEPTH = 3;
 
 const SENSITIVE_FALLBACK_RE =
     /\.env(\.|$)|\bauth\.json\b|mcp-auth\.json|intelephense|opencodereview|\.config\/opencode|\.ssh\/|\.aws\/|\.netrc|git-credentials|\/etc\/ssl\//;
@@ -218,14 +219,33 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
     return "none";
 }
 
-function resolveOperand(token: string, opts: SensitivePathOptions): string | null {
+/**
+ * Resolve one command token to an absolute path, or null when it cannot be
+ * resolved safely (metacharacters, or `=`-assignments when rejected).
+ *
+ * Shared by the bash classifier (pre-tool-use.ts) and the sensitive-path
+ * check so quote-strip / ~-expand / bail semantics cannot drift between the
+ * two gates (audit finding 5). `rejectAssignments` preserves resolveOperand's
+ * historical `=` bail; the classifier's rm-operand path intentionally stays
+ * `=`-tolerant.
+ */
+export function resolvePathToken(token: string, projectDir: string, home: string,
+                                 opts: { rejectAssignments?: boolean } = {}): string | null {
     let p = token.trim();
-    if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) {
+    if (
+        (p.startsWith('"') && p.endsWith('"')) ||
+        (p.startsWith("'") && p.endsWith("'"))
+    ) {
         p = p.slice(1, -1);
     }
-    if (p.startsWith("~")) p = opts.home + p.slice(1);
-    if (p.includes("=") || /[*?$`(<]/.test(p)) return null;
-    return normalize(resolvePath(opts.projectDir, p));
+    if (p.startsWith("~")) p = home + p.slice(1);
+    if (opts.rejectAssignments && p.includes("=")) return null;
+    if (/[*?$`(<]/.test(p)) return null;
+    return normalize(resolvePath(projectDir, p));
+}
+
+function resolveOperand(token: string, opts: SensitivePathOptions): string | null {
+    return resolvePathToken(token, opts.projectDir, opts.home, { rejectAssignments: true });
 }
 
 export function sensitiveOperandCheck(command: string, opts: SensitivePathOptions): SensitiveMatch | null {
@@ -301,6 +321,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

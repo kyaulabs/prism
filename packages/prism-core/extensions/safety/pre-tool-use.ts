@@ -13,9 +13,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -55,9 +56,6 @@ const SAFE_ABS_DIRS: readonly string[] = [
     normalize("/var/tmp"),
     normalize(tmpdir()),
 ];
-
-/** Maximum recursion depth for wrapper unwrapping. */
-const MAX_UNWRAP_DEPTH = 3;
 
 interface ParsedRm {
     recursive: boolean;
@@ -174,20 +172,7 @@ function expandShortFlags(token: string): string[] {
 }
 
 function resolveTarget(token: string, projectDir: string, home: string): string | null {
-    let p = token.trim();
-    if (
-        (p.startsWith('"') && p.endsWith('"')) ||
-        (p.startsWith("'") && p.endsWith("'"))
-    ) {
-        p = p.slice(1, -1);
-    }
-    if (p.startsWith("~")) {
-        p = home + p.slice(1);
-    }
-    if (/[*?$`(<]/.test(p)) {
-        return null;
-    }
-    return normalize(resolvePath(projectDir, p));
+    return resolvePathToken(token, projectDir, home);
 }
 
 function isWithinSafeZone(absPath: string, projectDir: string, safeRelDirs: readonly string[]): boolean {
@@ -394,6 +379,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

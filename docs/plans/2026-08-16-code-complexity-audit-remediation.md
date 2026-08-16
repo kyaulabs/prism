@@ -740,7 +740,7 @@ git commit -S -m $'refactor(safety): extract judgeToken predicate\n\nImplemented
   `export const MAX_UNWRAP_DEPTH = 3` in `sensitive-paths.ts`; `resolveTarget` and
   `resolveOperand` become one-line delegates.
 
-- [ ] **Step 1: Add the shared resolver + export the depth constant**
+- [x] **Step 1: Add the shared resolver + export the depth constant**
 
 In `sensitive-paths.ts`:
 - Change `const MAX_UNWRAP_DEPTH = 3;` → `export const MAX_UNWRAP_DEPTH = 3;`
@@ -777,7 +777,7 @@ function resolveOperand(token: string, opts: SensitivePathOptions): string | nul
 }
 ```
 
-- [ ] **Step 2: Update pre-tool-use.ts**
+- [x] **Step 2: Update pre-tool-use.ts**
 
 In `pre-tool-use.ts`:
 - Change the import to:
@@ -791,7 +791,7 @@ function resolveTarget(token: string, projectDir: string, home: string): string 
 }
 ```
 
-- [ ] **Step 3: Run the full node suite — expect PASS**
+- [x] **Step 3: Run the full node suite — expect PASS**
 
 Run: `npm run test:node`
 Expected: all PASS (classify + sensitive-paths + breaker + existing JS tests).
