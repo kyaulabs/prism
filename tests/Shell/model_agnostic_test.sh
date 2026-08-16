@@ -23,6 +23,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -34,8 +35,8 @@
 # model phrases (incl. camelCase, kebab, and plural variants). Generic
 # pinning keys for other providers are not scanned; extend PATTERNS when a
 # new offender appears. Repo-root historical records (adr/, docs/,
-# CHANGELOG.md, NOTICE) are outside the scan roots by construction; package
-# docs (packages/*/docs) are living surfaces and ARE scanned.
+# CHANGELOG.md) are outside the scan roots by construction; package NOTICE
+# and package docs (packages/*/docs) are scanned and must stay clean.
 
 set -euo pipefail
 
@@ -109,13 +110,15 @@ SCAN_TMP="$(mktemp -d)"
 register_temp_dir "$SCAN_TMP"
 SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
-find "${SCAN_ROOTS[@]}" \
-	-type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' -o -name '*.ts' \
-	-o -name '*.php' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' \
-	-o -name 'Dockerfile' -o -name 'Makefile' \) \
+# Deny-list scan: every file under the roots is a living surface unless
+# explicitly excluded — a future file type cannot evade the contract.
+find "${SCAN_ROOTS[@]}" -type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
-	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' \
-	-not -path '*/tests/*' \
+	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' -not -path '*/tests/*' \
+	-not -name '*.lock' -not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
+	-not -name '*.png' -not -name '*.jpg' -not -name '*.jpeg' -not -name '*.gif' \
+	-not -name '*.svg' -not -name '*.ico' -not -name '*.woff' -not -name '*.woff2' \
+	-not -name '*.ttf' -not -name '*.eot' -not -name '*.pdf' \
 	> "$SCAN_LIST" 2>&1
 FIND_RC=$?
 set -e
@@ -133,7 +136,7 @@ VIOLATIONS=0
 for f in "${FILES[@]}"; do
 	[ -f "$f" ] || continue
 	set +e
-	MATCHES="$(grep -HnEi -- "$PATTERNS" "$f" 2>&1)"
+	MATCHES="$(grep -HnIi -- "$PATTERNS" "$f" 2>&1)"
 	GREP_RC=$?
 	set -e
 	if [ "$GREP_RC" -gt 1 ]; then
@@ -153,6 +156,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

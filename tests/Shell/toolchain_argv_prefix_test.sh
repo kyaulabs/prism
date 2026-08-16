@@ -19,6 +19,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -106,21 +107,23 @@ if [ "$FORCED_STATE" != "0" ]; then
 fi
 
 # Negative control: pest run directly (no launcher) with the driver forced
-# off must FAIL with the driver-absence symptom — proves this environment
-# is red-capable for the regression, for the right reason. Uses one fast,
-# deterministic test file so the control never couples to unrelated suite
-# health. XDEBUG_MODE=off isolates pcov in mixed-driver environments.
+# off must FAIL, while the same command with the driver forced ON must
+# PASS — proves this environment is red-capable for the regression without
+# coupling to any error wording. Uses one fast, deterministic test file so
+# the control never couples to unrelated suite health. XDEBUG_MODE=off
+# isolates pcov in mixed-driver environments.
 set +e
 CTRL_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=0 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
 CONTROL_RC=$?
+POS_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off php -d pcov.enabled=1 -d xdebug.mode=off "$PEST_BIN" --coverage tests/Unit/EnvBoolTest.php 2>&1)
+POS_RC=$?
 set -e
-if [ "$CONTROL_RC" -ne 0 ] \
-	&& printf '%s' "$CTRL_OUT" | grep -qiE "coverage" \
-	&& printf '%s' "$CTRL_OUT" | grep -qiE "driver|pcov|xdebug"; then
-	pass "negative control: direct pest with driver off fails on the driver symptom (rc=$CONTROL_RC)"
+if [ "$CONTROL_RC" -ne 0 ] && [ "$POS_RC" -eq 0 ]; then
+	pass "negative control: driver off fails ($CONTROL_RC), driver on passes ($POS_RC)"
 else
-	fail "negative control: direct pest with driver off did not fail on the driver symptom (rc=$CONTROL_RC)"
+	fail "negative control: driver off rc=$CONTROL_RC, driver on rc=$POS_RC (expected fail/pass)"
 	printf '%s\n' "$CTRL_OUT" | tail -5 >&2
+	printf '%s\n' "$POS_OUT" | tail -5 >&2
 fi
 
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
@@ -146,6 +149,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
