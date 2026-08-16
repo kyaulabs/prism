@@ -1040,12 +1040,12 @@ Expected: a version whose eslint peer range includes 10.x, compatible with the
 installed `typescript` (^7.0.2) and eslint 10.8.1. **If none exists, stop here,
 report, and drop this task** (spec risk clause) — do not downgrade eslint.
 
-- [ ] **Step 2: Install the dev dependency**
+- [x] ~~**Step 2: Install the dev dependency**~~ (skipped — C2 dropped)
 
 Run: `npm install --save-dev typescript-eslint`
 Expected: lockfile + package.json updated; commit the lockfile.
 
-- [ ] **Step 3: Add the TS block to eslint.config.mjs**
+- [x] ~~**Step 3: Add the TS block to eslint.config.mjs**~~ (skipped — C2 dropped)
 
 Add `import tseslint from "typescript-eslint";` at the top, and a new config
 object:
@@ -1073,13 +1073,13 @@ object:
 },
 ```
 
-- [ ] **Step 4: Extend the CI eslint step**
+- [x] ~~**Step 4: Extend the CI eslint step**~~ (skipped — C2 dropped)
 
 In `.github/workflows/ci.yml`:
 - `hashFiles` guard: add `'packages/**/*.ts', 'tests/Node/**/*.ts'`
 - eslint globs: add `"packages/**/*.ts" "tests/Node/**/*.ts"`
 
-- [ ] **Step 5: Verify**
+- [x] ~~**Step 5: Verify**~~ (skipped — C2 dropped)
 
 Run: `npx eslint "packages/**/*.ts" "tests/Node/**/*.ts" --no-error-on-unmatched-pattern`
 Expected: exits 0 with at most warn-level output (the refactored extension must
@@ -1087,7 +1087,7 @@ be under the thresholds after Tasks 4-7).
 
 Run: `npm run test:node` and `npx tsc --noEmit` — both PASS.
 
-- [ ] **Step 6: Commit**
+- [x] ~~**Step 6: Commit**~~ (skipped — C2 dropped)
 
 ```bash
 git add package.json package-lock.json eslint.config.mjs .github/workflows/ci.yml
