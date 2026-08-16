@@ -16,6 +16,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -72,7 +73,7 @@ register_temp_dir "$SCAN_TMP0"
 set +e
 find "$REPO_ROOT" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \
-	-o -path '*/adr' -o -path '*/docs' \) -prune -o \
+	-o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
 	-type f \( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2> "$SCAN_TMP0/find.err"
 MODELS_RC=$?
 set -e
@@ -119,7 +120,7 @@ set +e
 # followed: a link pointing outside the repo must never be scanned.
 find "${SCAN_ROOTS[@]}" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \
-	-o -path '*/aurora' -o -path '*/adr' -o -path '*/docs' \) -prune -o \
+	-o -path '*/aurora' -o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -name '*.lock' -not -name 'package-lock.json' -not -name 'pnpm-lock.yaml' -not -name 'composer.lock' \
@@ -162,6 +163,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
