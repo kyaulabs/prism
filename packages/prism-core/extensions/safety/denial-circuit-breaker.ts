@@ -1,9 +1,5 @@
 // $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
-
-
-
-
 /**
  * Pure state machine for the consecutive-bash-denial circuit breaker
  * (issue #274).
@@ -139,6 +135,11 @@ export class DenialCircuitBreaker {
         return this.counts.get(sessionID) ?? 0;
     }
 }
+
+
+
+
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

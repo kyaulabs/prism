@@ -15,6 +15,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -216,9 +217,10 @@ type CommandRule = (command: string, tokens: string[], ctx: RuleCtx) => Finding 
 
 const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
 
-// Whole-command rules run after the segment phase, in this order: block
-// results win over warns (ADR-0023/0036), matching the pre-refactor
-// statement order.
+// Whole-command rules run after the segment phase in the pre-refactor
+// statement order: warn-level rules first, then block-level rules. The
+// segment-phase blocks (rm/find) still win over whole-command warns
+// because they run earlier; within this array the first match wins.
 const COMMAND_RULES: readonly CommandRule[] = [
     sqlDropWarn,
     gitResetWarn,
@@ -384,6 +386,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

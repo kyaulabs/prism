@@ -1,18 +1,5 @@
 // $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -321,6 +308,18 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

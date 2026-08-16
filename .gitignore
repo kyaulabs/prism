@@ -38,6 +38,7 @@ prototype_*
 # Vestigial guard: Graphify was purged (ADR-0039) but graphify-out/ may linger
 # as a local build artifact until manually deleted (rm -rf graphify-out/).
 # Kept ignored so it cannot be accidentally committed; safe to remove once gone.
+graphify-out/
 
 # External audit reports (never committed; local review artifacts)
 audits/

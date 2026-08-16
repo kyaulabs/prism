@@ -34,6 +34,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -255,15 +258,6 @@ function exit_code_for(array $result, bool $strict): int
 }
 
 /**
- * Thin CLI entry — parses args, reads stdin, loads Clover, classifies, prints, exits.
- *
- * @param int               $argc
- * @param array<int,string> $argv
- * @param string            $stdin  Stream/path to read changed-file list from
- *                                  (default 'php://stdin'); overridable by tests.
- * @return int
- */
-/**
  * Print the per-file coverage gate report.
  *
  * Output format is part of the CLI contract (asserted by
@@ -292,6 +286,15 @@ function print_report(array $result, int $min): void
     echo "\n";
 }
 
+/**
+ * Thin CLI entry — parses args, reads stdin, loads Clover, classifies, prints, exits.
+ *
+ * @param int               $argc
+ * @param array<int,string> $argv
+ * @param string            $stdin  Stream/path to read changed-file list from
+ *                                  (default 'php://stdin'); overridable by tests.
+ * @return int
+ */
 function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
 {
     $args = parse_args($argv);
@@ -344,6 +347,7 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     }
     return $code;
 }
+
 
 
 
