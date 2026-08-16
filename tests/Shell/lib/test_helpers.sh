@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -25,6 +26,10 @@
 #   - make_file_stale <file> <days>: set file mtime to N days ago (portable)
 #   - can_symlink: return 0 if symlinks work, 1 if not (Windows guard)
 #   - native_path <path>: convert MSYS path to Windows path (no-op on POSIX)
+#   - path_without_prism_tool: print PATH minus the directory holding a
+#     host-installed prism-tool launcher (no-op when absent) — hook tests
+#     use it to simulate a machine without the launcher even on dogfooding
+#     machines where the harness is installed
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 export REPO_ROOT
@@ -157,6 +162,32 @@ can_symlink() {
 native_path() {
 	cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
 }
+
+# path_without_prism_tool — print PATH with the directory containing a
+# host-installed prism-tool launcher removed. Hook tests use this to
+# simulate a machine without the launcher even on dogfooding machines
+# where the harness is installed (the hooks' fail-closed guard relies on
+# `command -v prism-tool` finding nothing). No-op when no prism-tool is
+# on PATH. Requires the real prism-tool (or a fixture named prism-tool)
+# to be resolvable via the caller's PATH.
+path_without_prism_tool() {
+	local launcher_dir="" out="" part
+	if command -v prism-tool > /dev/null 2>&1; then
+		launcher_dir="$(dirname "$(command -v prism-tool)")"
+	fi
+	if [ -z "$launcher_dir" ]; then
+		printf '%s' "$PATH"
+		return 0
+	fi
+	IFS=: read -r -a parts <<< "$PATH"
+	for part in "${parts[@]}"; do
+		if [ -n "$part" ] && [ "$part" != "$launcher_dir" ]; then
+			out="${out:+$out:}$part"
+		fi
+	done
+	printf '%s' "$out"
+}
+
 
 
 

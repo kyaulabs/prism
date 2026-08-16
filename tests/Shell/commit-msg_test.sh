@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -90,7 +91,7 @@ STUB
 	printf 'feat: test\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
 
 	set +e
-	output=$(PATH="$T1/bin:$PATH" env -u PRISM_TOOL "$REAL_HOOK" msg 2>&1)
+	output=$(PATH="$T1/bin:$(path_without_prism_tool)" env -u PRISM_TOOL "$REAL_HOOK" msg 2>&1)
 	ret=$?
 	set -e
 
@@ -493,6 +494,7 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
+
 
 
 

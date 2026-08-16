@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: lib_test.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: lib_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -208,6 +209,37 @@ test_native_path() {
 	fi
 }
 
+# Test 14: path_without_prism_tool strips a host-installed launcher dir
+# (no-op when absent) — hook tests rely on this to simulate a machine
+# without the launcher on dogfooding machines.
+test_path_without_prism_tool() {
+	local fake_dir stripped original_path
+	original_path="$PATH"
+	fake_dir=$(mktemp -d)
+	register_temp_dir "$fake_dir"
+	touch "$fake_dir/prism-tool"
+	chmod +x "$fake_dir/prism-tool"
+
+	PATH="$fake_dir:/usr/bin:/bin"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [[ ":$stripped:" != *":$fake_dir:"* ]] && [[ ":$stripped:" == *":/usr/bin:"* ]]; then
+		pass "path_without_prism_tool strips the launcher dir"
+	else
+		fail "path_without_prism_tool kept launcher dir: $stripped"
+	fi
+
+	# No-op when no prism-tool is on PATH (fake dir removed from PATH).
+	PATH="/usr/bin:/bin"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = "/usr/bin:/bin" ]; then
+		pass "path_without_prism_tool is a no-op without a launcher"
+	else
+		fail "path_without_prism_tool altered PATH without a launcher: $stripped"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
@@ -223,10 +255,12 @@ test_setup_linter_repo
 test_skip_helper
 test_can_symlink
 test_native_path
+test_path_without_prism_tool
 
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_hooks_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: toolchain_hooks_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -44,7 +45,7 @@ register_temp_dir "$T1"
 	cd "$T1"
 	printf 'feat: sample\n' > msg
 	set +e
-	output=$(env -u PRISM_TOOL bash "$COMMIT_MSG_HOOK" msg 2>&1)
+	output=$(PATH="$(path_without_prism_tool)" env -u PRISM_TOOL bash "$COMMIT_MSG_HOOK" msg 2>&1)
 	ret=$?
 	set -e
 	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -qE '/setup|install-global'; then
@@ -296,7 +297,7 @@ STUB
 	git commit -q -m 'initial'
 	LOCAL_OID=$(git rev-parse HEAD)
 	set +e
-	output=$(env -u PRISM_TOOL bash "$PRE_PUSH" <<< "refs/heads/feat/t-user-abc3-feature $LOCAL_OID refs/heads/feat/t-user-abc3-feature $ZERO_OID" 2>&1)
+	output=$(PATH="$(path_without_prism_tool)" env -u PRISM_TOOL bash "$PRE_PUSH" <<< "refs/heads/feat/t-user-abc3-feature $LOCAL_OID refs/heads/feat/t-user-abc3-feature $ZERO_OID" 2>&1)
 	ret=$?
 	set -e
 	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -qE '/setup|install-global'; then
@@ -308,6 +309,7 @@ STUB
 
 print_summary "toolchain hooks"
 exit $?
+
 
 
 
