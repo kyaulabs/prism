@@ -3,6 +3,7 @@
 
 
 
+
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
  *
@@ -49,9 +50,6 @@ import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "./denial-circuit-breake
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
 
-/** Fallback safe `rm -rf` dirs when neither adapter nor core safe-dirs resolve. */
-const FALLBACK_SAFE_REL_DIRS: readonly string[] = ["node_modules", ".pi/npm", ".pi/git"];
-
 interface SafeDirsFile {
     safe_rm_dirs?: unknown;
 }
@@ -84,7 +82,8 @@ function extractSafeDirs(data: unknown): readonly string[] | null {
  *      stack adapter (e.g. prism-php-web) is installed project-locally it
  *      ships/links its safe-dirs here. Present → used (replaces core default).
  *   2. Core default `safe-dirs.json` bundled next to this extension.
- *   3. Hardcoded fallback (never empty).
+ *   3. Fail-closed: empty (every `rm -rf` is blocked) when neither JSON
+ *      source resolves.
  *
  * OS temp dirs (`/tmp`, `/var/tmp`, `os.tmpdir()`) are already hardcoded in
  * `pre-tool-use.ts` (SAFE_ABS_DIRS) and are not adapter-driven.
@@ -95,7 +94,7 @@ function resolveSafeRelDirs(cwd: string): readonly string[] {
     const corePath = fileURLToPath(new URL("../../safe-dirs.json", import.meta.url));
     const core = extractSafeDirs(readJsonSync(corePath));
     if (core) return core;
-    return FALLBACK_SAFE_REL_DIRS;
+    return [];
 }
 
 /**
@@ -145,9 +144,8 @@ export default function (pi: ExtensionAPI) {
     /** Per-session consecutive-bash-denial circuit breaker (ADR-0042). */
     const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
 
-    /** Resolved per session (session_start). Defaults keep the gate usable
-     *  even before the first session_start fires. */
-    let safeRelDirs: readonly string[] = FALLBACK_SAFE_REL_DIRS;
+    /** Fail-closed until session_start resolves the safe zones. */
+    let safeRelDirs: readonly string[] = [];
     let extraPaths: string[] = [];
     const homeDir = homedir();
 
@@ -278,6 +276,7 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
+
 
 
 

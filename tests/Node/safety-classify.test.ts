@@ -1,10 +1,11 @@
 // $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
 
-const OPTS = { projectDir: "/repo" };
+const OPTS = { projectDir: "/repo", safeRelDirs: ["node_modules", "vendor"] };
 const CLEAN = { severity: null, reason: "" };
 
 test("empty command passes open", () => {
@@ -98,6 +99,7 @@ test("non-string command fails closed", () => {
     assert.equal(f.severity, "block");
     assert.match(f.reason, /internal error/);
 });
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

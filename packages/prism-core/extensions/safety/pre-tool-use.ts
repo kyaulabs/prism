@@ -16,6 +16,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -35,22 +36,12 @@ export interface ClassifyOptions {
     /**
      * Project-relative directories where `rm -rf` is permitted. Adapter-driven
      * (ADR-0056): the pi wrapper resolves this from the active adapter's
-     * `safe-dirs.json` (core default otherwise). When omitted, the built-in
-     * SAFE_REL_DIRS fallback applies. The classify algorithm itself is
-     * unchanged from the opencode-era plugin.
+     * `safe-dirs.json` (core default otherwise). When omitted, no
+     * project-relative directories are safe (fail closed, ADR-0036). The
+     * classify algorithm itself is unchanged from the opencode-era plugin.
      */
     safeRelDirs?: readonly string[];
 }
-
-/** Built-in fallback project-relative directories where rm -rf is permitted. */
-const SAFE_REL_DIRS: readonly string[] = [
-    "node_modules",
-    ".pi/npm",
-    ".pi/git",
-    "vendor",
-    "cdn/css",
-    "cdn/javascript",
-];
 
 /** OS-level temp directories where rm -rf is permitted. */
 const SAFE_ABS_DIRS: readonly string[] = [
@@ -236,7 +227,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
     const ctx: RuleCtx = {
         projectDir: opts.projectDir,
         home: process.env.HOME || "/",
-        safeRelDirs: opts.safeRelDirs ?? SAFE_REL_DIRS,
+        safeRelDirs: opts.safeRelDirs ?? [],
     };
     for (const segment of command.split(/[;&|\n]/)) {
         const tokens = tokenizeCommand(segment);
@@ -386,6 +377,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

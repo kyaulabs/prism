@@ -86,7 +86,8 @@ resolves them per session (`session_start`), in this order:
    extension), shape `{ "safe_rm_dirs": ["node_modules", ".git", ".pi/npm",
    ".pi/git", ".pi/prism-tool/work"] }`. The candidate workspace is the
    only safe Prism setup path; its parent remains outside the cleanup zone.
-3. **Hardcoded fallback** `["node_modules", ".pi/npm", ".pi/git"]`.
+3. **Fail-closed default** — no project-relative safe zones when neither
+   JSON source resolves (every `rm -rf` is blocked).
 
 OS temp dirs (`/tmp`, `/var/tmp`, `os.tmpdir()`) are hardcoded in
 `pre-tool-use.ts` (`SAFE_ABS_DIRS`) and are not adapter-driven.
