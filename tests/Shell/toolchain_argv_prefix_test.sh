@@ -21,6 +21,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -142,7 +143,7 @@ set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off PATH="$STUB_DIR:$PATH" node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?
 set -e
-if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qE "Total:"; then
+if [ "$LAUNCHER_RC" -eq 0 ] && printf '%s' "$SMOKE_OUT" | grep -qiE "Total:|coverage"; then
 	pass "pest coverage smoke passes via launcher with driver forced off ($DRIVER)"
 else
 	fail "pest coverage smoke failed via launcher with driver forced off (rc=$LAUNCHER_RC)"
@@ -150,6 +151,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 

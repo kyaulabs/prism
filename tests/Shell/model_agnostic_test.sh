@@ -5,26 +5,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -113,14 +93,16 @@ SCAN_LIST="$SCAN_TMP/scan-list"
 set +e
 # Deny-list scan: every file under the roots is a living surface unless
 # explicitly excluded — a future file type cannot evade the contract.
-find "${SCAN_ROOTS[@]}" -type f \
+# Pruned dirs are not descended into.
+find "${SCAN_ROOTS[@]}" \
+	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' \) -prune -o \
+	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
-	-not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/vendor/*' -not -path '*/tests/*' \
 	-not -name '*.lock' -not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
 	-not -name '*.png' -not -name '*.jpg' -not -name '*.jpeg' -not -name '*.gif' \
 	-not -name '*.svg' -not -name '*.ico' -not -name '*.woff' -not -name '*.woff2' \
 	-not -name '*.ttf' -not -name '*.eot' -not -name '*.pdf' \
-	> "$SCAN_LIST" 2>&1
+	-print > "$SCAN_LIST" 2>&1
 FIND_RC=$?
 set -e
 if [ "$FIND_RC" -ne 0 ]; then
@@ -157,27 +139,6 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
