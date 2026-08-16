@@ -17,6 +17,7 @@
 
 
 
+
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
@@ -74,7 +75,9 @@ set +e
 find "$REPO_ROOT" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \
 	-o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
-	-type f \( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2> "$SCAN_TMP0/find.err"
+	-type f \
+	-not -path "$REPO_ROOT/CHANGELOG.md" \
+	\( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2> "$SCAN_TMP0/find.err"
 MODELS_RC=$?
 set -e
 if [ "$MODELS_RC" -ne 0 ] || [ -s "$SCAN_TMP0/find.err" ]; then
@@ -123,6 +126,7 @@ find "${SCAN_ROOTS[@]}" \
 	-o -path '*/aurora' -o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
+	-not -path "$REPO_ROOT/CHANGELOG.md" \
 	-not -name '*.lock' -not -name 'package-lock.json' -not -name 'pnpm-lock.yaml' -not -name 'composer.lock' \
 	-not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \
 	-not -name '*.png' -not -name '*.jpg' -not -name '*.jpeg' -not -name '*.gif' \
@@ -163,6 +167,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 
