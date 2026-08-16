@@ -5,6 +5,7 @@
 
 
 
+
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
 # fix). Asserts the adapter's pest component declares the php -d pcov
@@ -116,8 +117,13 @@ fi
 # future range adjustments.
 STUB_DIR="$(mktemp -d)"
 register_temp_dir "$STUB_DIR"
-SEMGREP_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "semgrep").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json")"
-OCR_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "ocr").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json")"
+SEMGREP_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "semgrep").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json" 2>/dev/null || true)"
+OCR_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "ocr").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json" 2>/dev/null || true)"
+if [ -z "$SEMGREP_STUB_VER" ] || [ -z "$OCR_STUB_VER" ]; then
+	fail "could not read semgrep/ocr version ranges from the core toolchain contract"
+	print_summary "toolchain_argv_prefix"
+	exit $?
+fi
 printf '#!/usr/bin/env bash\nprintf "%s\\n"\n' "$SEMGREP_STUB_VER" > "$STUB_DIR/semgrep"
 printf '#!/usr/bin/env bash\nprintf "open-code-review v%s linux/amd64\\n"\n' "$OCR_STUB_VER" > "$STUB_DIR/ocr"
 chmod +x "$STUB_DIR/semgrep" "$STUB_DIR/ocr"
@@ -133,6 +139,7 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
+
 
 
 
