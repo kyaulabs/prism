@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -11,7 +12,7 @@ set -euo pipefail
 
 # shellcheck disable=SC2034  # consumed by the sourced search_common.sh
 SKILL=websearch
-# shellcheck source=../lib/search_common.sh
+# shellcheck disable=SC1091  # dynamic BASH_SOURCE path; search_common.sh is linted directly
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
 usage_guard "$#"
 require_cmd curl 'curl is required.'
@@ -153,6 +154,7 @@ if (results.length > 0) {
 	});
 }
 NODE
+
 
 
 

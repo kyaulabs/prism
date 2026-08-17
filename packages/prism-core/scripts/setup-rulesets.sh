@@ -21,6 +21,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -217,6 +218,7 @@ fi
 # ── Owned ruleset identification ──────────────────────────────────────────────
 # Select rulesets whose name exactly matches pr-only-integration
 
+# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 MATCHED_IDS=$(php -r '
 $list = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 if (!is_array($list)) { echo ""; exit(0); }
@@ -244,6 +246,7 @@ fi
 
 compare_owned() {
 	local actual_file="$1" expected_file="$2"
+	# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 	php -r '
 $actual = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 $expected = json_decode(file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
@@ -277,6 +280,7 @@ echo ($a === $b) ? "unchanged" : "update";
 
 compare_merge() {
 	local actual_file="$1" expected_file="$2"
+	# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 	php -r '
 $actual = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 $expected = json_decode(file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
@@ -371,6 +375,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 
