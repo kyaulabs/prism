@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-16
 - **Source:** `audits/2026-08-16-resilience-audit.md` (analyzed commit `0ad9930`; every finding re-verified against `develop` `588c0f7`)
-- **Status:** Approved (design discussion 2026-08-16)
+- **Status:** Approved (design discussion 2026-08-16; post-review hardening 2026-08-16)
 - **Type:** fix (resilience hardening — additive only, no behavior delta on existing outcomes)
 
 ## Background
@@ -19,24 +19,33 @@ changes, one is dispositioned with written rationale:
 | T2 | `gh api` calls without explicit timeout wrapper | 2 | **Live** — `setup-rulesets.sh:135,141,231,261,271,285` rely on gh's internal timeouts; failures are checked and reported. GNU `timeout` is not portable to macOS, so the audit's literal remediation needs a guard |
 | B1 | CI tool-install flakes share the failure domain with test results | 2 | **Disposition** — the audit itself rates the job split "optional" and calls T1's retry "the cheaper 90% solution"; existing bulkheads (per-job `timeout-minutes`, semgrep venv isolation) already present |
 
-The two skills' requests are idempotent (search POST/GET with no side
-effects), so retrying is safe. Both scripts exit 5 on transport failure and
-on any non-2xx; the retry helper must preserve those contracts exactly.
+The two skills' requests are idempotent in effect (search POST/GET with no
+side effects beyond API billing), so retrying is safe with the caveats
+recorded in D1 and Risks. Both scripts exit 5 on transport failure and on
+any non-2xx; the retry helper must preserve those contracts exactly.
+
+A post-approval code review (four axes incl. OCR, findings F1–F11) hardened
+the design further: D1 (timeout never retried; `Retry-After` honored),
+D5 (`run_gh` bounds `gh repo view` too; `gtimeout` fallback), D7 (test
+strengthening), and the Risks section. All review findings are resolved in
+this spec.
 
 ## Goals
 
 1. **R1:** a shared `search_request` retry helper in
    `packages/prism-core/skills/lib/search_common.sh`; both `search.sh`
-   scripts use it. Transient outcomes (transport failure, HTTP 429, HTTP
-   ≥ 500) retry up to 3 attempts with 2s/4s backoff; all other 4xx and
+   scripts use it. Transient outcomes (fast transport failures, HTTP 429
+   honoring `Retry-After`, HTTP ≥ 500) retry up to 3 attempts with 2s/4s
+   backoff; a curl timeout (rc 28) is never retried; all other 4xx and
    every 2xx pass through unchanged.
 2. **T1:** both CI download curls (`ci.yml:100`, `:121`) gain
    `--connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2`.
 3. **G1:** each search script prints a one-line hint naming the sibling
    skill on **both** hard-failure paths (transport failure and HTTP error).
-4. **T2:** a guarded `gh_api()` wrapper in `setup-rulesets.sh` caps each of
-   the 6 `gh api` calls at 60s where GNU `timeout` exists; falls back to a
-   bare `gh api` where it does not (macOS/BSD — zero behavior delta).
+4. **T2:** guarded `run_gh`/`gh_api` wrappers in `setup-rulesets.sh` cap
+   every `gh` network call (`gh api` ×6 and `gh repo view`) at 60s where
+   GNU `timeout` or Homebrew `gtimeout` exists; fall back to a bare call
+   only where neither is available (zero behavior delta on macOS/BSD).
 5. **B1:** documented disposition — T1's retry absorbs the install-flake
    mechanism; no CI job split.
 
@@ -48,10 +57,10 @@ on any non-2xx; the retry helper must preserve those contracts exactly.
   pointless 4xx (bad key, JSON-disabled instance) are never retried, and no
   curl ≥ 7.71 version floor is introduced.
 - **No new env-var surface** for retry tuning — fixed constants (3 attempts,
-  2s/4s backoff). YAGNI; the audit's numbers are sane.
-- **No changes to `gh auth status` or `gh repo view`** — T2 scopes to the 6
-  `gh api` sites; auth status is local, repo view is a single-shot probe
-  with existing failure handling.
+  2s/4s backoff, `Retry-After` capped at 30s). YAGNI; the audit's numbers
+  are sane.
+- **No changes to `gh auth status`** — it is a local (non-network) check;
+  `gh repo view` IS now bounded via `run_gh` (post-review F2).
 - **No `release.yml` changes** — it contains no curl downloads.
 - **No behavior delta** on any existing exit code, error message, success
   output, or `--retry`-less invocation. Every change is additive resilience
@@ -63,45 +72,76 @@ on any non-2xx; the retry helper must preserve those contracts exactly.
 
 New function in `packages/prism-core/skills/lib/search_common.sh`, added to
 the file's contract docblock (which already documents each helper's exit
-code and message as stable contract):
+code and message as stable contract). Post-review F4/F5/F6 hardening is
+included: a curl timeout (rc 28) is never retried (the server outcome is
+unknown — retrying could duplicate a billed request and would extend the
+request window), and a 429 honors `Retry-After` (capped at 30s) before
+falling back to the fixed backoff.
 
 ```bash
-#   - search_request <curl-args...>: runs curl with --silent --show-error
-#     and --write-out '%{http_code}' appended, retrying transient outcomes
-#     (transport failure, HTTP 429, HTTP >= 500) up to 3 attempts with
-#     2s/4s backoff. Prints the final HTTP status on stdout. Exits nonzero
-#     (curl's rc) on final transport failure.         exit (curl's rc)
+#   - search_request <curl-args...>: runs curl with --silent --show-error,
+#     --write-out '%{http_code}', and a private --dump-header temp file,
+#     retrying transient outcomes (fast transport failures, HTTP 429 honoring
+#     Retry-After capped at 30s, HTTP >= 500) up to 3 attempts with 2s/4s
+#     backoff. A curl timeout (rc 28) is never retried: the server outcome is
+#     unknown, so retrying could duplicate a billed request and would extend
+#     the request window. Callers must pass --output FILE so the response
+#     body is not captured into the status. Prints the final HTTP status on
+#     stdout. Exits nonzero on final transport failure.            exit 1
+
 search_request() {
-	local attempt=0
-	local status=''
+	local attempt=0 status='' curl_rc=0 header_file retry_after
+	header_file=$(mktemp)
 	while :; do
-		if status=$(curl --silent --show-error --write-out '%{http_code}' "$@"); then
+		: > "$header_file"
+		if status=$(curl --silent --show-error --write-out '%{http_code}' --dump-header "$header_file" "$@"); then
+			curl_rc=0
 			if [ "$status" != "429" ] && [ "$status" -lt 500 ]; then
 				break
+			fi
+		else
+			curl_rc=$?
+			if [ "$curl_rc" -eq 28 ]; then
+				break   # timeout: outcome unknown — never retry
 			fi
 		fi
 		attempt=$((attempt + 1))
 		if [ "$attempt" -ge 3 ]; then
 			break
 		fi
+		if [ "$status" = "429" ]; then
+			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { print $2 + 0; exit }' "$header_file")
+			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
+				[ "$retry_after" -gt 30 ] && retry_after=30
+				sleep "$retry_after"
+				continue
+			fi
+		fi
 		sleep $((2 * attempt))   # 2s, 4s — bounded linear backoff
 	done
+	rm -f "$header_file"
 	printf '%s\n' "$status"
-	[ -n "$status" ]
+	[ "$curl_rc" -eq 0 ]
 }
 ```
 
 Semantics, precisely:
 
-- The caller passes everything except `--silent --show-error` and
-  `--write-out '%{http_code}'`, including `--output "$FILE"`, method,
-  headers, data, `--connect-timeout`, `--max-time`, and the URL.
-- Retry predicate: curl exit code ≠ 0 (transport failure), or HTTP status
-  exactly 429, or HTTP status ≥ 500. Anything else — 2xx, 400, 401, 403,
-  and the rest of 4xx — breaks immediately.
+- The caller passes everything except `--silent --show-error`,
+  `--write-out '%{http_code}'`, and the private `--dump-header` file —
+  including `--output "$FILE"`, method, headers, data, `--connect-timeout`,
+  `--max-time`, and the URL. **Callers must pass `--output FILE`** so the
+  response body is never captured into the status (F4).
+- Retry predicate: curl exit code ≠ 0 with rc ≠ 28 (fast transport
+  failure), or HTTP status exactly 429, or HTTP status ≥ 500. Anything else
+  — 2xx, 400, 401, 403, the rest of 4xx, and **rc 28 (timeout)** — breaks
+  immediately.
 - Backoff: 2s after the first failure, 4s after the second; 3 attempts
-  total (1 initial + 2 retries). Max added latency 6s per invocation;
-  `--max-time` still bounds each attempt.
+  total (1 initial + 2 retries). On a 429, `Retry-After` (integer seconds)
+  from the response headers replaces the fixed backoff, capped at 30s; an
+  HTTP-date form or absent header falls back to the fixed backoff. Max
+  added latency 6s per invocation plus honored `Retry-After`; `--max-time`
+  still bounds each attempt.
 - Retries are silent — no stderr noise between attempts; the caller's
   existing error reporting (unchanged) is the single source of failure
   messages.
@@ -115,20 +155,16 @@ Semantics, precisely:
 - `set -euo pipefail` safety: the `if status=$(curl ...)` guard prevents
   `set -e` abort, and the function is invoked from a guarded `||` context
   in both callers (which also suppresses `set -e` for the function body);
-  `status` and `curl_rc` are assigned every iteration.
+  `status` and `curl_rc` are assigned every iteration; the header file is
+  truncated before each attempt so a stale `Retry-After` cannot leak.
 
 ### D2 — `websearch/search.sh` call-site change (R1, G1)
 
-- Replace the inline curl invocation (currently `HTTP_STATUS=$(curl
-  --silent --show-error ... 2> "$ERROR_FILE") || { ... exit 5; }`) with
-  `HTTP_STATUS=$(search_request --output "$RESPONSE_FILE" --request POST
-  --header 'content-type: application/json' --header "x-api-key:
-  ${DEEPSEEK_API_KEY}" --data-binary "@$REQUEST_FILE" --connect-timeout 15
-  --max-time 180 "$BASE_URL/v1/messages" 2> "$ERROR_FILE") || { ... exit 5;
-  }`. The transport-failure block, the HTTP-status block, and the
-  `head -c 500 "$ERROR_FILE"` reporting stay byte-identical. The
-  `2> "$ERROR_FILE"` redirection wraps the function call, so curl's stderr
-  still flows into `$ERROR_FILE`.
+- Replace the inline curl invocation with `search_request`, keeping
+  `--output`, `--request POST`, headers, data, `--connect-timeout 15`,
+  `--max-time 180`, the URL, and the `2> "$ERROR_FILE"` redirection on the
+  function call. The transport-failure block, the HTTP-status block, and
+  the `head -c 500 "$ERROR_FILE"` reporting stay byte-identical.
 - Add the G1 hint to **both** failure paths, immediately before each
   `exit 5`:
   - transport block: `printf 'websearch: hint — if this persists, the searxng skill is an alternative search backend.\n' >&2`
@@ -136,12 +172,9 @@ Semantics, precisely:
 
 ### D3 — `searxng/search.sh` call-site change (R1, G1)
 
-- Same pattern: replace the inline curl with
-  `HTTP_STATUS=$(search_request --output "$RESPONSE_FILE" --get
-  "$BASE_URL/search" --data-urlencode "q=$QUERY" --data-urlencode
-  'format=json' --data-urlencode "language=$LANGUAGE" --data-urlencode
-  "categories=$CATEGORIES" --data-urlencode "safesearch=$SAFESEARCH"
-  --connect-timeout 10 --max-time 60 2> "$ERROR_FILE") || { ... exit 5; }`.
+- Same pattern: replace the inline curl with `search_request`, keeping
+  `--output`, `--get`, the `--data-urlencode` fields, `--connect-timeout
+  10`, `--max-time 60`, and the `2> "$ERROR_FILE"` redirection.
 - Add the mirrored hint (`searxng: hint — if this persists, the websearch
   skill is an alternative search backend.`) to both failure paths.
 
@@ -160,52 +193,43 @@ No `--retry-all-errors`: only transient errors (timeouts, resets, 429, 5xx)
 are retried, and the next line's `sha256sum -c --strict -` still guards
 integrity — retries cannot admit a corrupt archive.
 
-### D5 — `gh_api()` guarded wrapper (T2)
+### D5 — `run_gh`/`gh_api` guarded wrappers (T2)
 
-In `setup-rulesets.sh`, after the `gh`/`php` presence checks:
+In `setup-rulesets.sh`, after the `gh`/`php` presence checks, define a
+single bounded runner and a thin `gh api` shim over it. Post-review F1/F2
+hardening: the runner also falls back to Homebrew coreutils `gtimeout`,
+and `gh repo view` (the repository detection call) is bounded too — the
+only unbounded `gh` invocation left is `gh auth status`, which is local.
 
 ```bash
-# gh_api: wrap gh api with a 60s cap where GNU timeout exists (Linux);
-# fall back to a bare call where it does not (macOS/BSD) so the script
-# remains portable.
-gh_api() {
-	if command -v timeout >/dev/```bash
-#   - search_request <curl-args...>: runs curl with --silent --show-error
-#     and --write-out '%{http_code}' appended, retrying transient outcomes
-#     (transport failure, HTTP 429, HTTP >= 500) up to 3 attempts with
-#     2s/4s backoff. Prints the final HTTP status on stdout. Exits nonzero
-#     on final transport failure.                              exit 1
-search_request() {
-	local attempt=0 status='' curl_rc=0
-	while :; do
-		if status=$(curl --silent --show-error --write-out '%{http_code}' "$@"); then
-			curl_rc=0
-			if [ "$status" != "429" ] && [ "$status" -lt 500 ]; then
-				break
-			fi
-		else
-			curl_rc=$?
-		fi
-		attempt=$((attempt + 1))
-		if [ "$attempt" -ge 3 ]; then
-			break
-		fi
-		sleep $((2 * attempt))   # 2s, 4s — bounded linear backoff
-	done
-	printf '%s\n' "$status"
-	[ "$curl_rc" -eq 0 ]
-}
-``` 2>&1; then
-		timeout 60 gh api "$@"
+# ── run_gh: bounded GitHub CLI calls ─────────────────────────────────────────
+# Wrap gh with a 60s cap where GNU timeout (or Homebrew coreutils gtimeout)
+# exists; fall back to a bare call only where neither is available, keeping
+# the script portable to macOS/BSD.
+run_gh() {
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 60 gh "$@"
+	elif command -v gtimeout >/dev/null 2>&1; then
+		gtimeout 60 gh "$@"
 	else
-		gh api "$@"
+		gh "$@"
 	fi
+}
+
+# gh_api: every gh api call is bounded via run_gh.
+gh_api() {
+	run_gh api "$@"
 }
 ```
 
-The 6 call sites (lines 135, 141, 231, 261, 271, 285) change `gh api` →
-`gh_api`, argument lists unchanged. Each call's existing `if ! ... then
-echo "Error: ..." >&2` handling is untouched.
+- The 6 `gh api` call sites (lines 135, 141, 231, 261, 271, 285) change
+  `gh api` → `gh_api`, argument lists unchanged.
+- `REPO=$(gh repo view --json nameWithOwner 2>/dev/null | php -r …)`
+  becomes `REPO=$(run_gh repo view --json nameWithOwner 2>/dev/null | php
+  -r …)`.
+- `gh auth status` stays bare (local check, no network).
+- Each call's existing `if ! ... then echo "Error: ..." >&2` handling is
+  untouched.
 
 ### D6 — B1 disposition (documented in this spec)
 
@@ -229,42 +253,58 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
 ### D7 — Tests
 
 - **Extend `tests/Shell/search_skills_test.sh`** with a fake-curl PATH
-  shim: a temp directory containing an executable `curl` that (a) writes
-  its `--output` argument file, (b) prints the configured HTTP status to
-  stdout (per-attempt status sequence read from a control file, so
-  retry-then-success scenarios are expressible), (c) exits 1 on attempts
-  marked as transport failures, and (d) counts invocations in a counter
-  file. Cases:
-  - 200 on first attempt → helper prints `200`, exits 0, curl invoked once.
+  shim driven by `FAKE_CURL_SEQ` (colon-separated per-attempt statuses;
+  `X` = fast transport failure exit 1, `T` = timeout exit 28) and
+  `FAKE_CURL_RETRY_AFTER` (writes a `retry-after:` header via
+  `--dump-header`). The shim parses `--output FILE`, `--output=FILE`,
+  `-o FILE`, and `-oFILE` (F10), counts invocations in `FAKE_CURL_LOG`,
+  and writes the body before deciding success. The case runner asserts
+  rc, stdout status, invocation count, the output body on rc=0 cases
+  (F9), and includes captured stderr in failures (F11). Cases:
+  - 200 on first attempt → prints `200`, exits 0, curl invoked once.
+  - 403 (non-retryable 4xx) → prints `403`, exits 0, curl invoked once.
+  - `T` (timeout) → exits nonzero, curl invoked **once** (never retried).
   - 429 then 200 → prints `200`, curl invoked twice.
+  - 429 with `Retry-After: 1` then 200 → prints `200`, curl invoked twice
+    (honors the header; 1s sleep instead of 2s).
   - transport failure twice then 200 → prints `200`, curl invoked 3 times.
   - 429 three times → prints `429`, exits 0, curl invoked 3 times (cap).
   - transport failure three times → helper exits nonzero, curl invoked
     3 times (cap).
-  - 403 (non-retryable 4xx) → prints `403`, exits 0, curl invoked once.
-  - Real 2s/4s sleeps — worst case ~6s in one test, acceptable for the
-    shell suite (consistent with the suite's existing real-execution
-    style).
-  - Grep assertions (existing suite style): both scripts now invoke
+  - Real sleeps — worst case ~21s in the section, acceptable for the shell
+    suite.
+  - Grep assertions (existing suite style): both scripts invoke
     `search_request` and no longer contain an inline `--write-out` curl;
     both G1 hint lines present in both failure paths of each script.
-- **Extend `tests/Shell/setup_rulesets_test.sh`** with `timeout`/`gh` PATH
-  stubs: with a fake `timeout` on PATH, `gh_api …` is observed invoking
-  `timeout 60 gh api …`; with no `timeout` on PATH, `gh_api …` invokes a
-  bare `gh api …`. (Stub mechanics follow the suite's existing
-  pass/fail/counter harness; exact seam confirmed during planning.)
-- **No PHP changes** — the `/check-php` coverage gate is unaffected.
+- **Extend `tests/Shell/setup_rulesets_test.sh`**:
+  - Test 29 (F7): static audit — strips the `gh_api()` definition and
+    comment lines, then asserts **zero** remaining `gh api ` mentions and
+    ≥ 6 `gh_api ` call sites (no magic count; catches bare calls in any
+    form — `if !`, `$(…)`, pipelines).
+  - Test 30: with a fake `timeout` shim on PATH (recording to
+    `FAKE_TIMEOUT_LOG`), `--dry-run` succeeds and the log contains both
+    `60 gh api …` and `60 gh repo view …` (F2).
+  - Test 31: minimal PATH without `timeout`/`gtimeout` → bare `gh api`
+    fallback; the required external tool set (bash, php, mktemp, cat,
+    grep, rm) is documented in the test (F8).
+  - Test 32: minimal PATH with only a fake `gtimeout` shim (host
+    `/usr/bin/timeout` hidden) → `gtimeout 60 gh api …` recorded (F1).
+- **Extend `tests/Shell/pi_ci_contract_test.sh`** (F3): besides the exact
+  flag-line assertion, a count-equality check proves **every** `curl
+  -fsSL` line in `ci.yml` carries the bound flag line — an unbounded
+  download cannot evade by wrapping across lines.
 
 ## Verification
 
 1. `bash tests/Shell/search_skills_test.sh` — existing + new cases green.
-2. `bash tests/Shell/setup_rulesets_test.sh` — existing + new cases green.
+2. `bash tests/Shell/setup_rulesets_test.sh` — 32 tests green.
 3. `bash tests/Shell/setup_rulesets_command_test.sh` — unchanged, green.
-4. `shellcheck` on the three changed scripts (search_common.sh,
+4. `bash tests/Shell/pi_ci_contract_test.sh` — contract green.
+5. `shellcheck` on the changed scripts (search_common.sh,
    websearch/search.sh, searxng/search.sh, setup-rulesets.sh).
-5. `/check` — full harness gate (delegates to the PHP stack gate; no PHP
+6. `/check` — full harness gate (delegates to the PHP stack gate; no PHP
    files change, so the coverage gate is unaffected).
-6. `code-review` before push (suggest Ctrl+P to the judge model).
+7. `code-review` before push (four axes, OCR egress approved).
 
 ## Risks & decisions
 
@@ -282,15 +322,27 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
   `curl_rc` check, a final transport failure would masquerade as HTTP 000
   and route into the callers' HTTP-error block instead of the transport
   block.
-- **`gh_api` guard keeps macOS portable** — GNU `timeout` absent → bare
-  call; the script's existing `command -v` pattern (gh, php) is extended
-  rather than assuming Linux.
+- **A curl timeout (rc 28) is never retried (F5/F6)** — the server may
+  have processed the request before the connection dropped; retrying could
+  duplicate a billed inference POST, and each retry re-arms the full
+  `--max-time` budget (3 × 180s ≈ 9min worst case before this rule).
+  Fast transport failures (refused/reset/DNS) and answered 429/5xx are
+  cheap and unambiguous, so they keep retrying. Worst-case window after
+  this rule: one hung attempt (≤ `--max-time`) plus fast-failure retries.
+- **`Retry-After` honored, capped at 30s (F6)** — a 429 with an integer
+  `Retry-After` replaces the fixed backoff so rate-limited requests do not
+  hammer; the cap keeps the total window bounded and the HTTP-date form
+  (unparseable) falls back to the fixed backoff.
+- **`run_gh` guards keep macOS portable (F1/F2)** — GNU `timeout` absent →
+  Homebrew `gtimeout` → bare call; the script's existing `command -v`
+  pattern (gh, php) is extended rather than assuming Linux. `gh repo view`
+  is bounded too; `gh auth status` stays bare (local).
 - **Fake-curl shim sleeps are real** — avoids env-var test seams in
-  production code; 6s worst case is within the shell suite's tolerance.
+  production code; ~21s worst case is within the shell suite's tolerance.
 - **Spec rides the work branch** — develop is PR-only (protected-branch
   invariant); the spec commits on
   `fix/kyau-1e9d-resilience-audit-remediation` and merges via PR, like the
   error-handling and readability-naming remediations.
 - **One branch, atomic commits per finding** — `fix(search): …`,
-  `fix(ci): …`, `fix(scripts): …`, each independently reviewable under this
-  spec.
+  `fix(ci): …`, `fix(scripts): …`, plus post-review hardening commits,
+  each independently reviewable under this spec.
