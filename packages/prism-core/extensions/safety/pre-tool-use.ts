@@ -20,6 +20,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -62,11 +63,6 @@ interface ParsedRm {
 function commandBasename(token: string): string {
     const lastSlash = token.lastIndexOf("/");
     return lastSlash === -1 ? token : token.slice(lastSlash + 1);
-}
-
-function parseRm(segment: string): ParsedRm | null {
-    const tokens = tokenizeCommand(segment);
-    return parseRmTokens(tokens, 0);
 }
 
 function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
@@ -267,8 +263,10 @@ function rmRfRule(tokens: string[], ctx: RuleCtx): Finding | null {
     }
     if (!parsed || !(parsed.recursive && parsed.force)) return null;
 
+    // rm appeared behind a wrapper (xargs, timeout, …)
+    const rmNotAtHead = foundIdx > 0;
     if (parsed.operands.length === 0) {
-        if (foundIdx > 0 || tokens[0] === "xargs") {
+        if (rmNotAtHead || tokens[0] === "xargs") {
             return {
                 severity: "block",
                 reason: "rm -rf detected with unresolvable targets (likely piped/stdin input)",
@@ -380,6 +378,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 
