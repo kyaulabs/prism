@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -73,26 +74,27 @@ fi
 # exists; fall back to a bare call only where neither is available, keeping
 # the script portable to macOS/BSD.
 run_gh() {
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 60 gh "$@"
-	elif command -v gtimeout >/dev/null 2>&1; then
-		gtimeout 60 gh "$@"
-	else
-		gh "$@"
-	fi
-}
-
-# gh_api: every gh api call is bounded via run_gh; a call killed by the
-# timeout (exit 124) gets a distinct diagnostic — the outcome is unknown,
-# which matters for --apply mutations that may have landed server-side.
-gh_api() {
 	local rc=0
-	run_gh api "$@" || rc=$?
-	[ "$rc" -eq 0 ] && return 0
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 60 gh "$@" || rc=$?
+	elif command -v gtimeout >/dev/null 2>&1; then
+		gtimeout 60 gh "$@" || rc=$?
+	else
+		gh "$@" || rc=$?
+	fi
+	# A call killed by the timeout (exit 124) has an unknown outcome —
+	# distinct from a genuine failure, and critical for --apply mutations
+	# that may have landed server-side. Emitted for every gh invocation;
+	# call sites surface it (or the underlying error) in their messages.
 	if [ "$rc" -eq 124 ]; then
 		printf 'gh: timed out after 60s — request outcome unknown\n' >&2
 	fi
 	return "$rc"
+}
+
+# gh_api: every gh api call is bounded via run_gh.
+gh_api() {
+	run_gh api "$@"
 }
 
 if ! run_gh auth status >/dev/null 2>&1; then
@@ -102,17 +104,28 @@ fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
 
-REPO=$(run_gh repo view --json nameWithOwner 2>/dev/null | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
-	echo "Error: cannot determine repository — run inside a GitHub repository" >&2
-	exit 2
-}
-
-echo "[setup-rulesets] repo=$REPO"
 
 # ── Temporary directory ───────────────────────────────────────────────────────
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
+
+FETCH_ERR="$TMP_DIR/fetch-err"
+
+REPO_JSON=$(run_gh repo view --json nameWithOwner 2>"$FETCH_ERR") || {
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: cannot determine repository — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: cannot determine repository — run inside a GitHub repository" >&2
+	fi
+	exit 2
+}
+REPO=$(printf '%s' "$REPO_JSON" | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
+	echo "Error: cannot determine repository — run inside a GitHub repository" >&2
+	exit 2
+}
+
+echo "[setup-rulesets] repo=$REPO"
 
 # ── Canonical payloads ────────────────────────────────────────────────────────
 
@@ -162,14 +175,22 @@ ACTUAL_RULESET="$TMP_DIR/actual-ruleset.json"
 ACTUAL_MERGE="$TMP_DIR/actual-merge-settings.json"
 
 # Fetch the ruleset list
-if ! gh_api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>/dev/null; then
-	echo "Error: failed to fetch rulesets from GitHub API" >&2
+if ! gh_api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: failed to fetch rulesets from GitHub API — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: failed to fetch rulesets from GitHub API" >&2
+	fi
 	exit 2
 fi
 
 # Fetch repository settings
-if ! gh_api "repos/$REPO" > "$ACTUAL_MERGE" 2>/dev/null; then
-	echo "Error: failed to fetch repository settings from GitHub API" >&2
+if ! gh_api "repos/$REPO" > "$ACTUAL_MERGE" 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: failed to fetch repository settings from GitHub API — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: failed to fetch repository settings from GitHub API" >&2
+	fi
 	exit 2
 fi
 
@@ -258,8 +279,12 @@ else
 	RULESET_ID="$MATCHED_IDS"
 
 	# Fetch the full detail for the matched ruleset
-	if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>/dev/null; then
-		echo "Error: failed to fetch ruleset detail for ID $RULESET_ID" >&2
+	if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>"$FETCH_ERR"; then
+		if [ -s "$FETCH_ERR" ]; then
+			echo "Error: failed to fetch ruleset detail for ID $RULESET_ID — $(head -1 "$FETCH_ERR")" >&2
+		else
+			echo "Error: failed to fetch ruleset detail for ID $RULESET_ID" >&2
+		fi
 		exit 2
 	fi
 
@@ -326,6 +351,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 

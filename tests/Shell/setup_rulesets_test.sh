@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -1466,7 +1467,11 @@ test_gh_api_uses_gtimeout_when_available() {
 	# Minimal PATH (like Test 31) so the host's /usr/bin/timeout cannot
 	# shadow the gtimeout-only scenario; plus the gtimeout shim.
 	for tool in bash php mktemp cat grep rm; do
-		ln -s "$(command -v "$tool")" "$fake_bin/$tool"
+		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
+			fail "gtimeout minimal PATH — cannot symlink $tool (missing external?)"
+			unset FAKE_GH_LOG FAKE_GH_FIXTURES
+			return
+		fi
 	done
 
 	cat > "$fake_bin/gtimeout" <<'GTIMEOUT_SHIM'
@@ -1563,10 +1568,123 @@ echo ""
 echo "── Test 33: a timeout-killed mutation names the unknown outcome ──"
 test_timeout_killed_mutation_names_outcome
 
+# ── Test 34: a hung repo view names the timeout, not a missing repo ────────────
+
+test_repo_view_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) repo view and api calls only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" api "*|*" repo view "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "repo view hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "repo view hang — output does not name the timeout: $output"
+		return
+	fi
+	pass "repo view hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 34: a hung repo view names the timeout ──"
+test_repo_view_hang_names_timeout
+
+# ── Test 35: a hung read-only fetch names the timeout ──────────────────────────
+
+test_fetch_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) api calls only — repo view survives.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" api "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "fetch hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "fetch hang — output does not name the timeout: $output"
+		return
+	fi
+	pass "fetch hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 35: a hung read-only fetch names the timeout ──"
+test_fetch_hang_names_timeout
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
