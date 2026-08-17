@@ -17,6 +17,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -208,8 +209,27 @@ else
 	fail "websearch fallback hint count is $WEB_HINT_COUNT (expected 2)"
 fi
 
+printf '%s\n' '── searxng: retry helper and cross-backend hint ──'
+if grep -q 'search_request' "$SEARX"; then
+	pass 'searxng invokes the shared search_request retry helper'
+else
+	fail 'searxng does not invoke search_request'
+fi
+if grep -q -- '--write-out' "$SEARX"; then
+	fail 'searxng retains an inline curl --write-out (should use search_request)'
+else
+	pass 'searxng has no inline curl --write-out'
+fi
+SEARX_HINT_COUNT=$(grep -c 'the websearch skill is an alternative search backend' "$SEARX" || true)
+if [ "$SEARX_HINT_COUNT" -eq 2 ]; then
+	pass 'searxng hints at the websearch fallback on both failure paths'
+else
+	fail "searxng fallback hint count is $SEARX_HINT_COUNT (expected 2)"
+fi
+
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
