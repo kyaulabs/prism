@@ -1,7 +1,10 @@
 # Readability & Naming Audit Remediation Implementation Plan
 
+> **Status:** Complete — all tasks green at b1f48ee (2026-08-16): node 156/156,
+> Pest 77 passed at 100.0% coverage, php-cs-fixer/stylelint/eslint clean.
+
 > **For the executing agent:** Implement this plan task-by-task by loading the
-> `executing-plans` and `tdd` skills. Steps use checkbox (`- [ ]`) syntax for
+> `executing-plans` and `tdd` skills. Steps use checkbox (`- [x]`) syntax for
 > tracking. This plan is a **zero-behavior-delta refactor** — spec D8 adds no
 > new tests, so each task's cycle is baseline-green → change → suite-green →
 > commit (the existing suites are the regression net; a forced Red step would
@@ -52,12 +55,12 @@ PHP 8.5 (Pest 5), eslint 10, perl for mechanical whitespace conversion.
   `pre-tool-use.ts`, same semantics as the old `basename` (last-`/` segment
   of a command token).
 
-- [ ] **Step 1: Baseline — run the safety tests**
+- [x] **Step 1: Baseline — run the safety tests**
 
 Run: `node --test tests/Node/safety-classify.test.ts tests/Node/safety-sensitive-paths.test.ts tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-circuit-breaker.test.ts`
 Expected: all pass (baseline green).
 
-- [ ] **Step 2: Rename**
+- [x] **Step 2: Rename**
 
 Replace the definition:
 
@@ -84,12 +87,12 @@ Then replace each remaining occurrence of `basename(` (not preceded by
 Do NOT touch `sensitive-paths.ts` (its `basename` is the real
 `node:path` import).
 
-- [ ] **Step 3: Run the safety tests**
+- [x] **Step 3: Run the safety tests**
 
 Run: same command as Step 1.
 Expected: all pass. `grep -n "basename" packages/prism-core/extensions/safety/pre-tool-use.ts` shows only `commandBasename` + the import line's `resolvePathToken` import is untouched.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts
@@ -108,12 +111,12 @@ git commit -S -m $'refactor(safety): rename basename to commandBasename\n\nLocal
 - Produces: `const MAX_CANONICALIZE_STEPS = 64` (module-private, used by
   `canonicalizePath`); all public signatures unchanged.
 
-- [ ] **Step 1: Baseline**
+- [x] **Step 1: Baseline**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts tests/Node/safety-classify.test.ts`
 Expected: all pass.
 
-- [ ] **Step 2: `normalizeRaw` — `p` → `expanded`**
+- [x] **Step 2: `normalizeRaw` — `p` → `expanded`**
 
 ```ts
 function normalizeRaw(raw: string, home: string): string {
@@ -122,7 +125,7 @@ function normalizeRaw(raw: string, home: string): string {
 }
 ```
 
-- [ ] **Step 3: `sensitivePathMatch` — `p` → `canonical`, `pat` → `patternPath`**
+- [x] **Step 3: `sensitivePathMatch` — `p` → `canonical`, `pat` → `patternPath`**
 
 ```ts
 export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions): SensitiveMatch | null {
@@ -143,7 +146,7 @@ export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions):
 }
 ```
 
-- [ ] **Step 4: `sensitivePatternCheck` — `p` → `trimmed`**
+- [x] **Step 4: `sensitivePatternCheck` — `p` → `trimmed`**
 
 ```ts
     const trimmed = pattern.trim();
@@ -162,7 +165,7 @@ export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions):
 (`metaIdx`/`probe`/`abs` stay — multi-letter abbreviations the audit
 blessed.)
 
-- [ ] **Step 5: `resolvePathToken` — `p` → `path`**
+- [x] **Step 5: `resolvePathToken` — `p` → `path`**
 
 ```ts
 export function resolvePathToken(token: string, projectDir: string, home: string,
@@ -181,7 +184,7 @@ export function resolvePathToken(token: string, projectDir: string, home: string
 }
 ```
 
-- [ ] **Step 6: `setupScriptTrust` — `t` → `token`**
+- [x] **Step 6: `setupScriptTrust` — `t` → `token`**
 
 ```ts
     for (; i < tokens.length; i++) {
@@ -196,7 +199,7 @@ export function resolvePathToken(token: string, projectDir: string, home: string
     }
 ```
 
-- [ ] **Step 7: F8 — name the magic `64`**
+- [x] **Step 7: F8 — name the magic `64`**
 
 Add immediately above `canonicalizePath`:
 
@@ -211,12 +214,12 @@ and change the loop bound:
     for (let i = 0; i < MAX_CANONICALIZE_STEPS; i++) {
 ```
 
-- [ ] **Step 8: Run the safety tests**
+- [x] **Step 8: Run the safety tests**
 
 Run: same as Step 1.
 Expected: all pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts
@@ -235,12 +238,12 @@ git commit -S -m $'refactor(safety): expand one-letter locals; name walk bound\n
 - Consumes: nothing.
 - Produces: nothing (private locals only).
 
-- [ ] **Step 1: Baseline**
+- [x] **Step 1: Baseline**
 
 Run: `node --test tests/Node/safety-classify.test.ts tests/Node/safety-tool-call-handler.test.ts`
 Expected: all pass.
 
-- [ ] **Step 2: `pre-tool-use.ts` `parseRmTokens` — `t` → `token`**
+- [x] **Step 2: `pre-tool-use.ts` `parseRmTokens` — `t` → `token`**
 
 In the operand loop:
 
@@ -266,7 +269,7 @@ In the operand loop:
     }
 ```
 
-- [ ] **Step 3: `tool-call-handler.ts` `sensitivePathBlocks` — `p` → `path`**
+- [x] **Step 3: `tool-call-handler.ts` `sensitivePathBlocks` — `p` → `path`**
 
 ```ts
     const path = pathArg.replace(/^@+/, "");
@@ -276,12 +279,12 @@ In the operand loop:
         : normalize(resolvePath(opts.projectDir, path));
 ```
 
-- [ ] **Step 4: Run the safety tests**
+- [x] **Step 4: Run the safety tests**
 
 Run: same as Step 1.
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts packages/prism-core/extensions/safety/tool-call-handler.ts
@@ -308,7 +311,7 @@ git commit -S -m $'refactor(safety): expand one-letter locals in classifier and 
   The `SEGMENT_RULES`/`COMMAND_RULES` signatures are unchanged (already
   `Finding | null`).
 
-- [ ] **Step 1: Write the failing (updated) tests**
+- [x] **Step 1: Write the failing (updated) tests**
 
 Edit `tests/Node/safety-classify.test.ts`:
 
@@ -332,13 +335,13 @@ test("non-string command fails closed", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: FAIL — type/runtime errors referencing the removed `CLEAN` (the
 test file references a now-undefined constant), proving the shape change.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `pre-tool-use.ts`:
 
@@ -390,12 +393,12 @@ arrays and per-rule functions are unchanged.)
             return;
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `node --test tests/Node/safety-classify.test.ts tests/Node/safety-sensitive-paths.test.ts tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-circuit-breaker.test.ts`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts packages/prism-core/extensions/safety/tool-call-handler.ts tests/Node/safety-classify.test.ts
@@ -413,12 +416,12 @@ git commit -S -m $'refactor(safety): return Finding | null from classifier\n\nSe
 - Consumes: Task 1's `commandBasename` (call sites above remain intact).
 - Produces: nothing new.
 
-- [ ] **Step 1: Baseline**
+- [x] **Step 1: Baseline**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: all pass.
 
-- [ ] **Step 2: Delete the dead wrapper**
+- [x] **Step 2: Delete the dead wrapper**
 
 Remove (the F1 restructure orphaned it — verified zero callers, zero test
 references):
@@ -432,7 +435,7 @@ function parseRm(segment: string): ParsedRm | null {
 
 `tokenizeCommand` remains used by `classifyCommandImpl` — the import stays.
 
-- [ ] **Step 3: Name the `foundIdx > 0` tests**
+- [x] **Step 3: Name the `foundIdx > 0` tests**
 
 In `rmRfRule`, insert after the `if (!parsed) { … }` block:
 
@@ -448,12 +451,12 @@ and replace both `foundIdx > 0` uses:
         if (rmNotAtHead || tokens[0] === "xargs") {
 ```
 
-- [ ] **Step 4: Run the safety tests**
+- [x] **Step 4: Run the safety tests**
 
 Run: `node --test tests/Node/safety-classify.test.ts tests/Node/safety-sensitive-paths.test.ts tests/Node/safety-tool-call-handler.test.ts`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts
@@ -472,12 +475,12 @@ git commit -S -m $'refactor(safety): drop dead parseRm; name rmNotAtHead\n\nThe 
 - Produces: nothing (same `string` → `string` signature; semantics
   byte-identical).
 
-- [ ] **Step 1: Baseline**
+- [x] **Step 1: Baseline**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php`
 Expected: all pass.
 
-- [ ] **Step 2: Rename `$cut` → `$commentStart`**
+- [x] **Step 2: Rename `$cut` → `$commentStart`**
 
 Replace the unquoted-comment block:
 
@@ -504,12 +507,12 @@ Replace the unquoted-comment block:
     }
 ```
 
-- [ ] **Step 3: Run the env tests**
+- [x] **Step 3: Run the env tests**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php`
 Expected: all pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/env.php
@@ -543,7 +546,7 @@ git commit -S -m $'refactor(env): name comment offset as $commentStart\n\nparse_
 - Produces: the repo's JS policy — 4-space `et` everywhere, enforced by
   eslint for `packages/**/*.js` + `tests/Node/**/*.js` + `commitlint.config.js`.
 
-- [ ] **Step 1: Convert the 25 JS files (leading tabs only)**
+- [x] **Step 1: Convert the 25 JS files (leading tabs only)**
 
 ```bash
 cd /home/kyau/projects/kyaulabs/prism
@@ -554,7 +557,7 @@ for f in $JS_FILES; do perl -pi -e '1 while s/^\t/    /' "$f"; done
 Verified: no mid-line tabs exist in any of the 25 files, so leading-tab-only
 conversion cannot alter string literals.
 
-- [ ] **Step 2: Flip the modelines `noet` → `et` (25 files + commitlint.config.js)**
+- [x] **Step 2: Flip the modelines `noet` → `et` (25 files + commitlint.config.js)**
 
 ```bash
 cd /home/kyau/projects/kyaulabs/prism
@@ -565,13 +568,13 @@ done
 perl -pi -e 's/sts=4 sw=4 ts=4 noet/sts=4 sw=4 ts=4 et/' commitlint.config.js
 ```
 
-- [ ] **Step 3: Convert root `package.json` (tabs → 2 spaces)**
+- [x] **Step 3: Convert root `package.json` (tabs → 2 spaces)**
 
 ```bash
 perl -pi -e '1 while s/^\t/  /' package.json
 ```
 
-- [ ] **Step 4: Convert `eslint.config.mjs` + add header, modeline, indent rule**
+- [x] **Step 4: Convert `eslint.config.mjs` + add header, modeline, indent rule**
 
 ```bash
 perl -pi -e '1 while s/^\t/    /' eslint.config.mjs
@@ -605,7 +608,7 @@ Add the backstop to the second config block (the one with
 
 (4-space indentation shown — matches the converted file.)
 
-- [ ] **Step 5: Update the pre-commit hook's JS modeline**
+- [x] **Step 5: Update the pre-commit hook's JS modeline**
 
 `.github/hooks/pre-commit` line ~224:
 
@@ -616,7 +619,7 @@ Add the backstop to the second config block (the one with
 This MUST land in this same commit — otherwise the hook re-appends `noet`
 on the next commit of any JS file.
 
-- [ ] **Step 6: Verify — eslint + full Node suite**
+- [x] **Step 6: Verify — eslint + full Node suite**
 
 Run: `npx eslint commitlint.config.js packages tests/Node`
 Expected: clean (exit 0), with the new `indent` rule active.
@@ -625,7 +628,7 @@ Run: `npm run test:node`
 Expected: all pass (whitespace-only change; the suite executes the converted
 sources).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages tests/Node commitlint.config.js eslint.config.mjs package.json .github/hooks/pre-commit
@@ -643,7 +646,7 @@ git commit -S -m $'style(scripts): convert JS sources to 4-space et\n\nAll first
 - Consumes: Task 7's policy (JS = 4-space et, JSON = 2-space, scss = 2-space).
 - Produces: repo-root editor contract.
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 ```ini
 root = true
@@ -673,12 +676,12 @@ indent_size = 2
 Every rule matches a verified modeline or observed file content; the
 `[*.md]` override preserves markdown hard line breaks.
 
-- [ ] **Step 2: Verify — no tooling consumes it yet, so sanity-check only**
+- [x] **Step 2: Verify — no tooling consumes it yet, so sanity-check only**
 
 Run: `node -e "const fs=require('fs'); console.log(fs.readFileSync('.editorconfig','utf8').split('\n').length + ' lines')"`
 Expected: file reads back; 30 lines.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .editorconfig
@@ -700,7 +703,7 @@ git commit -S -m $'chore(editorconfig): add per-language indentation rules\n\nDe
 - Produces: canonical header spacing — exactly one blank line after the
   `$KYAULabs:` header line, exactly one blank line before the vim modeline.
 
-- [ ] **Step 1: Collapse header padding**
+- [x] **Step 1: Collapse header padding**
 
 For each file above: reduce the blank run between the `$KYAULabs:` header
 line and the first body line to exactly one blank line. Current runs:
@@ -710,20 +713,20 @@ tool-call-handler.ts 3, denial-circuit-breaker.ts 2, sensitive-paths.ts 1
 `eslint.config.mjs`: its header (Task 7) must be followed by exactly one
 blank line.
 
-- [ ] **Step 2: Collapse trailing padding**
+- [x] **Step 2: Collapse trailing padding**
 
 For each file above: reduce the blank run before the `vim:` modeline to
 exactly one blank line. Current runs: sensitive-paths.ts 21, denial-circuit-
 breaker.ts 7, pre-tool-use.ts 6, tool-call-handler.ts 6, index.ts 5,
 env.php 5, coverage-gate.php 2. JS files: apply the same rule.
 
-- [ ] **Step 3: Verify — full suites**
+- [x] **Step 3: Verify — full suites**
 
 Run: `npm run test:node` and `vendor/bin/pest`
 Expected: all pass (padding is body — the pre-commit hook strips and
 rebuilds only header/modeline lines, verified).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety backend/env.php .github/scripts/coverage-gate.php packages tests/Node commitlint.config.js eslint.config.mjs
@@ -741,7 +744,7 @@ git commit -S -m $'style: collapse RCS-header blank padding\n\nVariable-width bl
 **Interfaces:**
 - Consumes: all tasks above.
 
-- [ ] **Step 1: Full gate**
+- [x] **Step 1: Full gate**
 
 Run: `npm run test:node` — all green.
 Run: `vendor/bin/pest` — all green (coverage ≥ 80% on changed files via
@@ -749,19 +752,19 @@ Run: `vendor/bin/pest` — all green (coverage ≥ 80% on changed files via
 Run: `npx eslint commitlint.config.js packages tests/Node` — clean.
 Run: `/check-php` — full gate green.
 
-- [ ] **Step 2: Mark the plan complete**
+- [x] **Step 2: Mark the plan complete**
 
 Set every checkbox in this plan to `- [x]` and add a completion note at the
 top: `**Status:** Complete — all tasks green at <commit> (2026-08-16).`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/plans/2026-08-16-readability-naming-audit-remediation.md
 git commit -S -m $'docs(plans): mark readability-naming audit remediation tasks complete\n\nAuthored-by: deepseek-v4-flash\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-flash\nSigned-off-by: kyau <kyau@kyau.net>'
 ```
 
-- [ ] **Step 4: Hand off**
+- [x] **Step 4: Hand off**
 
 Present the branch for `code-review` (suggest Ctrl+P to the judge model)
 before push, per the spec's verification section.
