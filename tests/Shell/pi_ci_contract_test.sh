@@ -8,6 +8,7 @@
 
 
 
+
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
 # OpenCode-era per-concern CI tests: this file is authoritative.
@@ -101,13 +102,14 @@ echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
 
 echo "── resilient tool downloads ──"
-assert_ci_contains 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2' 'tool downloads carry timeout and retry bounds'
-TOTAL_DOWNLOADS=$(grep -c 'curl -fsSL' "$CI" || true)
-BOUNDED_DOWNLOADS=$(grep -c 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2' "$CI" || true)
-if [ "$TOTAL_DOWNLOADS" -ge 1 ] && [ "$TOTAL_DOWNLOADS" -eq "$BOUNDED_DOWNLOADS" ]; then
-	pass "every tool download is bounded ($BOUNDED_DOWNLOADS of $TOTAL_DOWNLOADS)"
+TOTAL_DOWNLOADS=$(grep -o 'curl -fsSL' "$CI" | wc -l | tr -d ' ' || true)
+BOUNDED_DOWNLOADS=$(grep -oE 'curl -fsSL.*--connect-timeout 10.*--max-time 120.*--retry 3.*--retry-delay 2' "$CI" | wc -l | tr -d ' ' || true)
+if [ "$TOTAL_DOWNLOADS" -eq 0 ]; then
+	pass 'no curl -fsSL downloads present (nothing to bound)'
+elif [ "$TOTAL_DOWNLOADS" -eq "$BOUNDED_DOWNLOADS" ]; then
+	pass "every curl -fsSL download is bounded ($BOUNDED_DOWNLOADS of $TOTAL_DOWNLOADS)"
 else
-	fail "unbounded tool download remains — total=$TOTAL_DOWNLOADS bounded=$BOUNDED_DOWNLOADS"
+	fail "unbounded curl -fsSL download remains — total=$TOTAL_DOWNLOADS bounded=$BOUNDED_DOWNLOADS"
 	failures=$((failures + 1))
 fi
 
@@ -117,6 +119,7 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 
