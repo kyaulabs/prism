@@ -9,6 +9,7 @@
 
 
 
+
 # ── Tests for coverage-gate.php changed-file coverage gate ───────────────────
 # Verifies that the script correctly parses Clover XML, intersects with
 # changed files from stdin, and enforces >=80% per-file coverage.
@@ -353,10 +354,44 @@ register_temp_dir "$T15"
 	fi
 )
 
+# ── Test 16: Unreadable changed file → WARN; --strict fails ─────────────────
+echo ""
+echo "── Test 16: unreadable changed file warns, --strict fails ──"
+if [ "$(id -u)" -eq 0 ]; then
+	skip "unreadable-file test skipped when running as root"
+else
+	T16=$(mktemp -d)
+	register_temp_dir "$T16"
+	(
+		cd "$T16"
+		mkdir -p backend
+		echo '<?php' > backend/env.php
+		printf '<?php\necho "x";\n' > backend/locked.php
+		chmod 000 backend/locked.php
+		CLOVER=$(mktemp)
+		build_clover "$CLOVER" "$T16" "backend/env.php:10:10"
+		rc=0
+		printf 'backend/locked.php\n' | php "$SCRIPT" "$CLOVER" --root="$T16" >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 0 ] && grep -q 'unreadable' out.txt; then
+			pass "unreadable changed file warns (exit 0)"
+		else
+			fail "expected exit 0 + unreadable WARN, got rc=$rc"
+		fi
+		rc=0
+		printf 'backend/locked.php\n' | php "$SCRIPT" "$CLOVER" --root="$T16" --strict >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 1 ] && grep -q 'unreadable' out.txt; then
+			pass "unreadable changed file fails under --strict (exit 1)"
+		else
+			fail "expected exit 1 + unreadable WARN under --strict, got rc=$rc"
+		fi
+	)
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 

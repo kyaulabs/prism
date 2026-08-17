@@ -43,6 +43,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -250,8 +253,10 @@ function classify_changed_files(array $changedFiles, array $coverage, string $ro
         }
         // Exists but absent from Clover → outside <source>.
         $path = is_file($fullChanged) ? $fullChanged : $changed;
-        $source = (string) @file_get_contents($path);
-        if ($source !== '' && has_executable_code($source)) {
+        $source = @file_get_contents($path);
+        if ($source === false) {
+            $warned[] = [$changed, 'unreadable — could not verify executable code'];
+        } elseif ($source !== '' && has_executable_code($source)) {
             $warned[] = [$changed, 'outside <source>, has executable code — register in phpunit.xml <source>'];
         } else {
             $skipped[] = [$changed, 'outside <source>, no executable code'];
@@ -381,6 +386,7 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     }
     return $code;
 }
+
 
 
 
