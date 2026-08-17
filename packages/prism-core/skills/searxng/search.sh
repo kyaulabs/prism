@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
 
 
 
@@ -10,7 +12,7 @@ set -euo pipefail
 
 # shellcheck disable=SC2034  # consumed by the sourced search_common.sh
 SKILL=searxng
-# shellcheck source=../lib/search_common.sh
+# shellcheck disable=SC1091  # dynamic BASH_SOURCE path; search_common.sh is linted directly
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
 usage_guard "$#"
 require_cmd curl 'curl is required.'
@@ -59,9 +61,8 @@ cleanup() {
 trap cleanup EXIT
 chmod 600 "$RESPONSE_FILE" "$ERROR_FILE"
 
-HTTP_STATUS=$(curl --silent --show-error \
+HTTP_STATUS=$(search_request \
 	--output "$RESPONSE_FILE" \
-	--write-out '%{http_code}' \
 	--get "$BASE_URL/search" \
 	--data-urlencode "q=$QUERY" \
 	--data-urlencode 'format=json' \
@@ -73,6 +74,7 @@ HTTP_STATUS=$(curl --silent --show-error \
 	printf 'searxng: network request failed: ' >&2
 	head -c 500 "$ERROR_FILE" >&2 || true
 	printf '\n' >&2
+	printf 'searxng: hint — if this persists, the websearch skill is an alternative search backend.\n' >&2
 	exit 5
 }
 
@@ -82,6 +84,7 @@ if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
 		printf ' (the instance may have JSON format disabled)' >&2
 	fi
 	printf '\n' >&2
+	printf 'searxng: hint — if this persists, the websearch skill is an alternative search backend.\n' >&2
 	exit 5
 fi
 
@@ -114,6 +117,8 @@ const results = data.results.slice(0, limit).map((item) => ({
 }));
 process.stdout.write(`${JSON.stringify({ query, number_of_results: results.length, results }, null, 2)}\n`);
 NODE
+
+
 
 
 

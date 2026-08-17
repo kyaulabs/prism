@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -98,12 +104,35 @@ assert_ci_not_contains 'git cliff' 'No direct git cliff invocation'
 echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
 
+echo "── resilient tool downloads ──"
+# Assumes one download invocation per line with the bound flags in canonical
+# order (as ci.yml writes them); reordering or splitting flags across lines
+# requires updating the BOUNDED pattern. Both counters are line-based
+# (grep -c) so they stay comparable.
+
+TOTAL_LINES=$(grep -c 'curl -fsSL' "$CI" || true)
+BOUNDED_LINES=$(grep -cE 'curl -fsSL.*--connect-timeout 10([^0-9]|$).*--max-time 120([^0-9]|$).*--retry 3([^0-9]|$).*--retry-delay 2([^0-9]|$)' "$CI" || true)
+if [ "$TOTAL_LINES" -eq 0 ]; then
+	pass 'no curl -fsSL download lines present (nothing to bound)'
+elif [ "$TOTAL_LINES" -eq "$BOUNDED_LINES" ]; then
+	pass "every curl -fsSL download line is bounded ($BOUNDED_LINES of $TOTAL_LINES)"
+else
+	fail "unbounded curl -fsSL download line remains — total=$TOTAL_LINES bounded=$BOUNDED_LINES"
+	failures=$((failures + 1))
+fi
+
 if [ "$failures" -gt 0 ]; then
 	print_summary "pi ci contract"
 	exit 1
 fi
 print_summary "pi ci contract"
 exit $?
+
+
+
+
+
+
 
 
 

@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
+
+
 
 
 
@@ -65,24 +72,81 @@ if ! command -v php >/dev/null 2>&1; then
 	exit 2
 fi
 
-if ! gh auth status >/dev/null 2>&1; then
-	echo "Error: gh auth status failed — run 'gh auth login'" >&2
+# ── run_gh: bounded GitHub CLI calls ─────────────────────────────────────────
+# Wrap gh with a 60s cap where GNU timeout (or Homebrew coreutils gtimeout)
+# exists; fall back to a bare call only where neither is available, keeping
+# the script portable to macOS/BSD.
+_RUN_GH_BOUND=''
+run_gh() {
+	local rc=0
+	# Detect a GNU-compatible timeout once: Git Bash ships a Windows
+	# timeout.exe with incompatible syntax, so `command -v` alone is not
+	# enough. Fall back to gtimeout (Homebrew coreutils) or a bare call.
+	if [ -z "$_RUN_GH_BOUND" ]; then
+		if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | grep -qi 'coreutils'; then
+			_RUN_GH_BOUND=timeout
+		elif command -v gtimeout >/dev/null 2>&1 && gtimeout --version 2>/dev/null | grep -qi 'coreutils'; then
+			_RUN_GH_BOUND=gtimeout
+		else
+			_RUN_GH_BOUND=none
+			printf 'setup-rulesets: warning — no GNU timeout or gtimeout found; gh calls are unbounded\n' >&2
+		fi
+	fi
+	case "$_RUN_GH_BOUND" in
+		timeout)  timeout 60 gh "$@" || rc=$? ;;
+		gtimeout) gtimeout 60 gh "$@" || rc=$? ;;
+		*)        gh "$@" || rc=$? ;;
+	esac
+	# A call killed by the timeout (exit 124) has an unknown outcome —
+	# distinct from a genuine failure, and critical for --apply mutations
+	# that may have landed server-side. Emitted for every gh invocation;
+	# call sites surface it (or the underlying error) in their messages.
+	if [ "$rc" -eq 124 ]; then
+		printf 'gh: timed out after 60s — request outcome unknown\n' >&2
+	fi
+	return "$rc"
+}
+
+# gh_api: every gh api call is bounded via run_gh.
+gh_api() {
+	run_gh api "$@"
+}
+
+# ── Temporary directory (before any network call: FETCH_ERR is needed
+# ── by the auth, repo-detection, and fetch error paths) ──────────────────────
+
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+FETCH_ERR="$TMP_DIR/fetch-err"
+
+if ! run_gh auth status 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: gh auth status failed — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: gh auth status failed — run 'gh auth login'" >&2
+	fi
 	exit 2
 fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
 
-REPO=$(gh repo view --json nameWithOwner 2>/dev/null | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
+
+
+REPO_JSON=$(run_gh repo view --json nameWithOwner 2>"$FETCH_ERR") || {
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: cannot determine repository — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: cannot determine repository — run inside a GitHub repository" >&2
+	fi
+	exit 2
+}
+REPO=$(printf '%s' "$REPO_JSON" | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
 	echo "Error: cannot determine repository — run inside a GitHub repository" >&2
 	exit 2
 }
 
 echo "[setup-rulesets] repo=$REPO"
-
-# ── Temporary directory ───────────────────────────────────────────────────────
-
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
 
 # ── Canonical payloads ────────────────────────────────────────────────────────
 
@@ -132,20 +196,29 @@ ACTUAL_RULESET="$TMP_DIR/actual-ruleset.json"
 ACTUAL_MERGE="$TMP_DIR/actual-merge-settings.json"
 
 # Fetch the ruleset list
-if ! gh api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>/dev/null; then
-	echo "Error: failed to fetch rulesets from GitHub API" >&2
+if ! gh_api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: failed to fetch rulesets from GitHub API — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: failed to fetch rulesets from GitHub API" >&2
+	fi
 	exit 2
 fi
 
 # Fetch repository settings
-if ! gh api "repos/$REPO" > "$ACTUAL_MERGE" 2>/dev/null; then
-	echo "Error: failed to fetch repository settings from GitHub API" >&2
+if ! gh_api "repos/$REPO" > "$ACTUAL_MERGE" 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: failed to fetch repository settings from GitHub API — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: failed to fetch repository settings from GitHub API" >&2
+	fi
 	exit 2
 fi
 
 # ── Owned ruleset identification ──────────────────────────────────────────────
 # Select rulesets whose name exactly matches pr-only-integration
 
+# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 MATCHED_IDS=$(php -r '
 $list = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 if (!is_array($list)) { echo ""; exit(0); }
@@ -173,6 +246,7 @@ fi
 
 compare_owned() {
 	local actual_file="$1" expected_file="$2"
+	# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 	php -r '
 $actual = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 $expected = json_decode(file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
@@ -206,6 +280,7 @@ echo ($a === $b) ? "unchanged" : "update";
 
 compare_merge() {
 	local actual_file="$1" expected_file="$2"
+	# shellcheck disable=SC2016  # PHP code — single quotes are intentional, no shell expansion
 	php -r '
 $actual = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
 $expected = json_decode(file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);
@@ -228,8 +303,12 @@ else
 	RULESET_ID="$MATCHED_IDS"
 
 	# Fetch the full detail for the matched ruleset
-	if ! gh api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>/dev/null; then
-		echo "Error: failed to fetch ruleset detail for ID $RULESET_ID" >&2
+	if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>"$FETCH_ERR"; then
+		if [ -s "$FETCH_ERR" ]; then
+			echo "Error: failed to fetch ruleset detail for ID $RULESET_ID — $(head -1 "$FETCH_ERR")" >&2
+		else
+			echo "Error: failed to fetch ruleset detail for ID $RULESET_ID" >&2
+		fi
 		exit 2
 	fi
 
@@ -258,7 +337,7 @@ case "$MODE" in
 		API_ERR="$TMP_DIR/api-err"
 
 		if [ "$RULESET_STATUS" = "create" ]; then
-			if ! gh api "repos/$REPO/rulesets" -X POST --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO/rulesets" -X POST --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to create rulesets" >&2
 				else
@@ -268,7 +347,7 @@ case "$MODE" in
 			fi
 			echo "Ruleset pr-only-integration: created"
 		elif [ "$RULESET_STATUS" = "update" ]; then
-			if ! gh api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to update rulesets" >&2
 				else
@@ -282,7 +361,7 @@ case "$MODE" in
 		fi
 
 		if [ "$MERGE_STATUS" = "update" ]; then
-			if ! gh api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to update merge settings" >&2
 				else
@@ -296,6 +375,13 @@ case "$MODE" in
 		fi
 		;;
 esac
+
+
+
+
+
+
+
 
 
 
