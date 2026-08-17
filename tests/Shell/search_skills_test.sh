@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: search_skills_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: search_skills_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
 
 
 
@@ -116,7 +118,7 @@ if [ -z "$out" ]; then
 fi
 printf 'fake body\n' > "$out"
 if [ -n "$hdr" ] && [ -n "${FAKE_CURL_RETRY_AFTER:-}" ]; then
-	printf 'retry-after: %s\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
+	printf 'retry-after: %s\r\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
 fi
 
 count=0
@@ -187,7 +189,7 @@ search_request_case() {
 	[ "$out" = "$expected_out" ] || ok=0
 	[ "$invocations" -eq "$expected_invocations" ] || ok=0
 	[ "$sleeps" = "$expected_sleeps" ] || ok=0
-	grep -qi 'integer' "$errfile" && ok=0
+	grep -q 'integer expected' "$errfile" && ok=0
 	if [ "$ok" -eq 1 ] && { [ "$expected_rc" -ne 0 ] || grep -q 'fake body' "$outfile"; }; then
 		pass "$label"
 	else
@@ -207,7 +209,23 @@ search_request_case 'search_request: 429 honors Retry-After delay' '429:200' '20
 search_request_case 'search_request: fractional Retry-After falls back cleanly' '429:200' '200' 0 2 '1.5' '2'
 search_request_case 'search_request: transport failures then 200 retries twice' 'X:X:200' '200' 0 3 '' '2 4'
 search_request_case 'search_request: 429 thrice gives up after 3 attempts' '429:429:429' '429' 0 3 '' '2 4'
+search_request_case 'search_request: 503 then 200 retries once' '503:200' '200' 0 2 '' '2'
+search_request_case 'search_request: 500 thrice gives up after 3 attempts' '500:500:500' '500' 0 3 '' '2 4'
+search_request_case 'search_request: Retry-After capped at 30s' '429:200' '200' 0 2 '45' '30'
 search_request_case 'search_request: transport failures thrice exit nonzero' 'X:X:X' '' 1 3 '' '2 4'
+
+printf '%s\n' '── search_request: --output precondition ──'
+OUT_GUARD_ERR=$(mktemp)
+set +e
+bash -c 'source "$1"; search_request http://fake.invalid/search' _ "$LIB" 2>"$OUT_GUARD_ERR"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ] && grep -q 'requires --output FILE' "$OUT_GUARD_ERR"; then
+	pass 'search_request fails closed without --output'
+else
+	fail "search_request --output guard (rc=$rc err=$(head -1 "$OUT_GUARD_ERR" 2>/dev/null))"
+fi
+rm -f "$OUT_GUARD_ERR"
 
 printf '%s\n' '── search_request: caller EXIT trap survives ──'
 TRAP_MARKER=$(mktemp)
@@ -298,6 +316,8 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
+
 
 
 

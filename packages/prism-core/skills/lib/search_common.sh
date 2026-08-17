@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# $KYAULabs: search_common.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: search_common.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
 
 
 
@@ -36,9 +38,11 @@
 #     expiry (rc 28 with no connect-timeout error) is never retried: the
 #     server outcome is unknown, so retrying could duplicate a billed
 #     request and would extend the request window. Callers must pass
-#     --output FILE so the response body is not captured into the status.
-#     Prints the final HTTP status on stdout. Exits nonzero on final
-#     transport failure.                                    exit 1
+#     --output FILE (enforced fail-closed) so the response body is not
+#     captured into the status. A caller EXIT trap must be a simple command
+#     (no $var/backtick expansion at fire time); the helper chains its
+#     cleanup onto it and restores it afterwards. Prints the final HTTP
+#     status on stdout. Exits nonzero on final transport failure. exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -71,7 +75,16 @@ require_posint() {
 }
 
 search_request() {
-	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain
+	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain arg has_output=0
+	for arg in "$@"; do
+		case "$arg" in
+			--output|-o|--output=*|-o*) has_output=1 ;;
+		esac
+	done
+	if [ "$has_output" -eq 0 ]; then
+		printf '%s: search_request requires --output FILE so the response body is not captured.\n' "${SKILL:-search}" >&2
+		return 1
+	fi
 	header_file=$(mktemp)
 	# Chain our cleanup onto the caller's EXIT trap (if any) so an
 	# interrupted run removes the private header file; restore after.
@@ -86,7 +99,7 @@ search_request() {
 	fi
 	while :; do
 		: > "$header_file"
-		if status=$(curl --silent --show-error --write-out '%{http_code} %{errormsg}' --dump-header "$header_file" "$@"); then
+		if status=$(LC_ALL=C curl --silent --show-error --write-out '%{http_code} %{errormsg}' --dump-header "$header_file" "$@"); then
 			curl_rc=0
 			http_code=${status%% *}
 			if [ "$http_code" != "429" ] && [ "$http_code" -lt 500 ]; then
@@ -108,7 +121,7 @@ search_request() {
 			break
 		fi
 		if [ "$http_code" = "429" ]; then
-			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$header_file")
+			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
 			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
 				[ "$retry_after" -gt 30 ] && retry_after=30
 				sleep "$retry_after"
@@ -128,6 +141,8 @@ search_request() {
 	fi
 	[ "$curl_rc" -eq 0 ]
 }
+
+
 
 
 
