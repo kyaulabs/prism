@@ -20,6 +20,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -87,6 +88,7 @@ run_gh() {
 			_RUN_GH_BOUND=gtimeout
 		else
 			_RUN_GH_BOUND=none
+			printf 'setup-rulesets: warning — no GNU timeout or gtimeout found; gh calls are unbounded\n' >&2
 		fi
 	fi
 	case "$_RUN_GH_BOUND" in
@@ -109,20 +111,26 @@ gh_api() {
 	run_gh api "$@"
 }
 
-if ! run_gh auth status >/dev/null 2>&1; then
-	echo "Error: gh auth status failed — run 'gh auth login'" >&2
+# ── Temporary directory (before any network call: FETCH_ERR is needed
+# ── by the auth, repo-detection, and fetch error paths) ──────────────────────
+
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+FETCH_ERR="$TMP_DIR/fetch-err"
+
+if ! run_gh auth status 2>"$FETCH_ERR"; then
+	if [ -s "$FETCH_ERR" ]; then
+		echo "Error: gh auth status failed — $(head -1 "$FETCH_ERR")" >&2
+	else
+		echo "Error: gh auth status failed — run 'gh auth login'" >&2
+	fi
 	exit 2
 fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
 
 
-# ── Temporary directory ───────────────────────────────────────────────────────
-
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
-
-FETCH_ERR="$TMP_DIR/fetch-err"
 
 REPO_JSON=$(run_gh repo view --json nameWithOwner 2>"$FETCH_ERR") || {
 	if [ -s "$FETCH_ERR" ]; then
@@ -363,6 +371,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 

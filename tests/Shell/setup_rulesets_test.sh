@@ -20,6 +20,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -251,6 +252,7 @@ test_default_mode_is_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -284,6 +286,7 @@ test_accepts_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -385,6 +388,7 @@ test_requires_gh_auth() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -421,6 +425,7 @@ test_detects_repo_dynamically() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -465,6 +470,7 @@ test_absent_ruleset_reports_create() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -505,6 +511,7 @@ test_matching_ruleset_reports_unchanged() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -546,6 +553,7 @@ test_drifted_ruleset_reports_update() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -587,6 +595,7 @@ test_duplicate_rulesets_exit_2() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -633,6 +642,7 @@ test_unrelated_rulesets_preserved() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -684,6 +694,7 @@ test_dry_run_exits_zero() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -718,6 +729,7 @@ test_check_exits_one_on_drift() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -749,6 +761,7 @@ test_check_exits_zero_when_canonical() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -780,6 +793,7 @@ test_no_mutations_in_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -811,6 +825,7 @@ test_no_mutations_in_check() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -842,6 +857,7 @@ test_apply_absent_ruleset_posts() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -894,6 +910,7 @@ test_apply_drifted_ruleset_puts() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -949,6 +966,7 @@ test_apply_matching_ruleset_no_mutation() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -991,6 +1009,7 @@ test_apply_drifted_merge_patches() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1047,6 +1066,7 @@ test_apply_matching_merge_no_patch() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1089,6 +1109,7 @@ test_apply_unrelated_rulesets_untouched() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1146,6 +1167,7 @@ test_apply_duplicate_fails_before_mutation() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1198,6 +1220,7 @@ test_apply_second_run_noop() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1258,6 +1281,7 @@ test_apply_403_names_permission() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1354,6 +1378,7 @@ test_gh_api_uses_timeout_when_available() {
 	timeout_log=$(mktemp)
 	: > "$fake_log"
 	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1419,6 +1444,7 @@ test_gh_api_bare_without_timeout() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1471,6 +1497,7 @@ test_gh_api_uses_gtimeout_when_available() {
 	gtimeout_log=$(mktemp)
 	: > "$fake_log"
 	: > "$gtimeout_log"
+	register_temp_dir "$fake_log" "$gtimeout_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1537,6 +1564,7 @@ test_timeout_killed_mutation_names_outcome() {
 	timeout_log=$(mktemp)
 	: > "$fake_log"
 	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1597,6 +1625,7 @@ test_repo_view_hang_names_timeout() {
 	timeout_log=$(mktemp)
 	: > "$fake_log"
 	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1661,6 +1690,7 @@ test_fetch_hang_names_timeout() {
 	timeout_log=$(mktemp)
 	: > "$fake_log"
 	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1715,10 +1745,76 @@ echo ""
 echo "── Test 35: a hung read-only fetch names the timeout ──"
 test_fetch_hang_names_timeout
 
+# ── Test 36: a hung auth status names the timeout, not an auth problem ────────
+
+test_auth_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) the auth status call only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" auth status "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "auth hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "auth hang — output does not name the timeout: $output"
+		return
+	fi
+	if ! grep -q '^60 gh auth status' "$timeout_log"; then
+		fail "auth hang — auth status was never attempted"
+		return
+	fi
+	pass "auth hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 36: a hung auth status names the timeout ──"
+test_auth_hang_names_timeout
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
