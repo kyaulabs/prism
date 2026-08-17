@@ -4,6 +4,7 @@
 
 
 
+
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
  *
@@ -24,7 +25,8 @@
  * ADR-0036) and the user is notified to `/new`.
  *
  * Fail-closed invariants preserved verbatim from the opencode plugins:
- *   - classifier internal error → BLOCK (ADR-0036, in `classifyCommand`)
+ *   - any handler internal error → BLOCK (ADR-0036 — the whole policy
+ *     body in `handleToolCall` is wrapped, not just `classifyCommand`)
  *   - present-but-malformed tool args → BLOCK
  *   - sensitive-path deny floor never bypassed (ADR-0047/ADR-0048)
  *
@@ -33,22 +35,12 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { homedir } from "node:os";
-import { resolve as resolvePath, normalize } from "node:path";
+import { resolve as resolvePath } from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { classifyCommand } from "./pre-tool-use.ts";
-import {
-    loadAdditionalSensitivePaths,
-    sensitiveOperandCheck,
-    sensitivePathMatch,
-    sensitivePatternCheck,
-    type SensitivePathOptions,
-} from "./sensitive-paths.ts";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "./denial-circuit-breaker.ts";
-
-const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
+import { handleToolCall, resolveExtraPaths } from "./tool-call-handler.ts";
 
 interface SafeDirsFile {
     safe_rm_dirs?: unknown;
@@ -97,49 +89,6 @@ function resolveSafeRelDirs(cwd: string): readonly string[] {
     return [];
 }
 
-/**
- * Resolve the deny-floor extension surface. `PRISM_SENSITIVE_PATHS` is a
- * newline-joined list of `~/`-prefixed or absolute paths appended to the
- * core deny floor. `loadAdditionalSensitivePaths` throws on a malformed
- * entry to fail closed (ADR-0047); we surface it loudly and keep the core
- * DEFAULT_PATTERNS deny floor in effect rather than aborting every session
- * over a bad env var.
- */
-function resolveExtraPaths(): string[] {
-    const paths: string[] = [];
-    const envValue = process.env.PRISM_SENSITIVE_PATHS;
-    if (envValue !== undefined && envValue !== "") {
-        try {
-            paths.push(...loadAdditionalSensitivePaths(envValue));
-        } catch (err) {
-            console.error(
-                `[prism safety] ignoring malformed sensitive-paths env entry — ` +
-                `${err instanceof Error ? err.message : String(err)}. ` +
-                `Core deny floor still active (ADR-0047).`,
-            );
-        }
-    }
-    return paths;
-}
-
-/**
- * True when a path-shaped argument resolves into the sensitive deny floor.
- * A leading `@` (pi/curl file-ref prefix) is stripped first. `undefined`
- * means "no path arg supplied" (allow); any other non-string shape is
- * present-but-malformed and fails closed (ADR-0036).
- */
-function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): boolean {
-    if (pathArg === undefined) return false;
-    if (typeof pathArg !== "string") return true;
-    if (pathArg === "") return false;
-    const p = pathArg.replace(/^@+/, "");
-    if (p === "") return false;
-    const abs = p.startsWith("~")
-        ? normalize(opts.home + p.slice(1))
-        : normalize(resolvePath(opts.projectDir, p));
-    return sensitivePathMatch(abs, opts) !== null;
-}
-
 export default function (pi: ExtensionAPI) {
     /** Per-session consecutive-bash-denial circuit breaker (ADR-0042). */
     const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
@@ -149,113 +98,32 @@ export default function (pi: ExtensionAPI) {
     let extraPaths: string[] = [];
     const homeDir = homedir();
 
-    /**
-     * Record a bash denial. On the trip transition (count === threshold),
-     * emit the redacted escalation (ADR-0042: no command text, args, output,
-     * or metadata — only identity + count). Once tripped, `breaker.isTripped`
-     * blocks all subsequent tool calls for the session (fail-closed,
-     * ADR-0036); there is no `client.session.abort` in pi, so the user must
-     * `/new` to reset.
-     */
-    function noteBashDenial(sid: string, ctx: ExtensionContext): void {
-        const obs = breaker.observe(sid, true);
-        if (!obs.transitioned) return;
-        const redacted =
-            `[prism safety] circuit breaker tripped: ${obs.count} consecutive bash ` +
-            `denials in this session. All tools blocked until /new. (ADR-0042/ADR-0036)`;
-        if (ctx.hasUI) {
-            ctx.ui.notify(redacted, "error");
-        } else {
-            console.error(`${redacted} (session ${sid})`);
-        }
-    }
-
     pi.on("session_start", async (_event, ctx) => {
         safeRelDirs = resolveSafeRelDirs(ctx.cwd);
-        extraPaths = resolveExtraPaths();
+        extraPaths = resolveExtraPaths(process.env.PRISM_SENSITIVE_PATHS);
     });
 
-    pi.on("tool_call", async (event, ctx) => {
-        const sid = sessionId(ctx);
-
-        // 1. Circuit-breaker tripped (ADR-0042): block ALL tools while the
-        //    session is tripped, before the classifier runs. Does not feed
-        //    the breaker again (already tripped).
-        if (breaker.isTripped(sid)) {
-            return {
-                block: true,
-                reason:
-                    `[prism safety] BLOCKED: session tripped (${breaker.count(sid)} ` +
-                    `consecutive bash denials) — circuit breaker active per ADR-0042. ` +
-                    `Run /new to reset.`,
-            };
-        }
-
-        const opts: SensitivePathOptions = { projectDir: ctx.cwd, home: homeDir, extraPaths };
-
-        // 2. bash: sensitive operands first (ADR-0047/ADR-0048 §5), then the
-        //    destructive classifier (ADR-0023, ADR-0036). A blocked bash
-        //    feeds the breaker; a warn is surfaced via notify.
-        if (isToolCallEventType("bash", event)) {
-            const command: unknown = event.input.command;
-            if (typeof command !== "string") {
-                noteBashDenial(sid, ctx);
-                return {
-                    block: true,
-                    reason: `[prism safety] BLOCKED: malformed bash args — failing closed per ADR-0036`,
-                };
-            }
-            const operandMatch = sensitiveOperandCheck(command, opts);
-            if (operandMatch) {
-                noteBashDenial(sid, ctx);
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            const finding = classifyCommand(command, { projectDir: ctx.cwd, safeRelDirs });
-            if (finding.severity === "block") {
-                noteBashDenial(sid, ctx);
-                return { block: true, reason: `[prism safety] BLOCKED: ${finding.reason}` };
-            }
-            if (finding.severity === "warn" && ctx.hasUI) {
-                ctx.ui.notify(`[prism safety] WARNING: ${finding.reason}`, "warning");
-            }
-            return;
-        }
-
-        // 3. read/grep/find/ls: sensitive-path deny floor (ADR-0047/ADR-0048
-        //    §5). Non-bash blocks do NOT feed the bash-only breaker.
-        if (isToolCallEventType("read", event)) {
-            if (sensitivePathBlocks(event.input.path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
-        }
-        if (isToolCallEventType("ls", event)) {
-            if (sensitivePathBlocks(event.input.path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
-        }
-        if (isToolCallEventType("grep", event)) {
-            if (sensitivePathBlocks(event.input.path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            const base = typeof event.input.path === "string" ? event.input.path : ctx.cwd;
-            if (sensitivePatternCheck(event.input.glob, base, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
-        }
-        if (isToolCallEventType("find", event)) {
-            if (sensitivePathBlocks(event.input.path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            const base = typeof event.input.path === "string" ? event.input.path : ctx.cwd;
-            if (sensitivePatternCheck(event.input.pattern, base, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
-        }
-    });
+    pi.on("tool_call", (event, ctx) =>
+        handleToolCall(event.toolName, event.input, {
+            sid: sessionId(ctx),
+            cwd: ctx.cwd,
+            home: homeDir,
+            safeRelDirs,
+            extraPaths,
+            breaker,
+            notify: (msg, level) => {
+                if (level === "error") {
+                    if (ctx.hasUI) {
+                        ctx.ui.notify(msg, "error");
+                    } else {
+                        console.error(`${msg} (session ${sessionId(ctx)})`);
+                    }
+                } else if (ctx.hasUI) {
+                    ctx.ui.notify(msg, "warning");
+                }
+            },
+        })
+    );
 
     // A bash that actually executed (exit 0, nonzero exit, or ask-approved)
     // is not a denial — settle it and reset the streak. Blocked calls never
@@ -276,6 +144,7 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
+
 
 
 
