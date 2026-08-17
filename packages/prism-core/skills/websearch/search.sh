@@ -6,6 +6,7 @@
 
 
 
+
 set -euo pipefail
 
 # shellcheck disable=SC2034  # consumed by the sourced search_common.sh
@@ -73,9 +74,8 @@ if (process.env.THINKING === 'enabled') body.thinking = { type: 'enabled' };
 process.stdout.write(JSON.stringify(body));
 NODE
 
-HTTP_STATUS=$(curl --silent --show-error \
+HTTP_STATUS=$(search_request \
 	--output "$RESPONSE_FILE" \
-	--write-out '%{http_code}' \
 	--request POST \
 	--header 'content-type: application/json' \
 	--header "x-api-key: ${DEEPSEEK_API_KEY}" \
@@ -86,6 +86,7 @@ HTTP_STATUS=$(curl --silent --show-error \
 	printf 'websearch: network request failed: ' >&2
 	head -c 500 "$ERROR_FILE" >&2 || true
 	printf '\n' >&2
+	printf 'websearch: hint — if this persists, the searxng skill is an alternative search backend.\n' >&2
 	exit 5
 }
 
@@ -103,6 +104,7 @@ NODE
 )
 	[ -z "$MESSAGE" ] || printf ': %s' "$MESSAGE" >&2
 	printf '\n' >&2
+	printf 'websearch: hint — if this persists, the searxng skill is an alternative search backend.\n' >&2
 	exit 5
 fi
 
@@ -151,6 +153,7 @@ if (results.length > 0) {
 	});
 }
 NODE
+
 
 
 

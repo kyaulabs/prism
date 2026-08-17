@@ -16,6 +16,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -189,8 +190,27 @@ else
 	fail 'DeepSeek request is not sent through JSON file'
 fi
 
+printf '%s\n' '── websearch: retry helper and cross-backend hint ──'
+if grep -q 'search_request' "$WEB"; then
+	pass 'websearch invokes the shared search_request retry helper'
+else
+	fail 'websearch does not invoke search_request'
+fi
+if grep -q -- '--write-out' "$WEB"; then
+	fail 'websearch retains an inline curl --write-out (should use search_request)'
+else
+	pass 'websearch has no inline curl --write-out'
+fi
+WEB_HINT_COUNT=$(grep -c 'the searxng skill is an alternative search backend' "$WEB" || true)
+if [ "$WEB_HINT_COUNT" -eq 2 ]; then
+	pass 'websearch hints at the searxng fallback on both failure paths'
+else
+	fail "websearch fallback hint count is $WEB_HINT_COUNT (expected 2)"
+fi
+
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
