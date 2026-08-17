@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -71,7 +72,7 @@ register_temp_dir "$T1"
 	cd "$T1"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
-	CLOVER=$(mktemp)
+	CLOVER="${T1}/clover.xml"
 	build_clover "$CLOVER" "$T1" "backend/env.php:10:10"
 	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T1" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-0}" -eq 0 ] && grep -q 'PASS' out.txt; then
@@ -90,7 +91,7 @@ register_temp_dir "$T2"
 	cd "$T2"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
-	CLOVER=$(mktemp)
+	CLOVER="${T2}/clover.xml"
 	build_clover "$CLOVER" "$T2" "backend/env.php:5:10"
 	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T2" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
@@ -110,7 +111,7 @@ register_temp_dir "$T3"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
 	printf '<?php\necho "x";\n' > backend/other.php   # executable, outside <source>
-	CLOVER=$(mktemp)
+	CLOVER="${T3}/clover.xml"
 	build_clover "$CLOVER" "$T3" "backend/env.php:10:10"
 	printf 'backend/other.php\n' | php "$SCRIPT" "$CLOVER" --root="$T3" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-0}" -eq 0 ] && grep -q 'WARN' out.txt; then
@@ -127,7 +128,7 @@ T4=$(mktemp -d)
 register_temp_dir "$T4"
 (
 	cd "$T4"
-	CLOVER=$(mktemp)
+	CLOVER="${T4}/clover.xml"
 	build_clover "$CLOVER" "$T4" "backend/env.php:10:10"
 	printf '' | php "$SCRIPT" "$CLOVER" --root="$T4" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-0}" -eq 0 ]; then
@@ -144,7 +145,7 @@ T5=$(mktemp -d)
 register_temp_dir "$T5"
 (
 	cd "$T5"
-	CLOVER=$(mktemp)
+	CLOVER="${T5}/clover.xml"
 	build_clover "$CLOVER" "$T5" "backend/env.php:10:10"
 	printf 'backend/gone.php\n' | php "$SCRIPT" "$CLOVER" --root="$T5" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-0}" -eq 0 ] && grep -q 'SKIP' out.txt; then
@@ -163,7 +164,7 @@ register_temp_dir "$T6"
 	cd "$T6"
 	mkdir -p backend
 	echo '<?php' > backend/empty.php
-	CLOVER=$(mktemp)
+	CLOVER="${T6}/clover.xml"
 	build_clover "$CLOVER" "$T6" "backend/empty.php:0:0"
 	printf 'backend/empty.php\n' | php "$SCRIPT" "$CLOVER" --root="$T6" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-0}" -eq 0 ] && grep -q 'SKIP' out.txt; then
@@ -183,7 +184,7 @@ register_temp_dir "$T7"
 	mkdir -p backend
 	echo '<?php' > backend/good.php
 	echo '<?php' > backend/bad.php
-	CLOVER=$(mktemp)
+	CLOVER="${T7}/clover.xml"
 	build_clover "$CLOVER" "$T7" "backend/good.php:10:10" "backend/bad.php:2:10"
 	printf 'backend/good.php\nbackend/bad.php\n' | php "$SCRIPT" "$CLOVER" --root="$T7" >out.txt 2>&1 || rc=$?
 	if [ "${rc:-1}" -eq 1 ] && grep -q 'PASS' out.txt && grep -q 'FAIL' out.txt; then
@@ -202,7 +203,7 @@ register_temp_dir "$T8"
 	cd "$T8"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
-	CLOVER=$(mktemp)
+	CLOVER="${T8}/clover.xml"
 	# 85% coverage — passes default 80 but fails 90
 	build_clover "$CLOVER" "$T8" "backend/env.php:85:100"
 	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T8" --min=90 >out.txt 2>&1 || rc=$?
@@ -263,7 +264,7 @@ else
 		cd "$T11_LINK"
 		mkdir -p backend
 		echo '<?php' > backend/env.php
-		CLOVER=$(mktemp)
+		CLOVER="${T11_LINK}/clover.xml"
 		build_clover "$CLOVER" "$T11_LINK" "backend/env.php:5:10"
 		printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T11_LINK" >out.txt 2>&1 || rc=$?
 		if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
@@ -281,7 +282,7 @@ T12=$(mktemp -d)
 register_temp_dir "$T12"
 (
 	cd "$T12"
-	CLOVER=$(mktemp)
+	CLOVER="${T12}/clover.xml"
 	{
 		echo '<?xml version="1.0" encoding="UTF-8"?>'
 		echo '<coverage generated="1"><project></project></coverage>'
@@ -304,7 +305,7 @@ register_temp_dir "$T13"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
 	printf '<?php\necho "x";\n' > backend/other.php
-	CLOVER=$(mktemp)
+	CLOVER="${T13}/clover.xml"
 	build_clover "$CLOVER" "$T13" "backend/env.php:10:10"
 	printf 'backend/other.php\n' | php "$SCRIPT" "$CLOVER" --root="$T13" --strict >out.txt 2>&1 || rc=$?
 	if [ "${rc:-1}" -eq 1 ] && grep -q 'WARN' out.txt; then
@@ -321,7 +322,7 @@ T14=$(mktemp -d)
 register_temp_dir "$T14"
 (
 	cd "$T14"
-	CLOVER=$(mktemp)
+	CLOVER="${T14}/clover.xml"
 	build_clover "$CLOVER" "$T14" "backend/env.php:10:10"
 	for bad in abc 0 -5 101 1e9 ""; do
 		rc=0
@@ -341,7 +342,7 @@ T15=$(mktemp -d)
 register_temp_dir "$T15"
 (
 	cd "$T15"
-	CLOVER=$(mktemp)
+	CLOVER="${T15}/clover.xml"
 	{
 		echo '<?xml version="1.0" encoding="UTF-8"?>'
 		echo '<coverage generated="1"><project><file name="/x.php">'
@@ -369,7 +370,7 @@ else
 		echo '<?php' > backend/env.php
 		printf '<?php\necho "x";\n' > backend/locked.php
 		chmod 000 backend/locked.php
-		CLOVER=$(mktemp)
+		CLOVER="${T16}/clover.xml"
 		build_clover "$CLOVER" "$T16" "backend/env.php:10:10"
 		rc=0
 		printf 'backend/locked.php\n' | php "$SCRIPT" "$CLOVER" --root="$T16" >out.txt 2>&1 || rc=$?
@@ -392,6 +393,7 @@ fi
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -31,7 +32,7 @@
 #   - fail <msg>: print red FAIL, append to $RESULT_FILE
 #   - skip <msg>: print yellow SKIP, append to $RESULT_FILE (not counted as fail)
 #   - setup_result_file: create RESULT_FILE, install EXIT trap
-#   - register_temp_dir <dir>: track dir for EXIT-trap cleanup
+#   - register_temp_dir <dir> [...]: track dirs/files for EXIT-trap cleanup
 #   - make_file_stale <file> <days>: set file mtime to N days ago (portable)
 #   - can_symlink: return 0 if symlinks work, 1 if not (Windows guard)
 #   - native_path <path>: convert MSYS path to Windows path (no-op on POSIX)
@@ -76,9 +77,13 @@ setup_result_file() {
 	trap 'shell_test_cleanup' EXIT
 }
 
-# register_temp_dir <dir> — track a temp directory for EXIT-trap cleanup.
+# register_temp_dir <dir> [...] — track one or more temp dirs/files for
+# EXIT-trap cleanup. Accepts multiple paths; each is appended.
 register_temp_dir() {
-	TEMP_DIRS="$TEMP_DIRS $1"
+	local dir
+	for dir in "$@"; do
+		TEMP_DIRS="$TEMP_DIRS $dir"
+	done
 }
 
 # shell_test_cleanup — internal; invoked by the EXIT trap installed by
@@ -222,6 +227,7 @@ path_without_prism_tool() {
 	fi
 	printf '%s' "$out"
 }
+
 
 
 
