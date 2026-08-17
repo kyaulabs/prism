@@ -11,6 +11,7 @@
 
 
 
+
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
 # OpenCode-era per-concern CI tests: this file is authoritative.
@@ -110,7 +111,7 @@ echo "── resilient tool downloads ──"
 # (grep -c) so they stay comparable.
 
 TOTAL_LINES=$(grep -c 'curl -fsSL' "$CI" || true)
-BOUNDED_LINES=$(grep -cE 'curl -fsSL.*--connect-timeout 10.*--max-time 120.*--retry 3.*--retry-delay 2' "$CI" || true)
+BOUNDED_LINES=$(grep -cE 'curl -fsSL.*--connect-timeout 10([^0-9]|$).*--max-time 120([^0-9]|$).*--retry 3([^0-9]|$).*--retry-delay 2([^0-9]|$)' "$CI" || true)
 if [ "$TOTAL_LINES" -eq 0 ]; then
 	pass 'no curl -fsSL download lines present (nothing to bound)'
 elif [ "$TOTAL_LINES" -eq "$BOUNDED_LINES" ]; then
@@ -126,6 +127,7 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 
