@@ -33,7 +33,7 @@
 - Consumes: nothing new (uses `curl` from PATH).
 - Produces: `search_request <curl-args...>` — prints final HTTP status on stdout; exits 0 on final HTTP answer (including exhausted 429/5xx), exits nonzero on final transport failure. Consumed by Tasks 2–3.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/search_skills_test.sh` (after the `unit_rc` block):
 
@@ -117,12 +117,12 @@ search_request_case 'search_request: 429 thrice gives up after 3 attempts' '429:
 search_request_case 'search_request: transport failures thrice exit nonzero' 'X:X:X' '' 1 3
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: the 6 new cases FAIL (`search_request: command not found`); all existing cases still pass.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Append to `packages/prism-core/skills/lib/search_common.sh` after `require_posint`:
 
@@ -157,11 +157,11 @@ search_request() {
 
 Also update the file's header docblock: add the `search_request` bullet to the "Provides" list (same style as the existing bullets).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/search_skills_test.sh` — Expected: all PASS, `0 failed` (~18s for the backoff sleeps).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/lib/search_common.sh tests/Shell/search_skills_test.sh
@@ -180,7 +180,7 @@ git commit -S -m $'feat(search): add search_request retry helper\n\nR1 of the re
 - Consumes: `search_request` from Task 1.
 - Produces: websearch hard-fails via `search_request`; both failure paths print the searxng hint.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/search_skills_test.sh`:
 
@@ -204,11 +204,11 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/search_skills_test.sh` — Expected: the 3 new websearch assertions FAIL (no `search_request`; inline `--write-out` present; hint count 0).
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `packages/prism-core/skills/websearch/search.sh`, replace the curl invocation block:
 
@@ -238,11 +238,11 @@ And add the same hint line immediately before the `exit 5` in the HTTP-status bl
 	exit 5
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/search_skills_test.sh` — Expected: all PASS, `0 failed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/websearch/search.sh tests/Shell/search_skills_test.sh
@@ -261,7 +261,7 @@ git commit -S -m $'feat(search): retry and cross-backend hint in websearch\n\nR1
 - Consumes: `search_request` from Task 1.
 - Produces: searxng hard-fails via `search_request`; both failure paths print the websearch hint.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/search_skills_test.sh`:
 
@@ -285,11 +285,11 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/search_skills_test.sh` — Expected: the 3 new searxng assertions FAIL; everything else passes.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `packages/prism-core/skills/searxng/search.sh`, replace the curl invocation block:
 
@@ -320,11 +320,11 @@ And in the HTTP-status block, after the 403 note's `printf '\n' >&2`:
 	exit 5
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/search_skills_test.sh` — Expected: all PASS, `0 failed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/searxng/search.sh tests/Shell/search_skills_test.sh
@@ -341,7 +341,7 @@ git commit -S -m $'feat(search): retry and cross-backend hint in searxng\n\nR1/G
 
 **Interfaces:** none (pure workflow hardening).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/pi_ci_contract_test.sh` after the "no legacy OpenCode-era surface" section (before the failures check):
 
@@ -351,11 +351,11 @@ assert_ci_contains 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --r
 assert_ci_not_contains 'curl -fsSL -o' 'no unbounded tool downloads remain'
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/pi_ci_contract_test.sh` — Expected: the two new assertions FAIL (missing flag line; `curl -fsSL -o` still present); all existing assertions pass.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `.github/workflows/ci.yml`, in **both** download steps (shellcheck and gitleaks), replace:
 
@@ -372,11 +372,11 @@ with:
 
 (Each block's `sha256sum -c --strict -` on the following lines is unchanged — it keeps guarding integrity, so retries are safe.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/pi_ci_contract_test.sh` — Expected: all PASS, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/ci.yml tests/Shell/pi_ci_contract_test.sh
@@ -395,7 +395,7 @@ git commit -S -m $'fix(ci): bound and retry tool downloads\n\nT1 of the resilien
 - Consumes: nothing.
 - Produces: `gh_api <args...>` — `timeout 60 gh api "$@"` when GNU `timeout` exists on PATH, else bare `gh api "$@"`. Same stdout/stderr/exit semantics as `gh api`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/setup_rulesets_test.sh` after Test 28 (before the Summary):
 
@@ -512,11 +512,11 @@ echo "── Test 31: gh_api falls back to bare gh api ──"
 test_gh_api_bare_without_timeout
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/setup_rulesets_test.sh` — Expected: tests 29–31 FAIL (29: `if ! gh api` count is 6, `gh_api` count 0; 30/31: script aborts with `gh_api: command not found` → exit 2). Existing 28 tests still pass.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `packages/prism-core/scripts/setup-rulesets.sh`, after the php presence check (before `gh auth status`), insert:
 
@@ -542,11 +542,11 @@ Then change the 6 call sites `if ! gh api "…"` → `if ! gh_api "…"` (argume
 - Line 271: `if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then`
 - Line 285: `if ! gh_api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then`
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/setup_rulesets_test.sh` — Expected: all 31 tests PASS, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/scripts/setup-rulesets.sh tests/Shell/setup_rulesets_test.sh
