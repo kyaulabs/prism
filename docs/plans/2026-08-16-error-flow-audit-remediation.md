@@ -35,7 +35,7 @@
 - Consumes: existing `load_env(string $path): void`, `env_bool(string $key, bool $default = false): bool`, `restoreEnvVars(...)` from `tests/Pest.php`.
 - Produces: two new `error_log` diagnostics: `load_env: {path} exists but is not readable; using defaults` and `load_env: failed to read {path}; using defaults`. Later tasks rely on no change to function signatures.
 
-- [ ] **Step 1: Write the failing test** — append to `tests/Unit/LoadEnvTest.php`:
+- [x] **Step 1: Write the failing test** — append to `tests/Unit/LoadEnvTest.php`:
 
 ```php
 test('load_env logs an unreadable env file and keeps defaults', function () {
@@ -89,12 +89,12 @@ test('load_env absent env file stays silent (no log, defaults kept)', function (
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node packages/prism-core/scripts/prism-tool.js run pest -- tests/Unit/LoadEnvTest.php`
 Expected: FAIL — the unreadable test fails on `$warnings` being non-empty (today `file()` emits `E_WARNING` and returns silently) and on the empty log; the absent-file test passes (pins the current silence).
 
-- [ ] **Step 3: Write minimal implementation** — in `backend/env.php`, replace the two silent fault returns:
+- [x] **Step 3: Write minimal implementation** — in `backend/env.php`, replace the two silent fault returns:
 
 ```php
     $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -136,12 +136,12 @@ to:
  *       error_log and defaults are used; absent files stay a silent no-op.
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node packages/prism-core/scripts/prism-tool.js run pest -- tests/Unit/LoadEnvTest.php`
 Expected: PASS — all existing tests green unchanged, both new tests green (log contains the message and the path; zero warnings leaked).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/env.php tests/Unit/LoadEnvTest.php
@@ -160,7 +160,7 @@ git commit -S -m $'fix(env): log unreadable env-file reads in load_env\n\nF3 fro
 - Consumes: Task 1's untouched `load_env`, existing `env_bool` semantics (empty-string = unset, `FILTER_VALIDATE_BOOL` coercion).
 - Produces: one new diagnostic on the garbage-value branch: `env_bool: cannot parse value "{value}" for {key}; using default {true|false}`. Return values byte-identical to the `?? $default` collapse.
 
-- [ ] **Step 1: Write the failing test** — append to `tests/Unit/EnvBoolTest.php`:
+- [x] **Step 1: Write the failing test** — append to `tests/Unit/EnvBoolTest.php`:
 
 ```php
 test('env_bool logs an unparseable value with key, value, and default', function () {
@@ -219,12 +219,12 @@ test('env_bool empty-string value stays silent (treated as unset)', function () 
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node packages/prism-core/scripts/prism-tool.js run pest -- tests/Unit/EnvBoolTest.php`
 Expected: FAIL — the unparseable test fails on the empty log; both silence tests pass (pin current behavior).
 
-- [ ] **Step 3: Write minimal implementation** — in `backend/env.php`, replace:
+- [x] **Step 3: Write minimal implementation** — in `backend/env.php`, replace:
 
 ```php
     return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
@@ -256,12 +256,12 @@ And add to the `env_bool()` docblock description (after the "empty-string $_ENV 
  * the default is returned.
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node packages/prism-core/scripts/prism-tool.js run pest -- tests/Unit/EnvBoolTest.php`
 Expected: PASS — all 14 existing tests green unchanged, all 3 new tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/env.php tests/Unit/EnvBoolTest.php
