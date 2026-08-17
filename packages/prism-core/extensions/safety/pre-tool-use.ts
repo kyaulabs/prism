@@ -18,6 +18,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -77,23 +78,23 @@ function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
     const operands: string[] = [];
     let onlyOperands = false;
     for (; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (!onlyOperands && t === "--") {
+        const token = tokens[i];
+        if (!onlyOperands && token === "--") {
             onlyOperands = true;
             continue;
         }
-        if (!onlyOperands && t.startsWith("-") && t.length > 1) {
-            if (t.startsWith("--")) {
-                if (t === "--recursive") recursive = true;
-                else if (t === "--force") force = true;
+        if (!onlyOperands && token.startsWith("-") && token.length > 1) {
+            if (token.startsWith("--")) {
+                if (token === "--recursive") recursive = true;
+                else if (token === "--force") force = true;
             } else {
-                const chars = t.slice(1);
+                const chars = token.slice(1);
                 if (chars.includes("r") || chars.includes("R")) recursive = true;
                 if (chars.includes("f")) force = true;
             }
             continue;
         }
-        operands.push(t);
+        operands.push(token);
     }
     return { recursive, force, operands };
 }
@@ -378,6 +379,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

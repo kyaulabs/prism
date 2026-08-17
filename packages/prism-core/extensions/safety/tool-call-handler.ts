@@ -3,6 +3,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
 import {
@@ -79,11 +80,11 @@ function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): bool
     if (pathArg === undefined) return false;
     if (typeof pathArg !== "string") return true;
     if (pathArg === "") return false;
-    const p = pathArg.replace(/^@+/, "");
-    if (p === "") return false;
-    const abs = p.startsWith("~")
-        ? normalize(opts.home + p.slice(1))
-        : normalize(resolvePath(opts.projectDir, p));
+    const path = pathArg.replace(/^@+/, "");
+    if (path === "") return false;
+    const abs = path.startsWith("~")
+        ? normalize(opts.home + path.slice(1))
+        : normalize(resolvePath(opts.projectDir, path));
     return sensitivePathMatch(abs, opts) !== null;
 }
 
@@ -218,6 +219,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
+
 
 
 
