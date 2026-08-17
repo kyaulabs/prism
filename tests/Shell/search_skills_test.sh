@@ -11,6 +11,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -45,13 +46,15 @@ printf '%s\n' '── shared search validation helpers: unit contract ──'
 # Hermetic checks of the lib's exit codes, sourcing it directly so a missing
 # curl/node on the host cannot mask the assertion under test.
 unit_rc() {
-	local expected="$1" label="$2" err_file; shift 2
+	local expected="$1" label="$2" expected_msg="$3" err_file
+	shift 3
 	err_file=$(mktemp)
 	set +e
 	SKILL='test' bash -c 'unset DEEPSEEK_API_KEY SEARXNG_URL; source "$1"; "${@:2}"' _ "$LIB" "$@" >/dev/null 2>"$err_file"
 	local rc=$?
 	set -e
-	if [ "$rc" -eq "$expected" ]; then
+	if [ "$rc" -eq "$expected" ] \
+		&& { [ -z "$expected_msg" ] || grep -q -- "$expected_msg" "$err_file"; }; then
 		pass "$label"
 	else
 		fail "$label rc=$rc: $(head -1 "$err_file" 2>/dev/null)"
@@ -59,18 +62,26 @@ unit_rc() {
 	rm -f "$err_file"
 }
 
-unit_rc 2 'usage_guard exits 2' usage_guard 0
-unit_rc 0 'usage_guard accepts one arg' usage_guard 1
-unit_rc 0 'usage_guard accepts many args' usage_guard 2
-unit_rc 3 'require_cmd exits 3' require_cmd prism-nonexistent-tool 'tool is required.'
-unit_rc 4 'require_env exits 4' require_env DEEPSEEK_API_KEY
-unit_rc 2 'require_posint rejects empty' require_posint MAX  ''
-unit_rc 2 'require_posint rejects zero' require_posint MAX 0
-unit_rc 2 'require_posint rejects leading zero' require_posint MAX 00
-unit_rc 2 'require_posint rejects non-numeric' require_posint MAX abc
-unit_rc 0 'require_posint accepts valid' require_posint MAX 10
+unit_rc 2 'usage_guard exits 2' '' usage_guard 0
+unit_rc 0 'usage_guard accepts one arg' '' usage_guard 1
+unit_rc 0 'usage_guard accepts many args' '' usage_guard 2
+unit_rc 3 'require_cmd exits 3' '' require_cmd prism-nonexistent-tool 'tool is required.'
+unit_rc 3 'require_cmd message' 'tool is required.' require_cmd prism-nonexistent-tool 'tool is required.'
+unit_rc 4 'require_env exits 4' '' require_env DEEPSEEK_API_KEY
+unit_rc 4 'require_env message' 'DEEPSEEK_API_KEY is not set' require_env DEEPSEEK_API_KEY
+unit_rc 2 'require_posint rejects empty' '' require_posint MAX  ''
+unit_rc 2 'require_posint rejects zero' '' require_posint MAX 0
+unit_rc 2 'require_posint rejects leading zero' '' require_posint MAX 00
+unit_rc 2 'require_posint rejects non-numeric' '' require_posint MAX abc
+unit_rc 2 'require_posint message' 'must be a positive integer' require_posint MAX abc
+unit_rc 0 'require_posint accepts valid' '' require_posint MAX 10
 
 printf '%s\n' '── search skills: secret handling ──'
+for f in "$WEB" "$SEARX" "$LIB"; do
+	if [ ! -r "$f" ]; then
+		fail "secret-handling scan target missing: $f"
+	fi
+done
 if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
 	fail 'websearch can print the key value'
 else
@@ -96,6 +107,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

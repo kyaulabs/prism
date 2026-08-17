@@ -7,6 +7,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -27,7 +28,7 @@
 
 usage_guard() {
 	case "${1:-}" in
-		''|*[!0-9]*|0)
+		''|*[!0-9]*|0*)
 			printf 'Usage: %s <query>\n' "$(basename "$0")" >&2
 			exit 2
 			;;
@@ -54,6 +55,7 @@ require_posint() {
 		exit 2
 	fi
 }
+
 
 
 

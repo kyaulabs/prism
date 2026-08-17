@@ -14,6 +14,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -289,6 +290,22 @@ test_path_without_prism_tool() {
 	else
 		fail "path_without_prism_tool lost trailing empty: $stripped"
 	fi
+
+	# Duplicate launcher installs: every PATH component holding a
+	# prism-tool is dropped, not just the first `command -v` match.
+	local dup_dir
+	dup_dir=$(mktemp -d)
+	register_temp_dir "$dup_dir"
+	touch "$dup_dir/prism-tool"
+	chmod +x "$dup_dir/prism-tool"
+	PATH="$fake_dir:/usr/bin:$dup_dir:/bin"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = "/usr/bin:/bin" ]; then
+		pass "path_without_prism_tool strips duplicate launcher dirs"
+	else
+		fail "path_without_prism_tool kept a duplicate launcher dir: $stripped"
+	fi
 }
 
 # Run tests
@@ -311,6 +328,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

@@ -15,6 +15,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -175,17 +176,7 @@ native_path() {
 # on PATH. Requires the real prism-tool (or a fixture named prism-tool)
 # to be resolvable via the caller's PATH.
 path_without_prism_tool() {
-	local launcher_dir="" part sentinel="__PATH_END__" kept=0 out="" launcher=""
-	if command -v prism-tool > /dev/null 2>&1; then
-		launcher="$(command -v prism-tool)"
-		# Strip the trailing executable name with the bash builtin (no
-		# external dirname — the stripped PATH may lack /usr/bin).
-		launcher_dir="${launcher%/*}"
-	fi
-	if [ -z "$launcher_dir" ]; then
-		printf '%s' "$PATH"
-		return 0
-	fi
+	local part sentinel="__PATH_END__" kept=0 out=""
 	# Split on ':' preserving empty components (POSIX PATH: empty = current
 	# dir). The sentinel keeps the trailing empty field that plain `read`
 	# would discard; it is dropped before reconstruction.
@@ -194,15 +185,20 @@ path_without_prism_tool() {
 	parts=("${parts[@]:0:${#parts[@]}-1}")
 	local first=1
 	for part in "${parts[@]}"; do
-		if [ "$part" != "$launcher_dir" ]; then
-			if [ "$first" -eq 1 ]; then
-				out="$part"
-				first=0
-			else
-				out="$out:$part"
-			fi
-			kept=$((kept + 1))
+		# Drop every component that itself resolves a prism-tool (not just
+		# the first `command -v` match — a dogfooding machine may hold
+		# duplicate installs on PATH). External tools are avoided so this
+		# also works when the remaining PATH lacks /usr/bin.
+		if [ -n "$part" ] && [ -x "$part/prism-tool" ]; then
+			continue
 		fi
+		if [ "$first" -eq 1 ]; then
+			out="$part"
+			first=0
+		else
+			out="$out:$part"
+		fi
+		kept=$((kept + 1))
 	done
 	# A lone empty component round-trips as ':' (cwd); empty join with
 	# kept>0 means exactly that (plain "" would read as no PATH at all).
@@ -211,6 +207,7 @@ path_without_prism_tool() {
 	fi
 	printf '%s' "$out"
 }
+
 
 
 

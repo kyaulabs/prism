@@ -4,6 +4,7 @@
 
 
 
+
 # ── Temp-dir fixture helpers for tests/Shell/*_test.sh ─────────────────────────
 #
 # Source this file after REPO_ROOT is set:
@@ -13,6 +14,11 @@
 #   - TMP_DIRS: array of directories to remove on exit
 #   - cleanup: rm -rf every tracked dir (installed via `trap cleanup EXIT`)
 #   - fixture: mktemp -d, git init -q inside it, track it, print its path
+#
+# The fixture repo disables commit.gpgsign (matches git_init_test_repo)
+# but deliberately sets NO git identity: resolve_identity_test asserts
+# fixture repos have no resolvable identity, so callers that commit must
+# pass -c user.name/-c user.email themselves.
 #
 # Note: test_helpers.sh's register_temp_dir is a separate RESULT_FILE-style
 # contract; this module serves the counter-style tests. This module owns the
@@ -32,6 +38,7 @@ cleanup() {
 trap cleanup EXIT
 
 fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; git -C "$d" config commit.gpgsign false; printf '%s' "$d"; }
+
 
 
 
