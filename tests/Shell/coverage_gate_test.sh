@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -310,10 +311,31 @@ register_temp_dir "$T13"
 	fi
 )
 
+# ── Test 14: Garbage --min values → usage error, exit 2 ─────────────────────
+echo ""
+echo "── Test 14: garbage --min values → exit 2 ──"
+T14=$(mktemp -d)
+register_temp_dir "$T14"
+(
+	cd "$T14"
+	CLOVER=$(mktemp)
+	build_clover "$CLOVER" "$T14" "backend/env.php:10:10"
+	for bad in abc 0 -5 101 1e9 ""; do
+		rc=0
+		printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T14" --min="$bad" >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 2 ] && grep -q 'ERROR: --min must be an integer 1..100' out.txt; then
+			pass "--min='$bad' rejected (exit 2)"
+		else
+			fail "--min='$bad': expected exit 2 + usage message, got rc=$rc"
+		fi
+	done
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 
