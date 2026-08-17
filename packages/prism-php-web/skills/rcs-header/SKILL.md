@@ -55,7 +55,7 @@ content changed. A placeholder guard blocks commits containing literal
 ```text
 PHP:  // vim: ft=php sts=4 sw=4 ts=4 et :
 SCSS: // vim: ft=scss sts=2 sw=2 ts=2 et :
-JS:   // vim: ft=javascript sts=4 sw=4 ts=4 noet :
+JS:   // vim: ft=javascript sts=4 sw=4 ts=4 et :
 Bash: # vim: ft=sh sts=4 sw=4 ts=4 et :
 TS:   // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```
