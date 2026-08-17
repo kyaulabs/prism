@@ -9,6 +9,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -26,11 +27,15 @@
 #                            value is treated as missing — fail closed)
 #   - require_posint <VAR> <value>: '<SKILL>: <VAR> must be a positive
 #                            integer.'                                        exit 2
-#   - search_request <curl-args...>: runs curl with --silent --show-error
-#     and --write-out '%{http_code}' appended, retrying transient outcomes
-#     (transport failure, HTTP 429, HTTP >= 500) up to 3 attempts with
-#     2s/4s backoff. Prints the final HTTP status on stdout. Exits nonzero
-#     on final transport failure.                              exit 1
+#   - search_request <curl-args...>: runs curl with --silent --show-error,
+#     --write-out '%{http_code}', and a private --dump-header temp file,
+#     retrying transient outcomes (fast transport failures, HTTP 429 honoring
+#     Retry-After capped at 30s, HTTP >= 500) up to 3 attempts with 2s/4s
+#     backoff. A curl timeout (rc 28) is never retried: the server outcome is
+#     unknown, so retrying could duplicate a billed request and would extend
+#     the request window. Callers must pass --output FILE so the response
+#     body is not captured into the status. Prints the final HTTP status on
+#     stdout. Exits nonzero on final transport failure.            exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -63,25 +68,40 @@ require_posint() {
 }
 
 search_request() {
-	local attempt=0 status='' curl_rc=0
+	local attempt=0 status='' curl_rc=0 header_file retry_after
+	header_file=$(mktemp)
 	while :; do
-		if status=$(curl --silent --show-error --write-out '%{http_code}' "$@"); then
+		: > "$header_file"
+		if status=$(curl --silent --show-error --write-out '%{http_code}' --dump-header "$header_file" "$@"); then
 			curl_rc=0
 			if [ "$status" != "429" ] && [ "$status" -lt 500 ]; then
 				break
 			fi
 		else
 			curl_rc=$?
+			if [ "$curl_rc" -eq 28 ]; then
+				break   # timeout: outcome unknown — never retry
+			fi
 		fi
 		attempt=$((attempt + 1))
 		if [ "$attempt" -ge 3 ]; then
 			break
 		fi
+		if [ "$status" = "429" ]; then
+			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { print $2 + 0; exit }' "$header_file")
+			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
+				[ "$retry_after" -gt 30 ] && retry_after=30
+				sleep "$retry_after"
+				continue
+			fi
+		fi
 		sleep $((2 * attempt))   # 2s, 4s — bounded linear backoff
 	done
+	rm -f "$header_file"
 	printf '%s\n' "$status"
 	[ "$curl_rc" -eq 0 ]
 }
+
 
 
 

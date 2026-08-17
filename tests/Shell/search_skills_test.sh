@@ -18,6 +18,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -93,15 +94,25 @@ write_fake_curl() {
 set -euo pipefail
 
 out=''
+hdr=''
 while [ $# -gt 0 ]; do
-	if [ "$1" = "--output" ]; then
-		out="$2"
-		shift 2
-		continue
-	fi
-	shift
+	case "$1" in
+		--output) out="$2"; shift 2 ;;
+		--output=*) out="${1#--output=}"; shift ;;
+		-o) out="$2"; shift 2 ;;
+		-o*) out="${1#-o}"; shift ;;
+		--dump-header) hdr="$2"; shift 2 ;;
+		*) shift ;;
+	esac
 done
+if [ -z "$out" ]; then
+	printf 'fake curl: no --output target\n' >&2
+	exit 1
+fi
 printf 'fake body\n' > "$out"
+if [ -n "$hdr" ] && [ -n "${FAKE_CURL_RETRY_AFTER:-}" ]; then
+	printf 'retry-after: %s\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
+fi
 
 count=0
 if [ -f "${FAKE_CURL_LOG:-}" ]; then
@@ -120,42 +131,53 @@ if [ "$status" = "X" ]; then
 	printf 'fake curl: connection refused\n' >&2
 	exit 1
 fi
+if [ "$status" = "T" ]; then
+	printf 'fake curl: operation timed out\n' >&2
+	exit 28
+fi
 printf '%s' "$status"
 FAKE_CURL
 	chmod +x "$dir/curl"
 }
 
 search_request_case() {
-	local label="$1" seq="$2" expected_out="$3" expected_rc="$4" expected_invocations="$5"
-	local fake_bin log outfile out rc invocations
+	local label="$1" seq="$2" expected_out="$3" expected_rc="$4" expected_invocations="$5" retry_after="${6:-}"
+	local fake_bin log outfile errfile out rc invocations ok
 	fake_bin=$(mktemp -d)
 	log=$(mktemp)
 	outfile=$(mktemp)
+	errfile=$(mktemp)
 	write_fake_curl "$fake_bin"
 	export FAKE_CURL_SEQ="$seq" FAKE_CURL_LOG="$log"
+	[ -n "$retry_after" ] && export FAKE_CURL_RETRY_AFTER="$retry_after"
 	set +e
 	out=$(env PATH="$fake_bin:$PATH" bash -c \
 		'source "$1"; search_request --output "$2" http://fake.invalid/search' \
-		_ "$LIB" "$outfile" 2>/dev/null)
+		_ "$LIB" "$outfile" 2>"$errfile")
 	rc=$?
 	set -e
-	unset FAKE_CURL_SEQ FAKE_CURL_LOG
+	unset FAKE_CURL_SEQ FAKE_CURL_LOG FAKE_CURL_RETRY_AFTER
 	invocations=$(cat "$log" 2>/dev/null || true)
 	invocations="${invocations:-0}"
-	if [ "$rc" -eq "$expected_rc" ] && [ "$out" = "$expected_out" ] \
-		&& [ "$invocations" -eq "$expected_invocations" ]; then
+	ok=1
+	[ "$rc" -eq "$expected_rc" ] || ok=0
+	[ "$out" = "$expected_out" ] || ok=0
+	[ "$invocations" -eq "$expected_invocations" ] || ok=0
+	if [ "$ok" -eq 1 ] && { [ "$expected_rc" -ne 0 ] || grep -q 'fake body' "$outfile"; }; then
 		pass "$label"
 	else
-		fail "$label (rc=$rc out='$out' invocations=$invocations; expected rc=$expected_rc out='$expected_out' invocations=$expected_invocations)"
+		fail "$label (rc=$rc out='$out' invocations=$invocations body=$(grep -c 'fake body' "$outfile" || true); expected rc=$expected_rc out='$expected_out' invocations=$expected_invocations; stderr: $(head -2 "$errfile" 2>/dev/null | tr '\n' ' '))"
 	fi
-	rm -f "$log" "$outfile"
+	rm -f "$log" "$outfile" "$errfile"
 	rm -rf "$fake_bin"
 }
 
 printf '%s\n' '── search_request retry helper ──'
 search_request_case 'search_request: 200 passes through, single attempt' '200' '200' 0 1
 search_request_case 'search_request: 403 is not retried' '403' '403' 0 1
+search_request_case 'search_request: curl timeout is not retried' 'T' '' 1 1
 search_request_case 'search_request: 429 then 200 retries once' '429:200' '200' 0 2
+search_request_case 'search_request: 429 honors Retry-After' '429:200' '200' 0 2 1
 search_request_case 'search_request: transport failures then 200 retries twice' 'X:X:200' '200' 0 3
 search_request_case 'search_request: 429 thrice gives up after 3 attempts' '429:429:429' '429' 0 3
 search_request_case 'search_request: transport failures thrice exit nonzero' 'X:X:X' '' 1 3
@@ -229,6 +251,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
