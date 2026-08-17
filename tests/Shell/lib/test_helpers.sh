@@ -14,6 +14,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -190,18 +191,27 @@ path_without_prism_tool() {
 	# would discard; it is dropped before reconstruction.
 	local -a parts
 	IFS=: read -r -a parts <<< "$PATH:$sentinel"
-	unset 'parts[${#parts[@]}-1]'
+	parts=("${parts[@]:0:${#parts[@]}-1}")
+	local first=1
 	for part in "${parts[@]}"; do
 		if [ "$part" != "$launcher_dir" ]; then
-			if [ "$kept" -gt 0 ]; then
-				out="$out:"
+			if [ "$first" -eq 1 ]; then
+				out="$part"
+				first=0
+			else
+				out="$out:$part"
 			fi
-			out="$out$part"
 			kept=$((kept + 1))
 		fi
 	done
+	# A lone empty component round-trips as ':' (cwd); empty join with
+	# kept>0 means exactly that (plain "" would read as no PATH at all).
+	if [ "$kept" -gt 0 ] && [ -z "$out" ]; then
+		out=":"
+	fi
 	printf '%s' "$out"
 }
+
 
 
 
