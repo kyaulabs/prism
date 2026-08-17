@@ -12,6 +12,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -257,6 +258,17 @@ test_path_without_prism_tool() {
 	else
 		fail "path_without_prism_tool dropped empty PATH components: $stripped"
 	fi
+
+	# Launcher as the only non-empty component: empty cwd entries survive
+	# and the launcher dir is removed (no external dirname dependency).
+	PATH=":$fake_dir:"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":" ]; then
+		pass "path_without_prism_tool strips launcher-only PATH"
+	else
+		fail "path_without_prism_tool mishandled launcher-only PATH: $stripped"
+	fi
 }
 
 # Run tests
@@ -279,6 +291,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

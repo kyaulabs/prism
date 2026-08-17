@@ -13,6 +13,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -173,9 +174,12 @@ native_path() {
 # on PATH. Requires the real prism-tool (or a fixture named prism-tool)
 # to be resolvable via the caller's PATH.
 path_without_prism_tool() {
-	local launcher_dir="" out="" part first=1 sentinel="__PATH_END__"
+	local launcher_dir="" part sentinel="__PATH_END__" kept=0 out="" launcher=""
 	if command -v prism-tool > /dev/null 2>&1; then
-		launcher_dir="$(dirname "$(command -v prism-tool)")"
+		launcher="$(command -v prism-tool)"
+		# Strip the trailing executable name with the bash builtin (no
+		# external dirname — the stripped PATH may lack /usr/bin).
+		launcher_dir="${launcher%/*}"
 	fi
 	if [ -z "$launcher_dir" ]; then
 		printf '%s' "$PATH"
@@ -189,15 +193,16 @@ path_without_prism_tool() {
 	unset 'parts[${#parts[@]}-1]'
 	for part in "${parts[@]}"; do
 		if [ "$part" != "$launcher_dir" ]; then
-			if [ "$first" -eq 1 ]; then
-				out="$part"; first=0
-			else
-				out="$out:$part"
+			if [ "$kept" -gt 0 ]; then
+				out="$out:"
 			fi
+			out="$out$part"
+			kept=$((kept + 1))
 		fi
 	done
 	printf '%s' "$out"
 }
+
 
 
 
