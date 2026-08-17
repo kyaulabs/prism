@@ -19,6 +19,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -73,15 +74,26 @@ fi
 # Wrap gh with a 60s cap where GNU timeout (or Homebrew coreutils gtimeout)
 # exists; fall back to a bare call only where neither is available, keeping
 # the script portable to macOS/BSD.
+_RUN_GH_BOUND=''
 run_gh() {
 	local rc=0
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 60 gh "$@" || rc=$?
-	elif command -v gtimeout >/dev/null 2>&1; then
-		gtimeout 60 gh "$@" || rc=$?
-	else
-		gh "$@" || rc=$?
+	# Detect a GNU-compatible timeout once: Git Bash ships a Windows
+	# timeout.exe with incompatible syntax, so `command -v` alone is not
+	# enough. Fall back to gtimeout (Homebrew coreutils) or a bare call.
+	if [ -z "$_RUN_GH_BOUND" ]; then
+		if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | grep -qi 'coreutils'; then
+			_RUN_GH_BOUND=timeout
+		elif command -v gtimeout >/dev/null 2>&1 && gtimeout --version 2>/dev/null | grep -qi 'coreutils'; then
+			_RUN_GH_BOUND=gtimeout
+		else
+			_RUN_GH_BOUND=none
+		fi
 	fi
+	case "$_RUN_GH_BOUND" in
+		timeout)  timeout 60 gh "$@" || rc=$? ;;
+		gtimeout) gtimeout 60 gh "$@" || rc=$? ;;
+		*)        gh "$@" || rc=$? ;;
+	esac
 	# A call killed by the timeout (exit 124) has an unknown outcome —
 	# distinct from a genuine failure, and critical for --apply mutations
 	# that may have landed server-side. Emitted for every gh invocation;
@@ -351,6 +363,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 

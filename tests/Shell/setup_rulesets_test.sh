@@ -19,6 +19,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -1320,10 +1321,13 @@ test_no_delete_code_path
 
 test_gh_api_call_sites_wrapped() {
 	local outside bare wrapped
-	# Strip the gh_api() definition (assumes `gh_api() {` at column 0 closed by
-	# a column-0 `}`); any remaining `gh api ` mention outside it — and not in
-	# a comment — is a bare, unbounded call site. Occurrence counting
-	# (grep -o | wc -l) so multiple calls on one line cannot hide.
+	# Static audit coupled to the script's formatting: assumes `gh_api() {`
+	# at column 0 closed by a column-0 `}`, calls written as `gh_api "..."`,
+	# and no literal `gh api` text in payloads. Formatting drift in
+	# setup-rulesets.sh requires updating this audit (deliberate coupling).
+	# Strip the gh_api() definition; any remaining `gh api ` mention outside
+	# it — and not in a comment — is a bare, unbounded call site. Occurrence
+	# counting (grep -o | wc -l) so multiple calls on one line cannot hide.
 	outside=$(awk '/^gh_api\(\) \{/{skip=1} skip && /^\}/{skip=0; next} !skip {print}' "$SCRIPT")
 	# Strip full-line and inline comments, then match `gh api` followed by
 	# whitespace or end-of-line so tabs or multiple spaces cannot hide a bare call.
@@ -1357,6 +1361,10 @@ test_gh_api_uses_timeout_when_available() {
 
 	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
 echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
 shift
 cmd="$1"
@@ -1419,7 +1427,7 @@ test_gh_api_bare_without_timeout() {
 	# are bash builtins). Deliberately no timeout/gtimeout so the gh_api
 	# fallback is exercised; extend this list if the script gains externals
 	# (set -euo pipefail aborts on a missing command).
-	for tool in bash php mktemp cat grep rm; do
+	for tool in bash php mktemp cat grep rm head; do
 		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
 			fail "minimal PATH — cannot symlink $tool (missing external?)"
 			unset FAKE_GH_LOG FAKE_GH_FIXTURES
@@ -1469,7 +1477,7 @@ test_gh_api_uses_gtimeout_when_available() {
 	fake_gh_setup "$fake_bin"
 	# Minimal PATH (like Test 31) so the host's /usr/bin/timeout cannot
 	# shadow the gtimeout-only scenario; plus the gtimeout shim.
-	for tool in bash php mktemp cat grep rm; do
+	for tool in bash php mktemp cat grep rm head; do
 		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
 			fail "gtimeout minimal PATH — cannot symlink $tool (missing external?)"
 			unset FAKE_GH_LOG FAKE_GH_FIXTURES
@@ -1479,6 +1487,10 @@ test_gh_api_uses_gtimeout_when_available() {
 
 	cat > "$fake_bin/gtimeout" <<'GTIMEOUT_SHIM'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
 echo "$@" >> "${FAKE_GTIMEOUT_LOG:?FAKE_GTIMEOUT_LOG not set}"
 shift
 cmd="$1"
@@ -1533,6 +1545,10 @@ test_timeout_killed_mutation_names_outcome() {
 	# Timeout shim that kills (exit 124) mutation verbs only.
 	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
 echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
 shift
 cmd="$1"
@@ -1589,6 +1605,10 @@ test_repo_view_hang_names_timeout() {
 	# Timeout shim that kills (exit 124) repo view and api calls only.
 	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
 echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
 shift
 cmd="$1"
@@ -1620,6 +1640,10 @@ TIMEOUT_SHIM
 		fail "repo view hang — output does not name the timeout: $output"
 		return
 	fi
+	if ! grep -q '^60 gh repo view ' "$timeout_log"; then
+		fail "repo view hang — repo view was never attempted"
+		return
+	fi
 	pass "repo view hang — exit 2 naming 'timed out after 60s'"
 }
 
@@ -1645,6 +1669,10 @@ test_fetch_hang_names_timeout() {
 	# Timeout shim that kills (exit 124) api calls only — repo view survives.
 	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
 echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
 shift
 cmd="$1"
@@ -1676,6 +1704,10 @@ TIMEOUT_SHIM
 		fail "fetch hang — output does not name the timeout: $output"
 		return
 	fi
+	if ! grep -q '^60 gh api ' "$timeout_log"; then
+		fail "fetch hang — the rulesets api call was never attempted"
+		return
+	fi
 	pass "fetch hang — exit 2 naming 'timed out after 60s'"
 }
 
@@ -1687,6 +1719,7 @@ test_fetch_hang_names_timeout
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
