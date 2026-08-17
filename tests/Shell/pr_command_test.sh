@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -127,13 +128,18 @@ run_preflight() {
 	) > "$output" 2>&1
 }
 
-# new_standard_fixture — build a standard fixture in its own registered temp dir.
+# new_standard_fixture <varname> — build a standard fixture in its own
+# registered temp dir and set <varname> in the CALLER's shell to its path.
+# Must be called directly, never via command substitution: a subshell's
+# register_temp_dir() is invisible to the parent, so the EXIT-trap cleanup
+# would silently skip the dir (same subshell-tracking bug as issue #322).
+# The caller variable must not be named 'path' (the function's own local).
 new_standard_fixture() {
-	local fixture
-	fixture=$(mktemp -d)
-	register_temp_dir "$fixture"
-	make_standard_fixture "$fixture"
-	echo "$fixture"
+	local var="$1" path
+	path=$(mktemp -d)
+	register_temp_dir "$path"
+	make_standard_fixture "$path"
+	printf -v "$var" '%s' "$path"
 }
 
 # preflight_value <key> <output> — extract a tab-delimited preflight field.
@@ -225,7 +231,12 @@ fi
 
 # ── 6. baseline standard fixture ────────────────────────────────────────────
 
-baseline_fixture=$(new_standard_fixture)
+baseline_fixture=
+new_standard_fixture baseline_fixture
+case " $TEMP_DIRS " in
+	*" $baseline_fixture "*) pass 'standard fixture is tracked in TEMP_DIRS' ;;
+	*) fail 'standard fixture was not tracked in TEMP_DIRS' ;;
+esac
 baseline_output=$(mktemp)
 rc=0
 run_preflight "$baseline_fixture" "$PREFLIGHT_SCRIPT" "$baseline_output" || rc=$?
@@ -248,7 +259,8 @@ rm -f "$baseline_output"
 
 # ── 7. hotfix branch targets main ───────────────────────────────────────────
 
-hotfix_fixture=$(new_standard_fixture)
+hotfix_fixture=
+new_standard_fixture hotfix_fixture
 (
 	cd "$hotfix_fixture"
 	git switch --quiet -c hotfix/tester-abcd-urgent
@@ -267,7 +279,8 @@ rm -f "$hotfix_output"
 
 # ── 8. release branch targets main despite develop origin ───────────────────
 
-release_fixture=$(new_standard_fixture)
+release_fixture=
+new_standard_fixture release_fixture
 (
 	cd "$release_fixture"
 	git switch --quiet -c release/1.2.3-rc.1
@@ -286,31 +299,38 @@ rm -f "$release_output"
 
 # ── 9. preflight failures with specific diagnostics ─────────────────────────
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet --detach HEAD)
 assert_preflight_failure 'detached HEAD is rejected' "$fixture" 'detached HEAD; switch to a work branch'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet develop)
 assert_preflight_failure 'protected develop is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet -c feature/tester-abcd-invalid)
 assert_preflight_failure 'invalid branch family is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && printf 'dirty\n' >> state.txt)
 assert_preflight_failure 'dirty working tree is rejected' "$fixture" 'working tree is not clean'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git update-ref -d refs/remotes/origin/develop)
 assert_preflight_failure 'missing remote base ref is rejected' "$fixture" 'missing synchronized remote-tracking ref origin/develop'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet -c feat/tester-abcd-zero-ahead origin/develop)
 assert_preflight_failure 'zero-ahead branch is rejected' "$fixture" 'no commits ahead of origin/develop'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (
 	cd "$fixture"
 	parent1=$(git rev-parse 'origin/develop^')
@@ -321,7 +341,8 @@ fixture=$(new_standard_fixture)
 )
 assert_preflight_failure 'merge-only range is rejected' "$fixture" 'branch range contains no non-merge commit'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (
 	cd "$fixture"
 	git switch --quiet -c feat/tester-abcd-net-empty origin/develop
@@ -517,6 +538,7 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
+
 
 
 
