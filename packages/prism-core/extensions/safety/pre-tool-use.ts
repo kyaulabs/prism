@@ -17,6 +17,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -56,7 +57,7 @@ interface ParsedRm {
     operands: string[];
 }
 
-function basename(token: string): string {
+function commandBasename(token: string): string {
     const lastSlash = token.lastIndexOf("/");
     return lastSlash === -1 ? token : token.slice(lastSlash + 1);
 }
@@ -69,7 +70,7 @@ function parseRm(segment: string): ParsedRm | null {
 function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
     let i = startIdx;
     if (tokens[i] === "sudo") i++;
-    if (i >= tokens.length || basename(tokens[i]) !== "rm") return null;
+    if (i >= tokens.length || commandBasename(tokens[i]) !== "rm") return null;
     i++;
     let recursive = false;
     let force = false;
@@ -99,7 +100,7 @@ function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
 
 function findRmAnywhere(tokens: string[]): number {
     for (let i = 0; i < tokens.length; i++) {
-        if (basename(tokens[i]) === "rm") return i;
+        if (commandBasename(tokens[i]) === "rm") return i;
     }
     return -1;
 }
@@ -287,7 +288,7 @@ function rmRfRule(tokens: string[], ctx: RuleCtx): Finding | null {
 
 /** BLOCK: find -delete / find -exec/-execdir rm — unconditional. */
 function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (basename(tokens[0]) !== "find") return null;
+    if (commandBasename(tokens[0]) !== "find") return null;
     for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i];
         if (t === "-delete") {
@@ -297,7 +298,7 @@ function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
             };
         }
         if ((t === "-exec" || t === "-execdir") && i + 1 < tokens.length) {
-            if (basename(tokens[i + 1]) === "rm") {
+            if (commandBasename(tokens[i + 1]) === "rm") {
                 return {
                     severity: "block",
                     reason: "find -exec/-execdir rm removes files; destructive action blocked",
@@ -377,6 +378,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 
