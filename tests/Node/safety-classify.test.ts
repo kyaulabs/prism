@@ -1,21 +1,21 @@
 // $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
 
 const OPTS = { projectDir: "/repo", safeRelDirs: ["node_modules", "vendor"] };
-const CLEAN = { severity: null, reason: "" };
 
 test("empty command passes open", () => {
-    assert.deepEqual(classifyCommand("", OPTS), CLEAN);
+    assert.equal(classifyCommand("", OPTS), null);
 });
 
 test("rm -rf inside a safe zone passes", () => {
-    assert.deepEqual(classifyCommand("rm -rf node_modules", OPTS), CLEAN);
-    assert.deepEqual(classifyCommand("rm -rf /tmp/xyz", OPTS), CLEAN);
-    assert.deepEqual(classifyCommand("cd /repo && rm -rf vendor/pkg", OPTS), CLEAN);
+    assert.equal(classifyCommand("rm -rf node_modules", OPTS), null);
+    assert.equal(classifyCommand("rm -rf /tmp/xyz", OPTS), null);
+    assert.equal(classifyCommand("cd /repo && rm -rf vendor/pkg", OPTS), null);
 });
 
 test("rm -rf outside safe zones blocks", () => {
@@ -26,22 +26,22 @@ test("rm -rf outside safe zones blocks", () => {
 });
 
 test("rm -rf with no operands at head passes; via xargs blocks", () => {
-    assert.deepEqual(classifyCommand("rm -rf", OPTS), CLEAN);
+    assert.equal(classifyCommand("rm -rf", OPTS), null);
     assert.equal(classifyCommand("xargs rm -rf", OPTS).severity, "block");
 });
 
 test("rm without -r is not blocked", () => {
-    assert.deepEqual(classifyCommand("rm -f node_modules", OPTS), CLEAN);
+    assert.equal(classifyCommand("rm -f node_modules", OPTS), null);
 });
 
 test("rm -rf of a safe-zone path containing = stays allowed", () => {
-    assert.deepEqual(classifyCommand("rm -rf node_modules/foo=bar", OPTS), CLEAN);
+    assert.equal(classifyCommand("rm -rf node_modules/foo=bar", OPTS), null);
 });
 
 test("find -delete and find -exec rm block; other find -exec passes", () => {
     assert.equal(classifyCommand("find . -delete", OPTS).severity, "block");
     assert.equal(classifyCommand("find . -exec rm {} ;", OPTS).severity, "block");
-    assert.deepEqual(classifyCommand("find . -exec echo {} ;", OPTS), CLEAN);
+    assert.equal(classifyCommand("find . -exec echo {} ;", OPTS), null);
 });
 
 test("destructive SQL DROP warns", () => {
@@ -61,11 +61,11 @@ test("git push --force variants block; --force-with-lease passes", () => {
     assert.equal(classifyCommand("git push -f", OPTS).severity, "block");
     assert.equal(classifyCommand("git push --force", OPTS).severity, "block");
     assert.equal(classifyCommand("git push -uf origin main", OPTS).severity, "block");
-    assert.deepEqual(classifyCommand("git push --force-with-lease", OPTS), CLEAN);
+    assert.equal(classifyCommand("git push --force-with-lease", OPTS), null);
 });
 
 test("git push -n is dry-run, not no-verify", () => {
-    assert.deepEqual(classifyCommand("git push -n", OPTS), CLEAN);
+    assert.equal(classifyCommand("git push -n", OPTS), null);
 });
 
 test("git commit --no-verify and -n block", () => {
@@ -74,31 +74,32 @@ test("git commit --no-verify and -n block", () => {
 });
 
 test("git log -n 5 is max-count, not no-verify", () => {
-    assert.deepEqual(classifyCommand("git log -n 5", OPTS), CLEAN);
+    assert.equal(classifyCommand("git log -n 5", OPTS), null);
 });
 
 test("git global options are consumed before the subcommand", () => {
-    assert.deepEqual(classifyCommand("git -c core.hooksPath=/tmp/x commit -m y", OPTS), CLEAN);
+    assert.equal(classifyCommand("git -c core.hooksPath=/tmp/x commit -m y", OPTS), null);
 });
 
 test("wrapper unwrap: clean inner passes, destructive inner blocks", () => {
-    assert.deepEqual(classifyCommand('bash -c "rm -rf /tmp/x"', OPTS), CLEAN);
+    assert.equal(classifyCommand('bash -c "rm -rf /tmp/x"', OPTS), null);
     assert.equal(classifyCommand('bash -c "rm -rf /"', OPTS).severity, "block");
-    assert.deepEqual(classifyCommand("env FOO=1 rm -rf node_modules", OPTS), CLEAN);
-    assert.deepEqual(classifyCommand("command rm -rf node_modules", OPTS), CLEAN);
+    assert.equal(classifyCommand("env FOO=1 rm -rf node_modules", OPTS), null);
+    assert.equal(classifyCommand("command rm -rf node_modules", OPTS), null);
 });
 
 test("unwrap depth guard blocks deeply nested clean wrappers", () => {
-    assert.deepEqual(classifyCommand("eval eval echo hi", OPTS), CLEAN);
-    assert.deepEqual(classifyCommand("eval eval eval echo hi", OPTS), CLEAN);
+    assert.equal(classifyCommand("eval eval echo hi", OPTS), null);
+    assert.equal(classifyCommand("eval eval eval echo hi", OPTS), null);
     assert.equal(classifyCommand("eval eval eval eval echo hi", OPTS).severity, "block");
 });
 
 test("non-string command fails closed", () => {
     const f = classifyCommand(undefined as unknown as string, OPTS);
-    assert.equal(f.severity, "block");
-    assert.match(f.reason, /internal error/);
+    assert.equal(f?.severity, "block");
+    assert.match(f?.reason ?? "", /internal error/);
 });
+
 
 
 

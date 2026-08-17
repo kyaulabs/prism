@@ -19,6 +19,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -26,7 +27,7 @@ import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH }
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
 
-export type Severity = "block" | "warn" | null;
+export type Severity = "block" | "warn";
 
 export interface Finding {
     severity: Severity;
@@ -186,10 +187,10 @@ function isWithinSafeZone(absPath: string, projectDir: string, safeRelDirs: read
  * classifier cannot evaluate a command it was asked to evaluate.
  * See ADR-0023, ADR-0036.
  */
-export function classifyCommand(command: string, opts: ClassifyOptions): Finding {
+export function classifyCommand(command: string, opts: ClassifyOptions): Finding | null {
     // Empty command = nothing to evaluate (preserved from original fail-open contract)
     if (typeof command === "string" && command.length === 0) {
-        return { severity: null, reason: "" };
+        return null;
     }
     try {
         return classifyCommandImpl(command, opts, 0);
@@ -222,7 +223,7 @@ const COMMAND_RULES: readonly CommandRule[] = [
     gitNoVerifyBlock,
 ];
 
-function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
+function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding | null {
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
@@ -238,7 +239,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         const innerCmd = tryUnwrapSegment(tokens);
         if (innerCmd !== null) {
             const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
-            if (innerFinding.severity !== null) return innerFinding;
+            if (innerFinding !== null) return innerFinding;
             continue;
         }
         for (const rule of SEGMENT_RULES) {
@@ -251,7 +252,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         const finding = rule(command, commandTokens, ctx);
         if (finding !== null) return finding;
     }
-    return { severity: null, reason: "" };
+    return null;
 }
 
 /** BLOCK: rm -rf outside safe zones, including piped/xargs conservatism. */
@@ -379,6 +380,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

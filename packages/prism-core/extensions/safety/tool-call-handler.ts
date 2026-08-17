@@ -4,6 +4,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
 import {
@@ -176,11 +177,11 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
                 return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
             }
             const finding = classifyCommand(command, { projectDir: deps.cwd, safeRelDirs: deps.safeRelDirs });
-            if (finding.severity === "block") {
+            if (finding?.severity === "block") {
                 noteBashDenial(deps.sid, deps);
                 return { block: true, reason: `[prism safety] BLOCKED: ${finding.reason}` };
             }
-            if (finding.severity === "warn") {
+            if (finding?.severity === "warn") {
                 deps.notify?.(`[prism safety] WARNING: ${finding.reason}`, "warning");
             }
             return;
@@ -219,6 +220,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
+
 
 
 
