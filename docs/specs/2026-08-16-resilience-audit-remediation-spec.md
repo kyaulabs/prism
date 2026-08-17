@@ -88,9 +88,11 @@ falling back to the fixed backoff.
 #     expiry (rc 28 with no connect-timeout error) is never retried: the
 #     server outcome is unknown, so retrying could duplicate a billed
 #     request and would extend the request window. Callers must pass
-#     --output FILE so the response body is not captured into the status.
-#     Prints the final HTTP status on stdout. Exits nonzero on final
-#     transport failure.                                    exit 1
+#     --output FILE (enforced fail-closed) so the response body is not
+#     captured into the status. A caller EXIT trap must be a simple command
+#     (no $var/backtick expansion at fire time); the helper chains its
+#     cleanup onto it and restores it afterwards. Prints the final HTTP
+#     status on stdout. Exits nonzero on final transport failure. exit 1
 
 search_request() {
 	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain
@@ -108,7 +110,7 @@ search_request() {
 	fi
 	while :; do
 		: > "$header_file"
-		if status=$(curl --silent --show-error --write-out '%{http_code} %{errormsg}' --dump-header "$header_file" "$@"); then
+		if status=$(LC_ALL=C curl --silent --show-error --write-out '%{http_code} %{errormsg}' --dump-header "$header_file" "$@"); then
 			curl_rc=0
 			http_code=${status%% *}
 			if [ "$http_code" != "429" ] && [ "$http_code" -lt 500 ]; then
@@ -130,7 +132,9 @@ search_request() {
 			break
 		fi
 		if [ "$http_code" = "429" ]; then
-			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$header_file")
+			# Real curl --dump-header uses CRLF; strip trailing whitespace (the
+			# POSIX [[:space:]] class covers CR) before the integer-only match.
+			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
 			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
 				[ "$retry_after" -gt 30 ] && retry_after=30
 				sleep "$retry_after"
@@ -164,7 +168,8 @@ Semantics, precisely:
   server), HTTP status exactly 429, or HTTP status ≥ 500. Anything else —
   2xx, 400, 401, 403, the rest of 4xx, and **rc 28 from a max-time expiry**
   (outcome unknown) — breaks immediately. The `%{errormsg}` payload
-  distinguishes the two rc-28 cases.
+  distinguishes the two rc-28 cases; curl runs under `LC_ALL=C` so the
+  classification is locale-stable (pass-3 F11).
 - Backoff: 2s after the first failure, 4s after the second; 3 attempts
   total (1 initial + 2 retries). On a 429, `Retry-After` (integer seconds
   only — fractional/date forms degrade cleanly to the fixed backoff) from
@@ -264,11 +269,15 @@ gh_api() {
 - `gh auth status` also routes through `run_gh` — every `gh` invocation in
   the script is bounded (post-review F5).
 - A call killed by `timeout`/`gtimeout` (exit 124) gets a distinct stderr
-  diagnostic `gh: timed out after 60s — request outcome unknown` before
-  the exit status propagates — the outcome of an `--apply` mutation may
-  be unknown, not failed (post-review F6).
-- Each call's existing `if ! ... then echo "Error: ..." >&2` handling is
-  untouched.
+  diagnostic `gh: timed out after 60s — request outcome unknown` emitted
+  by `run_gh` itself (every invocation, post-review F6 / pass-3 F2/F3).
+- The three read-only fetch sites and the repo-detection call capture
+  stderr into `$TMP_DIR/fetch-err` and append the first line to their
+  error messages when non-empty — the timeout diagnostic (or gh's real
+  error) is never swallowed, and the messages stay byte-identical in the
+  normal case (pass-3 F2/F3). Repo detection moved after `TMP_DIR` so the
+  capture file exists when used.
+- Each call's existing failure handling shape is untouched.
 
 ### D6 — B1 disposition (documented in this spec)
 
@@ -315,6 +324,11 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
   - Grep assertions (existing suite style): both scripts invoke
     `search_request` and no longer contain an inline `--write-out` curl;
     both G1 hint lines present in both failure paths of each script.
+  - The fake curl writes `retry-after:` with CRLF line endings like real
+    `--dump-header` output, so the Retry-After parse is exercised against
+    production-shaped headers (pass-3 F6). Cases cover the 5xx retry and
+    exhaustion branches and the 30s Retry-After cap (pass-3 F5); a
+    fail-closed `--output` guard case (pass-3 F13).
 - **Extend `tests/Shell/setup_rulesets_test.sh`**:
   - Test 29 (F7): static audit — strips the `gh_api()` definition and
     comment lines (assumes `gh_api() {` at column 0 closed by a column-0
@@ -333,6 +347,13 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
   - Test 33 (F6): a timeout shim that kills mutation verbs (exit 124)
     under `--apply` with drifted fixtures → exit 2 and the output names
     `timed out after 60s — request outcome unknown`.
+  - Test 34 (F3): a shim that hangs `repo view` and `api` → exit 2 and
+    the output names the timeout instead of a missing repository.
+  - Test 35 (F2): a shim that hangs `api` only → exit 2 and the rulesets
+    fetch error names the timeout.
+  - Test 29 (F8): the bare-call audit strips inline comments (`sed
+    's/#.*//'`) and matches `gh api([[:space:]]|$)` so tabs or
+    end-of-line calls cannot hide a bare site.
 - **Extend `tests/Shell/pi_ci_contract_test.sh`** (F1/F2): occurrence
   counting (`grep -o | wc -l`) of `curl -fsSL` versus the full
   bound-flag sequence per invocation proves **every** download is
@@ -388,11 +409,17 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
   never retried, so the window only extends on fast, server-answered or
   never-connected outcomes; an outer deadline is rejected as complexity
   the caller does not need. Documented here as the accepted trade-off.
-- **At-least-once semantics on the billed POST are accepted (OCR F4)** —
-  a 5xx or post-send transport failure after server-side processing can
-  duplicate a billed inference request; retries are capped at 3 attempts
-  and only fire on error outcomes, matching the audit's own R1
-  recommendation. Documented here as the accepted trade-off.
+- **At-least-once semantics on the billed POST are accepted (OCR F4,
+  re-confirmed pass-3)** — a 5xx or post-send transport failure after
+  server-side processing can duplicate a billed inference request; retries
+  are capped at 3 attempts and only fire on error outcomes, matching the
+  audit's own R1 recommendation. Re-raised by pass-3; the acceptance
+  stands with this record.
+- **Contract-test and trap-chain constraints are documented (pass-3 F1,
+  F12)** — the CI download contract assumes one invocation per line with
+  flags in canonical order (commented in the test), and the helper's trap
+  chaining supports simple caller traps (commented in the docblock).
+  Neither warrants further machinery for the current callers.
 - **Fake-curl shim sleeps are real** — avoids env-var test seams in
   production code; ~21s worst case is within the shell suite's tolerance.
 - **Spec rides the work branch** — develop is PR-only (protected-branch

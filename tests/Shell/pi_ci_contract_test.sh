@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -102,6 +103,10 @@ echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
 
 echo "── resilient tool downloads ──"
+# Assumes one download invocation per line with the bound flags in canonical
+# order (as ci.yml writes them); reordering or splitting flags across lines
+# requires updating the BOUNDED_DOWNLOADS pattern.
+
 TOTAL_DOWNLOADS=$(grep -o 'curl -fsSL' "$CI" | wc -l | tr -d ' ' || true)
 BOUNDED_DOWNLOADS=$(grep -oE 'curl -fsSL.*--connect-timeout 10.*--max-time 120.*--retry 3.*--retry-delay 2' "$CI" | wc -l | tr -d ' ' || true)
 if [ "$TOTAL_DOWNLOADS" -eq 0 ]; then
@@ -119,6 +124,7 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 

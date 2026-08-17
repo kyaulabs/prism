@@ -18,6 +18,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -1324,7 +1325,9 @@ test_gh_api_call_sites_wrapped() {
 	# a comment — is a bare, unbounded call site. Occurrence counting
 	# (grep -o | wc -l) so multiple calls on one line cannot hide.
 	outside=$(awk '/^gh_api\(\) \{/{skip=1} skip && /^\}/{skip=0; next} !skip {print}' "$SCRIPT")
-	bare=$(printf '%s\n' "$outside" | grep -v '^[[:space:]]*#' | grep -o 'gh api ' | wc -l | tr -d ' ' || true)
+	# Strip full-line and inline comments, then match `gh api` followed by
+	# whitespace or end-of-line so tabs or multiple spaces cannot hide a bare call.
+	bare=$(printf '%s\n' "$outside" | sed 's/#.*//' | grep -oE 'gh api([[:space:]]|$)' | wc -l | tr -d ' ' || true)
 	wrapped=$(grep -o 'gh_api ' "$SCRIPT" | wc -l | tr -d ' ' || true)
 	if [ "$bare" -eq 0 ] && [ "$wrapped" -ge 1 ]; then
 		pass "gh api call sites — no bare gh api outside the wrapper ($wrapped wrapped occurrences)"
@@ -1684,6 +1687,7 @@ test_fetch_hang_names_timeout
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
