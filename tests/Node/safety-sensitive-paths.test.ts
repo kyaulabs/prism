@@ -1,9 +1,11 @@
 // $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
+import { resolveExtraPaths } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
 const OPTS = { projectDir: "/repo", home: "/home/tester" };
 
@@ -46,6 +48,31 @@ test("non-string or empty input passes", () => {
     assert.equal(sensitiveOperandCheck(undefined as unknown as string, OPTS), null);
     assert.equal(sensitiveOperandCheck("", OPTS), null);
 });
+
+test("resolveExtraPaths keeps valid entries and logs rejected lines", () => {
+    const logged: string[] = [];
+    const paths = resolveExtraPaths("~/.gnupg/\nrelative/path\n/root/good\n\n", (m) => logged.push(m));
+    assert.deepEqual(paths, ["~/.gnupg/", "/root/good"]);
+    assert.equal(logged.length, 1);
+    assert.match(logged[0], /ignoring malformed sensitive-paths entry/);
+    assert.match(logged[0], /relative\/path/);
+});
+
+test("resolveExtraPaths rejects control-character entries", () => {
+    const logged: string[] = [];
+    const paths = resolveExtraPaths("/root/ok\n~/.ssh/\u0007bad", (m) => logged.push(m));
+    assert.deepEqual(paths, ["/root/ok"]);
+    assert.equal(logged.length, 1);
+});
+
+test("resolveExtraPaths empty input yields no paths and no logs", () => {
+    const logged: string[] = [];
+    assert.deepEqual(resolveExtraPaths(undefined, (m) => logged.push(m)), []);
+    assert.deepEqual(resolveExtraPaths("", (m) => logged.push(m)), []);
+    assert.deepEqual(resolveExtraPaths(" \n\t\n", (m) => logged.push(m)), []);
+    assert.equal(logged.length, 0);
+});
+
 
 
 

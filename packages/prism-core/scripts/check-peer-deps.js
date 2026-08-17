@@ -1,4 +1,6 @@
-// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
+// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
 
 
 
@@ -62,8 +64,20 @@ try {
 }
 
 const extDir = path.join(path.dirname(pkgJsonPath), 'extensions');
-if (!fs.existsSync(extDir) || !fs.statSync(extDir).isDirectory()) {
+let extStat;
+try {
+	extStat = fs.statSync(extDir);
+} catch (e) {
+	if (e.code !== 'ENOENT') {
+		// A real stat failure (EACCES, ELOOP, ...) must be visible, not
+		// conflated with the absent-dir no-op: print it on stdout (the
+		// caller treats every stdout line as a violation) and still exit 0.
+		console.log(`${rel}: cannot stat extensions/: ${e.message}`);
+	}
 	// No extensions -> cannot import a pi core at runtime -> nothing to check.
+	process.exit(0);
+}
+if (!extStat.isDirectory()) {
 	process.exit(0);
 }
 
@@ -86,13 +100,23 @@ function walk(dir) {
 		}
 	}
 }
-walk(extDir);
+try {
+	walk(extDir);
+} catch (e) {
+	// The always-exit-0 contract holds even when the tree cannot be scanned:
+	// print the failure on stdout (the caller treats every stdout line as a
+	// violation) instead of crashing with an uncaught exception (F-5).
+	console.log(`${rel}: cannot scan extensions/: ${e.message}`);
+	process.exit(0);
+}
 
 for (const core of imported) {
 	if (!peers.has(core)) {
 		console.log(`${rel}: extension imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
 	}
 }
+
+
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 noet :

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
+
 
 
 
@@ -310,10 +314,88 @@ register_temp_dir "$T13"
 	fi
 )
 
+# ── Test 14: Garbage --min values → usage error, exit 2 ─────────────────────
+echo ""
+echo "── Test 14: garbage --min values → exit 2 ──"
+T14=$(mktemp -d)
+register_temp_dir "$T14"
+(
+	cd "$T14"
+	CLOVER=$(mktemp)
+	build_clover "$CLOVER" "$T14" "backend/env.php:10:10"
+	for bad in abc 0 -5 101 1e9 ""; do
+		rc=0
+		printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T14" --min="$bad" >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 2 ] && grep -q 'ERROR: --min must be an integer 1..100' out.txt; then
+			pass "--min='$bad' rejected (exit 2)"
+		else
+			fail "--min='$bad': expected exit 2 + usage message, got rc=$rc"
+		fi
+	done
+)
+
+# ── Test 15: Malformed Clover XML → exit 2 + libxml diagnostics ─────────────
+echo ""
+echo "── Test 15: malformed clover XML reports libxml detail ──"
+T15=$(mktemp -d)
+register_temp_dir "$T15"
+(
+	cd "$T15"
+	CLOVER=$(mktemp)
+	{
+		echo '<?xml version="1.0" encoding="UTF-8"?>'
+		echo '<coverage generated="1"><project><file name="/x.php">'
+	} > "$CLOVER"
+	rc=0
+	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T15" >out.txt 2>&1 || rc=$?
+	if [ "$rc" -eq 2 ] && grep -q 'could not parse clover XML' out.txt && grep -qE 'line [0-9]+' out.txt; then
+		pass "malformed clover exits 2 with libxml line detail"
+	else
+		fail "expected exit 2 + libxml detail, got rc=$rc"
+	fi
+)
+
+# ── Test 16: Unreadable changed file → WARN; --strict fails ─────────────────
+echo ""
+echo "── Test 16: unreadable changed file warns, --strict fails ──"
+if [ "$(id -u)" -eq 0 ]; then
+	skip "unreadable-file test skipped when running as root"
+else
+	T16=$(mktemp -d)
+	register_temp_dir "$T16"
+	(
+		cd "$T16"
+		mkdir -p backend
+		echo '<?php' > backend/env.php
+		printf '<?php\necho "x";\n' > backend/locked.php
+		chmod 000 backend/locked.php
+		CLOVER=$(mktemp)
+		build_clover "$CLOVER" "$T16" "backend/env.php:10:10"
+		rc=0
+		printf 'backend/locked.php\n' | php "$SCRIPT" "$CLOVER" --root="$T16" >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 0 ] && grep -q 'unreadable' out.txt; then
+			pass "unreadable changed file warns (exit 0)"
+		else
+			fail "expected exit 0 + unreadable WARN, got rc=$rc"
+		fi
+		rc=0
+		printf 'backend/locked.php\n' | php "$SCRIPT" "$CLOVER" --root="$T16" --strict >out.txt 2>&1 || rc=$?
+		if [ "$rc" -eq 1 ] && grep -q 'unreadable' out.txt; then
+			pass "unreadable changed file fails under --strict (exit 1)"
+		else
+			fail "expected exit 1 + unreadable WARN under --strict, got rc=$rc"
+		fi
+	)
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
+
+
+
 
 
 

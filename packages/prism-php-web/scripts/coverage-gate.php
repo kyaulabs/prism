@@ -37,6 +37,15 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -134,7 +143,7 @@ function has_executable_code(string $source): bool
  * Parse CLI arguments.
  *
  * @param array<int,string> $argv
- * @return array{clover:?string, min:int, root:string, strict:bool}
+ * @return array{clover:?string, min:?int, root:string, strict:bool}
  */
 function parse_args(array $argv): array
 {
@@ -143,9 +152,9 @@ function parse_args(array $argv): array
     for ($i = 1; $i < $n; $i++) {
         $arg = $argv[$i];
         if ($arg === '--min' && $i + 1 < $n) {
-            $cfg['min'] = (int) $argv[++$i];
+            $cfg['min'] = parse_min_value($argv[++$i]);
         } elseif (str_starts_with($arg, '--min=')) {
-            $cfg['min'] = (int) substr($arg, 6);
+            $cfg['min'] = parse_min_value(substr($arg, 6));
         } elseif ($arg === '--root' && $i + 1 < $n) {
             $cfg['root'] = $argv[++$i];
         } elseif (str_starts_with($arg, '--root=')) {
@@ -157,6 +166,21 @@ function parse_args(array $argv): array
         }
     }
     return $cfg;
+}
+
+/**
+ * Parse and validate the --min threshold. Returns null for anything that
+ * is not an integer 1..100 so main() can report a usage error (exit 2)
+ * instead of silently gating at a degenerate threshold (F-3).
+ *
+ * @param string $raw raw --min value from argv
+ * @return ?int valid threshold, or null when invalid
+ */
+function parse_min_value(string $raw): ?int
+{
+    $v = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 100]]);
+
+    return $v === false ? null : $v;
 }
 
 /**
@@ -229,8 +253,10 @@ function classify_changed_files(array $changedFiles, array $coverage, string $ro
         }
         // Exists but absent from Clover → outside <source>.
         $path = is_file($fullChanged) ? $fullChanged : $changed;
-        $source = (string) @file_get_contents($path);
-        if ($source !== '' && has_executable_code($source)) {
+        $source = @file_get_contents($path);
+        if ($source === false) {
+            $warned[] = [$changed, 'unreadable — could not verify executable code'];
+        } elseif ($source !== '' && has_executable_code($source)) {
             $warned[] = [$changed, 'outside <source>, has executable code — register in phpunit.xml <source>'];
         } else {
             $skipped[] = [$changed, 'outside <source>, no executable code'];
@@ -298,6 +324,13 @@ function print_report(array $result, int $min): void
 function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
 {
     $args = parse_args($argv);
+
+    if ($args['min'] === null) {
+        fwrite(STDERR, "ERROR: --min must be an integer 1..100\n");
+
+        return 2;
+    }
+
     $cloverPath = $args['clover'];
     $min = $args['min'];
     $root = $args['root'];
@@ -312,9 +345,15 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     $changedRaw = (string) file_get_contents($stdin);
     $changedFiles = array_values(array_unique(array_filter(array_map('trim', explode("\n", $changedRaw)))));
 
-    $xml = @simplexml_load_file($cloverPath);
+    libxml_use_internal_errors(true);
+    libxml_clear_errors();
+    $xml = simplexml_load_file($cloverPath);
     if ($xml === false) {
         fwrite(STDERR, "ERROR: could not parse clover XML at {$cloverPath}\n");
+        foreach (libxml_get_errors() as $e) {
+            fwrite(STDERR, sprintf("       line %d: %s", $e->line, $e->message));
+        }
+
         return 2;
     }
 
@@ -347,6 +386,9 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     }
     return $code;
 }
+
+
+
 
 
 
