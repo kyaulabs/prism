@@ -17,6 +17,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -240,22 +241,25 @@ test_path_without_prism_tool() {
 	touch "$fake_dir/prism-tool"
 	chmod +x "$fake_dir/prism-tool"
 
-	PATH="$fake_dir:/usr/bin:/bin"
-	stripped=$(path_without_prism_tool)
-	PATH="$original_path"
-	if [[ ":$stripped:" != *":$fake_dir:"* ]] && [[ ":$stripped:" == *":/usr/bin:"* ]]; then
-		pass "path_without_prism_tool strips the launcher dir"
-	else
-		fail "path_without_prism_tool kept launcher dir: $stripped"
-	fi
-
-	# No-op when no prism-tool is on PATH (controlled empty dirs only —
-	# never /usr/bin:/bin, which could hold a real launcher on some hosts).
+	# Controlled dirs only — never /usr/bin:/bin, which could hold a real
+	# launcher on a dogfooding host.
 	local noop_a noop_b
 	noop_a=$(mktemp -d)
 	register_temp_dir "$noop_a"
 	noop_b=$(mktemp -d)
 	register_temp_dir "$noop_b"
+
+	PATH="$fake_dir:$noop_a:$noop_b"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [[ ":$stripped:" != *":$fake_dir:"* ]] && [[ ":$stripped:" == *":$noop_a:"* ]] \
+		&& [[ ":$stripped:" == *":$noop_b:"* ]]; then
+		pass "path_without_prism_tool strips the launcher dir"
+	else
+		fail "path_without_prism_tool kept launcher dir: $stripped"
+	fi
+
+	# No-op when no prism-tool is on PATH.
 	PATH="$noop_a:$noop_b"
 	stripped=$(path_without_prism_tool)
 	PATH="$original_path"
@@ -312,10 +316,10 @@ test_path_without_prism_tool() {
 	register_temp_dir "$dup_dir"
 	touch "$dup_dir/prism-tool"
 	chmod +x "$dup_dir/prism-tool"
-	PATH="$fake_dir:/usr/bin:$dup_dir:/bin"
+	PATH="$fake_dir:$noop_a:$dup_dir:$noop_b"
 	stripped=$(path_without_prism_tool)
 	PATH="$original_path"
-	if [ "$stripped" = "/usr/bin:/bin" ]; then
+	if [ "$stripped" = "$noop_a:$noop_b" ]; then
 		pass "path_without_prism_tool strips duplicate launcher dirs"
 	else
 		fail "path_without_prism_tool kept a duplicate launcher dir: $stripped"
@@ -342,6 +346,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 

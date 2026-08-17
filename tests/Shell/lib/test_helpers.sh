@@ -19,6 +19,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -197,15 +198,13 @@ path_without_prism_tool() {
 		# Drop every component that itself resolves a prism-tool (not just
 		# the first `command -v` match — a dogfooding machine may hold
 		# duplicate installs on PATH). Probe the extensionless name plus
-		# MSYS/Git-Bash suffixes, and the cwd for an empty component.
-		# External tools are avoided so this also works when the
-		# remaining PATH lacks /usr/bin.
+		# MSYS/Git-Bash shim suffixes (.exe/.cmd/.bat — resolved by
+		# extension there, no exec bit required). External tools are
+		# avoided so this also works when the remaining PATH lacks /usr/bin.
 		local probe_dir="$part"
 		[ -n "$part" ] || probe_dir="."
-		if { [ -f "$probe_dir/prism-tool" ] || [ -f "$probe_dir/prism-tool.exe" ] \
-			|| [ -f "$probe_dir/prism-tool.cmd" ]; } && \
-			{ [ -x "$probe_dir/prism-tool" ] || [ -x "$probe_dir/prism-tool.exe" ] \
-				|| [ -x "$probe_dir/prism-tool.cmd" ]; }; then
+		if [ -f "$probe_dir/prism-tool" ] || [ -f "$probe_dir/prism-tool.exe" ] \
+			|| [ -f "$probe_dir/prism-tool.cmd" ] || [ -f "$probe_dir/prism-tool.bat" ]; then
 			continue
 		fi
 		if [ "$first" -eq 1 ]; then
@@ -223,6 +222,7 @@ path_without_prism_tool() {
 	fi
 	printf '%s' "$out"
 }
+
 
 
 
