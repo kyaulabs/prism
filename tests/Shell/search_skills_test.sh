@@ -22,6 +22,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -116,11 +117,6 @@ if [ -z "$out" ]; then
 	printf 'fake curl: no --output target\n' >&2
 	exit 1
 fi
-printf 'fake body\n' > "$out"
-if [ -n "$hdr" ] && [ -n "${FAKE_CURL_RETRY_AFTER:-}" ]; then
-	printf 'retry-after: %s\r\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
-fi
-
 count=0
 if [ -f "${FAKE_CURL_LOG:-}" ]; then
 	count=$(cat "$FAKE_CURL_LOG")
@@ -148,6 +144,15 @@ if [ "$status" = "C" ]; then
 	printf 'fake curl: connection timed out\n' >&2
 	exit 28
 fi
+# Real curl writes no body on a failed transfer — neither do we.
+printf 'fake body\n' > "$out"
+if [ -n "$hdr" ] && [ -n "${FAKE_CURL_RETRY_AFTER:-}" ]; then
+	if [ "${FAKE_CURL_RETRY_AFTER_TIGHT:-0}" = "1" ]; then
+		printf 'retry-after:%s\r\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
+	else
+		printf 'retry-after: %s\r\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
+	fi
+fi
 printf '%s' "$status"
 FAKE_CURL
 	chmod +x "$dir/curl"
@@ -163,7 +168,7 @@ FAKE_SLEEP
 }
 
 search_request_case() {
-	local label="$1" seq="$2" expected_out="$3" expected_rc="$4" expected_invocations="$5" retry_after="${6:-}" expected_sleeps="${7:-}"
+	local label="$1" seq="$2" expected_out="$3" expected_rc="$4" expected_invocations="$5" retry_after="${6:-}" expected_sleeps="${7:-}" tight="${8:-}"
 	local fake_bin log sleep_log outfile errfile out rc invocations sleeps ok
 	fake_bin=$(mktemp -d)
 	log=$(mktemp)
@@ -174,13 +179,14 @@ search_request_case() {
 	write_fake_sleep "$fake_bin"
 	export FAKE_CURL_SEQ="$seq" FAKE_CURL_LOG="$log" FAKE_SLEEP_LOG="$sleep_log"
 	[ -n "$retry_after" ] && export FAKE_CURL_RETRY_AFTER="$retry_after"
+	[ -n "$tight" ] && export FAKE_CURL_RETRY_AFTER_TIGHT="$tight"
 	set +e
 	out=$(env PATH="$fake_bin:$PATH" bash -c \
 		'source "$1"; search_request --output "$2" http://fake.invalid/search' \
 		_ "$LIB" "$outfile" 2>"$errfile")
 	rc=$?
 	set -e
-	unset FAKE_CURL_SEQ FAKE_CURL_LOG FAKE_CURL_RETRY_AFTER FAKE_SLEEP_LOG
+	unset FAKE_CURL_SEQ FAKE_CURL_LOG FAKE_CURL_RETRY_AFTER FAKE_CURL_RETRY_AFTER_TIGHT FAKE_SLEEP_LOG
 	invocations=$(cat "$log" 2>/dev/null || true)
 	invocations="${invocations:-0}"
 	sleeps=$(tr '\n' ' ' < "$sleep_log" 2>/dev/null | sed 's/ $//')
@@ -189,8 +195,13 @@ search_request_case() {
 	[ "$out" = "$expected_out" ] || ok=0
 	[ "$invocations" -eq "$expected_invocations" ] || ok=0
 	[ "$sleeps" = "$expected_sleeps" ] || ok=0
+	if [ "$expected_rc" -eq 0 ]; then
+		grep -q 'fake body' "$outfile" || ok=0
+	else
+		grep -q 'fake body' "$outfile" && ok=0
+	fi
 	grep -q 'integer expected' "$errfile" && ok=0
-	if [ "$ok" -eq 1 ] && { [ "$expected_rc" -ne 0 ] || grep -q 'fake body' "$outfile"; }; then
+	if [ "$ok" -eq 1 ]; then
 		pass "$label"
 	else
 		fail "$label (rc=$rc out='$out' invocations=$invocations sleeps='$sleeps' body=$(grep -c 'fake body' "$outfile" || true); expected rc=$expected_rc out='$expected_out' invocations=$expected_invocations sleeps='$expected_sleeps'; stderr: $(head -2 "$errfile" 2>/dev/null | tr '\n' ' '))"
@@ -212,6 +223,7 @@ search_request_case 'search_request: 429 thrice gives up after 3 attempts' '429:
 search_request_case 'search_request: 503 then 200 retries once' '503:200' '200' 0 2 '' '2'
 search_request_case 'search_request: 500 thrice gives up after 3 attempts' '500:500:500' '500' 0 3 '' '2 4'
 search_request_case 'search_request: Retry-After capped at 30s' '429:200' '200' 0 2 '45' '30'
+search_request_case 'search_request: Retry-After without colon space' '429:200' '200' 0 2 '1' '1' '1'
 search_request_case 'search_request: transport failures thrice exit nonzero' 'X:X:X' '' 1 3 '' '2 4'
 
 printf '%s\n' '── search_request: --output precondition ──'
@@ -229,6 +241,7 @@ rm -f "$OUT_GUARD_ERR"
 
 printf '%s\n' '── search_request: caller EXIT trap survives ──'
 TRAP_MARKER=$(mktemp)
+TRAP_OUTFILE=$(mktemp)
 rm -f "$TRAP_MARKER"
 FAKE_DIR=$(mktemp -d)
 write_fake_curl "$FAKE_DIR"
@@ -236,7 +249,7 @@ write_fake_sleep "$FAKE_DIR"
 set +e
 env PATH="$FAKE_DIR:$PATH" TRAP_MARKER="$TRAP_MARKER" bash -c \
 	'trap "echo ran > \"$TRAP_MARKER\"" EXIT; source "$1"; search_request --output "$2" http://fake.invalid/search' \
-	_ "$LIB" "$(mktemp)" 2>/dev/null
+	_ "$LIB" "$TRAP_OUTFILE" 2>/dev/null
 rc=$?
 set -e
 if [ "$rc" -eq 0 ] && [ -f "$TRAP_MARKER" ] && grep -q ran "$TRAP_MARKER"; then
@@ -244,8 +257,29 @@ if [ "$rc" -eq 0 ] && [ -f "$TRAP_MARKER" ] && grep -q ran "$TRAP_MARKER"; then
 else
 	fail "search_request trap restore (rc=$rc marker=$([ -f "$TRAP_MARKER" ] && cat "$TRAP_MARKER" || echo missing))"
 fi
-rm -f "$TRAP_MARKER"
+rm -f "$TRAP_MARKER" "$TRAP_OUTFILE"
 rm -rf "$FAKE_DIR"
+
+printf '%s\n' '── search_request: multi-word caller trap survives ──'
+MULTI_MARKER=$(mktemp)
+MULTI_OUTFILE=$(mktemp)
+rm -f "$MULTI_MARKER"
+FAKE_DIR2=$(mktemp -d)
+write_fake_curl "$FAKE_DIR2"
+write_fake_sleep "$FAKE_DIR2"
+set +e
+env PATH="$FAKE_DIR2:$PATH" TRAP_MARKER="$MULTI_MARKER" bash -c \
+	'trap "echo ran > \"$TRAP_MARKER\"" EXIT; source "$1"; search_request --output "$2" http://fake.invalid/search' \
+	_ "$LIB" "$MULTI_OUTFILE" 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 0 ] && [ -f "$MULTI_MARKER" ] && grep -q ran "$MULTI_MARKER"; then
+	pass 'search_request preserves multi-word caller traps'
+else
+	fail "search_request multi-word trap (rc=$rc marker=$([ -f "$MULTI_MARKER" ] && cat "$MULTI_MARKER" || echo missing))"
+fi
+rm -f "$MULTI_MARKER" "$MULTI_OUTFILE"
+rm -rf "$FAKE_DIR2"
 
 printf '%s\n' '── search skills: secret handling ──'
 for f in "$WEB" "$SEARX" "$LIB"; do
@@ -316,6 +350,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

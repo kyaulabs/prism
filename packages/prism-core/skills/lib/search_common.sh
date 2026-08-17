@@ -13,6 +13,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -39,10 +40,11 @@
 #     server outcome is unknown, so retrying could duplicate a billed
 #     request and would extend the request window. Callers must pass
 #     --output FILE (enforced fail-closed) so the response body is not
-#     captured into the status. A caller EXIT trap must be a simple command
-#     (no $var/backtick expansion at fire time); the helper chains its
-#     cleanup onto it and restores it afterwards. Prints the final HTTP
-#     status on stdout. Exits nonzero on final transport failure. exit 1
+#     captured into the status. A caller EXIT trap must be a single-token
+#     command to be chained; a multi-word trap is left untouched and
+#     restored afterwards (its cleanup is never corrupted). Prints the
+#     final HTTP status on stdout. Exits nonzero on final transport
+#     failure.                                                exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -86,13 +88,22 @@ search_request() {
 		return 1
 	fi
 	header_file=$(mktemp)
-	# Chain our cleanup onto the caller's EXIT trap (if any) so an
-	# interrupted run removes the private header file; restore after.
+	# Chain our cleanup onto the caller's EXIT trap when it is a simple
+	# (single-token) command; a multi-word trap is left untouched and
+	# restored afterwards, so it can never be corrupted by splicing.
 	prev_trap=$(trap -p EXIT 2>/dev/null || true)
 	if [ -n "$prev_trap" ]; then
 		chain=$(printf '%s' "$prev_trap" | sed 's/^trap -- //; s/ EXIT$//')
-		# shellcheck disable=SC2064  # header_file is fixed at registration
-		trap -- "rm -f \"$header_file\"; $chain" EXIT
+		case "$chain" in
+			*' '*)
+				# shellcheck disable=SC2064  # header_file is fixed at registration
+				trap -- "rm -f \"$header_file\"" EXIT
+				;;
+			*)
+				# shellcheck disable=SC2064  # header_file is fixed at registration
+				trap -- "rm -f \"$header_file\"; $chain" EXIT
+				;;
+		esac
 	else
 		# shellcheck disable=SC2064  # header_file is fixed at registration
 		trap -- "rm -f \"$header_file\"" EXIT
@@ -121,7 +132,7 @@ search_request() {
 			break
 		fi
 		if [ "$http_code" = "429" ]; then
-			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
+			retry_after=$(awk -F':[ \t]*' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
 			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
 				[ "$retry_after" -gt 30 ] && retry_after=30
 				sleep "$retry_after"
@@ -141,6 +152,7 @@ search_request() {
 	fi
 	[ "$curl_rc" -eq 0 ]
 }
+
 
 
 
