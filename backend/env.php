@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Safely reads a boolean environment variable.
  *
@@ -96,23 +99,23 @@ function parse_env_value(string $raw): string
 
     // Unquoted: locate the first `#` that starts the value or follows
     // whitespace. `FOO=a#b` is preserved (no whitespace before the `#`).
-    $cut = false;
+    $commentStart = null;
 
     if ($value !== '' && $value[0] === '#') {
-        $cut = 0;
+        $commentStart = 0;
     } else {
         foreach ([' #', "\t#"] as $marker) {
             $at = strpos($value, $marker);
 
             if ($at !== false) {
-                $cut = $at + 1;
+                $commentStart = $at + 1;
                 break;
             }
         }
     }
 
-    if ($cut !== false) {
-        $value = substr($value, 0, $cut);
+    if ($commentStart !== null) {
+        $value = substr($value, 0, $commentStart);
     }
 
     return rtrim($value);
@@ -239,6 +242,7 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
 
 
 
