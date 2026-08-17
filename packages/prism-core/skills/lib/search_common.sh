@@ -10,6 +10,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -28,14 +29,16 @@
 #   - require_posint <VAR> <value>: '<SKILL>: <VAR> must be a positive
 #                            integer.'                                        exit 2
 #   - search_request <curl-args...>: runs curl with --silent --show-error,
-#     --write-out '%{http_code}', and a private --dump-header temp file,
-#     retrying transient outcomes (fast transport failures, HTTP 429 honoring
-#     Retry-After capped at 30s, HTTP >= 500) up to 3 attempts with 2s/4s
-#     backoff. A curl timeout (rc 28) is never retried: the server outcome is
-#     unknown, so retrying could duplicate a billed request and would extend
-#     the request window. Callers must pass --output FILE so the response
-#     body is not captured into the status. Prints the final HTTP status on
-#     stdout. Exits nonzero on final transport failure.            exit 1
+#     --write-out '%{http_code} %{errormsg}', and a private --dump-header
+#     temp file, retrying transient outcomes (fast transport failures,
+#     connect timeouts, HTTP 429 honoring integer Retry-After capped at
+#     30s, HTTP >= 500) up to 3 attempts with 2s/4s backoff. A max-time
+#     expiry (rc 28 with no connect-timeout error) is never retried: the
+#     server outcome is unknown, so retrying could duplicate a billed
+#     request and would extend the request window. Callers must pass
+#     --output FILE so the response body is not captured into the status.
+#     Prints the final HTTP status on stdout. Exits nonzero on final
+#     transport failure.                                    exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -68,27 +71,44 @@ require_posint() {
 }
 
 search_request() {
-	local attempt=0 status='' curl_rc=0 header_file retry_after
+	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain
 	header_file=$(mktemp)
+	# Chain our cleanup onto the caller's EXIT trap (if any) so an
+	# interrupted run removes the private header file; restore after.
+	prev_trap=$(trap -p EXIT 2>/dev/null || true)
+	if [ -n "$prev_trap" ]; then
+		chain=$(printf '%s' "$prev_trap" | sed 's/^trap -- //; s/ EXIT$//')
+		# shellcheck disable=SC2064  # header_file is fixed at registration
+		trap -- "rm -f \"$header_file\"; $chain" EXIT
+	else
+		# shellcheck disable=SC2064  # header_file is fixed at registration
+		trap -- "rm -f \"$header_file\"" EXIT
+	fi
 	while :; do
 		: > "$header_file"
-		if status=$(curl --silent --show-error --write-out '%{http_code}' --dump-header "$header_file" "$@"); then
+		if status=$(curl --silent --show-error --write-out '%{http_code} %{errormsg}' --dump-header "$header_file" "$@"); then
 			curl_rc=0
-			if [ "$status" != "429" ] && [ "$status" -lt 500 ]; then
+			http_code=${status%% *}
+			if [ "$http_code" != "429" ] && [ "$http_code" -lt 500 ]; then
 				break
 			fi
 		else
 			curl_rc=$?
 			if [ "$curl_rc" -eq 28 ]; then
-				break   # timeout: outcome unknown — never retry
+				# max-time expiry leaves the outcome unknown — retry only a
+				# connect timeout, which never reached the server.
+				case "$status" in
+					*onnect*) ;;
+					*) break ;;
+				esac
 			fi
 		fi
 		attempt=$((attempt + 1))
 		if [ "$attempt" -ge 3 ]; then
 			break
 		fi
-		if [ "$status" = "429" ]; then
-			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { print $2 + 0; exit }' "$header_file")
+		if [ "$http_code" = "429" ]; then
+			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$header_file")
 			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
 				[ "$retry_after" -gt 30 ] && retry_after=30
 				sleep "$retry_after"
@@ -98,9 +118,17 @@ search_request() {
 		sleep $((2 * attempt))   # 2s, 4s — bounded linear backoff
 	done
 	rm -f "$header_file"
-	printf '%s\n' "$status"
+	if [ -n "$prev_trap" ]; then
+		eval "$prev_trap"
+	else
+		trap - EXIT
+	fi
+	if [ "$curl_rc" -eq 0 ]; then
+		printf '%s\n' "$http_code"
+	fi
 	[ "$curl_rc" -eq 0 ]
 }
+
 
 
 
