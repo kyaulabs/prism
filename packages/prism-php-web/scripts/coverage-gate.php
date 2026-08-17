@@ -40,6 +40,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Mechanized changed-file coverage gate.
  *
@@ -337,9 +340,15 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     $changedRaw = (string) file_get_contents($stdin);
     $changedFiles = array_values(array_unique(array_filter(array_map('trim', explode("\n", $changedRaw)))));
 
-    $xml = @simplexml_load_file($cloverPath);
+    libxml_use_internal_errors(true);
+    libxml_clear_errors();
+    $xml = simplexml_load_file($cloverPath);
     if ($xml === false) {
         fwrite(STDERR, "ERROR: could not parse clover XML at {$cloverPath}\n");
+        foreach (libxml_get_errors() as $e) {
+            fwrite(STDERR, sprintf("       line %d: %s", $e->line, $e->message));
+        }
+
         return 2;
     }
 
@@ -372,6 +381,7 @@ function main(int $argc, array $argv, string $stdin = 'php://stdin'): int
     }
     return $code;
 }
+
 
 
 
