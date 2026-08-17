@@ -57,7 +57,7 @@ contract holds even when the extensions tree cannot be scanned.
   and `resolveExtraPaths(envValue: string | undefined, log?: (msg: string) => void): string[]`
   — consumed by Task 2's `index.ts`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/Node/safety-tool-call-handler.test.ts` (RCS header `// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $`, vim modeline `// vim: ft=typescript sts=4 sw=4 ts=4 et :`):
 
@@ -217,12 +217,12 @@ test("resolveExtraPaths empty input yields no paths and no logs", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-sensitive-paths.test.ts`
 Expected: FAIL — module import error (`Cannot find module ... tool-call-handler.ts`).
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `packages/prism-core/extensions/safety/tool-call-handler.ts` (RCS header
 `// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $`,
@@ -433,13 +433,13 @@ Add `"packages/prism-core/extensions/safety/tool-call-handler.ts"` to the
 `include` array in `tsconfig.json` (after
 `"packages/prism-core/extensions/safety/denial-circuit-breaker.ts",`).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-sensitive-paths.test.ts`
 Expected: PASS (13 handler tests + 3 resolveExtraPaths tests, existing sensitive-paths tests still green).
 Also run `npm run test:node` — the full suite (135 + new) must stay green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/tool-call-handler.ts tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-sensitive-paths.test.ts tsconfig.json
@@ -460,7 +460,7 @@ git commit -S -m $'fix(safety): extract fail-closed tool-call handler module\n\n
 - Consumes: `handleToolCall`, `resolveExtraPaths` from `./tool-call-handler.ts` (Task 1).
 - Produces: the extension default export with identical event wiring.
 
-- [ ] **Step 1: Rewire `index.ts`**
+- [x] **Step 1: Rewire `index.ts`**
 
 Replace the imports block with (keep `ExtensionAPI`/`ExtensionContext` types,
 `homedir`, `resolvePath`, `readFileSync`, `fileURLToPath`):
@@ -514,7 +514,7 @@ The `tool_execution_end`, `agent_end`, and `session_shutdown` registrations
 stay byte-identical. Update the header comment's fail-closed invariants list
 to mention the whole handler body fails closed, not just `classifyCommand`.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 Run: `npm run test:node`
 Expected: PASS (135 existing + 16 new tests; nothing imports `index.ts`, so
@@ -522,7 +522,7 @@ this verifies the repo still loads and the module exports are consistent).
 Run: `npx eslint packages/prism-core/extensions/safety/index.ts packages/prism-core/extensions/safety/tool-call-handler.ts`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/index.ts
@@ -544,7 +544,7 @@ git commit -S -m $'refactor(safety): index.ts delegates tool_call policy to hand
 - Produces: `$cfg['min']` of type `?int` (null = invalid); `main` returns 2
   with `ERROR: --min must be an integer 1..100` on null.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Shell/coverage_gate_test.sh` before the `── Summary ──` block
 (same indentation style — tabs — as the surrounding tests):
@@ -571,13 +571,13 @@ register_temp_dir "$T14"
 )
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: FAIL — Test 14 reports `--min=abc: expected exit 2…` (today it
 exits 0 with min cast to 0). Existing tests 1–13 stay green.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `coverage-gate.php`, change `parse_args` — the `--min` arms and the return
 type docblock — and add `parse_min_value` after `parse_args`:
@@ -640,12 +640,12 @@ In `main`, right after `$args = parse_args($argv);` insert:
 
 (The subsequent `$min = $args['min'];` line now holds a guaranteed int.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: PASS — all 13 existing tests + Test 14 (six garbage values).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-php-web/scripts/coverage-gate.php tests/Shell/coverage_gate_test.sh
@@ -666,7 +666,7 @@ git commit -S -m $'fix(coverage-gate): reject invalid --min values with usage er
 - Produces: on clover parse failure — same exit 2, same first stderr line,
   plus one `       line N: <message>` line per libxml error.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append before the `── Summary ──` block:
 
@@ -693,13 +693,13 @@ register_temp_dir "$T15"
 )
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: FAIL — Test 15: today exit 2 is right but no `line ` diagnostic is
 printed.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `main`, replace the clover load block:
 
@@ -727,12 +727,12 @@ with:
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: PASS — 14 existing tests + Test 15.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-php-web/scripts/coverage-gate.php tests/Shell/coverage_gate_test.sh
@@ -753,7 +753,7 @@ git commit -S -m $'fix(coverage-gate): report libxml diagnostics on clover parse
 - Produces: unreadable changed files land in `$warned` with reason
   `unreadable — could not verify executable code`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append before the `── Summary ──` block:
 
@@ -792,13 +792,13 @@ else
 fi
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: FAIL — Test 16: today the unreadable file reads as `''` and is
 bucketed `outside <source>, no executable code` → SKIP, no `unreadable` text.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `classify_changed_files`, replace:
 
@@ -826,12 +826,12 @@ with:
         }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/coverage_gate_test.sh`
 Expected: PASS — 15 existing tests + Test 16 (both assertions, non-root).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-php-web/scripts/coverage-gate.php tests/Shell/coverage_gate_test.sh
@@ -853,7 +853,7 @@ git commit -S -m $'fix(coverage-gate): warn on unreadable changed files instead 
 - Produces: `process.exit(0)` on every path; a scan failure prints
   `cannot scan extensions/: <message>` to stdout.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/Node/check-peer-deps.test.js` (RCS header
 `// $KYAULabs: check-peer-deps.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $`,
@@ -942,13 +942,13 @@ This task intentionally creates a *new* test file — the spec's
 `tests/Node/toolchain-packaging.test.js` does not spawn `check-peer-deps.js`
 (verified during planning), so a dedicated file is the correct home.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/check-peer-deps.test.js`
 Expected: FAIL — the last test throws (`execFileSync` rejects: script crashes
 with exit 1 + EACCES stack trace on stderr). The other five pass.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `check-peer-deps.js`, replace:
 
@@ -996,12 +996,12 @@ try {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/check-peer-deps.test.js`
 Expected: PASS — all six tests (the chmod-based one skipped as root).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/scripts/check-peer-deps.js tests/Node/check-peer-deps.test.js
