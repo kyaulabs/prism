@@ -15,6 +15,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -1315,13 +1316,16 @@ test_no_delete_code_path
 # ── Test 29: All gh api call sites route through the gh_api wrapper ───────────
 
 test_gh_api_call_sites_wrapped() {
-	local unwrapped wrapped
-	unwrapped=$(grep -cE 'if ! gh api ' "$SCRIPT" || true)
-	wrapped=$(grep -cE 'if ! gh_api ' "$SCRIPT" || true)
-	if [ "$unwrapped" -eq 0 ] && [ "$wrapped" -eq 6 ]; then
-		pass "gh api call sites — all 6 route through gh_api, none bare"
+	local outside bare wrapped
+	# Strip the gh_api() definition; any remaining `gh api ` mention is a bare,
+	# unbounded call site (run_gh contains no `gh api ` string).
+	outside=$(awk '/^gh_api\(\) \{/{skip=1} skip && /^\}/{skip=0; next} !skip {print}' "$SCRIPT")
+	bare=$(printf '%s\n' "$outside" | grep -v '^[[:space:]]*#' | grep -c 'gh api ' || true)
+	wrapped=$(grep -c 'gh_api ' "$SCRIPT" || true)
+	if [ "$bare" -eq 0 ] && [ "$wrapped" -ge 6 ]; then
+		pass "gh api call sites — no bare gh api outside the wrapper ($wrapped wrapped sites)"
 	else
-		fail "gh api call sites — unwrapped=$unwrapped wrapped=$wrapped (expected 0 unwrapped, 6 wrapped)"
+		fail "gh api call sites — bare=$bare wrapped=$wrapped (expected 0 bare, >= 6 wrapped)"
 	fi
 }
 
@@ -1375,7 +1379,12 @@ TIMEOUT_SHIM
 		echo "  log: $(cat "$timeout_log")" >&2
 		return
 	fi
-	pass "gh_api timeout — api calls wrapped in timeout 60"
+	if ! grep -q '^60 gh repo view ' "$timeout_log"; then
+		fail "gh_api timeout — repo view not wrapped in timeout 60"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	pass "gh_api timeout — api and repo-view calls wrapped in timeout 60"
 }
 
 echo ""
@@ -1394,7 +1403,10 @@ test_gh_api_bare_without_timeout() {
 	export FAKE_GH_FIXTURES="$fake_bin"
 
 	fake_gh_setup "$fake_bin"
-	# Minimal PATH: bash, php, mktemp, cat, grep, rm — deliberately no timeout
+	# Minimal PATH: the --dry-run path uses exactly these externals (the rest
+	# are bash builtins). Deliberately no timeout/gtimeout so the gh_api
+	# fallback is exercised; extend this list if the script gains externals
+	# (set -euo pipefail aborts on a missing command).
 	for tool in bash php mktemp cat grep rm; do
 		ln -s "$(command -v "$tool")" "$fake_bin/$tool"
 	done
@@ -1425,10 +1437,69 @@ echo ""
 echo "── Test 31: gh_api falls back to bare gh api ──"
 test_gh_api_bare_without_timeout
 
+# ── Test 32: gh_api wraps calls in gtimeout when only gtimeout exists ─────────
+
+test_gh_api_uses_gtimeout_when_available() {
+	local fake_bin fake_log gtimeout_log output exit_code tool
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	gtimeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$gtimeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	# Minimal PATH (like Test 31) so the host's /usr/bin/timeout cannot
+	# shadow the gtimeout-only scenario; plus the gtimeout shim.
+	for tool in bash php mktemp cat grep rm; do
+		ln -s "$(command -v "$tool")" "$fake_bin/$tool"
+	done
+
+	cat > "$fake_bin/gtimeout" <<'GTIMEOUT_SHIM'
+#!/usr/bin/env bash
+echo "$@" >> "${FAKE_GTIMEOUT_LOG:?FAKE_GTIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+exec "$cmd" "$@"
+GTIMEOUT_SHIM
+	chmod +x "$fake_bin/gtimeout"
+	export FAKE_GTIMEOUT_LOG="$gtimeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin" bash "$SCRIPT" --dry-run 2>&1) || exit_code=$?
+
+	unset FAKE_GTIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api gtimeout — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^60 gh api ' "$gtimeout_log"; then
+		fail "gh_api gtimeout — no 'gtimeout 60 gh api' invocation recorded"
+		echo "  log: $(cat "$gtimeout_log")" >&2
+		return
+	fi
+	pass "gh_api gtimeout — api calls wrapped in gtimeout 60 when timeout is absent"
+}
+
+echo ""
+echo "── Test 32: gh_api wraps calls when only gtimeout exists ──"
+test_gh_api_uses_gtimeout_when_available
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 

@@ -16,6 +16,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -66,15 +67,23 @@ if ! command -v php >/dev/null 2>&1; then
 	exit 2
 fi
 
-# ── gh_api: bounded API calls ─────────────────────────────────────────────────
-# Wrap gh api with a 60s cap where GNU timeout exists (Linux); fall back to a
-# bare call where it does not (macOS/BSD) so the script remains portable.
-gh_api() {
+# ── run_gh: bounded GitHub CLI calls ─────────────────────────────────────────
+# Wrap gh with a 60s cap where GNU timeout (or Homebrew coreutils gtimeout)
+# exists; fall back to a bare call only where neither is available, keeping
+# the script portable to macOS/BSD.
+run_gh() {
 	if command -v timeout >/dev/null 2>&1; then
-		timeout 60 gh api "$@"
+		timeout 60 gh "$@"
+	elif command -v gtimeout >/dev/null 2>&1; then
+		gtimeout 60 gh "$@"
 	else
-		gh api "$@"
+		gh "$@"
 	fi
+}
+
+# gh_api: every gh api call is bounded via run_gh.
+gh_api() {
+	run_gh api "$@"
 }
 
 if ! gh auth status >/dev/null 2>&1; then
@@ -84,7 +93,7 @@ fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
 
-REPO=$(gh repo view --json nameWithOwner 2>/dev/null | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
+REPO=$(run_gh repo view --json nameWithOwner 2>/dev/null | php -r 'echo json_decode(file_get_contents("php://stdin"),true,512,JSON_THROW_ON_ERROR)["nameWithOwner"];' 2>/dev/null) || {
 	echo "Error: cannot determine repository — run inside a GitHub repository" >&2
 	exit 2
 }
@@ -308,6 +317,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 
