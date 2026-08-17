@@ -1,5 +1,6 @@
 // $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -125,8 +126,8 @@ function isOptionToken(token: string): boolean {
 }
 
 function normalizeRaw(raw: string, home: string): string {
-    const p = raw.startsWith("~/") ? home + "/" + raw.slice(2) : raw;
-    return normalize(p).replace(/\/+$/, "");
+    const expanded = raw.startsWith("~/") ? home + "/" + raw.slice(2) : raw;
+    return normalize(expanded).replace(/\/+$/, "");
 }
 
 function isEnvBasename(name: string): boolean {
@@ -134,10 +135,13 @@ function isEnvBasename(name: string): boolean {
     return name === ".env" || name.startsWith(".env.");
 }
 
+/** Max ancestor hops when walking up to an existing realpath-able prefix. */
+const MAX_CANONICALIZE_STEPS = 64;
+
 export function canonicalizePath(p: string): string {
     let current = normalize(p);
     const tail: string[] = [];
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < MAX_CANONICALIZE_STEPS; i++) {
         try {
             const real = realpathSync(current);
             if (tail.length === 0) return normalize(real);
@@ -153,18 +157,18 @@ export function canonicalizePath(p: string): string {
 }
 
 export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions): SensitiveMatch | null {
-    const p = canonicalizePath(absPath);
-    const name = basename(p);
+    const canonical = canonicalizePath(absPath);
+    const name = basename(canonical);
     if (isEnvBasename(name)) return { className: "env" };
     if (name === "auth.json" || name === "mcp-auth.json") return { className: "opencode-auth-store" };
     for (const pattern of DEFAULT_PATTERNS) {
-        const pat = canonicalizePath(normalizeRaw(pattern.raw, opts.home));
-        if (p === pat || (pattern.dir && p.startsWith(pat + "/"))) return { className: pattern.className };
+        const patternPath = canonicalizePath(normalizeRaw(pattern.raw, opts.home));
+        if (canonical === patternPath || (pattern.dir && canonical.startsWith(patternPath + "/"))) return { className: pattern.className };
     }
     for (const raw of opts.extraPaths ?? []) {
-        const pat = canonicalizePath(normalizeRaw(raw, opts.home));
+        const patternPath = canonicalizePath(normalizeRaw(raw, opts.home));
         const dir = raw.endsWith("/");
-        if (p === pat || (dir && p.startsWith(pat + "/"))) return { className: "additional" };
+        if (canonical === patternPath || (dir && canonical.startsWith(patternPath + "/"))) return { className: "additional" };
     }
     return null;
 }
@@ -172,16 +176,16 @@ export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions):
 export function sensitivePatternCheck(pattern: unknown, base: string, opts: SensitivePathOptions): SensitiveMatch | null {
     if (pattern === undefined || pattern === "") return null;
     if (typeof pattern !== "string") return { className: "malformed" };
-    const p = pattern.trim();
-    if (p === "") return null;
-    const expanded = p.startsWith("~") ? opts.home + p.slice(1) : p;
+    const trimmed = pattern.trim();
+    if (trimmed === "") return null;
+    const expanded = trimmed.startsWith("~") ? opts.home + trimmed.slice(1) : trimmed;
     const metaIdx = expanded.search(/[*?[{]/);
     const probe = metaIdx !== -1 && !expanded.startsWith("/") ? expanded.slice(0, metaIdx) : expanded;
     const abs = probe.startsWith("/") ? probe : resolvePath(base, probe);
     const match = sensitivePathMatch(abs, opts);
     if (match) return match;
-    if (p.endsWith(".env.example")) return null;
-    if (SENSITIVE_FALLBACK_RE.test(p)) return { className: "dynamic" };
+    if (trimmed.endsWith(".env.example")) return null;
+    if (SENSITIVE_FALLBACK_RE.test(trimmed)) return { className: "dynamic" };
     return null;
 }
 
@@ -194,12 +198,12 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
         i = 1;
     }
     for (; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (isOptionToken(t)) continue;
-        const name = basename(t);
+        const token = tokens[i];
+        if (isOptionToken(token)) continue;
+        const name = basename(token);
         if (depth > 0) return SETUP_SCRIPTS.has(name) ? "untrusted-subcommand" : "none";
         if (!SETUP_SCRIPTS.has(name)) return "none";
-        const resolved = t.startsWith("~") ? normalize(opts.home + t.slice(1)) : normalize(resolvePath(opts.projectDir, t));
+        const resolved = token.startsWith("~") ? normalize(opts.home + token.slice(1)) : normalize(resolvePath(opts.projectDir, token));
         const scriptsDir = normalize(resolvePath(opts.projectDir, ".github/scripts"));
         return resolved.startsWith(scriptsDir + "/") ? "trusted" : "none";
     }
@@ -218,17 +222,17 @@ function setupScriptTrust(tokens: string[], opts: SensitivePathOptions, depth: n
  */
 export function resolvePathToken(token: string, projectDir: string, home: string,
                                  opts: { rejectAssignments?: boolean } = {}): string | null {
-    let p = token.trim();
+    let path = token.trim();
     if (
-        (p.startsWith('"') && p.endsWith('"')) ||
-        (p.startsWith("'") && p.endsWith("'"))
+        (path.startsWith('"') && path.endsWith('"')) ||
+        (path.startsWith("'") && path.endsWith("'"))
     ) {
-        p = p.slice(1, -1);
+        path = path.slice(1, -1);
     }
-    if (p.startsWith("~")) p = home + p.slice(1);
-    if (opts.rejectAssignments && p.includes("=")) return null;
-    if (/[*?$`(<]/.test(p)) return null;
-    return normalize(resolvePath(projectDir, p));
+    if (path.startsWith("~")) path = home + path.slice(1);
+    if (opts.rejectAssignments && path.includes("=")) return null;
+    if (/[*?$`(<]/.test(path)) return null;
+    return normalize(resolvePath(projectDir, path));
 }
 
 function resolveOperand(token: string, opts: SensitivePathOptions): string | null {
@@ -308,6 +312,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
