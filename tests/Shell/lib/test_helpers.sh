@@ -12,6 +12,7 @@
 
 
 
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -172,7 +173,7 @@ native_path() {
 # on PATH. Requires the real prism-tool (or a fixture named prism-tool)
 # to be resolvable via the caller's PATH.
 path_without_prism_tool() {
-	local launcher_dir="" out="" part
+	local launcher_dir="" out="" part first=1 sentinel="__PATH_END__"
 	if command -v prism-tool > /dev/null 2>&1; then
 		launcher_dir="$(dirname "$(command -v prism-tool)")"
 	fi
@@ -180,16 +181,24 @@ path_without_prism_tool() {
 		printf '%s' "$PATH"
 		return 0
 	fi
+	# Split on ':' preserving empty components (POSIX PATH: empty = current
+	# dir). The sentinel keeps the trailing empty field that plain `read`
+	# would discard; it is dropped before reconstruction.
 	local -a parts
-	IFS=: read -r -a parts <<< "$PATH"
+	IFS=: read -r -a parts <<< "$PATH:$sentinel"
+	unset 'parts[${#parts[@]}-1]'
 	for part in "${parts[@]}"; do
-		# Preserve empty components (POSIX PATH: empty = current dir).
-		if [ -z "$part" ] || [ "$part" != "$launcher_dir" ]; then
-			out="${out:+$out:}$part"
+		if [ "$part" != "$launcher_dir" ]; then
+			if [ "$first" -eq 1 ]; then
+				out="$part"; first=0
+			else
+				out="$out:$part"
+			fi
 		fi
 	done
 	printf '%s' "$out"
 }
+
 
 
 
