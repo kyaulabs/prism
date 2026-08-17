@@ -12,6 +12,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -80,6 +81,8 @@ printf '%s\n' '── search skills: secret handling ──'
 for f in "$WEB" "$SEARX" "$LIB"; do
 	if [ ! -r "$f" ]; then
 		fail "secret-handling scan target missing: $f"
+		echo "SKIP secret-handling scans (target missing)"
+		exit 1
 	fi
 done
 if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
@@ -107,6 +110,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
