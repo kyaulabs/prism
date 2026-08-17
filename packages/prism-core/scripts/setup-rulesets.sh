@@ -17,6 +17,7 @@
 
 
 
+
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
 # against a canonical definition. Supports three modes:
@@ -81,12 +82,20 @@ run_gh() {
 	fi
 }
 
-# gh_api: every gh api call is bounded via run_gh.
+# gh_api: every gh api call is bounded via run_gh; a call killed by the
+# timeout (exit 124) gets a distinct diagnostic — the outcome is unknown,
+# which matters for --apply mutations that may have landed server-side.
 gh_api() {
-	run_gh api "$@"
+	local rc=0
+	run_gh api "$@" || rc=$?
+	[ "$rc" -eq 0 ] && return 0
+	if [ "$rc" -eq 124 ]; then
+		printf 'gh: timed out after 60s — request outcome unknown\n' >&2
+	fi
+	return "$rc"
 }
 
-if ! gh auth status >/dev/null 2>&1; then
+if ! run_gh auth status >/dev/null 2>&1; then
 	echo "Error: gh auth status failed — run 'gh auth login'" >&2
 	exit 2
 fi
@@ -317,6 +326,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 

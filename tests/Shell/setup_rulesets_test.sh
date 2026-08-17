@@ -16,6 +16,7 @@
 
 
 
+
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
 # modes against a fake gh API shim. The script must never hard-code a
@@ -1317,15 +1318,17 @@ test_no_delete_code_path
 
 test_gh_api_call_sites_wrapped() {
 	local outside bare wrapped
-	# Strip the gh_api() definition; any remaining `gh api ` mention is a bare,
-	# unbounded call site (run_gh contains no `gh api ` string).
+	# Strip the gh_api() definition (assumes `gh_api() {` at column 0 closed by
+	# a column-0 `}`); any remaining `gh api ` mention outside it — and not in
+	# a comment — is a bare, unbounded call site. Occurrence counting
+	# (grep -o | wc -l) so multiple calls on one line cannot hide.
 	outside=$(awk '/^gh_api\(\) \{/{skip=1} skip && /^\}/{skip=0; next} !skip {print}' "$SCRIPT")
-	bare=$(printf '%s\n' "$outside" | grep -v '^[[:space:]]*#' | grep -c 'gh api ' || true)
-	wrapped=$(grep -c 'gh_api ' "$SCRIPT" || true)
-	if [ "$bare" -eq 0 ] && [ "$wrapped" -ge 6 ]; then
-		pass "gh api call sites — no bare gh api outside the wrapper ($wrapped wrapped sites)"
+	bare=$(printf '%s\n' "$outside" | grep -v '^[[:space:]]*#' | grep -o 'gh api ' | wc -l | tr -d ' ' || true)
+	wrapped=$(grep -o 'gh_api ' "$SCRIPT" | wc -l | tr -d ' ' || true)
+	if [ "$bare" -eq 0 ] && [ "$wrapped" -ge 1 ]; then
+		pass "gh api call sites — no bare gh api outside the wrapper ($wrapped wrapped occurrences)"
 	else
-		fail "gh api call sites — bare=$bare wrapped=$wrapped (expected 0 bare, >= 6 wrapped)"
+		fail "gh api call sites — bare=$bare wrapped=$wrapped (expected 0 bare, at least one wrapped)"
 	fi
 }
 
@@ -1384,7 +1387,12 @@ TIMEOUT_SHIM
 		echo "  log: $(cat "$timeout_log")" >&2
 		return
 	fi
-	pass "gh_api timeout — api and repo-view calls wrapped in timeout 60"
+	if ! grep -q '^60 gh auth status' "$timeout_log"; then
+		fail "gh_api timeout — auth status not wrapped in timeout 60"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	pass "gh_api timeout — auth, api, and repo-view calls wrapped in timeout 60"
 }
 
 echo ""
@@ -1408,7 +1416,11 @@ test_gh_api_bare_without_timeout() {
 	# fallback is exercised; extend this list if the script gains externals
 	# (set -euo pipefail aborts on a missing command).
 	for tool in bash php mktemp cat grep rm; do
-		ln -s "$(command -v "$tool")" "$fake_bin/$tool"
+		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
+			fail "minimal PATH — cannot symlink $tool (missing external?)"
+			unset FAKE_GH_LOG FAKE_GH_FIXTURES
+			return
+		fi
 	done
 
 	write_fixture_auth "$fake_bin" "ok"
@@ -1495,10 +1507,67 @@ echo ""
 echo "── Test 32: gh_api wraps calls when only gtimeout exists ──"
 test_gh_api_uses_gtimeout_when_available
 
+# ── Test 33: a timeout-killed mutation names the unknown outcome ───────────────
+
+test_timeout_killed_mutation_names_outcome() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) mutation verbs only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" -X POST "*|*" -X PUT "*|*" -X PATCH "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	# Drifted ruleset + merge so --apply issues a PUT and a PATCH.
+	make_fixture "$fake_bin" "42" "$DRIFTED_RULESET" "$DRIFTED_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "timeout kill — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "timeout kill — output does not name the unknown outcome: $output"
+		return
+	fi
+	pass "timeout kill — exit 2 with 'timed out after 60s' diagnostic"
+}
+
+echo ""
+echo "── Test 33: a timeout-killed mutation names the unknown outcome ──"
+test_timeout_killed_mutation_names_outcome
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
