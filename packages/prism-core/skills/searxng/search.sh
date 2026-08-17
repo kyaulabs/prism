@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -7,22 +8,14 @@
 
 set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-	printf 'Usage: %s <query>\n' "$(basename "$0")" >&2
-	exit 2
-fi
-if ! command -v curl >/dev/null 2>&1; then
-	printf 'searxng: curl is required.\n' >&2
-	exit 3
-fi
-if ! command -v node >/dev/null 2>&1; then
-	printf 'searxng: Node.js is required to normalize JSON safely.\n' >&2
-	exit 3
-fi
-if [ -z "${SEARXNG_URL:-}" ]; then
-	printf 'searxng: SEARXNG_URL is not set. Configure it in the environment; never pass it as an argument.\n' >&2
-	exit 4
-fi
+# shellcheck disable=SC2034  # consumed by the sourced search_common.sh
+SKILL=searxng
+# shellcheck source=../lib/search_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
+usage_guard "$#"
+require_cmd curl 'curl is required.'
+require_cmd node 'Node.js is required to normalize JSON safely.'
+require_env SEARXNG_URL
 
 case "$SEARXNG_URL" in
 	https://*) ;;
@@ -51,12 +44,7 @@ case "$SAFESEARCH" in
 		exit 2
 		;;
 esac
-case "$RESULT_LIMIT" in
-	''|*[!0-9]*|0)
-		printf 'searxng: SEARXNG_RESULT_LIMIT must be a positive integer.\n' >&2
-		exit 2
-		;;
-esac
+require_posint SEARXNG_RESULT_LIMIT "$RESULT_LIMIT"
 if [ "$RESULT_LIMIT" -gt 50 ]; then
 	printf 'searxng: SEARXNG_RESULT_LIMIT must not exceed 50.\n' >&2
 	exit 2
@@ -126,6 +114,7 @@ const results = data.results.slice(0, limit).map((item) => ({
 }));
 process.stdout.write(`${JSON.stringify({ query, number_of_results: results.length, results }, null, 2)}\n`);
 NODE
+
 
 
 

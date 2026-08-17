@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -74,7 +75,8 @@ register_temp_dir "$SCAN_TMP0"
 set +e
 find "$REPO_ROOT" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' -o -path '*/aurora' \
-	-o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
+	-o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" -o -path "$REPO_ROOT/audits" -o -path "$REPO_ROOT/prototypes" \
+	-o -path "$REPO_ROOT/build" -o -path "$REPO_ROOT/graphify-out" \) -prune -o \
 	-type f \
 	-not -path "$REPO_ROOT/CHANGELOG.md" \
 	\( -iname 'models.json' -o -iname 'models-store.json' \) -print > "$SCAN_TMP0/list" 2> "$SCAN_TMP0/find.err"
@@ -123,7 +125,8 @@ set +e
 # followed: a link pointing outside the repo must never be scanned.
 find "${SCAN_ROOTS[@]}" \
 	\( -path '*/node_modules' -o -path '*/dist' -o -path '*/vendor' -o -path '*/tests' -o -path '*/.git' \
-	-o -path '*/aurora' -o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" \) -prune -o \
+	-o -path '*/aurora' -o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" -o -path "$REPO_ROOT/audits" \
+	-o -path "$REPO_ROOT/prototypes" -o -path "$REPO_ROOT/build" -o -path "$REPO_ROOT/graphify-out" \) -prune -o \
 	-type f \
 	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -path "$REPO_ROOT/CHANGELOG.md" \
@@ -167,6 +170,7 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
+
 
 
 

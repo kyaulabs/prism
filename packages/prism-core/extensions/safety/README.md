@@ -17,7 +17,7 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
 | File | Origin | Change |
 | --- | --- | --- |
 | `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim port, later restructured.** Pure path/operand classifier + deny floor. The audit remediation extracted the `judgeToken` predicate and the shared `resolvePathToken` resolver (also used by `pre-tool-use.ts`). No opencode imports to strip. |
-| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim.** Pure `DenialCircuitBreaker` state machine. The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
+| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
 | `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim, later restructured.** `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The audit remediation split `classifyCommandImpl` into a per-policy rule table (`SEGMENT_RULES`/`COMMAND_RULES`) and made `resolveTarget`/`MAX_UNWRAP_DEPTH` delegate to the shared `sensitive-paths.ts` resolver. The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
 | `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
 | `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
@@ -86,7 +86,8 @@ resolves them per session (`session_start`), in this order:
    extension), shape `{ "safe_rm_dirs": ["node_modules", ".git", ".pi/npm",
    ".pi/git", ".pi/prism-tool/work"] }`. The candidate workspace is the
    only safe Prism setup path; its parent remains outside the cleanup zone.
-3. **Hardcoded fallback** `["node_modules", ".pi/npm", ".pi/git"]`.
+3. **Fail-closed default** — no project-relative safe zones when neither
+   JSON source resolves (every `rm -rf` is blocked).
 
 OS temp dirs (`/tmp`, `/var/tmp`, `os.tmpdir()`) are hardcoded in
 `pre-tool-use.ts` (`SAFE_ABS_DIRS`) and are not adapter-driven.

@@ -1,5 +1,6 @@
 // $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
+
 /**
  * Pure state machine for the consecutive-bash-denial circuit breaker
  * (issue #274).
@@ -40,7 +41,7 @@ export interface DenialObservation {
 }
 
 /** Default trip threshold — matches the upstream doom_loop identical-input guard. */
-const DEFAULT_THRESHOLD = 3;
+export const DEFAULT_THRESHOLD = 3;
 
 export class DenialCircuitBreaker {
     private readonly threshold: number;
@@ -135,6 +136,7 @@ export class DenialCircuitBreaker {
         return this.counts.get(sessionID) ?? 0;
     }
 }
+
 
 
 

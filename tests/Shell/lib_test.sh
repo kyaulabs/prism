@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-# $KYAULabs: lib_test.sh kyau@nova 2026/07/17 -0700 Exp $
+# $KYAULabs: lib_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -208,6 +218,114 @@ test_native_path() {
 	fi
 }
 
+# Test 14: path_without_prism_tool strips a host-installed launcher dir
+# (no-op when absent) — hook tests rely on this to simulate a machine
+# without the launcher on dogfooding machines.
+test_path_without_prism_tool() {
+	local fake_dir stripped original_path
+	original_path="$PATH"
+
+	# Empty PATH must round-trip empty (no spurious cwd entry).
+	# shellcheck disable=SC2123  # intentional PATH mutation with restore
+	PATH=""
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ -z "$stripped" ]; then
+		pass "path_without_prism_tool round-trips empty PATH"
+	else
+		fail "path_without_prism_tool fabricated components for empty PATH: $stripped"
+	fi
+
+	fake_dir=$(mktemp -d)
+	register_temp_dir "$fake_dir"
+	touch "$fake_dir/prism-tool"
+	chmod +x "$fake_dir/prism-tool"
+
+	# Controlled dirs only — never /usr/bin:/bin, which could hold a real
+	# launcher on a dogfooding host.
+	local noop_a noop_b
+	noop_a=$(mktemp -d)
+	register_temp_dir "$noop_a"
+	noop_b=$(mktemp -d)
+	register_temp_dir "$noop_b"
+
+	PATH="$fake_dir:$noop_a:$noop_b"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [[ ":$stripped:" != *":$fake_dir:"* ]] && [[ ":$stripped:" == *":$noop_a:"* ]] \
+		&& [[ ":$stripped:" == *":$noop_b:"* ]]; then
+		pass "path_without_prism_tool strips the launcher dir"
+	else
+		fail "path_without_prism_tool kept launcher dir: $stripped"
+	fi
+
+	# No-op when no prism-tool is on PATH.
+	PATH="$noop_a:$noop_b"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = "$noop_a:$noop_b" ]; then
+		pass "path_without_prism_tool is a no-op without a launcher"
+	else
+		fail "path_without_prism_tool altered PATH without a launcher: $stripped"
+	fi
+
+	# Empty PATH components (POSIX: empty = current dir) must survive.
+	PATH=":$noop_a:"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":$noop_a:" ]; then
+		pass "path_without_prism_tool preserves empty PATH components"
+	else
+		fail "path_without_prism_tool dropped empty PATH components: $stripped"
+	fi
+
+	# Launcher as the only non-empty component: empty cwd entries survive
+	# and the launcher dir is removed (no external dirname dependency).
+	PATH=":$fake_dir:"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":" ]; then
+		pass "path_without_prism_tool strips launcher-only PATH"
+	else
+		fail "path_without_prism_tool mishandled launcher-only PATH: $stripped"
+	fi
+
+	# Launcher adjacent to a lone empty component (leading or trailing)
+	# must round-trip the empty cwd entry as ':'.
+	PATH=":$fake_dir"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":" ]; then
+		pass "path_without_prism_tool preserves leading empty beside launcher"
+	else
+		fail "path_without_prism_tool lost leading empty: $stripped"
+	fi
+	PATH="$fake_dir:"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":" ]; then
+		pass "path_without_prism_tool preserves trailing empty beside launcher"
+	else
+		fail "path_without_prism_tool lost trailing empty: $stripped"
+	fi
+
+	# Duplicate launcher installs: every PATH component holding a
+	# prism-tool is dropped, not just the first `command -v` match.
+	local dup_dir
+	dup_dir=$(mktemp -d)
+	register_temp_dir "$dup_dir"
+	touch "$dup_dir/prism-tool"
+	chmod +x "$dup_dir/prism-tool"
+	PATH="$fake_dir:$noop_a:$dup_dir:$noop_b"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = "$noop_a:$noop_b" ]; then
+		pass "path_without_prism_tool strips duplicate launcher dirs"
+	else
+		fail "path_without_prism_tool kept a duplicate launcher dir: $stripped"
+	fi
+}
+
 # Run tests
 echo "── lib_test.sh ──"
 test_make_file_stale
@@ -223,10 +341,21 @@ test_setup_linter_repo
 test_skip_helper
 test_can_symlink
 test_native_path
+test_path_without_prism_tool
 
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
+
+
+
+
+
+
+
+
+
 
 
 

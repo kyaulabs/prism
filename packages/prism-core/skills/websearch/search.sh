@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -7,23 +8,14 @@
 
 set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-	printf 'Usage: %s <query>\n' "$(basename "$0")" >&2
-	exit 2
-fi
-
-if ! command -v curl >/dev/null 2>&1; then
-	printf 'websearch: curl is required.\n' >&2
-	exit 3
-fi
-if ! command -v node >/dev/null 2>&1; then
-	printf 'websearch: Node.js is required to encode and format JSON safely.\n' >&2
-	exit 3
-fi
-if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
-	printf 'websearch: DEEPSEEK_API_KEY is not set. Configure it in the environment; never pass it as an argument.\n' >&2
-	exit 4
-fi
+# shellcheck disable=SC2034  # consumed by the sourced search_common.sh
+SKILL=websearch
+# shellcheck source=../lib/search_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
+usage_guard "$#"
+require_cmd curl 'curl is required.'
+require_cmd node 'Node.js is required to encode and format JSON safely.'
+require_env DEEPSEEK_API_KEY
 
 QUERY="$*"
 MODEL="${WEBSEARCH_MODEL:-deepseek-v4-flash}"
@@ -38,12 +30,7 @@ case "$THINKING" in
 		exit 2
 		;;
 esac
-case "$MAX_TOKENS" in
-	''|*[!0-9]*|0)
-		printf 'websearch: WEBSEARCH_MAX_TOKENS must be a positive integer.\n' >&2
-		exit 2
-		;;
-esac
+require_posint WEBSEARCH_MAX_TOKENS "$MAX_TOKENS"
 case "$BASE_URL" in
 	https://*) ;;
 	*)
@@ -164,6 +151,7 @@ if (results.length > 0) {
 	});
 }
 NODE
+
 
 
 
