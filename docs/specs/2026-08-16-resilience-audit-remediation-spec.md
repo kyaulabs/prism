@@ -92,7 +92,10 @@ falling back to the fixed backoff.
 #     captured into the status. A caller EXIT trap must be a simple command
 #     (no $var/backtick expansion at fire time); the helper chains its
 #     cleanup onto it and restores it afterwards. Prints the final HTTP
-#     status on stdout. Exits nonzero on final transport failure. exit 1
+#     status on stdout. Exits nonzero on final transport failure. A caller
+#     EXIT trap is chained only when it is a single-token command; a
+#     multi-word trap is left untouched and restored afterwards (pass-4
+#     F4).                                                        exit 1
 
 search_request() {
 	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain
@@ -133,8 +136,10 @@ search_request() {
 		fi
 		if [ "$http_code" = "429" ]; then
 			# Real curl --dump-header uses CRLF; strip trailing whitespace (the
-			# POSIX [[:space:]] class covers CR) before the integer-only match.
-			retry_after=$(awk -F': ' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
+			# POSIX [[:space:]] class covers CR) before the integer-only match;
+			# the field split tolerates optional colon whitespace per RFC 7230
+			# (Retry-After:120 is honored) (pass-4 F5).
+			retry_after=$(awk -F':[ \t]*' 'tolower($1) == "retry-after" { v = $2; sub(/[[:space:]]*$/, "", v); if (v ~ /^[0-9]+$/) print v; exit }' "$header_file")
 			if [ -n "$retry_after" ] && [ "$retry_after" -gt 0 ]; then
 				[ "$retry_after" -gt 30 ] && retry_after=30
 				sleep "$retry_after"
@@ -259,7 +264,10 @@ gh_api() {
 ```
 
 - The 6 `gh api` call sites (lines 135, 141, 231, 261, 271, 285) change
-  `gh api` → `gh_api`, argument lists unchanged. `gh_api` captures the
+  `gh api` → `gh_api`, argument lists unchanged. `run_gh` selects a GNU
+  coreutils `timeout` via `--version` (cached), falling back to Homebrew
+  `gtimeout` or a bare call — Git Bash's incompatible `timeout.exe` can
+  never be selected (pass-4 F3). `gh_api` captures the
   call's rc via the canonical `cmd || rc=$?` idiom — a naive `if cmd;
   then …; fi; local rc=$?` would capture 0 (an `if` with no true branch
   exits 0), silently swallowing every failure.
@@ -326,9 +334,13 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
     both G1 hint lines present in both failure paths of each script.
   - The fake curl writes `retry-after:` with CRLF line endings like real
     `--dump-header` output, so the Retry-After parse is exercised against
-    production-shaped headers (pass-3 F6). Cases cover the 5xx retry and
-    exhaustion branches and the 30s Retry-After cap (pass-3 F5); a
-    fail-closed `--output` guard case (pass-3 F13).
+    production-shaped headers (pass-3 F6); a no-colon-space form covers
+    RFC 7230 optional whitespace (pass-4 F5). The fake writes a body only
+    on success like real curl, and the runner asserts body absence on
+    failure paths (pass-4 F6). Cases cover the 5xx retry and exhaustion
+    branches and the 30s Retry-After cap (pass-3 F5); a fail-closed
+    `--output` guard case (pass-3 F13); single- and multi-word caller
+    EXIT-trap preservation (pass-4 F4).
 - **Extend `tests/Shell/setup_rulesets_test.sh`**:
   - Test 29 (F7): static audit — strips the `gh_api()` definition and
     comment lines (assumes `gh_api() {` at column 0 closed by a column-0
@@ -353,7 +365,12 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
     fetch error names the timeout.
   - Test 29 (F8): the bare-call audit strips inline comments (`sed
     's/#.*//'`) and matches `gh api([[:space:]]|$)` so tabs or
-    end-of-line calls cannot hide a bare site.
+    end-of-line calls cannot hide a bare site; the format coupling is
+    documented (pass-4 F8).
+  - Tests 34/35 assert the recorded timeout log contains the hung
+    invocation, so a shim-pattern drift cannot false-pass (pass-4 F10).
+  - The timeout/gtimeout shims answer `--version` so run_gh's GNU
+    detection is exercised (pass-4 F3).
 - **Extend `tests/Shell/pi_ci_contract_test.sh`** (F1/F2): occurrence
   counting (`grep -o | wc -l`) of `curl -fsSL` versus the full
   bound-flag sequence per invocation proves **every** download is
@@ -416,10 +433,14 @@ a shellcheck-download flake fails the test signal too") is dispositioned:
   audit's own R1 recommendation. Re-raised by pass-3; the acceptance
   stands with this record.
 - **Contract-test and trap-chain constraints are documented (pass-3 F1,
-  F12)** — the CI download contract assumes one invocation per line with
-  flags in canonical order (commented in the test), and the helper's trap
-  chaining supports simple caller traps (commented in the docblock).
-  Neither warrants further machinery for the current callers.
+  F12; pass-4 F8)** — the CI download contract assumes one invocation per
+  line with flags in canonical order, and both counters are line-based so
+  they stay comparable (pass-4 F1/F2). The helper chains only single-token
+  caller traps; multi-word traps are preserved untouched (pass-4 F4).
+- **Worst-case window acceptance re-confirmed (pass-4 F11)** — the ~9min
+  worst-case (3 × `--max-time` on retryable outcomes) was re-raised for
+  the fourth time; the acceptance in the Risks section above stands,
+  bounded by never-retrying max-time expiries.
 - **Fake-curl shim sleeps are real** — avoids env-var test seams in
   production code; ~21s worst case is within the shell suite's tolerance.
 - **Spec rides the work branch** — develop is PR-only (protected-branch
