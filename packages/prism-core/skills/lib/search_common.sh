@@ -14,6 +14,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -40,11 +41,12 @@
 #     server outcome is unknown, so retrying could duplicate a billed
 #     request and would extend the request window. Callers must pass
 #     --output FILE (enforced fail-closed) so the response body is not
-#     captured into the status. A caller EXIT trap must be a single-token
-#     command to be chained; a multi-word trap is left untouched and
-#     restored afterwards (its cleanup is never corrupted). Prints the
-#     final HTTP status on stdout. Exits nonzero on final transport
-#     failure.                                                exit 1
+#     captured into the status; the stdout targets --output=- and -o- are
+#     rejected. The caller's EXIT trap is preserved and eval'd at fire time
+#     after the header-file cleanup — multi-word commands and fire-time
+#     $var expansion are supported, so the caller's cleanup runs even on an
+#     interrupt mid-loop. Prints the final HTTP status on stdout. Exits
+#     nonzero on final transport failure.                    exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -80,30 +82,31 @@ search_request() {
 	local attempt=0 status='' http_code='' curl_rc=0 header_file retry_after prev_trap chain arg has_output=0
 	for arg in "$@"; do
 		case "$arg" in
-			--output|-o|--output=*|-o*) has_output=1 ;;
+			--output|-o) has_output=1 ;;
+			--output=*) [ "${arg#--output=}" = "-" ] || has_output=1 ;;
+			-o*) [ "${arg#-o}" = "-" ] || has_output=1 ;;
 		esac
 	done
 	if [ "$has_output" -eq 0 ]; then
 		printf '%s: search_request requires --output FILE so the response body is not captured.\n' "${SKILL:-search}" >&2
 		return 1
 	fi
-	header_file=$(mktemp)
-	# Chain our cleanup onto the caller's EXIT trap when it is a simple
-	# (single-token) command; a multi-word trap is left untouched and
-	# restored afterwards, so it can never be corrupted by splicing.
+	header_file=$(mktemp) || {
+		printf '%s: search_request could not create a temp file\n' "${SKILL:-search}" >&2
+		return 1
+	}
+	# Preserve the caller's EXIT trap: strip `trap -- `, the trailing
+	# ` EXIT`, and the surrounding quotes bash wraps the command in, then
+	# eval it at fire time after our header-file cleanup. Multi-word
+	# commands stay intact and their $var expands when the trap fires —
+	# the caller's cleanup runs even on an interrupt mid-loop.
 	prev_trap=$(trap -p EXIT 2>/dev/null || true)
 	if [ -n "$prev_trap" ]; then
 		chain=$(printf '%s' "$prev_trap" | sed 's/^trap -- //; s/ EXIT$//')
-		case "$chain" in
-			*' '*)
-				# shellcheck disable=SC2064  # header_file is fixed at registration
-				trap -- "rm -f \"$header_file\"" EXIT
-				;;
-			*)
-				# shellcheck disable=SC2064  # header_file is fixed at registration
-				trap -- "rm -f \"$header_file\"; $chain" EXIT
-				;;
-		esac
+		chain=${chain#\'}
+		chain=${chain%\'}
+		# shellcheck disable=SC2064  # header_file is fixed at registration
+		trap -- "rm -f \"$header_file\"; eval \"$chain\"" EXIT
 	else
 		# shellcheck disable=SC2064  # header_file is fixed at registration
 		trap -- "rm -f \"$header_file\"" EXIT
@@ -152,6 +155,7 @@ search_request() {
 	fi
 	[ "$curl_rc" -eq 0 ]
 }
+
 
 
 

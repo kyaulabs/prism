@@ -23,6 +23,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -239,6 +240,18 @@ else
 fi
 rm -f "$OUT_GUARD_ERR"
 
+STDOUT_GUARD_ERR=$(mktemp)
+set +e
+bash -c 'source "$1"; search_request --output=- http://fake.invalid/search' _ "$LIB" 2>"$STDOUT_GUARD_ERR"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ] && grep -q 'requires --output FILE' "$STDOUT_GUARD_ERR"; then
+	pass 'search_request rejects the stdout target --output=-'
+else
+	fail "search_request stdout-target guard (rc=$rc err=$(head -1 "$STDOUT_GUARD_ERR" 2>/dev/null))"
+fi
+rm -f "$STDOUT_GUARD_ERR"
+
 printf '%s\n' '── search_request: caller EXIT trap survives ──'
 TRAP_MARKER=$(mktemp)
 TRAP_OUTFILE=$(mktemp)
@@ -248,7 +261,7 @@ write_fake_curl "$FAKE_DIR"
 write_fake_sleep "$FAKE_DIR"
 set +e
 env PATH="$FAKE_DIR:$PATH" TRAP_MARKER="$TRAP_MARKER" bash -c \
-	'trap "echo ran > \"$TRAP_MARKER\"" EXIT; source "$1"; search_request --output "$2" http://fake.invalid/search' \
+	'cleanup_marker() { echo ran > "$TRAP_MARKER"; }; trap cleanup_marker EXIT; source "$1"; search_request --output "$2" http://fake.invalid/search' \
 	_ "$LIB" "$TRAP_OUTFILE" 2>/dev/null
 rc=$?
 set -e
@@ -313,7 +326,7 @@ else
 fi
 
 printf '%s\n' '── websearch: retry helper and cross-backend hint ──'
-if grep -q 'search_request' "$WEB"; then
+if grep -q 'HTTP_STATUS=$(search_request' "$WEB"; then
 	pass 'websearch invokes the shared search_request retry helper'
 else
 	fail 'websearch does not invoke search_request'
@@ -331,7 +344,7 @@ else
 fi
 
 printf '%s\n' '── searxng: retry helper and cross-backend hint ──'
-if grep -q 'search_request' "$SEARX"; then
+if grep -q 'HTTP_STATUS=$(search_request' "$SEARX"; then
 	pass 'searxng invokes the shared search_request retry helper'
 else
 	fail 'searxng does not invoke search_request'
@@ -350,6 +363,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
