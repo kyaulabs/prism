@@ -2,6 +2,7 @@
 
 
 
+
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -60,6 +61,16 @@ test('extension importing a pi core without peerDependencies reports a violation
 	assert.match(out, /peerDependencies/);
 });
 
+test('stat failure other than ENOENT prints a stdout line and exits 0', (t) => {
+	const dir = tmpdir(t);
+	fs.writeFileSync(path.join(dir, 'package.json'), '{}');
+	fs.symlinkSync('extensions', path.join(dir, 'extensions'));
+	const res = spawnSync(process.execPath, [SCRIPT, path.join(dir, 'package.json')], {encoding: 'utf8'});
+	assert.equal(res.status, 0);
+	assert.match(res.stdout, /cannot stat extensions\//);
+	assert.equal(res.stderr, '');
+});
+
 test('unscannable extensions tree exits 0 with a stdout line and no stderr', (t) => {
 	if (typeof process.getuid === 'function' && process.getuid() === 0) {
 		t.skip('running as root — permission denials do not apply');
@@ -75,6 +86,7 @@ test('unscannable extensions tree exits 0 with a stdout line and no stderr', (t)
 	assert.match(res.stdout, /cannot scan extensions\//);
 	assert.equal(res.stderr, '');
 });
+
 
 
 

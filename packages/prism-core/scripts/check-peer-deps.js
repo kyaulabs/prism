@@ -7,6 +7,7 @@
 
 
 
+
 // Verify that any pi bundled-core package imported by a package's extensions/
 // is declared in that package.json's peerDependencies.
 //
@@ -66,7 +67,13 @@ const extDir = path.join(path.dirname(pkgJsonPath), 'extensions');
 let extStat;
 try {
 	extStat = fs.statSync(extDir);
-} catch {
+} catch (e) {
+	if (e.code !== 'ENOENT') {
+		// A real stat failure (EACCES, ELOOP, ...) must be visible, not
+		// conflated with the absent-dir no-op: print it on stdout (the
+		// caller treats every stdout line as a violation) and still exit 0.
+		console.log(`${rel}: cannot stat extensions/: ${e.message}`);
+	}
 	// No extensions -> cannot import a pi core at runtime -> nothing to check.
 	process.exit(0);
 }
@@ -108,6 +115,7 @@ for (const core of imported) {
 		console.log(`${rel}: extension imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
 	}
 }
+
 
 
 
