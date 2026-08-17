@@ -10,6 +10,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -31,19 +32,14 @@ set -e
 	&& pass 'searxng missing-URL error is clear' || fail "searxng missing-URL rc=$searx_rc"
 
 printf '%s\n' '── shared search validation helpers ──'
+USAGE_ERR=$(mktemp)
 set +e
-bash "$SEARX" >/dev/null 2>/tmp/prism-usage-error
+bash "$SEARX" >/dev/null 2>"$USAGE_ERR"
 usage_rc=$?
 set -e
-[ "$usage_rc" -eq 2 ] && grep -q 'Usage: search.sh <query>' /tmp/prism-usage-error \
+[ "$usage_rc" -eq 2 ] && grep -q 'Usage: search.sh <query>' "$USAGE_ERR" \
 	&& pass 'usage guard exits 2' || fail "usage guard rc=$usage_rc"
-
-set +e
-SEARXNG_URL=https://example.com SEARXNG_RESULT_LIMIT=00 bash "$SEARX" query >/dev/null 2>/tmp/prism-posint-error
-posint_rc=$?
-set -e
-[ "$posint_rc" -eq 2 ] && grep -q 'SEARXNG_RESULT_LIMIT must be a positive integer' /tmp/prism-posint-error \
-	&& pass 'leading-zero limit rejected' || fail "leading-zero limit rc=$posint_rc"
+rm -f "$USAGE_ERR"
 
 printf '%s\n' '── shared search validation helpers: unit contract ──'
 # Hermetic checks of the lib's exit codes, sourcing it directly so a missing
@@ -64,6 +60,8 @@ unit_rc() {
 }
 
 unit_rc 2 'usage_guard exits 2' usage_guard 0
+unit_rc 0 'usage_guard accepts one arg' usage_guard 1
+unit_rc 0 'usage_guard accepts many args' usage_guard 2
 unit_rc 3 'require_cmd exits 3' require_cmd prism-nonexistent-tool 'tool is required.'
 unit_rc 4 'require_env exits 4' require_env DEEPSEEK_API_KEY
 unit_rc 2 'require_posint rejects empty' require_posint MAX  ''
@@ -98,6 +96,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

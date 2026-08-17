@@ -6,6 +6,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -13,7 +14,9 @@
 #   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
 #
 # Provides (fail-closed; exit codes and messages are stable contract):
-#   - usage_guard <argc>:   'Usage: <basename> <query>'                       exit 2
+#   - usage_guard <argc>:   'Usage: <basename> <query>' (rejects argc 0 and
+#                            non-numeric; one or more args are accepted and
+#                            joined into the query)                       exit 2
 #   - require_cmd <exe> <body>: '<SKILL>: <body>' (e.g. 'curl is required.')  exit 3
 #   - require_env <VAR>:    '<SKILL>: <VAR> is not set. Configure it in the
 #                            environment; never pass it as an argument.'      exit 4
@@ -51,6 +54,7 @@ require_posint() {
 		exit 2
 	fi
 }
+
 
 
 

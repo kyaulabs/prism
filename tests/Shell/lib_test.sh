@@ -11,6 +11,7 @@
 
 
 
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -246,6 +247,16 @@ test_path_without_prism_tool() {
 	else
 		fail "path_without_prism_tool altered PATH without a launcher: $stripped"
 	fi
+
+	# Empty PATH components (POSIX: empty = current dir) must survive.
+	PATH=":$noop_a:"
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ "$stripped" = ":$noop_a:" ]; then
+		pass "path_without_prism_tool preserves empty PATH components"
+	else
+		fail "path_without_prism_tool dropped empty PATH components: $stripped"
+	fi
 }
 
 # Run tests
@@ -268,6 +279,7 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
 
 
 
