@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
 
 
 
@@ -148,8 +151,8 @@ function is_dangerous_env_name(string $key): bool
  *
  * @param string $path  Absolute or relative path to the .env file.
  * @return void
- * @note Never throws — errors (unreadable file, parse failures) are
- *       silently discarded.
+ * @note Never throws — unreadable files and failed reads are logged via
+ *       error_log and defaults are used; absent files stay a silent no-op.
  */
 function load_env(string $path): void
 {
@@ -157,9 +160,17 @@ function load_env(string $path): void
         return;
     }
 
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_readable($path)) {
+        error_log("load_env: {$path} exists but is not readable; using defaults");
+
+        return;
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
     if ($lines === false) {
+        error_log("load_env: failed to read {$path}; using defaults");
+
         return;
     }
 
@@ -210,6 +221,7 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
 
 
 

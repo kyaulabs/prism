@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: LoadEnvTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
 
 
 
@@ -308,6 +311,61 @@ test('load_env strips a tab-separated inline # comment from an unquoted value', 
 
     unlink($path);
 });
+
+test('load_env logs an unreadable env file and keeps defaults', function () {
+    $path = sys_get_temp_dir() . '/unreadable_' . uniqid() . '.env';
+    file_put_contents($path, "APP_DEBUG=true\n");
+    chmod($path, 0000);
+
+    $logPath = sys_get_temp_dir() . '/errlog_' . uniqid() . '.log';
+    $prevLog = ini_get('error_log');
+    ini_set('error_log', $logPath);
+
+    $warnings = [];
+    set_error_handler(static function (int $no, string $msg) use (&$warnings): bool {
+        $warnings[] = $msg;
+
+        return true;
+    });
+
+    try {
+        load_env($path);
+
+        expect(env_bool('APP_DEBUG'))->toBeFalse();
+        expect((string) file_get_contents($logPath))->toContain('is not readable');
+        expect((string) file_get_contents($logPath))->toContain($path);
+        expect($warnings)->toBe([]);
+    } finally {
+        restore_error_handler();
+        ini_set('error_log', $prevLog);
+        @chmod($path, 0644);
+        @unlink($path);
+        if (is_file($logPath)) {
+            unlink($logPath);
+        }
+    }
+})->skip(function_exists('posix_geteuid') && posix_geteuid() === 0, 'permission assertions are unreliable when running as root');
+
+test('load_env absent env file stays silent (no log, defaults kept)', function () {
+    $path = sys_get_temp_dir() . '/nonexistent_' . uniqid() . '.env';
+
+    $logPath = sys_get_temp_dir() . '/errlog_' . uniqid() . '.log';
+    $prevLog = ini_get('error_log');
+    ini_set('error_log', $logPath);
+
+    try {
+        load_env($path);
+
+        expect(env_bool('APP_DEBUG'))->toBeFalse();
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toBe('');
+    } finally {
+        ini_set('error_log', $prevLog);
+        if (is_file($logPath)) {
+            unlink($logPath);
+        }
+    }
+});
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :
