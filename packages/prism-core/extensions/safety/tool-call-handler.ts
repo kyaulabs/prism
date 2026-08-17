@@ -1,8 +1,6 @@
 // $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
 import {
@@ -79,11 +77,11 @@ function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): bool
     if (pathArg === undefined) return false;
     if (typeof pathArg !== "string") return true;
     if (pathArg === "") return false;
-    const p = pathArg.replace(/^@+/, "");
-    if (p === "") return false;
-    const abs = p.startsWith("~")
-        ? normalize(opts.home + p.slice(1))
-        : normalize(resolvePath(opts.projectDir, p));
+    const path = pathArg.replace(/^@+/, "");
+    if (path === "") return false;
+    const abs = path.startsWith("~")
+        ? normalize(opts.home + path.slice(1))
+        : normalize(resolvePath(opts.projectDir, path));
     return sensitivePathMatch(abs, opts) !== null;
 }
 
@@ -175,11 +173,11 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
                 return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
             }
             const finding = classifyCommand(command, { projectDir: deps.cwd, safeRelDirs: deps.safeRelDirs });
-            if (finding.severity === "block") {
+            if (finding?.severity === "block") {
                 noteBashDenial(deps.sid, deps);
                 return { block: true, reason: `[prism safety] BLOCKED: ${finding.reason}` };
             }
-            if (finding.severity === "warn") {
+            if (finding?.severity === "warn") {
                 deps.notify?.(`[prism safety] WARNING: ${finding.reason}`, "warning");
             }
             return;
@@ -218,11 +216,6 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
-
-
-
-
-
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

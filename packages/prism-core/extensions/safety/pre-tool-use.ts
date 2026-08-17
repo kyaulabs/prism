@@ -1,22 +1,6 @@
 // $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -24,7 +8,7 @@ import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH }
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
 
-export type Severity = "block" | "warn" | null;
+export type Severity = "block" | "warn";
 
 export interface Finding {
     severity: Severity;
@@ -56,50 +40,45 @@ interface ParsedRm {
     operands: string[];
 }
 
-function basename(token: string): string {
+function commandBasename(token: string): string {
     const lastSlash = token.lastIndexOf("/");
     return lastSlash === -1 ? token : token.slice(lastSlash + 1);
-}
-
-function parseRm(segment: string): ParsedRm | null {
-    const tokens = tokenizeCommand(segment);
-    return parseRmTokens(tokens, 0);
 }
 
 function parseRmTokens(tokens: string[], startIdx: number): ParsedRm | null {
     let i = startIdx;
     if (tokens[i] === "sudo") i++;
-    if (i >= tokens.length || basename(tokens[i]) !== "rm") return null;
+    if (i >= tokens.length || commandBasename(tokens[i]) !== "rm") return null;
     i++;
     let recursive = false;
     let force = false;
     const operands: string[] = [];
     let onlyOperands = false;
     for (; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (!onlyOperands && t === "--") {
+        const token = tokens[i];
+        if (!onlyOperands && token === "--") {
             onlyOperands = true;
             continue;
         }
-        if (!onlyOperands && t.startsWith("-") && t.length > 1) {
-            if (t.startsWith("--")) {
-                if (t === "--recursive") recursive = true;
-                else if (t === "--force") force = true;
+        if (!onlyOperands && token.startsWith("-") && token.length > 1) {
+            if (token.startsWith("--")) {
+                if (token === "--recursive") recursive = true;
+                else if (token === "--force") force = true;
             } else {
-                const chars = t.slice(1);
+                const chars = token.slice(1);
                 if (chars.includes("r") || chars.includes("R")) recursive = true;
                 if (chars.includes("f")) force = true;
             }
             continue;
         }
-        operands.push(t);
+        operands.push(token);
     }
     return { recursive, force, operands };
 }
 
 function findRmAnywhere(tokens: string[]): number {
     for (let i = 0; i < tokens.length; i++) {
-        if (basename(tokens[i]) === "rm") return i;
+        if (commandBasename(tokens[i]) === "rm") return i;
     }
     return -1;
 }
@@ -184,10 +163,10 @@ function isWithinSafeZone(absPath: string, projectDir: string, safeRelDirs: read
  * classifier cannot evaluate a command it was asked to evaluate.
  * See ADR-0023, ADR-0036.
  */
-export function classifyCommand(command: string, opts: ClassifyOptions): Finding {
+export function classifyCommand(command: string, opts: ClassifyOptions): Finding | null {
     // Empty command = nothing to evaluate (preserved from original fail-open contract)
     if (typeof command === "string" && command.length === 0) {
-        return { severity: null, reason: "" };
+        return null;
     }
     try {
         return classifyCommandImpl(command, opts, 0);
@@ -220,7 +199,7 @@ const COMMAND_RULES: readonly CommandRule[] = [
     gitNoVerifyBlock,
 ];
 
-function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding {
+function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding | null {
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
@@ -236,7 +215,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         const innerCmd = tryUnwrapSegment(tokens);
         if (innerCmd !== null) {
             const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
-            if (innerFinding.severity !== null) return innerFinding;
+            if (innerFinding !== null) return innerFinding;
             continue;
         }
         for (const rule of SEGMENT_RULES) {
@@ -249,7 +228,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         const finding = rule(command, commandTokens, ctx);
         if (finding !== null) return finding;
     }
-    return { severity: null, reason: "" };
+    return null;
 }
 
 /** BLOCK: rm -rf outside safe zones, including piped/xargs conservatism. */
@@ -264,8 +243,10 @@ function rmRfRule(tokens: string[], ctx: RuleCtx): Finding | null {
     }
     if (!parsed || !(parsed.recursive && parsed.force)) return null;
 
+    // rm appeared behind a wrapper (xargs, timeout, …)
+    const rmNotAtHead = foundIdx > 0;
     if (parsed.operands.length === 0) {
-        if (foundIdx > 0 || tokens[0] === "xargs") {
+        if (rmNotAtHead || tokens[0] === "xargs") {
             return {
                 severity: "block",
                 reason: "rm -rf detected with unresolvable targets (likely piped/stdin input)",
@@ -287,7 +268,7 @@ function rmRfRule(tokens: string[], ctx: RuleCtx): Finding | null {
 
 /** BLOCK: find -delete / find -exec/-execdir rm — unconditional. */
 function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (basename(tokens[0]) !== "find") return null;
+    if (commandBasename(tokens[0]) !== "find") return null;
     for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i];
         if (t === "-delete") {
@@ -297,7 +278,7 @@ function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
             };
         }
         if ((t === "-exec" || t === "-execdir") && i + 1 < tokens.length) {
-            if (basename(tokens[i + 1]) === "rm") {
+            if (commandBasename(tokens[i + 1]) === "rm") {
                 return {
                     severity: "block",
                     reason: "find -exec/-execdir rm removes files; destructive action blocked",
@@ -377,11 +358,6 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
-
-
-
-
-
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

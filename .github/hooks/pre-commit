@@ -221,7 +221,7 @@ if [ -n "$STAGED_SRC" ]; then
 		case "$EXT" in
 			php)   ML="// vim: ft=php sts=4 sw=4 ts=4 et :" ;;
 			scss)  ML="// vim: ft=scss sts=2 sw=2 ts=2 et :" ;;
-			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 noet :" ;;
+			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 et :" ;;
 			sh)    ML="# vim: ft=sh sts=4 sw=4 ts=4 et :" ;;
 			ts)    ML="// vim: ft=typescript sts=4 sw=4 ts=4 et :" ;;
 		esac

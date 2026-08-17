@@ -1,9 +1,4 @@
-// $KYAULabs: frontmatter-parser.js kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
+// $KYAULabs: frontmatter-parser.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
 // Extract a YAML frontmatter key's value from a Markdown file (or stdin).
@@ -27,66 +22,61 @@ const fs = require('fs');
 const yaml = require('js-yaml');
 
 function parseFrontmatter(content) {
-	const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-	const lines = normalized.split('\n');
-	if (lines[0] !== '---') return null;
+    const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    if (lines[0] !== '---') return null;
 
-	const fmLines = [];
-	let foundClosing = false;
-	for (let i = 1; i < lines.length; i++) {
-		if (lines[i] === '---') { foundClosing = true; break; }
-		fmLines.push(lines[i]);
-	}
-	if (!foundClosing) return null;
+    const fmLines = [];
+    let foundClosing = false;
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i] === '---') { foundClosing = true; break; }
+        fmLines.push(lines[i]);
+    }
+    if (!foundClosing) return null;
 
-	const doc = yaml.load(fmLines.join('\n'));
-	return doc && typeof doc === 'object' ? doc : null;
+    const doc = yaml.load(fmLines.join('\n'));
+    return doc && typeof doc === 'object' ? doc : null;
 }
 
 function runCli(argv) {
-	const useStdin = argv[2] === '--stdin';
-	const file = useStdin ? null : argv[2];
-	const key = argv[3];
-	const label = useStdin ? '<stdin>' : file;
+    const useStdin = argv[2] === '--stdin';
+    const file = useStdin ? null : argv[2];
+    const key = argv[3];
+    const label = useStdin ? '<stdin>' : file;
 
-	if ((useStdin && !key) || (!useStdin && (!file || !key))) {
-		console.error(useStdin
-			? 'Usage: node frontmatter-parser.js --stdin <key>'
-			: 'Usage: node frontmatter-parser.js [--stdin] <file> <key>');
-		return 2;
-	}
+    if ((useStdin && !key) || (!useStdin && (!file || !key))) {
+        console.error(useStdin
+            ? 'Usage: node frontmatter-parser.js --stdin <key>'
+            : 'Usage: node frontmatter-parser.js [--stdin] <file> <key>');
+        return 2;
+    }
 
-	let content;
-	try {
-		content = useStdin ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8');
-	} catch (error) {
-		console.error(`Error reading ${useStdin ? 'stdin' : 'file'}: ${error.message}`);
-		return 1;
-	}
+    let content;
+    try {
+        content = useStdin ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8');
+    } catch (error) {
+        console.error(`Error reading ${useStdin ? 'stdin' : 'file'}: ${error.message}`);
+        return 1;
+    }
 
-	let doc;
-	try {
-		doc = parseFrontmatter(content);
-	} catch (error) {
-		console.error(`YAML parse error in ${label}: ${error.message}`);
-		return 1;
-	}
+    let doc;
+    try {
+        doc = parseFrontmatter(content);
+    } catch (error) {
+        console.error(`YAML parse error in ${label}: ${error.message}`);
+        return 1;
+    }
 
-	const value = doc === null ? undefined : doc[key];
-	process.stdout.write(value === undefined || value === null ? '' : String(value));
-	return 0;
+    const value = doc === null ? undefined : doc[key];
+    process.stdout.write(value === undefined || value === null ? '' : String(value));
+    return 0;
 }
 
 module.exports = { parseFrontmatter };
 
 if (require.main === module) {
-	process.exitCode = runCli(process.argv);
+    process.exitCode = runCli(process.argv);
 }
 
 
-
-
-
-
-
-// vim: ft=javascript sts=4 sw=4 ts=4 noet :
+// vim: ft=javascript sts=4 sw=4 ts=4 et :
