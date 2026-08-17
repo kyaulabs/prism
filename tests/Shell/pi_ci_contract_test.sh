@@ -7,6 +7,7 @@
 
 
 
+
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
 # OpenCode-era per-concern CI tests: this file is authoritative.
@@ -101,7 +102,14 @@ assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manife
 
 echo "── resilient tool downloads ──"
 assert_ci_contains 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2' 'tool downloads carry timeout and retry bounds'
-assert_ci_not_contains 'curl -fsSL -o' 'no unbounded tool downloads remain'
+TOTAL_DOWNLOADS=$(grep -c 'curl -fsSL' "$CI" || true)
+BOUNDED_DOWNLOADS=$(grep -c 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2' "$CI" || true)
+if [ "$TOTAL_DOWNLOADS" -ge 1 ] && [ "$TOTAL_DOWNLOADS" -eq "$BOUNDED_DOWNLOADS" ]; then
+	pass "every tool download is bounded ($BOUNDED_DOWNLOADS of $TOTAL_DOWNLOADS)"
+else
+	fail "unbounded tool download remains — total=$TOTAL_DOWNLOADS bounded=$BOUNDED_DOWNLOADS"
+	failures=$((failures + 1))
+fi
 
 if [ "$failures" -gt 0 ]; then
 	print_summary "pi ci contract"
@@ -109,6 +117,7 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 
