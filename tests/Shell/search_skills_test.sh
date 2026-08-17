@@ -15,6 +15,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -79,6 +80,84 @@ unit_rc 2 'require_posint rejects non-numeric' '' require_posint MAX abc
 unit_rc 2 'require_posint message' 'must be a positive integer' require_posint MAX abc
 unit_rc 0 'require_posint accepts valid' '' require_posint MAX 10
 
+# ── search_request retry helper: fake curl ───────────────────────────────────
+# FAKE_CURL_SEQ — colon-separated per-attempt status list; "X" = transport
+#                 failure (exit 1, stderr message)
+# FAKE_CURL_LOG — file receiving the running invocation count
+write_fake_curl() {
+	local dir="$1"
+	cat > "$dir/curl" <<'FAKE_CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+
+out=''
+while [ $# -gt 0 ]; do
+	if [ "$1" = "--output" ]; then
+		out="$2"
+		shift 2
+		continue
+	fi
+	shift
+done
+printf 'fake body\n' > "$out"
+
+count=0
+if [ -f "${FAKE_CURL_LOG:-}" ]; then
+	count=$(cat "$FAKE_CURL_LOG")
+fi
+count=$((count + 1))
+printf '%s\n' "$count" > "${FAKE_CURL_LOG:-/dev/null}"
+
+IFS=: read -ra seq <<< "${FAKE_CURL_SEQ:-200}"
+idx=$((count - 1))
+if [ "$idx" -ge "${#seq[@]}" ]; then
+	idx=$((${#seq[@]} - 1))
+fi
+status="${seq[$idx]}"
+if [ "$status" = "X" ]; then
+	printf 'fake curl: connection refused\n' >&2
+	exit 1
+fi
+printf '%s' "$status"
+FAKE_CURL
+	chmod +x "$dir/curl"
+}
+
+search_request_case() {
+	local label="$1" seq="$2" expected_out="$3" expected_rc="$4" expected_invocations="$5"
+	local fake_bin log outfile out rc invocations
+	fake_bin=$(mktemp -d)
+	log=$(mktemp)
+	outfile=$(mktemp)
+	write_fake_curl "$fake_bin"
+	export FAKE_CURL_SEQ="$seq" FAKE_CURL_LOG="$log"
+	set +e
+	out=$(env PATH="$fake_bin:$PATH" bash -c \
+		'source "$1"; search_request --output "$2" http://fake.invalid/search' \
+		_ "$LIB" "$outfile" 2>/dev/null)
+	rc=$?
+	set -e
+	unset FAKE_CURL_SEQ FAKE_CURL_LOG
+	invocations=$(cat "$log" 2>/dev/null || true)
+	invocations="${invocations:-0}"
+	if [ "$rc" -eq "$expected_rc" ] && [ "$out" = "$expected_out" ] \
+		&& [ "$invocations" -eq "$expected_invocations" ]; then
+		pass "$label"
+	else
+		fail "$label (rc=$rc out='$out' invocations=$invocations; expected rc=$expected_rc out='$expected_out' invocations=$expected_invocations)"
+	fi
+	rm -f "$log" "$outfile"
+	rm -rf "$fake_bin"
+}
+
+printf '%s\n' '── search_request retry helper ──'
+search_request_case 'search_request: 200 passes through, single attempt' '200' '200' 0 1
+search_request_case 'search_request: 403 is not retried' '403' '403' 0 1
+search_request_case 'search_request: 429 then 200 retries once' '429:200' '200' 0 2
+search_request_case 'search_request: transport failures then 200 retries twice' 'X:X:200' '200' 0 3
+search_request_case 'search_request: 429 thrice gives up after 3 attempts' '429:429:429' '429' 0 3
+search_request_case 'search_request: transport failures thrice exit nonzero' 'X:X:X' '' 1 3
+
 printf '%s\n' '── search skills: secret handling ──'
 for f in "$WEB" "$SEARX" "$LIB"; do
 	if [ ! -r "$f" ]; then
@@ -112,6 +191,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

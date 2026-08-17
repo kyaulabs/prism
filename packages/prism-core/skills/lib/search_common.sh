@@ -8,6 +8,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -25,6 +26,11 @@
 #                            value is treated as missing — fail closed)
 #   - require_posint <VAR> <value>: '<SKILL>: <VAR> must be a positive
 #                            integer.'                                        exit 2
+#   - search_request <curl-args...>: runs curl with --silent --show-error
+#     and --write-out '%{http_code}' appended, retrying transient outcomes
+#     (transport failure, HTTP 429, HTTP >= 500) up to 3 attempts with
+#     2s/4s backoff. Prints the final HTTP status on stdout. Exits nonzero
+#     on final transport failure.                              exit 1
 
 usage_guard() {
 	case "${1:-}" in
@@ -55,6 +61,28 @@ require_posint() {
 		exit 2
 	fi
 }
+
+search_request() {
+	local attempt=0 status='' curl_rc=0
+	while :; do
+		if status=$(curl --silent --show-error --write-out '%{http_code}' "$@"); then
+			curl_rc=0
+			if [ "$status" != "429" ] && [ "$status" -lt 500 ]; then
+				break
+			fi
+		else
+			curl_rc=$?
+		fi
+		attempt=$((attempt + 1))
+		if [ "$attempt" -ge 3 ]; then
+			break
+		fi
+		sleep $((2 * attempt))   # 2s, 4s — bounded linear backoff
+	done
+	printf '%s\n' "$status"
+	[ "$curl_rc" -eq 0 ]
+}
+
 
 
 
