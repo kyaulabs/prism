@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -64,6 +65,17 @@ if ! command -v php >/dev/null 2>&1; then
 	echo "Error: php not found on PATH — required for JSON comparison" >&2
 	exit 2
 fi
+
+# ── gh_api: bounded API calls ─────────────────────────────────────────────────
+# Wrap gh api with a 60s cap where GNU timeout exists (Linux); fall back to a
+# bare call where it does not (macOS/BSD) so the script remains portable.
+gh_api() {
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 60 gh api "$@"
+	else
+		gh api "$@"
+	fi
+}
 
 if ! gh auth status >/dev/null 2>&1; then
 	echo "Error: gh auth status failed — run 'gh auth login'" >&2
@@ -132,13 +144,13 @@ ACTUAL_RULESET="$TMP_DIR/actual-ruleset.json"
 ACTUAL_MERGE="$TMP_DIR/actual-merge-settings.json"
 
 # Fetch the ruleset list
-if ! gh api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>/dev/null; then
+if ! gh_api "repos/$REPO/rulesets" > "$ACTUAL_RULESETS" 2>/dev/null; then
 	echo "Error: failed to fetch rulesets from GitHub API" >&2
 	exit 2
 fi
 
 # Fetch repository settings
-if ! gh api "repos/$REPO" > "$ACTUAL_MERGE" 2>/dev/null; then
+if ! gh_api "repos/$REPO" > "$ACTUAL_MERGE" 2>/dev/null; then
 	echo "Error: failed to fetch repository settings from GitHub API" >&2
 	exit 2
 fi
@@ -228,7 +240,7 @@ else
 	RULESET_ID="$MATCHED_IDS"
 
 	# Fetch the full detail for the matched ruleset
-	if ! gh api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>/dev/null; then
+	if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" > "$ACTUAL_RULESET" 2>/dev/null; then
 		echo "Error: failed to fetch ruleset detail for ID $RULESET_ID" >&2
 		exit 2
 	fi
@@ -258,7 +270,7 @@ case "$MODE" in
 		API_ERR="$TMP_DIR/api-err"
 
 		if [ "$RULESET_STATUS" = "create" ]; then
-			if ! gh api "repos/$REPO/rulesets" -X POST --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO/rulesets" -X POST --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to create rulesets" >&2
 				else
@@ -268,7 +280,7 @@ case "$MODE" in
 			fi
 			echo "Ruleset pr-only-integration: created"
 		elif [ "$RULESET_STATUS" = "update" ]; then
-			if ! gh api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO/rulesets/$RULESET_ID" -X PUT --input "$RULESET_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to update rulesets" >&2
 				else
@@ -282,7 +294,7 @@ case "$MODE" in
 		fi
 
 		if [ "$MERGE_STATUS" = "update" ]; then
-			if ! gh api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then
+			if ! gh_api "repos/$REPO" -X PATCH --input "$MERGE_SETTINGS_PAYLOAD" >/dev/null 2>"$API_ERR"; then
 				if grep -qi "403" "$API_ERR"; then
 					echo "Error: 403 Forbidden — the token requires repository administration permission to update merge settings" >&2
 				else
@@ -296,6 +308,7 @@ case "$MODE" in
 		fi
 		;;
 esac
+
 
 
 

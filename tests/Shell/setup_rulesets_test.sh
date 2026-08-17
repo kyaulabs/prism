@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -1311,10 +1312,124 @@ echo ""
 echo "── Test 28: No code path emits DELETE ──"
 test_no_delete_code_path
 
+# ── Test 29: All gh api call sites route through the gh_api wrapper ───────────
+
+test_gh_api_call_sites_wrapped() {
+	local unwrapped wrapped
+	unwrapped=$(grep -cE 'if ! gh api ' "$SCRIPT" || true)
+	wrapped=$(grep -cE 'if ! gh_api ' "$SCRIPT" || true)
+	if [ "$unwrapped" -eq 0 ] && [ "$wrapped" -eq 6 ]; then
+		pass "gh api call sites — all 6 route through gh_api, none bare"
+	else
+		fail "gh api call sites — unwrapped=$unwrapped wrapped=$wrapped (expected 0 unwrapped, 6 wrapped)"
+	fi
+}
+
+echo ""
+echo "── Test 29: All gh api call sites route through gh_api ──"
+test_gh_api_call_sites_wrapped
+
+# ── Test 30: gh_api wraps calls in timeout 60 when timeout exists ──────────────
+
+test_gh_api_uses_timeout_when_available() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api timeout — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^60 gh api ' "$timeout_log"; then
+		fail "gh_api timeout — no 'timeout 60 gh api' invocation recorded"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	pass "gh_api timeout — api calls wrapped in timeout 60"
+}
+
+echo ""
+echo "── Test 30: gh_api wraps calls when timeout exists ──"
+test_gh_api_uses_timeout_when_available
+
+# ── Test 31: gh_api falls back to bare gh api when timeout is absent ───────────
+
+test_gh_api_bare_without_timeout() {
+	local fake_bin fake_log output exit_code tool
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	# Minimal PATH: bash, php, mktemp, cat, grep, rm — deliberately no timeout
+	for tool in bash php mktemp cat grep rm; do
+		ln -s "$(command -v "$tool")" "$fake_bin/$tool"
+	done
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin" bash "$SCRIPT" --dry-run 2>&1) || exit_code=$?
+
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api bare — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^api repos/testowner/testrepo/rulesets' "$fake_log"; then
+		fail "gh_api bare — gh api not invoked"
+		return
+	fi
+	pass "gh_api bare — calls gh api directly when timeout is absent"
+}
+
+echo ""
+echo "── Test 31: gh_api falls back to bare gh api ──"
+test_gh_api_bare_without_timeout
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
+
 
 
 
