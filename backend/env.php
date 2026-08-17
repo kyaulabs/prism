@@ -16,6 +16,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Safely reads a boolean environment variable.
  *
@@ -25,6 +28,8 @@ declare(strict_types=1);
  *
  * Reads from $_ENV first, falling back to getenv(). An empty-string $_ENV
  * value is treated as unset so it does not shadow a real getenv() value.
+ * An unparseable (present-but-garbage) value is logged via error_log before
+ * the default is returned.
  *
  * @param  string $key      Environment variable name.
  * @param  bool   $default  Default value if the variable is unset or unparseable.
@@ -45,7 +50,20 @@ function env_bool(string $key, bool $default = false): bool
         return $default;
     }
 
-    return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
+    $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
+    if ($parsed === null) {
+        error_log(sprintf(
+            'env_bool: cannot parse value "%s" for %s; using default %s',
+            $value,
+            $key,
+            $default ? 'true' : 'false'
+        ));
+
+        return $default;
+    }
+
+    return $parsed;
 }
 
 /**
@@ -221,6 +239,7 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
 
 
 
