@@ -17,6 +17,8 @@
 
 
 
+
+
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
 # Source this file at the top of shell test files:
@@ -178,6 +180,12 @@ native_path() {
 # to be resolvable via the caller's PATH.
 path_without_prism_tool() {
 	local part sentinel="__PATH_END__" kept=0 out=""
+	# An empty PATH has no components; the sentinel append below would
+	# otherwise fabricate a spurious empty (cwd) entry.
+	if [ -z "$PATH" ]; then
+		printf ''
+		return 0
+	fi
 	# Split on ':' preserving empty components (POSIX PATH: empty = current
 	# dir). The sentinel keeps the trailing empty field that plain `read`
 	# would discard; it is dropped before reconstruction.
@@ -194,8 +202,10 @@ path_without_prism_tool() {
 		# remaining PATH lacks /usr/bin.
 		local probe_dir="$part"
 		[ -n "$part" ] || probe_dir="."
-		if [ -x "$probe_dir/prism-tool" ] || [ -x "$probe_dir/prism-tool.exe" ] \
-			|| [ -x "$probe_dir/prism-tool.cmd" ]; then
+		if { [ -f "$probe_dir/prism-tool" ] || [ -f "$probe_dir/prism-tool.exe" ] \
+			|| [ -f "$probe_dir/prism-tool.cmd" ]; } && \
+			{ [ -x "$probe_dir/prism-tool" ] || [ -x "$probe_dir/prism-tool.exe" ] \
+				|| [ -x "$probe_dir/prism-tool.cmd" ]; }; then
 			continue
 		fi
 		if [ "$first" -eq 1 ]; then
@@ -213,6 +223,8 @@ path_without_prism_tool() {
 	fi
 	printf '%s' "$out"
 }
+
+
 
 
 

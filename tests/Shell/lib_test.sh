@@ -15,6 +15,8 @@
 
 
 
+
+
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
 set -euo pipefail
@@ -221,6 +223,18 @@ test_native_path() {
 test_path_without_prism_tool() {
 	local fake_dir stripped original_path
 	original_path="$PATH"
+
+	# Empty PATH must round-trip empty (no spurious cwd entry).
+	# shellcheck disable=SC2123  # intentional PATH mutation with restore
+	PATH=""
+	stripped=$(path_without_prism_tool)
+	PATH="$original_path"
+	if [ -z "$stripped" ]; then
+		pass "path_without_prism_tool round-trips empty PATH"
+	else
+		fail "path_without_prism_tool fabricated components for empty PATH: $stripped"
+	fi
+
 	fake_dir=$(mktemp -d)
 	register_temp_dir "$fake_dir"
 	touch "$fake_dir/prism-tool"
@@ -328,6 +342,8 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
+
+
 
 
 

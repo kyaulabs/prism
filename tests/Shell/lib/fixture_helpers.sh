@@ -5,6 +5,8 @@
 
 
 
+
+
 # ── Temp-dir fixture helpers for tests/Shell/*_test.sh ─────────────────────────
 #
 # Source this file after REPO_ROOT is set:
@@ -12,7 +14,7 @@
 #
 # Provides:
 #   - TMP_DIRS: array of directories to remove on exit
-#   - cleanup: rm -rf every tracked dir (installed via `trap cleanup EXIT`)
+#   - cleanup: rm -rf every tracked dir (installed via `trap cleanup EXIT INT TERM`)
 #   - fixture: mktemp -d, git init -q inside it, track it, print its path
 #
 # The fixture repo disables commit.gpgsign (matches git_init_test_repo)
@@ -35,9 +37,11 @@ cleanup() {
 		for dir in "${TMP_DIRS[@]}"; do rm -rf "$dir"; done
 	fi
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; git -C "$d" config commit.gpgsign false; printf '%s' "$d"; }
+
+
 
 
 

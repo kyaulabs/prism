@@ -13,6 +13,8 @@
 
 
 
+
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -85,12 +87,12 @@ for f in "$WEB" "$SEARX" "$LIB"; do
 		exit 1
 	fi
 done
-if grep -qE 'printf[^\n]*\$\{?DEEPSEEK_API_KEY|echo[^\n]*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
+if grep -qE 'printf.*\$\{?DEEPSEEK_API_KEY|echo.*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
 	fail 'websearch can print the key value'
 else
 	pass 'websearch does not print the key value'
 fi
-if grep -qE 'printf[^\n]*\$\{?SEARXNG_URL|echo[^\n]*\$\{?SEARXNG_URL' "$SEARX" "$LIB"; then
+if grep -qE 'printf.*\$\{?SEARXNG_URL|echo.*\$\{?SEARXNG_URL' "$SEARX" "$LIB"; then
 	fail 'searxng can print the configured URL value'
 else
 	pass 'searxng does not print the configured URL value'
@@ -110,6 +112,8 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
+
 
 
 
