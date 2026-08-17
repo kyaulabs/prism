@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: fixture_helpers.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: fixture_helpers.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -15,7 +16,14 @@
 # Provides:
 #   - TMP_DIRS: array of directories to remove on exit
 #   - cleanup: rm -rf every tracked dir (installed via `trap cleanup EXIT INT TERM`)
-#   - fixture: mktemp -d, git init -q inside it, track it, print its path
+#   - fixture <varname>: mktemp -d, git init -q inside it, track it, then set
+#     <varname> in the CALLER's shell to the new path (printf -v)
+#
+# fixture must be called directly (fixture dir), never via command
+# substitution (dir=$(fixture)): a subshell's TMP_DIRS+=() is invisible to the
+# parent, so the EXIT-trap cleanup would silently skip the dir (issue #322).
+# On mktemp failure fixture returns non-zero and registers nothing. The caller
+# variable must not be named 'd' (the function's own local).
 #
 # The fixture repo disables commit.gpgsign (matches git_init_test_repo)
 # but deliberately sets NO git identity: resolve_identity_test asserts
@@ -39,7 +47,15 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-fixture() { local d; d=$(mktemp -d); TMP_DIRS+=("$d"); git -C "$d" init -q; git -C "$d" config commit.gpgsign false; printf '%s' "$d"; }
+fixture() {
+	local d
+	d=$(mktemp -d) || return 1
+	TMP_DIRS+=("$d")
+	git -C "$d" init -q
+	git -C "$d" config commit.gpgsign false
+	printf -v "$1" '%s' "$d"
+}
+
 
 
 
