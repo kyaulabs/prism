@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EnvBoolTest.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: EnvBoolTest.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
 
 
 
@@ -132,6 +135,66 @@ test('env_bool falls back to getenv() when the $_ENV value is an empty string', 
     expect($result)->toBeTrue();
 });
 
+test('env_bool logs an unparseable value with key, value, and default', function () {
+    $_ENV['APP_DEBUG'] = 'ture';
+
+    $logPath = sys_get_temp_dir() . '/errlog_' . uniqid() . '.log';
+    $prevLog = ini_get('error_log');
+    ini_set('error_log', $logPath);
+
+    try {
+        $result = env_bool('APP_DEBUG');
+
+        expect($result)->toBeFalse();
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toContain('env_bool');
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toContain('"ture"');
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toContain('APP_DEBUG');
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toContain('using default false');
+    } finally {
+        ini_set('error_log', $prevLog);
+        if (is_file($logPath)) {
+            unlink($logPath);
+        }
+    }
+});
+
+test('env_bool unset key stays silent (no log)', function () {
+    unset($_ENV['APP_DEBUG']);
+    putenv('APP_DEBUG');
+
+    $logPath = sys_get_temp_dir() . '/errlog_' . uniqid() . '.log';
+    $prevLog = ini_get('error_log');
+    ini_set('error_log', $logPath);
+
+    try {
+        expect(env_bool('APP_DEBUG'))->toBeFalse();
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toBe('');
+    } finally {
+        ini_set('error_log', $prevLog);
+        if (is_file($logPath)) {
+            unlink($logPath);
+        }
+    }
+});
+
+test('env_bool empty-string value stays silent (treated as unset)', function () {
+    $_ENV['APP_DEBUG'] = '';
+    putenv('APP_DEBUG');
+
+    $logPath = sys_get_temp_dir() . '/errlog_' . uniqid() . '.log';
+    $prevLog = ini_get('error_log');
+    ini_set('error_log', $logPath);
+
+    try {
+        expect(env_bool('APP_DEBUG'))->toBeFalse();
+        expect(is_file($logPath) ? (string) file_get_contents($logPath) : '')->toBe('');
+    } finally {
+        ini_set('error_log', $prevLog);
+        if (is_file($logPath)) {
+            unlink($logPath);
+        }
+    }
+});
 
 
 

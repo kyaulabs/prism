@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -22,6 +28,8 @@ declare(strict_types=1);
  *
  * Reads from $_ENV first, falling back to getenv(). An empty-string $_ENV
  * value is treated as unset so it does not shadow a real getenv() value.
+ * An unparseable (present-but-garbage) value is logged via error_log before
+ * the default is returned.
  *
  * @param  string $key      Environment variable name.
  * @param  bool   $default  Default value if the variable is unset or unparseable.
@@ -42,7 +50,20 @@ function env_bool(string $key, bool $default = false): bool
         return $default;
     }
 
-    return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
+    $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
+    if ($parsed === null) {
+        error_log(sprintf(
+            'env_bool: cannot parse value "%s" for %s; using default %s',
+            $value,
+            $key,
+            $default ? 'true' : 'false'
+        ));
+
+        return $default;
+    }
+
+    return $parsed;
 }
 
 /**
@@ -148,8 +169,8 @@ function is_dangerous_env_name(string $key): bool
  *
  * @param string $path  Absolute or relative path to the .env file.
  * @return void
- * @note Never throws — errors (unreadable file, parse failures) are
- *       silently discarded.
+ * @note Never throws — unreadable files and failed reads are logged via
+ *       error_log and defaults are used; absent files stay a silent no-op.
  */
 function load_env(string $path): void
 {
@@ -157,9 +178,17 @@ function load_env(string $path): void
         return;
     }
 
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_readable($path)) {
+        error_log("load_env: {$path} exists but is not readable; using defaults");
+
+        return;
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
     if ($lines === false) {
+        error_log("load_env: failed to read {$path}; using defaults");
+
         return;
     }
 
@@ -210,6 +239,8 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
+
+
 
 
 
