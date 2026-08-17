@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+
 
 
 
@@ -98,12 +99,17 @@ assert_ci_not_contains 'git cliff' 'No direct git cliff invocation'
 echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
 
+echo "── resilient tool downloads ──"
+assert_ci_contains 'curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2' 'tool downloads carry timeout and retry bounds'
+assert_ci_not_contains 'curl -fsSL -o' 'no unbounded tool downloads remain'
+
 if [ "$failures" -gt 0 ]; then
 	print_summary "pi ci contract"
 	exit 1
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 
