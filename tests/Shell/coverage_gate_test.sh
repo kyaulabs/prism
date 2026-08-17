@@ -10,6 +10,7 @@
 
 
 
+
 # ── Tests for coverage-gate.php changed-file coverage gate ───────────────────
 # Verifies that the script correctly parses Clover XML, intersects with
 # changed files from stdin, and enforces >=80% per-file coverage.
@@ -347,7 +348,7 @@ register_temp_dir "$T15"
 	} > "$CLOVER"
 	rc=0
 	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T15" >out.txt 2>&1 || rc=$?
-	if [ "$rc" -eq 2 ] && grep -q 'could not parse clover XML' out.txt && grep -q 'line ' out.txt; then
+	if [ "$rc" -eq 2 ] && grep -q 'could not parse clover XML' out.txt && grep -qE 'line [0-9]+' out.txt; then
 		pass "malformed clover exits 2 with libxml line detail"
 	else
 		fail "expected exit 2 + libxml detail, got rc=$rc"
@@ -391,6 +392,7 @@ fi
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 
