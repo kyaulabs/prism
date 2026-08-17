@@ -2,6 +2,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
 import {
@@ -106,6 +107,30 @@ function noteBashDenial(sid: string, deps: ToolCallDeps): void {
 }
 
 /**
+ * Block when a path-shaped argument resolves into the sensitive deny
+ * floor; `undefined` (allow) otherwise. Shared by the read/ls/grep/find
+ * branches so the block idiom cannot drift between tools.
+ */
+function blockIfSensitive(pathArg: unknown, opts: SensitivePathOptions): ToolCallResult {
+    if (sensitivePathBlocks(pathArg, opts)) {
+        return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
+    }
+    return undefined;
+}
+
+/**
+ * Block when a search pattern resolves into the sensitive deny floor;
+ * `undefined` (allow) otherwise. Shared by the grep (glob) and find
+ * (pattern) branches.
+ */
+function blockIfPatternSensitive(pattern: unknown, base: string, opts: SensitivePathOptions): ToolCallResult {
+    if (sensitivePatternCheck(pattern, base, opts)) {
+        return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
+    }
+    return undefined;
+}
+
+/**
  * Decide the outcome of one tool_call. Never throws: any internal error
  * fails closed with a BLOCK per ADR-0036 (F-1), so the extension host
  * never sees a rejected handler whose semantics it would have to guess.
@@ -163,32 +188,25 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         // 3. read/ls/grep/find: sensitive-path deny floor (ADR-0047/ADR-0048
         //    §5). Non-bash blocks do NOT feed the bash-only breaker.
         if (toolName === "read" || toolName === "ls") {
-            if (sensitivePathBlocks((input as { path?: unknown }).path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
+            return blockIfSensitive((input as { path?: unknown }).path, opts);
         }
         if (toolName === "grep") {
-            if (sensitivePathBlocks((input as { path?: unknown }).path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
             const pathArg = input as { path?: unknown };
-            const base = typeof pathArg.path === "string" ? pathArg.path : deps.cwd;
-            if (sensitivePatternCheck((input as { glob?: unknown }).glob, base, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
+            return blockIfSensitive(pathArg.path, opts)
+                ?? blockIfPatternSensitive(
+                    (input as { glob?: unknown }).glob,
+                    typeof pathArg.path === "string" ? pathArg.path : deps.cwd,
+                    opts,
+                );
         }
         if (toolName === "find") {
-            if (sensitivePathBlocks((input as { path?: unknown }).path, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
             const pathArg = input as { path?: unknown };
-            const base = typeof pathArg.path === "string" ? pathArg.path : deps.cwd;
-            if (sensitivePatternCheck((input as { pattern?: unknown }).pattern, base, opts)) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
-            }
-            return;
+            return blockIfSensitive(pathArg.path, opts)
+                ?? blockIfPatternSensitive(
+                    (input as { pattern?: unknown }).pattern,
+                    typeof pathArg.path === "string" ? pathArg.path : deps.cwd,
+                    opts,
+                );
         }
         return;
     } catch (err) {
@@ -200,6 +218,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
+
 
 
 
