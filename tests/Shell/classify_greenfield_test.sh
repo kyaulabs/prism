@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: classify_greenfield_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: classify_greenfield_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -29,17 +30,17 @@ assert_result() {
 }
 
 printf '%s\n' '── classify-greenfield: empty repository ──'
-dir=$(fixture)
+fixture dir
 assert_result 'no commits or project evidence' "$dir" greenfield 0
 
 printf '%s\n' '── classify-greenfield: history ──'
-dir=$(fixture)
+fixture dir
 git -C "$dir" -c user.name=fixture -c user.email=fixture@example.com commit --allow-empty -q -m initial
 assert_result 'one commit' "$dir" established 1
 
 printf '%s\n' '── classify-greenfield: language-agnostic evidence ──'
 for path in CONTEXT.md docs/plans adr src lib app composer.json package.json Cargo.toml go.mod pyproject.toml; do
-	dir=$(fixture)
+	fixture dir
 	mkdir -p "$(dirname "$dir/$path")"
 	if [[ "$path" == */* ]] || [[ "$path" != *.* ]]; then
 		mkdir -p "$dir/$path"
@@ -61,6 +62,7 @@ fi
 
 printf '\nclassify_greenfield_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -212,28 +213,32 @@ extract_run_block() {
 	printf '%s\n' "$found"
 }
 
-# run_extraction_fixture <fixture> <version> <expected-rc> — copy the fixture
-# into a fresh temp dir as CHANGELOG.md, execute the workflow's extraction run
-# block with VERSION set, and compare the exit status. Prints the sim dir on
-# success (for notes.md inspection); returns 1 on mismatch (callers record).
+# run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
+# the fixture into a fresh registered temp dir as CHANGELOG.md, execute the
+# workflow's extraction run block with VERSION set, and compare the exit
+# status. Sets <varname> in the CALLER's shell to the sim dir path (for
+# notes.md inspection); returns 1 on mismatch. Must be called directly, never
+# via command substitution (a subshell's register_temp_dir() is lost — issue
+# #322 class). The caller variable must not be named 'path'.
 run_extraction_fixture() {
-	local fixture="$1" version="$2" expect_rc="$3" sim_dir rc
-	sim_dir=$(mktemp -d)
-	register_temp_dir "$sim_dir"
-	cp "$fixture" "$sim_dir/CHANGELOG.md"
+	local var="$1" fixture="$2" version="$3" expect_rc="$4" path rc
+	path=$(mktemp -d)
+	register_temp_dir "$path"
+	cp "$fixture" "$path/CHANGELOG.md"
 	(
-		cd "$sim_dir" || exit 1
+		cd "$path" || exit 1
 		VERSION="$version" bash -c "$extract_block" >/dev/null 2>&1
 	)
 	rc=$?
 	if [ "$rc" -ne "$expect_rc" ]; then
 		return 1
 	fi
-	printf '%s' "$sim_dir"
+	printf -v "$var" '%s' "$path"
 }
 
 fixture_dir=$(mktemp -d)
 register_temp_dir "$fixture_dir"
+sim_dir=""  # assigned by run_extraction_fixture via printf -v
 
 # Real cliff.toml heading shape (v1.2.3 matching, v1.1.0 following).
 cat > "$fixture_dir/real.md" <<'EOF'
@@ -319,7 +324,7 @@ EOF
 awk 'BEGIN { for (i = 1; i <= 3000; i++) print "- [Feat] filler line " i " with enough padding text to inflate the section far beyond the 120000-byte body budget" }' >> "$fixture_dir/oversized.md"
 
 if extract_block=$(extract_run_block "$RELEASE_FILE" "Extract changelog notes"); then
-	if sim_dir=$(run_extraction_fixture "$fixture_dir/real.md" "1.2.3" 0); then
+	if run_extraction_fixture sim_dir "$fixture_dir/real.md" "1.2.3" 0; then
 		pass "real cliff.toml heading section is found by the extraction run block"
 		if grep -qF '## [💾]' "$sim_dir/notes.md"; then
 			pass "real cliff.toml heading captured into notes.md"
@@ -339,7 +344,7 @@ if extract_block=$(extract_run_block "$RELEASE_FILE" "Extract changelog notes");
 	else
 		fail "real cliff.toml heading section was not found (expected rc=0)"
 	fi
-	if sim_dir=$(run_extraction_fixture "$fixture_dir/plain.md" "1.2.3" 0); then
+	if run_extraction_fixture sim_dir "$fixture_dir/plain.md" "1.2.3" 0; then
 		if grep -qF '## [1.2.3] - 2026-08-01' "$sim_dir/notes.md"; then
 			pass "plain ## [X.Y.Z] heading captured into notes.md"
 		else
@@ -348,22 +353,22 @@ if extract_block=$(extract_run_block "$RELEASE_FILE" "Extract changelog notes");
 	else
 		fail "plain ## [X.Y.Z] heading section was not found (expected rc=0)"
 	fi
-	if run_extraction_fixture "$fixture_dir/dup.md" "1.2.3" 1 >/dev/null; then
+	if run_extraction_fixture sim_dir "$fixture_dir/dup.md" "1.2.3" 1; then
 		pass "duplicate [\$VERSION] sections fail extraction"
 	else
 		fail "duplicate [\$VERSION] sections did not fail extraction"
 	fi
-	if run_extraction_fixture "$fixture_dir/missing.md" "1.2.3" 1 >/dev/null; then
+	if run_extraction_fixture sim_dir "$fixture_dir/missing.md" "1.2.3" 1; then
 		pass "missing [\$VERSION] section fails extraction"
 	else
 		fail "missing [\$VERSION] section did not fail extraction"
 	fi
-	if run_extraction_fixture "$fixture_dir/blank.md" "1.2.3" 1 >/dev/null; then
+	if run_extraction_fixture sim_dir "$fixture_dir/blank.md" "1.2.3" 1; then
 		pass "heading with only whitespace body fails extraction"
 	else
 		fail "whitespace-only section body did not fail extraction"
 	fi
-	if sim_dir=$(run_extraction_fixture "$fixture_dir/oversized.md" "1.2.3" 0); then
+	if run_extraction_fixture sim_dir "$fixture_dir/oversized.md" "1.2.3" 0; then
 		if grep -qF 'truncated at GitHub' "$sim_dir/body.md"; then
 			pass "oversized body is capped with the truncation footer"
 		else
@@ -713,6 +718,7 @@ else
 fi
 
 print_summary "release_workflow"
+
 
 
 
