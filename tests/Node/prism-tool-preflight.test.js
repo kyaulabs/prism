@@ -1,15 +1,6 @@
 // $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
-
-
-
-
-
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -671,15 +662,6 @@ test('Semgrep local scan runs without login or network approval', async (t) => {
         'packages/prism-core/config/semgrep',
     ]);
 });
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

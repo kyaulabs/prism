@@ -1,7 +1,6 @@
 // $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -235,8 +234,6 @@ test('ships the launcher ownership guard so unrelated executables are never repl
     assert.match(installer, /refusing to replace an unmanaged launcher/);
     assert.match(installer, /refusing to remove an unmanaged launcher/);
 });
-
-
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -7,21 +7,6 @@ declare(strict_types=1);
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Safely reads a boolean environment variable.
  *
@@ -242,11 +227,6 @@ function load_env(string $path): void
         putenv("{$key}={$value}");
     }
 }
-
-
-
-
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

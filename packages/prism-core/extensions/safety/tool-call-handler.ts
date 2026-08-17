@@ -1,10 +1,6 @@
 // $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
 import {
@@ -220,13 +216,6 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
-
-
-
-
-
-
-
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

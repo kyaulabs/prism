@@ -1,10 +1,6 @@
 // $KYAULabs: glob-match.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
 // Shared glob-to-regex matcher retained for harness path/rule checkers.
 // Implements the legacy permission-pattern wildcard semantics carried by
 // those pure checkers: '*' matches zero or more of any character, '?'
@@ -30,11 +26,6 @@ function globMatches(pattern, value) {
 }
 
 module.exports = { globMatches };
-
-
-
-
-
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

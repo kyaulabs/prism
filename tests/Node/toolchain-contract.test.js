@@ -1,15 +1,6 @@
 // $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
-
-
-
-
-
 'use strict';
 
 const assert = require('node:assert/strict');
@@ -362,15 +353,6 @@ test('declares the exact PHP web adapter components and registration', () => {
         handler: './scripts/prism-tool-adapter.js',
     });
 });
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

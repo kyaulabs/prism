@@ -1,26 +1,6 @@
 // $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -378,15 +358,6 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
-
-
-
-
-
-
-
-
-
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
