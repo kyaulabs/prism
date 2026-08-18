@@ -4,6 +4,7 @@
 
 
 
+
 /**
  * Pure state machine for the bounded-window denial circuit breaker
  * (ADR-0068, superseding ADR-0042's consecutive-denial semantics).
@@ -63,6 +64,9 @@ export class DenialCircuitBreaker {
         this.windowSize = opts.windowSize ?? WINDOW_SIZE;
         if (this.threshold < 1 || this.windowSize < 1) {
             throw new Error("DenialCircuitBreaker: threshold and windowSize must be >= 1");
+        }
+        if (this.threshold > this.windowSize) {
+            throw new Error("DenialCircuitBreaker: threshold must not exceed windowSize");
         }
     }
 
@@ -151,6 +155,7 @@ export class DenialCircuitBreaker {
         return buf.reduce((n, denied) => n + (denied ? 1 : 0), 0);
     }
 }
+
 
 
 
