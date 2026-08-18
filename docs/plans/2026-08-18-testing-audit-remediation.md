@@ -39,6 +39,8 @@ composer scripts, GitHub Actions.
 
 ### Task 1: `skip()` in counter_helpers + guards in the two validator-based tests
 
+**Status: DONE** (`5090b26`)
+
 **Files:**
 - Modify: `tests/Shell/lib/counter_helpers.sh` (add `skip()`)
 - Modify: `tests/Shell/check_skill_frontmatter_test.sh` (guard after `source counter_helpers.sh`)
@@ -125,6 +127,8 @@ git commit -S -m $'test(shell): skip validator-dependent tests when prerequisite
 
 ### Task 2: Skip guard for `check_resolution_test.sh`
 
+**Status: DONE** (`c278c31`)
+
 **Files:**
 - Modify: `tests/Shell/check_resolution_test.sh` (guard after `setup_result_file`, before the `HOOK=` assignment)
 
@@ -185,6 +189,8 @@ git commit -S -m $'test(shell): skip hook CS tests when php-cs-fixer missing\n\n
 
 ### Task 3: Skip guard for `frontmatter_parser_stdin_test.sh`
 
+**Status: DONE** (`8f98ff2`)
+
 **Files:**
 - Modify: `tests/Shell/frontmatter_parser_stdin_test.sh` (guard after `setup_result_file`, before `P="$REPO_ROOT/..."`)
 
@@ -243,6 +249,9 @@ git commit -S -m $'test(shell): skip frontmatter parser tests when js-yaml missi
 ---
 
 ### Task 4: Unique temp env fixtures in `LoadEnvTest.php`
+
+**Status: DONE** (`aafb75e`) — 25 sites converted (plan listed 19; 6 more fixed-name
+sites found during execution)
 
 **Files:**
 - Modify: `tests/Unit/LoadEnvTest.php` (452 lines; 19 fixed-path sites)
@@ -383,6 +392,8 @@ git commit -S -m $'test(unit): unique temp env fixtures in LoadEnvTest\n\nFixed 
 
 ### Task 5: Pin `env_bool` empty-string fallback against ambient env
 
+**Status: DONE** (`1d895dc`)
+
 **Files:**
 - Modify: `tests/Unit/EnvBoolTest.php` (test at line 47)
 
@@ -432,6 +443,8 @@ git commit -S -m $'test(unit): pin env_bool empty-string case against ambient en
 
 ### Task 6: phpunit.xml — drop dead `slow` exclusion, document coverage scope
 
+**Status: DONE** (`7c95d42`)
+
 **Files:**
 - Modify: `phpunit.xml`
 
@@ -475,6 +488,8 @@ git commit -S -m $'chore(phpunit): drop dead slow-group exclusion, document cove
 ---
 
 ### Task 7: Shell-suite runner + composer test scripts
+
+**Status: DONE** (`29de49c`)
 
 **Files:**
 - Create: `tests/Shell/run-all.sh`
@@ -567,6 +582,8 @@ git commit -S -m $'build(composer): add test entry-point scripts\n\ntest / test:
 
 ### Task 8: CI parity — route shell tests through `composer test:shell`
 
+**Status: DONE** (`abe7e15`)
+
 **Files:**
 - Modify: `.github/workflows/ci.yml`
 - Modify: `tests/Shell/pi_ci_contract_test.sh`
@@ -625,6 +642,8 @@ git commit -S -m $'ci(workflow): route shell tests through composer test:shell\n
 ---
 
 ### Task 9: Pin `strip_jsonc_comments` edge cases
+
+**Status: DONE** (`6ffd8f2`)
 
 **Files:**
 - Create: `tests/Unit/StripJsoncTest.php`
@@ -706,6 +725,10 @@ git commit -S -m $'test(unit): pin strip_jsonc_comments edge cases\n\nThe unterm
 ---
 
 ### Task 10: Pin coverage-gate exit-2 degenerate paths
+
+**Status: DONE** (`eb1b885`) — missing/empty exit-2 cases were already pinned by
+pre-existing tests 9/10/12 (file grew since the audit); added the one genuinely
+missing case: malformed-XML parse failure
 
 **Files:**
 - Modify: `tests/Shell/coverage_gate_test.sh` (append three cases before the
