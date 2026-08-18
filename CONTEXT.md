@@ -46,7 +46,7 @@ documentation, and conversation.
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
 | script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via `prism-tool resolve`, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0065). |
-| safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, and consecutive-denial circuit breaker. |
+| safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, and bounded-window denial circuit breaker (three denials within the last ten bash calls). |
 | oversized request | Work too large for one specification in one session because it spans multiple independent subsystems or contains unknowns that cannot be reduced to sharp questions. It routes to wayfinder before detailed design. |
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
 | walking-skeleton bootstrap | The sole strict-greenfield exception to immediate wayfinding: scaffold plus one thin vertical slice, still following specification, planning, TDD, verification, checking, and review. |
@@ -130,8 +130,8 @@ The enforced minimum protection shared across every trusted project.
 - Credential files are never read, including for presence or diagnostics.
 - External data and subprocess output are untrusted and never evaluated as
   commands.
-- Three consecutive blocked bash calls terminate the retry loop for that Pi
-  session.
+- Three blocked bash calls within a window of ten terminate the retry loop
+  for that Pi session.
 
 ### Development Artifact
 
