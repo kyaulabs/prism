@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 /**
  * Safely reads a boolean environment variable.
  *
@@ -191,9 +194,12 @@ function load_env(string $path): void
         return;
     }
 
-    // Bound input before reading: a .env larger than 1 MiB is implausible
-    // (security audit L-2; fail-safe no-op like absent files).
-    if (filesize($path) > 1048576) {
+    // Bound input before reading: a dot-env larger than 1 MiB is
+    // implausible (security audit L-2; fail-safe no-op like absent files).
+    // A stat failure (false) skips this cap — the post-read caps below
+    // still bound the content (OCR finding C1).
+    $size = @filesize($path);
+    if ($size !== false && $size > 1048576) {
         error_log("load_env: {$path} exceeds the 1 MiB size cap; using defaults");
 
         return;
@@ -210,6 +216,15 @@ function load_env(string $path): void
     // Refuse implausibly many lines (belt-and-braces behind the size cap).
     if (count($lines) > 10000) {
         error_log("load_env: {$path} exceeds the 10000-line cap; using defaults");
+
+        return;
+    }
+
+    // Re-verify the byte total after reading: closes the size-check/read
+    // race (TOCTOU) where a file grows between filesize() and file()
+    // (OCR finding C1).
+    if (array_sum(array_map('strlen', $lines)) > 1048576) {
+        error_log("load_env: {$path} exceeds the 1 MiB byte cap after reading; using defaults");
 
         return;
     }
@@ -266,6 +281,7 @@ function load_env(string $path): void
         }
     }
 }
+
 
 
 

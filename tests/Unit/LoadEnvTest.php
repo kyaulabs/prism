@@ -25,6 +25,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -42,8 +45,10 @@ beforeEach(function () {
     putenv('CSRF_KEY');
     putenv('DB_PASSWORD');
     putenv('DB_USER');
+    putenv('A');
+    putenv('FOO');
     unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY'], $_ENV['LD_PRELOAD']);
-    unset($_ENV['APP_KEY'], $_ENV['CSRF_KEY'], $_ENV['DB_PASSWORD'], $_ENV['DB_USER']);
+    unset($_ENV['APP_KEY'], $_ENV['CSRF_KEY'], $_ENV['DB_PASSWORD'], $_ENV['DB_USER'], $_ENV['A'], $_ENV['FOO']);
 });
 
 afterEach(restoreEnvVars(
@@ -59,6 +64,8 @@ afterEach(restoreEnvVars(
     'CSRF_KEY',
     'DB_PASSWORD',
     'DB_USER',
+    'A',
+    'FOO',
 ));
 
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
@@ -430,6 +437,7 @@ test('load_env no-ops on a .env with more than 10000 lines', function () {
 
     unlink($path);
 });
+
 
 
 
