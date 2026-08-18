@@ -28,6 +28,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -413,9 +416,11 @@ test('load_env non-secret keys still dual-populate $_ENV and getenv', function (
 });
 test('load_env no-ops on a .env larger than 1 MiB', function () {
     $path = sys_get_temp_dir() . '/test_env_oversize.env';
+    // 3000 lines x ~400 bytes — over the 1 MiB size cap but under the
+    // 10000-line cap, so only the size cap can trip (OCR round 4).
     file_put_contents(
         $path,
-        str_repeat("A=" . str_repeat("0", 68) . "\n", 15000), // ~1.07 MiB
+        str_repeat("A=" . str_repeat("0", 396) . "\n", 3000), // ~1.2 MiB
     );
 
     load_env($path);
@@ -437,6 +442,7 @@ test('load_env no-ops on a .env with more than 10000 lines', function () {
 
     unlink($path);
 });
+
 
 
 
