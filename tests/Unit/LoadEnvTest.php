@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 
 
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -401,6 +404,33 @@ test('load_env non-secret keys still dual-populate $_ENV and getenv', function (
 
     unlink($path);
 });
+test('load_env no-ops on a .env larger than 1 MiB', function () {
+    $path = sys_get_temp_dir() . '/test_env_oversize.env';
+    file_put_contents(
+        $path,
+        str_repeat("A=" . str_repeat("0", 68) . "\n", 15000), // ~1.07 MiB
+    );
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('A');
+    expect(getenv('A'))->toBeFalse();
+
+    unlink($path);
+});
+
+test('load_env no-ops on a .env with more than 10000 lines', function () {
+    $path = sys_get_temp_dir() . '/test_env_too_many_lines.env';
+    file_put_contents($path, str_repeat("FOO=bar\n", 20000));
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('FOO');
+    expect(getenv('FOO'))->toBeFalse();
+
+    unlink($path);
+});
+
 
 
 
