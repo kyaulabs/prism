@@ -17,7 +17,7 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
 | File | Origin | Change |
 | --- | --- | --- |
 | `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim port, later restructured.** Pure path/operand classifier + deny floor. The audit remediation extracted the `judgeToken` predicate and the shared `resolvePathToken` resolver (also used by `pre-tool-use.ts`). No opencode imports to strip. |
-| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
+| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The 2026-08-17 security audit remediation replaced consecutive counting with the bounded-window policy (ADR-0068). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
 | `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim, later restructured.** `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The audit remediation split `classifyCommandImpl` into a per-policy rule table (`SEGMENT_RULES`/`COMMAND_RULES`) and made `resolveTarget`/`MAX_UNWRAP_DEPTH` delegate to the shared `sensitive-paths.ts` resolver. The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
 | `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
 | `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
@@ -36,11 +36,20 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
    `find -exec rm`, `git push --force`, and `--no-verify` / scoped `-n` are
    **blocked**; `DROP DATABASE/TABLE/SCHEMA`, `git reset --hard`, and
    `git push --delete` are **warned**.
-3. **Consecutive-bash-denial circuit breaker (ADR-0042).** Three consecutive
-   blocked bash calls in one session trip the breaker. Once tripped, **every**
-   subsequent `tool_call` is blocked (fail closed) and the user is notified to
-   `/new`. The escalation message is redacted — no command text, args, output,
-   or metadata; only identity and count.
+   Commands containing constructs the flat tokenizer cannot model —
+   command/process substitution (`$(...)`, backticks, `<(...)`), ANSI-C
+   quoting (`$'…'`), here-strings (`<<<`) — **fail closed** (blocked), as do
+   shell-wrapper payloads (`bash -c …` at any token position, e.g. under
+   `sudo`/`timeout`). Benign substitution (`echo $(date)`) is blocked too —
+   an accepted fail-closed cost (ADR-0036). The WARN gates (`DROP …`,
+   `git reset --hard`, `git push --delete`) are **best-effort nudges, not a
+   security boundary**: deliberate obfuscation (e.g. `git reset$IFS--hard`)
+   can skip them.
+3. **Windowed-bash-denial circuit breaker (ADR-0068).** Three blocked bash
+   calls within the last ten bash calls in one session trip the breaker.
+   Once tripped, **every** subsequent `tool_call` is blocked (fail closed)
+   and the user is notified to `/new`. The escalation message is redacted —
+   no command text, args, output, or metadata; only identity and count.
 
 ## ADR-0042 simplification (pi vs opencode)
 
@@ -53,14 +62,27 @@ denial.** So the wrapper drives the pure `DenialCircuitBreaker` directly:
 | Event | Action |
 | --- | --- |
 | `tool_call` (bash) returns blocked | `breaker.observe(sid, true)` — increment; on the trip transition, redacted escalation |
-| `tool_execution_end` (bash executed) | `breaker.observe(sid, false)` — reset streak |
+| `tool_execution_end` (bash executed) | `breaker.observe(sid, false)` — feed a success into the window (denials within the window persist; ADR-0068) |
 | `agent_end` | `breaker.reset(sid)` — clear the session streak (was `session.idle`) |
 | `session_shutdown` | `breaker.clearAll()` |
 
 Blocked bash calls never reach `tool_execution_end` (the tool did not run), so
-only successful executions reset the streak. The opencode-era
+only successful executions feed the window. Windowed semantics supersede
+ADR-0042's reset-on-success wording (ADR-0068): interleaved benign commands
+no longer erase the denial count. The opencode-era
 `DenialOutcomeTracker` (the part/`after` correlator) was deleted as dead code
 — the pi wrapper drives the breaker directly.
+
+## Known limits (documented threat model)
+
+- **Remote/container executors** (`ssh host "rm …"`, `docker exec`,
+  `kubectl exec`, `nsenter`, `chroot`, `systemd-run`) are not modeled:
+  their payloads execute in a different trust domain than the local
+  safe-zone model, and enumerating executors is unbounded. They are
+  deliberately out of scope.
+- **WARN gates are advisory.** See the enforcement list above.
+- **Benign command substitution is blocked** by the fail-closed guard —
+  the agent computes such values in separate steps.
 
 ## Fail-closed invariants (ADR-0036)
 

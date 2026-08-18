@@ -1,38 +1,46 @@
-// $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
 
 
 /**
- * Pure state machine for the consecutive-bash-denial circuit breaker
- * (issue #274).
+ * Pure state machine for the bounded-window denial circuit breaker
+ * (ADR-0068, superseding ADR-0042's consecutive-denial semantics).
  *
- * Counts consecutive denied tool calls per agent invocation and trips once
- * the count reaches a bounded threshold. Unlike upstream doom_loop, which
- * keys on identical input, this breaker counts every distinct denied call —
- * so syntactic variations of the same intent (`gh issue view 274`, then
- * `gh issue view 274 --json body`, then `bash -c "gh issue view 274"`, ...)
- * all feed the same counter instead of evading detection.
+ * Counts denials within a sliding window of the last `windowSize` bash tool
+ * call outcomes per session and trips once the windowed count reaches the
+ * threshold. The windowed policy closes the interleaving evasion: a blocked
+ * command followed by a benign success no longer resets the count, so an
+ * agent alternating `true` between blocked attempts still trips (security
+ * audit L-3).
  *
  * Detection-agnostic: `observe()` is fed a boolean `denied` by the
- * integration layer (the plugin's hook wiring — Task 3). This module holds
+ * integration layer (the extension wiring — index.ts). This module holds
  * no I/O, no logging, and no escalation side effect; it is a pure,
  * side-effect-free state machine with per-sessionID isolation so the
  * deterministic core can be unit-tested in isolation.
  */
 
 export interface DenialCircuitBreakerOptions {
-    /** Consecutive denials required to trip. Defaults to 3 (matches upstream doom_loop). */
+    /** Windowed denials required to trip. Defaults to 3 (matches upstream doom_loop). */
     threshold?: number;
+    /** Sliding window of recent bash outcomes per session. Defaults to 10. */
+    windowSize?: number;
 }
 
 /**
  * Outcome of one `observe()` call.
  *
- * @property count         Consecutive-denial count after this observation.
+ * @property count         Denials within the window after this observation.
  * @property tripped       `true` when `count >= threshold`.
  * @property transitioned  `true` ONLY on the threshold-1 -> threshold move
- *                         (the trip transition). Fires escalation exactly
- *                         once per trip; subsequent denials stay `tripped`
- *                         but never re-report `transitioned`.
+ *                         within the window (the trip transition). Fires
+ *                         escalation exactly once per trip; subsequent
+ *                         denials stay `tripped` but never re-report
+ *                         `transitioned`.
  */
 export interface DenialObservation {
     count: number;
@@ -43,51 +51,71 @@ export interface DenialObservation {
 /** Default trip threshold — matches the upstream doom_loop identical-input guard. */
 export const DEFAULT_THRESHOLD = 3;
 
+/** Default window: the last 10 bash call outcomes (ADR-0068). */
+export const WINDOW_SIZE = 10;
+
 export class DenialCircuitBreaker {
     private readonly threshold: number;
-    private readonly counts = new Map<string, number>();
+    private readonly windowSize: number;
+    /** Per-session ring buffer of recent bash outcomes (true = denied). */
+    private readonly outcomes = new Map<string, boolean[]>();
 
     constructor(opts: DenialCircuitBreakerOptions = {}) {
         this.threshold = opts.threshold ?? DEFAULT_THRESHOLD;
+        this.windowSize = opts.windowSize ?? WINDOW_SIZE;
+        if (this.threshold < 1 || this.windowSize < 1) {
+            throw new Error("DenialCircuitBreaker: threshold and windowSize must be >= 1");
+        }
+        if (!Number.isInteger(this.threshold) || !Number.isInteger(this.windowSize)) {
+            throw new Error("DenialCircuitBreaker: threshold and windowSize must be integers");
+        }
+        if (this.threshold > this.windowSize) {
+            throw new Error("DenialCircuitBreaker: threshold must not exceed windowSize");
+        }
     }
 
     /**
      * Record the outcome of one tool call for an agent invocation.
      *
-     * A denial increments the consecutive-denial counter for `sessionID`; a
-     * success resets it to zero. The returned `DenialObservation` reports the
-     * resulting count, whether the breaker is tripped, and whether this call
-     * was the trip transition (count moving from threshold-1 to threshold).
+     * A denial adds `true` to the session's window; a success adds `false`
+     * (denials within the window persist). The oldest outcome is evicted
+     * once the window is full. The returned `DenialObservation` reports the
+     * windowed denial count, whether the breaker is tripped, and whether
+     * this call was the trip transition (count moving from threshold-1 to
+     * threshold within the window).
      *
      * @param  sessionID  Agent invocation identifier (per-session isolation key).
      * @param  denied     `true` if the tool call was denied, `false` if it succeeded.
      * @return The observation after applying this event.
      */
     observe(sessionID: string, denied: boolean): DenialObservation {
-        if (!denied) {
-            this.counts.delete(sessionID);
-            return { count: 0, tripped: false, transitioned: false };
+        let buf = this.outcomes.get(sessionID);
+        if (buf === undefined) {
+            buf = [];
+            this.outcomes.set(sessionID, buf);
         }
-        const prev = this.current(sessionID);
-        const next = prev + 1;
-        this.counts.set(sessionID, next);
+        const prevCount = this.countIn(buf);
+        buf.push(denied);
+        if (buf.length > this.windowSize) buf.shift();
+        const count = this.countIn(buf);
         return {
-            count: next,
-            tripped: next >= this.threshold,
-            transitioned: next === this.threshold,
+            count,
+            tripped: count >= this.threshold,
+            transitioned: denied && prevCount < this.threshold && count >= this.threshold,
         };
     }
 
     /**
-     * Current consecutive-denial count for an agent invocation.
+     * Current windowed denial count for an agent invocation.
      *
      * Diagnostic accessor (e.g. for logging in the integration layer).
      *
      * @param  sessionID  Agent invocation identifier.
-     * @return Consecutive denial count, or 0 for an unknown/unseen session.
+     * @return Denials within the window, or 0 for an unknown/unseen session.
      */
     count(sessionID: string): number {
-        return this.current(sessionID);
+        const buf = this.outcomes.get(sessionID);
+        return buf === undefined ? 0 : this.countIn(buf);
     }
 
     /**
@@ -97,45 +125,45 @@ export class DenialCircuitBreaker {
      * `count(sessionID) >= threshold` but expresses intent at call sites.
      *
      * @param  sessionID  Agent invocation identifier.
-     * @return `true` when the consecutive-denial count is at or above the threshold.
+     * @return `true` when the windowed denial count is at or above the threshold.
      */
     isTripped(sessionID: string): boolean {
-        return this.current(sessionID) >= this.threshold;
+        return this.count(sessionID) >= this.threshold;
     }
 
     /**
-     * Explicitly reset an invocation's consecutive-denial count to zero.
+     * Explicitly reset an invocation's window to empty.
      *
      * Used by the integration layer to clear the streak outside of an
-     * `observe()` event (e.g. after a matching `tool.execute.after` settles
-     * a tracked call). Removes the session's Map entry rather than holding a
-     * zero-valued slot, so a reset session is indistinguishable from one that
-     * was never seen.
+     * `observe()` event (e.g. on `agent_end`). Removes the session's Map
+     * entry, so a reset session is indistinguishable from one never seen.
      *
      * @param  sessionID  Agent invocation identifier.
      */
     reset(sessionID: string): void {
-        this.counts.delete(sessionID);
+        this.outcomes.delete(sessionID);
     }
 
     /**
      * Clear all session state.
      *
-     * Lifecycle cleanup (e.g. on plugin `dispose`). Every invocation's count
-     * is dropped; the breaker returns to a never-seen state for all sessions.
+     * Lifecycle cleanup (e.g. on extension shutdown). Every invocation's
+     * window is dropped; the breaker returns to a never-seen state.
      */
     clearAll(): void {
-        this.counts.clear();
+        this.outcomes.clear();
     }
 
-    /**
-     * Consecutive-denial count for an invocation, defaulting to 0 for an
-     * unseen session. Centralizes the "unknown session = no denials" invariant.
-     */
-    private current(sessionID: string): number {
-        return this.counts.get(sessionID) ?? 0;
+    /** Denials within one window buffer. */
+    private countIn(buf: boolean[]): number {
+        return buf.reduce((n, denied) => n + (denied ? 1 : 0), 0);
     }
 }
+
+
+
+
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

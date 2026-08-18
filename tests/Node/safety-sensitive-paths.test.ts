@@ -1,4 +1,10 @@
-// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
+
 
 
 
@@ -72,6 +78,38 @@ test("resolveExtraPaths empty input yields no paths and no logs", () => {
     assert.deepEqual(resolveExtraPaths(" \n\t\n", (m) => logged.push(m)), []);
     assert.equal(logged.length, 0);
 });
+test("fail-closed: substitution-hidden sensitive reads are refused", () => {
+    assert.equal(sensitiveOperandCheck("echo $(cat ~/.ssh/id_rsa)", OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("cat `~/.ssh/id_rsa`", OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("bash -c $'cat ~/.ssh/id_rsa'", OPTS)?.className, "unresolvable");
+});
+
+test("wrapper-anywhere: wrapped sensitive reads are refused", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "cat ~/.ssh/id_rsa"', OPTS)?.className, "ssh");
+});
+
+test("wrapper-anywhere: deny-floor operands outside the wrapper still judged", () => {
+    assert.equal(sensitiveOperandCheck("cat ~/.ssh/id_rsa bash -c 'echo ok'", OPTS)?.className, "ssh");
+    assert.equal(sensitiveOperandCheck("echo x > ~/.netrc bash -c 'echo ok'", OPTS)?.className, "netrc");
+});
+
+test("wrapper payloads that are bare variable references fail closed", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "$p"', OPTS)?.className, "unresolvable");
+});
+
+test("variable-reference payloads fail closed across quoting and segments", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "\\"$p\\""', OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("echo hi; $p", OPTS)?.className, "unresolvable");
+});
+
+test("quote-aware segmentation: variable payloads behind quoted separators", () => {
+    assert.equal(sensitiveOperandCheck("bash -c 'echo hi; $p'", OPTS)?.className, "unresolvable");
+});
+
+test("head-wrapper trailing operands still judged", () => {
+    assert.equal(sensitiveOperandCheck("bash -c 'echo ok' ~/.ssh/id_rsa", OPTS)?.className, "ssh");
+});
+
 
 
 

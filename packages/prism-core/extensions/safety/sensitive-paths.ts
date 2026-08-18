@@ -1,4 +1,15 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
+
 
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
@@ -48,6 +59,91 @@ const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
 export const MAX_UNWRAP_DEPTH = 3;
+
+/** A command that is exactly a shell variable reference (value unknown). */
+export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])$/;
+
+/**
+ * A variable reference at the START of a segment in command position:
+ * followed by whitespace or end-of-segment (`$cmd -rf x`, `$cmd`), but
+ * NOT a path prefix (`$HOME/bin/x` — the shell resolves the path, the
+ * command itself is the file). Fail closed on the former (OCR round 8).
+ */
+export const VARIABLE_COMMAND_POSITION_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])(?=\s|$)/;
+
+/** Strip one layer of surrounding matching quotes (OCR round 5). */
+export function stripSurroundingQuotes(s: string): string {
+    const t = s.trim();
+    if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+        return t.slice(1, -1);
+    }
+    return t;
+}
+
+/**
+ * Split a command on shell separators (`;` `&` `|` newline) only OUTSIDE
+ * quotes, so quoted payloads survive intact (OCR round 6 — the raw
+ * split mangled `bash -c 'echo hi; $p'` and defeated the per-segment
+ * variable guard). Backslash escapes are honored inside double quotes
+ * and outside quotes.
+ */
+export function splitShellSegments(command: string): string[] {
+    const segments: string[] = [];
+    let cur = "";
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        if (quote !== null) {
+            cur += ch;
+            if (ch === "\\" && quote === '"' && i + 1 < command.length) {
+                cur += command[++i];
+                continue;
+            }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            quote = ch;
+            cur += ch;
+            continue;
+        }
+        if (ch === "\\" && i + 1 < command.length) {
+            cur += ch + command[++i];
+            continue;
+        }
+        if (ch === ";" || ch === "&" || ch === "|" || ch === "\n") {
+            segments.push(cur);
+            cur = "";
+            continue;
+        }
+        // A `#` at word start begins a comment: skip to end of line
+        // without splitting on separators inside it (OCR round 7).
+        if (ch === "#" && (cur === "" || /\s$/.test(cur))) {
+            while (i + 1 < command.length && command[i + 1] !== "\n") i++;
+            continue;
+        }
+        // An `&` that is part of a redirection operator (2>&1, &>, >&) is
+        // not a separator (OCR round 8).
+        if (ch === "&" && (command[i - 1] === ">" || command[i + 1] === ">")) {
+            cur += ch;
+            continue;
+        }
+        cur += ch;
+    }
+    segments.push(cur);
+    return segments;
+}
+
+/** Shell constructs the flat tokenizer cannot model — command/process
+ *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
+ *  hides command boundaries from the tokenizer, so the gates fail closed
+ *  (ADR-0036; security audit M-1/I-2). */
+const UNMODELABLE_CONSTRUCT_RE = /\$\(|`|<\(|>\(|\$'|<<</;
+
+/** True when a command contains a construct the flat tokenizer cannot model. */
+export function hasUnmodelableShellConstruct(command: string): boolean {
+    return UNMODELABLE_CONSTRUCT_RE.test(command);
+}
 
 const SENSITIVE_FALLBACK_RE =
     /\.env(\.|$)|\bauth\.json\b|mcp-auth\.json|intelephense|opencodereview|\.config\/opencode|\.ssh\/|\.aws\/|\.netrc|git-credentials|\/etc\/ssl\//;
@@ -118,6 +214,44 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
         return null;
     }
     return null;
+}
+
+/** Shell wrapper long options that consume a value (bash --rcfile f …). */
+const SHELL_VALUE_OPTIONS = new Set(["--rcfile", "--init-file", "--rc"]);
+
+/**
+ * Find a shell wrapper (`bash -c`, `sh -c`, …) at ANY token position and
+ * return its payload token for recursive reclassification. Catches wrapper
+ * chains the head-only unwrap misses (`sudo bash -c …`, `timeout 10
+ * bash -c …`, `find -exec bash -c …`), combined short flags (`-lc`), and
+ * options between the wrapper and the command flag (`bash -e -c …`,
+ * `bash --rcfile /dev/null -c …`). Quoted payloads arrive already
+ * quote-stripped from tokenizeCommand, so recursion re-tokenizes them.
+ */
+export function findShellWrapperPayload(tokens: string[]): string | null {
+    for (let i = 0; i < tokens.length; i++) {
+        if (!SHELL_WRAPPERS.has(basename(tokens[i]))) continue;
+        let j = i + 1;
+        while (j < tokens.length) {
+            const t = tokens[j];
+            if (isOptionToken(t)) {
+                if (isShortCommandFlag(t)) return tokens[j + 1] ?? null;
+                if (SHELL_VALUE_OPTIONS.has(t) && j + 1 < tokens.length) {
+                    j += 2; // long option + its value
+                    continue;
+                }
+                j++;
+                continue;
+            }
+            break; // non-option before the command flag — not a -c invocation
+        }
+    }
+    return null;
+}
+
+/** True for short flags that carry the shell's command (`-c`, `-lc`, …). */
+function isShortCommandFlag(token: string): boolean {
+    return token.startsWith("-") && !token.startsWith("--") && token.includes("c");
 }
 
 /** True when a token is option-prefixed or assignment-shaped (shared shape guard). */
@@ -275,15 +409,30 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
     if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
-    const segments = command.split(/[;&|\n]/);
+    if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
+    const segments = splitShellSegments(command);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
+        // Per-segment: a command that IS a bare variable reference cannot be
+        // analyzed (echo hi; $p, bash -c "$p") — fail closed (OCR rounds 4-5).
+        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
+        if (VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
         const inner = tryUnwrapSegment(tokens);
         if (inner !== null) {
             const match = sensitiveOperandCheckImpl(inner, opts, depth + 1);
             if (match) return match;
-            continue;
+            // Fall through: the payload was clean, but trailing operands
+            // after a head wrapper (bash -c 'echo ok' ~/.ssh/…) still need
+            // judging (OCR round 6).
+        }
+        const wrapped = findShellWrapperPayload(tokens);
+        if (wrapped !== null) {
+            const match = sensitiveOperandCheckImpl(wrapped, opts, depth + 1);
+            if (match) return match;
+            // Fall through: the payload was clean, but the segment's own
+            // tokens (deny-floor operands beside the wrapper) still need
+            // judging (OCR finding C3).
         }
         const trust = setupScriptTrust(tokens, opts, depth);
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
@@ -312,6 +461,17 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

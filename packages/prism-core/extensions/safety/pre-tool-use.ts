@@ -1,9 +1,21 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, VARIABLE_COMMAND_POSITION_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -132,6 +144,86 @@ function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] }
 }
 
 /**
+ * Tokens that make a following `git` word a command invocation rather than
+ * a plain argument: shell separators (the tokenizer keeps the split
+ * residue of `&&`/`||`/`&`/`|`/`(`) and exec wrappers that run git.
+ */
+const GIT_SEPARATORS = new Set(["&&", "||", "&", "|", "(", ";", "-exec", "-execdir", "-ok"]);
+const GIT_INVOCATION_WRAPPERS = new Set([
+    "sudo", "xargs", "env", "command", "exec", "eval",
+    "timeout", "nice", "nohup", "setsid", "stdbuf",
+]);
+
+/**
+ * True when the token at index `k` is a git-invocation prefix: a
+ * separator, an exec wrapper in command position, or an option/assignment
+ * chain hanging off one (sudo -u root git, timeout 10 git, env FOO=1 git).
+ * A bare non-wrapper word (echo, man, cat, …) means git is a plain
+ * argument and the context is false (OCR findings N3 / round-3 high).
+ */
+function isGitInvocationContext(tokens: string[], k: number): boolean {
+    while (k >= 0) {
+        const t = tokens[k];
+        if (GIT_SEPARATORS.has(t)) return true;
+        if (GIT_INVOCATION_WRAPPERS.has(t)) {
+            const prev = tokens[k - 1];
+            if (prev === undefined
+                || GIT_SEPARATORS.has(prev)
+                || isOptionToken(prev)
+                || prev.includes("=")
+                || GIT_INVOCATION_WRAPPERS.has(prev)) {
+                return true;
+            }
+            // Wrapper used as a plain word (echo sudo git …) — keep walking
+            // back in case it is part of a longer wrapper chain
+            // (sudo -u root env FOO=1 git …) (OCR round 4).
+            k--;
+            continue;
+        }
+        if (isOptionToken(t) || t.includes("=")) {
+            k--;
+            continue;
+        }
+        // Bare word: an option value (sudo -u root git — the option branch
+        // above already handled the flag; this word is its value), or a
+        // numeric/time-suffixed wrapper argument (timeout 10 git, timeout
+        // 10s git). Any other bare word means a plain-argument context
+        // (echo 10 git …, FOO=1 echo git …, sudo echo git …).
+        const prev = tokens[k - 1];
+        if (prev !== undefined) {
+            if (isOptionToken(prev)) {
+                k--;
+                continue;
+            }
+            if (GIT_INVOCATION_WRAPPERS.has(prev) && /^\d+(\.\d+)?(ms|s|m|h|d)?$/.test(t)) {
+                k--;
+                continue;
+            }
+        }
+        return false;
+    }
+    return true; // reached segment start
+}
+
+/**
+ * Locate a `git` invocation at ANY command position (`cd /repo && git …`,
+ * `echo ok; git …`, `sudo -u root git …`) and resolve its subcommand from
+ * there. The git rules run per segment, so git need not be token 0.
+ */
+function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: string[] } | null {
+    for (let i = 0; i < tokens.length; i++) {
+        if (commandBasename(tokens[i]) !== "git") continue;
+        if (i === 0 || isGitInvocationContext(tokens, i - 1)) {
+            // Normalize an absolute invocation (/usr/bin/git …) to a bare
+            // head so findGitSubcommand parses it (OCR round 7).
+            const info = findGitSubcommand([commandBasename(tokens[i]), ...tokens.slice(i + 1)]);
+            if (info !== null) return info;
+        }
+    }
+    return null;
+}
+
+/**
  * Expand short-flag bundles like `-uf` into individual flags.
  * Long flags (`--*`) pass through unchanged.
  */
@@ -141,6 +233,11 @@ function expandShortFlags(token: string): string[] {
         return token.slice(1).split("").map((c) => "-" + c);
     }
     return [token];
+}
+
+/** True when a token is option-shaped (starts with `-`). */
+function isOptionToken(token: string): boolean {
+    return token.startsWith("-") && token.length > 1;
 }
 
 function resolveTarget(token: string, projectDir: string, home: string): string | null {
@@ -185,48 +282,98 @@ type SegmentRule = (tokens: string[], ctx: RuleCtx) => Finding | null;
 
 type CommandRule = (command: string, tokens: string[], ctx: RuleCtx) => Finding | null;
 
+// Segment-phase rules: block-level first (rm/find), then whole-command
+// rules per segment. Within the array the first match wins; the rm/find
+// blocks beat the git warns because they run earlier in the loop.
 const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
 
-// Whole-command rules run after the segment phase in the pre-refactor
-// statement order: warn-level rules first, then block-level rules. The
-// segment-phase blocks (rm/find) still win over whole-command warns
-// because they run earlier; within this array the first match wins.
-const COMMAND_RULES: readonly CommandRule[] = [
+// Per-segment command rules: block-level rules (git force-push /
+// no-verify) run before warn-level rules (DROP, git reset --hard,
+// git push --delete) so a block always beats a warn (OCR round 8).
+const COMMAND_BLOCK_RULES: readonly CommandRule[] = [
+    gitForcePushBlock,
+    gitNoVerifyBlock,
+];
+
+const COMMAND_WARN_RULES: readonly CommandRule[] = [
     sqlDropWarn,
     gitResetWarn,
     gitPushDeleteWarn,
-    gitForcePushBlock,
-    gitNoVerifyBlock,
 ];
 
 function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding | null {
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
+    if (hasUnmodelableShellConstruct(command)) {
+        return {
+            severity: "block",
+            reason: "unmodelable shell construct (substitution/quoting/here-string) — failing closed per ADR-0036",
+        };
+    }
     const ctx: RuleCtx = {
         projectDir: opts.projectDir,
         home: process.env.HOME || "/",
         safeRelDirs: opts.safeRelDirs ?? [],
     };
-    for (const segment of command.split(/[;&|\n]/)) {
+    for (const segment of splitShellSegments(command)) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
+        // Per-segment: a command that IS a bare variable reference cannot be
+        // analyzed (echo hi; $cmd, bash -c "$cmd") — fail closed (OCR rounds
+        // 4-5). Quote-stripped so "$cmd" forms cannot hide the reference.
+        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) {
+            return {
+                severity: "block",
+                reason: "command is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
+            };
+        }
+        if (VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) {
+            return {
+                severity: "block",
+                reason: "command position is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
+            };
+        }
 
         const innerCmd = tryUnwrapSegment(tokens);
         if (innerCmd !== null) {
             const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
             if (innerFinding !== null) return innerFinding;
-            continue;
+            // Fall through: the payload was clean, but trailing operands
+            // after a head wrapper still need the segment rules (OCR
+            // round 6).
+        }
+        const wrapped = findShellWrapperPayload(tokens);
+        if (wrapped !== null) {
+            const innerFinding = classifyCommandImpl(wrapped, opts, depth + 1);
+            if (innerFinding !== null) return innerFinding;
+            // Fall through: the payload was clean, but the segment's own
+            // tokens (e.g. rm operands beside the wrapper) still need the
+            // segment rules (OCR finding C3).
         }
         for (const rule of SEGMENT_RULES) {
             const finding = rule(tokens, ctx);
             if (finding !== null) return finding;
         }
     }
-    const commandTokens = tokenizeCommand(command);
-    for (const rule of COMMAND_RULES) {
-        const finding = rule(command, commandTokens, ctx);
-        if (finding !== null) return finding;
+    // Pass 2: command rules across all segments — block-level rules
+    // (git force-push / no-verify) first, then warn-level, so a git block
+    // beats a git warn in an earlier segment (OCR rounds 7-8).
+    for (const segment of splitShellSegments(command)) {
+        const tokens = tokenizeCommand(segment);
+        if (tokens.length === 0) continue;
+        for (const rule of COMMAND_BLOCK_RULES) {
+            const finding = rule(segment, tokens, ctx);
+            if (finding !== null) return finding;
+        }
+    }
+    for (const segment of splitShellSegments(command)) {
+        const tokens = tokenizeCommand(segment);
+        if (tokens.length === 0) continue;
+        for (const rule of COMMAND_WARN_RULES) {
+            const finding = rule(segment, tokens, ctx);
+            if (finding !== null) return finding;
+        }
     }
     return null;
 }
@@ -289,7 +436,9 @@ function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
     return null;
 }
 
-/** WARN: destructive SQL drops. */
+/** WARN: destructive SQL drops. Best-effort raw-string regex by design: a
+ *  faithful tokenized check would have to parse mysql -e / psql -c / heredoc
+ *  payloads. WARN gates are advisory, not a security boundary (L-1). */
 function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
     if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
         return { severity: "warn", reason: "SQL DROP statement destroys data" };
@@ -297,17 +446,20 @@ function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding
     return null;
 }
 
-/** WARN: git reset --hard (discards uncommitted work). */
-function gitResetWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (/\bgit\s+reset\s+--hard\b/.test(command)) {
+/** WARN: git reset --hard (discards uncommitted work). Tokenized so global
+ *  options (-c, -C, …) and interleaved flags cannot hide the subcommand. */
+function gitResetWarn(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const git = expandedGitFlags(tokens);
+    if (git && git.subcmd === "reset" && git.expanded.includes("--hard")) {
         return { severity: "warn", reason: "git reset --hard discards uncommitted changes" };
     }
     return null;
 }
 
-/** WARN: git push --delete (removes a remote ref). */
-function gitPushDeleteWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (/\bgit\s+push\s+(?:[-\w]+\s+)*--delete\b/.test(command)) {
+/** WARN: git push --delete / -d (removes a remote ref). */
+function gitPushDeleteWarn(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const git = expandedGitFlags(tokens);
+    if (git && git.subcmd === "push" && (git.expanded.includes("--delete") || git.expanded.includes("-d"))) {
         return { severity: "warn", reason: "git push --delete removes a remote ref" };
     }
     return null;
@@ -315,10 +467,10 @@ function gitPushDeleteWarn(command: string, _tokens: string[], _ctx: RuleCtx): F
 
 /**
  * Expand a git command's subcommand flags after skipping global options.
- * Returns null when the token stream is not a git command.
+ * Returns null when no `git` invocation exists in the token stream.
  */
 function expandedGitFlags(tokens: string[]): { subcmd: string; expanded: string[] } | null {
-    const gitInfo = findGitSubcommand(tokens);
+    const gitInfo = findGitCommandAnywhere(tokens);
     if (gitInfo === null) return null;
     return { subcmd: gitInfo.subcmd, expanded: gitInfo.rest.flatMap(expandShortFlags) };
 }
@@ -358,6 +510,18 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

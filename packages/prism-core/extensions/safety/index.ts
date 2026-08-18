@@ -1,4 +1,5 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 /**
@@ -15,9 +16,10 @@
  * `message.part.updated` tool-part states with `tool.execute.after` (the
  * opencode Probe-3 dance). So the wrapper drives the pure
  * `DenialCircuitBreaker` directly: a bash `tool_call` that returns blocked
- * increments the streak; a bash `tool_execution_end` (the call actually ran)
- * resets it. Three consecutive bash denials trip the breaker; once tripped,
- * every subsequent `tool_call` in the session is blocked (fail closed,
+ * feeds a denial into the session's window; a bash `tool_execution_end`
+ * (the call actually ran) feeds a success. Three denials within the last
+ * ten bash calls trip the breaker (ADR-0068); once tripped, every
+ * subsequent `tool_call` in the session is blocked (fail closed,
  * ADR-0036) and the user is notified to `/new`.
  *
  * Fail-closed invariants preserved verbatim from the opencode plugins:
@@ -86,7 +88,7 @@ function resolveSafeRelDirs(cwd: string): readonly string[] {
 }
 
 export default function (pi: ExtensionAPI) {
-    /** Per-session consecutive-bash-denial circuit breaker (ADR-0042). */
+    /** Per-session windowed-bash-denial circuit breaker (ADR-0068). */
     const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
 
     /** Fail-closed until session_start resolves the safe zones. */
@@ -122,8 +124,9 @@ export default function (pi: ExtensionAPI) {
     );
 
     // A bash that actually executed (exit 0, nonzero exit, or ask-approved)
-    // is not a denial — settle it and reset the streak. Blocked calls never
-    // reach tool_execution_end, so only successful resets happen here.
+    // is not a denial — feed a success into the window. Denials within the
+    // window persist (ADR-0068); blocked calls never reach
+    // tool_execution_end, so only successful executions arrive here.
     pi.on("tool_execution_end", async (event, ctx) => {
         if (event.toolName !== "bash") return;
         breaker.observe(sessionId(ctx), false);
@@ -140,6 +143,7 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

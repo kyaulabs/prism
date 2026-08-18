@@ -22,6 +22,15 @@ declare(strict_types=1);
 
 
 
+
+
+
+
+
+
+
+
+
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -39,8 +48,10 @@ beforeEach(function () {
     putenv('CSRF_KEY');
     putenv('DB_PASSWORD');
     putenv('DB_USER');
+    putenv('A');
+    putenv('FOO');
     unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY'], $_ENV['LD_PRELOAD']);
-    unset($_ENV['APP_KEY'], $_ENV['CSRF_KEY'], $_ENV['DB_PASSWORD'], $_ENV['DB_USER']);
+    unset($_ENV['APP_KEY'], $_ENV['CSRF_KEY'], $_ENV['DB_PASSWORD'], $_ENV['DB_USER'], $_ENV['A'], $_ENV['FOO']);
 });
 
 afterEach(restoreEnvVars(
@@ -56,6 +67,8 @@ afterEach(restoreEnvVars(
     'CSRF_KEY',
     'DB_PASSWORD',
     'DB_USER',
+    'A',
+    'FOO',
 ));
 
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
@@ -401,6 +414,37 @@ test('load_env non-secret keys still dual-populate $_ENV and getenv', function (
 
     unlink($path);
 });
+test('load_env no-ops on a .env larger than 1 MiB', function () {
+    $path = sys_get_temp_dir() . '/test_env_oversize.env';
+    // 3000 lines x ~400 bytes — over the 1 MiB size cap but under the
+    // 10000-line cap, so only the size cap can trip (OCR round 4).
+    file_put_contents(
+        $path,
+        str_repeat("A=" . str_repeat("0", 396) . "\n", 3000), // ~1.2 MiB
+    );
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('A');
+    expect(getenv('A'))->toBeFalse();
+
+    unlink($path);
+});
+
+test('load_env no-ops on a .env with more than 10000 lines', function () {
+    $path = sys_get_temp_dir() . '/test_env_too_many_lines.env';
+    file_put_contents($path, str_repeat("FOO=bar\n", 20000));
+
+    load_env($path);
+
+    expect($_ENV)->not->toHaveKey('FOO');
+    expect(getenv('FOO'))->toBeFalse();
+
+    unlink($path);
+});
+
+
+
 
 
 
