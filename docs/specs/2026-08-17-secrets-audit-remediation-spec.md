@@ -35,6 +35,19 @@ remediation:
    in the generic loader would mangle legitimate values). F3 is therefore
    addressed **docs-only**.
 
+**Discovered during execution (2026-08-17):** verifying F1's regression
+harness against the current develop HEAD surfaced a third, pre-existing bug:
+`search_request()` restores the caller's EXIT trap via `eval "$prev_trap"` at
+its end. Inside the `HTTP_STATUS=$(search_request …)` command substitution,
+that re-registration makes the subshell fire the caller's `cleanup` EXIT trap
+when the subshell exits (bash: a trap set *inside* a command-substitution
+subshell fires on that subshell's exit), deleting `REQUEST_FILE`/
+`RESPONSE_FILE`/`ERROR_FILE` before the final node parse — websearch's success
+path fails with `ENOENT` (exit 6). Regression introduced 2026-08-17 by
+`f5ff42b` ("fix(search): eval caller trap at fire time"); existing tests only
+exercise `search_request` via direct calls, where restore is correct, so the
+gap went uncaught. User approved folding the fix into this branch.
+
 ## Goals
 
 1. Remove the only live exposure path in the repo: the DeepSeek API key must
@@ -118,6 +131,18 @@ Extend the `.env.example` header comment with a `## Rotation` section:
   dual-population (`$_ENV` + `getenv()`), preserving `env_bool()`'s fallback
   and the existing `LoadEnvTest` expectations.
 
+### D5 — `search_request()` trap restoration (discovered regression)
+
+- In `packages/prism-core/skills/lib/search_common.sh`, restore the caller's
+  EXIT trap only when running in the caller's own shell; inside a
+  command-substitution subshell, clear the subshell's copy (`trap - EXIT`)
+  so it cannot fire the caller's cleanup on subshell exit. Subshell
+  detection: `${BASHPID:-$$}` ≠ `$$` (bash keeps `$$` unchanged in
+  subshells).
+- Direct-call behavior unchanged: the caller's trap is still restored and
+  fires at caller exit (existing `search_request` trap tests stay green).
+- Fixes both `websearch/search.sh` and `searxng/search.sh` (shared lib).
+
 ## Testing
 
 ### T1 — F1 regression (`tests/Shell/search_skills_test.sh`)
@@ -143,11 +168,22 @@ argv). Existing `search_request` retry unit cases stay green.
   (CI gitleaks step `ci.yml` "Gitleaks SAST" exercises it; run locally via
   the pinned 8.30.1 binary if available, else rely on CI).
 
+### T4 — trap regression (`tests/Shell/search_skills_test.sh`)
+
+New case: caller sets an EXIT trap, `search_request` runs inside `$(…)`;
+assert (a) the marker file is absent immediately after the substitution (no
+premature fire), (b) the response output file still exists with the fake
+body, (c) the caller's trap still fires when its own shell exits. Fails on
+pre-fix code (marker present / output deleted right after substitution).
+Existing direct-call trap tests stay green unchanged.
+
 ## Verification
 
-- `bash tests/Shell/search_skills_test.sh` (F1 regression + retry cases).
+- `bash tests/Shell/search_skills_test.sh` (trap regression + F1 regression
+  + retry cases).
 - `vendor/bin/pest tests/Unit/LoadEnvTest.php tests/Unit/EnvBoolTest.php`.
-- `shellcheck --severity=warning packages/prism-core/skills/websearch/search.sh`
+- `shellcheck --severity=warning packages/prism-core/skills/websearch/search.sh
+  packages/prism-core/skills/lib/search_common.sh`
   (full-tree shellcheck is a CI step, `ci.yml` "Shellcheck").
 - Full `/check-php` gate (php-cs-fixer, stylelint, eslint, Pest coverage ≥ 80%).
 - `gitleaks git --pre-commit --staged` on the branch (stale strings gone,
