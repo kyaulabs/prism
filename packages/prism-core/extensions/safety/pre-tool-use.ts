@@ -6,6 +6,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -137,14 +138,26 @@ function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] }
 }
 
 /**
- * Locate a `git` invocation at ANY token position (`cd /repo && git …`,
+ * Tokens that make a following `git` word a command invocation rather than
+ * a plain argument: shell separators (&&, ||, &, |, ( — the tokenizer keeps
+ * the split residue) and exec wrappers that run their arguments.
+ */
+const GIT_INVOCATION_PREFIXES = new Set([
+    "&&", "||", "&", "|", "(", ";",
+    "sudo", "xargs", "env", "command", "exec", "eval",
+    "timeout", "nice", "nohup", "setsid", "stdbuf",
+]);
+
+/**
+ * Locate a `git` invocation at ANY command position (`cd /repo && git …`,
  * `echo ok; git …`, `xargs git …`) and resolve its subcommand from there.
- * The git rules run per segment, so git need not be token 0 — parity with
- * the old raw-string regex, which matched anywhere (OCR finding C4).
+ * A `git` word preceded by a non-invocation token (echo, man, cat, …) is a
+ * plain argument and is not treated as a command (OCR finding N3).
  */
 function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: string[] } | null {
     for (let i = 0; i < tokens.length; i++) {
         if (tokens[i] !== "git") continue;
+        if (i !== 0 && !GIT_INVOCATION_PREFIXES.has(tokens[i - 1])) continue;
         const info = findGitSubcommand(tokens.slice(i));
         if (info !== null) return info;
     }
@@ -397,6 +410,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 
