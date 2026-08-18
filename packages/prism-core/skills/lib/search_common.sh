@@ -15,6 +15,7 @@
 
 
 
+
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
 # Source this file from a skill's search.sh (after $SKILL is set):
@@ -146,7 +147,16 @@ search_request() {
 	done
 	rm -f "$header_file"
 	if [ -n "$prev_trap" ]; then
-		eval "$prev_trap"
+		# Restore the caller's trap only in the caller's own shell. Inside a
+		# command-substitution subshell, re-registering it would fire the
+		# caller's cleanup when the subshell exits, deleting the caller's
+		# temp files mid-script. The parent shell keeps its own copy of the
+		# trap; clearing the subshell copy prevents the premature fire.
+		if [ "${BASHPID:-$$}" = "$$" ]; then
+			eval "$prev_trap"
+		else
+			trap - EXIT
+		fi
 	else
 		trap - EXIT
 	fi
@@ -155,6 +165,7 @@ search_request() {
 	fi
 	[ "$curl_rc" -eq 0 ]
 }
+
 
 
 

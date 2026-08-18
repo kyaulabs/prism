@@ -24,6 +24,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -294,6 +295,41 @@ fi
 rm -f "$MULTI_MARKER" "$MULTI_OUTFILE"
 rm -rf "$FAKE_DIR2"
 
+printf '%s\n' '── search_request: caller EXIT trap not fired inside command substitution ──'
+CMDS_MARKER=$(mktemp)
+CMDS_OUTFILE=$(mktemp)
+CMDS_REPORT=$(mktemp)
+rm -f "$CMDS_MARKER"
+FAKE_DIR3=$(mktemp -d)
+write_fake_curl "$FAKE_DIR3"
+write_fake_sleep "$FAKE_DIR3"
+set +e
+env PATH="$FAKE_DIR3:$PATH" CMDS_MARKER="$CMDS_MARKER" CMDS_OUTFILE="$CMDS_OUTFILE" bash -c \
+	'cleanup_marker() { echo ran > "$CMDS_MARKER"; rm -f "$CMDS_OUTFILE"; }
+	trap cleanup_marker EXIT
+	source "$1"
+	status=$(search_request --output "$2" http://fake.invalid/search)
+	if [ -f "$CMDS_MARKER" ]; then premature=1; else premature=0; fi
+	if grep -q "fake body" "$2"; then body=present; else body=missing; fi
+	printf "premature=%s body=%s status=%s\n" "$premature" "$body" "$status" > "$3"' \
+	_ "$LIB" "$CMDS_OUTFILE" "$CMDS_REPORT" 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 0 ] && grep -q 'premature=0' "$CMDS_REPORT" \
+	&& grep -q 'body=present' "$CMDS_REPORT" \
+	&& grep -q 'status=200' "$CMDS_REPORT"; then
+	pass 'search_request does not fire the caller EXIT trap inside command substitution'
+else
+	fail "search_request command-substitution trap (rc=$rc report=$(cat "$CMDS_REPORT" 2>/dev/null))"
+fi
+if [ -f "$CMDS_MARKER" ] && grep -q ran "$CMDS_MARKER"; then
+	pass 'caller EXIT trap still fires at caller exit'
+else
+	fail 'caller EXIT trap missing at caller exit'
+fi
+rm -f "$CMDS_MARKER" "$CMDS_OUTFILE" "$CMDS_REPORT"
+rm -rf "$FAKE_DIR3"
+
 printf '%s\n' '── search skills: secret handling ──'
 for f in "$WEB" "$SEARX" "$LIB"; do
 	if [ ! -r "$f" ]; then
@@ -312,6 +348,55 @@ if grep -qE 'printf.*\$\{?SEARXNG_URL|echo.*\$\{?SEARXNG_URL' "$SEARX" "$LIB"; t
 else
 	pass 'searxng does not print the configured URL value'
 fi
+
+printf '%s\n' '── websearch: API key never enters curl argv (F1) ──'
+ARGV_LOG=$(mktemp)
+FAKE_DIR=$(mktemp -d)
+cat > "$FAKE_DIR/curl" <<'FAKE_CURL_ARGV'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >> "$FAKE_CURL_ARGV_LOG"
+out=''
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--output) out="$2"; shift 2 ;;
+		--output=*) out="${1#--output=}"; shift ;;
+		-o) out="$2"; shift 2 ;;
+		-o*) out="${1#-o}"; shift ;;
+		--dump-header) shift 2 ;;
+		*) shift ;;
+	esac
+done
+[ -n "$out" ] || { printf 'fake curl argv: no --output\n' >&2; exit 1; }
+printf '%s\n' '{"content":[{"type":"text","text":"search ok"}]}' > "$out"
+printf '200'
+FAKE_CURL_ARGV
+chmod +x "$FAKE_DIR/curl"
+set +e
+env PATH="$FAKE_DIR:$PATH" FAKE_CURL_ARGV_LOG="$ARGV_LOG" \
+	DEEPSEEK_API_KEY="sk-live-TEST-1234567890abcdef-DO_NOT_LEAK" \
+	bash "$WEB" 'test query' >/dev/null 2>&1
+rc=$?
+set -e
+if [ "$rc" -ne 0 ]; then
+	fail "websearch argv-isolation run (rc=$rc)"
+else
+	pass 'websearch argv-isolation run completes'
+fi
+if grep -q 'sk-live-TEST-1234567890abcdef-DO_NOT_LEAK' "$ARGV_LOG"; then
+	fail 'websearch API key leaked into curl argv'
+else
+	pass 'websearch API key absent from curl argv'
+fi
+HDR_FILE=$(awk '$0=="--header" { getline; if ($0 ~ /^@/) { print substr($0, 2); exit } }' "$ARGV_LOG")
+if [ -n "$HDR_FILE" ] && [ -f "$HDR_FILE" ] \
+	&& grep -qx 'x-api-key: sk-live-TEST-1234567890abcdef-DO_NOT_LEAK' "$HDR_FILE"; then
+	pass 'websearch auth header delivered via --header @file'
+else
+	fail "websearch auth header not via --header @file (file='$HDR_FILE')"
+fi
+rm -f "$ARGV_LOG"
+rm -rf "$FAKE_DIR"
 
 printf '%s\n' '── search skills: query encoding ──'
 if grep -q -- '--data-urlencode "q=$QUERY"' "$SEARX"; then
@@ -363,6 +448,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
