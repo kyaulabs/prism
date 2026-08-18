@@ -33,7 +33,95 @@ gitleaks TOML config, dotenv convention docs.
 
 ---
 
-### Task 1: F1 — websearch API key out of curl argv
+### Task 1: Trap restoration in `search_request()` (discovered regression, blocks Task 2)
+
+**Files:**
+- Modify: `packages/prism-core/skills/lib/search_common.sh` (trap-restore block at end of `search_request()`)
+- Test: `tests/Shell/search_skills_test.sh` (new section after the "caller EXIT trap survives" blocks)
+
+**Interfaces:**
+- Consumes: `search_request()`'s existing `prev_trap` capture and chained-trap registration.
+- Produces: caller's EXIT trap restored only in the caller's own shell; cleared in command-substitution subshells so the caller's cleanup cannot fire early. Direct-call behavior unchanged.
+
+- [ ] **Step 1: Write the failing test** — insert after the `search_request preserves multi-word caller traps` block in `tests/Shell/search_skills_test.sh`:
+
+```sh
+printf '%s\n' '── search_request: caller EXIT trap not fired inside command substitution ──'
+CMDS_MARKER=$(mktemp)
+CMDS_OUTFILE=$(mktemp)
+CMDS_REPORT=$(mktemp)
+rm -f "$CMDS_MARKER"
+FAKE_DIR3=$(mktemp -d)
+write_fake_curl "$FAKE_DIR3"
+write_fake_sleep "$FAKE_DIR3"
+set +e
+env PATH="$FAKE_DIR3:$PATH" CMDS_MARKER="$CMDS_MARKER" CMDS_OUTFILE="$CMDS_OUTFILE" bash -c \
+	'cleanup_marker() { echo ran > "$CMDS_MARKER"; rm -f "$CMDS_OUTFILE"; }
+	trap cleanup_marker EXIT
+	source "$1"
+	status=$(search_request --output "$2" http://fake.invalid/search)
+	if [ -f "$CMDS_MARKER" ]; then premature=1; else premature=0; fi
+	if grep -q "fake body" "$2"; then body=present; else body=missing; fi
+	printf "premature=%s body=%s status=%s\n" "$premature" "$body" "$status" > "$3"' \
+	_ "$LIB" "$CMDS_OUTFILE" "$CMDS_REPORT" 2>/dev/null
+rc=$?
+set -e
+if [ "$rc" -eq 0 ] && grep -q 'premature=0' "$CMDS_REPORT" \
+	&& grep -q 'body=present' "$CMDS_REPORT" \
+	&& grep -q 'status=200' "$CMDS_REPORT"; then
+	pass 'search_request does not fire the caller EXIT trap inside command substitution'
+else
+	fail "search_request command-substitution trap (rc=$rc report=$(cat "$CMDS_REPORT" 2>/dev/null))"
+fi
+if [ -f "$CMDS_MARKER" ] && grep -q ran "$CMDS_MARKER"; then
+	pass 'caller EXIT trap still fires at caller exit'
+else
+	fail 'caller EXIT trap missing at caller exit'
+fi
+rm -f "$CMDS_MARKER" "$CMDS_OUTFILE" "$CMDS_REPORT"
+rm -rf "$FAKE_DIR3"
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `bash tests/Shell/search_skills_test.sh`
+Expected: FAIL `search_request command-substitution trap` with `premature=1 body=missing` (the caller's cleanup fired in the subshell and deleted the output file).
+
+- [ ] **Step 3: Write minimal implementation** — in `packages/prism-core/skills/lib/search_common.sh`, replace the trap-restore block at the end of `search_request()`:
+
+```sh
+	rm -f "$header_file"
+	if [ -n "$prev_trap" ]; then
+		# Restore the caller's trap only in the caller's own shell. Inside a
+		# command-substitution subshell, re-registering it would fire the
+		# caller's cleanup when the subshell exits, deleting the caller's
+		# temp files mid-script. The parent shell keeps its own copy of the
+		# trap; clearing the subshell copy prevents the premature fire.
+		if [ "${BASHPID:-$$}" = "$$" ]; then
+			eval "$prev_trap"
+		else
+			trap - EXIT
+		fi
+	else
+		trap - EXIT
+	fi
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `bash tests/Shell/search_skills_test.sh`
+Expected: all PASS, including the two new assertions; existing direct-call trap tests still pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/prism-core/skills/lib/search_common.sh tests/Shell/search_skills_test.sh
+git commit -S -m $'fix(search): stop caller trap firing inside command substitution\n\nDiscovered while verifying the F1 secrets-audit fix: search_request\nre-registered the caller EXIT trap via eval \"$prev_trap\" at its end, and\ninside a $(...) subshell that re-registration fires the caller cleanup\non subshell exit, deleting the caller temp files before the final\nresponse parse (websearch exit 6 ENOENT; regression from f5ff42b).\nRestore the trap only in the caller shell (BASHPID=$$); clear it in\nsubshells. Direct-call trap tests stay green; new command-substitution\nregression case added.\n\nAuthored-by: deepseek-v4-flash\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-flash\nSigned-off-by: kyau <kyau@kyau.net>'
+```
+
+---
+
+### Task 2: F1 — websearch API key out of curl argv
 
 **Files:**
 - Modify: `packages/prism-core/skills/websearch/search.sh:56-62,82` (temp-file block; auth header line)
@@ -132,7 +220,7 @@ git commit -S -m $'fix(websearch): keep API key out of curl argv\n\nF1 of the se
 
 ---
 
-### Task 2: F2 — remove stale gitleaks allowlist
+### Task 3: F2 — remove stale gitleaks allowlist
 
 **Files:**
 - Modify: `.gitleaks.toml` (delete comment block + `[allowlist]` section)
@@ -159,7 +247,7 @@ git commit -S -m $'chore(gitleaks): remove stale canary allowlist\n\nF2 of the s
 
 ---
 
-### Task 3: F3 — rotation docs in `.env.example`
+### Task 4: F3 — rotation docs in `.env.example`
 
 **Files:**
 - Modify: `.env.example` (header comment, before the "Copy this file to .env" line)
@@ -188,7 +276,7 @@ git commit -S -m $'docs(env): document key rotation convention\n\nF3 of the secr
 
 ---
 
-### Task 4: F4 — keep SECRET_KEYS out of child-process env
+### Task 5: F4 — keep SECRET_KEYS out of child-process env
 
 **Files:**
 - Modify: `backend/env.php` (const + `load_env()` loop; docblock)
@@ -298,4 +386,4 @@ git commit -S -m $'fix(env): keep secret keys out of child-process env\n\nF4 of 
 
 ---
 
-**Final verification (after Task 4):** `bash tests/Shell/search_skills_test.sh`, `vendor/bin/pest`, `shellcheck --severity=warning packages/prism-core/skills/websearch/search.sh`, then `/check` (delegates to `/check-php`), then `code-review` before push.
+**Final verification (after Task 5):** `bash tests/Shell/search_skills_test.sh`, `vendor/bin/pest`, `shellcheck --severity=warning packages/prism-core/skills/websearch/search.sh packages/prism-core/skills/lib/search_common.sh`, then `/check` (delegates to `/check-php`), then `code-review` before push.
