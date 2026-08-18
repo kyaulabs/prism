@@ -5,6 +5,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -136,6 +137,21 @@ function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] }
 }
 
 /**
+ * Locate a `git` invocation at ANY token position (`cd /repo && git …`,
+ * `echo ok; git …`, `xargs git …`) and resolve its subcommand from there.
+ * The git rules run per segment, so git need not be token 0 — parity with
+ * the old raw-string regex, which matched anywhere (OCR finding C4).
+ */
+function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: string[] } | null {
+    for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i] !== "git") continue;
+        const info = findGitSubcommand(tokens.slice(i));
+        if (info !== null) return info;
+    }
+    return null;
+}
+
+/**
  * Expand short-flag bundles like `-uf` into individual flags.
  * Long flags (`--*`) pass through unchanged.
  */
@@ -189,12 +205,13 @@ type SegmentRule = (tokens: string[], ctx: RuleCtx) => Finding | null;
 
 type CommandRule = (command: string, tokens: string[], ctx: RuleCtx) => Finding | null;
 
+// Segment-phase rules: block-level first (rm/find), then whole-command
+// rules per segment. Within the array the first match wins; the rm/find
+// blocks beat the git warns because they run earlier in the loop.
 const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
 
-// Whole-command rules run after the segment phase in the pre-refactor
-// statement order: warn-level rules first, then block-level rules. The
-// segment-phase blocks (rm/find) still win over whole-command warns
-// because they run earlier; within this array the first match wins.
+// Per-segment command rules, run after the segment rules in statement
+// order: warn-level rules first, then block-level rules.
 const COMMAND_RULES: readonly CommandRule[] = [
     sqlDropWarn,
     gitResetWarn,
@@ -240,11 +257,10 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             const finding = rule(tokens, ctx);
             if (finding !== null) return finding;
         }
-    }
-    const commandTokens = tokenizeCommand(command);
-    for (const rule of COMMAND_RULES) {
-        const finding = rule(command, commandTokens, ctx);
-        if (finding !== null) return finding;
+        for (const rule of COMMAND_RULES) {
+            const finding = rule(segment, tokens, ctx);
+            if (finding !== null) return finding;
+        }
     }
     return null;
 }
@@ -338,10 +354,10 @@ function gitPushDeleteWarn(_command: string, tokens: string[], _ctx: RuleCtx): F
 
 /**
  * Expand a git command's subcommand flags after skipping global options.
- * Returns null when the token stream is not a git command.
+ * Returns null when no `git` invocation exists in the token stream.
  */
 function expandedGitFlags(tokens: string[]): { subcmd: string; expanded: string[] } | null {
-    const gitInfo = findGitSubcommand(tokens);
+    const gitInfo = findGitCommandAnywhere(tokens);
     if (gitInfo === null) return null;
     return { subcmd: gitInfo.subcmd, expanded: gitInfo.rest.flatMap(expandShortFlags) };
 }
@@ -381,6 +397,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

@@ -7,6 +7,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -149,7 +150,16 @@ test("git push --delete warns; short -d form now warns too", () => {
 test("wrapper-anywhere: segment tokens still analyzed after a clean wrapper payload", () => {
     assert.equal(classifyCommand("rm -rf /home/u/x bash -c 'echo ok'", OPTS)?.severity, "block");
     assert.equal(classifyCommand("sudo rm -rf /etc bash -c 'echo ok'", OPTS)?.severity, "block");
-    assert.equal(classifyCommand("rm -rf /tmp/x bash -c 'echo ok'", OPTS), null);
+    // Trailing tokens after rm -rf are rm operands: `bash` resolves to a
+    // project-relative path outside safe zones, so this fails closed.
+    assert.equal(classifyCommand("rm -rf /tmp/x bash -c 'echo ok'", OPTS)?.severity, "block");
+});
+
+test("git rules apply when git is not the first token of the segment", () => {
+    assert.equal(classifyCommand("cd /repo && git reset --hard", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("echo ok; git push origin --delete x", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("xargs git push -f", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("echo ok; git commit --no-verify -m x", OPTS)?.severity, "block");
 });
 
 
