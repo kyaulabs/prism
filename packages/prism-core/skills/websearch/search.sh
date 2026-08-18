@@ -9,6 +9,7 @@
 
 
 
+
 set -euo pipefail
 
 # shellcheck disable=SC2034  # consumed by the sourced search_common.sh
@@ -47,11 +48,12 @@ REQUEST_FILE=$(mktemp)
 RESPONSE_FILE=$(mktemp)
 ERROR_FILE=$(mktemp)
 AUTH_HEADER_FILE=$(mktemp)
+TEMP_FILES=("$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE")
 cleanup() {
-	rm -f "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE"
+	rm -f "${TEMP_FILES[@]}"
 }
 trap cleanup EXIT
-chmod 600 "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE"
+chmod 600 "${TEMP_FILES[@]}"
 printf 'x-api-key: %s\n' "$DEEPSEEK_API_KEY" > "$AUTH_HEADER_FILE"
 
 QUERY="$QUERY" MODEL="$MODEL" THINKING="$THINKING" MAX_TOKENS="$MAX_TOKENS" \
@@ -157,6 +159,7 @@ if (results.length > 0) {
 	});
 }
 NODE
+
 
 
 
