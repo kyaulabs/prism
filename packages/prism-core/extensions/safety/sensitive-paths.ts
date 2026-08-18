@@ -6,6 +6,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -145,7 +146,11 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
  */
 export function findShellWrapperPayload(tokens: string[]): string | null {
     for (let i = 0; i + 1 < tokens.length; i++) {
-        if (SHELL_WRAPPERS.has(tokens[i]) && tokens[i + 1] === "-c") {
+        if (!SHELL_WRAPPERS.has(tokens[i])) continue;
+        const flag = tokens[i + 1];
+        // `-c` exactly, or a short-flag bundle containing c (bash -lc, -ic,
+        // …) — all mean "command follows" for the shell wrappers (OCR N2).
+        if (flag.startsWith("-") && !flag.startsWith("--") && flag.includes("c")) {
             return tokens[i + 2] ?? null;
         }
     }
@@ -353,6 +358,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

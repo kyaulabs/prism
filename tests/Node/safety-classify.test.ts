@@ -8,6 +8,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -160,6 +161,18 @@ test("git rules apply when git is not the first token of the segment", () => {
     assert.equal(classifyCommand("echo ok; git push origin --delete x", OPTS)?.severity, "warn");
     assert.equal(classifyCommand("xargs git push -f", OPTS)?.severity, "block");
     assert.equal(classifyCommand("echo ok; git commit --no-verify -m x", OPTS)?.severity, "block");
+});
+
+test("wrapper-anywhere: short-flag bundles containing -c are unwrapped", () => {
+    assert.equal(classifyCommand("bash -lc 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("sh -cl 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash -lc 'echo hi'", OPTS), null);
+});
+
+test("git rules do not fire when git is a plain argument", () => {
+    assert.equal(classifyCommand("echo git push -f", OPTS), null);
+    assert.equal(classifyCommand("man git reset --hard", OPTS), null);
+    assert.equal(classifyCommand('git commit -m "git push -f"', OPTS), null);
 });
 
 
