@@ -43,7 +43,7 @@ gitleaks TOML config, dotenv convention docs.
 - Consumes: `search_request()`'s existing `prev_trap` capture and chained-trap registration.
 - Produces: caller's EXIT trap restored only in the caller's own shell; cleared in command-substitution subshells so the caller's cleanup cannot fire early. Direct-call behavior unchanged.
 
-- [ ] **Step 1: Write the failing test** — insert after the `search_request preserves multi-word caller traps` block in `tests/Shell/search_skills_test.sh`:
+- [x] **Step 1: Write the failing test** — insert after the `search_request preserves multi-word caller traps` block in `tests/Shell/search_skills_test.sh`:
 
 ```sh
 printf '%s\n' '── search_request: caller EXIT trap not fired inside command substitution ──'
@@ -82,12 +82,12 @@ rm -f "$CMDS_MARKER" "$CMDS_OUTFILE" "$CMDS_REPORT"
 rm -rf "$FAKE_DIR3"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: FAIL `search_request command-substitution trap` with `premature=1 body=missing` (the caller's cleanup fired in the subshell and deleted the output file).
 
-- [ ] **Step 3: Write minimal implementation** — in `packages/prism-core/skills/lib/search_common.sh`, replace the trap-restore block at the end of `search_request()`:
+- [x] **Step 3: Write minimal implementation** — in `packages/prism-core/skills/lib/search_common.sh`, replace the trap-restore block at the end of `search_request()`:
 
 ```sh
 	rm -f "$header_file"
@@ -107,7 +107,7 @@ Expected: FAIL `search_request command-substitution trap` with `premature=1 body
 	fi
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: all PASS, including the two new assertions; existing direct-call trap tests still pass.
@@ -131,7 +131,7 @@ git commit -S -m $'fix(search): stop caller trap firing inside command substitut
 - Consumes: existing `require_env DEEPSEEK_API_KEY` (key guaranteed set+non-empty before the temp block), existing `cleanup()` EXIT trap, existing `search_request()` retry helper.
 - Produces: `AUTH_HEADER_FILE` mktemp (0600, trap-cleaned) containing one line `x-api-key: <key>`; curl invoked with separate argv entries `--header` and `@<path>`.
 
-- [ ] **Step 1: Write the failing test** — insert after the `pass 'searxng does not print the configured URL value'` block in `tests/Shell/search_skills_test.sh`:
+- [x] **Step 1: Write the failing test** — insert after the `pass 'searxng does not print the configured URL value'` block in `tests/Shell/search_skills_test.sh`:
 
 ```sh
 printf '%s\n' '── websearch: API key never enters curl argv (F1) ──'
@@ -184,12 +184,12 @@ rm -f "$ARGV_LOG"
 rm -rf "$FAKE_DIR"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: FAIL `websearch API key leaked into curl argv` (the key is currently in argv) and FAIL on the `--header @file` assertion.
 
-- [ ] **Step 3: Write minimal implementation** — in `packages/prism-core/skills/websearch/search.sh`:
+- [x] **Step 3: Write minimal implementation** — in `packages/prism-core/skills/websearch/search.sh`:
 
 After the existing `chmod 600 "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE"` line, add:
 
@@ -206,12 +206,12 @@ Extend `cleanup()` to `rm -f "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AU
 	--header "@$AUTH_HEADER_FILE" \
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: all PASS, including the three new assertions; summary `0 failed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/websearch/search.sh tests/Shell/search_skills_test.sh
