@@ -10,9 +10,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, stripSurroundingQuotes, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -181,14 +182,21 @@ function isGitInvocationContext(tokens: string[], k: number): boolean {
             k--;
             continue;
         }
-        // Bare word: a wrapper argument when it follows a wrapper, option,
-        // or assignment (sudo -u root git, timeout 10 git); otherwise a
-        // plain-argument context (echo 10 git …).
+        // Bare word: an option value or assignment right-hand side (sudo
+        // -u root git, env FOO=1 git — the option/assignment branch above
+        // already handled the flag; this word is its value), or a numeric
+        // wrapper argument (timeout 10 git). Any other bare word means a
+        // plain-argument context (echo 10 git …, sudo echo git …).
         const prev = tokens[k - 1];
-        if (prev !== undefined
-            && (GIT_INVOCATION_WRAPPERS.has(prev) || isOptionToken(prev) || prev.includes("="))) {
-            k--;
-            continue;
+        if (prev !== undefined) {
+            if (isOptionToken(prev) || prev.includes("=")) {
+                k--;
+                continue;
+            }
+            if (GIT_INVOCATION_WRAPPERS.has(prev) && /^\d+$/.test(t)) {
+                k--;
+                continue;
+            }
         }
         return false;
     }
@@ -300,7 +308,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         home: process.env.HOME || "/",
         safeRelDirs: opts.safeRelDirs ?? [],
     };
-    for (const segment of command.split(/[;&|\n]/)) {
+    for (const segment of splitShellSegments(command)) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
         // Per-segment: a command that IS a bare variable reference cannot be
@@ -317,7 +325,9 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         if (innerCmd !== null) {
             const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
             if (innerFinding !== null) return innerFinding;
-            continue;
+            // Fall through: the payload was clean, but trailing operands
+            // after a head wrapper still need the segment rules (OCR
+            // round 6).
         }
         const wrapped = findShellWrapperPayload(tokens);
         if (wrapped !== null) {
@@ -471,6 +481,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

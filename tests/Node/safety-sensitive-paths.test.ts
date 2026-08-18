@@ -7,6 +7,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -99,6 +100,14 @@ test("wrapper payloads that are bare variable references fail closed", () => {
 test("variable-reference payloads fail closed across quoting and segments", () => {
     assert.equal(sensitiveOperandCheck('sudo bash -c "\\"$p\\""', OPTS)?.className, "unresolvable");
     assert.equal(sensitiveOperandCheck("echo hi; $p", OPTS)?.className, "unresolvable");
+});
+
+test("quote-aware segmentation: variable payloads behind quoted separators", () => {
+    assert.equal(sensitiveOperandCheck("bash -c 'echo hi; $p'", OPTS)?.className, "unresolvable");
+});
+
+test("head-wrapper trailing operands still judged", () => {
+    assert.equal(sensitiveOperandCheck("bash -c 'echo ok' ~/.ssh/id_rsa", OPTS)?.className, "ssh");
 });
 
 

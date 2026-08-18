@@ -9,6 +9,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -67,6 +68,48 @@ export function stripSurroundingQuotes(s: string): string {
         return t.slice(1, -1);
     }
     return t;
+}
+
+/**
+ * Split a command on shell separators (`;` `&` `|` newline) only OUTSIDE
+ * quotes, so quoted payloads survive intact (OCR round 6 — the raw
+ * split mangled `bash -c 'echo hi; $p'` and defeated the per-segment
+ * variable guard). Backslash escapes are honored inside double quotes
+ * and outside quotes.
+ */
+export function splitShellSegments(command: string): string[] {
+    const segments: string[] = [];
+    let cur = "";
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        if (quote !== null) {
+            cur += ch;
+            if (ch === "\\" && quote === '"' && i + 1 < command.length) {
+                cur += command[++i];
+                continue;
+            }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            quote = ch;
+            cur += ch;
+            continue;
+        }
+        if (ch === "\\" && i + 1 < command.length) {
+            cur += ch + command[++i];
+            continue;
+        }
+        if (ch === ";" || ch === "&" || ch === "|" || ch === "\n") {
+            segments.push(cur);
+            cur = "";
+            continue;
+        }
+        cur += ch;
+    }
+    segments.push(cur);
+    return segments;
 }
 
 /** Shell constructs the flat tokenizer cannot model — command/process
@@ -338,7 +381,7 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
     if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
     if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
-    const segments = command.split(/[;&|\n]/);
+    const segments = splitShellSegments(command);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
@@ -349,7 +392,9 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         if (inner !== null) {
             const match = sensitiveOperandCheckImpl(inner, opts, depth + 1);
             if (match) return match;
-            continue;
+            // Fall through: the payload was clean, but trailing operands
+            // after a head wrapper (bash -c 'echo ok' ~/.ssh/…) still need
+            // judging (OCR round 6).
         }
         const wrapped = findShellWrapperPayload(tokens);
         if (wrapped !== null) {
@@ -386,6 +431,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
