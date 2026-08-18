@@ -9,9 +9,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, stripSurroundingQuotes, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -294,15 +295,6 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             reason: "unmodelable shell construct (substitution/quoting/here-string) — failing closed per ADR-0036",
         };
     }
-    // A command that IS a bare variable reference (bash -c "$cmd", eval
-    // $cmd, a variable executed directly) cannot be analyzed — its value
-    // is unknown here. Fail closed (OCR round 4).
-    if (BARE_VARIABLE_RE.test(command.trim())) {
-        return {
-            severity: "block",
-            reason: "command is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
-        };
-    }
     const ctx: RuleCtx = {
         projectDir: opts.projectDir,
         home: process.env.HOME || "/",
@@ -311,6 +303,15 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
     for (const segment of command.split(/[;&|\n]/)) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
+        // Per-segment: a command that IS a bare variable reference cannot be
+        // analyzed (echo hi; $cmd, bash -c "$cmd") — fail closed (OCR rounds
+        // 4-5). Quote-stripped so "$cmd" forms cannot hide the reference.
+        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) {
+            return {
+                severity: "block",
+                reason: "command is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
+            };
+        }
 
         const innerCmd = tryUnwrapSegment(tokens);
         if (innerCmd !== null) {
@@ -470,6 +471,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

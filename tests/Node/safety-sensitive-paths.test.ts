@@ -6,6 +6,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -93,6 +94,11 @@ test("wrapper-anywhere: deny-floor operands outside the wrapper still judged", (
 
 test("wrapper payloads that are bare variable references fail closed", () => {
     assert.equal(sensitiveOperandCheck('sudo bash -c "$p"', OPTS)?.className, "unresolvable");
+});
+
+test("variable-reference payloads fail closed across quoting and segments", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "\\"$p\\""', OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("echo hi; $p", OPTS)?.className, "unresolvable");
 });
 
 
