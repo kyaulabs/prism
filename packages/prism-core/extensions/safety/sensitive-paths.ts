@@ -8,6 +8,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -58,6 +59,15 @@ export const MAX_UNWRAP_DEPTH = 3;
 
 /** A command that is exactly a shell variable reference (value unknown). */
 export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])$/;
+
+/** Strip one layer of surrounding matching quotes (OCR round 5). */
+export function stripSurroundingQuotes(s: string): string {
+    const t = s.trim();
+    if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+        return t.slice(1, -1);
+    }
+    return t;
+}
 
 /** Shell constructs the flat tokenizer cannot model — command/process
  *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
@@ -145,20 +155,31 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
  * Find a shell wrapper (`bash -c`, `sh -c`, …) at ANY token position and
  * return its payload token for recursive reclassification. Catches wrapper
  * chains the head-only unwrap misses (`sudo bash -c …`, `timeout 10
- * bash -c …`, `find -exec bash -c …`). Quoted payloads arrive already
- * quote-stripped from tokenizeCommand, so recursion re-tokenizes them.
+ * bash -c …`, `find -exec bash -c …`), combined short flags (`-lc`), and
+ * options between the wrapper and the command flag (`bash -e -c …`).
+ * Quoted payloads arrive already quote-stripped from tokenizeCommand, so
+ * recursion re-tokenizes them.
  */
 export function findShellWrapperPayload(tokens: string[]): string | null {
-    for (let i = 0; i + 1 < tokens.length; i++) {
+    for (let i = 0; i < tokens.length; i++) {
         if (!SHELL_WRAPPERS.has(tokens[i])) continue;
-        const flag = tokens[i + 1];
-        // `-c` exactly, or a short-flag bundle containing c (bash -lc, -ic,
-        // …) — all mean "command follows" for the shell wrappers (OCR N2).
-        if (flag.startsWith("-") && !flag.startsWith("--") && flag.includes("c")) {
-            return tokens[i + 2] ?? null;
+        let j = i + 1;
+        while (j < tokens.length) {
+            const t = tokens[j];
+            if (isOptionToken(t)) {
+                if (isShortCommandFlag(t)) return tokens[j + 1] ?? null;
+                j++;
+                continue;
+            }
+            break; // non-option before the command flag — not a -c invocation
         }
     }
     return null;
+}
+
+/** True for short flags that carry the shell's command (`-c`, `-lc`, …). */
+function isShortCommandFlag(token: string): boolean {
+    return token.startsWith("-") && !token.startsWith("--") && token.includes("c");
 }
 
 /** True when a token is option-prefixed or assignment-shaped (shared shape guard). */
@@ -317,11 +338,13 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
     if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
     if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
-    if (BARE_VARIABLE_RE.test(command.trim())) return { className: "unresolvable" };
     const segments = command.split(/[;&|\n]/);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
+        // Per-segment: a command that IS a bare variable reference cannot be
+        // analyzed (echo hi; $p, bash -c "$p") — fail closed (OCR rounds 4-5).
+        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
         const inner = tryUnwrapSegment(tokens);
         if (inner !== null) {
             const match = sensitiveOperandCheckImpl(inner, opts, depth + 1);
@@ -363,6 +386,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

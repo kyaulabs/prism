@@ -11,6 +11,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -195,6 +196,18 @@ test("wrapper payloads that are bare variable references fail closed", () => {
 
 test("git rules fire through chained wrappers", () => {
     assert.equal(classifyCommand("sudo -u root env FOO=1 git push -f", OPTS)?.severity, "block");
+});
+
+test("wrapper-anywhere: options between wrapper and -c are skipped", () => {
+    assert.equal(classifyCommand("bash -e -c 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash -v -c 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash script.sh -c x", OPTS), null);
+});
+
+test("variable-reference payloads fail closed across quoting and segments", () => {
+    assert.equal(classifyCommand('bash -c "\\"$cmd\\""', OPTS)?.severity, "block");
+    assert.equal(classifyCommand("echo hi; $cmd", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("echo $cmd", OPTS), null);
 });
 
 
