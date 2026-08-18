@@ -25,6 +25,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -338,7 +339,11 @@ for f in "$WEB" "$SEARX" "$LIB"; do
 		exit 1
 	fi
 done
-if grep -qE 'printf.*\$\{?DEEPSEEK_API_KEY|echo.*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB"; then
+# The key may be written to the dedicated 0600 auth header file (F1
+# design) but must never be printed to stdout/stderr.
+if grep -E 'printf.*\$\{?DEEPSEEK_API_KEY|echo.*\$\{?DEEPSEEK_API_KEY' "$WEB" "$LIB" \
+	| grep -v '>' \
+	| grep -q .; then
 	fail 'websearch can print the key value'
 else
 	pass 'websearch does not print the key value'
@@ -351,6 +356,7 @@ fi
 
 printf '%s\n' '── websearch: API key never enters curl argv (F1) ──'
 ARGV_LOG=$(mktemp)
+HEADER_LOG=$(mktemp)
 FAKE_DIR=$(mktemp -d)
 cat > "$FAKE_DIR/curl" <<'FAKE_CURL_ARGV'
 #!/usr/bin/env bash
@@ -364,6 +370,11 @@ while [ $# -gt 0 ]; do
 		-o) out="$2"; shift 2 ;;
 		-o*) out="${1#-o}"; shift ;;
 		--dump-header) shift 2 ;;
+		--header)
+			case "$2" in
+				@*) cat "${2#@}" >> "${FAKE_HEADER_LOG:?}" ;;
+			esac
+			shift 2 ;;
 		*) shift ;;
 	esac
 done
@@ -373,7 +384,7 @@ printf '200'
 FAKE_CURL_ARGV
 chmod +x "$FAKE_DIR/curl"
 set +e
-env PATH="$FAKE_DIR:$PATH" FAKE_CURL_ARGV_LOG="$ARGV_LOG" \
+env PATH="$FAKE_DIR:$PATH" FAKE_CURL_ARGV_LOG="$ARGV_LOG" FAKE_HEADER_LOG="$HEADER_LOG" \
 	DEEPSEEK_API_KEY="sk-live-TEST-1234567890abcdef-DO_NOT_LEAK" \
 	bash "$WEB" 'test query' >/dev/null 2>&1
 rc=$?
@@ -389,13 +400,12 @@ else
 	pass 'websearch API key absent from curl argv'
 fi
 HDR_FILE=$(awk '$0=="--header" { getline; if ($0 ~ /^@/) { print substr($0, 2); exit } }' "$ARGV_LOG")
-if [ -n "$HDR_FILE" ] && [ -f "$HDR_FILE" ] \
-	&& grep -qx 'x-api-key: sk-live-TEST-1234567890abcdef-DO_NOT_LEAK' "$HDR_FILE"; then
+if [ -n "$HDR_FILE" ] && grep -qx 'x-api-key: sk-live-TEST-1234567890abcdef-DO_NOT_LEAK' "$HEADER_LOG"; then
 	pass 'websearch auth header delivered via --header @file'
 else
 	fail "websearch auth header not via --header @file (file='$HDR_FILE')"
 fi
-rm -f "$ARGV_LOG"
+rm -f "$ARGV_LOG" "$HEADER_LOG"
 rm -rf "$FAKE_DIR"
 
 printf '%s\n' '── search skills: query encoding ──'
@@ -448,6 +458,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
