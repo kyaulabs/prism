@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
 
 
 
@@ -139,6 +142,15 @@ function is_dangerous_env_name(string $key): bool
 }
 
 /**
+ * Environment keys whose values are secrets and must not be exported to
+ * child-process environments via putenv(). They remain readable through
+ * $_ENV. Keep in sync with the Secrets section of the env example file.
+ *
+ * @var string[]
+ */
+const SECRET_KEYS = ['APP_KEY', 'CSRF_KEY', 'DB_PASSWORD'];
+
+/**
  * Loads environment variables from a .env file.
  *
  * Parses a file with KEY=VALUE pairs (one per line), skipping blank lines
@@ -150,7 +162,9 @@ function is_dangerous_env_name(string $key): bool
  * or double quotes are stripped, and an inline `#` comment on unquoted
  * values is removed (a `#` inside quotes is preserved). Keys that already
  * exist in $_ENV or getenv() are never overwritten — server environment
- * variables take priority over file values.
+ * variables take priority over file values. Keys named in SECRET_KEYS
+ * populate $_ENV only and are not exported via putenv(), keeping them out
+ * of child-process environments.
  *
  * If the file does not exist, this function is a silent no-op (production
  * safety: absent .env means debug stays off).
@@ -224,9 +238,15 @@ function load_env(string $path): void
         }
 
         $_ENV[$key] = $value;
-        putenv("{$key}={$value}");
+
+        // Secrets stay out of child-process environments (CWE-526); they
+        // remain readable via $_ENV by the app itself.
+        if (!in_array($key, SECRET_KEYS, true)) {
+            putenv("{$key}={$value}");
+        }
     }
 }
+
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

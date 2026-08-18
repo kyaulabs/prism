@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
+
+
 
 
 
@@ -32,7 +35,12 @@ beforeEach(function () {
     putenv('COMMENT_KEY');
     putenv('VALID_KEY');
     putenv('LD_PRELOAD');
+    putenv('APP_KEY');
+    putenv('CSRF_KEY');
+    putenv('DB_PASSWORD');
+    putenv('DB_USER');
     unset($_ENV['EXPORT_KEY'], $_ENV['COMMENT_KEY'], $_ENV['VALID_KEY'], $_ENV['LD_PRELOAD']);
+    unset($_ENV['APP_KEY'], $_ENV['CSRF_KEY'], $_ENV['DB_PASSWORD'], $_ENV['DB_USER']);
 });
 
 afterEach(restoreEnvVars(
@@ -44,6 +52,10 @@ afterEach(restoreEnvVars(
     'COMMENT_KEY',
     'VALID_KEY',
     'LD_PRELOAD',
+    'APP_KEY',
+    'CSRF_KEY',
+    'DB_PASSWORD',
+    'DB_USER',
 ));
 
 test('load_env parses .env with APP_DEBUG=true and env_bool returns true', function () {
@@ -365,6 +377,31 @@ test('load_env absent env file stays silent (no log, defaults kept)', function (
         }
     }
 });
+
+test('load_env keeps SECRET_KEYS out of getenv but present in $_ENV', function () {
+    $path = sys_get_temp_dir() . '/test_env_secret_key.env';
+    file_put_contents($path, "APP_KEY=deadbeefcafe\n");
+
+    load_env($path);
+
+    expect($_ENV['APP_KEY'])->toBe('deadbeefcafe');
+    expect(getenv('APP_KEY'))->toBeFalse();
+
+    unlink($path);
+});
+
+test('load_env non-secret keys still dual-populate $_ENV and getenv', function () {
+    $path = sys_get_temp_dir() . '/test_env_non_secret.env';
+    file_put_contents($path, "DB_USER=app\n");
+
+    load_env($path);
+
+    expect($_ENV['DB_USER'])->toBe('app');
+    expect(getenv('DB_USER'))->toBe('app');
+
+    unlink($path);
+});
+
 
 
 

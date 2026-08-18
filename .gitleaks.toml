@@ -1,20 +1,2 @@
-# Deliberate leak-detection canary allowlist.
-#
-# The prism manifest test suite carries sk-live-shaped bait values
-# (tests/Shell/prism_manifest_integration_test.sh and
-# tests/Unit/Harness/PrismManifestCliTest.php) whose only purpose is to pin
-# that secret bytes never reach any stream — ADR-0048 §8 canary-only test
-# and eval fixtures. They are not real credentials. The allowlist below
-# covers exactly the two documented canary strings (anchored full-value
-# match); every other sk-* value still trips the default rules, and the
-# pinned gitleaks 8.30.1 scan (ci.yml "Gitleaks SAST") stays effective.
-
 [extend]
 useDefault = true
-
-[allowlist]
-description = "Deliberate negative-leak-test canaries (ADR-0048 §8) — exact documented values only"
-regexes = [
-    '''^sk-live-CANARY-4f8d0c2e-DO_NOT_LEAK$''',
-    '''^sk-live-PRESENT-CANARY-3b6d9c1e-DO_NOT_LEAK$''',
-]
