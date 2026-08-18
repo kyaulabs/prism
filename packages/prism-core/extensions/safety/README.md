@@ -85,7 +85,9 @@ no longer erase the denial count. The opencode-era
 - **Benign command substitution is blocked** by the fail-closed guard —
   the agent computes such values in separate steps. Syntax-like text inside
   single-quoted literals is inert and does not count as substitution or a
-  here-string.
+  here-string. Restricted arithmetic expansion such as `$((count + 1))` is
+  accepted; nested expansion syntax and unsupported arithmetic forms remain
+  fail-closed.
 
 ## Fail-closed invariants (ADR-0036)
 

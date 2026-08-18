@@ -96,6 +96,18 @@ test("the check conflict-marker audit passes without feeding the breaker", () =>
     assert.equal(deps.breaker.count("s1"), 0);
 });
 
+test("simple arithmetic expansion passes while nested command substitution blocks", () => {
+    const { deps } = makeDeps();
+
+    assert.equal(handleToolCall("bash", { command: "attempts=$((attempts + 1))" }, deps), undefined);
+    assert.equal(deps.breaker.count("s1"), 0);
+
+    const nested = handleToolCall("bash", { command: "value=$((1 + $(cat ~/.ssh/id_rsa)))" }, deps);
+    assert.equal(nested?.block, true);
+    assert.match(nested?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
 test("read/ls/find sensitive paths block without feeding the breaker", () => {
     for (const toolName of ["read", "ls", "find"]) {
         const { deps } = makeDeps();

@@ -122,11 +122,31 @@ export function splitShellSegments(command: string): string[] {
     return segments;
 }
 
-/** Shell constructs the flat tokenizer cannot model — command/process
- *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
- *  hides command boundaries from the tokenizer, so the gates fail closed
- *  (ADR-0036; security audit M-1/I-2). */
-/** True when a command contains an active construct the flat tokenizer cannot model. */
+/** Return the first index after a restricted arithmetic expansion. */
+function safeArithmeticExpansionEnd(command: string, start: number): number | null {
+    if (!command.startsWith("$((", start)) return null;
+    let depth = 0;
+    for (let i = start + 3; i < command.length; i++) {
+        const ch = command[i];
+        if (ch === "(") {
+            depth++;
+            continue;
+        }
+        if (ch === ")") {
+            if (depth === 0 && command[i + 1] === ")") return i + 2;
+            if (depth === 0) return null;
+            depth--;
+            continue;
+        }
+        if (!/[A-Za-z0-9_\s+\-*\/%<>=!&|^~?:,]/.test(ch)) return null;
+    }
+    return null;
+}
+
+/**
+ * Detect active shell constructs the flat tokenizer cannot model. Restricted
+ * arithmetic expansion is accepted; nested expansion syntax still blocks.
+ */
 export function hasUnmodelableShellConstruct(command: string): boolean {
     let quote: '"' | "'" | null = null;
     for (let i = 0; i < command.length; i++) {
@@ -144,7 +164,13 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
                 quote = null;
                 continue;
             }
-            if (ch === "`" || (ch === "$" && command[i + 1] === "(")) return true;
+            if (ch === "$" && command[i + 1] === "(") {
+                const end = safeArithmeticExpansionEnd(command, i);
+                if (end === null) return true;
+                i = end - 1;
+                continue;
+            }
+            if (ch === "`") return true;
             continue;
         }
         if (ch === "\\") {
@@ -159,9 +185,14 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
             quote = '"';
             continue;
         }
+        if (ch === "$" && command[i + 1] === "(") {
+            const end = safeArithmeticExpansionEnd(command, i);
+            if (end === null) return true;
+            i = end - 1;
+            continue;
+        }
         if (ch === "`" || command.startsWith("$'", i)) return true;
-        if (command.startsWith("$(", i)
-            || command.startsWith("<(", i)
+        if (command.startsWith("<(", i)
             || command.startsWith(">(", i)
             || command.startsWith("<<<", i)) return true;
     }
