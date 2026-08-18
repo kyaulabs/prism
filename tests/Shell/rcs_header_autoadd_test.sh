@@ -190,6 +190,66 @@ PHPEOF
 )
 rm -rf "$T3"
 
+# ── Test 3b: Modeline skipped when PHP template ends in HTML ─────────────────
+
+echo "── Test 3b: Modeline skipped when PHP template ends in HTML ──"
+T3B=$(mktemp -d)
+register_temp_dir "$T3B"
+(
+	cd "$T3B"
+	git_init_test_repo .
+
+	cat > file.php <<'PHPEOF'
+<?php
+echo "hello";
+?>
+<p><?= htmlspecialchars("world", ENT_QUOTES, "UTF-8") ?></p>
+<footer>done</footer>
+PHPEOF
+	git add file.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ] && ! git show ":file.php" 2>/dev/null | tail -1 | grep -q 'vim: ft=php'; then
+		pass "Vim modeline skipped when a PHP template ends in HTML"
+	else
+		fail "Vim modeline was appended outside PHP context (exit $ret)"
+	fi
+)
+rm -rf "$T3B"
+
+# ── Test 3c: Closing-tag text inside a PHP string remains in PHP context ─────
+
+echo "── Test 3c: Closing-tag text inside a PHP string remains in PHP context ──"
+T3C=$(mktemp -d)
+register_temp_dir "$T3C"
+(
+	cd "$T3C"
+	git_init_test_repo .
+
+	cat > file.php <<'PHPEOF'
+<?php
+$xml = '<?xml version="1.0"?>';
+echo $xml;
+PHPEOF
+	git add file.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	if [ "$ret" -eq 0 ] && git show ":file.php" 2>/dev/null | tail -1 | grep -q 'vim: ft=php'; then
+		pass "Vim modeline retained when closing-tag text appears inside a string"
+	else
+		fail "Vim modeline was omitted for a pure PHP file (exit $ret)"
+	fi
+)
+rm -rf "$T3C"
+
 # ── Test 4: declare(strict_types=1) preserved exactly once ────────────────────
 
 echo "── Test 4: declare line preserved once, not duplicated ──"
@@ -523,11 +583,7 @@ register_temp_dir "$T10"
 	cat > padded.ts <<'TSEOF'
 
 
-
-
 const value = 1;
-
-
 
 
 TSEOF

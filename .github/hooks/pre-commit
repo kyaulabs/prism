@@ -268,10 +268,24 @@ if [ -n "$STAGED_SRC" ]; then
 			#      PHP context, not templating HTML output).
 			LINE1=$(head -1 "$TMP")
 			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
-				# File starts in PHP context. Skip modeline only if
-				# it ends outside PHP context (trailing ?>).
-				LAST_CONTENT=$(grep -v '^[[:space:]]*$' "$TMP" | tail -1)
-				if echo "$LAST_CONTENT" | grep -qE '\?>\s*$'; then
+				# File starts in PHP context. Use PHP tokenization when available
+				# so closing tags in strings are inert and HTML-ending templates
+				# remain outside PHP context.
+				if command -v php > /dev/null 2>&1; then
+					if ! php -r '
+						$code = file_get_contents($argv[1]);
+						if ($code === false) exit(2);
+						$inPhp = false;
+						foreach (token_get_all($code) as $token) {
+							if (!is_array($token)) continue;
+							if ($token[0] === T_OPEN_TAG || $token[0] === T_OPEN_TAG_WITH_ECHO) $inPhp = true;
+							if ($token[0] === T_CLOSE_TAG) $inPhp = false;
+						}
+						exit($inPhp ? 0 : 1);
+					' "$TMP"; then
+						APPEND_ML=false
+					fi
+				elif grep -qF '?>' "$TMP"; then
 					APPEND_ML=false
 				fi
 			else
