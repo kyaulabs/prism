@@ -14,6 +14,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -252,6 +253,31 @@ test("time-suffixed wrapper arguments are recognized", () => {
 
 test("assignment-prefixed bare words are not wrapper arguments", () => {
     assert.equal(classifyCommand("FOO=1 echo git push -f", OPTS), null);
+});
+
+test("pass 2: git blocks beat git warns across segments", () => {
+    assert.equal(classifyCommand("git reset --hard; git push -f", OPTS)?.severity, "block");
+});
+
+test("redirection operators do not split segments", () => {
+    assert.equal(classifyCommand("echo hi 2>&1", OPTS), null);
+    assert.equal(classifyCommand("echo hi >&2", OPTS), null);
+    // rm with a trailing redirection fails closed: the parser treats the
+    // redirection tokens as unresolvable operands (conservative).
+    assert.equal(classifyCommand("rm -rf /tmp/x 2>&1", OPTS)?.severity, "block");
+});
+
+test("variable in command position blocks; path-prefix variables pass", () => {
+    assert.equal(classifyCommand("$cmd -rf /home/u/x", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("$HOME/bin/foo", OPTS), null);
+});
+
+test("absolute wrapper paths are unwrapped", () => {
+    assert.equal(classifyCommand("/bin/bash -c 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+});
+
+test("find -exec git invocations are recognized", () => {
+    assert.equal(classifyCommand("find . -exec git push -f \\;", OPTS)?.severity, "block");
 });
 
 

@@ -11,6 +11,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -62,6 +63,14 @@ export const MAX_UNWRAP_DEPTH = 3;
 /** A command that is exactly a shell variable reference (value unknown). */
 export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])$/;
 
+/**
+ * A variable reference at the START of a segment in command position:
+ * followed by whitespace or end-of-segment (`$cmd -rf x`, `$cmd`), but
+ * NOT a path prefix (`$HOME/bin/x` — the shell resolves the path, the
+ * command itself is the file). Fail closed on the former (OCR round 8).
+ */
+export const VARIABLE_COMMAND_POSITION_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])(?=\s|$)/;
+
 /** Strip one layer of surrounding matching quotes (OCR round 5). */
 export function stripSurroundingQuotes(s: string): string {
     const t = s.trim();
@@ -111,6 +120,12 @@ export function splitShellSegments(command: string): string[] {
         // without splitting on separators inside it (OCR round 7).
         if (ch === "#" && (cur === "" || /\s$/.test(cur))) {
             while (i + 1 < command.length && command[i + 1] !== "\n") i++;
+            continue;
+        }
+        // An `&` that is part of a redirection operator (2>&1, &>, >&) is
+        // not a separator (OCR round 8).
+        if (ch === "&" && (command[i - 1] === ">" || command[i + 1] === ">")) {
+            cur += ch;
             continue;
         }
         cur += ch;
@@ -215,7 +230,7 @@ const SHELL_VALUE_OPTIONS = new Set(["--rcfile", "--init-file", "--rc"]);
  */
 export function findShellWrapperPayload(tokens: string[]): string | null {
     for (let i = 0; i < tokens.length; i++) {
-        if (!SHELL_WRAPPERS.has(tokens[i])) continue;
+        if (!SHELL_WRAPPERS.has(basename(tokens[i]))) continue;
         let j = i + 1;
         while (j < tokens.length) {
             const t = tokens[j];
@@ -402,6 +417,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         // Per-segment: a command that IS a bare variable reference cannot be
         // analyzed (echo hi; $p, bash -c "$p") — fail closed (OCR rounds 4-5).
         if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
+        if (VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
         const inner = tryUnwrapSegment(tokens);
         if (inner !== null) {
             const match = sensitiveOperandCheckImpl(inner, opts, depth + 1);
@@ -445,6 +461,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

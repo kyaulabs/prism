@@ -12,9 +12,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, VARIABLE_COMMAND_POSITION_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -147,7 +148,7 @@ function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] }
  * a plain argument: shell separators (the tokenizer keeps the split
  * residue of `&&`/`||`/`&`/`|`/`(`) and exec wrappers that run git.
  */
-const GIT_SEPARATORS = new Set(["&&", "||", "&", "|", "(", ";"]);
+const GIT_SEPARATORS = new Set(["&&", "||", "&", "|", "(", ";", "-exec", "-execdir", "-ok"]);
 const GIT_INVOCATION_WRAPPERS = new Set([
     "sudo", "xargs", "env", "command", "exec", "eval",
     "timeout", "nice", "nohup", "setsid", "stdbuf",
@@ -286,14 +287,18 @@ type CommandRule = (command: string, tokens: string[], ctx: RuleCtx) => Finding 
 // blocks beat the git warns because they run earlier in the loop.
 const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
 
-// Per-segment command rules, run after the segment rules in statement
-// order: warn-level rules first, then block-level rules.
-const COMMAND_RULES: readonly CommandRule[] = [
+// Per-segment command rules: block-level rules (git force-push /
+// no-verify) run before warn-level rules (DROP, git reset --hard,
+// git push --delete) so a block always beats a warn (OCR round 8).
+const COMMAND_BLOCK_RULES: readonly CommandRule[] = [
+    gitForcePushBlock,
+    gitNoVerifyBlock,
+];
+
+const COMMAND_WARN_RULES: readonly CommandRule[] = [
     sqlDropWarn,
     gitResetWarn,
     gitPushDeleteWarn,
-    gitForcePushBlock,
-    gitNoVerifyBlock,
 ];
 
 function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: number): Finding | null {
@@ -323,6 +328,12 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
                 reason: "command is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
             };
         }
+        if (VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) {
+            return {
+                severity: "block",
+                reason: "command position is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
+            };
+        }
 
         const innerCmd = tryUnwrapSegment(tokens);
         if (innerCmd !== null) {
@@ -345,13 +356,21 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             if (finding !== null) return finding;
         }
     }
-    // Pass 2: command rules across all segments (warn-level rules first,
-    // then block-level — documented first-match-wins within the array). A
-    // segment-1 warn must not preempt a segment-2 block (OCR round 7).
+    // Pass 2: command rules across all segments — block-level rules
+    // (git force-push / no-verify) first, then warn-level, so a git block
+    // beats a git warn in an earlier segment (OCR rounds 7-8).
     for (const segment of splitShellSegments(command)) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
-        for (const rule of COMMAND_RULES) {
+        for (const rule of COMMAND_BLOCK_RULES) {
+            const finding = rule(segment, tokens, ctx);
+            if (finding !== null) return finding;
+        }
+    }
+    for (const segment of splitShellSegments(command)) {
+        const tokens = tokenizeCommand(segment);
+        if (tokens.length === 0) continue;
+        for (const rule of COMMAND_WARN_RULES) {
             const finding = rule(segment, tokens, ctx);
             if (finding !== null) return finding;
         }
@@ -491,6 +510,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 
