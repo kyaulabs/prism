@@ -26,6 +26,7 @@
 
 
 
+
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -98,12 +99,21 @@ unit_rc 0 'require_posint accepts valid' '' require_posint MAX 10
 # FAKE_CURL_RETRY_AFTER — value written as a retry-after: header
 # FAKE_CURL_LOG — file receiving the running invocation count
 # FAKE_SLEEP_LOG — file receiving each sleep argument (fake sleep on PATH)
+# FAKE_CURL_ARGV_LOG — optional; each invocation's argv is appended to it,
+#                      one argument per line (argv-isolation tests)
+# FAKE_HEADER_LOG — optional; the payload of each --header @file argument
+#                   is appended to it (header-file auth tests)
+# FAKE_CURL_BODY — optional; response body written to --output
+#                  (default "fake body")
 write_fake_curl() {
 	local dir="$1"
 	cat > "$dir/curl" <<'FAKE_CURL'
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -n "${FAKE_CURL_ARGV_LOG:-}" ]; then
+	printf '%s\n' "$@" >> "$FAKE_CURL_ARGV_LOG"
+fi
 out=''
 hdr=''
 while [ $# -gt 0 ]; do
@@ -113,6 +123,15 @@ while [ $# -gt 0 ]; do
 		-o) out="$2"; shift 2 ;;
 		-o*) out="${1#-o}"; shift ;;
 		--dump-header) hdr="$2"; shift 2 ;;
+		--header)
+			case "${2:-}" in
+				@*)
+					if [ -n "${FAKE_HEADER_LOG:-}" ]; then
+						cat "${2#@}" >> "$FAKE_HEADER_LOG"
+					fi
+					;;
+			esac
+			shift 2 ;;
 		*) shift ;;
 	esac
 done
@@ -148,7 +167,7 @@ if [ "$status" = "C" ]; then
 	exit 28
 fi
 # Real curl writes no body on a failed transfer — neither do we.
-printf 'fake body\n' > "$out"
+printf '%s\n' "${FAKE_CURL_BODY:-fake body}" > "$out"
 if [ -n "$hdr" ] && [ -n "${FAKE_CURL_RETRY_AFTER:-}" ]; then
 	if [ "${FAKE_CURL_RETRY_AFTER_TIGHT:-0}" = "1" ]; then
 		printf 'retry-after:%s\r\n' "$FAKE_CURL_RETRY_AFTER" > "$hdr"
@@ -358,33 +377,10 @@ printf '%s\n' '── websearch: API key never enters curl argv (F1) ──'
 ARGV_LOG=$(mktemp)
 HEADER_LOG=$(mktemp)
 FAKE_DIR=$(mktemp -d)
-cat > "$FAKE_DIR/curl" <<'FAKE_CURL_ARGV'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$@" >> "$FAKE_CURL_ARGV_LOG"
-out=''
-while [ $# -gt 0 ]; do
-	case "$1" in
-		--output) out="$2"; shift 2 ;;
-		--output=*) out="${1#--output=}"; shift ;;
-		-o) out="$2"; shift 2 ;;
-		-o*) out="${1#-o}"; shift ;;
-		--dump-header) shift 2 ;;
-		--header)
-			case "$2" in
-				@*) cat "${2#@}" >> "${FAKE_HEADER_LOG:?}" ;;
-			esac
-			shift 2 ;;
-		*) shift ;;
-	esac
-done
-[ -n "$out" ] || { printf 'fake curl argv: no --output\n' >&2; exit 1; }
-printf '%s\n' '{"content":[{"type":"text","text":"search ok"}]}' > "$out"
-printf '200'
-FAKE_CURL_ARGV
-chmod +x "$FAKE_DIR/curl"
+write_fake_curl "$FAKE_DIR"
 set +e
 env PATH="$FAKE_DIR:$PATH" FAKE_CURL_ARGV_LOG="$ARGV_LOG" FAKE_HEADER_LOG="$HEADER_LOG" \
+	FAKE_CURL_BODY='{"content":[{"type":"text","text":"search ok"}]}' \
 	DEEPSEEK_API_KEY="sk-live-TEST-1234567890abcdef-DO_NOT_LEAK" \
 	bash "$WEB" 'test query' >/dev/null 2>&1
 rc=$?
@@ -458,6 +454,7 @@ fi
 
 printf '\nsearch_skills_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
