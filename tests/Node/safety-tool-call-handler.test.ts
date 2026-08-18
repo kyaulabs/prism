@@ -37,7 +37,7 @@ test("tripped breaker blocks every tool before policy", () => {
     const { deps } = makeDeps({ breaker: trippedBreaker() });
     assert.deepEqual(handleToolCall("read", { path: "/repo/ok.php" }, deps), {
         block: true,
-        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /new to reset.",
+        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /reload to reset the safety extension without starting a new session.",
     });
     assert.equal(handleToolCall("bash", { command: "echo hi" }, deps)?.block, true);
 });
@@ -79,6 +79,20 @@ test("clean bash passes without notify or breaker feed", () => {
     const { deps, notifyLog } = makeDeps();
     assert.equal(handleToolCall("bash", { command: "ls -la /repo" }, deps), undefined);
     assert.equal(notifyLog.length, 0);
+    assert.equal(deps.breaker.count("s1"), 0);
+});
+
+test("the check conflict-marker audit passes without feeding the breaker", () => {
+    const { deps } = makeDeps();
+    const command = [
+        "if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- . ':!adr/**' ':!docs/plans/**'; then",
+        "    echo 'FAIL: unresolved conflict marker(s) found'",
+        "else",
+        "    echo 'PASS: no unresolved conflict markers'",
+        "fi",
+    ].join("\n");
+
+    assert.equal(handleToolCall("bash", { command }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
 });
 

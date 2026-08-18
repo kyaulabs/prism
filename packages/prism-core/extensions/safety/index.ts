@@ -18,7 +18,8 @@
  * (the call actually ran) feeds a success. Three denials within the last
  * ten bash calls trip the breaker (ADR-0068); once tripped, every
  * subsequent `tool_call` in the session is blocked (fail closed,
- * ADR-0036) and the user is notified to `/new`.
+ * ADR-0036) and the user is notified to `/reload`, which reloads the
+ * extension while preserving the current conversation.
  *
  * Fail-closed invariants preserved verbatim from the opencode plugins:
  *   - any handler internal error → BLOCK (ADR-0036 — the whole policy

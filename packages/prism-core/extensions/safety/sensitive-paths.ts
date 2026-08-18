@@ -126,11 +126,46 @@ export function splitShellSegments(command: string): string[] {
  *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
  *  hides command boundaries from the tokenizer, so the gates fail closed
  *  (ADR-0036; security audit M-1/I-2). */
-const UNMODELABLE_CONSTRUCT_RE = /\$\(|`|<\(|>\(|\$'|<<</;
-
-/** True when a command contains a construct the flat tokenizer cannot model. */
+/** True when a command contains an active construct the flat tokenizer cannot model. */
 export function hasUnmodelableShellConstruct(command: string): boolean {
-    return UNMODELABLE_CONSTRUCT_RE.test(command);
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        if (quote === "'") {
+            if (ch === "'") quote = null;
+            continue;
+        }
+        if (quote === '"') {
+            if (ch === "\\") {
+                i++;
+                continue;
+            }
+            if (ch === '"') {
+                quote = null;
+                continue;
+            }
+            if (ch === "`" || (ch === "$" && command[i + 1] === "(")) return true;
+            continue;
+        }
+        if (ch === "\\") {
+            i++;
+            continue;
+        }
+        if (ch === "'") {
+            quote = "'";
+            continue;
+        }
+        if (ch === '"') {
+            quote = '"';
+            continue;
+        }
+        if (ch === "`" || command.startsWith("$'", i)) return true;
+        if (command.startsWith("$(", i)
+            || command.startsWith("<(", i)
+            || command.startsWith(">(", i)
+            || command.startsWith("<<<", i)) return true;
+    }
+    return false;
 }
 
 const SENSITIVE_FALLBACK_RE =

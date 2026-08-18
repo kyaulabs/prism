@@ -48,7 +48,8 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
 3. **Windowed-bash-denial circuit breaker (ADR-0068).** Three blocked bash
    calls within the last ten bash calls in one session trip the breaker.
    Once tripped, **every** subsequent `tool_call` is blocked (fail closed)
-   and the user is notified to `/new`. The escalation message is redacted —
+   and the user is notified to `/reload`, which reloads the extension while
+   preserving the current conversation. The escalation message is redacted —
    no command text, args, output, or metadata; only identity and count.
 
 ## ADR-0042 simplification (pi vs opencode)
@@ -82,7 +83,9 @@ no longer erase the denial count. The opencode-era
   deliberately out of scope.
 - **WARN gates are advisory.** See the enforcement list above.
 - **Benign command substitution is blocked** by the fail-closed guard —
-  the agent computes such values in separate steps.
+  the agent computes such values in separate steps. Syntax-like text inside
+  single-quoted literals is inert and does not count as substitution or a
+  here-string.
 
 ## Fail-closed invariants (ADR-0036)
 
