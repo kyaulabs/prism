@@ -132,6 +132,24 @@ else
     fail "metadata-like source text was treated as file metadata (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── tracked metadata examples in documentation ──'
+T5C=$(mktemp -d)
+register_temp_dir "$T5C"
+git_init_test_repo "$T5C"
+{
+    printf '%s\n' 'Example:' '```javascript'
+    printf '%s\n' '// $KYAULabs: example.js test@example.test 2026/08/18 +0000 Exp $'
+    printf '%s\n' 'const value = 1;'
+    printf '%s\n' '// vim: ft=javascript sts=4 sw=4 ts=4 et :' '```'
+} > "$T5C/example.md"
+git -C "$T5C" add example.md
+run_checker "$T5C" --tracked
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'tracked mode ignores RCS metadata examples in documentation'
+else
+    fail "documentation metadata example was treated as file metadata (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
 printf '%s\n' '── tracked exclusions ──'
 T6=$(mktemp -d)
 register_temp_dir "$T6"

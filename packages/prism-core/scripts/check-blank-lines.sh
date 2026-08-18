@@ -123,7 +123,11 @@ while IFS= read -r -d '' path <&3; do
     esac
     DIAGNOSTICS="$TMPDIR_CHECK/diagnostics"
     : > "$DIAGNOSTICS"
-    awk '
+    metadata_rules=0
+    case "$path" in
+        *.php|*.js|*.scss|*.sh|*.ts) metadata_rules=1 ;;
+    esac
+    awk -v metadata_rules="$metadata_rules" '
         /^[ \t]*$/ {
             line[NR] = $0
             blank[NR] = 1
@@ -149,7 +153,7 @@ while IFS= read -r -d '' path <&3; do
                 bad = 1
             }
             for (i = 1; i <= NR; i++) {
-                if (line[i] ~ /^[ \t]*(#|\/\/)[ \t]*\$KYAULabs:/) {
+                if (metadata_rules && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*\$KYAULabs:/) {
                     count = 0
                     for (j = i + 1; j <= NR && blank[j]; j++) {
                         metadata_blank[j] = 1
@@ -160,7 +164,7 @@ while IFS= read -r -d '' path <&3; do
                         bad = 1
                     }
                 }
-                if (line[i] ~ /^[ \t]*(#|\/\/)[ \t]*vim: ft=/) {
+                if (metadata_rules && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*vim: ft=/) {
                     count = 0
                     for (j = i - 1; j >= 1 && blank[j]; j--) {
                         metadata_blank[j] = 1
