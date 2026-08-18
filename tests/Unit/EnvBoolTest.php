@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: EnvBoolTest.php kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: EnvBoolTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
+
+
 
 
 
@@ -45,6 +48,7 @@ test('env_bool returns false when value is the string "off"', function () {
 });
 
 test('env_bool returns false when value is an empty string', function () {
+    putenv('APP_DEBUG');
     $_ENV['APP_DEBUG'] = '';
 
     $result = env_bool('APP_DEBUG');
@@ -195,6 +199,7 @@ test('env_bool empty-string value stays silent (treated as unset)', function () 
         }
     }
 });
+
 
 
 

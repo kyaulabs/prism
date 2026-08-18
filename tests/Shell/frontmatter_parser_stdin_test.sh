@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
+# $KYAULabs: frontmatter_parser_stdin_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -17,6 +18,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
+
+if ! command -v node >/dev/null 2>&1 || ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + js-yaml required (run: pnpm install)"
+	exit 0
+fi
+
 P="$REPO_ROOT/packages/prism-core/scripts/frontmatter-parser.js"
 
 # stdin mode returns the value
@@ -68,6 +75,7 @@ else
 fi
 
 print_summary "frontmatter_parser_stdin"
+
 
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -16,6 +17,12 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 VALIDATOR="$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh"
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
+
+if ! command -v node >/dev/null 2>&1 || ! command -v pi >/dev/null 2>&1 \
+	|| ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + pi + js-yaml required (run: pnpm install)"
+	exit 0
+fi
 
 printf '%s\n' '── validate-harness: real package tree ──'
 if output=$(bash "$VALIDATOR" 2>&1); then
@@ -83,6 +90,7 @@ trap - EXIT
 
 printf '\nvalidate-harness_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 

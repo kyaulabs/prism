@@ -16,6 +16,12 @@
 	"autoload-dev": {
 		"classmap": ["tests/"]
 	},
+	"scripts": {
+		"test": "pest",
+		"test:coverage": "pest --coverage --min=80",
+		"test:shell": "bash tests/Shell/run-all.sh",
+		"test:all": "composer test:shell && npm run test:node && composer test:coverage"
+	},
 	"config": {
 		"optimize-autoloader": true,
 		"sort-packages": true,

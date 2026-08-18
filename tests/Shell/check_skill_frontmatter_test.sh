@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -11,6 +12,12 @@ VALIDATOR="$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh"
 PARSER="$REPO_ROOT/packages/prism-core/scripts/frontmatter-parser.js"
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 
+if ! command -v node >/dev/null 2>&1 || ! command -v pi >/dev/null 2>&1 \
+	|| ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + pi + js-yaml required (run: pnpm install)"
+	exit 0
+fi
+
 printf '%s\n' '── pi skill frontmatter contract ──'
 if grep -q "does not match directory" "$VALIDATOR"; then pass 'name-directory parity enforced'; else fail 'name-directory parity missing'; fi
 if grep -q 'missing or empty name' "$VALIDATOR"; then pass 'name required'; else fail 'name requirement missing'; fi
@@ -21,6 +28,7 @@ if bash "$VALIDATOR" >/dev/null; then pass 'real skills satisfy contract'; else 
 
 printf '\ncheck_skill_frontmatter_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
+
 
 
 
