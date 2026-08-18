@@ -197,18 +197,7 @@ jobs:
         run: bash .github/scripts/check-script-executable-bits.sh
 
       - name: Shell regression tests
-        run: |
-          shopt -s nullglob
-          tests=( tests/Shell/*_test.sh )
-          if [ ${#tests[@]} -eq 0 ]; then
-            echo "No shell tests found in tests/Shell/"
-            exit 1
-          fi
-          for t in "${tests[@]}"; do
-            echo "::group::Running $t"
-            bash "$t"
-            echo "::endgroup::"
-          done
+        run: composer test:shell
 
       - name: PHP CS Fixer (dry-run)
         run: node packages/prism-core/scripts/prism-tool.js run php-cs-fixer -- fix --dry-run --diff
@@ -228,7 +217,7 @@ jobs:
           echo "PHP_SERVER_PID=$!" >> $GITHUB_ENV
           timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
-      - name: Pest (coverage >= 80%)
+      - name: Pest (backend/ coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
         run: |
           # Aggregate backstop gate (PCOV is configured in the environment by

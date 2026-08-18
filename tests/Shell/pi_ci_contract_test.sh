@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -82,7 +83,7 @@ assert_ci_contains 'prism-tool.js doctor --local-only' 'local CLI doctor runs be
 
 echo "── verification surface ──"
 assert_ci_contains 'npm run test:node|node --test' 'Node tests run'
-assert_ci_contains 'tests/Shell/.*_test\.sh' 'Shell regression tests run'
+assert_ci_contains 'composer test:shell|tests/Shell/.*_test\.sh' 'Shell regression tests run (composer test:shell or inline loop)'
 assert_ci_contains 'validate-harness.sh' 'Harness validation runs'
 assert_ci_contains 'npm pack' 'Package smoke packs archives'
 assert_ci_contains 'composer audit|npm audit' 'Dependency audits run'
@@ -127,6 +128,7 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
+
 
 
 
