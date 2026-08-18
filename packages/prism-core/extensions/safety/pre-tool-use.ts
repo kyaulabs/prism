@@ -3,6 +3,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -303,7 +304,9 @@ function findDeleteRule(tokens: string[], _ctx: RuleCtx): Finding | null {
     return null;
 }
 
-/** WARN: destructive SQL drops. */
+/** WARN: destructive SQL drops. Best-effort raw-string regex by design: a
+ *  faithful tokenized check would have to parse mysql -e / psql -c / heredoc
+ *  payloads. WARN gates are advisory, not a security boundary (L-1). */
 function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
     if (/\bDROP\s+(DATABASE|TABLE|SCHEMA)\b/i.test(command)) {
         return { severity: "warn", reason: "SQL DROP statement destroys data" };
@@ -311,17 +314,20 @@ function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding
     return null;
 }
 
-/** WARN: git reset --hard (discards uncommitted work). */
-function gitResetWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (/\bgit\s+reset\s+--hard\b/.test(command)) {
+/** WARN: git reset --hard (discards uncommitted work). Tokenized so global
+ *  options (-c, -C, …) and interleaved flags cannot hide the subcommand. */
+function gitResetWarn(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const git = expandedGitFlags(tokens);
+    if (git && git.subcmd === "reset" && git.expanded.includes("--hard")) {
         return { severity: "warn", reason: "git reset --hard discards uncommitted changes" };
     }
     return null;
 }
 
-/** WARN: git push --delete (removes a remote ref). */
-function gitPushDeleteWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
-    if (/\bgit\s+push\s+(?:[-\w]+\s+)*--delete\b/.test(command)) {
+/** WARN: git push --delete / -d (removes a remote ref). */
+function gitPushDeleteWarn(_command: string, tokens: string[], _ctx: RuleCtx): Finding | null {
+    const git = expandedGitFlags(tokens);
+    if (git && git.subcmd === "push" && (git.expanded.includes("--delete") || git.expanded.includes("-d"))) {
         return { severity: "warn", reason: "git push --delete removes a remote ref" };
     }
     return null;
@@ -372,6 +378,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

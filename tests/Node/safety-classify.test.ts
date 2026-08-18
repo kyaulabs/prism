@@ -5,6 +5,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -131,6 +132,17 @@ test("wrapper-anywhere: safe-zone payloads stay allowed", () => {
 
 test("wrapper-anywhere: quoted wrapper-shaped literals pass", () => {
     assert.equal(classifyCommand('echo \'bash -c "rm -rf /tmp/x"\'', OPTS), null);
+});
+
+test("git reset --hard warns across globals, flags, and whitespace", () => {
+    assert.equal(classifyCommand("git   reset   --hard HEAD~1", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("git -c core.hooksPath=/tmp/x reset --hard", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("git reset -q --hard", OPTS)?.severity, "warn");
+});
+
+test("git push --delete warns; short -d form now warns too", () => {
+    assert.equal(classifyCommand("git push -d origin main", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("git push -u origin --delete feature/x", OPTS)?.severity, "warn");
 });
 
 
