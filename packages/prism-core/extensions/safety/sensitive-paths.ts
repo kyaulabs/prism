@@ -3,6 +3,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -129,6 +130,22 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
     if (head === "eval") {
         if (tokens.length > 1) return tokens.slice(1).join(" ");
         return null;
+    }
+    return null;
+}
+
+/**
+ * Find a shell wrapper (`bash -c`, `sh -c`, …) at ANY token position and
+ * return its payload token for recursive reclassification. Catches wrapper
+ * chains the head-only unwrap misses (`sudo bash -c …`, `timeout 10
+ * bash -c …`, `find -exec bash -c …`). Quoted payloads arrive already
+ * quote-stripped from tokenizeCommand, so recursion re-tokenizes them.
+ */
+export function findShellWrapperPayload(tokens: string[]): string | null {
+    for (let i = 0; i + 1 < tokens.length; i++) {
+        if (SHELL_WRAPPERS.has(tokens[i]) && tokens[i + 1] === "-c") {
+            return tokens[i + 2] ?? null;
+        }
     }
     return null;
 }
@@ -326,6 +343,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

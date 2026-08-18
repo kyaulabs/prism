@@ -2,9 +2,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -225,6 +226,12 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             if (innerFinding !== null) return innerFinding;
             continue;
         }
+        const wrapped = findShellWrapperPayload(tokens);
+        if (wrapped !== null) {
+            const innerFinding = classifyCommandImpl(wrapped, opts, depth + 1);
+            if (innerFinding !== null) return innerFinding;
+            continue;
+        }
         for (const rule of SEGMENT_RULES) {
             const finding = rule(tokens, ctx);
             if (finding !== null) return finding;
@@ -365,6 +372,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

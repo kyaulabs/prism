@@ -4,6 +4,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -113,6 +114,23 @@ test("fail-closed: substitution/ANSI-C/here-string constructs block", () => {
 
 test("fail-closed: benign substitution also blocks (accepted cost)", () => {
     assert.equal(classifyCommand("echo $(date)", OPTS)?.severity, "block");
+});
+
+test("wrapper-anywhere: sudo/timeout/xargs/find-wrapped payloads reclassify", () => {
+    assert.equal(classifyCommand('sudo bash -c "rm -rf /home/u/x"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('sudo -u root bash -c "rm -rf /home/u/x"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('timeout 10 bash -c "rm -rf /home/u/x"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('xargs bash -c "rm -rf /home/u/x"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('find . -exec bash -c "rm -rf /home/u/x" \\;', OPTS)?.severity, "block");
+});
+
+test("wrapper-anywhere: safe-zone payloads stay allowed", () => {
+    assert.equal(classifyCommand('sudo bash -c "rm -rf /tmp/x"', OPTS), null);
+    assert.equal(classifyCommand('timeout 10 bash -c "rm -rf node_modules"', OPTS), null);
+});
+
+test("wrapper-anywhere: quoted wrapper-shaped literals pass", () => {
+    assert.equal(classifyCommand('echo \'bash -c "rm -rf /tmp/x"\'', OPTS), null);
 });
 
 
