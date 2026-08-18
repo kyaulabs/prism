@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_resolution_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
+# $KYAULabs: check_resolution_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -19,6 +20,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
+
+if [ ! -x "$REPO_ROOT/vendor/bin/php-cs-fixer" ]; then
+	skip "php-cs-fixer not installed (run: composer install)"
+	exit 0
+fi
 
 HOOK="$REPO_ROOT/.github/hooks/pre-commit"
 
@@ -135,6 +141,7 @@ fi
 
 print_summary "check_resolution_test.sh"
 exit $?
+
 
 
 
