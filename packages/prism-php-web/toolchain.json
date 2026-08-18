@@ -113,6 +113,7 @@
       "authentication": "none",
       "executable": "playwright",
       "versionArguments": ["--version"],
+      "executionTimeoutMs": 300000,
       "argumentPolicy": {"mode": "passthrough"}
     }
   ],
