@@ -1,6 +1,7 @@
 // $KYAULabs: safety-circuit-breaker.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD, WINDOW_SIZE } from "../../packages/prism-core/extensions/safety/denial-circuit-breaker.ts";
@@ -65,6 +66,19 @@ test("successes age the window out", () => {
     assert.equal(b.isTripped("s1"), false);
 });
 
+test("transitioned does not re-fire while tripped after window aging", () => {
+    const b = new DenialCircuitBreaker();
+    b.observe("s1", true);
+    b.observe("s1", true);
+    b.observe("s1", true);
+    assert.equal(b.isTripped("s1"), true);
+    for (let i = 0; i < 7; i++) b.observe("s1", false); // window [T,T,T,Fx7]
+    const obs = b.observe("s1", true); // evicts oldest denial; count stays 3
+    assert.equal(obs.count, 3);
+    assert.equal(obs.tripped, true);
+    assert.equal(obs.transitioned, false);
+});
+
 test("sessions are isolated", () => {
     const b = new DenialCircuitBreaker();
     b.observe("s1", true);
@@ -95,6 +109,7 @@ test("reset and clearAll return to never-seen state", () => {
     b.clearAll();
     assert.equal(b.count("s2"), 0);
 });
+
 
 
 

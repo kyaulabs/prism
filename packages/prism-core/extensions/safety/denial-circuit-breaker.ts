@@ -2,6 +2,7 @@
 
 
 
+
 /**
  * Pure state machine for the bounded-window denial circuit breaker
  * (ADR-0068, superseding ADR-0042's consecutive-denial semantics).
@@ -81,10 +82,10 @@ export class DenialCircuitBreaker {
             buf = [];
             this.outcomes.set(sessionID, buf);
         }
+        const prevCount = this.countIn(buf);
         buf.push(denied);
         if (buf.length > this.windowSize) buf.shift();
         const count = this.countIn(buf);
-        const prevCount = count - (denied ? 1 : 0);
         return {
             count,
             tripped: count >= this.threshold,
@@ -146,6 +147,7 @@ export class DenialCircuitBreaker {
         return buf.reduce((n, denied) => n + (denied ? 1 : 0), 0);
     }
 }
+
 
 
 
