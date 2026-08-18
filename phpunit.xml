@@ -6,12 +6,6 @@
     cacheDirectory=".phpunit.cache"
     colors="true"
 >
-    <groups>
-        <exclude>
-            <group>slow</group>
-        </exclude>
-    </groups>
-
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
@@ -29,6 +23,10 @@
 
     <source>
         <include>
+            <!-- Scope: backend/ only. .github/scripts and
+                 packages/*/scripts are covered behaviorally
+                 (tests/Shell/*_test.sh), not via clover; widening here
+                 would collapse the aggregate gate. -->
             <directory>backend</directory>
         </include>
     </source>
