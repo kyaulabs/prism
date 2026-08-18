@@ -10,6 +10,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -106,6 +107,12 @@ export function splitShellSegments(command: string): string[] {
             cur = "";
             continue;
         }
+        // A `#` at word start begins a comment: skip to end of line
+        // without splitting on separators inside it (OCR round 7).
+        if (ch === "#" && (cur === "" || /\s$/.test(cur))) {
+            while (i + 1 < command.length && command[i + 1] !== "\n") i++;
+            continue;
+        }
         cur += ch;
     }
     segments.push(cur);
@@ -194,14 +201,17 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
     return null;
 }
 
+/** Shell wrapper long options that consume a value (bash --rcfile f …). */
+const SHELL_VALUE_OPTIONS = new Set(["--rcfile", "--init-file", "--rc"]);
+
 /**
  * Find a shell wrapper (`bash -c`, `sh -c`, …) at ANY token position and
  * return its payload token for recursive reclassification. Catches wrapper
  * chains the head-only unwrap misses (`sudo bash -c …`, `timeout 10
  * bash -c …`, `find -exec bash -c …`), combined short flags (`-lc`), and
- * options between the wrapper and the command flag (`bash -e -c …`).
- * Quoted payloads arrive already quote-stripped from tokenizeCommand, so
- * recursion re-tokenizes them.
+ * options between the wrapper and the command flag (`bash -e -c …`,
+ * `bash --rcfile /dev/null -c …`). Quoted payloads arrive already
+ * quote-stripped from tokenizeCommand, so recursion re-tokenizes them.
  */
 export function findShellWrapperPayload(tokens: string[]): string | null {
     for (let i = 0; i < tokens.length; i++) {
@@ -211,6 +221,10 @@ export function findShellWrapperPayload(tokens: string[]): string | null {
             const t = tokens[j];
             if (isOptionToken(t)) {
                 if (isShortCommandFlag(t)) return tokens[j + 1] ?? null;
+                if (SHELL_VALUE_OPTIONS.has(t) && j + 1 < tokens.length) {
+                    j += 2; // long option + its value
+                    continue;
+                }
                 j++;
                 continue;
             }
@@ -431,6 +445,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

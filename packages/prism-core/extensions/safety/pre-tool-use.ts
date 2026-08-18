@@ -11,6 +11,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -182,18 +183,18 @@ function isGitInvocationContext(tokens: string[], k: number): boolean {
             k--;
             continue;
         }
-        // Bare word: an option value or assignment right-hand side (sudo
-        // -u root git, env FOO=1 git — the option/assignment branch above
-        // already handled the flag; this word is its value), or a numeric
-        // wrapper argument (timeout 10 git). Any other bare word means a
-        // plain-argument context (echo 10 git …, sudo echo git …).
+        // Bare word: an option value (sudo -u root git — the option branch
+        // above already handled the flag; this word is its value), or a
+        // numeric/time-suffixed wrapper argument (timeout 10 git, timeout
+        // 10s git). Any other bare word means a plain-argument context
+        // (echo 10 git …, FOO=1 echo git …, sudo echo git …).
         const prev = tokens[k - 1];
         if (prev !== undefined) {
-            if (isOptionToken(prev) || prev.includes("=")) {
+            if (isOptionToken(prev)) {
                 k--;
                 continue;
             }
-            if (GIT_INVOCATION_WRAPPERS.has(prev) && /^\d+$/.test(t)) {
+            if (GIT_INVOCATION_WRAPPERS.has(prev) && /^\d+(\.\d+)?(ms|s|m|h|d)?$/.test(t)) {
                 k--;
                 continue;
             }
@@ -210,9 +211,11 @@ function isGitInvocationContext(tokens: string[], k: number): boolean {
  */
 function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: string[] } | null {
     for (let i = 0; i < tokens.length; i++) {
-        if (tokens[i] !== "git") continue;
+        if (commandBasename(tokens[i]) !== "git") continue;
         if (i === 0 || isGitInvocationContext(tokens, i - 1)) {
-            const info = findGitSubcommand(tokens.slice(i));
+            // Normalize an absolute invocation (/usr/bin/git …) to a bare
+            // head so findGitSubcommand parses it (OCR round 7).
+            const info = findGitSubcommand([commandBasename(tokens[i]), ...tokens.slice(i + 1)]);
             if (info !== null) return info;
         }
     }
@@ -341,6 +344,13 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             const finding = rule(tokens, ctx);
             if (finding !== null) return finding;
         }
+    }
+    // Pass 2: command rules across all segments (warn-level rules first,
+    // then block-level — documented first-match-wins within the array). A
+    // segment-1 warn must not preempt a segment-2 block (OCR round 7).
+    for (const segment of splitShellSegments(command)) {
+        const tokens = tokenizeCommand(segment);
+        if (tokens.length === 0) continue;
         for (const rule of COMMAND_RULES) {
             const finding = rule(segment, tokens, ctx);
             if (finding !== null) return finding;
@@ -481,6 +491,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

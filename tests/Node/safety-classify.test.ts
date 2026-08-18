@@ -13,6 +13,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -224,6 +225,33 @@ test("head-wrapper trailing operands still judged", () => {
 test("non-numeric bare words after wrappers are not wrapper arguments", () => {
     assert.equal(classifyCommand("sudo echo git push -f", OPTS), null);
     assert.equal(classifyCommand("timeout 10 git push -f", OPTS)?.severity, "block");
+});
+
+test("segment blocks beat earlier-segment warns", () => {
+    assert.equal(classifyCommand("git reset --hard; rm -rf /home/u/x", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("git reset --hard; bash -c 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+});
+
+test("wrapper-anywhere: value-taking long options are skipped", () => {
+    assert.equal(classifyCommand("bash --rcfile /dev/null -c 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash --noprofile -c 'echo hi'", OPTS), null);
+});
+
+test("comment-aware segmentation: comment text does not split", () => {
+    assert.equal(classifyCommand("echo ok # ; rm -rf /home/u/x", OPTS), null);
+    assert.equal(classifyCommand("rm -rf /home/u/x # note", OPTS)?.severity, "block");
+});
+
+test("absolute git paths are recognized", () => {
+    assert.equal(classifyCommand("/usr/bin/git reset --hard", OPTS)?.severity, "warn");
+});
+
+test("time-suffixed wrapper arguments are recognized", () => {
+    assert.equal(classifyCommand("timeout 10s git push -f", OPTS)?.severity, "block");
+});
+
+test("assignment-prefixed bare words are not wrapper arguments", () => {
+    assert.equal(classifyCommand("FOO=1 echo git push -f", OPTS), null);
 });
 
 
