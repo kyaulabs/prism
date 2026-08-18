@@ -160,6 +160,54 @@ else
     fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── cached staged violation ignores working-tree repair ──'
+T8=$(mktemp -d)
+register_temp_dir "$T8"
+git_init_test_repo "$T8"
+printf 'alpha\n\n\n\nbeta\n' > "$T8/staged.txt"
+git -C "$T8" add staged.txt
+printf 'alpha\nbeta\n' > "$T8/staged.txt"
+run_checker "$T8" --cached
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'staged.txt:2: excessive blank-line run'; then
+    pass 'cached mode rejects staged violations despite working-tree repairs'
+else
+    fail "cached mode did not inspect the staged blob (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── cached mode ignores unstaged regressions and attributes ──'
+T9=$(mktemp -d)
+register_temp_dir "$T9"
+git_init_test_repo "$T9"
+printf 'clean\n' > "$T9/clean.txt"
+printf 'alpha\n\n\n\nbeta\n' > "$T9/generated.txt"
+printf '%s\n' 'generated.txt linguist-generated' > "$T9/.gitattributes"
+git -C "$T9" add .
+printf 'clean\n\n\n\nbroken\n' > "$T9/clean.txt"
+: > "$T9/.gitattributes"
+run_checker "$T9" --cached
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'cached mode uses staged content and staged attributes exclusively'
+else
+    fail "unstaged state affected cached mode (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── cached renamed path ──'
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+git_init_test_repo "$T10"
+printf 'clean\n' > "$T10/old.txt"
+git -C "$T10" add old.txt
+git -C "$T10" commit --quiet -m seed
+git -C "$T10" mv old.txt new.txt
+printf 'alpha\n\n\n\nbeta\n' > "$T10/new.txt"
+git -C "$T10" add new.txt
+run_checker "$T10" --cached
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'new.txt:2: excessive blank-line run'; then
+    pass 'cached mode reports the destination of a staged rename'
+else
+    fail "cached rename was not reported by destination (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
 printf '%s\n' '── operational failures ──'
 set +e
 bash "$CHECKER" --unknown > /dev/null 2>&1

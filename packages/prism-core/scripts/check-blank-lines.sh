@@ -3,10 +3,18 @@
 
 set -uo pipefail
 
-if [ "$#" -ne 1 ] || [ "$1" != "--tracked" ]; then
+if [ "$#" -ne 1 ]; then
     printf 'Usage: %s --tracked|--cached\n' "${0##*/}" >&2
     exit 2
 fi
+MODE="$1"
+case "$MODE" in
+    --tracked|--cached) ;;
+    *)
+        printf 'Usage: %s --tracked|--cached\n' "${0##*/}" >&2
+        exit 2
+        ;;
+esac
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
     printf 'check-blank-lines: not inside a Git checkout\n' >&2
@@ -17,9 +25,24 @@ cd "$REPO_ROOT" || exit 2
 TMPDIR_CHECK=$(mktemp -d) || exit 2
 trap 'rm -rf "$TMPDIR_CHECK"' EXIT
 ENTRIES="$TMPDIR_CHECK/entries"
-if ! git ls-files -s -z > "$ENTRIES"; then
-    printf 'check-blank-lines: unable to enumerate tracked files\n' >&2
-    exit 2
+if [ "$MODE" = "--tracked" ]; then
+    if ! git ls-files -s -z > "$ENTRIES"; then
+        printf 'check-blank-lines: unable to enumerate tracked files\n' >&2
+        exit 2
+    fi
+else
+    CANDIDATES="$TMPDIR_CHECK/candidates"
+    if ! git diff --cached --name-only --diff-filter=ACMR -z > "$CANDIDATES"; then
+        printf 'check-blank-lines: unable to enumerate cached files\n' >&2
+        exit 2
+    fi
+    : > "$ENTRIES"
+    while IFS= read -r -d '' candidate; do
+        if ! git ls-files -s -z -- "$candidate" >> "$ENTRIES"; then
+            printf 'check-blank-lines: unable to resolve cached mode for %q\n' "$candidate" >&2
+            exit 2
+        fi
+    done < "$CANDIDATES"
 fi
 
 PATHS="$TMPDIR_CHECK/paths"
@@ -34,10 +57,20 @@ while IFS= read -r -d '' record; do
     esac
 done < "$ENTRIES"
 
-if ! git check-attr --stdin -z \
-    linguist-generated \
-    linguist-vendored \
-    prism-blank-lines-exempt < "$PATHS" > "$ATTRS"; then
+if [ "$MODE" = "--cached" ]; then
+    git check-attr --cached --stdin -z \
+        linguist-generated \
+        linguist-vendored \
+        prism-blank-lines-exempt < "$PATHS" > "$ATTRS"
+    attribute_status=$?
+else
+    git check-attr --stdin -z \
+        linguist-generated \
+        linguist-vendored \
+        prism-blank-lines-exempt < "$PATHS" > "$ATTRS"
+    attribute_status=$?
+fi
+if [ "$attribute_status" -ne 0 ]; then
     printf 'check-blank-lines: unable to resolve file attributes\n' >&2
     exit 2
 fi
@@ -64,12 +97,21 @@ while IFS= read -r -d '' path <&3; do
         esac
     done
     [ "$excluded" -eq 0 ] || continue
-    [ -f "$path" ] || {
-        printf 'check-blank-lines: unable to read %q\n' "$path" >&2
-        exit 2
-    }
-    [ -s "$path" ] || continue
-    LC_ALL=C grep -Iq '' "$path"
+    if [ "$MODE" = "--cached" ]; then
+        CONTENT="$TMPDIR_CHECK/blob"
+        if ! git show ":$path" > "$CONTENT" 2>/dev/null; then
+            printf 'check-blank-lines: unable to read cached blob %q\n' "$path" >&2
+            exit 2
+        fi
+    else
+        CONTENT="$path"
+        [ -f "$CONTENT" ] || {
+            printf 'check-blank-lines: unable to read %q\n' "$path" >&2
+            exit 2
+        }
+    fi
+    [ -s "$CONTENT" ] || continue
+    LC_ALL=C grep -Iq '' "$CONTENT"
     text_status=$?
     case "$text_status" in
         0) ;;
@@ -154,10 +196,10 @@ while IFS= read -r -d '' path <&3; do
             }
             exit bad
         }
-    ' "$path" >> "$DIAGNOSTICS"
+    ' "$CONTENT" >> "$DIAGNOSTICS"
     analyzer_status=$?
-    if [ -n "$(tail -c 1 "$path")" ]; then
-        line_number=$(awk 'END { print NR }' "$path")
+    if [ -n "$(tail -c 1 "$CONTENT")" ]; then
+        line_number=$(awk 'END { print NR }' "$CONTENT")
         printf '%d: missing final line feed\n' "$line_number" >> "$DIAGNOSTICS"
         analyzer_status=1
     fi
