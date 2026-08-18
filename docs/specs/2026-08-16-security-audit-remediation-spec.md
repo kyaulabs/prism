@@ -126,9 +126,14 @@ the two gates cannot drift (same rationale as the shared
   (`tool-call-handler.ts`) and the tripped reason (`index.ts`) drop
   "consecutive" → "N bash denials within the last 10 bash calls";
   `index.ts` header doc comment states the windowed threat model.
-- ADR-0042: amendment note recording that the pi-era semantics (windowed
-  policy) supersede the opencode-era reset-on-success wording (per the `adr`
-  skill).
+- **ADR-0068 (new pi-era ADR, per architect review):** records the windowed
+  breaker semantics, superseding ADR-0042's opencode-era reset-on-success
+  wording by reference (0042 is frozen — "bodies stand as written" per
+  `adr/README.md`; it is not edited). ADR-0056's "3 consecutive" echo gets
+  a pointer to 0068. Written per the `adr` skill.
+- **CONTEXT.md glossary update (architect review):** the safety-extension
+  definition's "consecutive-denial circuit breaker" becomes the windowed
+  policy ("3 denials within the last 10 bash calls").
 
 ## Tests (Red → Green, per task)
 
