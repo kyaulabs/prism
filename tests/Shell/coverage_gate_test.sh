@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+
 
 
 
@@ -389,10 +390,28 @@ else
 	)
 fi
 
+# ── Test 14: Malformed clover XML → exit 2 ────────────────────────────────
+echo ""
+echo "── Test 14: malformed clover XML exits 2 ──"
+T14=$(mktemp -d)
+register_temp_dir "$T14"
+(
+	cd "$T14"
+	CLOVER="${T14}/clover.xml"
+	printf '%s\n' 'not xml at all' > "$CLOVER"
+	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T14" >out.txt 2>&1 || rc=$?
+	if [ "${rc:-0}" -eq 2 ] && grep -q 'could not parse clover XML' out.txt; then
+		pass "malformed clover XML exits 2"
+	else
+		fail "expected exit 2 + parse error, got rc=${rc:-0}"
+	fi
+)
+
 # ── Summary ────────────────────────────────────────────────────────────
 
 print_summary "coverage_gate_test.sh"
 exit $?
+
 
 
 
