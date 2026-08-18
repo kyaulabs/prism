@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: positive.php kyau@nova 2026/07/13 -0700 Exp $
-
-
-
+# $KYAULabs: positive.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # This file intentionally contains SQL injection patterns: request-
 # reachable data flowing into query() calls via several construction
@@ -41,8 +38,5 @@ $result = $db->query("SELECT * FROM users WHERE id = " . $id, true);
 #    name. The old pattern-not-regex suppressed this; taint mode
 #    correctly fires because execute() is not the method being called.
 $result = $db->query("SELECT * FROM execute_log WHERE id = " . $id);
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

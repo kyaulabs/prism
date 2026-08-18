@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -718,26 +698,5 @@ else
 fi
 
 print_summary "release_workflow"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

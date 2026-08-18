@@ -507,10 +507,6 @@ git commit -S -m $'chore(phpunit): drop dead slow-group exclusion, document cove
 # $KYAULabs: run-all.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 
-
-
-
-
 # Single entry point for the shell regression suite (composer test:shell,
 # ci.yml "Shell regression tests"). Iterates tests/Shell/*_test.sh, runs
 # every file even if some fail, and aggregates the exit code — mirrors CI
@@ -662,10 +658,6 @@ git commit -S -m $'ci(workflow): route shell tests through composer test:shell\n
 declare(strict_types=1);
 
 # $KYAULabs: StripJsoncTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
-
-
-
-
 
 
 test('strip_jsonc_comments strips an unterminated block comment', function () {

@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_argv_prefix_test.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: toolchain_argv_prefix_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
@@ -163,18 +149,5 @@ else
 fi
 
 print_summary "toolchain_argv_prefix"
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

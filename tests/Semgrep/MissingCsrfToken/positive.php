@@ -1,13 +1,6 @@
 <?php
 
-
-# $KYAULabs: positive.php kyau@nova 2026/07/14 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: positive.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # This file intentionally contains POST forms without a token hidden
 # input, in various attribute-order, case, and quote variants. The
@@ -39,4 +32,3 @@
 <form method="post" action="/api/update">
     <input type="hidden" name="id" value="42">
     <button type="submit">Update</button>
-

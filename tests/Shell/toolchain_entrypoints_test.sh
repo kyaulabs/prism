@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -133,7 +128,5 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "toolchain entrypoints"
 exit $?
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
-
 # ── Tests for coverage-gate.php changed-file coverage gate ───────────────────
 # Verifies that the script correctly parses Clover XML, intersects with
 # changed files from stdin, and enforces >=80% per-file coverage.
@@ -411,18 +399,5 @@ register_temp_dir "$T14"
 
 print_summary "coverage_gate_test.sh"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

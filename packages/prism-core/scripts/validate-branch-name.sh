@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-branch-name.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: validate-branch-name.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # validate-branch-name.sh — Validate current (or passed) branch against Git Flow convention.
 # See ADR-0028 for the regex specification and rationale.
@@ -55,12 +49,5 @@ cat >&2 <<EOF
   Run: bash packages/prism-core/scripts/new-branch.sh <type> <description>
 EOF
 exit 1
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

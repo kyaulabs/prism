@@ -109,8 +109,6 @@ declare(strict_types=1);
 # $KYAULabs: negative.php kyau@nova 2026/07/22 -0700 Exp $
 
 
-
-
 # This file uses safe query patterns — no request-reachable data
 # reaches the SQL string (first) argument of query(). The
 # kyaulabs-sqli-interpolated-query rule must NOT fire.
@@ -137,8 +135,6 @@ $result = $db->query("SELECT * FROM users WHERE id = " . $safe);
 # 5. Commented-out injection — AST-based taint mode cannot produce
 #    findings from comments.
 # $db->query("SELECT * FROM users WHERE id = $id");
-
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

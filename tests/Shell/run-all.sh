@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: run-all.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
 # Single entry point for the shell regression suite (composer test:shell,
 # ci.yml "Shell regression tests"). Iterates tests/Shell/*_test.sh, runs
 # every file even if some fail, and aggregates the exit code — mirrors CI
@@ -29,6 +23,5 @@ for t in "${tests[@]}"; do
 	bash "$t" || rc=1
 done
 exit "$rc"
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

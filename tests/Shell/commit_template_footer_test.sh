@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
@@ -62,15 +51,5 @@ else
 fi
 
 print_summary "commit_template_footer"
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

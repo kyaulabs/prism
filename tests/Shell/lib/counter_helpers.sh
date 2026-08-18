@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: counter_helpers.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
 # ── Counter-style test reporters for tests/Shell/*_test.sh ─────────────────────
 #
 # Source this file after REPO_ROOT is set:
@@ -30,10 +26,5 @@ FAIL=0
 pass() { printf '  PASS %s\n' "$*"; PASS=$((PASS + 1)); }
 fail() { printf '  FAIL %s\n' "$*" >&2; FAIL=$((FAIL + 1)); }
 skip() { printf '  SKIP %s\n' "$*" >&2; }
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

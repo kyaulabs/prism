@@ -1,23 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
@@ -170,22 +152,5 @@ if [ "$VIOLATIONS" -eq 0 ] && ! grep -q "FAIL" "$RESULT_FILE"; then
 fi
 
 print_summary "model_agnostic"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

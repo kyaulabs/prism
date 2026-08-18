@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -307,19 +293,5 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

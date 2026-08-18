@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_msg_parity_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
+# $KYAULabs: commit_msg_parity_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # commit_msg_parity_test.sh — verifies the commit-msg hook is fail-closed and
 # has the literal-\n guard (ADR-0025).
@@ -37,7 +34,5 @@ else
 fi
 
 print_summary "commit_msg_parity"
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

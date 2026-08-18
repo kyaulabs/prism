@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -276,17 +265,5 @@ Next:
     (or  pi install -l ./packages/prism-php-web  for local dev).
   • Authenticate your provider: /login <provider>  (or export its API key).
 EOF
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

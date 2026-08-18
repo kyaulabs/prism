@@ -1,5 +1,4 @@
-// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -28,6 +27,5 @@ function sha256(value) {
 }
 
 module.exports = {makeTempDir, sha256, writeExecutable, writeJson};
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

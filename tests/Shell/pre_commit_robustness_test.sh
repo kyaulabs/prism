@@ -1,21 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_robustness_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: pre_commit_robustness_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Robustness tests for pre-commit hook (issue #79) ──────────────────────────
 # Three defects:
@@ -209,23 +193,5 @@ fi
 
 print_summary "pre-commit robustness"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

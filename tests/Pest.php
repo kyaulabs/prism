@@ -2,22 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: Pest.php kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: Pest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /*
 |--------------------------------------------------------------------------
@@ -187,9 +172,5 @@ function strip_jsonc_comments(string $jsonc): string
 
     return $out;
 }
-
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

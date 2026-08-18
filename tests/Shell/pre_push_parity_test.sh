@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_push_parity_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: pre_push_parity_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # pre_push_parity_test.sh — verifies pre-push runs the CI-parity backstop
 # (validate-harness + shell tests) before allowing a push (ADR-0025),
@@ -106,11 +99,5 @@ else
 fi
 
 print_summary "pre_push_parity"
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

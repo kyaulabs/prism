@@ -2,16 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RulesPackTest.php kyau@nova 2026/07/14 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: RulesPackTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
@@ -356,16 +347,5 @@ test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
 
         return semgrepInvocationCounter();
     })->toBe(1);
-
-
-
-
-
-
-
-
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

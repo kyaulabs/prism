@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -246,18 +235,5 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

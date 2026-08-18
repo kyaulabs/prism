@@ -2,13 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorStatusTest.php kyau@nova 2026/07/13 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: AuroraConstructorStatusTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * Scans all web-accessible PHP files for hardcoded Aurora constructor
@@ -170,7 +164,5 @@ test('env_bool returns false when load_env file is absent (prod default)', funct
 
     expect($result)->toBeFalse();
 });
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

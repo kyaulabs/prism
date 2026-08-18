@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: check_resolution_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
 # ── Tests for pre-commit hook CS-fixer resolution ──────────────────────────
 # Covers:
 #   - Real pre-commit hook detects CS violations in staged PHP
@@ -141,11 +135,5 @@ fi
 
 print_summary "check_resolution_test.sh"
 exit $?
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

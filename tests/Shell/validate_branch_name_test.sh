@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate_branch_name_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
+# $KYAULabs: validate_branch_name_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -194,12 +186,5 @@ test_invalid_ignore_type
 
 print_summary "validate_branch_name_test.sh"
 exit $?
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

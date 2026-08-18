@@ -1,5 +1,4 @@
-// $KYAULabs: source-toolchain-parity.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: source-toolchain-parity.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -101,6 +100,5 @@ test('the runtime satisfies PHP 8.5 and ext-sockets', () => {
     );
     assert.equal(probe[2], true, 'ext-sockets is loaded');
 });
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -1,5 +1,4 @@
-// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -488,6 +487,5 @@ test('rejects an adapter component ID that collides with the core contract', (t)
         /adapter component collides with core component commitlint/
     );
 });
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

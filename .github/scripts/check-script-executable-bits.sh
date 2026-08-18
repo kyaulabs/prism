@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: check-script-executable-bits.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: check-script-executable-bits.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Executable-bit guard for harness shell helpers ────────────────────────────
 # Asserts every tracked .sh script under .github/scripts/ and packages/* carries
@@ -43,10 +36,5 @@ while IFS= read -r script; do
 done < <(git ls-files '.github/scripts/*.sh' 'packages/**/*.sh')
 
 exit "$fail"
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

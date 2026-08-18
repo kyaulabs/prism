@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # $KYAULabs$
 
@@ -538,21 +523,5 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

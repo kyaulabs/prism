@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
@@ -1814,25 +1794,5 @@ test_auth_hang_names_timeout
 
 print_summary "setup_rulesets_test.sh"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

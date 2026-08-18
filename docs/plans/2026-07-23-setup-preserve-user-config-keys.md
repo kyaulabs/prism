@@ -84,8 +84,6 @@ no placeholders):
 # $KYAULabs: setup_write_user_config_test.sh kyau@nova 2026/07/23 -0700 Exp $
 
 
-
-
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -216,7 +214,6 @@ print_summary "setup_write_user_config_test.sh"
 exit $?
 
 
-
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
@@ -303,7 +300,6 @@ jq -n --argjson existing "$EXISTING" --argjson new "$NEW_OBJ" '$existing * $new'
 mv "$TMP" "$CONFIG"
 
 echo "✓ Merged user-scoped /setup fields into $CONFIG (env preserved)" >&2
-
 
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

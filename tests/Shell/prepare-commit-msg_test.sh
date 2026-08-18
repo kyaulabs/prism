@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare-commit-msg_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
+# $KYAULabs: prepare-commit-msg_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for prepare-commit-msg hook (amend-of-pushed-commit guard) ───────────
 # Bugs prevented:
@@ -234,9 +230,5 @@ register_temp_dir "$T5"
 
 print_summary "prepare-commit-msg_test.sh"
 exit $?
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

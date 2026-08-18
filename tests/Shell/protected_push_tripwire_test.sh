@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: protected_push_tripwire_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
+# $KYAULabs: protected_push_tripwire_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── CI protected-push provenance tripwire tests ───────────────────────────────
 # Verifies that verify-protected-push.sh correctly gates protected-branch
@@ -642,6 +639,5 @@ else
 fi
 
 print_summary "protected_push_tripwire"
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

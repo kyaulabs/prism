@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_placeholder_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: rcs_header_placeholder_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Repro-first tests for pre-commit RCS placeholder rejection ──────────────
 # Verifies that the pre-commit hook blocks source files with placeholder
@@ -126,13 +120,5 @@ git_init_test_repo "$T3"
 
 print_summary "rcs-header placeholder"
 exit $?
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

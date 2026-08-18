@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
@@ -227,25 +207,5 @@ path_without_prism_tool() {
 	fi
 	printf '%s' "$out"
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -99,7 +99,6 @@ the file with a shebang on line 1.
 # $KYAULabs: setup_secrets_test.sh kyau@nova 2026/07/25 -0700 Exp $
 
 
-
 set -euo pipefail
 
 # ── check-setup-secrets.sh guard test (issue #194) ──────────────────────────
@@ -235,8 +234,6 @@ the `pre-commit` RCS auto-adder normalizes the header on first commit):
 ```bash
 #!/usr/bin/env bash
 # $KYAULabs: check-setup-secrets.sh kyau@nova 2026/07/25 -0700 Exp $
-
-
 
 
 # ── Secret-slot guard for tracked .opencode/setup.json (issue #194) ──────────
@@ -705,4 +702,3 @@ git commit -S -m $'ci(setup-secrets): document guarded-file rule in mcp.md + ADR
   rejecting commits/CI that put a real value in the tracked `env` block, which
   is the intended security hardening (issue #194). The repo's own current
   `setup.json` ships empty env, so it passes (asserted by A8).
-

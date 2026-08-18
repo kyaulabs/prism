@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: script_executable_bits_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: script_executable_bits_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for check-script-executable-bits.sh ─────────────────────────────────
 # Verifies the guard catches .sh scripts under .github/scripts/ that lack the
@@ -139,10 +132,5 @@ test_toolchain_entry_point_modes() {
 test_toolchain_entry_point_modes
 
 print_summary "script_executable_bits_test.sh"
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

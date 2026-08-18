@@ -1,12 +1,4 @@
-// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
+// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -109,9 +101,5 @@ test("quote-aware segmentation: variable payloads behind quoted separators", () 
 test("head-wrapper trailing operands still judged", () => {
     assert.equal(sensitiveOperandCheck("bash -c 'echo ok' ~/.ssh/id_rsa", OPTS)?.className, "ssh");
 });
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

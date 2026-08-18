@@ -1,22 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: lib_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: lib_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for tests/Shell/lib/test_helpers.sh ──────────────────────────────────
 
@@ -346,21 +329,5 @@ test_path_without_prism_tool
 # Summary
 print_summary "lib_test.sh"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

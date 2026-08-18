@@ -1,7 +1,4 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -125,11 +122,5 @@ test("internal error fails closed with ADR-0036 reason", () => {
     assert.match(result?.reason ?? "", /failing closed per ADR-0036/);
     assert.match(result?.reason ?? "", /boom/);
 });
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

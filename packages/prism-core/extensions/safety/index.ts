@@ -1,6 +1,4 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
@@ -143,7 +141,5 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

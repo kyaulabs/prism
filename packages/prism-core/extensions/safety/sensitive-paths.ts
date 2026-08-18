@@ -1,16 +1,4 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
@@ -461,17 +449,5 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

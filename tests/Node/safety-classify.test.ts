@@ -1,19 +1,4 @@
-// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -279,9 +264,5 @@ test("absolute wrapper paths are unwrapped", () => {
 test("find -exec git invocations are recognized", () => {
     assert.equal(classifyCommand("find . -exec git push -f \\;", OPTS)?.severity, "block");
 });
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

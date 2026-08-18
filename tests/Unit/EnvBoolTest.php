@@ -4,21 +4,6 @@ declare(strict_types=1);
 
 # $KYAULabs: EnvBoolTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 require_once __DIR__ . '/../../backend/env.php';
 
 afterEach(restoreEnvVars('APP_DEBUG', 'UNSET_KEY'));
@@ -199,8 +184,5 @@ test('env_bool empty-string value stays silent (treated as unset)', function () 
         }
     }
 });
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

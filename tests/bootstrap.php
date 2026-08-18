@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: bootstrap.php kyau@nova 2026/07/04 -0700 Exp $
+# $KYAULabs: bootstrap.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 // ── Platform-aware coverage driver selection ────────────────────────
 // PHPUnit auto-detects PCOV > Xdebug > phpdbg.
@@ -17,6 +17,5 @@ declare(strict_types=1);
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -117,12 +110,5 @@ const results = data.results.slice(0, limit).map((item) => ({
 }));
 process.stdout.write(`${JSON.stringify({ query, number_of_results: results.length, results }, null, 2)}\n`);
 NODE
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

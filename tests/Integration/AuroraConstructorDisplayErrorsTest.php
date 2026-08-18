@@ -2,13 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@cosmos.kyaulabs 2026/07/28 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: AuroraConstructorDisplayErrorsTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 beforeEach(function () {
     if (!is_file(dirname(__DIR__, 2) . '/aurora/aurora.inc.php')) {
@@ -118,7 +112,5 @@ test('temporary display_errors scripts are removed after assertion failures', fu
     assert(is_string($script));
     expect(is_file($script))->toBeFalse();
 });
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

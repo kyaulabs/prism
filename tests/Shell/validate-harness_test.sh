@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: validate-harness_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -90,16 +79,5 @@ trap - EXIT
 
 printf '\nvalidate-harness_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

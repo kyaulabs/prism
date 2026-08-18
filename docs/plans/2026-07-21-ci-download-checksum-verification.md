@@ -98,8 +98,6 @@ No other files change. No PHP, no SCSS, no JS, no docs other than this plan.
   # $KYAULabs: ci_download_integrity_test.sh <user>@<host> <YYYY/MM/DD> -0700 Exp $
 
 
-
-
   # ci_download_integrity_test.sh — Verify the CI workflow verifies a pinned
   # SHA-256 checksum before extracting every curl-downloaded tool, downloads
   # to mktemp paths (not fixed /tmp/<name>), never pipes curl into

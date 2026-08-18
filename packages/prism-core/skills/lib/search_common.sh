@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: search_common.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: search_common.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Shared validation helpers for skill search scripts ─────────────────────────
 #
@@ -165,21 +150,5 @@ search_request() {
 	fi
 	[ "$curl_rc" -eq 0 ]
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
