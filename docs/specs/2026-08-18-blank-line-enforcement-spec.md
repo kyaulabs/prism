@@ -37,13 +37,14 @@ Existing tools do not close the gap:
 3. Check staged blobs in pre-commit and the whole tracked tree in `/check` and
    CI.
 4. Report every violation without automatically rewriting general file content.
-5. Clean all existing violations without changing production behavior or test
-   fixture semantics.
+5. Clean all existing mutable, non-exempt violations without changing
+   production behavior or test fixture semantics.
 
 ## Non-goals
 
 - Do not reformat third-party dependencies, Git submodules, binary files,
-  symlinks, or generated files.
+  symlinks, generated files, or accepted immutable records whose historical
+  content cannot be rewritten.
 - Do not replace language-specific formatters or linters.
 - Do not remove Markdown hard line breaks represented by trailing spaces on a
   non-blank content line.
@@ -93,11 +94,17 @@ NUL-safe path handling. It skips:
 
 - non-regular Git modes, including symlinks and gitlinks;
 - blobs containing binary NUL data;
-- files marked `linguist-generated` or `linguist-vendored` through
-  `.gitattributes`.
+- files marked `linguist-generated`, `linguist-vendored`, or
+  `prism-blank-lines-exempt` through `.gitattributes`.
 
-No PHP/web-specific paths are embedded in the Prism core checker. Generated
-asset and vendored-content exclusions remain data-driven through
+`prism-blank-lines-exempt` is reserved for immutable first-party historical
+artifacts that already violate the policy and cannot be rewritten, principally
+accepted ADRs. Exemptions are path-specific rather than directory-wide, and
+each group carries an adjacent `.gitattributes` comment explaining why it is
+immutable. New ADRs and mutable documentation remain subject to the checker.
+
+No PHP/web-specific paths are embedded in the Prism core checker. Generated,
+vendored, and immutable-artifact exclusions remain data-driven through
 `.gitattributes`, preserving the core/adapter boundary.
 
 ### RCS normalizer
@@ -130,9 +137,10 @@ staged files
   -> pass or aggregated failure
 ```
 
-The hook resolves the checker from Prism core through the existing
-`prism-tool resolve scripts` boundary rather than assuming a consumer-local
-package checkout.
+Per ADR-0065, the hook first uses the checker from the current checkout when
+`$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh` exists, then
+falls back to `prism-tool resolve scripts`. It does not assume either install
+layout exclusively.
 
 `packages/prism-core/scripts/validate-harness.sh` invokes
 `check-blank-lines.sh --tracked`. The existing `/check`, pre-push, and CI paths
@@ -143,17 +151,20 @@ already invoke harness validation, preserving local/CI parity under ADR-0025.
 ### Cached mode
 
 1. Enumerate staged ACMR paths from the Git index.
-2. Retain regular, non-generated, non-vendored text blobs.
-3. Analyze the staged blob for each retained path.
-4. Aggregate diagnostics across all files.
-5. Return success only when no violations exist.
+2. Resolve Git modes and all exclusion attributes from the index, including
+   staged `.gitattributes` changes.
+3. Retain regular, non-generated, non-vendored, non-exempt text blobs.
+4. Analyze the staged blob for each retained path.
+5. Aggregate diagnostics across all files.
+6. Return success only when no violations exist.
 
 Unstaged working-tree content must not affect the result.
 
 ### Tracked mode
 
 1. Enumerate all tracked index entries.
-2. Apply the same regular/generated/vendored/text filters.
+2. Apply the same regular/generated/vendored/immutable-exemption/text filters
+   using working-tree attributes.
 3. Analyze each retained working-tree file.
 4. Aggregate diagnostics and return one final status.
 
@@ -197,6 +208,11 @@ Clean every existing first-party violation as part of the implementation:
 - restore exactly one final newline;
 - restore exactly one blank line at RCS boundaries.
 
+Do not edit accepted ADRs or other immutable records. Add
+`prism-blank-lines-exempt` only for specific immutable paths that fail the
+baseline scan, with an adjacent rationale in `.gitattributes`; do not use a
+blanket `adr/**` exemption.
+
 If a multiline test fixture semantically requires a longer newline sequence,
 replace visually padded physical lines with an explicit escaped-newline
 construction and verify that the resulting fixture bytes or behavior remain
@@ -216,10 +232,11 @@ Add `tests/Shell/check_blank_lines_test.sh` with coverage for:
 5. Spaces and tabs on otherwise blank lines fail.
 6. Markdown hard-break spaces on content lines pass.
 7. RCS boundaries require exactly one blank line.
-8. `--cached` reads staged content rather than unstaged working-tree content.
+8. `--cached` reads staged content and staged `.gitattributes` decisions rather
+   than unstaged working-tree state.
 9. `--tracked` catches violations in non-source text formats.
-10. Binary files, generated or vendored files, symlinks, and submodules are
-    skipped.
+10. Binary files, generated or vendored files, explicitly exempt immutable
+    paths, symlinks, and submodules are skipped.
 11. Filenames containing spaces or newlines are preserved and escaped clearly
     in diagnostics.
 12. Multiple violations are aggregated.
@@ -251,34 +268,39 @@ Run:
 
 ## Acceptance criteria
 
-- No tracked first-party text file violates the canonical whitespace policy.
+- No non-exempt tracked first-party text file violates the canonical whitespace
+  policy.
 - Repeated RCS normalization does not grow blank runs.
 - Pre-commit rejects staged violations in every text format.
 - `/check` and CI reject whole-tree violations.
 - Diagnostics identify every violating path and line in one run.
 - General violations are fail-only; only RCS-owned spacing is auto-normalized.
-- Generated or vendored files, symlinks, submodules, and binary files are
-  untouched.
+- Generated or vendored files, explicitly exempt immutable records, symlinks,
+  submodules, and binary files are untouched.
 - Existing application, harness, and fixture behavior remains unchanged.
 
 ## Risks and mitigations
 
 - **Fixture data changes:** physical blank lines inside heredocs can be semantic.
   Preserve required byte sequences explicitly and run the owning tests.
-- **Index/worktree confusion:** cached checks must read Git blobs, not working
-  files. Pin this with a staged-versus-unstaged regression test.
+- **Index/worktree confusion:** cached checks must read Git blobs and cached
+  attributes, not working files or working-tree attributes. Pin both with
+  staged-versus-unstaged regression tests.
 - **Filename handling:** newline- or space-bearing paths can break line-based
   loops and diagnostics. Use NUL-delimited Git plumbing, escape diagnostic
   paths, and test both forms.
 - **Core/adapter leakage:** generated PHP/web asset and third-party paths do not
   belong in core. Use generic `linguist-generated` and `linguist-vendored`
   attributes instead.
+- **Immutable-history conflict:** accepted ADRs cannot be cleaned merely to
+  satisfy a new formatter. Exempt only baseline-violating immutable paths via
+  documented, path-specific `prism-blank-lines-exempt` attributes.
 - **Normalizer regression:** moving or trimming content around PHP/shebang
   boundaries can affect execution. Extend the existing integration-level hook
   tests before changing the normalizer.
 
 ## Architecture decision
 
-No ADR is proposed. This is a reversible, routine quality-gate correction using
-existing Git hook, validator, and tool-resolution boundaries. The post-spec
-`architect` review will make the final ADR-required determination.
+No ADR is required. The architecture review determined this is a reversible,
+routine quality-gate correction using existing Git hook, validator, and
+tool-resolution boundaries.
