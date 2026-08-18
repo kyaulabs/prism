@@ -1,9 +1,10 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -203,6 +204,12 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
+    if (hasUnmodelableShellConstruct(command)) {
+        return {
+            severity: "block",
+            reason: "unmodelable shell construct (substitution/quoting/here-string) — failing closed per ADR-0036",
+        };
+    }
     const ctx: RuleCtx = {
         projectDir: opts.projectDir,
         home: process.env.HOME || "/",
@@ -358,6 +365,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

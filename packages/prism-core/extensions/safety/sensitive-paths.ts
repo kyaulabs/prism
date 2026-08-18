@@ -1,4 +1,5 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
@@ -48,6 +49,17 @@ const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
 export const MAX_UNWRAP_DEPTH = 3;
+
+/** Shell constructs the flat tokenizer cannot model — command/process
+ *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
+ *  hides command boundaries from the tokenizer, so the gates fail closed
+ *  (ADR-0036; security audit M-1/I-2). */
+const UNMODELABLE_CONSTRUCT_RE = /\$\(|`|<\(|>\(|\$'|<<</;
+
+/** True when a command contains a construct the flat tokenizer cannot model. */
+export function hasUnmodelableShellConstruct(command: string): boolean {
+    return UNMODELABLE_CONSTRUCT_RE.test(command);
+}
 
 const SENSITIVE_FALLBACK_RE =
     /\.env(\.|$)|\bauth\.json\b|mcp-auth\.json|intelephense|opencodereview|\.config\/opencode|\.ssh\/|\.aws\/|\.netrc|git-credentials|\/etc\/ssl\//;
@@ -312,6 +324,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

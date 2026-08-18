@@ -1,4 +1,5 @@
-// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -99,6 +100,19 @@ test("non-string command fails closed", () => {
     const f = classifyCommand(undefined as unknown as string, OPTS);
     assert.equal(f?.severity, "block");
     assert.match(f?.reason ?? "", /internal error/);
+});
+
+test("fail-closed: substitution/ANSI-C/here-string constructs block", () => {
+    assert.equal(classifyCommand("echo $(rm -rf /home/u/x)", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("echo `rm -rf /home/u/x`", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("cat <(rm -rf /home/u/x)", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash -c $'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("eval $'rm -rf /home/u/x'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("bash <<< 'rm -rf /home/u/x'", OPTS)?.severity, "block");
+});
+
+test("fail-closed: benign substitution also blocks (accepted cost)", () => {
+    assert.equal(classifyCommand("echo $(date)", OPTS)?.severity, "block");
 });
 
 
