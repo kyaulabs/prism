@@ -225,7 +225,7 @@ git commit -S -m $'fix(websearch): keep API key out of curl argv\n\nF1 of the se
 **Files:**
 - Modify: `.gitleaks.toml` (delete comment block + `[allowlist]` section)
 
-- [ ] **Step 1: Edit `.gitleaks.toml`** — remove everything except:
+- [x] **Step 1: Edit `.gitleaks.toml`** — remove everything except:
 
 ```toml
 [extend]
@@ -234,12 +234,12 @@ useDefault = true
 
 (Delete the `# Deliberate leak-detection canary allowlist.` comment block and the `[allowlist]` section with its two regexes — the canary test files were deleted in `9cc6e7b` and the strings exist nowhere in the tree.)
 
-- [ ] **Step 2: Verify config**
+- [x] **Step 2: Verify config**
 
 Run: `gitleaks version` and `git add .gitleaks.toml` then `gitleaks git --pre-commit --staged`
 Expected: no leaks found (the pre-commit hook runs the same command automatically at commit time).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -S -m $'chore(gitleaks): remove stale canary allowlist\n\nF2 of the secrets audit: the allowlist references canary test\nfiles deleted in 9cc6e7b and the anchored strings exist nowhere\nin the tree. Dead config erodes scanner trust; git history\npreserves the exact strings if canary tests return (ADR-0048\n§8 discipline is forward-looking and unaffected).\n\nAuthored-by: deepseek-v4-flash\nImplemented-by: deepseek-v4-flash\nTested-by: deepseek-v4-flash\nSigned-off-by: kyau <kyau@kyau.net>'
@@ -252,7 +252,7 @@ git commit -S -m $'chore(gitleaks): remove stale canary allowlist\n\nF2 of the s
 **Files:**
 - Modify: `.env.example` (header comment, before the "Copy this file to .env" line)
 
-- [ ] **Step 1: Edit `.env.example`** — insert before `# Copy this file to .env in the repository root and fill in values. NEVER`:
+- [x] **Step 1: Edit `.env.example`** — insert before `# Copy this file to .env in the repository root and fill in values. NEVER`:
 
 ```sh
 # Rotation
@@ -265,9 +265,9 @@ git commit -S -m $'chore(gitleaks): remove stale canary allowlist\n\nF2 of the s
 #     reload PHP-FPM, then drop the old credential.
 ```
 
-- [ ] **Step 2: Verify** — `git diff --stat` shows only `.env.example`; no code touched.
+- [x] **Step 2: Verify** — `git diff --stat` shows only `.env.example`; no code touched.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .env.example
@@ -286,7 +286,7 @@ git commit -S -m $'docs(env): document key rotation convention\n\nF3 of the secr
 - Produces: top-level `const SECRET_KEYS = ['APP_KEY', 'CSRF_KEY', 'DB_PASSWORD'];` consumed by `load_env()`; behavior: secret keys populate `$_ENV` only, non-secrets keep dual-population.
 - Consumes: existing `$_ENV`/`getenv()` server-env-wins precedence, `parse_env_value()`, `is_dangerous_env_name()` — all untouched.
 
-- [ ] **Step 1: Write the failing tests** — in `tests/Unit/LoadEnvTest.php`:
+- [x] **Step 1: Write the failing tests** — in `tests/Unit/LoadEnvTest.php`:
 
 Add to `beforeEach` (after `putenv('LD_PRELOAD');`):
 ```php
@@ -333,12 +333,12 @@ test('load_env non-secret keys still dual-populate $_ENV and getenv', function (
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php`
 Expected: `load_env keeps SECRET_KEYS out of getenv but present in $_ENV` FAILS — `getenv('APP_KEY')` returns `'deadbeefcafe'`, not false. (The non-secret guard test passes already — it pins the contract.)
 
-- [ ] **Step 3: Write minimal implementation** — in `backend/env.php`, after the `is_dangerous_env_name()` function, add:
+- [x] **Step 3: Write minimal implementation** — in `backend/env.php`, after the `is_dangerous_env_name()` function, add:
 
 ```php
 /**
@@ -372,12 +372,12 @@ with:
 
 And add one sentence to `load_env()`'s docblock: "Keys named in SECRET_KEYS populate $_ENV only and are not exported via putenv(), keeping them out of child-process environments."
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php tests/Unit/EnvBoolTest.php`
 Expected: all PASS; the new secret-key test green, existing dual-population contract test green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/env.php tests/Unit/LoadEnvTest.php
