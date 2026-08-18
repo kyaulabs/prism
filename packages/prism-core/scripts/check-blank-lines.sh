@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: check-blank-lines.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
 set -uo pipefail
 
 if [ "$#" -ne 1 ] || [ "$1" != "--tracked" ]; then
@@ -131,6 +130,5 @@ while IFS= read -r -d '' record; do
 done < "$ENTRIES"
 
 exit "$violations"
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

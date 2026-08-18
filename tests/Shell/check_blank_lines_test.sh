@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: check_blank_lines_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -73,15 +72,13 @@ printf '%s\n' '── tracked RCS boundaries ──'
 T4=$(mktemp -d)
 register_temp_dir "$T4"
 git_init_test_repo "$T4"
-cat > "$T4/bad.js" <<'EOF'
-
-
-
-const value = 1;
-
-
-
-EOF
+{
+    printf '%s\n' '// $KYAULabs: bad.js test@example.test 2026/08/18 +0000 Exp $'
+    printf '\n\n\n'
+    printf '%s\n' 'const value = 1;'
+    printf '\n\n\n'
+    printf '%s\n' '// vim: ft=javascript sts=4 sw=4 ts=4 et :'
+} > "$T4/bad.js"
 git -C "$T4" add bad.js
 run_checker "$T4" --tracked
 metadata_ok=1
@@ -101,11 +98,13 @@ T5=$(mktemp -d)
 register_temp_dir "$T5"
 git_init_test_repo "$T5"
 printf 'first line  \nsecond line\n' > "$T5/hard-break.md"
-cat > "$T5/canonical.js" <<'EOF'
-
-const value = 1;
-
-EOF
+{
+    printf '%s\n' '// $KYAULabs: canonical.js test@example.test 2026/08/18 +0000 Exp $'
+    printf '\n'
+    printf '%s\n' 'const value = 1;'
+    printf '\n'
+    printf '%s\n' '// vim: ft=javascript sts=4 sw=4 ts=4 et :'
+} > "$T5/canonical.js"
 git -C "$T5" add .
 run_checker "$T5" --tracked
 if [ "$CHECK_STATUS" -eq 0 ]; then
@@ -116,6 +115,5 @@ fi
 
 print_summary "check_blank_lines_test.sh"
 exit $?
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
