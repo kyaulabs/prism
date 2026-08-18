@@ -113,6 +113,66 @@ else
     fail "canonical special cases failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── tracked exclusions ──'
+T6=$(mktemp -d)
+register_temp_dir "$T6"
+git_init_test_repo "$T6"
+cat > "$T6/.gitattributes" <<'EOF'
+generated.txt linguist-generated
+vendored.txt linguist-vendored
+immutable.txt prism-blank-lines-exempt
+EOF
+for file in generated.txt vendored.txt immutable.txt; do
+    printf 'alpha\n\n\n\nbeta\n' > "$T6/$file"
+done
+printf 'binary\0payload\n\n\n\n' > "$T6/binary.dat"
+printf 'seed\n' > "$T6/seed.txt"
+git -C "$T6" add .
+git -C "$T6" commit --quiet -m seed
+seed_oid=$(git -C "$T6" rev-parse HEAD)
+git -C "$T6" update-index --add --cacheinfo "160000,$seed_oid,submodule"
+if can_symlink; then
+    ln -s generated.txt "$T6/link.txt"
+    git -C "$T6" add link.txt
+fi
+run_checker "$T6" --tracked
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'tracked mode skips attributed, binary, symlink, and gitlink entries'
+else
+    fail "tracked exclusions were analyzed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── tracked unusual paths and aggregation ──'
+T7=$(mktemp -d)
+register_temp_dir "$T7"
+git_init_test_repo "$T7"
+printf 'alpha\n\n\n\nbeta\n' > "$T7/space name.txt"
+newline_path=$'line\nbreak.txt'
+printf 'alpha\n\n\n\nbeta\n' > "$T7/$newline_path"
+git -C "$T7" add .
+run_checker "$T7" --tracked
+path_ok=1
+printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'space name.txt:2: excessive blank-line run' || path_ok=0
+printf '%s\n' "$CHECK_OUTPUT" | grep -Fq $'line\\nbreak.txt:2: excessive blank-line run' || path_ok=0
+if [ "$CHECK_STATUS" -eq 1 ] && [ "$path_ok" -eq 1 ]; then
+    pass 'tracked mode aggregates and safely escapes unusual paths'
+else
+    fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── operational failures ──'
+set +e
+bash "$CHECKER" --unknown > /dev/null 2>&1
+invalid_status=$?
+(cd "${TMPDIR:-/tmp}" && bash "$CHECKER" --tracked > /dev/null 2>&1)
+outside_status=$?
+set -e
+if [ "$invalid_status" -eq 2 ] && [ "$outside_status" -eq 2 ]; then
+    pass 'invalid invocation and missing Git context return status 2'
+else
+    fail "operational statuses were invalid=$invalid_status outside=$outside_status"
+fi
+
 print_summary "check_blank_lines_test.sh"
 exit $?
 

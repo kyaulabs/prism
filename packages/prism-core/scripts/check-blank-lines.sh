@@ -22,23 +22,63 @@ if ! git ls-files -s -z > "$ENTRIES"; then
     exit 2
 fi
 
-violations=0
+PATHS="$TMPDIR_CHECK/paths"
+ATTRS="$TMPDIR_CHECK/attributes"
+: > "$PATHS"
 while IFS= read -r -d '' record; do
     metadata=${record%%$'\t'*}
     path=${record#*$'\t'}
     file_mode=${metadata%% *}
     case "$file_mode" in
-        100644|100755) ;;
-        *) continue ;;
+        100644|100755) printf '%s\0' "$path" >> "$PATHS" ;;
     esac
+done < "$ENTRIES"
+
+if ! git check-attr --stdin -z \
+    linguist-generated \
+    linguist-vendored \
+    prism-blank-lines-exempt < "$PATHS" > "$ATTRS"; then
+    printf 'check-blank-lines: unable to resolve file attributes\n' >&2
+    exit 2
+fi
+
+violations=0
+exec 3< "$PATHS"
+exec 4< "$ATTRS"
+while IFS= read -r -d '' path <&3; do
+    excluded=0
+    for expected_attribute in linguist-generated linguist-vendored prism-blank-lines-exempt; do
+        if ! IFS= read -r -d '' attribute_path <&4 \
+            || ! IFS= read -r -d '' attribute_name <&4 \
+            || ! IFS= read -r -d '' attribute_value <&4; then
+            printf 'check-blank-lines: incomplete attribute output\n' >&2
+            exit 2
+        fi
+        if [ "$attribute_path" != "$path" ] || [ "$attribute_name" != "$expected_attribute" ]; then
+            printf 'check-blank-lines: mismatched attribute output\n' >&2
+            exit 2
+        fi
+        case "$attribute_value" in
+            unspecified|unset|false) ;;
+            *) excluded=1 ;;
+        esac
+    done
+    [ "$excluded" -eq 0 ] || continue
     [ -f "$path" ] || {
         printf 'check-blank-lines: unable to read %q\n' "$path" >&2
         exit 2
     }
     [ -s "$path" ] || continue
-    if ! LC_ALL=C grep -Iq '' "$path"; then
-        continue
-    fi
+    LC_ALL=C grep -Iq '' "$path"
+    text_status=$?
+    case "$text_status" in
+        0) ;;
+        1) continue ;;
+        *)
+            printf 'check-blank-lines: unable to classify %q\n' "$path" >&2
+            exit 2
+            ;;
+    esac
     DIAGNOSTICS="$TMPDIR_CHECK/diagnostics"
     : > "$DIAGNOSTICS"
     awk '
@@ -123,11 +163,14 @@ while IFS= read -r -d '' record; do
     fi
     if [ "$analyzer_status" -ne 0 ]; then
         violations=1
+        display_path=${path//$'\n'/\\n}
+        display_path=${display_path//$'\r'/\\r}
+        display_path=${display_path//$'\t'/\\t}
         while IFS= read -r diagnostic; do
-            printf '%s:%s\n' "$path" "$diagnostic"
+            printf '%s:%s\n' "$display_path" "$diagnostic"
         done < "$DIAGNOSTICS"
     fi
-done < "$ENTRIES"
+done
 
 exit "$violations"
 
