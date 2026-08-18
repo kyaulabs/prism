@@ -112,7 +112,7 @@ Expected: FAIL `search_request command-substitution trap` with `premature=1 body
 Run: `bash tests/Shell/search_skills_test.sh`
 Expected: all PASS, including the two new assertions; existing direct-call trap tests still pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/skills/lib/search_common.sh tests/Shell/search_skills_test.sh
