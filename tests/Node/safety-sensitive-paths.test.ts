@@ -1,4 +1,5 @@
-// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -72,6 +73,12 @@ test("resolveExtraPaths empty input yields no paths and no logs", () => {
     assert.deepEqual(resolveExtraPaths(" \n\t\n", (m) => logged.push(m)), []);
     assert.equal(logged.length, 0);
 });
+test("fail-closed: substitution-hidden sensitive reads are refused", () => {
+    assert.equal(sensitiveOperandCheck("echo $(cat ~/.ssh/id_rsa)", OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("cat `~/.ssh/id_rsa`", OPTS)?.className, "unresolvable");
+    assert.equal(sensitiveOperandCheck("bash -c $'cat ~/.ssh/id_rsa'", OPTS)?.className, "unresolvable");
+});
+
 
 
 

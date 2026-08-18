@@ -2,6 +2,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -287,6 +288,7 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
     if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
+    if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
     const segments = command.split(/[;&|\n]/);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
@@ -324,6 +326,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
