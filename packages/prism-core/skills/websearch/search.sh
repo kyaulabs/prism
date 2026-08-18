@@ -8,6 +8,7 @@
 
 
 
+
 set -euo pipefail
 
 # shellcheck disable=SC2034  # consumed by the sourced search_common.sh
@@ -45,11 +46,13 @@ BASE_URL="${BASE_URL%/}"
 REQUEST_FILE=$(mktemp)
 RESPONSE_FILE=$(mktemp)
 ERROR_FILE=$(mktemp)
+AUTH_HEADER_FILE=$(mktemp)
 cleanup() {
-	rm -f "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE"
+	rm -f "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE"
 }
 trap cleanup EXIT
-chmod 600 "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE"
+chmod 600 "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE"
+printf 'x-api-key: %s\n' "$DEEPSEEK_API_KEY" > "$AUTH_HEADER_FILE"
 
 QUERY="$QUERY" MODEL="$MODEL" THINKING="$THINKING" MAX_TOKENS="$MAX_TOKENS" \
 	node > "$REQUEST_FILE" <<'NODE'
@@ -79,7 +82,7 @@ HTTP_STATUS=$(search_request \
 	--output "$RESPONSE_FILE" \
 	--request POST \
 	--header 'content-type: application/json' \
-	--header "x-api-key: ${DEEPSEEK_API_KEY}" \
+	--header "@$AUTH_HEADER_FILE" \
 	--data-binary "@$REQUEST_FILE" \
 	--connect-timeout 15 \
 	--max-time 180 \
@@ -154,6 +157,7 @@ if (results.length > 0) {
 	});
 }
 NODE
+
 
 
 
