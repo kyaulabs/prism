@@ -2,6 +2,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD, WINDOW_SIZE } from "../../packages/prism-core/extensions/safety/denial-circuit-breaker.ts";
@@ -97,6 +98,11 @@ test("custom threshold", () => {
     assert.equal(second.transitioned, true);
 });
 
+test("invalid threshold or windowSize is rejected", () => {
+    assert.throws(() => new DenialCircuitBreaker({ threshold: 0 }), /threshold and windowSize must be >= 1/);
+    assert.throws(() => new DenialCircuitBreaker({ windowSize: 0 }), /threshold and windowSize must be >= 1/);
+});
+
 test("reset and clearAll return to never-seen state", () => {
     const b = new DenialCircuitBreaker();
     b.observe("s1", true);
@@ -109,6 +115,7 @@ test("reset and clearAll return to never-seen state", () => {
     b.clearAll();
     assert.equal(b.count("s2"), 0);
 });
+
 
 
 
