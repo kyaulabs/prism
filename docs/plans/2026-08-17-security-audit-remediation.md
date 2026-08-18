@@ -52,7 +52,7 @@ reference).
   exported from `sensitive-paths.ts`, consumed by `classifyCommandImpl`
   (this task) and `sensitiveOperandCheckImpl` (Task 2).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Node/safety-classify.test.ts`, before the final modeline:
 
@@ -71,13 +71,13 @@ test("fail-closed: benign substitution also blocks (accepted cost)", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: FAIL — all six construct assertions return `null` (not blocked),
 proving the bypass.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `sensitive-paths.ts`, after the `MAX_UNWRAP_DEPTH` export:
 
@@ -107,12 +107,12 @@ In `pre-tool-use.ts`: add `hasUnmodelableShellConstruct` to the import from
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: PASS — all new and existing assertions green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts packages/prism-core/extensions/safety/pre-tool-use.ts tests/Node/safety-classify.test.ts
@@ -132,7 +132,7 @@ git commit -S -m $'fix(safety): fail closed on unmodelable shell constructs in c
 - Produces: substitution-hidden sensitive reads refused with className
   `"unresolvable"` (any non-null match blocks in `handleToolCall`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Node/safety-sensitive-paths.test.ts`, before the final modeline:
 
@@ -144,14 +144,14 @@ test("fail-closed: substitution-hidden sensitive reads are refused", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: FAIL — first two assertions currently pass via the fallback regex
 but return `"dynamic"` not `"unresolvable"` (third returns `null`); the
 `"unresolvable"` expectations fail.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `sensitive-paths.ts`, at the top of `sensitiveOperandCheckImpl` (after the
 depth check):
@@ -162,12 +162,12 @@ depth check):
     }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts tests/Node/safety-sensitive-paths.test.ts
@@ -188,7 +188,7 @@ git commit -S -m $'fix(safety): fail closed on unmodelable shell constructs in s
   exported from `sensitive-paths.ts`; returns the payload token of the first
   `bash|sh|zsh|dash|ksh -c` found at any token position (null when none).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Node/safety-classify.test.ts`:
 
@@ -211,12 +211,12 @@ test("wrapper-anywhere: quoted wrapper-shaped literals pass", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: FAIL — the five wrapped-`rm` cases return `null`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `sensitive-paths.ts`, after `tryUnwrapSegment`:
 
@@ -251,12 +251,12 @@ Guard B in `classifyCommandImpl`'s segment loop, immediately after the
         }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts packages/prism-core/extensions/safety/pre-tool-use.ts tests/Node/safety-classify.test.ts
@@ -274,7 +274,7 @@ git commit -S -m $'fix(safety): reclassify shell-wrapper payloads at any token p
 **Interfaces:**
 - Consumes: `findShellWrapperPayload` (Task 3).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Node/safety-sensitive-paths.test.ts`:
 
@@ -284,12 +284,12 @@ test("wrapper-anywhere: wrapped sensitive reads are refused", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: FAIL — currently `null` (the wrapped payload is never reached).
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `sensitive-paths.ts`, in `sensitiveOperandCheckImpl`'s segment loop,
 immediately after the `tryUnwrapSegment` block:
@@ -303,12 +303,12 @@ immediately after the `tryUnwrapSegment` block:
         }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/sensitive-paths.ts tests/Node/safety-sensitive-paths.test.ts
@@ -327,7 +327,7 @@ git commit -S -m $'fix(safety): reclassify wrapper payloads in the sensitive gat
 - Consumes: `expandedGitFlags` (existing) — `{ subcmd, expanded }` where
   `expanded` is the subcommand's rest with short-flag bundles expanded.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/Node/safety-classify.test.ts`:
 
@@ -344,13 +344,13 @@ test("git push --delete warns; short -d form now warns too", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: FAIL — `git -c … reset --hard`, `git reset -q --hard`, and
 `git push -d origin main` return `null` (the raw-string regexes miss them).
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `pre-tool-use.ts`, replace the two regex bodies:
 
@@ -384,13 +384,13 @@ Update `sqlDropWarn`'s docblock to record the best-effort contract:
 function sqlDropWarn(command: string, _tokens: string[], _ctx: RuleCtx): Finding | null {
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-classify.test.ts`
 Expected: PASS — existing git tests (`git reset --hard`, `git push origin
 --delete feature/x`, `git -c … commit -m y` → null) stay green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/pre-tool-use.ts tests/Node/safety-classify.test.ts
@@ -413,7 +413,7 @@ git commit -S -m $'fix(safety): tokenize git WARN gates (audit L-1)\n\ngitResetW
   `reset(sessionID)`, `clearAll()` unchanged in shape. Constructor gains
   optional `windowSize` (defaults to `WINDOW_SIZE`).
 
-- [ ] **Step 1: Rewrite the tests (Red first — replace the "success resets" test, add window tests)**
+- [x] **Step 1: Rewrite the tests (Red first — replace the "success resets" test, add window tests)**
 
 Replace the entire content between the header and the modeline in
 `tests/Node/safety-circuit-breaker.test.ts`:
@@ -515,13 +515,13 @@ test("reset and clearAll return to never-seen state", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-circuit-breaker.test.ts`
 Expected: FAIL — the interleaving and aging tests fail against the
 consecutive counter (`observe(false)` zeroes the count).
 
-- [ ] **Step 3: Rewrite the implementation**
+- [x] **Step 3: Rewrite the implementation**
 
 Replace `denial-circuit-breaker.ts` entirely (header/modeline preserved):
 
@@ -675,12 +675,12 @@ export class DenialCircuitBreaker {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-circuit-breaker.test.ts`
 Expected: PASS. Then `npm run test:node` to confirm no other suite broke.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/denial-circuit-breaker.ts tests/Node/safety-circuit-breaker.test.ts
@@ -699,7 +699,7 @@ git commit -S -m $'fix(safety): windowed circuit breaker (audit L-3)\n\nConsecut
 **Interfaces:**
 - Consumes: `WINDOW_SIZE` (Task 6).
 
-- [ ] **Step 1: Write the failing test (update the pinned assertion)**
+- [x] **Step 1: Write the failing test (update the pinned assertion)**
 
 In `tests/Node/safety-tool-call-handler.test.ts`, replace the tripped-reason
 assertion:
@@ -708,12 +708,12 @@ assertion:
         reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /new to reset.",
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test tests/Node/safety-tool-call-handler.test.ts`
 Expected: FAIL — the old wording is still emitted.
 
-- [ ] **Step 3: Implement the wording + reference changes**
+- [x] **Step 3: Implement the wording + reference changes**
 
 In `tool-call-handler.ts`:
 - Import: `import { DenialCircuitBreaker, WINDOW_SIZE } from "./denial-circuit-breaker.ts";` (add `WINDOW_SIZE`).
@@ -768,13 +768,13 @@ with:
 - Breaker field docblock: `/** Per-session windowed-bash-denial circuit breaker (ADR-0068). */`
 - `tool_execution_end` comment: `// A bash that actually executed (exit 0, nonzero exit, or ask-approved) is not a denial — feed a success into the window (denials persist; ADR-0068).`
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test tests/Node/safety-tool-call-handler.test.ts` then
 `npm run test:node`.
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/prism-core/extensions/safety/tool-call-handler.ts packages/prism-core/extensions/safety/index.ts tests/Node/safety-tool-call-handler.test.ts
@@ -793,7 +793,7 @@ git commit -S -m $'fix(safety): update breaker wording and ADR references\n\nEsc
 - Consumes: existing `load_env(string $path): void` contract — never throws.
 - Produces: files > 1 MiB or > 10,000 lines are a logged fail-safe no-op.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/Unit/LoadEnvTest.php`, before the final modeline:
 
@@ -826,12 +826,12 @@ test('load_env no-ops on a .env with more than 10000 lines', function () {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php`
 Expected: FAIL — both files currently load and populate the keys.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 In `backend/env.php`, after the `is_readable` block and before
 `$lines = @file(...)`:
@@ -865,12 +865,12 @@ In the function docblock, after the file-existence sentence, add:
  * L-2).
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `vendor/bin/pest tests/Unit/LoadEnvTest.php`
 Expected: PASS (existing 20+ tests stay green).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/env.php tests/Unit/LoadEnvTest.php
@@ -886,7 +886,7 @@ git commit -S -m $'fix(env): bound load_env input (audit L-2)\n\nA filesize cap 
 
 **Interfaces:** none (documentation only).
 
-- [ ] **Step 1: Update the enforcement list**
+- [x] **Step 1: Update the enforcement list**
 
 In "What it enforces" §2, after the existing classifier sentence, add:
 
@@ -902,7 +902,7 @@ In "What it enforces" §2, after the existing classifier sentence, add:
    can skip them.
 ```
 
-- [ ] **Step 2: Update the breaker section**
+- [x] **Step 2: Update the breaker section**
 
 In "What it enforces" §3, replace:
 
@@ -932,7 +932,7 @@ Windowed semantics supersede ADR-0042's reset-on-success wording
 (ADR-0068): interleaved benign commands no longer erase the denial count.
 ```
 
-- [ ] **Step 3: Add the Known limits section**
+- [x] **Step 3: Add the Known limits section**
 
 Before "## Fail-closed invariants (ADR-0036)", add:
 
@@ -949,7 +949,7 @@ Before "## Fail-closed invariants (ADR-0036)", add:
   the agent computes such values in separate steps.
 ```
 
-- [ ] **Step 4: Update the file-table port note**
+- [x] **Step 4: Update the file-table port note**
 
 In the `denial-circuit-breaker.ts` row, append:
 
@@ -958,7 +958,7 @@ In the `denial-circuit-breaker.ts` row, append:
    with the bounded-window policy (ADR-0068).
 ```
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `git diff --stat` (docs only); `npm run test:node` still green.
 
@@ -977,7 +977,7 @@ git commit -S -m $'docs(safety): record fail-closed guard, WARN contract, known 
 
 **Interfaces:** none (documentation only).
 
-- [ ] **Step 1: Write ADR-0068**
+- [x] **Step 1: Write ADR-0068**
 
 Create `adr/0068-windowed-denial-circuit-breaker.md`:
 
@@ -1058,7 +1058,7 @@ loop is never tripped. The harness's core safety posture is fail-closed
   tune; the ring-buffer window is simpler and directly expressible as
   "3 in the last 10".
 
-- [ ] **Step 2: Update CONTEXT.md**
+- [x] **Step 2: Update CONTEXT.md**
 
 Replace the glossary "safety extension" row's tail (CONTEXT.md line 49):
 
@@ -1073,7 +1073,7 @@ Replace the "External Data" invariant bullet (CONTEXT.md line 133):
   for that Pi session.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add adr/0068-windowed-denial-circuit-breaker.md CONTEXT.md
