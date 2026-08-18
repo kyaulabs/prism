@@ -4,6 +4,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -82,6 +83,11 @@ test("fail-closed: substitution-hidden sensitive reads are refused", () => {
 
 test("wrapper-anywhere: wrapped sensitive reads are refused", () => {
     assert.equal(sensitiveOperandCheck('sudo bash -c "cat ~/.ssh/id_rsa"', OPTS)?.className, "ssh");
+});
+
+test("wrapper-anywhere: deny-floor operands outside the wrapper still judged", () => {
+    assert.equal(sensitiveOperandCheck("cat ~/.ssh/id_rsa bash -c 'echo ok'", OPTS)?.className, "ssh");
+    assert.equal(sensitiveOperandCheck("echo x > ~/.netrc bash -c 'echo ok'", OPTS)?.className, "netrc");
 });
 
 

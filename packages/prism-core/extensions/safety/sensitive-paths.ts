@@ -5,6 +5,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -321,7 +322,9 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         if (wrapped !== null) {
             const match = sensitiveOperandCheckImpl(wrapped, opts, depth + 1);
             if (match) return match;
-            continue;
+            // Fall through: the payload was clean, but the segment's own
+            // tokens (deny-floor operands beside the wrapper) still need
+            // judging (OCR finding C3).
         }
         const trust = setupScriptTrust(tokens, opts, depth);
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
@@ -350,6 +353,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 

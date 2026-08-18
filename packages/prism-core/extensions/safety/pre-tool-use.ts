@@ -4,6 +4,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -231,7 +232,9 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         if (wrapped !== null) {
             const innerFinding = classifyCommandImpl(wrapped, opts, depth + 1);
             if (innerFinding !== null) return innerFinding;
-            continue;
+            // Fall through: the payload was clean, but the segment's own
+            // tokens (e.g. rm operands beside the wrapper) still need the
+            // segment rules (OCR finding C3).
         }
         for (const rule of SEGMENT_RULES) {
             const finding = rule(tokens, ctx);
@@ -378,6 +381,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

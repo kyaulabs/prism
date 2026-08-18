@@ -6,6 +6,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -143,6 +144,12 @@ test("git reset --hard warns across globals, flags, and whitespace", () => {
 test("git push --delete warns; short -d form now warns too", () => {
     assert.equal(classifyCommand("git push -d origin main", OPTS)?.severity, "warn");
     assert.equal(classifyCommand("git push -u origin --delete feature/x", OPTS)?.severity, "warn");
+});
+
+test("wrapper-anywhere: segment tokens still analyzed after a clean wrapper payload", () => {
+    assert.equal(classifyCommand("rm -rf /home/u/x bash -c 'echo ok'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("sudo rm -rf /etc bash -c 'echo ok'", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("rm -rf /tmp/x bash -c 'echo ok'", OPTS), null);
 });
 
 
