@@ -5,6 +5,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -88,6 +89,10 @@ test("wrapper-anywhere: wrapped sensitive reads are refused", () => {
 test("wrapper-anywhere: deny-floor operands outside the wrapper still judged", () => {
     assert.equal(sensitiveOperandCheck("cat ~/.ssh/id_rsa bash -c 'echo ok'", OPTS)?.className, "ssh");
     assert.equal(sensitiveOperandCheck("echo x > ~/.netrc bash -c 'echo ok'", OPTS)?.className, "netrc");
+});
+
+test("wrapper payloads that are bare variable references fail closed", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "$p"', OPTS)?.className, "unresolvable");
 });
 
 

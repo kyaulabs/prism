@@ -10,6 +10,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -183,6 +184,17 @@ test("git rules fire for wrappers with options or arguments", () => {
     assert.equal(classifyCommand("env FOO=1 git reset --hard", OPTS)?.severity, "warn");
     assert.equal(classifyCommand("echo sudo git push -f", OPTS), null);
     assert.equal(classifyCommand("echo 10 git push -f", OPTS), null);
+});
+
+test("wrapper payloads that are bare variable references fail closed", () => {
+    assert.equal(classifyCommand('bash -c "$cmd"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('sudo bash -c "$cmd"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand('cmd="rm -rf /home/u/x"; bash -c "$cmd"', OPTS)?.severity, "block");
+    assert.equal(classifyCommand("echo $cmd", OPTS), null);
+});
+
+test("git rules fire through chained wrappers", () => {
+    assert.equal(classifyCommand("sudo -u root env FOO=1 git push -f", OPTS)?.severity, "block");
 });
 
 

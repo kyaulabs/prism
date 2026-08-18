@@ -8,9 +8,10 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -162,11 +163,18 @@ function isGitInvocationContext(tokens: string[], k: number): boolean {
         if (GIT_SEPARATORS.has(t)) return true;
         if (GIT_INVOCATION_WRAPPERS.has(t)) {
             const prev = tokens[k - 1];
-            return prev === undefined
+            if (prev === undefined
                 || GIT_SEPARATORS.has(prev)
                 || isOptionToken(prev)
                 || prev.includes("=")
-                || GIT_INVOCATION_WRAPPERS.has(prev);
+                || GIT_INVOCATION_WRAPPERS.has(prev)) {
+                return true;
+            }
+            // Wrapper used as a plain word (echo sudo git …) — keep walking
+            // back in case it is part of a longer wrapper chain
+            // (sudo -u root env FOO=1 git …) (OCR round 4).
+            k--;
+            continue;
         }
         if (isOptionToken(t) || t.includes("=")) {
             k--;
@@ -284,6 +292,15 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         return {
             severity: "block",
             reason: "unmodelable shell construct (substitution/quoting/here-string) — failing closed per ADR-0036",
+        };
+    }
+    // A command that IS a bare variable reference (bash -c "$cmd", eval
+    // $cmd, a variable executed directly) cannot be analyzed — its value
+    // is unknown here. Fail closed (OCR round 4).
+    if (BARE_VARIABLE_RE.test(command.trim())) {
+        return {
+            severity: "block",
+            reason: "command is a variable reference whose value cannot be analyzed — failing closed per ADR-0036",
         };
     }
     const ctx: RuleCtx = {
@@ -453,6 +470,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

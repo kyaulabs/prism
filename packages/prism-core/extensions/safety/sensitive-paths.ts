@@ -7,6 +7,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -54,6 +55,9 @@ const INTERPRETERS = new Set(["bash", "sh", "zsh", "dash", "ksh", "php"]);
 const SHELL_WRAPPERS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
 export const MAX_UNWRAP_DEPTH = 3;
+
+/** A command that is exactly a shell variable reference (value unknown). */
+export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])$/;
 
 /** Shell constructs the flat tokenizer cannot model — command/process
  *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
@@ -313,6 +317,7 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
     if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
     if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
+    if (BARE_VARIABLE_RE.test(command.trim())) return { className: "unresolvable" };
     const segments = command.split(/[;&|\n]/);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
@@ -358,6 +363,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
