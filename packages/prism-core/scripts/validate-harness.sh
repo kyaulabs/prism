@@ -256,6 +256,25 @@ while IFS= read -r -d '' script; do
 done < <(find "$REPO_ROOT/packages" -type f -name '*.sh' -print0 2>/dev/null | sort -z)
 ok "$SCRIPT_COUNT shell helper(s) checked"
 
+printf '%s\n' '── Checking blank-line policy ──'
+BLANK_LINE_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
+if [ ! -f "$BLANK_LINE_CHECKER" ]; then
+	err "blank-line checker missing: ${BLANK_LINE_CHECKER#$REPO_ROOT/}"
+else
+	if blank_line_output=$(bash "$BLANK_LINE_CHECKER" --tracked 2>&1); then
+		blank_line_status=0
+	else
+		blank_line_status=$?
+	fi
+	if [ "$blank_line_status" -ne 0 ]; then
+		while IFS= read -r diagnostic; do
+			[ -n "$diagnostic" ] && err "$diagnostic"
+		done <<< "$blank_line_output"
+		[ -n "$blank_line_output" ] \
+			|| err "blank-line checker failed with status $blank_line_status"
+	fi
+fi
+
 printf '%s\n' '── Checking package path references ──'
 legacy_script_prefix="$(printf '%s' 'github-scripts' | tr '-' '/')"
 while IFS=: read -r file line text; do
