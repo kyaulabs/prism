@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: rcs_header_autoadd_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: rcs_header_autoadd_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Repro-first tests for pre-commit RCS auto-add block ────────────────────────
 # Bugs under test (#28, #78):
@@ -522,20 +511,77 @@ JSEOF
 )
 rm -rf "$T9"
 
+# ── Test 10: Existing RCS padding collapses to one blank line ────────────────
+
+echo "── Test 10: Existing RCS padding collapses ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+	cd "$T10"
+	git_init_test_repo .
+
+	cat > padded.ts <<'TSEOF'
+
+
+
+
+const value = 1;
+
+
+
+
+TSEOF
+	git add padded.ts
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	header_blanks=$(awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }' padded.ts)
+	modeline_blanks=$(awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }' padded.ts)
+	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
+		pass "Existing RCS padding collapses to one blank line"
+	else
+		fail "RCS padding was not canonicalized (exit=$ret header=$header_blanks modeline=$modeline_blanks)"
+	fi
+)
+rm -rf "$T10"
+
+# ── Test 11: Repeated normalization remains spacing-idempotent ───────────────
+
+echo "── Test 11: Repeated normalization remains idempotent ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+	cd "$T11"
+	git_init_test_repo .
+	printf 'const value = 1;\n' > repeated.ts
+	git add repeated.ts
+	PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1
+	git commit --quiet -m seed
+
+	ret=0
+	for value in 2 3 4; do
+		printf 'const value = %d;\n' "$value" >> repeated.ts
+		git add repeated.ts
+		PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1 || ret=$?
+		git commit --quiet -m "pass $value"
+	done
+
+	header_blanks=$(awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }' repeated.ts)
+	modeline_blanks=$(awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }' repeated.ts)
+	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
+		pass "Repeated normalization remains spacing-idempotent"
+	else
+		fail "Repeated normalization grew padding (exit=$ret header=$header_blanks modeline=$modeline_blanks)"
+	fi
+)
+rm -rf "$T11"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "rcs_header_autoadd_test.sh"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

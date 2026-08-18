@@ -46,6 +46,23 @@ checkout_staged() {
 	git show ":$1" > "$TMPF" 2>/dev/null || true
 }
 
+trim_blank_edges() {
+	awk '
+		/^[[:space:]]*$/ {
+			pending = pending $0 ORS
+			next
+		}
+		{
+			if (seen) {
+				printf "%s", pending
+			}
+			print
+			pending = ""
+			seen = 1
+		}
+	'
+}
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
@@ -287,49 +304,49 @@ if [ -n "$STAGED_SRC" ]; then
 			fi
 		fi
 
-		# Build normalized file with exactly one canonical header + modeline
+		# Build a body without metadata-adjacent blank padding. Internal blank
+		# runs remain byte-for-byte unchanged.
+		BODY="$LINT_TMPDIR/rcs_body"
+		declare_line=""
+		if [ "$EXT" = "php" ]; then
+			declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
+			if [ -n "$declare_line" ]; then
+				skip=$((declare_line - 1))
+				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_blank_edges > "$BODY"
+			else
+				tail -n +2 "$CLEAN" | trim_blank_edges > "$BODY"
+			fi
+		else
+			LINE1=$(head -1 "$CLEAN")
+			if echo "$LINE1" | grep -q '^#!/'; then
+				tail -n +2 "$CLEAN" | trim_blank_edges > "$BODY"
+			else
+				trim_blank_edges < "$CLEAN" > "$BODY"
+			fi
+		fi
+
+		# Build normalized file with exactly one canonical header + modeline.
 		{
 			if [ "$EXT" = "php" ]; then
-				# <?php on line 1
 				head -1 "$CLEAN"
 				echo ""
-
-				# Emit declare(strict_types=1); exactly once if present anywhere
-				declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
 				if [ -n "$declare_line" ]; then
 					sed -n "${declare_line}p" "$CLEAN"
+					echo ""
 				fi
-
-				echo ""
 				echo "$HDR"
 				echo ""
-
-				# Body: skip <?php and (if found) the declare line
-				if [ -n "$declare_line" ]; then
-					skip=$((declare_line - 1))
-					tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1'
-				else
-					tail -n +2 "$CLEAN"
-				fi
 			else
-				# Non-PHP source (.sh/.js/.ts/.scss). Preserve a leading shebang
-				# on line 1 — emitting the header first would push it off line 1
-				# and break node/tsx/etc. Merged from the former .sh-only branch
-				# so all non-PHP extensions share the same dance. (#157)
-				LINE1=$(head -1 "$CLEAN")
+				# Preserve a leading shebang on line 1 for every non-PHP source.
 				if echo "$LINE1" | grep -q '^#!/'; then
 					echo "$LINE1"
-					echo "$HDR"
-					echo ""
-					tail -n +2 "$CLEAN"
-				else
-					echo "$HDR"
-					echo ""
-					cat "$CLEAN"
 				fi
-			fi
-			if $APPEND_ML; then
+				echo "$HDR"
 				echo ""
+			fi
+			cat "$BODY"
+			if $APPEND_ML; then
+				[ -s "$BODY" ] && echo ""
 				echo "$ML"
 			fi
 		} > "$MOD"
