@@ -3,6 +3,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
@@ -77,6 +78,10 @@ test("fail-closed: substitution-hidden sensitive reads are refused", () => {
     assert.equal(sensitiveOperandCheck("echo $(cat ~/.ssh/id_rsa)", OPTS)?.className, "unresolvable");
     assert.equal(sensitiveOperandCheck("cat `~/.ssh/id_rsa`", OPTS)?.className, "unresolvable");
     assert.equal(sensitiveOperandCheck("bash -c $'cat ~/.ssh/id_rsa'", OPTS)?.className, "unresolvable");
+});
+
+test("wrapper-anywhere: wrapped sensitive reads are refused", () => {
+    assert.equal(sensitiveOperandCheck('sudo bash -c "cat ~/.ssh/id_rsa"', OPTS)?.className, "ssh");
 });
 
 

@@ -4,6 +4,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
 
@@ -316,6 +317,12 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             if (match) return match;
             continue;
         }
+        const wrapped = findShellWrapperPayload(tokens);
+        if (wrapped !== null) {
+            const match = sensitiveOperandCheckImpl(wrapped, opts, depth + 1);
+            if (match) return match;
+            continue;
+        }
         const trust = setupScriptTrust(tokens, opts, depth);
         if (trust === "untrusted-subcommand") return { className: "unresolvable" };
         const trustedSetup = trust === "trusted";
@@ -343,6 +350,7 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
+
 
 
 
