@@ -1,4 +1,5 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 
@@ -39,7 +40,7 @@ test("tripped breaker blocks every tool before policy", () => {
     const { deps } = makeDeps({ breaker: trippedBreaker() });
     assert.deepEqual(handleToolCall("read", { path: "/repo/ok.php" }, deps), {
         block: true,
-        reason: "[prism safety] BLOCKED: session tripped (3 consecutive bash denials) — circuit breaker active per ADR-0042. Run /new to reset.",
+        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /new to reset.",
     });
     assert.equal(handleToolCall("bash", { command: "echo hi" }, deps)?.block, true);
 });
@@ -124,6 +125,7 @@ test("internal error fails closed with ADR-0036 reason", () => {
     assert.match(result?.reason ?? "", /failing closed per ADR-0036/);
     assert.match(result?.reason ?? "", /boom/);
 });
+
 
 
 

@@ -1,4 +1,5 @@
-// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
+// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
+
 
 
 import { resolve as resolvePath, normalize } from "node:path";
@@ -11,6 +12,7 @@ import {
     type SensitivePathOptions,
 } from "./sensitive-paths.ts";
 import type { DenialCircuitBreaker } from "./denial-circuit-breaker.ts";
+import { WINDOW_SIZE } from "./denial-circuit-breaker.ts";
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
 
@@ -30,7 +32,7 @@ export interface ToolCallDeps {
     safeRelDirs: readonly string[];
     /** Extra deny-floor paths from PRISM_SENSITIVE_PATHS (F-2). */
     extraPaths: string[];
-    /** Per-session consecutive-bash-denial circuit breaker (ADR-0042). */
+    /** Per-session windowed-bash-denial circuit breaker (ADR-0068). */
     breaker: DenialCircuitBreaker;
     /** UI escalation surface; error escalations also fall back to console.error. */
     notify?: (msg: string, level: "error" | "warning") => void;
@@ -99,8 +101,8 @@ function noteBashDenial(sid: string, deps: ToolCallDeps): void {
     const obs = deps.breaker.observe(sid, true);
     if (!obs.transitioned) return;
     const redacted =
-        `[prism safety] circuit breaker tripped: ${obs.count} consecutive bash ` +
-        `denials in this session. All tools blocked until /new. (ADR-0042/ADR-0036)`;
+        `[prism safety] circuit breaker tripped: ${obs.count} bash denials within ` +
+        `the last ${WINDOW_SIZE} bash calls in this session. All tools blocked until /new. (ADR-0068/ADR-0036)`;
     deps.notify?.(redacted, "error");
 }
 
@@ -148,7 +150,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
                 block: true,
                 reason:
                     `[prism safety] BLOCKED: session tripped (${deps.breaker.count(deps.sid)} ` +
-                    `consecutive bash denials) — circuit breaker active per ADR-0042. ` +
+                    `bash denials within the last ${WINDOW_SIZE} bash calls) — circuit breaker active per ADR-0068. ` +
                     `Run /new to reset.`,
             };
         }
@@ -216,6 +218,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
         };
     }
 }
+
 
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
