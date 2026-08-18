@@ -362,6 +362,27 @@ if [ -n "$STAGED_SRC" ]; then
 	done <<< "$STAGED_SRC"
 fi
 
+# ── Blank-line policy (staged blobs only) ───────────────────────────────────
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$REPO_ROOT" ]; then
+	echo "✗ blank-line checker requires a Git checkout." >&2
+	exit 1
+fi
+CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
+if [ ! -f "$CHECKER" ]; then
+	if ! SCRIPTS_DIR=$("$PRISM_TOOL_PATH" resolve scripts 2>/dev/null); then
+		echo "✗ unable to resolve prism-core scripts for blank-line checking." >&2
+		exit 1
+	fi
+	CHECKER="$SCRIPTS_DIR/check-blank-lines.sh"
+fi
+if [ ! -f "$CHECKER" ]; then
+	echo "✗ blank-line checker not found: $CHECKER" >&2
+	exit 1
+fi
+echo "→ blank-line policy"
+bash "$CHECKER" --cached
+
 # ── Skill/prompt frontmatter check (CI parity: validate-harness.sh) ─────────
 # The package validator checks Agent Skills names/descriptions and pi prompt
 # descriptions against the staged tree once the full gate runs. Keep this

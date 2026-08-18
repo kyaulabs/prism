@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_hooks_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: toolchain_hooks_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Hook boundary tests: every hook routes declared tools through the
 #    prism-tool launcher (Task 8) ────────────────────────────────────────────
@@ -307,10 +301,66 @@ STUB
 	fi
 )
 
+# ── Test 10: pre-commit prefers the checkout blank-line checker ──────────────
+
+echo "── Test 10: pre-commit prefers the checkout blank-line checker ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+	cd "$T10"
+	git_init_test_repo "$T10"
+	mkdir -p packages/prism-core/scripts
+	cat > packages/prism-core/scripts/check-blank-lines.sh <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' 'checkout-blank-line-checker-ran'
+exit 7
+STUB
+	printf 'clean\n' > staged.md
+	git add staged.md
+	LOG="$T10/log"
+	: > "$LOG"
+	set +e
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -eq 7 ] \
+		&& printf '%s\n' "$output" | grep -Fq 'checkout-blank-line-checker-ran' \
+		&& ! printf '%s\n' "$lines" | grep -Fxq 'resolve'; then
+		pass "pre-commit prefers the checkout blank-line checker"
+	else
+		fail "pre-commit did not prefer the checkout checker (exit=$ret): $output"
+	fi
+)
+
+# ── Test 11: pre-commit resolves an installed blank-line checker ──────────────
+
+echo "── Test 11: pre-commit resolves an installed blank-line checker ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+	cd "$T11"
+	git_init_test_repo "$T11"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	LOG="$T11/log"
+	: > "$LOG"
+	set +e
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -eq 0 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq '→ blank-line policy'; then
+		pass "pre-commit falls back to the resolved blank-line checker"
+	else
+		fail "pre-commit did not use resolver fallback (exit=$ret): $output"
+	fi
+)
+
 print_summary "toolchain hooks"
 exit $?
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

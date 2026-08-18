@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: fake-prism-tool.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
+# $KYAULabs: fake-prism-tool.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 #
 # Test double for the prism-tool launcher used by hook boundary tests.
@@ -17,6 +16,12 @@ printf '%s\0' "$@" >> "${PRISM_TOOL_LOG:-/dev/null}"
 
 if [ "${1:-}" = "doctor" ]; then
 	exit "${PRISM_DOCTOR_STATUS:-0}"
+fi
+
+if [ "${1:-}" = "resolve" ] && [ "${2:-}" = "scripts" ]; then
+	fixture_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+	printf '%s\n' "$fixture_root/packages/prism-core/scripts"
+	exit 0
 fi
 
 if [ "${1:-}" = "run" ]; then
@@ -61,7 +66,5 @@ if [ "${1:-}" = "run" ]; then
 fi
 
 exit 2
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

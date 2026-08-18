@@ -5,6 +5,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
+PRE_COMMIT="$REPO_ROOT/.github/hooks/pre-commit"
+FAKE_PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
@@ -113,6 +115,23 @@ else
     fail "canonical special cases failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── tracked metadata-like source text ──'
+T5B=$(mktemp -d)
+register_temp_dir "$T5B"
+git_init_test_repo "$T5B"
+cat > "$T5B/fixture-builder.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '// $KYAULabs: fixture.js test@example.test 2026/08/18 +0000 Exp $'
+printf '%s\n' '// vim: ft=javascript sts=4 sw=4 ts=4 et :'
+EOF
+git -C "$T5B" add fixture-builder.sh
+run_checker "$T5B" --tracked
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'tracked mode ignores metadata markers embedded in source text'
+else
+    fail "metadata-like source text was treated as file metadata (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
 printf '%s\n' '── tracked exclusions ──'
 T6=$(mktemp -d)
 register_temp_dir "$T6"
@@ -206,6 +225,23 @@ if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'new.tx
     pass 'cached mode reports the destination of a staged rename'
 else
     fail "cached rename was not reported by destination (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── pre-commit cached enforcement ──'
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+git_init_test_repo "$T11"
+printf 'alpha\n\n\n\nbeta\n' > "$T11/staged.md"
+git -C "$T11" add staged.md
+printf 'alpha\nbeta\n' > "$T11/staged.md"
+set +e
+HOOK_OUTPUT=$(cd "$T11" && PRISM_TOOL="$FAKE_PRISM_TOOL" bash "$PRE_COMMIT" 2>&1)
+HOOK_STATUS=$?
+set -e
+if [ "$HOOK_STATUS" -eq 1 ] && printf '%s\n' "$HOOK_OUTPUT" | grep -Fq 'staged.md:2: excessive blank-line run; found 3, maximum 2'; then
+    pass 'pre-commit rejects staged blank-line violations despite working-tree repairs'
+else
+    fail "pre-commit did not enforce the staged blank-line policy (exit=$HOOK_STATUS): $HOOK_OUTPUT"
 fi
 
 printf '%s\n' '── operational failures ──'
