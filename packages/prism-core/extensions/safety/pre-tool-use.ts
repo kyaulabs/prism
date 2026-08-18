@@ -7,6 +7,7 @@
 
 
 
+
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
 import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
@@ -139,27 +140,64 @@ function findGitSubcommand(tokens: string[]): { subcmd: string; rest: string[] }
 
 /**
  * Tokens that make a following `git` word a command invocation rather than
- * a plain argument: shell separators (&&, ||, &, |, ( — the tokenizer keeps
- * the split residue) and exec wrappers that run their arguments.
+ * a plain argument: shell separators (the tokenizer keeps the split
+ * residue of `&&`/`||`/`&`/`|`/`(`) and exec wrappers that run git.
  */
-const GIT_INVOCATION_PREFIXES = new Set([
-    "&&", "||", "&", "|", "(", ";",
+const GIT_SEPARATORS = new Set(["&&", "||", "&", "|", "(", ";"]);
+const GIT_INVOCATION_WRAPPERS = new Set([
     "sudo", "xargs", "env", "command", "exec", "eval",
     "timeout", "nice", "nohup", "setsid", "stdbuf",
 ]);
 
 /**
+ * True when the token at index `k` is a git-invocation prefix: a
+ * separator, an exec wrapper in command position, or an option/assignment
+ * chain hanging off one (sudo -u root git, timeout 10 git, env FOO=1 git).
+ * A bare non-wrapper word (echo, man, cat, …) means git is a plain
+ * argument and the context is false (OCR findings N3 / round-3 high).
+ */
+function isGitInvocationContext(tokens: string[], k: number): boolean {
+    while (k >= 0) {
+        const t = tokens[k];
+        if (GIT_SEPARATORS.has(t)) return true;
+        if (GIT_INVOCATION_WRAPPERS.has(t)) {
+            const prev = tokens[k - 1];
+            return prev === undefined
+                || GIT_SEPARATORS.has(prev)
+                || isOptionToken(prev)
+                || prev.includes("=")
+                || GIT_INVOCATION_WRAPPERS.has(prev);
+        }
+        if (isOptionToken(t) || t.includes("=")) {
+            k--;
+            continue;
+        }
+        // Bare word: a wrapper argument when it follows a wrapper, option,
+        // or assignment (sudo -u root git, timeout 10 git); otherwise a
+        // plain-argument context (echo 10 git …).
+        const prev = tokens[k - 1];
+        if (prev !== undefined
+            && (GIT_INVOCATION_WRAPPERS.has(prev) || isOptionToken(prev) || prev.includes("="))) {
+            k--;
+            continue;
+        }
+        return false;
+    }
+    return true; // reached segment start
+}
+
+/**
  * Locate a `git` invocation at ANY command position (`cd /repo && git …`,
- * `echo ok; git …`, `xargs git …`) and resolve its subcommand from there.
- * A `git` word preceded by a non-invocation token (echo, man, cat, …) is a
- * plain argument and is not treated as a command (OCR finding N3).
+ * `echo ok; git …`, `sudo -u root git …`) and resolve its subcommand from
+ * there. The git rules run per segment, so git need not be token 0.
  */
 function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: string[] } | null {
     for (let i = 0; i < tokens.length; i++) {
         if (tokens[i] !== "git") continue;
-        if (i !== 0 && !GIT_INVOCATION_PREFIXES.has(tokens[i - 1])) continue;
-        const info = findGitSubcommand(tokens.slice(i));
-        if (info !== null) return info;
+        if (i === 0 || isGitInvocationContext(tokens, i - 1)) {
+            const info = findGitSubcommand(tokens.slice(i));
+            if (info !== null) return info;
+        }
     }
     return null;
 }
@@ -174,6 +212,11 @@ function expandShortFlags(token: string): string[] {
         return token.slice(1).split("").map((c) => "-" + c);
     }
     return [token];
+}
+
+/** True when a token is option-shaped (starts with `-`). */
+function isOptionToken(token: string): boolean {
+    return token.startsWith("-") && token.length > 1;
 }
 
 function resolveTarget(token: string, projectDir: string, home: string): string | null {
@@ -410,6 +453,7 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
+
 
 
 

@@ -9,6 +9,7 @@
 
 
 
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { classifyCommand } from "../../packages/prism-core/extensions/safety/pre-tool-use.ts";
@@ -173,6 +174,15 @@ test("git rules do not fire when git is a plain argument", () => {
     assert.equal(classifyCommand("echo git push -f", OPTS), null);
     assert.equal(classifyCommand("man git reset --hard", OPTS), null);
     assert.equal(classifyCommand('git commit -m "git push -f"', OPTS), null);
+});
+
+test("git rules fire for wrappers with options or arguments", () => {
+    assert.equal(classifyCommand("sudo -u root git push -f", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("timeout 10 git push -f", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("xargs -n1 git push -f", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("env FOO=1 git reset --hard", OPTS)?.severity, "warn");
+    assert.equal(classifyCommand("echo sudo git push -f", OPTS), null);
+    assert.equal(classifyCommand("echo 10 git push -f", OPTS), null);
 });
 
 
