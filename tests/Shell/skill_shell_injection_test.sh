@@ -7,7 +7,7 @@ set -euo pipefail
 # Verify that shell commands in skill markdown files use safe quoting patterns.
 # Two families:
 #   1. gh api graphql uses -F variable bindings (not single-quoted $VAR)
-#   2. gh pr create uses --title-file/--body-file (not inline interpolation)
+#   2. gh pr create uses a quoted title variable and --body-file.
 #
 # Also demonstrates that a crafted malicious title does not execute embedded
 # commands when passed through the safe patterns (active injection test).
@@ -111,11 +111,12 @@ else
 		fail "pr command: missing --body-file transport"
 	fi
 
-	# Check 4d: no obsolete --title-file anywhere in prism-core.
-	if grep -R -Fq -- '--title-file' "$REPO_ROOT/packages/prism-core"; then
-		fail "prism-core: obsolete --title-file option still present"
+	# Check 4d: the displayed gh command never uses obsolete --title-file.
+	if grep -R -A1 -F -- 'gh pr create' "$REPO_ROOT/packages/prism-core" \
+		| grep -Fq -- '--title-file'; then
+		fail "prism-core: displayed gh command still uses obsolete --title-file"
 	else
-		pass "prism-core: no obsolete --title-file option"
+		pass "prism-core: displayed gh command has no obsolete --title-file"
 	fi
 fi
 

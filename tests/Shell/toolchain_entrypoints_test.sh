@@ -19,6 +19,7 @@ CORE_SKILLS="$REPO_ROOT/packages/prism-core/skills"
 ADAPTER_PROMPTS="$REPO_ROOT/packages/prism-php-web/prompts"
 ADAPTER_SKILLS="$REPO_ROOT/packages/prism-php-web/skills"
 ADAPTER_DOCS="$REPO_ROOT/packages/prism-php-web/docs"
+PR_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool/pr.js"
 
 failures=0
 assert_file_contains() {
@@ -57,8 +58,10 @@ assert_file_contains "$CORE_PROMPTS/doctor.md" 'connectivity' 'doctor asks an OC
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
-assert_file_contains "$CORE_PROMPTS/pr.md" 'doctor --local-only' 'pr performs local-only readiness'
-assert_file_contains "$CORE_PROMPTS/pr.md" 'run commitlint -- --edit' 'pr validates titles through commitlint launcher'
+assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr preflight' 'pr delegates preflight to the launcher'
+assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr validate-title' 'pr delegates title validation to the launcher'
+assert_file_contains "$PR_TOOL" "'doctor', '--local-only'" 'pr launcher operation performs local-only readiness'
+assert_file_contains "$PR_TOOL" "'commitlint'" 'pr launcher operation validates titles through commitlint'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool doctor --local-only' 'release performs local-only readiness'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool run git-cliff' 'release uses bundled git-cliff through the launcher'
 
