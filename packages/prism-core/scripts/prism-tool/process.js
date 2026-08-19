@@ -7,7 +7,9 @@ const {spawnSync} = require('node:child_process');
 function runBounded(command, args, options = {}) {
     const result = spawnSync(command, args, {
         cwd: options.cwd,
-        encoding: 'utf8',
+        encoding: Object.prototype.hasOwnProperty.call(options, 'encoding')
+            ? options.encoding
+            : 'utf8',
         env: options.env,
         input: options.input,
         maxBuffer: options.maxBuffer ?? 1048576,

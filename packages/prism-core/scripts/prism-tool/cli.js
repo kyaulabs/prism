@@ -9,6 +9,7 @@ const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {runBounded} = require('./process');
 const {prCommand} = require('./pr');
+const {commitCommand} = require('./commit');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 
@@ -635,6 +636,7 @@ function main(argv, context = {}) {
     if (command === 'setup') return setup(args, context);
     if (command === 'resolve') return resolveKindDir(args, context);
     if (command === 'pr') return prCommand(args, context);
+    if (command === 'commit') return commitCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }
