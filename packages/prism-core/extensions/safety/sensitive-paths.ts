@@ -201,13 +201,39 @@ function hasUnsafeIndexedAssignment(segment: string): boolean {
         .some((token) => isUnsafeIndexedReference(token, true));
 }
 
+const COMMAND_PREFIXES = new Set(["!", "if", "then", "elif", "while", "until", "do", "else"]);
+const COMMAND_WRAPPERS = new Set(["builtin", "command", "exec"]);
+
+function effectiveCommandPosition(tokens: string[]): number | null {
+    let i = 0;
+    while (i < tokens.length) {
+        const token = basename(tokens[i]);
+        if (COMMAND_PREFIXES.has(token) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+            i++;
+            continue;
+        }
+        if (token === "time") {
+            i++;
+            while (i < tokens.length && tokens[i].startsWith("-")) i++;
+            continue;
+        }
+        break;
+    }
+    while (i < tokens.length && COMMAND_WRAPPERS.has(basename(tokens[i]))) {
+        const wrapper = basename(tokens[i++]);
+        if (wrapper === "command" && (tokens[i] === "-v" || tokens[i] === "-V")) return null;
+        while (i < tokens.length && tokens[i].startsWith("-")) i++;
+    }
+    return i < tokens.length ? i : null;
+}
+
 function hasDelayedEvaluationBuiltin(command: string): boolean {
     const normalizedCommand = command.replace(/\\\r?\n/g, "");
-    return splitShellSegments(normalizedCommand).some((segment) =>
-        tokenizeCommand(segment)
-            .map(normalizeShellCommandWord)
-            .some((token) => basename(token) === "trap"),
-    );
+    return splitShellSegments(normalizedCommand).some((segment) => {
+        const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+        const position = effectiveCommandPosition(tokens);
+        return position !== null && basename(tokens[position]) === "trap";
+    });
 }
 
 /** True when a segment invokes a recursively evaluated arithmetic context. */
@@ -216,21 +242,21 @@ function hasArithmeticBuiltin(command: string): boolean {
     for (const segment of splitShellSegments(normalizedCommand)) {
         if (hasUnsafeIndexedAssignment(segment)) return true;
         const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
-        for (let i = 0; i < tokens.length; i++) {
-            if (couldResolveToArithmeticBuiltin(tokens[i])) return true;
-            const head = basename(tokens[i]);
-            if (head === "printf") {
-                const destination = tokens.indexOf("-v", i + 1);
-                if (destination !== -1
-                    && isUnsafeIndexedReference(tokens[destination + 1] ?? "", false)) return true;
-            }
-            if (head === "let" || head === "integer" || head === "float") return true;
-            if (!ARITHMETIC_DECLARATION_BUILTINS.has(head)) continue;
-            for (const token of tokens.slice(i + 1)) {
-                if (token === "--") break;
-                if (/^-[A-Za-z]*[iI](?:[0-9]+)?[A-Za-z]*$/.test(token)
-                    || (head === "typeset" && /^-[A-Za-z]*[EF](?:[0-9]+)?[A-Za-z]*$/.test(token))) return true;
-            }
+        const position = effectiveCommandPosition(tokens);
+        if (position === null) continue;
+        if (couldResolveToArithmeticBuiltin(tokens[position])) return true;
+        const head = basename(tokens[position]);
+        if (head === "printf") {
+            const destination = tokens.indexOf("-v", position + 1);
+            if (destination !== -1
+                && isUnsafeIndexedReference(tokens[destination + 1] ?? "", false)) return true;
+        }
+        if (head === "let" || head === "integer" || head === "float") return true;
+        if (!ARITHMETIC_DECLARATION_BUILTINS.has(head)) continue;
+        for (const token of tokens.slice(position + 1)) {
+            if (token === "--") break;
+            if (/^-[A-Za-z]*[iI](?:[0-9]+)?[A-Za-z]*$/.test(token)
+                || (head === "typeset" && /^-[A-Za-z]*[EF](?:[0-9]+)?[A-Za-z]*$/.test(token))) return true;
         }
     }
     return false;
@@ -366,7 +392,7 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
         if (i < tokens.length) return tokens.slice(i).join(" ");
         return null;
     }
-    if (head === "command" || head === "exec") {
+    if (head === "command" || head === "exec" || head === "builtin") {
         if (tokens.length > 1) return tokens.slice(1).join(" ");
         return null;
     }

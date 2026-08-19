@@ -154,6 +154,31 @@ test("delayed trap payloads fail closed", () => {
     }
 });
 
+test("delayed and arithmetic builtin names remain inert in ordinary arguments", () => {
+    const commands = [
+        "echo trap",
+        "printf '%s' let",
+        "grep declare -i file",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+
+        assert.equal(handleToolCall("bash", { command }, deps), undefined, command);
+        assert.equal(deps.breaker.count("s1"), 0, command);
+    }
+});
+
+test("recursive evaluator wrappers fail closed on delayed destructive payloads", () => {
+    const { deps } = makeDeps();
+    const command = "builtin eval 'echo $((1)); rm -rf /home/tester/project'";
+    const result = handleToolCall("bash", { command }, deps);
+
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /rm -rf targets path outside safe zones/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
 test("single-quoted command substitution syntax fails closed", () => {
     const commands = [
         "echo '$(date)'",

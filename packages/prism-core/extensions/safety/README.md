@@ -90,9 +90,10 @@ no longer erase the denial count. The opencode-era
   `$((1 + 2))` is accepted. Identifier-based arithmetic, arithmetic commands,
   nested expansion syntax, and unsupported arithmetic forms remain fail-closed
   because supported shells can recursively evaluate identifier values.
-  Delayed `trap` payloads and non-literal indexed assignments also block.
-  Recursive-builtin and indexed-assignment detection is deliberately
-  token-wide, so builtin- or assignment-shaped argument text can also block.
+  Delayed `trap` payloads in executable command position and non-literal
+  indexed assignments also block. Recursive evaluator wrappers are
+  reclassified before execution. Indexed-assignment detection remains
+  deliberately token-wide, while builtin-shaped ordinary arguments stay inert.
 
 ## Fail-closed invariants (ADR-0036)
 
