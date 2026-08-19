@@ -7,7 +7,7 @@ const path = require('node:path');
 const {runBounded} = require('./process');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
-const SHA_RE = /^[0-9a-f]{40}$/;
+const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const COUNT_RE = /^[0-9]+$/;
 
 function failure(message, code = EXIT.TOOL) {

@@ -83,6 +83,31 @@ test('pr preflight reports the exact branch attestation', () => {
     ].join('\n'));
 });
 
+test('pr preflight accepts SHA-256 object ids', () => {
+    const base = '1'.repeat(64);
+    const head = '2'.repeat(64);
+    const run = makePreflightRun(new Map([
+        ['rev-parse --verify --quiet origin/develop^{commit}', completed(0, `${base}\n`)],
+        ['rev-parse origin/develop^{commit}', completed(0, `${base}\n`)],
+        ['rev-parse HEAD', completed(0, `${head}\n`)],
+        ['merge-base origin/develop HEAD', completed(0, `${base}\n`)],
+        [`rev-list --count ${base}..HEAD`, completed(0, '2\n')],
+        [`rev-list --count --no-merges ${base}..HEAD`, completed(0, '2\n')],
+        [`diff --quiet ${base}..HEAD --`, completed(1)],
+    ]));
+
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run,
+    }));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, new RegExp(`BASE_SHA\\t${base}`));
+    assert.match(result.stdout, new RegExp(`HEAD_SHA\\t${head}`));
+});
+
 test('pr preflight fails closed with stable diagnostics', () => {
     const cases = [
         ['symbolic-ref --quiet --short HEAD', completed(1, 'CANARY'), 'detached HEAD; switch to a work branch'],

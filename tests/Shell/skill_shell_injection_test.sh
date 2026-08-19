@@ -24,25 +24,58 @@ source "$LIB"
 setup_result_file
 
 has_obsolete_pr_title_flag() {
-	local tree="$1"
-	local file
+	local tree="$1" file matches scan_status
+	matches=$(mktemp) || return 0
+	if grep -R -l -F -- 'gh pr create' "$tree" > "$matches"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [ "$scan_status" -gt 1 ]; then
+		rm -f "$matches"
+		return 0
+	fi
+	local obsolete=0
 	while IFS= read -r file; do
 		if ! awk '
-			/^```/ {
-				if (in_block && has_gh && has_title_file) exit 1
-				in_block = !in_block
-				has_gh = 0
-				has_title_file = 0
-				next
+			function fence_run(line, text, ch, spaces, count) {
+				text = line
+				spaces = 0
+				while (spaces < 3 && substr(text, 1, 1) == " ") {
+					text = substr(text, 2)
+					spaces++
+				}
+				ch = substr(text, 1, 1)
+				if (ch != "`" && ch != "~") return 0
+				count = 0
+				while (substr(text, count + 1, 1) == ch) count++
+				fence_char = ch
+				return count
 			}
-			in_block && index($0, "gh pr create") { has_gh = 1 }
-			in_block && index($0, "--title-file") { has_title_file = 1 }
-			END { if (in_block && has_gh && has_title_file) exit 1 }
+			{
+				run = fence_run($0)
+				if (run >= 3) {
+					if (!in_block) {
+						in_block = 1
+						open_char = fence_char
+						open_len = run
+					} else if (fence_char == open_char && run >= open_len) {
+						in_block = 0
+						in_gh = 0
+					}
+					next
+				}
+				if (in_block && !in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_block && in_gh && index($0, "--title-file")) exit 1
+				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
+			}
 		' "$file"; then
-			return 0
+			obsolete=1
+			break
 		fi
-	done < <(grep -R -l -F -- 'gh pr create' "$tree")
-	return 1
+	done < "$matches"
+	rm -f "$matches"
+	[ "$obsolete" -eq 1 ]
 }
 
 # ── Static scan: ticketing SKILL.md ──────────────────────────────────────────

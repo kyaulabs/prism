@@ -72,25 +72,58 @@ assert_delegates_to_pr() {
 }
 
 assert_no_obsolete_title_flag() {
-	local tree="$1"
-	local file
+	local tree="$1" file matches scan_status
+	matches=$(mktemp) || return 2
+	if grep -R -l -F -- 'gh pr create' "$tree" > "$matches"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [ "$scan_status" -gt 1 ]; then
+		rm -f "$matches"
+		return 2
+	fi
+	local obsolete=0
 	while IFS= read -r file; do
 		if ! awk '
-			/^```/ {
-				if (in_block && has_gh && has_title_file) exit 1
-				in_block = !in_block
-				has_gh = 0
-				has_title_file = 0
-				next
+			function fence_run(line, text, ch, spaces, count) {
+				text = line
+				spaces = 0
+				while (spaces < 3 && substr(text, 1, 1) == " ") {
+					text = substr(text, 2)
+					spaces++
+				}
+				ch = substr(text, 1, 1)
+				if (ch != "`" && ch != "~") return 0
+				count = 0
+				while (substr(text, count + 1, 1) == ch) count++
+				fence_char = ch
+				return count
 			}
-			in_block && index($0, "gh pr create") { has_gh = 1 }
-			in_block && index($0, "--title-file") { has_title_file = 1 }
-			END { if (in_block && has_gh && has_title_file) exit 1 }
+			{
+				run = fence_run($0)
+				if (run >= 3) {
+					if (!in_block) {
+						in_block = 1
+						open_char = fence_char
+						open_len = run
+					} else if (fence_char == open_char && run >= open_len) {
+						in_block = 0
+						in_gh = 0
+					}
+					next
+				}
+				if (in_block && !in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_block && in_gh && index($0, "--title-file")) exit 1
+				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
+			}
 		' "$file"; then
-			return 1
+			obsolete=1
+			break
 		fi
-	done < <(grep -R -l -F -- 'gh pr create' "$tree")
-	return 0
+	done < "$matches"
+	rm -f "$matches"
+	[ "$obsolete" -eq 0 ]
 }
 
 make_standard_fixture() {
@@ -371,9 +404,6 @@ title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
 title_file="$title_dir/title.txt"
 validation_file="$title_dir/validation.txt"
-injection_sentinel="$title_dir/pr_command_injection"
-backtick_sentinel="$title_dir/pr_command_backtick"
-
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip 'prism-tool source CLI unavailable — title-validation behavior checks skipped'
 else
@@ -409,13 +439,9 @@ else
 		fail 'title validation accepted an uppercase over-length title'
 	fi
 
-	rm -f "$injection_sentinel" "$backtick_sentinel"
 	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
--$(touch @@SENTINEL1@@) `touch @@SENTINEL2@@` "'; leading-and-quotes
+fix(pr): preserve $() `ticks` "quotes" and -hyphens as inert data
 PR_TITLE_PAYLOAD
-	sed -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
-		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file" > "$title_file.tmp" \
-		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
 	rm -f "$validation_file"
 	rc=0
@@ -423,18 +449,16 @@ PR_TITLE_PAYLOAD
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-	preserved=1
-	if [ "$rc" -eq 0 ]; then preserved=0; fi
-	if [ -e "$injection_sentinel" ]; then preserved=0; fi
-	if [ -e "$backtick_sentinel" ]; then preserved=0; fi
 	title_after=""
+	validation_title=""
 	IFS= read -r title_after < "$title_file" 2>/dev/null || true
-	if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
-	if [ -e "$validation_file" ]; then preserved=0; fi
-	if [ "$preserved" -eq 1 ]; then
-		pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
+	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
+	if [ "$rc" -eq 0 ] \
+		&& [ "$title_after" = "$payload_line" ] \
+		&& [ "$validation_title" = "$payload_line" ]; then
+		pass 'title validation preserves $(), backticks, quotes, and hyphens as inert data'
 	else
-		fail 'title payload was expanded or altered during validation'
+		fail 'title payload was expanded, altered, or rejected during validation'
 	fi
 fi
 
@@ -501,10 +525,30 @@ fi
 mkdir -p "$mutation_dir/prompts"
 sed 's/--title "$TITLE"/--title-file "$TITLE_FILE"/' \
 	"$COMMAND_FILE" > "$mutation_dir/prompts/pr.md"
-if assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
+if cmp -s "$COMMAND_FILE" "$mutation_dir/prompts/pr.md" \
+	|| ! grep -Fq -- '--title-file "$TITLE_FILE"' "$mutation_dir/prompts/pr.md"; then
+	fail 'obsolete flag mutation could not be applied'
+elif assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
 	fail 'obsolete flag mutation was not detected'
 else
 	pass 'obsolete flag mutation is detected'
+fi
+
+cat > "$mutation_dir/prompts/fence-forms.md" <<'EOF'
+~~~~ shell
+gh pr create \
+  --title-file "$TITLE_FILE"
+~~~~
+
+````text
+```
+gh pr create --title-file "$TITLE_FILE"
+````
+EOF
+if assert_no_obsolete_title_flag "$mutation_dir/prompts/fence-forms.md"; then
+	fail 'alternate Markdown fence forms evaded obsolete-flag detection'
+else
+	pass 'alternate Markdown fence forms are inspected'
 fi
 
 # ── 13. living-document command index ────────────────────────────────────────
