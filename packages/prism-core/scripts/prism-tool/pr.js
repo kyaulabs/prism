@@ -64,7 +64,9 @@ function validateTitle(args, context) {
         return EXIT.READINESS;
     }
     const model = env.PI_MODEL;
-    if (typeof model !== 'string' || !/^[A-Za-z0-9._/-]+$/.test(model)) {
+    const modelId = typeof model === 'string' ? model.slice(model.lastIndexOf('/') + 1) : '';
+    if (typeof model !== 'string' || !/^[A-Za-z0-9._/-]+$/.test(model)
+        || !/^[A-Za-z0-9._-]+$/.test(modelId)) {
         process.stderr.write('PR title validation failed: current pi model is required\n');
         return EXIT.USAGE;
     }
@@ -101,7 +103,6 @@ function validateTitle(args, context) {
         process.stderr.write('PR title validation failed: OCR model could not be resolved\n');
         return EXIT.USAGE;
     }
-    const modelId = model.slice(model.lastIndexOf('/') + 1);
     const content = `${title}\n\nImplemented-by: ${modelId}\n` +
         `Tested-by: ${ocrModelValue}\nSigned-off-by: ${identityValue}\n`;
     let validationFd;

@@ -195,6 +195,43 @@ test('pr title validation rejects malformed model attribution', (t) => {
     assert.equal(fs.existsSync(validationFile), false);
 });
 
+test('pr title validation rejects an empty model id segment', (t) => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
+    t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
+    const titleFile = path.join(workDir, 'title.txt');
+    const validationFile = path.join(workDir, 'validation.txt');
+    fs.writeFileSync(titleFile, 'feat(core): safe title\n', {mode: 0o600});
+
+    const result = captureWrites(() => main([
+        'pr',
+        'validate-title',
+        '--title-file',
+        titleFile,
+        '--validation-file',
+        validationFile,
+    ], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: {...process.env, PI_MODEL: 'provider/'},
+        run(command, args) {
+            if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
+                return completed(0);
+            }
+            if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
+                return completed(0, 'Test User <test@example.com>\n');
+            }
+            if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
+                return completed(0, 'review-model\n');
+            }
+            return completed(0);
+        },
+    }));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /current pi model is required/);
+    assert.equal(fs.existsSync(validationFile), false);
+});
+
 test('pr title validation rejects malformed identity output', (t) => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
     t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
