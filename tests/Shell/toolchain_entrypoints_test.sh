@@ -65,6 +65,10 @@ assert_file_contains "$PR_TOOL" "'commitlint'" 'pr launcher operation validates 
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool doctor --local-only' 'release performs local-only readiness'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool run git-cliff' 'release uses bundled git-cliff through the launcher'
 
+assert_file_contains "$CORE_SKILLS/conventional-commits/SKILL.md" 'prism-tool commit prepare' 'conventional-commits prepares through the launcher'
+assert_file_contains "$CORE_SKILLS/conventional-commits/SKILL.md" 'prism-tool commit apply' 'conventional-commits applies through the launcher'
+assert_file_not_contains "$CORE_SKILLS/conventional-commits/SKILL.md" '\$\(' 'conventional-commits avoids command substitution blocked by the safety extension'
+
 echo "── /security scans through the launcher ──"
 assert_file_contains "$CORE_PROMPTS/security.md" 'prism-tool run semgrep' 'security runs Semgrep through the launcher'
 
