@@ -16,6 +16,10 @@ FINISHING_FILE="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-br
 
 WORK_DIR="$(mktemp -d)"
 register_temp_dir "$WORK_DIR"
+TEST_BIN="$WORK_DIR/bin"
+mkdir -p "$TEST_BIN"
+ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" "$TEST_BIN/prism-tool"
+TOOLCHAIN_PATH="$TEST_BIN:$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 PREFLIGHT_SCRIPT="$WORK_DIR/preflight.sh"
 TITLE_SCRIPT="$WORK_DIR/title_validation.sh"
 
@@ -131,9 +135,7 @@ run_preflight() {
 	local fixture="$1" script="$2" output="$3"
 	(
 		cd "$fixture"
-		PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" \
-		PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH" \
-		bash "$script"
+		PATH="$TOOLCHAIN_PATH" bash "$script"
 	) > "$output" 2>&1
 }
 
@@ -371,9 +373,6 @@ COMMITLINT_AVAILABLE=false
 if [ -f "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" ]; then
 	COMMITLINT_AVAILABLE=true
 fi
-LAUNCHER="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
-TOOLCHAIN_PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
-
 title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
 title_file="$title_dir/title.txt"
@@ -383,7 +382,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
@@ -403,7 +402,7 @@ else
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
 	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
@@ -420,7 +419,7 @@ PR_TITLE_PAYLOAD
 	payload_line=$(cat "$title_file")
 	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
