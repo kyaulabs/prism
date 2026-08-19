@@ -91,9 +91,9 @@ function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): bool
  * or metadata — only identity + count). Once tripped, `breaker.isTripped`
  * blocks all subsequent tool calls for the rest of the agent run
  * (fail-closed, ADR-0036); there is no `client.session.abort` in pi, so a
- * mid-run trip persists until the user runs `/reload`. Reload tears down
- * and reloads the extension without replacing the conversation; each
- * `agent_end` also resets the streak (wired in index.ts).
+ * mid-run trip persists until the agent run ends. `/reload` tears down
+ * and reloads the extension for an immediate reset without replacing the
+ * conversation; each `agent_end` also resets the streak (wired in index.ts).
  */
 function noteBashDenial(sid: string, deps: ToolCallDeps): void {
     const obs = deps.breaker.observe(sid, true);
@@ -101,7 +101,7 @@ function noteBashDenial(sid: string, deps: ToolCallDeps): void {
     const redacted =
         `[prism safety] circuit breaker tripped: ${obs.count} bash denials within ` +
         `the last ${WINDOW_SIZE} bash calls in this session. ` +
-        `Run /reload to reset the safety extension without starting a new session. (ADR-0068/ADR-0036)`;
+        `The block clears when this agent run ends; use /reload for an immediate reset. (ADR-0068/ADR-0036)`;
     deps.notify?.(redacted, "error");
 }
 
@@ -150,7 +150,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
                 reason:
                     `[prism safety] BLOCKED: session tripped (${deps.breaker.count(deps.sid)} ` +
                     `bash denials within the last ${WINDOW_SIZE} bash calls) — circuit breaker active per ADR-0068. ` +
-                    `Run /reload to reset the safety extension without starting a new session.`,
+                    `The block clears when this agent run ends; use /reload for an immediate reset.`,
             };
         }
 

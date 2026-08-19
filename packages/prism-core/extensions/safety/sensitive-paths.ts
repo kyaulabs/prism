@@ -143,6 +143,28 @@ function safeArithmeticExpansionEnd(command: string, start: number): number | nu
     return null;
 }
 
+function hasUnsafeIndexedParameterExpansion(command: string, start: number): boolean {
+    if (!command.startsWith("${", start)) return false;
+    const reference = command.slice(start + 2).match(/^[A-Za-z_][A-Za-z0-9_]*\[/);
+    if (reference === null) return false;
+    const subscriptStart = start + 2 + reference[0].length;
+    let depth = 1;
+    for (let i = subscriptStart; i < command.length; i++) {
+        if (command[i] === "[") {
+            depth++;
+        } else if (command[i] === "]") {
+            depth--;
+            if (depth === 0) {
+                const subscript = command.slice(subscriptStart, i);
+                return !/^[0-9\s+\-*\/%<>=!&|^~?:,]+$/.test(subscript);
+            }
+        } else if (command[i] === "}" && depth === 1) {
+            return true;
+        }
+    }
+    return true;
+}
+
 const ARITHMETIC_DECLARATION_BUILTINS = new Set(["declare", "typeset", "local", "integer", "float"]);
 const ARITHMETIC_BUILTINS = new Set(["let", ...ARITHMETIC_DECLARATION_BUILTINS]);
 
@@ -170,14 +192,14 @@ function normalizeShellCommandWord(word: string): string {
     return normalized;
 }
 
-function couldResolveToArithmeticBuiltin(word: string): boolean {
+function couldResolveToBuiltin(word: string, builtins: ReadonlySet<string>): boolean {
     let expanded = false;
     const fixed = basename(word).replace(/\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])/g, () => {
         expanded = true;
         return "";
     });
     if (!expanded || fixed === "") return false;
-    for (const builtin of ARITHMETIC_BUILTINS) {
+    for (const builtin of builtins) {
         let i = 0;
         for (const ch of builtin) {
             if (ch === fixed[i]) i++;
@@ -250,7 +272,9 @@ function hasDelayedEvaluationBuiltin(command: string): boolean {
     return splitShellSegments(normalizedCommand).some((segment) => {
         const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
         const position = effectiveCommandPosition(tokens);
-        return position !== null && DELAYED_EVALUATION_BUILTINS.has(basename(tokens[position]));
+        return position !== null
+            && (DELAYED_EVALUATION_BUILTINS.has(basename(tokens[position]))
+                || couldResolveToBuiltin(tokens[position], DELAYED_EVALUATION_BUILTINS));
     });
 }
 
@@ -262,7 +286,7 @@ function hasArithmeticBuiltin(command: string): boolean {
         const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
         const position = effectiveCommandPosition(tokens);
         if (position === null) continue;
-        if (couldResolveToArithmeticBuiltin(tokens[position])) return true;
+        if (couldResolveToBuiltin(tokens[position], ARITHMETIC_BUILTINS)) return true;
         const head = basename(tokens[position]);
         if (head === "printf") {
             const destination = tokens.indexOf("-v", position + 1);
@@ -320,6 +344,7 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
                 i = end - 1;
                 continue;
             }
+            if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
             if (ch === "`") return true;
             continue;
         }
@@ -341,6 +366,7 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
             i = end - 1;
             continue;
         }
+        if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
         if (ch === "`" || command.startsWith("$'", i)) return true;
         if (command.startsWith("((", i)
             || command.startsWith("<(", i)

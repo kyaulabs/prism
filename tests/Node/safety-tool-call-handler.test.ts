@@ -45,7 +45,7 @@ test("tripped breaker blocks every tool before policy", () => {
     const { deps } = makeDeps({ breaker: trippedBreaker() });
     assert.deepEqual(handleToolCall("read", { path: "/repo/ok.php" }, deps), {
         block: true,
-        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /reload to reset the safety extension without starting a new session.",
+        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. The block clears when this agent run ends; use /reload for an immediate reset.",
     });
     assert.equal(handleToolCall("bash", { command: "echo hi" }, deps)?.block, true);
 });
@@ -182,6 +182,22 @@ test("recursive evaluator wrappers fail closed on delayed destructive payloads",
     assert.equal(deps.breaker.count("s1"), 1);
 });
 
+test("parameter-constructed recursive evaluators fail closed", () => {
+    const commands = [
+        "part=v; e${part}al '$PAYLOAD'",
+        "part=r; t${part}ap '$PAYLOAD' EXIT",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("grouped recursive evaluators fail closed on escaped substitution payloads", () => {
     const { deps } = makeDeps();
     const command = '{ eval "payload=\\$(id)"; }';
@@ -261,6 +277,23 @@ test("arithmetic commands block recursively evaluated identifiers", () => {
     }
 });
 
+test("unsafe indexed parameter reads fail closed", () => {
+    const commands = [
+        "echo \"${arr[$PAYLOAD]}\"",
+        "echo \"${arr[nested[$PAYLOAD]]}\"",
+        "echo \"${arr[${PAYLOAD}]}\"",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("unsafe indexed assignments fail closed regardless of token position", () => {
     const commands = [
         "> /tmp/arithmetic-output arr[$payload]=x",
@@ -285,6 +318,8 @@ test("non-arithmetic declaration forms do not block", () => {
     assert.equal(handleToolCall("bash", { command: "declare -F" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "arr[1+2]=x" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "printf -v 'arr[1+2]' %s x" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "echo \"${arr[1+2]}\"" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "printf '%s' '${arr[$PAYLOAD]}'" }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
 });
 
