@@ -73,7 +73,8 @@ assert_delegates_to_pr() {
 
 assert_no_obsolete_title_flag() {
 	local tree="$1"
-	! grep -R -Fq -- '--title-file' "$tree"
+	! grep -R -A1 -F -- 'gh pr create' "$tree" \
+		| grep -Fq -- '--title-file'
 }
 
 make_standard_fixture() {
@@ -423,7 +424,11 @@ fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
 assert_contains "$COMMAND_FILE" '--body-file "$BODY_FILE"' 'displayed gh command passes the body through --body-file'
-assert_not_contains "$COMMAND_FILE" '--title-file' 'command never emits the obsolete --title-file option'
+if assert_no_obsolete_title_flag "$COMMAND_FILE"; then
+	pass 'displayed gh command never emits the obsolete --title-file option'
+else
+	fail 'displayed gh command emits the obsolete --title-file option'
+fi
 
 # ── 11. heading parity mutation proof ────────────────────────────────────────
 
@@ -478,10 +483,8 @@ else
 fi
 
 mkdir -p "$mutation_dir/prompts"
-cp "$COMMAND_FILE" "$mutation_dir/prompts/pr.md"
-printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/prompts/pr.md"
-sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/prompts/pr.md"
-rm -f "$mutation_dir/prompts/pr.md.bak"
+sed 's/--title "$TITLE"/--title-file "$TITLE_FILE"/' \
+	"$COMMAND_FILE" > "$mutation_dir/prompts/pr.md"
 if assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
 	fail 'obsolete flag mutation was not detected'
 else

@@ -2,6 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "../../packages/prism-core/extensions/safety/denial-circuit-breaker.ts";
 import { handleToolCall, type ToolCallDeps } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
@@ -31,6 +32,13 @@ function trippedBreaker(): DenialCircuitBreaker {
     b.observe("s1", true);
     b.observe("s1", true);
     return b;
+}
+
+function markedBashBlock(source: string, start: string, end: string): string {
+    const section = source.split(start)[1]?.split(end)[0] ?? "";
+    const block = section.match(/```bash\n([\s\S]*?)\n```/);
+    assert.notEqual(block, null, start);
+    return block?.[1] ?? "";
 }
 
 test("tripped breaker blocks every tool before policy", () => {
@@ -94,6 +102,23 @@ test("the check conflict-marker audit passes without feeding the breaker", () =>
 
     assert.equal(handleToolCall("bash", { command }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
+});
+
+test("the exact pull request workflow blocks pass the safety boundary", () => {
+    const source = readFileSync(
+        new URL("../../packages/prism-core/prompts/pr.md", import.meta.url),
+        "utf8",
+    );
+    const blocks = [
+        markedBashBlock(source, "<!-- pr-preflight:start -->", "<!-- pr-preflight:end -->"),
+        markedBashBlock(source, "<!-- pr-title-validation:start -->", "<!-- pr-title-validation:end -->"),
+    ];
+
+    for (const command of blocks) {
+        const { deps } = makeDeps();
+        assert.equal(handleToolCall("bash", { command }, deps), undefined);
+        assert.equal(deps.breaker.count("s1"), 0);
+    }
 });
 
 test("literal arithmetic passes while identifier and nested expansions block", () => {
