@@ -96,16 +96,78 @@ test("the check conflict-marker audit passes without feeding the breaker", () =>
     assert.equal(deps.breaker.count("s1"), 0);
 });
 
-test("simple arithmetic expansion passes while nested command substitution blocks", () => {
+test("literal arithmetic passes while identifier and nested expansions block", () => {
     const { deps } = makeDeps();
 
-    assert.equal(handleToolCall("bash", { command: "attempts=$((attempts + 1))" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "value=$((1 + 2))" }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
+
+    const identifier = handleToolCall("bash", { command: "attempts=$((attempts + 1))" }, deps);
+    assert.equal(identifier?.block, true);
+    assert.match(identifier?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
 
     const nested = handleToolCall("bash", { command: "value=$((1 + $(cat ~/.ssh/id_rsa)))" }, deps);
     assert.equal(nested?.block, true);
     assert.match(nested?.reason ?? "", /sensitive-path policy/);
-    assert.equal(deps.breaker.count("s1"), 1);
+    assert.equal(deps.breaker.count("s1"), 2);
+});
+
+test("arithmetic commands block recursively evaluated identifiers", () => {
+    const commands = [
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; ((value))",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; local -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command declare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; builtin command let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; l'e't value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; \\let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; b'uiltin' c'ommand' l'e't value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; builtin \\-- let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command -\\- let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -'i' result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; ! let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; time let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; time -p let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; local -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -i10 result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -E result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -gF10 result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; integer result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; float result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare >/tmp/arithmetic-output -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; if let value; then :; fi",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; while declare -i result=value; do break; done",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; l\\" + "\n" + "et value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -\\" + "\n" + "i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; \"$cmd\" value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; \"\"$cmd value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; $cmd'' value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; part=c; de${part}lare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; empty=; l${empty}et value",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("non-arithmetic declaration forms do not block", () => {
+    const { deps } = makeDeps();
+
+    assert.equal(handleToolCall("bash", { command: "declare -- -i" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "declare -F" }, deps), undefined);
+    assert.equal(deps.breaker.count("s1"), 0);
 });
 
 test("read/ls/find sensitive paths block without feeding the breaker", () => {

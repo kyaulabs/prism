@@ -76,6 +76,7 @@ assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixe
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run stylelint --' 'check-php runs stylelint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run eslint --' 'check-php runs eslint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run pest -- --coverage' 'check-php runs pest through the launcher'
+assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(\(' 'check-php avoids arithmetic expansion counters'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run sass --' 'build-assets runs sass through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run uglify-js --' 'build-assets runs uglify-js through the launcher'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'prism-tool run pest -- --coverage' 'tdd-php runs pest through the launcher'

@@ -57,7 +57,7 @@ export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!
  * NOT a path prefix (`$HOME/bin/x` — the shell resolves the path, the
  * command itself is the file). Fail closed on the former (OCR round 8).
  */
-export const VARIABLE_COMMAND_POSITION_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])(?=\s|$)/;
+export const VARIABLE_COMMAND_POSITION_RE = /^(?:""|'')*"?\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])"?(?:""|'')*(?=\s|$)/;
 
 /** Strip one layer of surrounding matching quotes (OCR round 5). */
 export function stripSurroundingQuotes(s: string): string {
@@ -122,7 +122,7 @@ export function splitShellSegments(command: string): string[] {
     return segments;
 }
 
-/** Return the first index after a restricted arithmetic expansion. */
+/** Return the first index after a numeric-literal arithmetic expansion. */
 function safeArithmeticExpansionEnd(command: string, start: number): number | null {
     if (!command.startsWith("$((", start)) return null;
     let depth = 0;
@@ -138,16 +138,81 @@ function safeArithmeticExpansionEnd(command: string, start: number): number | nu
             depth--;
             continue;
         }
-        if (!/[A-Za-z0-9_\s+\-*\/%<>=!&|^~?:,]/.test(ch)) return null;
+        if (!/[0-9\s+\-*\/%<>=!&|^~?:,]/.test(ch)) return null;
     }
     return null;
 }
 
+const ARITHMETIC_DECLARATION_BUILTINS = new Set(["declare", "typeset", "local", "integer", "float"]);
+const ARITHMETIC_BUILTINS = new Set(["let", ...ARITHMETIC_DECLARATION_BUILTINS]);
+
+function normalizeShellCommandWord(word: string): string {
+    let normalized = "";
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < word.length; i++) {
+        const ch = word[i];
+        if (quote !== null) {
+            if (ch === quote) {
+                quote = null;
+            } else if (ch === "\\" && quote === '"' && i + 1 < word.length) {
+                normalized += word[++i];
+            } else {
+                normalized += ch;
+            }
+        } else if (ch === '"' || ch === "'") {
+            quote = ch;
+        } else if (ch === "\\" && i + 1 < word.length) {
+            normalized += word[++i];
+        } else {
+            normalized += ch;
+        }
+    }
+    return normalized;
+}
+
+function couldResolveToArithmeticBuiltin(word: string): boolean {
+    let expanded = false;
+    const fixed = basename(word).replace(/\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])/g, () => {
+        expanded = true;
+        return "";
+    });
+    if (!expanded || fixed === "") return false;
+    for (const builtin of ARITHMETIC_BUILTINS) {
+        let i = 0;
+        for (const ch of builtin) {
+            if (ch === fixed[i]) i++;
+        }
+        if (i === fixed.length) return true;
+    }
+    return false;
+}
+
+/** True when a segment invokes a recursively evaluated arithmetic builtin. */
+function hasArithmeticBuiltin(command: string): boolean {
+    const normalizedCommand = command.replace(/\\\r?\n/g, "");
+    for (const segment of splitShellSegments(normalizedCommand)) {
+        const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+        for (let i = 0; i < tokens.length; i++) {
+            if (couldResolveToArithmeticBuiltin(tokens[i])) return true;
+            const head = basename(tokens[i]);
+            if (head === "let" || head === "integer" || head === "float") return true;
+            if (!ARITHMETIC_DECLARATION_BUILTINS.has(head)) continue;
+            for (const token of tokens.slice(i + 1)) {
+                if (token === "--") break;
+                if (/^-[A-Za-z]*[iI](?:[0-9]+)?[A-Za-z]*$/.test(token)
+                    || (head === "typeset" && /^-[A-Za-z]*[EF](?:[0-9]+)?[A-Za-z]*$/.test(token))) return true;
+            }
+        }
+    }
+    return false;
+}
+
 /**
- * Detect active shell constructs the flat tokenizer cannot model. Restricted
- * arithmetic expansion is accepted; nested expansion syntax still blocks.
+ * Detect active shell constructs the flat tokenizer cannot model. Numeric-only
+ * arithmetic expansion is accepted; identifiers and arithmetic commands block.
  */
 export function hasUnmodelableShellConstruct(command: string): boolean {
+    if (hasArithmeticBuiltin(command)) return true;
     let quote: '"' | "'" | null = null;
     for (let i = 0; i < command.length; i++) {
         const ch = command[i];
@@ -192,7 +257,8 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
             continue;
         }
         if (ch === "`" || command.startsWith("$'", i)) return true;
-        if (command.startsWith("<(", i)
+        if (command.startsWith("((", i)
+            || command.startsWith("<(", i)
             || command.startsWith(">(", i)
             || command.startsWith("<<<", i)) return true;
     }
