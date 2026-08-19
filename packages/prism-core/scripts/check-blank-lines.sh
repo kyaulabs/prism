@@ -32,7 +32,7 @@ if [ "$MODE" = "--tracked" ]; then
     fi
 else
     CANDIDATES="$TMPDIR_CHECK/candidates"
-    if ! git diff --cached --name-only --diff-filter=ACMR -z > "$CANDIDATES"; then
+    if ! git diff --cached --name-only --diff-filter=ACMRT -z > "$CANDIDATES"; then
         printf 'check-blank-lines: unable to enumerate cached files\n' >&2
         exit 2
     fi
@@ -128,6 +128,7 @@ while IFS= read -r -d '' path <&3; do
         *.php|*.js|*.scss|*.sh|*.ts) metadata_rules=1 ;;
     esac
     awk -v metadata_rules="$metadata_rules" '
+        { sub(/\r$/, "") }
         /^[ \t]*$/ {
             line[NR] = $0
             blank[NR] = 1
@@ -198,16 +199,18 @@ while IFS= read -r -d '' path <&3; do
                     bad = 1
                 }
             }
-            exit bad
         }
     ' "$CONTENT" >> "$DIAGNOSTICS"
     analyzer_status=$?
+    if [ "$analyzer_status" -ne 0 ]; then
+        printf 'check-blank-lines: analyzer failed for %q\n' "$path" >&2
+        exit 2
+    fi
     if [ -n "$(tail -c 1 "$CONTENT")" ]; then
         line_number=$(awk 'END { print NR }' "$CONTENT")
         printf '%d: missing final line feed\n' "$line_number" >> "$DIAGNOSTICS"
-        analyzer_status=1
     fi
-    if [ "$analyzer_status" -ne 0 ]; then
+    if [ -s "$DIAGNOSTICS" ]; then
         violations=1
         display_path=${path//$'\n'/\\n}
         display_path=${display_path//$'\r'/\\r}

@@ -70,6 +70,19 @@ else
     fail "boundary whitespace was not fully diagnosed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── tracked CRLF blank run ──'
+T3B=$(mktemp -d)
+register_temp_dir "$T3B"
+git_init_test_repo "$T3B"
+printf 'alpha\r\n\r\n\r\n\r\nbeta\r\n' > "$T3B/crlf.txt"
+git -C "$T3B" add crlf.txt
+run_checker "$T3B" --tracked
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'crlf.txt:2: excessive blank-line run; found 3, maximum 2'; then
+    pass 'tracked mode rejects excessive CRLF blank lines'
+else
+    fail "CRLF blank run was not diagnosed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
 printf '%s\n' '── tracked RCS boundaries ──'
 T4=$(mktemp -d)
 register_temp_dir "$T4"
@@ -197,6 +210,43 @@ else
     fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
+printf '%s\n' '── cached regular-file type change ──'
+T7B=$(mktemp -d)
+register_temp_dir "$T7B"
+git_init_test_repo "$T7B"
+printf 'target.txt' | git -C "$T7B" hash-object -w --stdin > "$T7B/link-oid"
+link_oid=$(cat "$T7B/link-oid")
+git -C "$T7B" update-index --add --cacheinfo "120000,$link_oid,typed.txt"
+git -C "$T7B" -c core.hooksPath=/dev/null commit --quiet -m seed
+printf 'alpha\n\n\n\nbeta\n' > "$T7B/typed.txt"
+git -C "$T7B" hash-object -w typed.txt > "$T7B/regular-oid"
+regular_oid=$(cat "$T7B/regular-oid")
+git -C "$T7B" update-index --cacheinfo "100644,$regular_oid,typed.txt"
+rm -f "$T7B/typed.txt"
+run_checker "$T7B" --cached
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'typed.txt:2: excessive blank-line run; found 3, maximum 2'; then
+    pass 'cached mode checks a staged type change to a regular file'
+else
+    fail "cached regular-file type change was not checked (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── cached symlink type change ──'
+T7C=$(mktemp -d)
+register_temp_dir "$T7C"
+git_init_test_repo "$T7C"
+printf 'seed\n' > "$T7C/typed.txt"
+git -C "$T7C" add typed.txt
+git -C "$T7C" -c core.hooksPath=/dev/null commit --quiet -m seed
+printf 'alpha\n\n\n\nbeta\n' | git -C "$T7C" hash-object -w --stdin > "$T7C/link-oid"
+link_oid=$(cat "$T7C/link-oid")
+git -C "$T7C" update-index --cacheinfo "120000,$link_oid,typed.txt"
+run_checker "$T7C" --cached
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'cached mode skips a staged type change to a symlink'
+else
+    fail "cached symlink type change was analyzed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
 printf '%s\n' '── cached staged violation ignores working-tree repair ──'
 T8=$(mktemp -d)
 register_temp_dir "$T8"
@@ -273,6 +323,28 @@ if [ "$invalid_status" -eq 2 ] && [ "$outside_status" -eq 2 ]; then
     pass 'invalid invocation and missing Git context return status 2'
 else
     fail "operational statuses were invalid=$invalid_status outside=$outside_status"
+fi
+
+printf '%s\n' '── analyzer failure status ──'
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+git_init_test_repo "$T12"
+printf 'canonical\n' > "$T12/canonical.txt"
+git -C "$T12" add canonical.txt
+mkdir "$T12/fake-bin"
+cat > "$T12/fake-bin/awk" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$T12/fake-bin/awk"
+set +e
+CHECK_OUTPUT=$(cd "$T12" && PATH="$T12/fake-bin:$PATH" bash "$CHECKER" --tracked 2>&1)
+CHECK_STATUS=$?
+set -e
+if [ "$CHECK_STATUS" -eq 2 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'check-blank-lines: analyzer failed for canonical.txt'; then
+    pass 'internal analyzer failures return status 2'
+else
+    fail "analyzer failure returned the wrong result (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
 print_summary "check_blank_lines_test.sh"
