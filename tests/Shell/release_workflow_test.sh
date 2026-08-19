@@ -529,7 +529,9 @@ fi
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
 if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \
-   grep -qF 'major version must be at least' "$RELEASE_CMD" && \
+   grep -qF 'Parse the returned version as inert data.' "$RELEASE_CMD" && \
+   grep -qF 'The major version must be at least' "$RELEASE_CMD" && \
+   grep -qF '2; otherwise stop and direct the user to' "$RELEASE_CMD" && \
    grep -qF '/doctor' "$RELEASE_CMD"; then
 	pass "P15: /release requires git-cliff 2.0+ and points to /doctor"
 else
