@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # $KYAULabs$
 
@@ -31,6 +16,10 @@ FINISHING_FILE="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-br
 
 WORK_DIR="$(mktemp -d)"
 register_temp_dir "$WORK_DIR"
+TEST_BIN="$WORK_DIR/bin"
+mkdir -p "$TEST_BIN"
+ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" "$TEST_BIN/prism-tool"
+TOOLCHAIN_PATH="$TEST_BIN:$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 PREFLIGHT_SCRIPT="$WORK_DIR/preflight.sh"
 TITLE_SCRIPT="$WORK_DIR/title_validation.sh"
 
@@ -87,8 +76,32 @@ assert_delegates_to_pr() {
 }
 
 assert_no_obsolete_title_flag() {
-	local tree="$1"
-	! grep -R -Fq -- '--title-file' "$tree"
+	local tree="$1" file matches scan_status
+	matches=$(mktemp) || return 2
+	if grep -R -l -F -- 'gh pr create' "$tree" > "$matches"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [ "$scan_status" -gt 1 ]; then
+		rm -f "$matches"
+		return 2
+	fi
+	local obsolete=0
+	while IFS= read -r file; do
+		if ! awk '
+			{
+				if (!in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_gh && index($0, "--title-file")) exit 1
+				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
+			}
+		' "$file"; then
+			obsolete=1
+			break
+		fi
+	done < "$matches"
+	rm -f "$matches"
+	[ "$obsolete" -eq 0 ]
 }
 
 make_standard_fixture() {
@@ -122,9 +135,7 @@ run_preflight() {
 	local fixture="$1" script="$2" output="$3"
 	(
 		cd "$fixture"
-		PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" \
-		PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH" \
-		bash "$script"
+		PATH="$TOOLCHAIN_PATH" bash "$script"
 	) > "$output" 2>&1
 }
 
@@ -362,22 +373,16 @@ COMMITLINT_AVAILABLE=false
 if [ -f "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" ]; then
 	COMMITLINT_AVAILABLE=true
 fi
-LAUNCHER="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
-TOOLCHAIN_PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
-
 title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
 title_file="$title_dir/title.txt"
 validation_file="$title_dir/validation.txt"
-injection_sentinel="$title_dir/pr_command_injection"
-backtick_sentinel="$title_dir/pr_command_backtick"
-
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip 'prism-tool source CLI unavailable — title-validation behavior checks skipped'
 else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
@@ -395,8 +400,9 @@ else
 	fi
 
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
+	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
@@ -406,39 +412,40 @@ else
 		fail 'title validation accepted an uppercase over-length title'
 	fi
 
-	rm -f "$injection_sentinel" "$backtick_sentinel"
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
--$(touch @@SENTINEL1@@) `touch @@SENTINEL2@@` "'; leading-and-quotes
+fix(pr): inert $(touch d-canary) `touch b-canary` "q" -h
 PR_TITLE_PAYLOAD
-	sed -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
-		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file" > "$title_file.tmp" \
-		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
+	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-	preserved=1
-	if [ "$rc" -eq 0 ]; then preserved=0; fi
-	if [ -e "$injection_sentinel" ]; then preserved=0; fi
-	if [ -e "$backtick_sentinel" ]; then preserved=0; fi
 	title_after=""
+	validation_title=""
 	IFS= read -r title_after < "$title_file" 2>/dev/null || true
-	if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
-	validation_first=""
-	IFS= read -r validation_first < "$validation_file" 2>/dev/null || true
-	if [ "$validation_first" != "$payload_line" ]; then preserved=0; fi
-	if [ "$preserved" -eq 1 ]; then
-		pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
+	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
+	if [ "$rc" -eq 0 ] \
+		&& [ "$title_after" = "$payload_line" ] \
+		&& [ "$validation_title" = "$payload_line" ] \
+		&& [ ! -e "$REPO_ROOT/d-canary" ] \
+		&& [ ! -e "$REPO_ROOT/b-canary" ]; then
+		pass 'title validation preserves $(), backticks, quotes, and hyphens as inert data'
 	else
-		fail 'title payload was expanded or altered during validation'
+		fail 'title payload was expanded, altered, or rejected during validation'
 	fi
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
 assert_contains "$COMMAND_FILE" '--body-file "$BODY_FILE"' 'displayed gh command passes the body through --body-file'
-assert_not_contains "$COMMAND_FILE" '--title-file' 'command never emits the obsolete --title-file option'
+if assert_no_obsolete_title_flag "$COMMAND_FILE"; then
+	pass 'displayed gh command never emits the obsolete --title-file option'
+else
+	fail 'displayed gh command emits the obsolete --title-file option'
+fi
 
 # ── 11. heading parity mutation proof ────────────────────────────────────────
 
@@ -493,14 +500,33 @@ else
 fi
 
 mkdir -p "$mutation_dir/prompts"
-cp "$COMMAND_FILE" "$mutation_dir/prompts/pr.md"
-printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/prompts/pr.md"
-sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/prompts/pr.md"
-rm -f "$mutation_dir/prompts/pr.md.bak"
-if assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
+sed 's/--title "$TITLE"/--title-file "$TITLE_FILE"/' \
+	"$COMMAND_FILE" > "$mutation_dir/prompts/pr.md"
+if cmp -s "$COMMAND_FILE" "$mutation_dir/prompts/pr.md" \
+	|| ! grep -Fq -- '--title-file "$TITLE_FILE"' "$mutation_dir/prompts/pr.md"; then
+	fail 'obsolete flag mutation could not be applied'
+elif assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
 	fail 'obsolete flag mutation was not detected'
 else
 	pass 'obsolete flag mutation is detected'
+fi
+
+cat > "$mutation_dir/prompts/fence-forms.md" <<'EOF'
+~~~~ shell
+gh pr create \
+  ~~~~not-a-close \
+  --title-file "$TITLE_FILE"
+~~~~
+
+    gh pr create \
+      --title-file "$TITLE_FILE"
+
+gh pr create --title-file "$TITLE_FILE"
+EOF
+if assert_no_obsolete_title_flag "$mutation_dir/prompts/fence-forms.md"; then
+	fail 'alternate Markdown fence forms evaded obsolete-flag detection'
+else
+	pass 'alternate Markdown fence forms are inspected'
 fi
 
 # ── 13. living-document command index ────────────────────────────────────────
@@ -538,21 +564,5 @@ assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
 
 print_summary "pr command"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

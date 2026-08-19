@@ -1,26 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: setup-rulesets.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── GitHub ruleset drift detection and enforcement ────────────────────────────
 # Compares the live pr-only-integration ruleset and repository merge settings
@@ -130,7 +109,6 @@ if ! run_gh auth status 2>"$FETCH_ERR"; then
 fi
 
 # ── Repository detection ──────────────────────────────────────────────────────
-
 
 
 REPO_JSON=$(run_gh repo view --json nameWithOwner 2>"$FETCH_ERR") || {
@@ -375,26 +353,5 @@ case "$MODE" in
 		fi
 		;;
 esac
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

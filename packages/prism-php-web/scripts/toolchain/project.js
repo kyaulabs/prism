@@ -1,5 +1,4 @@
-// $KYAULabs: project.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: project.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -106,6 +105,5 @@ function inspect({contract, projectRoot, run}) {
 }
 
 module.exports = {inspect, resolveTool};
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

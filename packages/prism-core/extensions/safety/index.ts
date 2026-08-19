@@ -1,6 +1,4 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
@@ -20,7 +18,8 @@
  * (the call actually ran) feeds a success. Three denials within the last
  * ten bash calls trip the breaker (ADR-0068); once tripped, every
  * subsequent `tool_call` in the session is blocked (fail closed,
- * ADR-0036) and the user is notified to `/new`.
+ * ADR-0036) and the user is notified to `/reload`, which reloads the
+ * extension while preserving the current conversation.
  *
  * Fail-closed invariants preserved verbatim from the opencode plugins:
  *   - any handler internal error → BLOCK (ADR-0036 — the whole policy
@@ -143,7 +142,5 @@ export default function (pi: ExtensionAPI) {
         breaker.clearAll();
     });
 }
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

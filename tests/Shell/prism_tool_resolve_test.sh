@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_tool_resolve_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
+# $KYAULabs: prism_tool_resolve_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── prism-tool resolve contract (script resolution) ───────────────────────
 # Instruction-layer script references resolve through the launcher:
@@ -101,7 +98,5 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "prism-tool resolve"
 exit $?
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -1,19 +1,4 @@
-// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -101,10 +86,10 @@ test("wrapper unwrap: clean inner passes, destructive inner blocks", () => {
     assert.equal(classifyCommand("command rm -rf node_modules", OPTS), null);
 });
 
-test("unwrap depth guard blocks deeply nested clean wrappers", () => {
-    assert.equal(classifyCommand("eval eval echo hi", OPTS), null);
-    assert.equal(classifyCommand("eval eval eval echo hi", OPTS), null);
-    assert.equal(classifyCommand("eval eval eval eval echo hi", OPTS)?.severity, "block");
+test("recursive eval payloads fail closed at every wrapper depth", () => {
+    assert.equal(classifyCommand("eval echo hi", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("eval eval echo hi", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("eval eval eval echo hi", OPTS)?.severity, "block");
 });
 
 test("non-string command fails closed", () => {
@@ -279,9 +264,5 @@ test("absolute wrapper paths are unwrapped", () => {
 test("find -exec git invocations are recognized", () => {
     assert.equal(classifyCommand("find . -exec git push -f \\;", OPTS)?.severity, "block");
 });
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

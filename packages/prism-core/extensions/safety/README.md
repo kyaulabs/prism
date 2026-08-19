@@ -48,7 +48,8 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
 3. **Windowed-bash-denial circuit breaker (ADR-0068).** Three blocked bash
    calls within the last ten bash calls in one session trip the breaker.
    Once tripped, **every** subsequent `tool_call` is blocked (fail closed)
-   and the user is notified to `/new`. The escalation message is redacted —
+   through the current agent run. The user may run `/reload` for an immediate
+   reset while preserving the current conversation. The escalation message is redacted —
    no command text, args, output, or metadata; only identity and count.
 
 ## ADR-0042 simplification (pi vs opencode)
@@ -82,7 +83,20 @@ no longer erase the denial count. The opencode-era
   deliberately out of scope.
 - **WARN gates are advisory.** See the enforcement list above.
 - **Benign command substitution is blocked** by the fail-closed guard —
-  the agent computes such values in separate steps.
+  the agent computes such values in separate steps. `$()` and backtick spellings
+  also block inside single-quoted literals because shell builtins can evaluate
+  those strings recursively. Other syntax-like single-quoted text, including a
+  here-string marker, remains inert. Numeric-literal arithmetic such as
+  `$((1 + 2))` is accepted. Identifier-based arithmetic, arithmetic commands,
+  nested expansion syntax, and unsupported arithmetic forms remain fail-closed
+  because supported shells can recursively evaluate identifier values.
+  Delayed `eval`/`trap` payloads and parameter-constructed variants in
+  executable command position block. Non-literal indexed assignments and
+  expanded indexed parameter reads also block because nested subscripts create
+  recursive arithmetic evaluation seams. Recursive evaluator wrappers are
+  reclassified before execution. Indexed assignments block only in shell
+  assignment/evaluator positions; builtin-shaped ordinary arguments and
+  single-quoted indexed-reference text stay inert.
 
 ## Fail-closed invariants (ADR-0036)
 

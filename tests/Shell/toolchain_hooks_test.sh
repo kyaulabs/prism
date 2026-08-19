@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_hooks_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: toolchain_hooks_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Hook boundary tests: every hook routes declared tools through the
 #    prism-tool launcher (Task 8) ────────────────────────────────────────────
@@ -307,10 +301,144 @@ STUB
 	fi
 )
 
+# ── Test 10: pre-commit prefers the checkout blank-line checker ──────────────
+
+echo "── Test 10: pre-commit prefers the checkout blank-line checker ──"
+T10=$(mktemp -d)
+register_temp_dir "$T10"
+(
+	cd "$T10"
+	git_init_test_repo "$T10"
+	mkdir -p packages/prism-core/scripts
+	cat > packages/prism-core/scripts/check-blank-lines.sh <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' 'indexed-blank-line-checker-ran'
+printf '%s\n' "$@" > "$CHECKER_LOG"
+exit 7
+STUB
+	git add packages/prism-core/scripts/check-blank-lines.sh
+	git commit --quiet -m 'seed indexed checker'
+	printf 'clean\n' > staged.md
+	git add staged.md
+	cat > packages/prism-core/scripts/check-blank-lines.sh <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' 'working-tree-blank-line-checker-ran'
+exit 8
+STUB
+	LOG="$T10/log"
+	CHECKER_LOG="$T10/checker-log"
+	: > "$LOG"
+	set +e
+	output=$(CHECKER_LOG="$CHECKER_LOG" PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -eq 7 ] \
+		&& printf '%s\n' "$output" | grep -Fq 'indexed-blank-line-checker-ran' \
+		&& ! printf '%s\n' "$output" | grep -Fq 'working-tree-blank-line-checker-ran' \
+		&& grep -Fxq -- '--cached' "$CHECKER_LOG" \
+		&& ! printf '%s\n' "$lines" | grep -Fxq 'resolve'; then
+		pass "pre-commit executes the indexed checkout blank-line checker"
+	else
+		fail "pre-commit did not execute the indexed checkout checker (exit=$ret): $output"
+	fi
+)
+
+# ── Test 11: pre-commit resolves an installed blank-line checker ──────────────
+
+echo "── Test 11: pre-commit resolves an installed blank-line checker ──"
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+(
+	cd "$T11"
+	git_init_test_repo "$T11"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	mkdir resolved-scripts
+	cat > resolved-scripts/check-blank-lines.sh <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$CHECKER_LOG"
+printf '%s\n' 'resolved-blank-line-checker-ran'
+exit 7
+EOF
+	chmod +x resolved-scripts/check-blank-lines.sh
+	LOG="$T11/log"
+	CHECKER_LOG="$T11/checker-log"
+	: > "$LOG"
+	set +e
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS='' \
+		PRISM_SCRIPTS_DIR="$T11/resolved-scripts" CHECKER_LOG="$CHECKER_LOG" \
+		bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -eq 7 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq 'resolved-blank-line-checker-ran' \
+		&& grep -Fxq -- '--cached' "$CHECKER_LOG"; then
+		pass "pre-commit executes the resolved blank-line checker and propagates its status"
+	else
+		fail "pre-commit did not execute resolver fallback correctly (exit=$ret): $output"
+	fi
+)
+
+# ── Test 12: a failed blank-line resolver fails closed ────────────────────────
+
+echo "── Test 12: failed blank-line resolver fails closed ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	git_init_test_repo "$T12"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	LOG="$T12/log"
+	: > "$LOG"
+	set +e
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS=9 bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -ne 0 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq 'unable to resolve prism-core scripts'; then
+		pass "pre-commit fails closed when script resolution fails"
+	else
+		fail "pre-commit did not fail closed on resolver failure (exit=$ret): $output"
+	fi
+)
+
+# ── Test 13: a missing resolved checker fails closed ──────────────────────────
+
+echo "── Test 13: missing resolved blank-line checker fails closed ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+	cd "$T13"
+	git_init_test_repo "$T13"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	mkdir empty-scripts
+	LOG="$T13/log"
+	: > "$LOG"
+	set +e
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS='' PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -ne 0 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq 'blank-line checker not found'; then
+		pass "pre-commit fails closed when the resolved checker is missing"
+	else
+		fail "pre-commit did not fail closed on a missing resolved checker (exit=$ret): $output"
+	fi
+)
+
 print_summary "toolchain hooks"
 exit $?
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

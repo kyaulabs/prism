@@ -1,17 +1,4 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -510,18 +497,5 @@ function gitNoVerifyBlock(_command: string, tokens: string[], _ctx: RuleCtx): Fi
     }
     return null;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

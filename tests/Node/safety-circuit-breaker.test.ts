@@ -1,9 +1,4 @@
-// $KYAULabs: safety-circuit-breaker.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
+// $KYAULabs: safety-circuit-breaker.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -128,11 +123,5 @@ test("reset and clearAll return to never-seen state", () => {
     b.clearAll();
     assert.equal(b.count("s2"), 0);
 });
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

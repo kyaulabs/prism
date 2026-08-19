@@ -1,10 +1,4 @@
-// $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
+// $KYAULabs: denial-circuit-breaker.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * Pure state machine for the bounded-window denial circuit breaker
@@ -159,11 +153,5 @@ export class DenialCircuitBreaker {
         return buf.reduce((n, denied) => n + (denied ? 1 : 0), 0);
     }
 }
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

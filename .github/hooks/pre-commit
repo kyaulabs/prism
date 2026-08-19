@@ -46,6 +46,40 @@ checkout_staged() {
 	git show ":$1" > "$TMPF" 2>/dev/null || true
 }
 
+trim_blank_edges() {
+	awk '
+		/^[[:space:]]*$/ {
+			pending = pending $0 ORS
+			next
+		}
+		{
+			if (seen) {
+				printf "%s", pending
+			}
+			print
+			pending = ""
+			seen = 1
+		}
+	'
+}
+
+trim_leading_blank_edge() {
+	awk '
+		seen || !/^[[:space:]]*$/ {
+			seen = 1
+			print
+		}
+	'
+}
+
+trim_metadata_edges() {
+	if $APPEND_ML; then
+		trim_blank_edges
+	else
+		trim_leading_blank_edge
+	fi
+}
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
@@ -251,11 +285,38 @@ if [ -n "$STAGED_SRC" ]; then
 			#      PHP context, not templating HTML output).
 			LINE1=$(head -1 "$TMP")
 			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
-				# File starts in PHP context. Skip modeline only if
-				# it ends outside PHP context (trailing ?>).
-				LAST_CONTENT=$(grep -v '^[[:space:]]*$' "$TMP" | tail -1)
-				if echo "$LAST_CONTENT" | grep -qE '\?>\s*$'; then
-					APPEND_ML=false
+				# File starts in PHP context. Use PHP tokenization when available
+				# so closing tags in strings are inert and HTML-ending templates
+				# remain outside PHP context.
+				if command -v php > /dev/null 2>&1; then
+					if php -r '
+						$code = file_get_contents($argv[1]);
+						if ($code === false) exit(2);
+						$inPhp = false;
+						foreach (token_get_all($code) as $token) {
+							if (!is_array($token)) continue;
+							if ($token[0] === T_OPEN_TAG || $token[0] === T_OPEN_TAG_WITH_ECHO) $inPhp = true;
+							if ($token[0] === T_CLOSE_TAG) $inPhp = false;
+						}
+						exit($inPhp ? 0 : 1);
+					' "$TMP"; then
+						tokenizer_status=0
+					else
+						tokenizer_status=$?
+					fi
+					case "$tokenizer_status" in
+						0) ;;
+						1) APPEND_ML=false ;;
+						*)
+							echo "✗ PHP tokenizer failed while inspecting '$file'." >&2
+							rm -f "$TMP" "$MOD"
+							exit 1
+							;;
+					esac
+				else
+					echo "✗ PHP is required to determine safe modeline placement for '$file'." >&2
+					rm -f "$TMP" "$MOD"
+					exit 1
 				fi
 			else
 				# File does not start with <?php — likely a template
@@ -287,49 +348,49 @@ if [ -n "$STAGED_SRC" ]; then
 			fi
 		fi
 
-		# Build normalized file with exactly one canonical header + modeline
+		# Build a body without metadata-adjacent blank padding. Internal blank
+		# runs remain byte-for-byte unchanged.
+		BODY="$LINT_TMPDIR/rcs_body"
+		declare_line=""
+		if [ "$EXT" = "php" ]; then
+			declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
+			if [ -n "$declare_line" ]; then
+				skip=$((declare_line - 1))
+				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_metadata_edges > "$BODY"
+			else
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
+			fi
+		else
+			LINE1=$(head -1 "$CLEAN")
+			if echo "$LINE1" | grep -q '^#!/'; then
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
+			else
+				trim_metadata_edges < "$CLEAN" > "$BODY"
+			fi
+		fi
+
+		# Build normalized file with exactly one canonical header + modeline.
 		{
 			if [ "$EXT" = "php" ]; then
-				# <?php on line 1
 				head -1 "$CLEAN"
 				echo ""
-
-				# Emit declare(strict_types=1); exactly once if present anywhere
-				declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
 				if [ -n "$declare_line" ]; then
 					sed -n "${declare_line}p" "$CLEAN"
+					echo ""
 				fi
-
-				echo ""
 				echo "$HDR"
 				echo ""
-
-				# Body: skip <?php and (if found) the declare line
-				if [ -n "$declare_line" ]; then
-					skip=$((declare_line - 1))
-					tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1'
-				else
-					tail -n +2 "$CLEAN"
-				fi
 			else
-				# Non-PHP source (.sh/.js/.ts/.scss). Preserve a leading shebang
-				# on line 1 — emitting the header first would push it off line 1
-				# and break node/tsx/etc. Merged from the former .sh-only branch
-				# so all non-PHP extensions share the same dance. (#157)
-				LINE1=$(head -1 "$CLEAN")
+				# Preserve a leading shebang on line 1 for every non-PHP source.
 				if echo "$LINE1" | grep -q '^#!/'; then
 					echo "$LINE1"
-					echo "$HDR"
-					echo ""
-					tail -n +2 "$CLEAN"
-				else
-					echo "$HDR"
-					echo ""
-					cat "$CLEAN"
 				fi
-			fi
-			if $APPEND_ML; then
+				echo "$HDR"
 				echo ""
+			fi
+			cat "$BODY"
+			if $APPEND_ML; then
+				[ -s "$BODY" ] && echo ""
 				echo "$ML"
 			fi
 		} > "$MOD"
@@ -344,6 +405,33 @@ if [ -n "$STAGED_SRC" ]; then
 		rm -f "$TMP" "$CLEAN" "$MOD"
 	done <<< "$STAGED_SRC"
 fi
+
+# ── Blank-line policy (staged blobs only) ───────────────────────────────────
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$REPO_ROOT" ]; then
+	echo "✗ blank-line checker requires a Git checkout." >&2
+	exit 1
+fi
+CHECKER_REL="packages/prism-core/scripts/check-blank-lines.sh"
+CHECKER="$LINT_TMPDIR/check-blank-lines.sh"
+if git cat-file -e ":./$CHECKER_REL" 2>/dev/null; then
+	if ! git show ":./$CHECKER_REL" > "$CHECKER"; then
+		echo "✗ unable to materialize the indexed blank-line checker." >&2
+		exit 1
+	fi
+else
+	if ! SCRIPTS_DIR=$("$PRISM_TOOL_PATH" resolve scripts 2>/dev/null); then
+		echo "✗ unable to resolve prism-core scripts for blank-line checking." >&2
+		exit 1
+	fi
+	CHECKER="$SCRIPTS_DIR/check-blank-lines.sh"
+fi
+if [ ! -f "$CHECKER" ]; then
+	echo "✗ blank-line checker not found: $CHECKER" >&2
+	exit 1
+fi
+echo "→ blank-line policy"
+bash "$CHECKER" --cached
 
 # ── Skill/prompt frontmatter check (CI parity: validate-harness.sh) ─────────
 # The package validator checks Agent Skills names/descriptions and pi prompt

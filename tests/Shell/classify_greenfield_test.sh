@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: classify_greenfield_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: classify_greenfield_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -62,12 +55,5 @@ fi
 
 printf '\nclassify_greenfield_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

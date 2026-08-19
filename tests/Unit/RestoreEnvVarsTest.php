@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RestoreEnvVarsTest.php kyau@nova 2026/07/13 -0700 Exp $
-
-
-
+# $KYAULabs: RestoreEnvVarsTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 afterEach(function () {
     foreach (['TEST_RESTORE_KEY', 'TEST_RESTORE_A', 'TEST_RESTORE_B', 'TEST_RESTORE_C'] as $key) {
@@ -78,6 +75,5 @@ test('restoreEnvVars handles multiple keys simultaneously', function () {
     expect($_ENV['TEST_RESTORE_B'])->toBe('orig_b');
     expect(getenv('TEST_RESTORE_C'))->toBeFalse();
 });
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

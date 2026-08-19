@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: frontmatter_parser_stdin_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
 # frontmatter_parser_stdin_test.sh — verifies the --stdin mode added to
 # frontmatter-parser.js (used by the pre-commit skill-frontmatter check to
 # parse staged blobs without temp files).
@@ -75,11 +68,5 @@ else
 fi
 
 print_summary "frontmatter_parser_stdin"
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

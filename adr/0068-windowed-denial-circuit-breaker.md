@@ -4,7 +4,7 @@ Date: 2026-08-17
 
 ## Status
 
-Accepted
+Superseded by ADR-0069
 
 Supersedes the circuit-breaker reset semantics of ADR-0042 (opencode-era,
 as ported by ADR-0056): the pi-era breaker counts denials within a sliding

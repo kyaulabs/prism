@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve-identity.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
+# $KYAULabs: resolve-identity.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # resolve-identity.sh — Resolve the Signed-off-by identity without a project
 # manifest. An optional user override at ~/.config/prism/identity takes
@@ -82,9 +78,5 @@ fi
 printf '✗ Could not resolve a complete Signed-off-by identity.\n' >&2
 printf '  Set git config user.name/user.email, or create %s.\n' "$IDENTITY_FILE" >&2
 exit 3
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

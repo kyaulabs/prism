@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -270,6 +256,25 @@ while IFS= read -r -d '' script; do
 done < <(find "$REPO_ROOT/packages" -type f -name '*.sh' -print0 2>/dev/null | sort -z)
 ok "$SCRIPT_COUNT shell helper(s) checked"
 
+printf '%s\n' '── Checking blank-line policy ──'
+BLANK_LINE_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
+if [ ! -f "$BLANK_LINE_CHECKER" ]; then
+	err "blank-line checker missing: ${BLANK_LINE_CHECKER#$REPO_ROOT/}"
+else
+	if blank_line_output=$(bash "$BLANK_LINE_CHECKER" --tracked 2>&1); then
+		blank_line_status=0
+	else
+		blank_line_status=$?
+	fi
+	if [ "$blank_line_status" -ne 0 ]; then
+		while IFS= read -r diagnostic; do
+			[ -n "$diagnostic" ] && err "$diagnostic"
+		done <<< "$blank_line_output"
+		[ -n "$blank_line_output" ] \
+			|| err "blank-line checker failed with status $blank_line_status"
+	fi
+fi
+
 printf '%s\n' '── Checking package path references ──'
 legacy_script_prefix="$(printf '%s' 'github-scripts' | tr '-' '/')"
 while IFS=: read -r file line text; do
@@ -291,6 +296,24 @@ done < <(grep -RInE 'bash packages/prism-core/(scripts|skills)/' \
 	"$REPO_ROOT/.github/hooks" \
 	2>/dev/null || true)
 
+printf '%s\n' '── Checking commit workflow ownership ──'
+COMMIT_WORKFLOW_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-commit-workflows.js"
+if [ ! -f "$COMMIT_WORKFLOW_CHECKER" ]; then
+	err "commit workflow checker missing: ${COMMIT_WORKFLOW_CHECKER#$REPO_ROOT/}"
+else
+	if commit_workflow_output=$(node "$COMMIT_WORKFLOW_CHECKER" "$REPO_ROOT" 2>&1); then
+		commit_workflow_status=0
+	else
+		commit_workflow_status=$?
+	fi
+	while IFS= read -r diagnostic; do
+		[ -n "$diagnostic" ] && err "$diagnostic"
+	done <<< "$commit_workflow_output"
+	if [ "$commit_workflow_status" -ne 0 ] && [ -z "$commit_workflow_output" ]; then
+		err "commit workflow checker failed with status $commit_workflow_status"
+	fi
+fi
+
 printf '%s\n' '── Checking retired config references ──'
 retired_pattern="$(printf '%s' 'prism-manifest|Prism-Manifest|OPENCODE-CONFIG-CONTENT|OPENCODE-MODEL-|OPENCODE-VARIANT-' | tr '-' '_')"
 while IFS=: read -r file line text; do
@@ -307,19 +330,5 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

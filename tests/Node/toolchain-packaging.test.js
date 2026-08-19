@@ -1,5 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -93,13 +92,14 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.notEqual(packed.files.get('scripts/install-hooks.sh') & 0o111, 0, 'hook installer is executable');
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
-    for (const module of ['cli', 'contract', 'discovery', 'preflight', 'process']) {
+    for (const module of ['cli', 'commit', 'contract', 'discovery', 'preflight', 'process']) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 15, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 35, true, 'skills present');
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 4, true, 'safety extension data present');
-    assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 5, true, 'CLI modules packaged');
+    assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
+    assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
 });
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {
@@ -234,6 +234,5 @@ test('ships the launcher ownership guard so unrelated executables are never repl
     assert.match(installer, /refusing to replace an unmanaged launcher/);
     assert.match(installer, /refusing to remove an unmanaged launcher/);
 });
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

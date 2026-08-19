@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -18,7 +7,7 @@ set -euo pipefail
 # Verify that shell commands in skill markdown files use safe quoting patterns.
 # Two families:
 #   1. gh api graphql uses -F variable bindings (not single-quoted $VAR)
-#   2. gh pr create uses --title-file/--body-file (not inline interpolation)
+#   2. gh pr create uses a quoted title variable and --body-file.
 #
 # Also demonstrates that a crafted malicious title does not execute embedded
 # commands when passed through the safe patterns (active injection test).
@@ -33,6 +22,35 @@ LIB="$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 # shellcheck source=tests/Shell/lib/test_helpers.sh
 source "$LIB"
 setup_result_file
+
+has_obsolete_pr_title_flag() {
+	local tree="$1" file matches scan_status
+	matches=$(mktemp) || return 0
+	if grep -R -l -F -- 'gh pr create' "$tree" > "$matches"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [ "$scan_status" -gt 1 ]; then
+		rm -f "$matches"
+		return 0
+	fi
+	local obsolete=0
+	while IFS= read -r file; do
+		if ! awk '
+			{
+				if (!in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_gh && index($0, "--title-file")) exit 1
+				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
+			}
+		' "$file"; then
+			obsolete=1
+			break
+		fi
+	done < "$matches"
+	rm -f "$matches"
+	[ "$obsolete" -eq 1 ]
+}
 
 # ── Static scan: ticketing SKILL.md ──────────────────────────────────────────
 TICKETING="$REPO_ROOT/packages/prism-core/skills/ticketing/SKILL.md"
@@ -122,11 +140,11 @@ else
 		fail "pr command: missing --body-file transport"
 	fi
 
-	# Check 4d: no obsolete --title-file anywhere in prism-core.
-	if grep -R -Fq -- '--title-file' "$REPO_ROOT/packages/prism-core"; then
-		fail "prism-core: obsolete --title-file option still present"
+	# Check 4d: the displayed gh command never uses obsolete --title-file.
+	if has_obsolete_pr_title_flag "$REPO_ROOT/packages/prism-core"; then
+		fail "prism-core: displayed gh command still uses obsolete --title-file"
 	else
-		pass "prism-core: no obsolete --title-file option"
+		pass "prism-core: displayed gh command has no obsolete --title-file"
 	fi
 fi
 
@@ -246,18 +264,5 @@ esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

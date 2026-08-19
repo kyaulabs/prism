@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_index_lint_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Repro-first tests for pre-commit index-based linting ──────────────────────
 # Bug under test (#77):
@@ -580,14 +573,5 @@ fi
 
 print_summary "pre-commit index lint"
 exit $?
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

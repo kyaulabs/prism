@@ -4,36 +4,6 @@ declare(strict_types=1);
 
 # $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 require_once __DIR__ . '/../../backend/env.php';
 
 beforeEach(function () {
@@ -342,7 +312,6 @@ test('load_env refuses to load dangerous env names from a file', function () {
 });
 
 
-
 test('load_env returns raw value when a quoted value has no closing quote', function () {
     $path = env_fixture("COMMENT_KEY=\"no closing quote\n");
 
@@ -485,12 +454,5 @@ test('load_env no-ops on a .env with more than 10000 lines', function () {
         unlink($path);
     }
 });
-
-
-
-
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

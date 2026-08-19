@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
-
-
-
-
-
-
-
-
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
 # OpenCode-era per-concern CI tests: this file is authoritative.
@@ -128,14 +116,5 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "pi ci contract"
 exit $?
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

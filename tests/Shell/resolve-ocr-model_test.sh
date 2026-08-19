@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve-ocr-model_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
+# $KYAULabs: resolve-ocr-model_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # resolve-ocr-model_test.sh — contract tests for resolve-ocr-model.sh
 # (ADR-0064). Uses ONLY synthetic fixtures via PRISM_OCR_CONFIG; never the
@@ -120,7 +117,5 @@ else
 fi
 
 print_summary "resolve_ocr_model"
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

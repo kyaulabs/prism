@@ -1,10 +1,8 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "../../packages/prism-core/extensions/safety/denial-circuit-breaker.ts";
 import { handleToolCall, type ToolCallDeps } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
@@ -36,11 +34,18 @@ function trippedBreaker(): DenialCircuitBreaker {
     return b;
 }
 
+function markedBashBlock(source: string, start: string, end: string): string {
+    const section = source.split(start)[1]?.split(end)[0] ?? "";
+    const block = section.match(/```bash\n([\s\S]*?)\n```/);
+    assert.notEqual(block, null, start);
+    return block?.[1] ?? "";
+}
+
 test("tripped breaker blocks every tool before policy", () => {
     const { deps } = makeDeps({ breaker: trippedBreaker() });
     assert.deepEqual(handleToolCall("read", { path: "/repo/ok.php" }, deps), {
         block: true,
-        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. Run /new to reset.",
+        reason: "[prism safety] BLOCKED: session tripped (3 bash denials within the last 10 bash calls) — circuit breaker active per ADR-0068. The block clears when this agent run ends; use /reload for an immediate reset.",
     });
     assert.equal(handleToolCall("bash", { command: "echo hi" }, deps)?.block, true);
 });
@@ -85,6 +90,257 @@ test("clean bash passes without notify or breaker feed", () => {
     assert.equal(deps.breaker.count("s1"), 0);
 });
 
+test("the check conflict-marker audit passes without feeding the breaker", () => {
+    const { deps } = makeDeps();
+    const command = [
+        "if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- . ':!adr/**' ':!docs/plans/**'; then",
+        "    echo 'FAIL: unresolved conflict marker(s) found'",
+        "else",
+        "    echo 'PASS: no unresolved conflict markers'",
+        "fi",
+    ].join("\n");
+
+    assert.equal(handleToolCall("bash", { command }, deps), undefined);
+    assert.equal(deps.breaker.count("s1"), 0);
+});
+
+test("the exact pull request workflow blocks pass the safety boundary", () => {
+    const source = readFileSync(
+        new URL("../../packages/prism-core/prompts/pr.md", import.meta.url),
+        "utf8",
+    );
+    const blocks = [
+        markedBashBlock(source, "<!-- pr-preflight:start -->", "<!-- pr-preflight:end -->"),
+        markedBashBlock(source, "<!-- pr-title-validation:start -->", "<!-- pr-title-validation:end -->"),
+    ];
+
+    for (const command of blocks) {
+        const { deps } = makeDeps();
+        assert.equal(handleToolCall("bash", { command }, deps), undefined);
+        assert.equal(deps.breaker.count("s1"), 0);
+    }
+});
+
+test("the exact commit workflow commands pass the safety boundary", () => {
+    const source = readFileSync(
+        new URL("../../packages/prism-core/skills/conventional-commits/SKILL.md", import.meta.url),
+        "utf8",
+    );
+    const blocks = [
+        markedBashBlock(source, "<!-- commit-prepare:start -->", "<!-- commit-prepare:end -->"),
+        markedBashBlock(source, "<!-- commit-apply:start -->", "<!-- commit-apply:end -->"),
+        markedBashBlock(source, "<!-- commit-discard:start -->", "<!-- commit-discard:end -->"),
+    ];
+
+    for (const command of blocks) {
+        const { deps } = makeDeps();
+        assert.equal(handleToolCall("bash", { command }, deps), undefined);
+        assert.equal(deps.breaker.count("s1"), 0);
+    }
+});
+
+test("literal arithmetic passes while identifier and nested expansions block", () => {
+    const { deps } = makeDeps();
+
+    assert.equal(handleToolCall("bash", { command: "value=$((1 + 2))" }, deps), undefined);
+    assert.equal(deps.breaker.count("s1"), 0);
+
+    const identifier = handleToolCall("bash", { command: "attempts=$((attempts + 1))" }, deps);
+    assert.equal(identifier?.block, true);
+    assert.match(identifier?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+
+    const nested = handleToolCall("bash", { command: "value=$((1 + $(cat ~/.ssh/id_rsa)))" }, deps);
+    assert.equal(nested?.block, true);
+    assert.match(nested?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 2);
+});
+
+test("delayed trap payloads fail closed", () => {
+    const commands = [
+        "trap 'cat <(touch /tmp/trap-canary)' EXIT",
+        "trap 'bash <<< \"touch /tmp/trap-canary\"' EXIT",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("delayed and arithmetic builtin names remain inert in ordinary arguments", () => {
+    const commands = [
+        "echo trap",
+        "printf '%s' let",
+        "grep declare -i file",
+        "echo 'item[name]=value'",
+        "grep 'array[key]=text' file",
+        "printf '%s' 'array[key]=text'",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+
+        assert.equal(handleToolCall("bash", { command }, deps), undefined, command);
+        assert.equal(deps.breaker.count("s1"), 0, command);
+    }
+});
+
+test("recursive evaluator wrappers fail closed on delayed destructive payloads", () => {
+    const { deps } = makeDeps();
+    const command = "builtin eval 'echo $((1)); rm -rf /home/tester/project'";
+    const result = handleToolCall("bash", { command }, deps);
+
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
+test("parameter-constructed recursive evaluators fail closed", () => {
+    const commands = [
+        "part=v; e${part}al '$PAYLOAD'",
+        "part=r; t${part}ap '$PAYLOAD' EXIT",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("grouped recursive evaluators fail closed on escaped substitution payloads", () => {
+    const { deps } = makeDeps();
+    const command = '{ eval "payload=\\$(id)"; }';
+    const result = handleToolCall("bash", { command }, deps);
+
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
+test("single-quoted command substitution syntax fails closed", () => {
+    const commands = [
+        "echo '$(date)'",
+        "printf '%s\\n' '`date`'",
+        "declare 'arr[$(touch /tmp/arithmetic-canary)]=x'",
+        "unset 'arr[`touch /tmp/arithmetic-canary`]'",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("arithmetic commands block recursively evaluated identifiers", () => {
+    const commands = [
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; ((value))",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; local -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command declare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; builtin command let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; l'e't value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; \\let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; b'uiltin' c'ommand' l'e't value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; builtin \\-- let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; command -\\- let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -'i' result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; ! let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; time let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; time -p let value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; local -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -I result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -i10 result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -E result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; typeset -gF10 result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; integer result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; float result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare >/tmp/arithmetic-output -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; if let value; then :; fi",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; while declare -i result=value; do break; done",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; l\\" + "\n" + "et value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; declare -\\" + "\n" + "i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; \"$cmd\" value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; \"\"$cmd value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; $cmd'' value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; part=c; de${part}lare -i result=value",
+        "value='arr[$(touch /tmp/arithmetic-canary)]'; empty=; l${empty}et value",
+        "payload='$(touch /tmp/arithmetic-canary)'; arr[$payload]=x",
+        "payload='$(touch /tmp/arithmetic-canary)'; printf -v 'arr[$payload]' %s x",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("unsafe indexed parameter reads fail closed", () => {
+    const commands = [
+        "echo \"${arr[$PAYLOAD]}\"",
+        "echo \"${arr[nested[$PAYLOAD]]}\"",
+        "echo \"${arr[${PAYLOAD}]}\"",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("unsafe indexed assignments fail closed regardless of token position", () => {
+    const commands = [
+        "> /tmp/arithmetic-output arr[$payload]=x",
+        "declare 'arr[$payload]=x'",
+        "unset 'arr[$payload]'",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
+test("non-arithmetic declaration forms do not block", () => {
+    const { deps } = makeDeps();
+
+    assert.equal(handleToolCall("bash", { command: "declare -- -i" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "declare -F" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "arr[1+2]=x" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "printf -v 'arr[1+2]' %s x" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "echo \"${arr[1+2]}\"" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "printf '%s' '${arr[$PAYLOAD]}'" }, deps), undefined);
+    assert.equal(deps.breaker.count("s1"), 0);
+});
+
 test("read/ls/find sensitive paths block without feeding the breaker", () => {
     for (const toolName of ["read", "ls", "find"]) {
         const { deps } = makeDeps();
@@ -125,11 +381,5 @@ test("internal error fails closed with ADR-0036 reason", () => {
     assert.match(result?.reason ?? "", /failing closed per ADR-0036/);
     assert.match(result?.reason ?? "", /boom/);
 });
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

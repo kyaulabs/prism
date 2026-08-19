@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: fixture_helpers_test.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
+# $KYAULabs: fixture_helpers_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for tests/Shell/lib/fixture_helpers.sh ──────────────────────────────
 #
@@ -73,6 +71,5 @@ fi
 
 printf '\nfixture_helpers_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

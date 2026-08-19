@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: resolve-ocr-model.sh kyau@aura.kyaulabs 2026/08/15 -0700 Exp $
-
-
-
-
+# $KYAULabs: resolve-ocr-model.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # resolve-ocr-model.sh — Resolve the OCR review model for the Tested-by
 # commit footer (ADR-0064). Reads ONLY the top-level `model` key from
@@ -56,7 +52,5 @@ case "$MODEL" in
 esac
 
 printf '%s\n' "${MODEL##*/}"
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

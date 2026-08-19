@@ -2,19 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * Safely reads a boolean environment variable.
@@ -281,9 +269,5 @@ function load_env(string $path): void
         }
     }
 }
-
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

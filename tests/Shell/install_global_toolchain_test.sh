@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -465,10 +460,5 @@ fi
 
 print_summary "install global toolchain"
 exit $?
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

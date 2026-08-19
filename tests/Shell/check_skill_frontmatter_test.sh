@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
-
-
-
-
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -28,9 +24,5 @@ if bash "$VALIDATOR" >/dev/null; then pass 'real skills satisfy contract'; else 
 
 printf '\ncheck_skill_frontmatter_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

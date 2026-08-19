@@ -21,67 +21,7 @@ Run the marked block exactly. Stop on its first failure.
 
 <!-- pr-preflight:start -->
 ```bash
-set -euo pipefail
-
-pr_fail() {
-    printf 'PR preflight failed: %s\n' "${1}" >&2
-    exit 1
-}
-
-# Mandatory local readiness (fail-closed); honors a PRISM_TOOL override for
-# isolated runs, otherwise requires the prism-tool launcher on PATH.
-PRISM_TOOL_PATH=""
-if [ -n "${PRISM_TOOL:-}" ]; then
-	PRISM_TOOL_PATH="$PRISM_TOOL"
-elif command -v prism-tool > /dev/null 2>&1; then
-	PRISM_TOOL_PATH="$(command -v prism-tool)"
-else
-	pr_fail 'prism-tool launcher is not installed (deploy via install-global.sh or /setup)'
-fi
-"$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1 \
-	|| pr_fail 'toolchain local readiness failed'
-
-BRANCH=$(git symbolic-ref --quiet --short HEAD) \
-    || pr_fail 'detached HEAD; switch to a work branch'
-
-bash "$("$PRISM_TOOL_PATH" resolve scripts)/validate-branch-name.sh" "$BRANCH" \
-    || pr_fail 'branch is protected or does not satisfy ADR-0028'
-
-[ -z "$(git status --porcelain)" ] \
-    || pr_fail 'working tree is not clean'
-
-case "$BRANCH" in
-    hotfix/*|release/*) TARGET_BRANCH=main ;;
-    *)                  TARGET_BRANCH=develop ;;
-esac
-
-BASE_REF="origin/$TARGET_BRANCH"
-git rev-parse --verify --quiet "$BASE_REF^{commit}" > /dev/null \
-    || pr_fail "missing synchronized remote-tracking ref $BASE_REF"
-
-BASE_SHA=$(git rev-parse "$BASE_REF^{commit}")
-HEAD_SHA=$(git rev-parse HEAD)
-MERGE_BASE=$(git merge-base "$BASE_REF" HEAD) \
-    || pr_fail "cannot compute merge-base against $BASE_REF"
-COMMIT_COUNT=$(git rev-list --count "$MERGE_BASE"..HEAD)
-NON_MERGE_COUNT=$(git rev-list --count --no-merges "$MERGE_BASE"..HEAD)
-
-[ "$COMMIT_COUNT" -gt 0 ] \
-    || pr_fail "no commits ahead of $BASE_REF"
-[ "$NON_MERGE_COUNT" -gt 0 ] \
-    || pr_fail 'branch range contains no non-merge commit'
-if git diff --quiet "$MERGE_BASE"..HEAD --; then
-    pr_fail 'branch has no net diff against its merge-base'
-fi
-
-printf 'BRANCH\t%s\n' "$BRANCH"
-printf 'TARGET_BRANCH\t%s\n' "$TARGET_BRANCH"
-printf 'BASE_REF\t%s\n' "$BASE_REF"
-printf 'BASE_SHA\t%s\n' "$BASE_SHA"
-printf 'HEAD_SHA\t%s\n' "$HEAD_SHA"
-printf 'MERGE_BASE\t%s\n' "$MERGE_BASE"
-printf 'COMMIT_COUNT\t%s\n' "$COMMIT_COUNT"
-printf 'NON_MERGE_COUNT\t%s\n' "$NON_MERGE_COUNT"
+prism-tool pr preflight
 ```
 <!-- pr-preflight:end -->
 
@@ -148,44 +88,9 @@ Run the marked validation block after TITLE_FILE exists:
 
 <!-- pr-title-validation:start -->
 ```bash
-set -euo pipefail
-: "${TITLE_FILE:?TITLE_FILE is required}"
-: "${VALIDATION_FILE:?VALIDATION_FILE is required}"
-: "${PI_MODEL:?current pi model is required}"
-PRISM_TOOL_PATH=""
-if [ -n "${PRISM_TOOL:-}" ]; then
-	PRISM_TOOL_PATH="$PRISM_TOOL"
-elif command -v prism-tool > /dev/null 2>&1; then
-	PRISM_TOOL_PATH="$(command -v prism-tool)"
-else
-	printf 'PR title validation failed: prism-tool launcher is unavailable\n' >&2
-	exit 1
-fi
-"$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1 \
-	|| { printf 'PR title validation failed: toolchain local readiness failed\n' >&2; exit 1; }
-
-TITLE=$(cat "$TITLE_FILE")
-[ -n "$TITLE" ] \
-    || { printf 'PR title validation failed: title is empty\n' >&2; exit 1; }
-case "$TITLE" in
-    *$'\n'*|*$'\r'*)
-        printf 'PR title validation failed: title must be one line\n' >&2
-        exit 1
-        ;;
-esac
-
-SIGNED_OFF_BY=$(bash "$("$PRISM_TOOL_PATH" resolve scripts)/resolve-identity.sh")
-MODEL_ID="${PI_MODEL##*/}"
-OCR_MODEL=$(bash "$("$PRISM_TOOL_PATH" resolve scripts)/resolve-ocr-model.sh") \
-    || { printf 'PR title validation failed: OCR model could not be resolved (run: ocr config model)\n' >&2; exit 1; }
-{
-    cat "$TITLE_FILE"
-    printf '\n\nImplemented-by: %s\n' "$MODEL_ID"
-    printf 'Tested-by: %s\n' "$OCR_MODEL"
-    printf 'Signed-off-by: %s\n' "$SIGNED_OFF_BY"
-} > "$VALIDATION_FILE"
-
-"$PRISM_TOOL_PATH" run commitlint -- --edit "$VALIDATION_FILE"
+prism-tool pr validate-title \
+    --title-file "$TITLE_FILE" \
+    --validation-file "$VALIDATION_FILE"
 ```
 <!-- pr-title-validation:end -->
 

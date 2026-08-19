@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-push_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
-
-
-
-
-
-
-
-
+# $KYAULabs: pre-push_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # Tests for the pre-push hook's no-squash heuristic and non-fast-forward gate.
 # Covers the three acceptance criteria from issue #74:
@@ -598,13 +590,5 @@ register_temp_dir "$T16"
 
 print_summary "pre-push_test.sh"
 exit $?
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

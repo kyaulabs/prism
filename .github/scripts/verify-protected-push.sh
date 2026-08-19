@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: verify-protected-push.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
-
-
+# $KYAULabs: verify-protected-push.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Verify a protected-branch push came from a merged PR ──────────────────────
 # Consumes: GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_SHA, GITHUB_EVENT_BEFORE,

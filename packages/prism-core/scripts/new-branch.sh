@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: new-branch.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: new-branch.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # new-branch.sh — Generate a Git Flow branch name and create the branch.
 # See ADR-0028 for naming convention.
@@ -122,11 +117,5 @@ fi
 
 git checkout -b "$BRANCH" || { echo "✗ Failed to create branch '$BRANCH'" >&2; exit 1; }
 echo "$BRANCH"
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

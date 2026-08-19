@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -159,14 +150,5 @@ if (results.length > 0) {
 	});
 }
 NODE
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

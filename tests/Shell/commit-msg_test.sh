@@ -1,21 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
@@ -494,13 +478,5 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

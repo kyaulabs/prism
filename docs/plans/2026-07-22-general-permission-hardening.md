@@ -156,8 +156,6 @@ declare(strict_types=1);
 # $KYAULabs: GeneralAgentPermissionTest.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
 
 
-
-
 use PHPUnit\Framework\Assert;
 
 /**

@@ -1,5 +1,4 @@
-// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 'use strict';
 
@@ -32,6 +31,5 @@ function verify(options) {
 }
 
 module.exports = {apply, inspect, resolve, resolveTool, verify};
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

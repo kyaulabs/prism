@@ -1,5 +1,4 @@
-// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/08/16 -0700 Exp $
-
+// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 // Verify that any pi bundled-core package imported by a package's extensions/
 // is declared in that package.json's peerDependencies.
@@ -108,6 +107,5 @@ for (const core of imported) {
         console.log(`${rel}: extension imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
     }
 }
-
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh git@aura.kyaulabs 2026/08/14 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -24,6 +19,7 @@ CORE_SKILLS="$REPO_ROOT/packages/prism-core/skills"
 ADAPTER_PROMPTS="$REPO_ROOT/packages/prism-php-web/prompts"
 ADAPTER_SKILLS="$REPO_ROOT/packages/prism-php-web/skills"
 ADAPTER_DOCS="$REPO_ROOT/packages/prism-php-web/docs"
+PR_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool/pr.js"
 
 failures=0
 assert_file_contains() {
@@ -62,8 +58,10 @@ assert_file_contains "$CORE_PROMPTS/doctor.md" 'connectivity' 'doctor asks an OC
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
-assert_file_contains "$CORE_PROMPTS/pr.md" 'doctor --local-only' 'pr performs local-only readiness'
-assert_file_contains "$CORE_PROMPTS/pr.md" 'run commitlint -- --edit' 'pr validates titles through commitlint launcher'
+assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr preflight' 'pr delegates preflight to the launcher'
+assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr validate-title' 'pr delegates title validation to the launcher'
+assert_file_contains "$PR_TOOL" "'doctor', '--local-only'" 'pr launcher operation performs local-only readiness'
+assert_file_contains "$PR_TOOL" "'commitlint'" 'pr launcher operation validates titles through commitlint'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool doctor --local-only' 'release performs local-only readiness'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool run git-cliff' 'release uses bundled git-cliff through the launcher'
 
@@ -81,6 +79,7 @@ assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixe
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run stylelint --' 'check-php runs stylelint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run eslint --' 'check-php runs eslint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run pest -- --coverage' 'check-php runs pest through the launcher'
+assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(\(' 'check-php avoids arithmetic expansion counters'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run sass --' 'build-assets runs sass through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run uglify-js --' 'build-assets runs uglify-js through the launcher'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'prism-tool run pest -- --coverage' 'tdd-php runs pest through the launcher'
@@ -133,7 +132,5 @@ if [ "$failures" -gt 0 ]; then
 fi
 print_summary "toolchain entrypoints"
 exit $?
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

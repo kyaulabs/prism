@@ -1,8 +1,3 @@
-
-
-
-
-
 const { spawnSync } = require('child_process');
 
 const BANNED_CLOSING = new Set([

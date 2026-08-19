@@ -67,7 +67,8 @@ Complete these in order:
 5. **Present design** — in sections scaled to their complexity. Use grilling's
    Confirmation gate: present each section, ask "Does this look right so far?",
    and wait for explicit approval before moving to the next section.
-6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md` and commit.
+6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md`, then
+   load `conventional-commits` and use its launcher-owned approval workflow.
 7. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
 8. **User reviews written spec** — ask the user to review before proceeding.
@@ -90,8 +91,9 @@ real code (see the `wayfinder` skill).
 The bootstrap handoff differs from the normal branch flow:
 
 - A no-commit repository cannot create a work branch yet. The approved spec
-  is included in the ADR-0044 **single-root seed** on `develop`, and the
-  **human** performs that initial push — the agent never pushes.
+  is included in the ADR-0044 **single-root seed** on `develop`, prepared
+  through `conventional-commits`, and the **human** performs that initial push
+  — the agent never pushes.
 - Only after the seed push does `new-branch.sh` create the implementation
   work branch for the scaffold plus the vertical slice.
 - Implementation follows the normal single-agent pipeline (`writing-plans` →

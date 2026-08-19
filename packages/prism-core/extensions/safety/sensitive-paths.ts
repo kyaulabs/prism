@@ -1,16 +1,4 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
@@ -69,7 +57,7 @@ export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!
  * NOT a path prefix (`$HOME/bin/x` — the shell resolves the path, the
  * command itself is the file). Fail closed on the former (OCR round 8).
  */
-export const VARIABLE_COMMAND_POSITION_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])(?=\s|$)/;
+export const VARIABLE_COMMAND_POSITION_RE = /^(?:""|'')*"?\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])"?(?:""|'')*(?=\s|$)/;
 
 /** Strip one layer of surrounding matching quotes (OCR round 5). */
 export function stripSurroundingQuotes(s: string): string {
@@ -134,15 +122,258 @@ export function splitShellSegments(command: string): string[] {
     return segments;
 }
 
-/** Shell constructs the flat tokenizer cannot model — command/process
- *  substitution, backticks, ANSI-C quoting, here-strings. Any of them
- *  hides command boundaries from the tokenizer, so the gates fail closed
- *  (ADR-0036; security audit M-1/I-2). */
-const UNMODELABLE_CONSTRUCT_RE = /\$\(|`|<\(|>\(|\$'|<<</;
+/** Return the first index after a numeric-literal arithmetic expansion. */
+function safeArithmeticExpansionEnd(command: string, start: number): number | null {
+    if (!command.startsWith("$((", start)) return null;
+    let depth = 0;
+    for (let i = start + 3; i < command.length; i++) {
+        const ch = command[i];
+        if (ch === "(") {
+            depth++;
+            continue;
+        }
+        if (ch === ")") {
+            if (depth === 0 && command[i + 1] === ")") return i + 2;
+            if (depth === 0) return null;
+            depth--;
+            continue;
+        }
+        if (!/[0-9\s+\-*\/%<>=!&|^~?:,]/.test(ch)) return null;
+    }
+    return null;
+}
 
-/** True when a command contains a construct the flat tokenizer cannot model. */
+function hasUnsafeIndexedParameterExpansion(command: string, start: number): boolean {
+    if (!command.startsWith("${", start)) return false;
+    const reference = command.slice(start + 2).match(/^[A-Za-z_][A-Za-z0-9_]*\[/);
+    if (reference === null) return false;
+    const subscriptStart = start + 2 + reference[0].length;
+    let depth = 1;
+    for (let i = subscriptStart; i < command.length; i++) {
+        if (command[i] === "[") {
+            depth++;
+        } else if (command[i] === "]") {
+            depth--;
+            if (depth === 0) {
+                const subscript = command.slice(subscriptStart, i);
+                return !/^[0-9\s+\-*\/%<>=!&|^~?:,]+$/.test(subscript);
+            }
+        } else if (command[i] === "}" && depth === 1) {
+            return true;
+        }
+    }
+    return true;
+}
+
+const ARITHMETIC_DECLARATION_BUILTINS = new Set(["declare", "typeset", "local", "integer", "float"]);
+const ARITHMETIC_BUILTINS = new Set(["let", ...ARITHMETIC_DECLARATION_BUILTINS]);
+
+function normalizeShellCommandWord(word: string): string {
+    let normalized = "";
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < word.length; i++) {
+        const ch = word[i];
+        if (quote !== null) {
+            if (ch === quote) {
+                quote = null;
+            } else if (ch === "\\" && quote === '"' && i + 1 < word.length) {
+                normalized += word[++i];
+            } else {
+                normalized += ch;
+            }
+        } else if (ch === '"' || ch === "'") {
+            quote = ch;
+        } else if (ch === "\\" && i + 1 < word.length) {
+            normalized += word[++i];
+        } else {
+            normalized += ch;
+        }
+    }
+    return normalized;
+}
+
+function couldResolveToBuiltin(word: string, builtins: ReadonlySet<string>): boolean {
+    let expanded = false;
+    const fixed = basename(word).replace(/\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])/g, () => {
+        expanded = true;
+        return "";
+    });
+    if (!expanded || fixed === "") return false;
+    for (const builtin of builtins) {
+        let i = 0;
+        for (const ch of builtin) {
+            if (ch === fixed[i]) i++;
+        }
+        if (i === fixed.length) return true;
+    }
+    return false;
+}
+
+function isUnsafeIndexedReference(token: string, assignment: boolean): boolean {
+    const suffix = assignment ? "(?:\\+)?=" : "$";
+    const reference = token.match(
+        new RegExp(`^[A-Za-z_][A-Za-z0-9_]*\\[([^\\]]+)\\]${suffix}`),
+    );
+    return reference !== null && !/^[0-9\s+\-*\/%<>=!&|^~?:,]+$/.test(reference[1]);
+}
+
+function hasUnsafeIndexedAssignment(segment: string): boolean {
+    const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+    const position = effectiveCommandPosition(tokens);
+    if (position === null) return false;
+    if (isUnsafeIndexedReference(tokens[position], true)) return true;
+    const head = basename(tokens[position]);
+    if (ARITHMETIC_DECLARATION_BUILTINS.has(head) || head === "export" || head === "readonly") {
+        return tokens.slice(position + 1).some((token) => isUnsafeIndexedReference(token, true));
+    }
+    if (head === "unset") {
+        return tokens.slice(position + 1).some((token) => isUnsafeIndexedReference(token, false));
+    }
+    return false;
+}
+
+const COMMAND_PREFIXES = new Set(["!", "{", "(", "if", "then", "elif", "while", "until", "do", "else"]);
+const COMMAND_WRAPPERS = new Set(["builtin", "command", "exec"]);
+const DELAYED_EVALUATION_BUILTINS = new Set(["eval", "trap"]);
+
+function effectiveCommandPosition(tokens: string[]): number | null {
+    let i = 0;
+    while (i < tokens.length) {
+        const token = basename(tokens[i]);
+        if (/^(?:[0-9]+)?(?:<|>|>>|<>|<&|>&|&>|&>>)$/.test(tokens[i])) {
+            i += 2;
+            continue;
+        }
+        if (/^(?:[0-9]+)?(?:<|>|>>|<>|<&|>&|&>|&>>).+/.test(tokens[i])) {
+            i++;
+            continue;
+        }
+        if (COMMAND_PREFIXES.has(token) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+            i++;
+            continue;
+        }
+        if (token === "time") {
+            i++;
+            while (i < tokens.length && tokens[i].startsWith("-")) i++;
+            continue;
+        }
+        break;
+    }
+    while (i < tokens.length && COMMAND_WRAPPERS.has(basename(tokens[i]))) {
+        const wrapper = basename(tokens[i++]);
+        if (wrapper === "command" && (tokens[i] === "-v" || tokens[i] === "-V")) return null;
+        while (i < tokens.length && tokens[i].startsWith("-")) i++;
+    }
+    return i < tokens.length ? i : null;
+}
+
+function hasDelayedEvaluationBuiltin(command: string): boolean {
+    const normalizedCommand = command.replace(/\\\r?\n/g, "");
+    return splitShellSegments(normalizedCommand).some((segment) => {
+        const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+        const position = effectiveCommandPosition(tokens);
+        return position !== null
+            && (DELAYED_EVALUATION_BUILTINS.has(basename(tokens[position]))
+                || couldResolveToBuiltin(tokens[position], DELAYED_EVALUATION_BUILTINS));
+    });
+}
+
+/** True when a segment invokes a recursively evaluated arithmetic context. */
+function hasArithmeticBuiltin(command: string): boolean {
+    const normalizedCommand = command.replace(/\\\r?\n/g, "");
+    for (const segment of splitShellSegments(normalizedCommand)) {
+        if (hasUnsafeIndexedAssignment(segment)) return true;
+        const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+        const position = effectiveCommandPosition(tokens);
+        if (position === null) continue;
+        if (couldResolveToBuiltin(tokens[position], ARITHMETIC_BUILTINS)) return true;
+        const head = basename(tokens[position]);
+        if (head === "printf") {
+            const destination = tokens.indexOf("-v", position + 1);
+            if (destination !== -1
+                && isUnsafeIndexedReference(tokens[destination + 1] ?? "", false)) return true;
+        }
+        if (head === "let" || head === "integer" || head === "float") return true;
+        if (!ARITHMETIC_DECLARATION_BUILTINS.has(head)) continue;
+        for (const token of tokens.slice(position + 1)) {
+            if (token === "--") break;
+            if (/^-[A-Za-z]*[iI](?:[0-9]+)?[A-Za-z]*$/.test(token)
+                || (head === "typeset" && /^-[A-Za-z]*[EF](?:[0-9]+)?[A-Za-z]*$/.test(token))) return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Detect shell constructs the flat tokenizer cannot model. Command-substitution
+ * spellings block even inside single quotes because shell builtins can evaluate
+ * them recursively. Numeric-only arithmetic expansion is accepted; identifiers
+ * and arithmetic commands block.
+ */
 export function hasUnmodelableShellConstruct(command: string): boolean {
-    return UNMODELABLE_CONSTRUCT_RE.test(command);
+    if (hasDelayedEvaluationBuiltin(command) || hasArithmeticBuiltin(command)) return true;
+    let quote: '"' | "'" | null = null;
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        if (quote === "'") {
+            if (ch === "'") {
+                quote = null;
+                continue;
+            }
+            if (ch === "$" && command[i + 1] === "(") {
+                const end = safeArithmeticExpansionEnd(command, i);
+                if (end === null) return true;
+                i = end - 1;
+                continue;
+            }
+            if (ch === "`") return true;
+            continue;
+        }
+        if (quote === '"') {
+            if (ch === "\\") {
+                i++;
+                continue;
+            }
+            if (ch === '"') {
+                quote = null;
+                continue;
+            }
+            if (ch === "$" && command[i + 1] === "(") {
+                const end = safeArithmeticExpansionEnd(command, i);
+                if (end === null) return true;
+                i = end - 1;
+                continue;
+            }
+            if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
+            if (ch === "`") return true;
+            continue;
+        }
+        if (ch === "\\") {
+            i++;
+            continue;
+        }
+        if (ch === "'") {
+            quote = "'";
+            continue;
+        }
+        if (ch === '"') {
+            quote = '"';
+            continue;
+        }
+        if (ch === "$" && command[i + 1] === "(") {
+            const end = safeArithmeticExpansionEnd(command, i);
+            if (end === null) return true;
+            i = end - 1;
+            continue;
+        }
+        if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
+        if (ch === "`" || command.startsWith("$'", i)) return true;
+        if (command.startsWith("((", i)
+            || command.startsWith("<(", i)
+            || command.startsWith(">(", i)
+            || command.startsWith("<<<", i)) return true;
+    }
+    return false;
 }
 
 const SENSITIVE_FALLBACK_RE =
@@ -205,7 +436,7 @@ export function tryUnwrapSegment(tokens: string[]): string | null {
         if (i < tokens.length) return tokens.slice(i).join(" ");
         return null;
     }
-    if (head === "command" || head === "exec") {
+    if (head === "command" || head === "exec" || head === "builtin") {
         if (tokens.length > 1) return tokens.slice(1).join(" ");
         return null;
     }
@@ -461,17 +692,5 @@ export function loadAdditionalSensitivePaths(envValue: string | undefined): stri
     }
     return paths;
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

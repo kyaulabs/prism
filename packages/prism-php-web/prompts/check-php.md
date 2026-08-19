@@ -64,7 +64,7 @@ echo "Changed PHP files:" && cat "$CHANGED"
 # Start a PHP dev server for browser tests. Reuse an existing server on
 # :8080 if one is already serving smoke.html (avoids a port-bind failure
 # when the developer already has a server running). The readiness poll is
-# a bounded while-loop rather than `timeout` so this works on macOS too.
+# a bounded for-loop rather than `timeout` so this works on macOS too.
 BROWSER_URL=""
 if [ -n "$(find tests/Browser -name '*.php' -print -quit 2>/dev/null)" ] \
    && command -v curl > /dev/null 2>&1; then
@@ -74,15 +74,13 @@ if [ -n "$(find tests/Browser -name '*.php' -print -quit 2>/dev/null)" ] \
     else
         php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 &
         PHP_SERVER_PID=$!
-        attempts=0
         ready=0
-        while [ "$attempts" -lt 20 ]; do
+        for attempts in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
             if curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; then
                 ready=1
                 break
             fi
             sleep 0.5
-            attempts=$((attempts + 1))
         done
         if [ "$ready" -eq 1 ]; then
             BROWSER_URL="http://localhost:8080"
