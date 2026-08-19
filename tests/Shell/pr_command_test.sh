@@ -73,7 +73,7 @@ assert_delegates_to_pr() {
 
 assert_no_obsolete_title_flag() {
 	local tree="$1"
-	! grep -R -A1 -F -- 'gh pr create' "$tree" \
+	! grep -R -A20 -F -- 'gh pr create' "$tree" \
 		| grep -Fq -- '--title-file'
 }
 
@@ -381,6 +381,7 @@ else
 	fi
 
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
+	rm -f "$validation_file"
 	rc=0
 	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
@@ -400,6 +401,7 @@ PR_TITLE_PAYLOAD
 		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file" > "$title_file.tmp" \
 		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
+	rm -f "$validation_file"
 	rc=0
 	(cd "$REPO_ROOT" && PRISM_TOOL="$LAUNCHER" PATH="$TOOLCHAIN_PATH" \
 		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \

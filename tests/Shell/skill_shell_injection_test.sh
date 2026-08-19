@@ -112,7 +112,7 @@ else
 	fi
 
 	# Check 4d: the displayed gh command never uses obsolete --title-file.
-	if grep -R -A1 -F -- 'gh pr create' "$REPO_ROOT/packages/prism-core" \
+	if grep -R -A20 -F -- 'gh pr create' "$REPO_ROOT/packages/prism-core" \
 		| grep -Fq -- '--title-file'; then
 		fail "prism-core: displayed gh command still uses obsolete --title-file"
 	else

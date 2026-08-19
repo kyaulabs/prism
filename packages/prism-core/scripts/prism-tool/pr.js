@@ -82,10 +82,17 @@ function validateTitle(args, context) {
     const modelId = model.slice(model.lastIndexOf('/') + 1);
     const content = `${title}\n\nImplemented-by: ${modelId}\n` +
         `Tested-by: ${ocrModelValue}\nSigned-off-by: ${identityValue}\n`;
+    let validationFd;
     try {
-        fs.writeFileSync(validationFile, content, {mode: 0o600});
-        fs.chmodSync(validationFile, 0o600);
+        const flags = fs.constants.O_CREAT | fs.constants.O_EXCL |
+            fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW ?? 0);
+        validationFd = fs.openSync(validationFile, flags, 0o600);
+        fs.writeFileSync(validationFd, content, 'utf8');
+        fs.fchmodSync(validationFd, 0o600);
+        fs.closeSync(validationFd);
+        validationFd = undefined;
     } catch {
+        if (validationFd !== undefined) fs.closeSync(validationFd);
         process.stderr.write('PR title validation failed: validation file could not be written\n');
         return EXIT.TOOL;
     }
