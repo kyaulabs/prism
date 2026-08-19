@@ -175,7 +175,17 @@ test("recursive evaluator wrappers fail closed on delayed destructive payloads",
     const result = handleToolCall("bash", { command }, deps);
 
     assert.equal(result?.block, true);
-    assert.match(result?.reason ?? "", /rm -rf targets path outside safe zones/);
+    assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
+test("grouped recursive evaluators fail closed on escaped substitution payloads", () => {
+    const { deps } = makeDeps();
+    const command = '{ eval "payload=\\$(id)"; }';
+    const result = handleToolCall("bash", { command }, deps);
+
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /sensitive-path policy/);
     assert.equal(deps.breaker.count("s1"), 1);
 });
 

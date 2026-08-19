@@ -86,10 +86,10 @@ test("wrapper unwrap: clean inner passes, destructive inner blocks", () => {
     assert.equal(classifyCommand("command rm -rf node_modules", OPTS), null);
 });
 
-test("unwrap depth guard blocks deeply nested clean wrappers", () => {
-    assert.equal(classifyCommand("eval eval echo hi", OPTS), null);
-    assert.equal(classifyCommand("eval eval eval echo hi", OPTS), null);
-    assert.equal(classifyCommand("eval eval eval eval echo hi", OPTS)?.severity, "block");
+test("recursive eval payloads fail closed at every wrapper depth", () => {
+    assert.equal(classifyCommand("eval echo hi", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("eval eval echo hi", OPTS)?.severity, "block");
+    assert.equal(classifyCommand("eval eval eval echo hi", OPTS)?.severity, "block");
 });
 
 test("non-string command fails closed", () => {

@@ -201,8 +201,9 @@ function hasUnsafeIndexedAssignment(segment: string): boolean {
         .some((token) => isUnsafeIndexedReference(token, true));
 }
 
-const COMMAND_PREFIXES = new Set(["!", "if", "then", "elif", "while", "until", "do", "else"]);
+const COMMAND_PREFIXES = new Set(["!", "{", "(", "if", "then", "elif", "while", "until", "do", "else"]);
 const COMMAND_WRAPPERS = new Set(["builtin", "command", "exec"]);
+const DELAYED_EVALUATION_BUILTINS = new Set(["eval", "trap"]);
 
 function effectiveCommandPosition(tokens: string[]): number | null {
     let i = 0;
@@ -232,7 +233,7 @@ function hasDelayedEvaluationBuiltin(command: string): boolean {
     return splitShellSegments(normalizedCommand).some((segment) => {
         const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
         const position = effectiveCommandPosition(tokens);
-        return position !== null && basename(tokens[position]) === "trap";
+        return position !== null && DELAYED_EVALUATION_BUILTINS.has(basename(tokens[position]));
     });
 }
 
