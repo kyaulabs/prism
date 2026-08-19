@@ -582,6 +582,7 @@ fi
 
 if grep -qF 'gh repo view --json nameWithOwner -q .nameWithOwner' "$RELEASE_CMD" && \
    grep -qF 'kyaulabs/template' "$RELEASE_CMD" && \
+   grep -qF 'mkdir -p .pi/tmp' "$RELEASE_CMD" && \
    grep -qF '.pi/tmp/release-changelog.tmp' "$RELEASE_CMD" && \
    grep -qF 'mv .pi/tmp/release-changelog.tmp CHANGELOG.md' "$RELEASE_CMD" && \
    ! grep -qF 'sed -i' "$RELEASE_CMD"; then

@@ -134,8 +134,8 @@ else
 	fi
 
 	# Check 4c: body transport via a concrete --body-file path in the displayed command.
-	if grep -Fq -- "gh pr create --repo OWNER/REPO --base TARGET_BRANCH --head WORK_BRANCH" "$PR_COMMAND" \
-		&& grep -Fq -- "    --title \"\$TITLE\" --body-file /concrete/private/body-file" "$PR_COMMAND"; then
+	if grep -F -A1 -- "gh pr create --repo OWNER/REPO --base TARGET_BRANCH --head WORK_BRANCH" "$PR_COMMAND" \
+		| grep -Fq -- "    --title \"\$TITLE\" --body-file /concrete/private/body-file"; then
 		pass "pr command: body transport uses --body-file"
 	else
 		fail "pr command: missing --body-file transport"
