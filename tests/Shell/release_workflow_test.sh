@@ -587,21 +587,17 @@ else
 	fail "P19: /release repo-identity or portable link-replacement contract violated"
 fi
 
-# ── P20. Signed chore(release) commit with three dynamic footers ───────────
+# ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if grep -qF 'git commit -S' "$RELEASE_CMD" && \
-   grep -qF 'chore(release): v' "$RELEASE_CMD" && \
-   grep -qF 'PI_MODEL' "$RELEASE_CMD" && \
-   grep -qF 'MODEL_ID' "$RELEASE_CMD" && \
-   grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
-   grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD" && \
-   grep -qF 'Implemented-by:' "$RELEASE_CMD" && \
-   grep -qF 'Tested-by:' "$RELEASE_CMD" && \
-   grep -qF 'Signed-off-by:' "$RELEASE_CMD" && \
-   ! grep -qF 'Authored-by:' "$RELEASE_CMD"; then
-	pass "P20: /release creates a signed chore(release) commit with three dynamically resolved footers"
+if grep -qF 'prism-tool commit prepare --type chore --scope release' "$RELEASE_CMD" && \
+   grep -qF 'prism-tool commit apply --plan' "$RELEASE_CMD" && \
+   grep -qiF 'exact commit message' "$RELEASE_CMD" && \
+   ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE_CMD" && \
+   ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
+   ! grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD"; then
+	pass "P20: /release delegates its signed chore(release) commit to prism-tool"
 else
-	fail "P20: /release signed-commit or dynamic-footer contract violated"
+	fail "P20: /release launcher-owned commit contract violated"
 fi
 
 # bash_block_contains <file> <regex> — exit 0 when any ```bash code block in
@@ -629,18 +625,15 @@ else
 	fail "P20b: /release tracking-issue argument contract violated"
 fi
 
-# ── P20c. RELEASE_REF instantiated in the commit shell; fail-closed guard ────
+# ── P20c. Validated issue digits become inert launcher argv ─────────────────
 
-ref_assign=$(grep -nE 'RELEASE_REF="' "$RELEASE_CMD" | head -1 | cut -d: -f1 || true)
-commit_line=$(grep -nF 'git commit -S' "$RELEASE_CMD" | head -1 | cut -d: -f1 || true)
-if [ -n "$ref_assign" ] && [ -n "$commit_line" ] && [ "$ref_assign" -lt "$commit_line" ] && \
-   grep -qF 'RELEASE_ISSUE_DIGITS' "$RELEASE_CMD" && \
-   grep -qF 'Refs: #[1-9][0-9]*$' "$RELEASE_CMD" && \
-   grep -qF 'missing or malformed' "$RELEASE_CMD" && \
-   ! grep -qE 'RELEASE_REF="[^"]*<' "$RELEASE_CMD"; then
-	pass "P20c: RELEASE_REF is instantiated before the commit in the same shell invocation, with a fail-closed footer guard and no runnable placeholder"
+if grep -qF 'RELEASE_ISSUE_DIGITS' "$RELEASE_CMD" && \
+   grep -qF -- '--refs NN' "$RELEASE_CMD" && \
+   grep -qF 'render the validated digits as a literal' "$RELEASE_CMD" && \
+   ! bash_block_contains "$RELEASE_CMD" '\$RELEASE_ISSUE_DIGITS'; then
+	pass "P20c: validated issue digits are rendered as literal --refs argv without shell expansion"
 else
-	fail "P20c: RELEASE_REF is referenced without instantiation, lacks a fail-closed guard, or contains a runnable placeholder"
+	fail "P20c: release issue reference is not carried as validated literal launcher argv"
 fi
 
 # ── P21. Handoff renders inert text — never a runnable bash block ────────────

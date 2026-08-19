@@ -7,18 +7,18 @@ MSG_FILE="${1:?commit-msg: message file path required}"
 
 # ── Literal backslash-n guard (pure bash, no deps) ───────────────────────────
 # Reject messages containing the two-char sequence '\' + 'n'. These come from
-# `git commit -m "...\n..."` in regular quotes; bash interprets \n only inside
-# $'...'. commitlint's body-max-line-length / trailers-exist would also catch
-# the fallout, but this guard yields a targeted, actionable error. See ADR-0025.
+# malformed direct commit arguments. commitlint's body-max-line-length and
+# trailer checks would also catch the fallout, but this guard points ordinary
+# agent-created commits to the launcher-owned workflow. See ADR-0025, ADR-0070.
 if grep -qF '\n' "$MSG_FILE"; then
 	cat >&2 <<'EOF'
 ✗ Commit message contains a literal '\n' (backslash-n) sequence.
-  This usually means the message was passed via -m "...\n..." in regular
-  quotes. Use a single -m with $'...\n...' so bash interprets newlines:
+  Ordinary agent-created commits must use the launcher-owned workflow:
 
-      git commit -S -m $'type[scope]: subject\n\nBody line.\n\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <email>'
+      prism-tool commit prepare --type fix --scope core --subject "safe subject"
 
-  Never use multiple -m flags (they insert blank lines that break trailers).
+  The launcher constructs real newlines, resolves attribution, validates the
+  exact message, and requires explicit approval before applying the commit.
 EOF
 	exit 1
 fi

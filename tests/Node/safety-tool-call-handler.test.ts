@@ -121,6 +121,24 @@ test("the exact pull request workflow blocks pass the safety boundary", () => {
     }
 });
 
+test("the exact commit workflow commands pass the safety boundary", () => {
+    const source = readFileSync(
+        new URL("../../packages/prism-core/skills/conventional-commits/SKILL.md", import.meta.url),
+        "utf8",
+    );
+    const blocks = [
+        markedBashBlock(source, "<!-- commit-prepare:start -->", "<!-- commit-prepare:end -->"),
+        markedBashBlock(source, "<!-- commit-apply:start -->", "<!-- commit-apply:end -->"),
+        markedBashBlock(source, "<!-- commit-discard:start -->", "<!-- commit-discard:end -->"),
+    ];
+
+    for (const command of blocks) {
+        const { deps } = makeDeps();
+        assert.equal(handleToolCall("bash", { command }, deps), undefined);
+        assert.equal(deps.breaker.count("s1"), 0);
+    }
+});
+
 test("literal arithmetic passes while identifier and nested expansions block", () => {
     const { deps } = makeDeps();
 

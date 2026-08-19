@@ -12,22 +12,17 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-# ── 1. /release changelog commit carries required footers ───────────────────
-# The release commit is a normal chore(release): commit (not a merge/revert),
-# so commitlint's trailers-exist rule requires Implemented-by/Tested-by/
-# Signed-off-by (ADR-0064). The old footerless double-quoted form must be gone.
+# ── 1. /release delegates its ordinary commit to prism-tool ────────────────
 RELEASE="$REPO_ROOT/packages/prism-core/prompts/release.md"
-if grep -qF 'git commit -S -m "chore(release): vX.Y.Z"' "$RELEASE"; then
-	fail "release.md still uses footerless double-quoted commit form"
+if grep -qF 'prism-tool commit prepare --type chore --scope release' "$RELEASE" \
+	&& grep -qF 'prism-tool commit apply --plan' "$RELEASE" \
+	&& grep -qiF 'exact commit message' "$RELEASE" \
+	&& ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE" \
+	&& ! grep -qF 'resolve-ocr-model.sh' "$RELEASE" \
+	&& ! grep -qF 'resolve-identity.sh' "$RELEASE"; then
+	pass "release.md delegates its ordinary signed commit to prism-tool"
 else
-	if grep -qF "Implemented-by:" "$RELEASE" \
-		&& grep -qF "Tested-by:" "$RELEASE" \
-		&& grep -qF "Signed-off-by:" "$RELEASE" \
-		&& ! grep -qF "Authored-by:" "$RELEASE"; then
-		pass "release.md changelog commit includes three required footers"
-	else
-		fail "release.md changelog commit missing Implemented-by/Tested-by/Signed-off-by (or still has Authored-by)"
-	fi
+	fail "release.md does not use the launcher-owned commit approval workflow"
 fi
 
 # ── 2. /release never creates a local tag ──────────────────────────────────

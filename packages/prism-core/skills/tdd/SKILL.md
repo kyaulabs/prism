@@ -125,22 +125,15 @@ Run the active adapter's:
 Then load `verification-before-completion`. If any evidence is stale or fails,
 the task is not done.
 
-### Step 7 — Produce the commit message
+### Step 7 — Prepare the commit through the launcher
 
-Before committing, load `conventional-commits` and produce the required signed
-message:
-
-- type and optional scope from the work performed
-- lowercase subject, no period, at most 100 characters
-- `Implemented-by:` with the model that wrote the implementation
-- `Tested-by:` with the model open-code-review is configured with (via
-  `resolve-ocr-model.sh`)
-- `Signed-off-by:` resolved through
-  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"`
-
-Use model ID segments after the last `/`. There is no manifest or automatic
-model tier under pi. Validate a plan-provided commit message and correct it if
-needed. Present the final message before running `git commit -S`.
+After verification, load `conventional-commits`. Select the type, optional
+scope, subject, optional body, and optional issue reference from the work
+performed. Delegate attribution, validation, exact-message presentation,
+approval binding, signing, and commit execution to its mandatory two-phase
+`prism-tool commit` process. Validate plan-provided structured fields and
+correct them when needed. Never duplicate commit construction or direct Git
+execution here.
 
 ## Test quality rules
 

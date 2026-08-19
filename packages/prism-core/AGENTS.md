@@ -162,27 +162,21 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill.
 - Signed commits required.
-- Every commit must include `Implemented-by:` (the model pi is using — the
-  active session model), `Tested-by:` (the model open-code-review is
-  configured with — resolved via
-  `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"`), and
-  `Signed-off-by:` (user) footers, in pipeline order `Implemented-by` →
-  `Tested-by` → `Signed-off-by` (ADR-0064). Each model footer is the bare
-  model ID segment after the last `/` (e.g. `provider/model-id` → `model-id`).
-  `Signed-off-by:` is resolved dynamically via
-  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"` (git-config fallback
-  per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Implemented-by:`. Use `Refs: #NN` for non-closing references.
+- Every ordinary commit must include `Implemented-by:`, `Tested-by:`, and
+  `Signed-off-by:` in that order (ADR-0064). The `prism-tool commit` workflow
+  resolves and validates all three values; callers provide only structured
+  type, optional scope, subject, optional body, and optional issue reference.
+  Issue-closing references use `Fixes: #NN`; non-closing references use
+  `Refs: #NN`, immediately above `Implemented-by:`.
 - Model and thinking selection is entirely the human's — see **Model
   strategy** below (ADR-0067). There is no manifest/env tier layer.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
-After implementing any change — whether via the `tdd` skill, a direct fix, an
-issue tracker resolution, or a fast-path trivial change — produce a commit
-message in conventional commits format before committing. Load the
-`conventional-commits` skill and produce: type[scope]: subject +
-Implemented-by + Tested-by + Signed-off-by footers. The commit-msg hook blocks
-invalid messages, but the message should be well-formed before you reach the
-hook.
+After implementing any change — whether via TDD, a direct fix, an issue
+tracker resolution, or a fast-path trivial change — load the
+`conventional-commits` skill. Select structured Conventional Commit fields and
+use its mandatory `prism-tool commit` prepare → exact-message approval → apply
+workflow. The launcher owns attribution, validation, signing, and execution.
 
 ### Commit and push permissions (instruction-only)
 
@@ -191,7 +185,8 @@ gate and skill-gating are now instruction-only — ADR-0055). The discipline is
 carried by prose instead:
 
 - `git add` is permitted (staging is reversible).
-- `git commit` should present the full commit message before running.
+- Ordinary commits use `prism-tool commit`; `prepare` prints the exact message
+  and `apply` requires explicit approval bound to unchanged staged state.
 - **`git push` is denied to the agent.** Only the human pushes work branches
   and merges pull requests. `release.yml` alone creates release tags and
   GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a

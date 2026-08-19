@@ -56,9 +56,8 @@ credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
 - **Assets:** `/build-assets` (adapter command — Dart Sass + uglify-js) when
   `cdn/sass` or `cdn/js` sources change. Never edit generated
   `cdn/css/*.min.css` or `cdn/javascript/*.min.js`.
-- **Identity:** commit `Signed-off-by` resolves via
-  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"` (optional
-  `~/.config/prism/identity` override → `git config`; fail-closed).
+- **Commits:** `prism-tool commit` resolves `Signed-off-by` from the optional
+  Prism identity override or Git config and fails closed when unavailable.
 
 ## Deeper docs
 

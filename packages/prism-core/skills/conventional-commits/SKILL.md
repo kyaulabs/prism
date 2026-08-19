@@ -1,184 +1,146 @@
 ---
 name: conventional-commits
-description: Use when writing or reviewing commit messages. Covers the required Conventional Commits format, valid types, scope rules, and examples. Enforced by commitlint in the commit-msg hook.
+description: Use when writing, preparing, creating, or reviewing ordinary commit messages. Owns the two-phase prism-tool approval workflow, Conventional Commits fields, attribution, signing, and issue references.
 ---
 
-## Conventional Commits Format
+# Conventional Commits
 
-```
+Use `prism-tool commit` for every ordinary agent-created commit. The launcher
+constructs attribution, validates the complete message, binds approval to the
+repository state, signs through Git, and keeps message content out of shell
+source. Never construct an ordinary commit with direct Git commands.
+
+## Message fields
+
+Select only these structured fields:
+
+```text
 <type>[optional scope]: <subject>
 
 [optional body]
 
-[optional footer(s)]
-```
-
-- Subject line: lowercase, no period at end, max 100 characters
-- Body: wrap at 72 characters, explain *why* not *what*
-- Signed commits required (`git commit -S`)
-- Every commit must include `Implemented-by:`, `Tested-by:`, and `Signed-off-by:` footers
-
-## Required Footers
-
-Every commit message must end with three footers:
-
-- **`Implemented-by:`** — the model pi is using (the active session model).
-  Use the model ID segment after the last `/` (for example,
-  `provider/model-id` → `model-id`).
-- **`Tested-by:`** — the model open-code-review is configured with. Resolve
-  it with `bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh"` (reads
-  only the `model` key from `~/.opencodereview/config.json`; fails closed,
-  exit 3, when the config is missing or unreadable).
-- **`Signed-off-by:`** — the human user approving the change, formatted as
-  `Name <email>`. Resolve it dynamically with
-  `bash "$(prism-tool resolve scripts)/resolve-identity.sh"`; it uses an optional
-  `~/.config/prism/identity` override and then git
-  `user.name`/`user.email`, failing closed when neither resolves.
-
-> [!CAUTION]
-> Do NOT use role names (`build-agent`, `code-review`, `tdd`, etc.) — only the
-> model ID. The Implemented-by / Tested-by footers track which configured
-> models implemented and verified the change — not which agent role
-> orchestrated it.
->
-> `Tested-by:` records the model the review tool (open-code-review) uses;
-> `Implemented-by:` attributes the coding model. See ADR-0064.
-
-## Valid Types
-
-| Type       | When to use                                               | SemVer impact |
-|------------|-----------------------------------------------------------|---------------|
-| `feat`     | A new feature                                             | MINOR         |
-| `fix`      | A bug fix                                                 | PATCH         |
-| `patch`    | A bug fix (alias of `fix`, project convention)           | PATCH         |
-| `docs`     | Documentation only changes                                | —             |
-| `style`    | Formatting, whitespace — no logic change                 | —             |
-| `refactor` | Code change that neither fixes a bug nor adds a feature  | —             |
-| `perf`     | Performance improvement                                   | PATCH         |
-| `test`     | Adding or correcting tests                               | —             |
-| `build`    | Build system or asset pipeline changes                   | —             |
-| `ci`       | CI/CD configuration changes                              | —             |
-| `chore`    | Maintenance (deps, tooling) — no production code change  | —             |
-| `revert`   | Reverts a previous commit                                | —             |
-| `ignore`   | Excluded from the changelog (initial commit only)       | none (ignored)|
-
-The `patch` and `ignore` types are project-specific extensions defined in
-`commitlint.config.js`. `ignore` exists for the initial repository commit and
-is otherwise unused — do not adopt it for normal commits.
-
-## Breaking Changes
-
-Add `!` after the type/scope, and add a `BREAKING CHANGE:` footer:
-
-```
-feat(auth)!: replace session tokens with JWTs
-
-BREAKING CHANGE: existing session tokens are invalidated on deploy.
-```
-
-## Scope
-
-Scope is optional but recommended for larger projects. Use the affected module,
-directory, or feature area: `feat(core)`, `fix(db)`, `test(auth)`.
-
-## Branch Naming
-
-Branch names follow Conventional Commit type prefixes per ADR-0028. See
-`bash "$(prism-tool resolve scripts)/new-branch.sh"` for the canonical creator and
-`bash "$(prism-tool resolve scripts)/validate-branch-name.sh"` for the regex.
-
-- `<type>/<username>-<hash>-<description>` — feature/standard work
-  (`<type>` ∈ feat, fix, patch, docs, style, refactor, perf, test, build, ci,
-  chore, revert)
-- `hotfix/<username>-<hash>-<description>` — emergency fixes off `main`
-- `release/<major>.<minor>.<patch>[-<prerelease>]` — release prep off `develop`
-
-Exempt from validation: `main`, `develop`, detached HEAD.
-
-The `prepare-commit-msg` hook rejects commits on non-conforming branches.
-
-## Issue References
-
-- **`Fixes: #NN`** — closes issue #NN. This is the *only* accepted closing
-  keyword. Place it at the **top of the footer block**, immediately above
-  `Implemented-by:`. commitlint rejects `Closes`, `Close`, `Closed`, `Resolve`,
-  `Resolves`, `Resolved`, `Fix`, `Fixed`, and colon-less forms (`Fixes #42`).
-- **`Refs: #NN`** — references an issue *without* closing it. Same footer
-  block, above `Implemented-by:`.
-- Lowercase `fixes:` is rejected — the token is Sentence-case.
-
-## Examples
-
-```
-feat(auth): add remember-me cookie to login flow
-
+[optional Fixes: #NN or Refs: #NN]
 Implemented-by: <active-model-id>
-Tested-by: <ocr-model-id>
-Signed-off-by: <resolved via resolve-identity.sh>
+Tested-by: <review-model-id>
+Signed-off-by: <human identity>
 ```
 
-```
-fix(db): parameterize the user search query
+The launcher owns all three attribution values and their canonical order.
+Callers never resolve or interpolate them.
 
-Fixes: #42
-Implemented-by: <active-model-id>
-Tested-by: <ocr-model-id>
-Signed-off-by: <resolved via resolve-identity.sh>
+### Types
+
+| Type | Use |
+|---|---|
+| `feat` | New behavior |
+| `fix`, `patch` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Formatting without logic changes |
+| `refactor` | Neither feature nor fix |
+| `perf` | Performance improvement |
+| `test` | Test additions or corrections |
+| `build` | Build or asset pipeline |
+| `ci` | CI configuration |
+| `chore` | Maintenance |
+| `ignore` | Initial repository seed only |
+
+Merge and revert completion are separate Git-generated, footer-exempt
+workflows. The ordinary launcher rejects `revert`.
+
+### Scope and subject
+
+- Scope is optional and identifies the affected module or feature.
+- Subject is one non-empty line.
+- The rendered header is at most 100 characters.
+- Use lowercase wording with no trailing period.
+- Never place shell substitutions or attribution data in a field.
+
+### Issue references
+
+- `--fixes NN` renders `Fixes: #NN` and closes the issue.
+- `--refs NN` renders `Refs: #NN` without closing it.
+- The controls are mutually exclusive and accept positive digits only.
+
+## Mandatory process
+
+1. Select type, optional scope, subject, optional body, and optional issue
+   reference from the completed work.
+2. Stage only the intended files with `git add`.
+3. When a body is needed, choose a unique literal 32-hex nonce and use Pi's
+   `write` tool to create `.prism/commit-body-<nonce>.txt`. Do not create it
+   through Bash or interpolate repository content into shell source.
+4. Run `prepare` using substitution-free structured argv. Add `--body-file`
+   with the literal body path and one issue control only when needed.
+5. Remove the body input with `rm -- .prism/commit-body-<nonce>.txt` using the
+   same fully known literal path whether preparation succeeds or fails.
+6. Present the launcher's exact rendered message and plan ID. Stop and wait for
+   explicit human approval of that exact message.
+7. On approval, run `apply` with the literal plan ID and `--approval=yes`.
+8. If approval is declined or the message is replaced, run `discard` with the
+   literal plan ID and prepare a fresh plan.
+9. Report the resulting commit ID. Never push.
+
+Representative commands below are safety-boundary contract fixtures. Runtime
+values must still be literal, validated values from the current operation.
+
+<!-- commit-prepare:start -->
+```bash
+prism-tool commit prepare --type fix --scope core --subject "add launcher-owned commits"
+```
+<!-- commit-prepare:end -->
+
+<!-- commit-apply:start -->
+```bash
+prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes
+```
+<!-- commit-apply:end -->
+
+<!-- commit-discard:start -->
+```bash
+prism-tool commit discard --plan 0123456789abcdef0123456789abcdef
+```
+<!-- commit-discard:end -->
+
+The launcher prints the complete message before mutation and stores a private
+plan under the repository's actual Git directory. Approval becomes stale when
+the repository, branch, `HEAD`, or staged index changes. A failed apply consumes
+the plan; correct the cause and prepare again rather than amending.
+
+## Branch policy
+
+Work branches follow ADR-0028 and are created with:
+
+```bash
+bash "$(prism-tool resolve scripts)/new-branch.sh" <type> <description>
 ```
 
-```
-test(auth): add boundary cases for empty credentials
-
-Implemented-by: <active-model-id>
-Tested-by: <ocr-model-id>
-Signed-off-by: <resolved via resolve-identity.sh>
-```
-
-```
-refactor(storage): extract retry logic into helper
-chore: update package dependencies
-docs: add test setup instructions to AGENTS.md
-```
-
-Examples above show the required footers. Every commit carries them, including
-mechanical `chore` and `docs` commits.
+Ordinary commits on `main` and `develop` are blocked. ADR-0044 permits only the
+single root seed on an unborn protected branch with no matching remote ref.
 
 ## Enforcement
 
-Commitlint validates every commit message via `.github/hooks/commit-msg`.
-The hook blocks the commit if the format is invalid.
-Config: `commitlint.config.js` extends commitlint's conventional config,
-with a custom `type-enum` that adds `patch` and `ignore` to the
-standard set.
+- `prepare` and `apply` run mandatory local readiness and bundled commitlint.
+- `apply` invokes signed Git with existing hooks enabled.
+- The commit-msg hook rejects malformed messages and literal backslash-newline
+  sequences.
+- Merge/revert completion remains owned by `resolve-merge-conflicts` and Git's
+  generated messages.
+- No launcher commit operation pushes, amends, rebases, tags, or bypasses hooks.
 
-Merge commits (`git merge --no-ff`) and revert commits (`git revert`) are
-exempt from trailer enforcement — their auto-generated messages cannot carry
-`Implemented-by:`/`Tested-by:`/`Signed-off-by:` trailers. If `commitlint` is not
-installed (fresh clone without `npm install`), the hook fails closed and
-blocks the commit; run `npm install` to restore the local toolchain. CI
-enforces the policy on every PR commit.
+## Cross-refs
 
-## Passing the Message to Git
+- `tdd` — selects the message fields after verification.
+- `executing-plans` — uses this process for task commits.
+- `resolve-merge-conflicts` — footer-exempt merge and rebase completion.
+- `verification-before-completion` — evidence required before preparation.
+- `AGENTS.md` § Git Workflow — branch, signing, attribution, and push policy.
 
-> [!IMPORTANT]
-> Pass the full commit message as a **single `-m`** argument with embedded
-> newlines. Do **not** use multiple `-m` flags — git inserts blank lines
-> between them, which breaks commitlint's trailer detection (`git interpret-trailers --parse` requires that trailers be contiguous with the body).
+## Gotchas
 
-> [!WARNING]
-> Never embed a **literal backslash-n** inside `-m "..."` (regular quotes) —
-> bash keeps it as two characters, corrupting the message (over-long lines,
-> broken trailers). The `$'...\n...'` form interprets `\n` as a real newline.
-> The commit-msg hook now rejects literal backslash-n sequences (ADR-0025).
-
-```bash
-# CORRECT — single -m with $'...\n...' embedded newlines
-git commit -S -m $'type[scope]: subject\n\nBody paragraph.\n\nImplemented-by: model\nTested-by: model\nSigned-off-by: user <email>'
-
-# WRONG — multiple -m flags insert blank lines between each, breaking trailers
-git commit -S -m "type[scope]: subject" -m "Body." -m "Implemented-by: model" -m "Tested-by: model" -m "Signed-off-by: user <email>"
-```
-
-If the commit fails due to the commit-msg hook, the commit was **not created**.
-Retry with `git commit` (not `--amend`), fixing the message format. There is
-nothing to amend because the commit was never made.
+- *Treating prepare as approval* — prepare is read-only with respect to commit
+  history. Always stop for approval of the exact rendered message.
+- *Reusing a stale plan* — any relevant repository-state change requires a new
+  prepare operation.
+- *Putting a body in shell source* — use a private literal `.prism` body path
+  written through Pi's `write` tool.
+- *Leaving a declined plan active* — discard it before preparing a replacement.

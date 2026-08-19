@@ -216,63 +216,38 @@ so the versions land in the merge commit.
 
 ## Commit the changelog
 
-Resolve the four ADR-0040 footers from the current pi session, then create
-the signed `chore(release): vX.Y.Z` commit through the normal instruction
-gate. Carry the validated digits from the Arguments step into the block below
-as `RELEASE_ISSUE_DIGITS` (empty when no argument was supplied); the block
-instantiates `RELEASE_REF` from it in the same shell invocation and fails
-closed if the footer state is missing or malformed. If a valid issue was
-supplied, the commit must carry exactly `Refs: #<digits>` — never commit
-without it:
+Load `conventional-commits` and use its launcher-owned workflow. Stage
+`CHANGELOG.md` plus each literal bumped `package.json` path. Do not interpolate
+the package list into a commit command.
+
+Render the validated version as a literal `vX.Y.Z` subject. Keep
+`RELEASE_ISSUE_DIGITS` only as validated conversation state: when present,
+render the validated digits as a literal `--refs NN` argv value; when absent,
+omit the control. Never place the raw invocation argument or a shell variable
+in the prepare command.
+
+The no-issue shape is:
 
 ```bash
-: "${PI_MODEL:?current pi model is required before committing}"
-MODEL_ID="${PI_MODEL##*/}"
-# RELEASE_ISSUE_DIGITS: validated digits from the invocation argument. The
-# agent renders the validated value into the assignment below (empty when no
-# argument was supplied); the raw invocation argument never enters a shell
-# command.
-RELEASE_ISSUE_DIGITS=""
-# Fail closed FIRST, before any assignment-derived value is used: a
-# non-empty value must be exactly ^[1-9][0-9]*$ so raw invocation input
-# can never reach a shell command.
-if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_ISSUE_DIGITS" | grep -qE '^[1-9][0-9]*$'; then
-    echo "✗ Release-issue digits are malformed." >&2
-    exit 1
-fi
-# Instantiate RELEASE_REF in this same shell invocation: empty when no issue
-# was supplied, otherwise exactly "Refs: #<digits>".
-RELEASE_REF=""
-if [ -n "$RELEASE_ISSUE_DIGITS" ]; then
-    RELEASE_REF="Refs: #${RELEASE_ISSUE_DIGITS}"
-fi
-# Fail closed: a validated issue must yield exactly "Refs: #<digits>".
-if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_REF" | grep -qE '^Refs: #[1-9][0-9]*$'; then
-    echo "✗ Release-issue footer is missing or malformed." >&2
-    exit 1
-fi
-OCR_MODEL=$(bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh") \
-    || { echo "✗ Release commit blocked: OCR model could not be resolved (run: ocr config model)." >&2; exit 1; }
 git add CHANGELOG.md
-# BUMPED_PKGS: space-separated package dirs from the per-package step
-# (empty when no package bumped); the agent renders the validated value.
-BUMPED_PKGS=""
-for pkg in $BUMPED_PKGS; do
-    git add "$pkg/package.json"
-done
-if [ -n "$RELEASE_REF" ]; then
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
-        "$VERSION" "$RELEASE_REF" "$MODEL_ID" \
-        "$OCR_MODEL" \
-        "$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")")
-else
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
-        "$VERSION" "$MODEL_ID" \
-        "$OCR_MODEL" \
-        "$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")")
-fi
-git commit -S -m "$RELEASE_MSG"
+prism-tool commit prepare --type chore --scope release --subject vX.Y.Z
 ```
+
+When a tracking issue was supplied, the prepare command additionally ends with
+`--refs NN`, where both version and digits are already validated literals.
+The launcher resolves the three ADR-0064 footers, runs commitlint, and prints
+the exact commit message. Present that exact commit message and plan ID, ask
+for explicit approval, and STOP. The earlier release confirmation is not
+commit approval.
+
+After approval, render the returned plan ID as a literal and run:
+
+```bash
+prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes
+```
+
+If approval is declined, discard that literal plan ID. Report the resulting
+commit ID and never push.
 
 ## Handoff — print only, do not execute
 
@@ -310,6 +285,6 @@ merge. Stop there.
   without creating anything.
 - Never reuse a release branch after its PR is merged; create a fresh
   `release/` branch for each release.
-- The release commit is signed (`git commit -S`) and always carries the four
-  ADR-0040 footers; a `Refs:` footer appears only from a validated invocation
-  argument.
+- The release commit is signed through `prism-tool commit` and always carries
+  the three ADR-0064 footers; `Refs:` appears only from a validated invocation
+  argument rendered as literal argv.

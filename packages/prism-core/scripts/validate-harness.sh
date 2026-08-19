@@ -296,6 +296,24 @@ done < <(grep -RInE 'bash packages/prism-core/(scripts|skills)/' \
 	"$REPO_ROOT/.github/hooks" \
 	2>/dev/null || true)
 
+printf '%s\n' '── Checking commit workflow ownership ──'
+COMMIT_WORKFLOW_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-commit-workflows.js"
+if [ ! -f "$COMMIT_WORKFLOW_CHECKER" ]; then
+	err "commit workflow checker missing: ${COMMIT_WORKFLOW_CHECKER#$REPO_ROOT/}"
+else
+	if commit_workflow_output=$(node "$COMMIT_WORKFLOW_CHECKER" "$REPO_ROOT" 2>&1); then
+		commit_workflow_status=0
+	else
+		commit_workflow_status=$?
+	fi
+	while IFS= read -r diagnostic; do
+		[ -n "$diagnostic" ] && err "$diagnostic"
+	done <<< "$commit_workflow_output"
+	if [ "$commit_workflow_status" -ne 0 ] && [ -z "$commit_workflow_output" ]; then
+		err "commit workflow checker failed with status $commit_workflow_status"
+	fi
+fi
+
 printf '%s\n' '── Checking retired config references ──'
 retired_pattern="$(printf '%s' 'prism-manifest|Prism-Manifest|OPENCODE-CONFIG-CONTENT|OPENCODE-MODEL-|OPENCODE-VARIANT-' | tr '-' '_')"
 while IFS=: read -r file line text; do

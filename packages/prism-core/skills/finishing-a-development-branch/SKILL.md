@@ -30,8 +30,9 @@ Run the items in this order; do not skip any:
    only).** Confirm that the fresh wayfinder map exists and its Notes contain
    that immutable URL; otherwise halt without deleting development artifacts.
 4. **Clean up plan/spec artifacts.** Delete the tracked plan/spec files that
-   match this branch's work from `docs/plans/` and `docs/specs/` and commit
-   that cleanup before any final gate (ADR-0027). If no matching artifacts
+   match this branch's work from `docs/plans/` and `docs/specs/`, then load
+   `conventional-commits` and use its launcher-owned approval workflow for the
+   cleanup commit before any final gate (ADR-0027). If no matching artifacts
    exist, record that fact and do not create an empty cleanup commit. Map
    issues live on the GitHub tracker, outside repository cleanup; only
    tracked plan/spec artifacts are deleted.

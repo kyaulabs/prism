@@ -29,7 +29,9 @@ construction and execution require the same boundary.
    ordinary non-merge, non-revert signed commits.
 2. Present the exact validated commit message before any commit mutation.
 3. Require explicit human approval before creating a commit.
-4. Keep commit-message content out of shell source.
+4. Keep complete multiline commit messages and resolved attribution payloads
+   out of shell source. Structured, validated single-line fields (`type`,
+   `scope`, `subject`, and issue number) may be passed as inert argv.
 5. Preserve the three-footer attribution contract from ADR-0064 and the
    model-agnostic recording policy from ADR-0067.
 6. Bind approval to the exact branch, `HEAD`, and staged index that was
@@ -305,7 +307,8 @@ Update shell and Node contract tests to prove:
 
 - Every active agent-facing non-merge, non-revert signed commit flow uses
   `prism-tool commit`.
-- Commit-message payloads and resolver mechanics never appear in Bash source.
+- Complete multiline commit messages and resolver output never appear in Bash
+  source; only structured, validated single-line fields appear as inert argv.
 - The launcher prints the exact commit message before mutation.
 - Only a literal approval tied to an unchanged branch, `HEAD`, repository, and
   staged index can create a commit.
