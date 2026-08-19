@@ -187,14 +187,35 @@ function couldResolveToArithmeticBuiltin(word: string): boolean {
     return false;
 }
 
-/** True when a segment invokes a recursively evaluated arithmetic builtin. */
+function isUnsafeIndexedReference(token: string, assignment: boolean): boolean {
+    const suffix = assignment ? "(?:\\+)?=" : "$";
+    const reference = token.match(
+        new RegExp(`^[A-Za-z_][A-Za-z0-9_]*\\[([^\\]]+)\\]${suffix}`),
+    );
+    return reference !== null && !/^[0-9\s+\-*\/%<>=!&|^~?:,]+$/.test(reference[1]);
+}
+
+function hasUnsafeIndexedAssignment(segment: string): boolean {
+    const assignment = segment.match(
+        /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+)*([^\s]+)/,
+    );
+    return assignment !== null && isUnsafeIndexedReference(assignment[1], true);
+}
+
+/** True when a segment invokes a recursively evaluated arithmetic context. */
 function hasArithmeticBuiltin(command: string): boolean {
     const normalizedCommand = command.replace(/\\\r?\n/g, "");
     for (const segment of splitShellSegments(normalizedCommand)) {
+        if (hasUnsafeIndexedAssignment(segment)) return true;
         const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
         for (let i = 0; i < tokens.length; i++) {
             if (couldResolveToArithmeticBuiltin(tokens[i])) return true;
             const head = basename(tokens[i]);
+            if (head === "printf") {
+                const destination = tokens.indexOf("-v", i + 1);
+                if (destination !== -1
+                    && isUnsafeIndexedReference(tokens[destination + 1] ?? "", false)) return true;
+            }
             if (head === "let" || head === "integer" || head === "float") return true;
             if (!ARITHMETIC_DECLARATION_BUILTINS.has(head)) continue;
             for (const token of tokens.slice(i + 1)) {

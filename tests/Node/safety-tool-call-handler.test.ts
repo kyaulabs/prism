@@ -175,6 +175,8 @@ test("arithmetic commands block recursively evaluated identifiers", () => {
         "value='arr[$(touch /tmp/arithmetic-canary)]'; cmd=let; $cmd'' value",
         "value='arr[$(touch /tmp/arithmetic-canary)]'; part=c; de${part}lare -i result=value",
         "value='arr[$(touch /tmp/arithmetic-canary)]'; empty=; l${empty}et value",
+        "payload='$(touch /tmp/arithmetic-canary)'; arr[$payload]=x",
+        "payload='$(touch /tmp/arithmetic-canary)'; printf -v 'arr[$payload]' %s x",
     ];
 
     for (const command of commands) {
@@ -192,6 +194,9 @@ test("non-arithmetic declaration forms do not block", () => {
 
     assert.equal(handleToolCall("bash", { command: "declare -- -i" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "declare -F" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "arr[1+2]=x" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "printf -v 'arr[1+2]' %s x" }, deps), undefined);
+    assert.equal(handleToolCall("bash", { command: "echo 'arr[$payload]=x'" }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
 });
 
