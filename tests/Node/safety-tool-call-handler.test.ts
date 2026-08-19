@@ -159,6 +159,9 @@ test("delayed and arithmetic builtin names remain inert in ordinary arguments", 
         "echo trap",
         "printf '%s' let",
         "grep declare -i file",
+        "echo 'item[name]=value'",
+        "grep 'array[key]=text' file",
+        "printf '%s' 'array[key]=text'",
     ];
 
     for (const command of commands) {
@@ -261,7 +264,8 @@ test("arithmetic commands block recursively evaluated identifiers", () => {
 test("unsafe indexed assignments fail closed regardless of token position", () => {
     const commands = [
         "> /tmp/arithmetic-output arr[$payload]=x",
-        "echo 'arr[$payload]=x'",
+        "declare 'arr[$payload]=x'",
+        "unset 'arr[$payload]'",
     ];
 
     for (const command of commands) {

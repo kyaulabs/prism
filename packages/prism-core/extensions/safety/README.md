@@ -92,8 +92,8 @@ no longer erase the denial count. The opencode-era
   because supported shells can recursively evaluate identifier values.
   Delayed `eval`/`trap` payloads in executable command position and
   non-literal indexed assignments also block. Recursive evaluator wrappers are
-  reclassified before execution. Indexed-assignment detection remains
-  deliberately token-wide, while builtin-shaped ordinary arguments stay inert.
+  reclassified before execution. Indexed assignments block only in shell
+  assignment/evaluator positions; builtin-shaped ordinary arguments stay inert.
 
 ## Fail-closed invariants (ADR-0036)
 

@@ -196,9 +196,18 @@ function isUnsafeIndexedReference(token: string, assignment: boolean): boolean {
 }
 
 function hasUnsafeIndexedAssignment(segment: string): boolean {
-    return tokenizeCommand(segment)
-        .map(normalizeShellCommandWord)
-        .some((token) => isUnsafeIndexedReference(token, true));
+    const tokens = tokenizeCommand(segment).map(normalizeShellCommandWord);
+    const position = effectiveCommandPosition(tokens);
+    if (position === null) return false;
+    if (isUnsafeIndexedReference(tokens[position], true)) return true;
+    const head = basename(tokens[position]);
+    if (ARITHMETIC_DECLARATION_BUILTINS.has(head) || head === "export" || head === "readonly") {
+        return tokens.slice(position + 1).some((token) => isUnsafeIndexedReference(token, true));
+    }
+    if (head === "unset") {
+        return tokens.slice(position + 1).some((token) => isUnsafeIndexedReference(token, false));
+    }
+    return false;
 }
 
 const COMMAND_PREFIXES = new Set(["!", "{", "(", "if", "then", "elif", "while", "until", "do", "else"]);
@@ -209,6 +218,14 @@ function effectiveCommandPosition(tokens: string[]): number | null {
     let i = 0;
     while (i < tokens.length) {
         const token = basename(tokens[i]);
+        if (/^(?:[0-9]+)?(?:<|>|>>|<>|<&|>&|&>|&>>)$/.test(tokens[i])) {
+            i += 2;
+            continue;
+        }
+        if (/^(?:[0-9]+)?(?:<|>|>>|<>|<&|>&|&>|&>>).+/.test(tokens[i])) {
+            i++;
+            continue;
+        }
         if (COMMAND_PREFIXES.has(token) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
             i++;
             continue;
