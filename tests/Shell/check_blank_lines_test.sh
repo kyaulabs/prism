@@ -191,23 +191,40 @@ if [ "$CHECK_STATUS" -eq 0 ]; then
 else
     fail "tracked exclusions were analyzed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
+printf 'alpha\n\n\n\nbeta\n' > "$T6/enforced.txt"
+git -C "$T6" add enforced.txt
+run_checker "$T6" --tracked
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'enforced.txt:2: excessive blank-line run'; then
+    pass 'tracked exclusions remain scoped to their attributed paths'
+else
+    fail "tracked exclusions disabled unrelated analysis (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
 
 printf '%s\n' '── tracked unusual paths and aggregation ──'
 T7=$(mktemp -d)
 register_temp_dir "$T7"
 git_init_test_repo "$T7"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/space name.txt"
+printf 'alpha\n\n\n\nbeta\n' > "$T7/-n"
+printf 'alpha\n\n\n\nbeta\n' > "$T7/0:entry.txt"
 newline_path=$'line\nbreak.txt'
 printf 'alpha\n\n\n\nbeta\n' > "$T7/$newline_path"
 git -C "$T7" add .
 run_checker "$T7" --tracked
 path_ok=1
 printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'space name.txt:2: excessive blank-line run' || path_ok=0
+printf '%s\n' "$CHECK_OUTPUT" | grep -Fq -- '-n:2: excessive blank-line run' || path_ok=0
 printf '%s\n' "$CHECK_OUTPUT" | grep -Fq $'line\\nbreak.txt:2: excessive blank-line run' || path_ok=0
 if [ "$CHECK_STATUS" -eq 1 ] && [ "$path_ok" -eq 1 ]; then
     pass 'tracked mode aggregates and safely escapes unusual paths'
 else
     fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+run_checker "$T7" --cached
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run'; then
+    pass 'cached mode reads colon-bearing paths literally'
+else
+    fail "cached colon-bearing path was not read literally (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
 printf '%s\n' '── cached regular-file type change ──'
@@ -245,6 +262,23 @@ if [ "$CHECK_STATUS" -eq 0 ]; then
     pass 'cached mode skips a staged type change to a symlink'
 else
     fail "cached symlink type change was analyzed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── cached empty and deletion-only changes ──'
+T7D=$(mktemp -d)
+register_temp_dir "$T7D"
+git_init_test_repo "$T7D"
+run_checker "$T7D" --cached
+empty_status=$CHECK_STATUS
+printf 'seed\n' > "$T7D/deleted.txt"
+git -C "$T7D" add deleted.txt
+git -C "$T7D" commit --quiet -m seed
+git -C "$T7D" rm --quiet deleted.txt
+run_checker "$T7D" --cached
+if [ "$empty_status" -eq 0 ] && [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'cached mode accepts empty and deletion-only analyzable sets'
+else
+    fail "cached empty or deletion-only set failed (empty=$empty_status deletion=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
 printf '%s\n' '── cached staged violation ignores working-tree repair ──'
@@ -313,10 +347,12 @@ else
 fi
 
 printf '%s\n' '── operational failures ──'
+OUTSIDE_REPO=$(mktemp -d)
+register_temp_dir "$OUTSIDE_REPO"
 set +e
 bash "$CHECKER" --unknown > /dev/null 2>&1
 invalid_status=$?
-(cd "${TMPDIR:-/tmp}" && bash "$CHECKER" --tracked > /dev/null 2>&1)
+(cd "$OUTSIDE_REPO" && bash "$CHECKER" --tracked > /dev/null 2>&1)
 outside_status=$?
 set -e
 if [ "$invalid_status" -eq 2 ] && [ "$outside_status" -eq 2 ]; then

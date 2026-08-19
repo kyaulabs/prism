@@ -99,12 +99,12 @@ while IFS= read -r -d '' path <&3; do
     [ "$excluded" -eq 0 ] || continue
     if [ "$MODE" = "--cached" ]; then
         CONTENT="$TMPDIR_CHECK/blob"
-        if ! git show ":$path" > "$CONTENT" 2>/dev/null; then
+        if ! git show ":./$path" > "$CONTENT" 2>/dev/null; then
             printf 'check-blank-lines: unable to read cached blob %q\n' "$path" >&2
             exit 2
         fi
     else
-        CONTENT="$path"
+        CONTENT="./$path"
         [ -f "$CONTENT" ] || {
             printf 'check-blank-lines: unable to read %q\n' "$path" >&2
             exit 2

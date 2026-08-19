@@ -213,7 +213,7 @@ PHPEOF
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 0 ] && ! git show ":file.php" 2>/dev/null | tail -1 | grep -q 'vim: ft=php'; then
+	if [ "$ret" -eq 0 ] && ! git show ":file.php" 2>/dev/null | grep -F 'vim: ft=php' > /dev/null; then
 		pass "Vim modeline skipped when a PHP template ends in HTML"
 	else
 		fail "Vim modeline was appended outside PHP context (exit $ret)"
@@ -221,13 +221,45 @@ PHPEOF
 )
 rm -rf "$T3B"
 
-# ── Test 3c: Closing-tag text inside a PHP string remains in PHP context ─────
+# ── Test 3c: Trailing HTML bytes are never normalized away ───────────────────
 
-echo "── Test 3c: Closing-tag text inside a PHP string remains in PHP context ──"
+echo "── Test 3c: Trailing HTML bytes are preserved ──"
 T3C=$(mktemp -d)
 register_temp_dir "$T3C"
 (
 	cd "$T3C"
+	git_init_test_repo .
+
+	cat > file.php <<'PHPEOF'
+<?php
+echo "hello";
+?>
+<footer>done</footer>
+PHPEOF
+	printf '\n' >> file.php
+	git add file.php
+
+	set +e
+	bash "$PRE_COMMIT" > /dev/null 2>&1
+	ret=$?
+	set -e
+
+	tail_hex=$(git show ":file.php" 2>/dev/null | tail -c 2 | od -An -t x1 | tr -d ' \n')
+	if [ "$ret" -ne 0 ] && [ "$tail_hex" = "0a0a" ]; then
+		pass "Trailing HTML output bytes are preserved and rejected for explicit resolution"
+	else
+		fail "Trailing HTML output bytes were changed (exit $ret, tail=$tail_hex)"
+	fi
+)
+rm -rf "$T3C"
+
+# ── Test 3d: Closing-tag text inside a PHP string remains in PHP context ─────
+
+echo "── Test 3d: Closing-tag text inside a PHP string remains in PHP context ──"
+T3D=$(mktemp -d)
+register_temp_dir "$T3D"
+(
+	cd "$T3D"
 	git_init_test_repo .
 
 	cat > file.php <<'PHPEOF'
@@ -248,7 +280,7 @@ PHPEOF
 		fail "Vim modeline was omitted for a pure PHP file (exit $ret)"
 	fi
 )
-rm -rf "$T3C"
+rm -rf "$T3D"
 
 # ── Test 4: declare(strict_types=1) preserved exactly once ────────────────────
 
@@ -594,8 +626,8 @@ TSEOF
 	ret=$?
 	set -e
 
-	header_blanks=$(awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }' padded.ts)
-	modeline_blanks=$(awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }' padded.ts)
+	header_blanks=$(git show ":padded.ts" 2>/dev/null | awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }')
+	modeline_blanks=$(git show ":padded.ts" 2>/dev/null | awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }')
 	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
 		pass "Existing RCS padding collapses to one blank line"
 	else
@@ -625,8 +657,8 @@ register_temp_dir "$T11"
 		git commit --quiet -m "pass $value"
 	done
 
-	header_blanks=$(awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }' repeated.ts)
-	modeline_blanks=$(awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }' repeated.ts)
+	header_blanks=$(git show ":repeated.ts" 2>/dev/null | awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }')
+	modeline_blanks=$(git show ":repeated.ts" 2>/dev/null | awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }')
 	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
 		pass "Repeated normalization remains spacing-idempotent"
 	else

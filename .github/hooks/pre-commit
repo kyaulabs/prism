@@ -63,6 +63,23 @@ trim_blank_edges() {
 	'
 }
 
+trim_leading_blank_edge() {
+	awk '
+		seen || !/^[[:space:]]*$/ {
+			seen = 1
+			print
+		}
+	'
+}
+
+trim_metadata_edges() {
+	if $APPEND_ML; then
+		trim_blank_edges
+	else
+		trim_leading_blank_edge
+	fi
+}
+
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
 if command -v php > /dev/null 2>&1; then
 	STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
@@ -326,16 +343,16 @@ if [ -n "$STAGED_SRC" ]; then
 			declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
 			if [ -n "$declare_line" ]; then
 				skip=$((declare_line - 1))
-				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_blank_edges > "$BODY"
+				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_metadata_edges > "$BODY"
 			else
-				tail -n +2 "$CLEAN" | trim_blank_edges > "$BODY"
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
 			fi
 		else
 			LINE1=$(head -1 "$CLEAN")
 			if echo "$LINE1" | grep -q '^#!/'; then
-				tail -n +2 "$CLEAN" | trim_blank_edges > "$BODY"
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
 			else
-				trim_blank_edges < "$CLEAN" > "$BODY"
+				trim_metadata_edges < "$CLEAN" > "$BODY"
 			fi
 		fi
 
