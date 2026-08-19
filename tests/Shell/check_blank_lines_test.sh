@@ -207,6 +207,7 @@ git_init_test_repo "$T7"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/space name.txt"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/-n"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/0:entry.txt"
+printf 'alpha\n\n\n\nbeta\n' > "$T7/:(exclude)*"
 newline_path=$'line\nbreak.txt'
 printf 'alpha\n\n\n\nbeta\n' > "$T7/$newline_path"
 git -C "$T7" add .
@@ -221,10 +222,13 @@ else
     fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 run_checker "$T7" --cached
-if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run'; then
-    pass 'cached mode reads colon-bearing paths literally'
+cached_paths_ok=1
+printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run' || cached_paths_ok=0
+printf '%s\n' "$CHECK_OUTPUT" | grep -Fq ':(exclude)*:2: excessive blank-line run' || cached_paths_ok=0
+if [ "$CHECK_STATUS" -eq 1 ] && [ "$cached_paths_ok" -eq 1 ]; then
+    pass 'cached mode reads colon-bearing and pathspec-magic paths literally'
 else
-    fail "cached colon-bearing path was not read literally (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+    fail "cached unusual paths were not read literally (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
 printf '%s\n' '── cached regular-file type change ──'

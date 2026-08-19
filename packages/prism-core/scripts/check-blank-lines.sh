@@ -38,7 +38,7 @@ else
     fi
     : > "$ENTRIES"
     while IFS= read -r -d '' candidate; do
-        if ! git ls-files -s -z -- "$candidate" >> "$ENTRIES"; then
+        if ! git --literal-pathspecs ls-files -s -z -- "$candidate" >> "$ENTRIES"; then
             printf 'check-blank-lines: unable to resolve cached mode for %q\n' "$candidate" >&2
             exit 2
         fi
