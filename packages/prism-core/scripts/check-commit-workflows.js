@@ -35,9 +35,23 @@ function checkFile(root, file) {
     const diagnostics = [];
     const mergeSkill = 'packages/prism-core/skills/resolve-merge-conflicts/SKILL.md';
     const lines = fs.readFileSync(file, 'utf8').split('\n');
+    let bashFence = false;
+    let fenceMarker = '';
     lines.forEach((line, index) => {
-        if (/^\s*git\s+commit(?:\s|$)/.test(line) &&
-            !(relative === mergeSkill && line.trim() === 'git commit -S')) {
+        const fence = line.match(/^\s*(`{3,}|~{3,})([^`]*)$/);
+        if (fence) {
+            if (!fenceMarker && /^(?:bash|sh|shell)\s*$/.test(fence[2].trim())) {
+                bashFence = true;
+                fenceMarker = fence[1][0];
+            } else if (fenceMarker === fence[1][0]) {
+                bashFence = false;
+                fenceMarker = '';
+            }
+            return;
+        }
+        const directCommit = /^\s*git\s+commit(?:\s|$)/.test(line) ||
+            (bashFence && /(?:^|\s)(?:\/[^\s]+\/)?git\s+commit(?:\s|$)/.test(line));
+        if (directCommit && !(relative === mergeSkill && line.trim() === 'git commit -S')) {
             diagnostics.push(`${relative}:${index + 1}: direct ordinary git commit recipe`);
         }
         if (/git\s+commit[^\n]*\$'/.test(line)) {

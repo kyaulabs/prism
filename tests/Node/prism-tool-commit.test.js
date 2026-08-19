@@ -170,7 +170,7 @@ test('commit apply uses the frozen message and removes the approved plan', (t) =
     assert.equal(result.stdout, `Commit: ${'3'.repeat(40)}\n`);
     const commitCall = calls.find(({command, args}) => command === 'git' && args[0] === 'commit');
     assert.deepEqual(commitCall.args.slice(0, 3), ['commit', '-S', '-F']);
-    assert.equal(path.basename(commitCall.args[3]), 'message.txt');
+    assert.equal(path.basename(commitCall.args[3]), 'apply-message.txt');
     assert.equal(fs.existsSync(path.join(gitDir, 'prism-tool', 'commit-plans', planId)), false);
 });
 
@@ -260,6 +260,67 @@ test('commit apply never follows a substituted plan-directory symlink during cle
     assert.equal(result.status, 5);
     assert.equal(fs.readFileSync(path.join(targetDir, 'message.txt'), 'utf8').includes('reject plan symlink'), true);
     assert.equal(fs.existsSync(path.join(targetDir, 'plan.json')), true);
+});
+
+test('commit prepare rejects unsafe body and attribution inputs without a plan', (t) => {
+    const symlinkCase = makePrepareContext(t);
+    const target = path.join(symlinkCase.repository, 'body-target.txt');
+    const bodyLink = path.join(symlinkCase.repository, 'body-link.txt');
+    fs.writeFileSync(target, 'body\n');
+    fs.symlinkSync(target, bodyLink);
+    const unsafeBody = captureWrites(() => main([
+        'commit', 'prepare', '--type', 'fix', '--subject', 'reject body link',
+        '--body-file', bodyLink,
+    ], symlinkCase.context));
+    assert.equal(unsafeBody.status, 2);
+    assert.equal(fs.existsSync(path.join(symlinkCase.gitDir, 'prism-tool')), false);
+
+    const attributionCase = makePrepareContext(t);
+    attributionCase.context.env.PI_MODEL = 'provider/model\nInjected-by: attacker';
+    const unsafeModel = captureWrites(() => main([
+        'commit', 'prepare', '--type', 'fix', '--subject', 'reject model injection',
+    ], attributionCase.context));
+    assert.equal(unsafeModel.status, 3);
+    assert.equal(fs.existsSync(path.join(attributionCase.gitDir, 'prism-tool')), false);
+});
+
+test('commit apply and discard reject approval, traversal, and unsafe plan modes', (t) => {
+    const noApproval = captureWrites(() => main([
+        'commit', 'apply', '--plan', '0'.repeat(32), '--approval=no',
+    ], {run() { throw new Error('subprocess must not run'); }}));
+    const traversal = captureWrites(() => main([
+        'commit', 'discard', '--plan', '../../foreign',
+    ], {run() { throw new Error('subprocess must not run'); }}));
+    assert.equal(noApproval.status, 2);
+    assert.equal(traversal.status, 2);
+
+    const {context, gitDir} = makePrepareContext(t);
+    const planId = '0123456789abcdef0123456789abcdef';
+    assert.equal(captureWrites(() => main([
+        'commit', 'prepare', '--type', 'fix', '--subject', 'reject plan mode',
+    ], context)).status, 0);
+    const planDir = path.join(gitDir, 'prism-tool', 'commit-plans', planId);
+    fs.chmodSync(path.join(planDir, 'message.txt'), 0o644);
+    const unsafeMode = captureWrites(() => main([
+        'commit', 'apply', '--plan', planId, '--approval=yes',
+    ], context));
+    assert.equal(unsafeMode.status, 5);
+    assert.match(unsafeMode.stderr, /malformed or inaccessible/);
+});
+
+test('commit prepare keeps message and attribution content out of subprocess argv', (t) => {
+    const {calls, context} = makePrepareContext(t);
+
+    const result = captureWrites(() => main([
+        'commit', 'prepare', '--type', 'fix', '--subject', 'inert payload boundary',
+    ], context));
+
+    assert.equal(result.status, 0);
+    for (const call of calls) {
+        const argv = call.args.join(' ');
+        assert.doesNotMatch(argv, /inert payload boundary/);
+        assert.doesNotMatch(argv, /Test User|implementation-model|review-model/);
+    }
 });
 
 test('commit discard removes an owned plan and is idempotent', (t) => {

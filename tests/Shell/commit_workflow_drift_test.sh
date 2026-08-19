@@ -81,6 +81,17 @@ else
 	pass "near-miss merge commit recipe is rejected"
 fi
 
+WRAPPED_ROOT="$(fixture wrapped)"
+printf '%s\n' '```bash' 'sudo git commit -S' '```' \
+	> "$WRAPPED_ROOT/packages/prism-core/skills/example/SKILL.md"
+if node "$CHECKER" "$WRAPPED_ROOT" >"$WRAPPED_ROOT/output" 2>&1; then
+	fail "wrapped direct commit recipe was accepted"
+elif grep -qF 'direct ordinary git commit recipe' "$WRAPPED_ROOT/output"; then
+	pass "wrapped direct commit recipe is rejected"
+else
+	fail "wrapped direct commit rejection lacked its diagnostic"
+fi
+
 if grep -qF 'check-commit-workflows.js' "$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh"; then
 	pass "harness validation invokes the commit-workflow checker"
 else

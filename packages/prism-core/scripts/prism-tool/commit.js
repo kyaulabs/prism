@@ -402,7 +402,7 @@ function cleanupPlan(planDir) {
     if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink() ||
         (directoryStat.mode & 0o777) !== 0o700 ||
         (typeof process.getuid === 'function' && directoryStat.uid !== process.getuid())) return;
-    for (const name of ['plan.json', 'message.txt']) {
+    for (const name of ['plan.json', 'message.txt', 'apply-message.txt']) {
         const file = path.join(planDir, name);
         try {
             const stat = fs.lstatSync(file);
@@ -481,8 +481,10 @@ function apply(args, context) {
             EXIT.TOOL,
             'commitlint rejected the message'
         );
+        const applyMessage = path.join(planDir, 'apply-message.txt');
+        writePrivate(applyMessage, loaded.message);
         requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', path.join(planDir, 'message.txt')]),
+            invoke(context, 'git', ['commit', '-S', '-F', applyMessage]),
             EXIT.TOOL,
             'signed Git commit failed'
         );
