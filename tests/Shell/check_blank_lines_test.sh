@@ -25,7 +25,8 @@ T1=$(mktemp -d)
 register_temp_dir "$T1"
 git_init_test_repo "$T1"
 printf 'alpha\n\n\nbeta\n' > "$T1/canonical.txt"
-git -C "$T1" add canonical.txt
+: > "$T1/empty.txt"
+git -C "$T1" add canonical.txt empty.txt
 run_checker "$T1" --tracked
 if [ "$CHECK_STATUS" -eq 0 ]; then
     pass 'tracked mode accepts two internal blank lines'
@@ -54,6 +55,7 @@ printf '\nalpha\n' > "$T3/leading.txt"
 printf 'alpha\n\n' > "$T3/trailing.txt"
 printf 'alpha' > "$T3/missing-final.txt"
 printf 'alpha\n \nbeta\n' > "$T3/whitespace.txt"
+printf '\n' > "$T3/blank-only.txt"
 git -C "$T3" add .
 run_checker "$T3" --tracked
 boundary_ok=1
@@ -61,7 +63,9 @@ for expected in \
     'leading.txt:1: leading blank line' \
     'trailing.txt:2: trailing blank line' \
     'missing-final.txt:1: missing final line feed' \
-    'whitespace.txt:2: blank line contains spaces or tabs'; do
+    'whitespace.txt:2: blank line contains spaces or tabs' \
+    'blank-only.txt:1: leading blank line' \
+    'blank-only.txt:1: trailing blank line'; do
     printf '%s\n' "$CHECK_OUTPUT" | grep -Fq "$expected" || boundary_ok=0
 done
 if [ "$CHECK_STATUS" -eq 1 ] && [ "$boundary_ok" -eq 1 ]; then
@@ -135,6 +139,8 @@ git_init_test_repo "$T5B"
 cat > "$T5B/fixture-builder.sh" <<'EOF'
 #!/usr/bin/env bash
 cat <<'FIXTURE'
+const value = 1;
+echo after-modeline
 FIXTURE
 EOF
 git -C "$T5B" add fixture-builder.sh
@@ -171,17 +177,19 @@ cat > "$T6/.gitattributes" <<'EOF'
 generated.txt linguist-generated
 vendored.txt linguist-vendored
 immutable.txt prism-blank-lines-exempt
+document.pdf binary
 EOF
 for file in generated.txt vendored.txt immutable.txt; do
     printf 'alpha\n\n\n\nbeta\n' > "$T6/$file"
 done
 printf 'binary\0payload\n\n\n\n' > "$T6/binary.dat"
+printf '%%PDF-1.7 binary payload without a NUL' > "$T6/document.pdf"
 printf '\n' > "$T6/late-binary.dat"
 awk 'BEGIN { for (i = 0; i < 10000; i++) print "text" }' >> "$T6/late-binary.dat"
 printf '\0payload\n' >> "$T6/late-binary.dat"
 printf 'seed\n' > "$T6/seed.txt"
 git -C "$T6" add .
-git -C "$T6" commit --quiet -m seed
+git -C "$T6" -c core.hooksPath=/dev/null commit --quiet -m seed
 seed_oid=$(git -C "$T6" rev-parse HEAD)
 git -C "$T6" update-index --add --cacheinfo "160000,$seed_oid,submodule"
 if can_symlink; then
@@ -298,7 +306,7 @@ run_checker "$T7D" --cached
 empty_status=$CHECK_STATUS
 printf 'seed\n' > "$T7D/deleted.txt"
 git -C "$T7D" add deleted.txt
-git -C "$T7D" commit --quiet -m seed
+git -C "$T7D" -c core.hooksPath=/dev/null commit --quiet -m seed
 git -C "$T7D" rm --quiet deleted.txt
 run_checker "$T7D" --cached
 if [ "$empty_status" -eq 0 ] && [ "$CHECK_STATUS" -eq 0 ]; then
@@ -331,15 +339,23 @@ printf 'clean\n' > "$T7F/typed.txt"
 git -C "$T7F" add .
 git -C "$T7F" update-index --skip-worktree absent.txt
 rm "$T7F/absent.txt"
+run_checker "$T7F" --tracked
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'tracked mode skips absent sparse entries'
+else
+    fail "tracked sparse entry failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
 if can_symlink; then
     rm "$T7F/typed.txt"
     ln -s target.txt "$T7F/typed.txt"
-fi
-run_checker "$T7F" --tracked
-if [ "$CHECK_STATUS" -eq 0 ]; then
-    pass 'tracked mode skips absent sparse entries and unstaged symlink type changes'
+    run_checker "$T7F" --tracked
+    if [ "$CHECK_STATUS" -eq 0 ]; then
+        pass 'tracked mode skips unstaged symlink type changes'
+    else
+        fail "tracked symlink type change failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+    fi
 else
-    fail "tracked sparse or symlink entry failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+    skip 'unstaged symlink type changes are unsupported on this platform'
 fi
 
 printf '%s\n' '── cached staged violation ignores working-tree repair ──'
@@ -379,7 +395,7 @@ register_temp_dir "$T10"
 git_init_test_repo "$T10"
 printf 'clean\n' > "$T10/old.txt"
 git -C "$T10" add old.txt
-git -C "$T10" commit --quiet -m seed
+git -C "$T10" -c core.hooksPath=/dev/null commit --quiet -m seed
 git -C "$T10" mv old.txt new.txt
 printf 'alpha\n\n\n\nbeta\n' > "$T10/new.txt"
 git -C "$T10" add new.txt

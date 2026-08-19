@@ -246,6 +246,7 @@ echo "hello";
 <footer>done</footer>
 PHPEOF
 	printf '\n' >> file.php
+	cp file.php expected-body.php
 	git add file.php
 
 	set +e
@@ -253,11 +254,12 @@ PHPEOF
 	ret=$?
 	set -e
 
-	tail_hex=$(git show ":file.php" 2>/dev/null | tail -c 2 | od -An -t x1 | tr -d ' \n')
-	if [ "$ret" -ne 0 ] && [ "$tail_hex" = "0a0a" ]; then
-		pass "Trailing HTML output bytes are preserved and rejected for explicit resolution"
+	git show ":file.php" > staged.php 2>/dev/null
+	{ head -1 staged.php; tail -n +5 staged.php; } > actual-body.php
+	if [ "$ret" -ne 0 ] && cmp -s expected-body.php actual-body.php; then
+		pass "Complete trailing HTML source is preserved and rejected for explicit resolution"
 	else
-		fail "Trailing HTML output bytes were changed (exit $ret, tail=$tail_hex)"
+		fail "Trailing HTML source was changed (exit $ret)"
 	fi
 )
 rm -rf "$T3C"
@@ -283,13 +285,48 @@ PHPEOF
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 0 ] && git show ":file.php" 2>/dev/null | tail -1 | grep -q 'vim: ft=php'; then
-		pass "Vim modeline retained when closing-tag text appears inside a string"
+	staged=$(git show ":file.php" 2>/dev/null)
+	if [ "$ret" -eq 0 ] \
+		&& printf '%s\n' "$staged" | grep -Fxq '$xml = '\''<?xml version="1.0"?>'\'';' \
+		&& printf '%s\n' "$staged" | grep -Fxq 'echo $xml;' \
+		&& printf '%s\n' "$staged" | tail -1 | grep -q 'vim: ft=php'; then
+		pass "PHP string and modeline remain intact when closing-tag text appears inside the string"
 	else
 		fail "Vim modeline was omitted for a pure PHP file (exit $ret)"
 	fi
 )
 rm -rf "$T3D"
+
+# ── Test 3e: PHP tokenizer infrastructure failures block normalization ───────
+
+echo "── Test 3e: PHP tokenizer infrastructure failures block normalization ──"
+T3E=$(mktemp -d)
+register_temp_dir "$T3E"
+(
+	cd "$T3E"
+	git_init_test_repo .
+	mkdir fake-bin
+	cat > fake-bin/php <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = "-l" ] && exit 0
+exit 2
+EOF
+	chmod +x fake-bin/php
+	printf '<?php\necho "hello";\n' > file.php
+	git add file.php
+
+	set +e
+	output=$(PATH="$T3E/fake-bin:$PATH" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -Fq 'PHP tokenizer failed while inspecting'; then
+		pass "PHP tokenizer infrastructure failures block normalization"
+	else
+		fail "PHP tokenizer failure was not distinguished from an HTML-ending template (exit $ret)"
+	fi
+)
+rm -rf "$T3E"
 
 # ── Test 4: declare(strict_types=1) preserved exactly once ────────────────────
 
@@ -621,13 +658,13 @@ register_temp_dir "$T10"
 	cd "$T10"
 	git_init_test_repo .
 
-	cat > padded.ts <<'TSEOF'
-
-
-const value = 1;
-
-
-TSEOF
+	{
+		printf '%s\n' '// $KYAULabs: padded.ts test@example.test 2026/08/18 +0000 Exp $'
+		printf '\n\n\n'
+		printf '%s\n' 'const value = 1;'
+		printf '\n\n\n'
+		printf '%s\n' '// vim: ft=typescript sts=4 sw=4 ts=4 et :'
+	} > padded.ts
 	git add padded.ts
 
 	set +e

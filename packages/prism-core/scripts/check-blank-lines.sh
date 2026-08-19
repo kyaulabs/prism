@@ -61,13 +61,15 @@ if [ "$MODE" = "--cached" ]; then
     git check-attr --cached --stdin -z \
         linguist-generated \
         linguist-vendored \
-        prism-blank-lines-exempt < "$PATHS" > "$ATTRS"
+        prism-blank-lines-exempt \
+        binary < "$PATHS" > "$ATTRS"
     attribute_status=$?
 else
     git check-attr --stdin -z \
         linguist-generated \
         linguist-vendored \
-        prism-blank-lines-exempt < "$PATHS" > "$ATTRS"
+        prism-blank-lines-exempt \
+        binary < "$PATHS" > "$ATTRS"
     attribute_status=$?
 fi
 if [ "$attribute_status" -ne 0 ]; then
@@ -80,7 +82,7 @@ exec 3< "$PATHS"
 exec 4< "$ATTRS"
 while IFS= read -r -d '' path <&3; do
     excluded=0
-    for expected_attribute in linguist-generated linguist-vendored prism-blank-lines-exempt; do
+    for expected_attribute in linguist-generated linguist-vendored prism-blank-lines-exempt binary; do
         if ! IFS= read -r -d '' attribute_path <&4 \
             || ! IFS= read -r -d '' attribute_name <&4 \
             || ! IFS= read -r -d '' attribute_value <&4; then

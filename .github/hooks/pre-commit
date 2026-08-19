@@ -289,7 +289,7 @@ if [ -n "$STAGED_SRC" ]; then
 				# so closing tags in strings are inert and HTML-ending templates
 				# remain outside PHP context.
 				if command -v php > /dev/null 2>&1; then
-					if ! php -r '
+					if php -r '
 						$code = file_get_contents($argv[1]);
 						if ($code === false) exit(2);
 						$inPhp = false;
@@ -300,8 +300,19 @@ if [ -n "$STAGED_SRC" ]; then
 						}
 						exit($inPhp ? 0 : 1);
 					' "$TMP"; then
-						APPEND_ML=false
+						tokenizer_status=0
+					else
+						tokenizer_status=$?
 					fi
+					case "$tokenizer_status" in
+						0) ;;
+						1) APPEND_ML=false ;;
+						*)
+							echo "✗ PHP tokenizer failed while inspecting '$file'." >&2
+							rm -f "$TMP" "$MOD"
+							exit 1
+							;;
+					esac
 				else
 					echo "✗ PHP is required to determine safe modeline placement for '$file'." >&2
 					rm -f "$TMP" "$MOD"
