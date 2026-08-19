@@ -148,6 +148,44 @@ An approved specification or implementation plan created during the pipeline.
   canonical record.
 - Does not replace an ADR when a decision is hard to reverse or cross-cutting.
 
+### Learning Capability
+
+The explicitly invoked, non-blocking project learning workflow (ADR-0071).
+
+- `/learn` is the sole prompt and `learning` the sole skill; all learning
+  behavior is one capability with a finite action grammar.
+- Private learning state is worktree-local, ignored, privacy-minimal, and
+  schema-versioned; unsupported schema versions fail closed.
+- One canonical topic graph backs every curriculum profile; shareable
+  curricula contain no private or identity-bearing data.
+- Model-authored material crosses into deterministic mechanics only as
+  validated structured records; natural language never writes state.
+- Launcher operations own containment, root attestation, locking, revision
+  conflicts, atomic replacement, reset, export, and purge; the project root
+  is never inferred from package-install paths or Git's common directory.
+- Adapters contribute stack-specific evidence and topics by composition
+  only; they cannot redefine curriculum, assessment, persistence, or
+  freshness semantics.
+- The capability dispatches nothing during normal development and carries
+  no readiness dependency.
+
+### Native Worktree Guidance
+
+The explicitly invoked Git worktree workflow (ADR-0072).
+
+- `/worktree` is the sole prompt and `worktree` the sole skill.
+- One canonical implementation owns branch naming, identity, hash, and base
+  selection and can plan without checkout side effects; worktree prose never
+  duplicates ADR-0028 or ADR-0044 policy.
+- Listing and diagnostics are agent-run and read-only; mutations writing
+  outside the active project root are emitted as exact human-run commands.
+- Sessions for other worktrees are human-started only; Prism never spawns
+  Pi, background processes, or subagents for another worktree.
+- Every linked worktree root is an independent Pi project root; Git's common
+  directory is consulted only for shared repository administration.
+- Native non-force semantics only; removal retains branches and disposal
+  stays with the finishing workflow.
+
 ## System Boundaries
 
 ### Prism owns
@@ -256,6 +294,8 @@ Pi-era decisions:
 - `adr/0067-model-agnostic-harness-user-driven-model-config.md` — the harness selects no model or thinking level; `/setup` writes only the user's choices; commit footers record passively.
 - `adr/0069-reload-recovery-for-denial-circuit-breaker.md` — a tripped safety extension recovers through user-invoked `/reload` without replacing the conversation; ADR-0068 still owns window and threshold semantics.
 - `adr/0070-launcher-owned-workflow-mechanics.md` — fixed prompt workflow mechanics that exceed the safety tokenizer run through narrow, audited `prism-tool` operations.
+- `adr/0071-explicit-project-learning-architecture.md` — explicitly invoked learning with worktree-local schema-versioned state, a canonical topic graph, validated structured-record boundaries, and launcher-owned mechanics.
+- `adr/0072-native-worktree-and-branch-policy-architecture.md` — worktree guidance separates branch-policy planning from mutation; outside-root changes are exact human-run commands.
 
 ## When to update this file
 

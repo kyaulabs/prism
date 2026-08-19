@@ -59,6 +59,7 @@ Unknown actions, profiles, depth values, curriculum identifiers, topic identifie
 
 - Add one `/learn` prompt as the explicit user entry point and one `learning` skill as the complete interaction contract. Do not create separate skills for generation, lessons, assessment, state, dashboards, or profiles.
 - Keep model-authored explanations, curriculum prose, examples, scenario questions, and transfer adjudication agent-owned, but exchange validated structured records with deterministic mechanics.
+- Define versioned structured-record contracts before implementation planning: a curriculum-candidate record (schema version, stable topic identifiers, objectives, prerequisites, repository-relative evidence paths, profile applicability, confidence, evidence digests) and a transfer-adjudication record (schema version, topic identifier, content digest, rubric concepts with pass states, overall pass/fail). Deterministic mechanics validate these records against their schemas and reject malformed, unsupported-version, or out-of-bounds payloads. Natural language never writes state directly.
 - Put exact operations that require canonical paths, Git inspection, digests, locks, revisions, atomic replacement, or bounded deletion behind narrow launcher interfaces in accordance with ADR-0070.
 - Keep generic learning behavior in Prism core. Active adapters contribute stack-specific roots, exclusions, vocabulary, evidence, and technical topics through composition only.
 - Add no extension, background process, transcript monitor, or normal-pipeline hook.
@@ -79,8 +80,8 @@ docs/learning/
     └── exports/
 ```
 
-- Resolve the canonical Pi startup directory for each learning invocation. Inside a Git worktree, use that worktree's top-level root; otherwise use the canonical startup directory without walking upward for project markers.
-- Never use Git's common directory. Linked worktrees therefore have independent private state while shareable curricula travel through Git.
+- Resolve the canonical Pi startup directory for each learning invocation and attest it through a launcher operation before any state access. Inside a Git worktree, use that worktree's top-level root; otherwise use the canonical startup directory without walking upward for project markers.
+- Never infer the project root from package-install paths or Git's common directory. Linked worktrees therefore have independent private state while shareable curricula travel through Git.
 - Reject symlinked state components, containment escapes, ambiguous canonicalization, non-regular state files, and unsupported schema versions.
 - In Git projects, private writes require the private subtree to be untracked and ignored by the nested project ignore contract. Creating or changing that ignore file is a separate approved project mutation.
 - Store schema version, revision, update time, curriculum profile and digest, stable topic identifiers, content digests, attempt counts, per-check pass state, last attempt time, and learned time.
@@ -129,7 +130,7 @@ docs/learning/
 ## Testing Decisions
 
 - Test the `/learn` workflow and structured launcher operations as the highest public deterministic seams.
-- Use pure Node tests for normalized curricula, topic IDs, digests, freshness, assessment transitions, dashboard derivation, state schema, revision conflicts, reset/export planning, and validated adjudication records.
+- Use pure Node tests for normalized curricula, topic IDs, digests, freshness, assessment transitions, dashboard derivation, state schema, revision conflicts, reset/export planning, schema validation of curriculum-candidate and transfer-adjudication records (including unsupported versions and out-of-bounds payloads), and startup-root attestation.
 - Use disposable Git and non-Git projects for root selection, containment, ignore/tracked checks, symlinks, locks, atomic replacement, private modes, linked-worktree isolation, and failure injection.
 - Use synthetic repositories for missing context, conflicting claims, adapter composition, conflicting adapter signals, large-repository boundary accounting, and preview/write sets.
 - Parse generated learning artifacts into semantic records. Assert coverage, identifiers, prerequisites, evidence ownership, confidence, and freshness rather than Markdown prose.
@@ -150,5 +151,7 @@ docs/learning/
 ## Further Notes
 
 This specification is the foundational capability from the resolved [non-blocking learning roadmap](https://github.com/kyaulabs/prism/issues/337). It synthesizes the accepted decisions for [portable learning state](https://github.com/kyaulabs/prism/issues/343), [project curriculum generation](https://github.com/kyaulabs/prism/issues/341), [lesson assessment and progress](https://github.com/kyaulabs/prism/issues/339), and the [Pi-native learning test strategy](https://github.com/kyaulabs/prism/issues/347).
+
+Its architecture is recorded in ADR-0071. The dependency-free lock and atomic-replacement mechanism should be proven with a focused Linux/macOS prototype before implementation planning if no established mechanism exists.
 
 The Prism contributor overlay depends on this specification. Native worktree guidance and explicit `/teach` modes remain independent.
