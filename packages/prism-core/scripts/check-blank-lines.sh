@@ -105,22 +105,29 @@ while IFS= read -r -d '' path <&3; do
         fi
     else
         CONTENT="./$path"
-        [ -f "$CONTENT" ] || {
+        [ -L "$CONTENT" ] && continue
+        if [ ! -f "$CONTENT" ]; then
+            INDEX_STATE="$TMPDIR_CHECK/index-state"
+            if ! git --literal-pathspecs ls-files -v -- "$path" > "$INDEX_STATE"; then
+                printf 'check-blank-lines: unable to inspect %q\n' "$path" >&2
+                exit 2
+            fi
+            if [ "$(head -c 1 "$INDEX_STATE")" = "S" ]; then
+                continue
+            fi
             printf 'check-blank-lines: unable to read %q\n' "$path" >&2
             exit 2
-        }
+        fi
     fi
     [ -s "$CONTENT" ] || continue
-    LC_ALL=C grep -Iq '' "$CONTENT"
-    text_status=$?
-    case "$text_status" in
-        0) ;;
-        1) continue ;;
-        *)
-            printf 'check-blank-lines: unable to classify %q\n' "$path" >&2
-            exit 2
-            ;;
-    esac
+    BYTES="$TMPDIR_CHECK/bytes"
+    if ! LC_ALL=C od -An -v -t x1 "$CONTENT" > "$BYTES"; then
+        printf 'check-blank-lines: unable to classify %q\n' "$path" >&2
+        exit 2
+    fi
+    if grep -Eq '(^|[[:space:]])00([[:space:]]|$)' "$BYTES"; then
+        continue
+    fi
     DIAGNOSTICS="$TMPDIR_CHECK/diagnostics"
     : > "$DIAGNOSTICS"
     metadata_rules=0
@@ -146,6 +153,16 @@ while IFS= read -r -d '' path <&3; do
             line[NR] = $0
             last_content = NR
         }
+        function valid_header_position(i, k) {
+            for (k = 1; k < i; k++) {
+                if (blank[k]) continue
+                if (line[k] ~ /^#!/) continue
+                if (line[k] ~ /^<\?(php|=)/) continue
+                if (line[k] ~ /^[ \t]*declare\(strict_types=1\);[ \t]*$/) continue
+                return 0
+            }
+            return 1
+        }
         END {
             if (blank[NR]) {
                 start = NR
@@ -154,7 +171,7 @@ while IFS= read -r -d '' path <&3; do
                 bad = 1
             }
             for (i = 1; i <= NR; i++) {
-                if (metadata_rules && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*\$KYAULabs:/) {
+                if (metadata_rules && valid_header_position(i) && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*\$KYAULabs:/) {
                     count = 0
                     for (j = i + 1; j <= NR && blank[j]; j++) {
                         metadata_blank[j] = 1
@@ -165,7 +182,7 @@ while IFS= read -r -d '' path <&3; do
                         bad = 1
                     }
                 }
-                if (metadata_rules && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*vim: ft=/) {
+                if (metadata_rules && i == last_content && line[i] ~ /^[ \t]*(#|\/\/)[ \t]*vim: ft=/) {
                     count = 0
                     for (j = i - 1; j >= 1 && blank[j]; j--) {
                         metadata_blank[j] = 1
@@ -173,10 +190,6 @@ while IFS= read -r -d '' path <&3; do
                     }
                     if (count != 1) {
                         printf "%d: vim modeline must be preceded by exactly one blank line; found %d\n", i - count, count
-                        bad = 1
-                    }
-                    if (i != last_content) {
-                        printf "%d: vim modeline must be the final content line\n", i
                         bad = 1
                     }
                 }
@@ -212,9 +225,11 @@ while IFS= read -r -d '' path <&3; do
     fi
     if [ -s "$DIAGNOSTICS" ]; then
         violations=1
-        display_path=${path//$'\n'/\\n}
-        display_path=${display_path//$'\r'/\\r}
-        display_path=${display_path//$'\t'/\\t}
+        if [[ "$path" =~ [[:cntrl:]] ]]; then
+            printf -v display_path '%q' "$path"
+        else
+            display_path="$path"
+        fi
         while IFS= read -r diagnostic; do
             printf '%s:%s\n' "$display_path" "$diagnostic"
         done < "$DIAGNOSTICS"

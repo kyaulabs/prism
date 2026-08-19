@@ -80,14 +80,15 @@ trap - EXIT
 printf '%s\n' '── validate-harness: tracked blank-line violations fail closed ──'
 BLANK_LINE_FIXTURE=$(mktemp "$REPO_ROOT/packages/prism-core/docs/.blank-line-test.XXXXXX")
 BLANK_LINE_RELATIVE=${BLANK_LINE_FIXTURE#"$REPO_ROOT"/}
+TEST_INDEX=$(mktemp)
+cp "$REPO_ROOT/.git/index" "$TEST_INDEX"
 cleanup_blank_line_fixture() {
-	git -C "$REPO_ROOT" rm --cached --force --quiet -- "$BLANK_LINE_RELATIVE" 2>/dev/null || true
-	rm -f "$BLANK_LINE_FIXTURE"
+	rm -f "$BLANK_LINE_FIXTURE" "$TEST_INDEX"
 }
 trap cleanup_blank_line_fixture EXIT
 printf 'alpha\n\n\n\nomega\n' > "$BLANK_LINE_FIXTURE"
-git -C "$REPO_ROOT" add -- "$BLANK_LINE_RELATIVE"
-if output=$(bash "$VALIDATOR" 2>&1); then
+GIT_INDEX_FILE="$TEST_INDEX" git -C "$REPO_ROOT" add -- "$BLANK_LINE_RELATIVE"
+if output=$(GIT_INDEX_FILE="$TEST_INDEX" bash "$VALIDATOR" 2>&1); then
 	fail 'tracked blank-line violation was accepted'
 elif printf '%s\n' "$output" | grep -Fq "$BLANK_LINE_RELATIVE:2: excessive blank-line run; found 3, maximum 2"; then
 	pass 'tracked blank-line violation is rejected with its diagnostic'

@@ -134,8 +134,8 @@ register_temp_dir "$T5B"
 git_init_test_repo "$T5B"
 cat > "$T5B/fixture-builder.sh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' '// $KYAULabs: fixture.js test@example.test 2026/08/18 +0000 Exp $'
-printf '%s\n' '// vim: ft=javascript sts=4 sw=4 ts=4 et :'
+cat <<'FIXTURE'
+FIXTURE
 EOF
 git -C "$T5B" add fixture-builder.sh
 run_checker "$T5B" --tracked
@@ -176,6 +176,9 @@ for file in generated.txt vendored.txt immutable.txt; do
     printf 'alpha\n\n\n\nbeta\n' > "$T6/$file"
 done
 printf 'binary\0payload\n\n\n\n' > "$T6/binary.dat"
+printf '\n' > "$T6/late-binary.dat"
+awk 'BEGIN { for (i = 0; i < 10000; i++) print "text" }' >> "$T6/late-binary.dat"
+printf '\0payload\n' >> "$T6/late-binary.dat"
 printf 'seed\n' > "$T6/seed.txt"
 git -C "$T6" add .
 git -C "$T6" commit --quiet -m seed
@@ -206,29 +209,48 @@ register_temp_dir "$T7"
 git_init_test_repo "$T7"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/space name.txt"
 printf 'alpha\n\n\n\nbeta\n' > "$T7/-n"
-printf 'alpha\n\n\n\nbeta\n' > "$T7/0:entry.txt"
-printf 'alpha\n\n\n\nbeta\n' > "$T7/:(exclude)*"
+supports_posix_paths=1
+case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) supports_posix_paths=0 ;;
+esac
 newline_path=$'line\nbreak.txt'
-printf 'alpha\n\n\n\nbeta\n' > "$T7/$newline_path"
+escape_path=$'escape\033name.txt'
+if [ "$supports_posix_paths" -eq 1 ]; then
+    printf 'alpha\n\n\n\nbeta\n' > "$T7/0:entry.txt"
+    printf 'alpha\n\n\n\nbeta\n' > "$T7/:(exclude)*"
+    printf 'alpha\n\n\n\nbeta\n' > "$T7/$newline_path"
+    printf 'alpha\n\n\n\nbeta\n' > "$T7/$escape_path"
+fi
 git -C "$T7" add .
 run_checker "$T7" --tracked
 path_ok=1
 printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'space name.txt:2: excessive blank-line run' || path_ok=0
 printf '%s\n' "$CHECK_OUTPUT" | grep -Fq -- '-n:2: excessive blank-line run' || path_ok=0
-printf '%s\n' "$CHECK_OUTPUT" | grep -Fq $'line\\nbreak.txt:2: excessive blank-line run' || path_ok=0
+if [ "$supports_posix_paths" -eq 1 ]; then
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run' || path_ok=0
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq ':(exclude)*:2: excessive blank-line run' || path_ok=0
+    printf -v newline_display '%q' "$newline_path"
+    printf -v escape_display '%q' "$escape_path"
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq "$newline_display:2: excessive blank-line run" || path_ok=0
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq "$escape_display:2: excessive blank-line run" || path_ok=0
+fi
 if [ "$CHECK_STATUS" -eq 1 ] && [ "$path_ok" -eq 1 ]; then
     pass 'tracked mode aggregates and safely escapes unusual paths'
 else
     fail "unusual paths were not safely aggregated (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
-run_checker "$T7" --cached
-cached_paths_ok=1
-printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run' || cached_paths_ok=0
-printf '%s\n' "$CHECK_OUTPUT" | grep -Fq ':(exclude)*:2: excessive blank-line run' || cached_paths_ok=0
-if [ "$CHECK_STATUS" -eq 1 ] && [ "$cached_paths_ok" -eq 1 ]; then
-    pass 'cached mode reads colon-bearing and pathspec-magic paths literally'
+if [ "$supports_posix_paths" -eq 1 ]; then
+    run_checker "$T7" --cached
+    cached_paths_ok=1
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq '0:entry.txt:2: excessive blank-line run' || cached_paths_ok=0
+    printf '%s\n' "$CHECK_OUTPUT" | grep -Fq ':(exclude)*:2: excessive blank-line run' || cached_paths_ok=0
+    if [ "$CHECK_STATUS" -eq 1 ] && [ "$cached_paths_ok" -eq 1 ]; then
+        pass 'cached mode reads colon-bearing and pathspec-magic paths literally'
+    else
+        fail "cached unusual paths were not read literally (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+    fi
 else
-    fail "cached unusual paths were not read literally (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+    skip 'cached colon-bearing and pathspec-magic paths are unsupported on this platform'
 fi
 
 printf '%s\n' '── cached regular-file type change ──'
@@ -283,6 +305,41 @@ if [ "$empty_status" -eq 0 ] && [ "$CHECK_STATUS" -eq 0 ]; then
     pass 'cached mode accepts empty and deletion-only analyzable sets'
 else
     fail "cached empty or deletion-only set failed (empty=$empty_status deletion=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── tracked mode reads working-tree content ──'
+T7E=$(mktemp -d)
+register_temp_dir "$T7E"
+git_init_test_repo "$T7E"
+printf 'alpha\nbeta\n' > "$T7E/tracked.txt"
+git -C "$T7E" add tracked.txt
+printf 'alpha\n\n\n\nbeta\n' > "$T7E/tracked.txt"
+run_checker "$T7E" --tracked
+if [ "$CHECK_STATUS" -eq 1 ] && printf '%s\n' "$CHECK_OUTPUT" | grep -Fq 'tracked.txt:2: excessive blank-line run'; then
+    pass 'tracked mode reads working-tree content instead of cached blobs'
+else
+    fail "tracked mode did not inspect working-tree content (exit=$CHECK_STATUS): $CHECK_OUTPUT"
+fi
+
+printf '%s\n' '── tracked sparse and symlink working-tree entries ──'
+T7F=$(mktemp -d)
+register_temp_dir "$T7F"
+git_init_test_repo "$T7F"
+printf 'clean\n' > "$T7F/absent.txt"
+printf 'clean\n' > "$T7F/target.txt"
+printf 'clean\n' > "$T7F/typed.txt"
+git -C "$T7F" add .
+git -C "$T7F" update-index --skip-worktree absent.txt
+rm "$T7F/absent.txt"
+if can_symlink; then
+    rm "$T7F/typed.txt"
+    ln -s target.txt "$T7F/typed.txt"
+fi
+run_checker "$T7F" --tracked
+if [ "$CHECK_STATUS" -eq 0 ]; then
+    pass 'tracked mode skips absent sparse entries and unstaged symlink type changes'
+else
+    fail "tracked sparse or symlink entry failed (exit=$CHECK_STATUS): $CHECK_OUTPUT"
 fi
 
 printf '%s\n' '── cached staged violation ignores working-tree repair ──'

@@ -312,24 +312,35 @@ register_temp_dir "$T10"
 	mkdir -p packages/prism-core/scripts
 	cat > packages/prism-core/scripts/check-blank-lines.sh <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n' 'checkout-blank-line-checker-ran'
+printf '%s\n' 'indexed-blank-line-checker-ran'
+printf '%s\n' "$@" > "$CHECKER_LOG"
 exit 7
 STUB
+	git add packages/prism-core/scripts/check-blank-lines.sh
+	git commit --quiet -m 'seed indexed checker'
 	printf 'clean\n' > staged.md
 	git add staged.md
+	cat > packages/prism-core/scripts/check-blank-lines.sh <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' 'working-tree-blank-line-checker-ran'
+exit 8
+STUB
 	LOG="$T10/log"
+	CHECKER_LOG="$T10/checker-log"
 	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
+	output=$(CHECKER_LOG="$CHECKER_LOG" PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
 	ret=$?
 	set -e
 	lines=$(prism_log_lines "$LOG")
 	if [ "$ret" -eq 7 ] \
-		&& printf '%s\n' "$output" | grep -Fq 'checkout-blank-line-checker-ran' \
+		&& printf '%s\n' "$output" | grep -Fq 'indexed-blank-line-checker-ran' \
+		&& ! printf '%s\n' "$output" | grep -Fq 'working-tree-blank-line-checker-ran' \
+		&& grep -Fxq -- '--cached' "$CHECKER_LOG" \
 		&& ! printf '%s\n' "$lines" | grep -Fxq 'resolve'; then
-		pass "pre-commit prefers the checkout blank-line checker"
+		pass "pre-commit executes the indexed checkout blank-line checker"
 	else
-		fail "pre-commit did not prefer the checkout checker (exit=$ret): $output"
+		fail "pre-commit did not execute the indexed checkout checker (exit=$ret): $output"
 	fi
 )
 
@@ -382,11 +393,17 @@ register_temp_dir "$T12"
 	git_init_test_repo "$T12"
 	printf 'clean\n' > staged.md
 	git add staged.md
+	LOG="$T12/log"
+	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS=9 bash "$PRE_COMMIT" 2>&1)
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS=9 bash "$PRE_COMMIT" 2>&1)
 	ret=$?
 	set -e
-	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -Fq 'unable to resolve prism-core scripts'; then
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -ne 0 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq 'unable to resolve prism-core scripts'; then
 		pass "pre-commit fails closed when script resolution fails"
 	else
 		fail "pre-commit did not fail closed on resolver failure (exit=$ret): $output"
@@ -404,11 +421,17 @@ register_temp_dir "$T13"
 	printf 'clean\n' > staged.md
 	git add staged.md
 	mkdir empty-scripts
+	LOG="$T13/log"
+	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL="$FAKE" PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
 	ret=$?
 	set -e
-	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -Fq 'blank-line checker not found'; then
+	lines=$(prism_log_lines "$LOG")
+	if [ "$ret" -ne 0 ] \
+		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
+		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
+		&& printf '%s\n' "$output" | grep -Fq 'blank-line checker not found'; then
 		pass "pre-commit fails closed when the resolved checker is missing"
 	else
 		fail "pre-commit did not fail closed on a missing resolved checker (exit=$ret): $output"

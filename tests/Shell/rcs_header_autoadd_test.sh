@@ -213,10 +213,19 @@ PHPEOF
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 0 ] && ! git show ":file.php" 2>/dev/null | grep -F 'vim: ft=php' > /dev/null; then
-		pass "Vim modeline skipped when a PHP template ends in HTML"
+	actual_tail=$(git show ":file.php" 2>/dev/null | tail -n 3)
+	expected_tail=$(cat <<'PHPEOF'
+?>
+<p><?= htmlspecialchars("world", ENT_QUOTES, "UTF-8") ?></p>
+<footer>done</footer>
+PHPEOF
+)
+	if [ "$ret" -eq 0 ] \
+		&& ! git show ":file.php" 2>/dev/null | grep -F 'vim: ft=php' > /dev/null \
+		&& [ "$actual_tail" = "$expected_tail" ]; then
+		pass "Vim modeline skipped and PHP/HTML body preserved"
 	else
-		fail "Vim modeline was appended outside PHP context (exit $ret)"
+		fail "PHP/HTML template was modified incorrectly (exit $ret)"
 	fi
 )
 rm -rf "$T3B"
@@ -628,6 +637,8 @@ TSEOF
 
 	header_blanks=$(git show ":padded.ts" 2>/dev/null | awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }')
 	modeline_blanks=$(git show ":padded.ts" 2>/dev/null | awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }')
+	header_blanks=${header_blanks:-0}
+	modeline_blanks=${modeline_blanks:-0}
 	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
 		pass "Existing RCS padding collapses to one blank line"
 	else
@@ -646,23 +657,42 @@ register_temp_dir "$T11"
 	git_init_test_repo .
 	printf 'const value = 1;\n' > repeated.ts
 	git add repeated.ts
-	PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1
-	git commit --quiet -m seed
-
 	ret=0
-	for value in 2 3 4; do
-		printf 'const value = %d;\n' "$value" >> repeated.ts
-		git add repeated.ts
-		PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1 || ret=$?
-		git commit --quiet -m "pass $value"
-	done
-
-	header_blanks=$(git show ":repeated.ts" 2>/dev/null | awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }')
-	modeline_blanks=$(git show ":repeated.ts" 2>/dev/null | awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }')
-	if [ "$ret" -eq 0 ] && [ "$header_blanks" -eq 1 ] && [ "$modeline_blanks" -eq 1 ]; then
-		pass "Repeated normalization remains spacing-idempotent"
+	if PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1; then
+		git commit --quiet -m seed
 	else
-		fail "Repeated normalization grew padding (exit=$ret header=$header_blanks modeline=$modeline_blanks)"
+		ret=$?
+	fi
+
+	if [ "$ret" -eq 0 ]; then
+		for value in 2 3 4; do
+			printf 'const value = %d;\n' "$value" >> repeated.ts
+			git add repeated.ts
+			if PRISM_TOOL="$PRISM_TOOL" bash "$PRE_COMMIT" > /dev/null 2>&1; then
+				git commit --quiet -m "pass $value"
+			else
+				ret=$?
+				break
+			fi
+		done
+	fi
+
+	staged=$(git show ":repeated.ts" 2>/dev/null)
+	header_blanks=$(printf '%s\n' "$staged" | awk '/\$KYAULabs:/ { found=1; next } found && /^[[:space:]]*$/ { count++; next } found { print count + 0; exit }')
+	modeline_blanks=$(printf '%s\n' "$staged" | awk '/^[[:space:]]*$/ { count++; next } /vim: ft=typescript/ { print count + 0; exit } { count=0 }')
+	header_blanks=${header_blanks:-0}
+	modeline_blanks=${modeline_blanks:-0}
+	body=$(printf '%s\n' "$staged" | grep '^const value = ')
+	expected=$(printf 'const value = %d;\n' 1 2 3 4)
+	last_line=$(printf '%s\n' "$staged" | tail -1)
+	if [ "$ret" -eq 0 ] \
+		&& [ "$header_blanks" -eq 1 ] \
+		&& [ "$modeline_blanks" -eq 1 ] \
+		&& [ "$body" = "$expected" ] \
+		&& printf '%s\n' "$last_line" | grep -q 'vim: ft=typescript'; then
+		pass "Repeated normalization remains spacing-idempotent and preserves source"
+	else
+		fail "Repeated normalization changed source or spacing (exit=$ret header=$header_blanks modeline=$modeline_blanks)"
 	fi
 )
 rm -rf "$T11"

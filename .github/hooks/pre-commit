@@ -302,8 +302,10 @@ if [ -n "$STAGED_SRC" ]; then
 					' "$TMP"; then
 						APPEND_ML=false
 					fi
-				elif grep -qF '?>' "$TMP"; then
-					APPEND_ML=false
+				else
+					echo "✗ PHP is required to determine safe modeline placement for '$file'." >&2
+					rm -f "$TMP" "$MOD"
+					exit 1
 				fi
 			else
 				# File does not start with <?php — likely a template
@@ -399,8 +401,14 @@ if [ -z "$REPO_ROOT" ]; then
 	echo "✗ blank-line checker requires a Git checkout." >&2
 	exit 1
 fi
-CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
-if [ ! -f "$CHECKER" ]; then
+CHECKER_REL="packages/prism-core/scripts/check-blank-lines.sh"
+CHECKER="$LINT_TMPDIR/check-blank-lines.sh"
+if git cat-file -e ":./$CHECKER_REL" 2>/dev/null; then
+	if ! git show ":./$CHECKER_REL" > "$CHECKER"; then
+		echo "✗ unable to materialize the indexed blank-line checker." >&2
+		exit 1
+	fi
+else
 	if ! SCRIPTS_DIR=$("$PRISM_TOOL_PATH" resolve scripts 2>/dev/null); then
 		echo "✗ unable to resolve prism-core scripts for blank-line checking." >&2
 		exit 1
