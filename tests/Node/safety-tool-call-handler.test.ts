@@ -138,6 +138,24 @@ test("literal arithmetic passes while identifier and nested expansions block", (
     assert.equal(deps.breaker.count("s1"), 2);
 });
 
+test("single-quoted command substitution syntax fails closed", () => {
+    const commands = [
+        "echo '$(date)'",
+        "printf '%s\\n' '`date`'",
+        "declare 'arr[$(touch /tmp/arithmetic-canary)]=x'",
+        "unset 'arr[`touch /tmp/arithmetic-canary`]'",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("arithmetic commands block recursively evaluated identifiers", () => {
     const commands = [
         "value='arr[$(touch /tmp/arithmetic-canary)]'; ((value))",

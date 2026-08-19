@@ -83,13 +83,15 @@ no longer erase the denial count. The opencode-era
   deliberately out of scope.
 - **WARN gates are advisory.** See the enforcement list above.
 - **Benign command substitution is blocked** by the fail-closed guard —
-  the agent computes such values in separate steps. Syntax-like text inside
-  single-quoted literals is inert and does not count as substitution or a
-  here-string. Numeric-literal arithmetic such as `$((1 + 2))` is accepted.
-  Identifier-based arithmetic, arithmetic commands, nested expansion syntax,
-  and unsupported arithmetic forms remain fail-closed because supported shells
-  can recursively evaluate identifier values. Arithmetic-builtin detection is
-  deliberately token-wide, so builtin-shaped argument text can also block.
+  the agent computes such values in separate steps. `$()` and backtick spellings
+  also block inside single-quoted literals because shell builtins can evaluate
+  those strings recursively. Other syntax-like single-quoted text, including a
+  here-string marker, remains inert. Numeric-literal arithmetic such as
+  `$((1 + 2))` is accepted. Identifier-based arithmetic, arithmetic commands,
+  nested expansion syntax, and unsupported arithmetic forms remain fail-closed
+  because supported shells can recursively evaluate identifier values.
+  Arithmetic-builtin detection is deliberately token-wide, so builtin-shaped
+  argument text can also block.
 
 ## Fail-closed invariants (ADR-0036)
 

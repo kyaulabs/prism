@@ -229,8 +229,10 @@ function hasArithmeticBuiltin(command: string): boolean {
 }
 
 /**
- * Detect active shell constructs the flat tokenizer cannot model. Numeric-only
- * arithmetic expansion is accepted; identifiers and arithmetic commands block.
+ * Detect shell constructs the flat tokenizer cannot model. Command-substitution
+ * spellings block even inside single quotes because shell builtins can evaluate
+ * them recursively. Numeric-only arithmetic expansion is accepted; identifiers
+ * and arithmetic commands block.
  */
 export function hasUnmodelableShellConstruct(command: string): boolean {
     if (hasArithmeticBuiltin(command)) return true;
@@ -238,7 +240,17 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
     for (let i = 0; i < command.length; i++) {
         const ch = command[i];
         if (quote === "'") {
-            if (ch === "'") quote = null;
+            if (ch === "'") {
+                quote = null;
+                continue;
+            }
+            if (ch === "$" && command[i + 1] === "(") {
+                const end = safeArithmeticExpansionEnd(command, i);
+                if (end === null) return true;
+                i = end - 1;
+                continue;
+            }
+            if (ch === "`") return true;
             continue;
         }
         if (quote === '"') {
