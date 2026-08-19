@@ -63,7 +63,8 @@ by configuration. Users may **add** paths through a newline-separated
 environment variable:
 
 ```bash
-export PRISM_SENSITIVE_PATHS=$'~/vault/secrets/\n/etc/myapp/keys/'
+export PRISM_SENSITIVE_PATHS='~/vault/secrets/
+/etc/myapp/keys/'
 ```
 
 Entries must be `~/`-prefixed or absolute. Malformed entries fail closed.

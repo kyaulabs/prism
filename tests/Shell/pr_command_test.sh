@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # $KYAULabs$
 
@@ -440,7 +440,7 @@ PR_TITLE_PAYLOAD
 fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
-assert_contains "$COMMAND_FILE" '--body-file "$BODY_FILE"' 'displayed gh command passes the body through --body-file'
+assert_contains "$COMMAND_FILE" '--body-file /concrete/private/body-file' 'displayed gh command passes the body through --body-file'
 if assert_no_obsolete_title_flag "$COMMAND_FILE"; then
 	pass 'displayed gh command never emits the obsolete --title-file option'
 else

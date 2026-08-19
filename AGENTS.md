@@ -49,8 +49,9 @@ credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
 
 - **Fresh clone:** `git submodule update --init` (`aurora/` is a submodule:
   `kyaulabs/aurora`, branch `main`).
-- **Hooks:** `bash "$(prism-tool resolve scripts)/install-hooks.sh"` (pre-commit,
-  commit-msg, pre-push).
+- **Hooks:** run `prism-tool resolve scripts`, retain the returned absolute
+  directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`
+  (pre-commit, commit-msg, pre-push).
 - **Gate:** `/check` → delegates to `/check-php` (php-cs-fixer + stylelint +
   eslint + Pest coverage ≥ 80%).
 - **Assets:** `/build-assets` (adapter command — Dart Sass + uglify-js) when

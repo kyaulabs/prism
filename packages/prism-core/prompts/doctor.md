@@ -99,14 +99,26 @@ fi
 
 ## 4. Commit pipeline
 
-```bash
-hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
-if [ "$hooks_path" = ".github/hooks" ]; then
-    echo "INSTALLED ($hooks_path)"
-else
-    echo "NOT_INSTALLED — run 'bash \"$(prism-tool resolve scripts)/install-hooks.sh\"'"
-fi
+Run the hooks-path check directly:
 
+```bash
+git config core.hooksPath
+```
+
+An exact `.github/hooks` output means INSTALLED. Empty output or any other
+value means NOT_INSTALLED. For the remediation, resolve the script directory
+in a separate call:
+
+```bash
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory and report the literal remediation
+`bash /absolute/resolved/scripts/install-hooks.sh`.
+
+Run the remaining checks independently:
+
+```bash
 if command -v prism-tool > /dev/null 2>&1; then
     prism-tool run commitlint -- --version
 else

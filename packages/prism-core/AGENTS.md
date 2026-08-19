@@ -30,13 +30,14 @@ Registry access, consumer mutation, OCR connectivity, and OCR code egress are
 four separate approvals; CI environment provisioning of compatible Semgrep/OCR
 releases is not runtime verification.
 
-Harness scripts resolve the same way: instruction-layer references use
-`bash "$(prism-tool resolve scripts)/<tool>.sh"` (skill scripts:
-`prism-tool resolve skills`), which prefers the checkout copy when the
-working directory is inside a prism checkout and otherwise resolves to the
-installed package. Never invoke `packages/prism-core/...` bash paths
-literally; if `prism-tool` is unavailable in a prism checkout, fall back to
-the checkout copy at `packages/prism-core/` from the repository root.
+Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
+`prism-tool resolve skills`) in one tool call, retain the returned absolute
+directory, then invoke the script by literal path in a later call. Resolution
+prefers the checkout copy when the working directory is inside a prism
+checkout and otherwise resolves to the installed package. Never invoke
+`packages/prism-core/...` bash paths literally; if `prism-tool` is unavailable
+in a prism checkout, fall back to the checkout copy at `packages/prism-core/`
+from the repository root.
 
 ## Hard Boundaries
 
@@ -144,7 +145,8 @@ For architectural entropy, run `/improve-architecture` on a cadence.
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on
 failure.
 Commit message format is enforced by `.github/hooks/commit-msg` via commitlint.
-To activate hooks after cloning: `bash "$(prism-tool resolve scripts)/install-hooks.sh"`
+To activate hooks after cloning, run `prism-tool resolve scripts`, retain the
+returned directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`.
 
 For linting details and responsive/mobile-first CSS rules, see the active
 adapter's stack skill (e.g. `scss-mobile-first`).
@@ -155,8 +157,10 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   PR-only — all integration uses merged pull requests. Direct commits and
   pushes to these branches are blocked by local hooks, GitHub rulesets, and
   CI verification. See ADR-0044.
-- Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
-  created via `bash "$(prism-tool resolve scripts)/new-branch.sh <type> <desc>"`. Allowed types
+- Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028.
+  Create them by running `prism-tool resolve scripts`, retaining the returned
+  directory, then invoking `/absolute/resolved/scripts/new-branch.sh` with the
+  type and description. Allowed types
   mirror commitlint vocabulary (minus `ignore`): feat, fix, patch, docs, style,
   refactor, perf, test, build, ci, chore, revert. Plus `release/<semver>` and
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.

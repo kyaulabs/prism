@@ -22,10 +22,11 @@ Run the items in this order; do not skip any:
 2. **Strict-greenfield checkpoint (bootstrap branches only).** Require
    successful `/check` and all four `code-review` axes first. Then derive
    the immutable spec link and direct the user to a fresh wayfinder session:
-   - `REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)`
-   - `SPEC_SHA` from the commit that added `SPEC_PATH`
-     (`git log --format=%H --diff-filter=A -1 -- "$SPEC_PATH"`)
-   - the link `https://github.com/$REPO/blob/$SPEC_SHA/$SPEC_PATH`
+   - run `gh repo view --json nameWithOwner -q .nameWithOwner`, validate the
+     result, and retain it as inert `REPO` context
+   - derive `SPEC_SHA` from the commit that added `SPEC_PATH` with
+     `git log --format=%H --diff-filter=A -1 -- "$SPEC_PATH"`
+   - render the link from the validated literal repository, SHA, and path
 3. **Require map evidence before artifact cleanup (bootstrap branches
    only).** Confirm that the fresh wayfinder map exists and its Notes contain
    that immutable URL; otherwise halt without deleting development artifacts.
@@ -50,14 +51,15 @@ Run the items in this order; do not skip any:
 
 ## Determine the target branch
 
-Derive `TARGET_BRANCH` from the work-branch name:
+Read the work-branch name directly:
 
 ```bash
-case "$(git rev-parse --abbrev-ref HEAD)" in
-    hotfix/*|release/*) TARGET_BRANCH=main ;;
-    *)                 TARGET_BRANCH=develop ;;
-esac
+git rev-parse --abbrev-ref HEAD
 ```
+
+Retain the validated output as inert context. Set `TARGET_BRANCH` to `main`
+when the observed branch starts with `hotfix/` or `release/`; otherwise set it
+to `develop`.
 
 Normal work branches target `develop`; `hotfix/*` and `release/*` target
 `main`. All integration to a protected branch must go through a merged pull

@@ -53,11 +53,11 @@ back to the working tree when nothing is staged):
 
 ```bash
 mkdir -p .pi/tmp
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' > .pi/tmp/check-changed-php.txt || true
+git diff --staged --name-only --diff-filter=AM | grep "\.php$" > .pi/tmp/check-changed-php.txt || true
 ```
 
 ```bash
-if [ ! -s .pi/tmp/check-changed-php.txt ]; then git diff --name-only | grep '\.php$' > .pi/tmp/check-changed-php.txt || true; fi
+if [ ! -s .pi/tmp/check-changed-php.txt ]; then git diff --name-only | grep "\.php$" > .pi/tmp/check-changed-php.txt || true; fi
 echo "Changed PHP files:"; cat .pi/tmp/check-changed-php.txt
 ```
 
@@ -91,7 +91,7 @@ fine: the launcher injects `php -d pcov.enabled=1` via the toolchain
 `argvPrefix`. Only a totally missing driver is blocking:
 
 ```bash
-php -m 2>/dev/null | grep -E '^(pcov|xdebug)$'
+php -m 2>/dev/null | grep -E "^(pcov|xdebug)$"
 ```
 
 Empty output means FAIL: no PHP coverage driver loaded (pcov or xdebug).
@@ -160,7 +160,7 @@ missing.
 ## 6. PHP syntax (sanity)
 
 ```bash
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read -r f; do php -l "$f"; done
+git diff --staged --name-only --diff-filter=AM | grep "\.php$" | while read -r f; do php -l "$f"; done
 ```
 
 Run on staged files; if nothing is staged, run on the working tree's modified

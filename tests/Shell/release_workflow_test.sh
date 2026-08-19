@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -529,7 +529,7 @@ fi
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
 if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \
-   grep -qF -- '-lt 2' "$RELEASE_CMD" && \
+   grep -qF 'major version must be at least' "$RELEASE_CMD" && \
    grep -qF '/doctor' "$RELEASE_CMD"; then
 	pass "P15: /release requires git-cliff 2.0+ and points to /doctor"
 else
@@ -549,8 +549,9 @@ fi
 if grep -qF 'prism-tool run git-cliff -- --bumped-version' "$RELEASE_CMD" && \
    grep -qF 'no prior release tag' "$RELEASE_CMD" && \
    grep -qF 'initial version' "$RELEASE_CMD" && \
-   grep -qF 'new-branch.sh" release "$VERSION"' "$RELEASE_CMD" && \
-   ! grep -qF 'new-branch.sh" release "v' "$RELEASE_CMD" && \
+   grep -qF 'prism-tool resolve scripts' "$RELEASE_CMD" && \
+   grep -qF 'new-branch.sh release X.Y.Z' "$RELEASE_CMD" && \
+   ! grep -qF 'new-branch.sh release vX.Y.Z' "$RELEASE_CMD" && \
    ! grep -qE '(^|[^[:alpha:]])read[[:space:]]+' "$RELEASE_CMD"; then
 	pass "P17: /release proposes via prism-tool run git-cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
 else
@@ -579,10 +580,10 @@ fi
 
 if grep -qF 'gh repo view --json nameWithOwner -q .nameWithOwner' "$RELEASE_CMD" && \
    grep -qF 'kyaulabs/template' "$RELEASE_CMD" && \
-   grep -qF 'mktemp' "$RELEASE_CMD" && \
-   grep -qF 'mv "$TMP_FILE" CHANGELOG.md' "$RELEASE_CMD" && \
+   grep -qF '.pi/tmp/release-changelog.tmp' "$RELEASE_CMD" && \
+   grep -qF 'mv .pi/tmp/release-changelog.tmp CHANGELOG.md' "$RELEASE_CMD" && \
    ! grep -qF 'sed -i' "$RELEASE_CMD"; then
-	pass "P19: /release resolves the repo via gh repo view and replaces kyaulabs/template links with portable mktemp + sed + mv (no sed -i)"
+	pass "P19: /release resolves the repo via gh repo view and replaces kyaulabs/template links with stable temp file + sed + mv (no sed -i)"
 else
 	fail "P19: /release repo-identity or portable link-replacement contract violated"
 fi
@@ -663,7 +664,7 @@ fi
 
 if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
    grep -qF -- '--include-path' "$RELEASE_CMD" && \
-   grep -qF 'npm version' "$RELEASE_CMD" && \
+   grep -qF 'npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION' "$RELEASE_CMD" && \
    grep -qF -- '--no-git-tag-version' "$RELEASE_CMD" && \
    ! grep -qE 'packages/\*' "$RELEASE_CMD"; then
 	pass "P23: /release discovers packages via .prism/release.json only and bumps with npm version --no-git-tag-version"

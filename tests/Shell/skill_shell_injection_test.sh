@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 set -euo pipefail
 
@@ -125,16 +125,16 @@ fi
 if [ ! -f "$PR_COMMAND" ]; then
 	fail "packages/prism-core/prompts/pr.md not found"
 else
-	# Check 4b: pr command reads title into a variable and passes it quoted
-	if grep -Fq 'TITLE=$(cat "$TITLE_FILE")' "$PR_COMMAND" \
+	# Check 4b: pr command reads the one-line title without substitution and passes it quoted.
+	if grep -Fq 'IFS= read -r TITLE <' "$PR_COMMAND" \
 		&& grep -Fq -- '--title "$TITLE"' "$PR_COMMAND"; then
 		pass "pr command: title is read into TITLE and passed as quoted --title"
 	else
 		fail "pr command: missing quoted TITLE variable transport"
 	fi
 
-	# Check 4c: body transport via --body-file
-	if grep -Fq -- '--body-file "$BODY_FILE"' "$PR_COMMAND"; then
+	# Check 4c: body transport via a concrete --body-file path.
+	if grep -Fq -- '--body-file /concrete/private/body-file' "$PR_COMMAND"; then
 		pass "pr command: body transport uses --body-file"
 	else
 		fail "pr command: missing --body-file transport"

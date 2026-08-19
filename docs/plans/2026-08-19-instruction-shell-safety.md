@@ -30,7 +30,7 @@
 - Consumes: repository Markdown instruction resources.
 - Produces: a zero-argument Shell test returning non-zero with file-and-line diagnostics when prohibited syntax exists.
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 Create an executable Bash test with the required RCS header and vim modeline. It must:
 
@@ -45,13 +45,13 @@ Create an executable Bash test with the required RCS header and vim modeline. It
 4. Run an `awk` fence parser on each resource. The parser constructs the Markdown fence character with `sprintf("%c", 96)`, enters only `bash`, `sh`, or `shell` fences, and reports any trimmed command line beginning with `(`.
 5. Print one PASS summary when no findings exist, otherwise print the total and exit 1.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `bash tests/Shell/instruction_shell_safety_test.sh`
 
 Expected: FAIL with findings in the audited skills, prompts, and AGENTS files.
 
-- [ ] **Step 3: Confirm automatic suite discovery**
+- [x] **Step 3: Confirm automatic suite discovery**
 
 Read `tests/Shell/run-all.sh` and verify its existing `*_test.sh` discovery includes the new test without editing the runner.
 
@@ -75,7 +75,7 @@ Read `tests/Shell/run-all.sh` and verify its existing `*_test.sh` discovery incl
 - Consumes: `prism-tool resolve scripts|skills` output.
 - Produces: separate resolver calls followed by literal-path Bash invocations.
 
-- [ ] **Step 1: Replace every inline resolver recipe**
+- [x] **Step 1: Replace every inline resolver recipe**
 
 For scripts, show these as two separate tool calls:
 
@@ -91,13 +91,13 @@ For search skills, use the equivalent `prism-tool resolve skills` call followed 
 
 Update prose to require retaining the first command's output as a validated literal path. Preserve checkout fallback language and all branch, setup, confirmation, and search behavior.
 
-- [ ] **Step 2: Run the focused test**
+- [x] **Step 2: Run the focused test**
 
 Run: `bash tests/Shell/instruction_shell_safety_test.sh`
 
 Expected: still FAIL only on the remaining capture/quoting/subshell resources; no findings from the files in this task.
 
-- [ ] **Step 3: Run resolver-specific regressions**
+- [x] **Step 3: Run resolver-specific regressions**
 
 Run:
 
@@ -125,7 +125,7 @@ Expected: PASS after updating obsolete marker assertions to require separate `pr
 - Consumes: direct `gh` output and stable payload files.
 - Produces: validated repository/owner/name/node-ID conversation values and substitution-free GitHub CLI commands.
 
-- [ ] **Step 1: Replace repository discovery assignments**
+- [x] **Step 1: Replace repository discovery assignments**
 
 Run repository discovery as independent commands:
 
@@ -137,7 +137,7 @@ gh repo view --json name -q .name
 
 Require the agent to validate and retain each output as inert context, then render the literal value in later commands. Replace every `REPO`, `OWNER`, `NAME`, `TASK_NODE`, and `PREREQ_NODE` capture assignment accordingly.
 
-- [ ] **Step 2: Replace issue-title file capture**
+- [x] **Step 2: Replace issue-title file capture**
 
 Keep the single-quoted heredoc payload boundary. Read the single-line title without substitution:
 
@@ -148,11 +148,11 @@ gh issue create --repo OWNER_REPO --title "$TITLE" --body-file /tmp/issue-body.m
 
 Remove prose and comments that spell prohibited syntax. Preserve `--body-file`, GraphQL `-F` bindings, and the rule that untrusted tracker content is never evaluated.
 
-- [ ] **Step 3: Rewrite the PR handoff block**
+- [x] **Step 3: Rewrite the PR handoff block**
 
 Have the agent render the validated repository, target branch, branch, title-file path, and body-file path as concrete literals. The human-run block reads the one-line title with `IFS= read -r TITLE < TITLE_FILE_PATH` and invokes `gh pr create` with the concrete repository plus `--title "$TITLE"` and the literal body path. Preserve the preparation-only and no-GitHub-mutation contract.
 
-- [ ] **Step 4: Run focused regressions**
+- [x] **Step 4: Run focused regressions**
 
 Run:
 
@@ -178,23 +178,23 @@ Expected: the global test still fails only on non-GitHub resources; injection an
 - Consumes: direct command output and literal multiline shell strings.
 - Produces: substitution-free diagnostics, package-location guidance, and deny-floor configuration examples.
 
-- [ ] **Step 1: Decompose doctor checks**
+- [x] **Step 1: Decompose doctor checks**
 
 Run `git config core.hooksPath` directly, retain its output, and make the installed/not-installed decision at the agent level. Resolve the scripts directory in a separate command before displaying the literal installer path.
 
-- [ ] **Step 2: Decompose pi package discovery**
+- [x] **Step 2: Decompose pi package discovery**
 
 Run `pi --version` directly and retain the version. Run `find` with the validated literal version embedded in the path pattern and retain the resulting package root. Keep the fallback and credential-path prohibition unchanged.
 
-- [ ] **Step 3: Replace ANSI-C configuration syntax**
+- [x] **Step 3: Replace ANSI-C configuration syntax**
 
 Use a literal multiline single-quoted assignment for `PRISM_SENSITIVE_PATHS`, preserving the newline-separated value contract without escape interpretation.
 
-- [ ] **Step 4: Remove raw false-positive quote sequences**
+- [x] **Step 4: Remove raw false-positive quote sequences**
 
 Change the affected grep regular expressions in `check-php.md` from single-quoted end-anchored patterns to equivalent double-quoted patterns. Preserve every regex and command outcome.
 
-- [ ] **Step 5: Run focused regressions**
+- [x] **Step 5: Run focused regressions**
 
 Run:
 
@@ -218,7 +218,7 @@ Expected: the global test fails only on release-related resources; existing cont
 - Consumes: direct git, git-cliff, Node.js, `gh`, and `wc` output retained as validated agent context.
 - Produces: the existing release branch, changelog, package bumps, signed release commit, and human handoff without unsupported shell grammar.
 
-- [ ] **Step 1: Decompose preflight capture**
+- [x] **Step 1: Decompose preflight capture**
 
 Replace shell comparisons around captured output with direct commands and explicit agent decisions:
 
@@ -229,15 +229,15 @@ Replace shell comparisons around captured output with direct commands and explic
 
 Use double-quoted end-anchored regexes where shell validation remains.
 
-- [ ] **Step 2: Decompose version and tag discovery**
+- [x] **Step 2: Decompose version and tag discovery**
 
 Run tag discovery and bumped-version commands directly. Retain the observed tag/version as validated conversation values and render a literal `X.Y.Z` in later commands. Preserve first-release questioning, semantic-version grammar, bump rationale, and final release approval.
 
-- [ ] **Step 3: Rewrite branch creation and changelog link replacement**
+- [x] **Step 3: Rewrite branch creation and changelog link replacement**
 
 Resolve scripts separately, then invoke `new-branch.sh` with the validated literal version. Replace `mktemp` capture with `.pi/tmp/release-changelog.tmp`; create `.pi/tmp`, render the validated repository literal into `sed`, and atomically move the stable temp file.
 
-- [ ] **Step 4: Rewrite section-size and package-version capture**
+- [x] **Step 4: Rewrite section-size and package-version capture**
 
 Run the `awk | wc -c` measurement directly and evaluate its numeric output at the agent level. For each validated package path, run package-name, current-version, and next-version commands separately and retain literal results. Replace the parenthesized `cd` subshell with:
 
@@ -247,11 +247,11 @@ npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION --no-git-tag-version
 
 Keep the bumped-package list as conversation state for literal staging and handoff rendering.
 
-- [ ] **Step 5: Update release contract assertions**
+- [x] **Step 5: Update release contract assertions**
 
 Replace assertions that pin assignment/capture spellings with assertions for direct commands, literal-value rendering, stable `.pi/tmp` use, separate resolver calls, and `npm --prefix`. Add explicit negative assertions for the prohibited raw patterns and parenthesized package subshell.
 
-- [ ] **Step 6: Run release regressions**
+- [x] **Step 6: Run release regressions**
 
 Run:
 
@@ -274,13 +274,13 @@ Expected: PASS. The global instruction-shell test is now green.
 - Consumes: completed instruction cleanup.
 - Produces: verified repository state with no prohibited instruction syntax.
 
-- [ ] **Step 1: Re-run the literal audit**
+- [x] **Step 1: Re-run the literal audit**
 
 Run the new global test and independently scan the same resource set with patterns written as `[$][(]` and `[$][']`.
 
 Expected: zero findings.
 
-- [ ] **Step 2: Run all affected Shell regressions**
+- [x] **Step 2: Run all affected Shell regressions**
 
 Run:
 
@@ -297,16 +297,16 @@ bash tests/Shell/search_skills_test.sh
 
 Expected: PASS.
 
-- [ ] **Step 3: Run the full shell suite**
+- [x] **Step 3: Run the full shell suite**
 
 Run: `composer test:shell`
 
 Expected: PASS.
 
-- [ ] **Step 4: Run project verification and gate**
+- [x] **Step 4: Run project verification and gate**
 
 Load `verification-before-completion`, run `/check`, then run `code-review` over the complete branch diff. Resolve every Blocking finding before preparing the implementation commit.
 
-- [ ] **Step 5: Commit the implementation**
+- [x] **Step 5: Commit the implementation**
 
 Stage the rewritten instructions, regression test, and adjusted contract tests. Use `prism-tool commit prepare` with type `fix`, scope `core`, and subject `make instruction shell recipes safety-compatible`. Present the exact launcher-produced message and plan ID for approval, then apply only after explicit approval.

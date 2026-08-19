@@ -194,10 +194,16 @@ another.
 ## 7. Git hooks
 
 If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
-`.github/hooks`, show:
+`.github/hooks`, resolve the scripts directory first:
 
 ```bash
-bash "$(prism-tool resolve scripts)/install-hooks.sh"
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory and show the resulting literal command:
+
+```bash
+bash /absolute/resolved/scripts/install-hooks.sh
 ```
 
 Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
@@ -234,7 +240,13 @@ If `gh` is missing or unauthenticated, report the local remediation
 In a Prism source checkout, run:
 
 ```bash
-bash "$(prism-tool resolve scripts)/validate-harness.sh"
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory, then run:
+
+```bash
+bash /absolute/resolved/scripts/validate-harness.sh
 ```
 
 Then report:
