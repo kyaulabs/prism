@@ -45,7 +45,7 @@ documentation, and conversation.
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
-| script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via `prism-tool resolve`, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0065). |
+| script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via a separate `prism-tool resolve` call, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0073, superseding ADR-0065's invocation syntax). |
 | safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, and bounded-window denial circuit breaker (three denials within the last ten bash calls). |
 | oversized request | Work too large for one specification in one session because it spans multiple independent subsystems or contains unknowns that cannot be reduced to sharp questions. It routes to wayfinder before detailed design. |
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
@@ -270,7 +270,7 @@ cross-era constraints most relevant to current work are:
 - `adr/0028-git-flow-branch-naming-enforcement.md` — mechanically enforce work-branch naming.
 - `adr/0035-ci-runner-fork-isolation.md` — run CI checks on hosted ephemeral runners for fork-PR isolation while preserving gate equivalence with local checks.
 - `adr/0064-slim-commit-footers-and-ocr-sourced-tested-by.md` — three commit footers; `Tested-by:` sourced from OCR config (supersedes ADR-0040's footer clause).
-- `adr/0065-self-locating-script-resolution.md` — instruction-layer script references resolve via `prism-tool resolve scripts|skills`, gated by validate-harness (extends ADR-0060's install model).
+- `adr/0065-self-locating-script-resolution.md` — superseded invocation syntax; its self-locating resolver architecture remains in effect through ADR-0073.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — normalize required source headers in pre-commit.
 - `adr/0044-pr-only-protected-branches.md` — protect `main` and `develop` with PR-only integration.
 - `adr/0046-automated-release-pipeline.md` — release CI publishes the merge result and opens a back-merge PR.
@@ -296,6 +296,7 @@ Pi-era decisions:
 - `adr/0070-launcher-owned-workflow-mechanics.md` — fixed prompt workflow mechanics that exceed the safety tokenizer run through narrow, audited `prism-tool` operations.
 - `adr/0071-explicit-project-learning-architecture.md` — explicitly invoked learning with worktree-local schema-versioned state, a canonical topic graph, validated structured-record boundaries, and launcher-owned mechanics.
 - `adr/0072-native-worktree-and-branch-policy-architecture.md` — worktree guidance separates branch-policy planning from mutation; outside-root changes are exact human-run commands.
+- `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
 
 ## When to update this file
 
