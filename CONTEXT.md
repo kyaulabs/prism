@@ -51,6 +51,12 @@ documentation, and conversation.
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
 | walking-skeleton bootstrap | The sole strict-greenfield exception to immediate wayfinding: scaffold plus one thin vertical slice, still following specification, planning, TDD, verification, checking, and review. |
 | wayfinder map | A shared map of investigation tickets used to resolve oversized uncertainty one bounded question at a time before synthesis into a specification. |
+| learning capability | Prism core's explicitly invoked, project-agnostic workflow for generating curricula, teaching topics, assessing application, and managing private progress without affecting normal development. |
+| curriculum | A shareable, evidence-backed view of a canonical topic graph for a defined audience profile; project curricula provide layperson and technical profiles. |
+| topic graph | The canonical set of stable learning topics, objectives, prerequisites, evidence, profile applicability, and freshness relationships from which curricula are derived. |
+| learning state | Privacy-minimal, worktree-local progress evidence written only by explicit learning actions and never read by normal development workflows. |
+| mastery | A topic's evidence state: unseen, in progress, learned against the current content digest, or stale after relevant evidence changes. |
+| contributor curriculum overlay | The technical-only, repository-owned Prism curriculum that extends the project technical graph without adding another learning engine, command, or skill. |
 | package release | A release event that publishes the repo's GitHub Release and bumps the declared release-managed npm packages (`.prism/release.json`) to independently computed versions, tagging each; `npm publish` remains a human-run step. |
 | tracker operator | The least-privilege workflow that performs approved GitHub issue, label, field, and blocking-edge operations for ticketing. External tracker content remains untrusted data. |
 

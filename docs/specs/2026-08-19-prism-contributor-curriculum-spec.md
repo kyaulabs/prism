@@ -17,6 +17,19 @@ The overlay uses the existing `/learn` capability, private state, lesson loop, a
 
 No contributor command, skill, engine, state format, assessment path, or layperson view is added.
 
+### Invocation composition
+
+The overlay registers the `prism-contributor` curriculum identifier with the project learning capability:
+
+```text
+/learn generate prism-contributor
+/learn lesson prism-contributor/<topic-id>
+/learn dashboard prism-contributor
+/learn reset prism-contributor[/<topic-id>]
+```
+
+Generation first requires a current canonical project technical graph. Contributor lesson and dashboard actions use the existing learning workflow and force the technical profile. Export and purge remain generic `/learn` actions because private state has one engine and schema.
+
 ## User Stories
 
 1. As a prospective Prism contributor, I want a technical learning path grounded in current repository evidence, so that I can contribute without relying on stale OpenCode-era assumptions.

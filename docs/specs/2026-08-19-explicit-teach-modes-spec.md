@@ -21,6 +21,14 @@ The command accepts an optional target, profile, and depth. It defaults to the l
 
 No teaching skill, launcher operation, extension, or persistent learning state is introduced.
 
+### Invocation contract
+
+```text
+/teach [explain|why|reflect] [target] [--profile layperson|technical] [--depth concise|deep]
+```
+
+A bare `/teach` is equivalent to `explain` with the latest meaningful work as its target. An explicit mode without a target uses the same fallback. Unknown modes, profiles, depth values, or repeated modifiers return usage guidance rather than silently changing behavior. The target consumes the remaining non-modifier argument text so files, commits, decisions, and conversation references can be named naturally.
+
 ## User Stories
 
 1. As a contributor, I want `/teach explain` to explain a test, change, workflow phase, failure, finding, file, diff, commit, decision, or conversation exchange, so that I can understand the mechanics behind it.

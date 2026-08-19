@@ -17,6 +17,22 @@ The capability generates one canonical evidence-backed topic graph and derives l
 
 The learning skill owns interaction and evidence interpretation. Launcher operations own exact filesystem, Git, schema, locking, digest, state-transition, reset, export, and purge mechanics. Active adapters may contribute stack-specific evidence and technical topics but cannot redefine curriculum structure, assessment, persistence, or freshness semantics.
 
+### Invocation contract
+
+```text
+/learn [generate|lesson|dashboard|reset|export|purge] [target] [--profile layperson|technical] [--depth concise|deep]
+```
+
+- A bare `/learn` displays the dashboard and next eligible topic without starting a lesson.
+- `generate [project]` previews regeneration of the canonical project source map and both project curriculum profiles before any approved write. Additional repository-owned curriculum identifiers may register with this action without adding commands.
+- `lesson [topic-id]` opens the selected topic or, when omitted, the next prerequisite-ready topic. Profile defaults to the curriculum's active profile; Prism contributor topics always force technical. Depth changes only the current interaction.
+- `dashboard [curriculum-id]` derives status from canonical private state and never starts another action.
+- `reset [all|curriculum-id|topic-id]` previews the exact scope and requires confirmation before state replacement.
+- `export [destination]` defaults to the private export area. An external destination requires confirmation and a tracked/shared-destination warning.
+- `purge exports` enumerates owned exports and requires separate confirmation. It never implies state reset or reusable-curriculum deletion.
+
+Unknown actions, profiles, depth values, curriculum identifiers, topic identifiers, or repeated modifiers return usage guidance without mutation. Actions do not continue into another action automatically.
+
 ## User Stories
 
 1. As a project participant, I want to generate a curriculum from the active target project, so that learning material reflects current repository evidence rather than generic assumptions.

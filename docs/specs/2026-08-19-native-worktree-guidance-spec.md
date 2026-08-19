@@ -15,6 +15,14 @@ Provide one explicitly invoked `/worktree` prompt and one `worktree` skill backe
 
 The capability remains a thin, consent-gated interface over native Git worktree behavior. It exposes list, add, use, remove, prune, and repair flows; preserves one canonical branch-policy implementation; treats each linked worktree as an independent Pi project root; and never starts or supervises another Pi process.
 
+### Invocation contract
+
+```text
+/worktree [list|add|use|remove|prune|repair] [target]
+```
+
+A bare `/worktree` is equivalent to the read-only `list` action. `add` accepts or interactively gathers one destination plus the policy-owned branch type and description; `use`, `remove`, and `repair` accept one listed worktree target; and `prune` accepts no target. Missing mutation details are gathered one decision at a time before the exact-plan approval gate. Unknown actions, ambiguous targets, extra targets, or mutation flags such as force return usage guidance without changing repository state.
+
 ## User Stories
 
 1. As a contributor, I want to list worktrees with branch, HEAD, lock, missing, prunable, dirty, ignored, and removal-readiness information, so that I can understand repository state safely.
