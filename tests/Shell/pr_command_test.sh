@@ -73,8 +73,24 @@ assert_delegates_to_pr() {
 
 assert_no_obsolete_title_flag() {
 	local tree="$1"
-	! grep -R -A20 -F -- 'gh pr create' "$tree" \
-		| grep -Fq -- '--title-file'
+	local file
+	while IFS= read -r file; do
+		if ! awk '
+			/^```/ {
+				if (in_block && has_gh && has_title_file) exit 1
+				in_block = !in_block
+				has_gh = 0
+				has_title_file = 0
+				next
+			}
+			in_block && index($0, "gh pr create") { has_gh = 1 }
+			in_block && index($0, "--title-file") { has_title_file = 1 }
+			END { if (in_block && has_gh && has_title_file) exit 1 }
+		' "$file"; then
+			return 1
+		fi
+	done < <(grep -R -l -F -- 'gh pr create' "$tree")
+	return 0
 }
 
 make_standard_fixture() {
@@ -414,9 +430,7 @@ PR_TITLE_PAYLOAD
 	title_after=""
 	IFS= read -r title_after < "$title_file" 2>/dev/null || true
 	if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
-	validation_first=""
-	IFS= read -r validation_first < "$validation_file" 2>/dev/null || true
-	if [ "$validation_first" != "$payload_line" ]; then preserved=0; fi
+	if [ -e "$validation_file" ]; then preserved=0; fi
 	if [ "$preserved" -eq 1 ]; then
 		pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
 	else

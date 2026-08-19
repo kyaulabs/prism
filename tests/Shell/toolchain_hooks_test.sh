@@ -343,20 +343,75 @@ register_temp_dir "$T11"
 	git_init_test_repo "$T11"
 	printf 'clean\n' > staged.md
 	git add staged.md
+	mkdir resolved-scripts
+	cat > resolved-scripts/check-blank-lines.sh <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$CHECKER_LOG"
+printf '%s\n' 'resolved-blank-line-checker-ran'
+exit 7
+EOF
+	chmod +x resolved-scripts/check-blank-lines.sh
 	LOG="$T11/log"
+	CHECKER_LOG="$T11/checker-log"
 	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" bash "$PRE_COMMIT" 2>&1)
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" \
+		PRISM_SCRIPTS_DIR="$T11/resolved-scripts" CHECKER_LOG="$CHECKER_LOG" \
+		bash "$PRE_COMMIT" 2>&1)
 	ret=$?
 	set -e
 	lines=$(prism_log_lines "$LOG")
-	if [ "$ret" -eq 0 ] \
+	if [ "$ret" -eq 7 ] \
 		&& printf '%s\n' "$lines" | grep -Fxq 'resolve' \
 		&& printf '%s\n' "$lines" | grep -Fxq 'scripts' \
-		&& printf '%s\n' "$output" | grep -Fq '→ blank-line policy'; then
-		pass "pre-commit falls back to the resolved blank-line checker"
+		&& printf '%s\n' "$output" | grep -Fq 'resolved-blank-line-checker-ran' \
+		&& grep -Fxq -- '--cached' "$CHECKER_LOG"; then
+		pass "pre-commit executes the resolved blank-line checker and propagates its status"
 	else
-		fail "pre-commit did not use resolver fallback (exit=$ret): $output"
+		fail "pre-commit did not execute resolver fallback correctly (exit=$ret): $output"
+	fi
+)
+
+# ── Test 12: a failed blank-line resolver fails closed ────────────────────────
+
+echo "── Test 12: failed blank-line resolver fails closed ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+(
+	cd "$T12"
+	git_init_test_repo "$T12"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	set +e
+	output=$(PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS=9 bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -Fq 'unable to resolve prism-core scripts'; then
+		pass "pre-commit fails closed when script resolution fails"
+	else
+		fail "pre-commit did not fail closed on resolver failure (exit=$ret): $output"
+	fi
+)
+
+# ── Test 13: a missing resolved checker fails closed ──────────────────────────
+
+echo "── Test 13: missing resolved blank-line checker fails closed ──"
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+(
+	cd "$T13"
+	git_init_test_repo "$T13"
+	printf 'clean\n' > staged.md
+	git add staged.md
+	mkdir empty-scripts
+	set +e
+	output=$(PRISM_TOOL="$FAKE" PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+	if [ "$ret" -ne 0 ] && printf '%s\n' "$output" | grep -Fq 'blank-line checker not found'; then
+		pass "pre-commit fails closed when the resolved checker is missing"
+	else
+		fail "pre-commit did not fail closed on a missing resolved checker (exit=$ret): $output"
 	fi
 )
 

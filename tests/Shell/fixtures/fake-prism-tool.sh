@@ -19,8 +19,15 @@ if [ "${1:-}" = "doctor" ]; then
 fi
 
 if [ "${1:-}" = "resolve" ] && [ "${2:-}" = "scripts" ]; then
-	fixture_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
-	printf '%s\n' "$fixture_root/packages/prism-core/scripts"
+	if [ -n "${PRISM_RESOLVE_STATUS:-}" ]; then
+		exit "$PRISM_RESOLVE_STATUS"
+	fi
+	if [ -n "${PRISM_SCRIPTS_DIR:-}" ]; then
+		printf '%s\n' "$PRISM_SCRIPTS_DIR"
+	else
+		fixture_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+		printf '%s\n' "$fixture_root/packages/prism-core/scripts"
+	fi
 	exit 0
 fi
 

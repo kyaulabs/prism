@@ -23,6 +23,28 @@ LIB="$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 source "$LIB"
 setup_result_file
 
+has_obsolete_pr_title_flag() {
+	local tree="$1"
+	local file
+	while IFS= read -r file; do
+		if ! awk '
+			/^```/ {
+				if (in_block && has_gh && has_title_file) exit 1
+				in_block = !in_block
+				has_gh = 0
+				has_title_file = 0
+				next
+			}
+			in_block && index($0, "gh pr create") { has_gh = 1 }
+			in_block && index($0, "--title-file") { has_title_file = 1 }
+			END { if (in_block && has_gh && has_title_file) exit 1 }
+		' "$file"; then
+			return 0
+		fi
+	done < <(grep -R -l -F -- 'gh pr create' "$tree")
+	return 1
+}
+
 # ── Static scan: ticketing SKILL.md ──────────────────────────────────────────
 TICKETING="$REPO_ROOT/packages/prism-core/skills/ticketing/SKILL.md"
 
@@ -112,8 +134,7 @@ else
 	fi
 
 	# Check 4d: the displayed gh command never uses obsolete --title-file.
-	if grep -R -A20 -F -- 'gh pr create' "$REPO_ROOT/packages/prism-core" \
-		| grep -Fq -- '--title-file'; then
+	if has_obsolete_pr_title_flag "$REPO_ROOT/packages/prism-core"; then
 		fail "prism-core: displayed gh command still uses obsolete --title-file"
 	else
 		pass "prism-core: displayed gh command has no obsolete --title-file"
