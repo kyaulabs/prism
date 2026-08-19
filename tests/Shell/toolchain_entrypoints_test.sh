@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -65,6 +65,10 @@ assert_file_contains "$PR_TOOL" "'commitlint'" 'pr launcher operation validates 
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool doctor --local-only' 'release performs local-only readiness'
 assert_file_contains "$CORE_PROMPTS/release.md" 'prism-tool run git-cliff' 'release uses bundled git-cliff through the launcher'
 
+assert_file_contains "$CORE_SKILLS/conventional-commits/SKILL.md" 'prism-tool commit prepare' 'conventional-commits prepares through the launcher'
+assert_file_contains "$CORE_SKILLS/conventional-commits/SKILL.md" 'prism-tool commit apply' 'conventional-commits applies through the launcher'
+assert_file_not_contains "$CORE_SKILLS/conventional-commits/SKILL.md" '\$\(' 'conventional-commits avoids command substitution blocked by the safety extension'
+
 echo "── /security scans through the launcher ──"
 assert_file_contains "$CORE_PROMPTS/security.md" 'prism-tool run semgrep' 'security runs Semgrep through the launcher'
 
@@ -79,7 +83,9 @@ assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixe
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run stylelint --' 'check-php runs stylelint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run eslint --' 'check-php runs eslint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run pest -- --coverage' 'check-php runs pest through the launcher'
-assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(\(' 'check-php avoids arithmetic expansion counters'
+assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(' 'check-php avoids command substitution blocked by the safety extension'
+assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" 'mktemp' 'check-php uses project-local temp files instead of mktemp'
+assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\btrap\b' 'check-php avoids deferred-execution builtins blocked by the safety extension'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run sass --' 'build-assets runs sass through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run uglify-js --' 'build-assets runs uglify-js through the launcher'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'prism-tool run pest -- --coverage' 'tdd-php runs pest through the launcher'

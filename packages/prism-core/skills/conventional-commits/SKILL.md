@@ -108,10 +108,16 @@ the plan; correct the cause and prepare again rather than amending.
 
 ## Branch policy
 
-Work branches follow ADR-0028 and are created with:
+Work branches follow ADR-0028. Resolve the scripts directory first, then
+create the branch with the resolved literal path — two separate commands,
+because the safety extension fails closed on inlined command substitution:
 
 ```bash
-bash "$(prism-tool resolve scripts)/new-branch.sh" <type> <description>
+prism-tool resolve scripts
+```
+
+```bash
+bash <resolved-scripts>/new-branch.sh <type> <description>
 ```
 
 Ordinary commits on `main` and `develop` are blocked. ADR-0044 permits only the
