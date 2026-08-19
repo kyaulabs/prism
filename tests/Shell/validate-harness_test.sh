@@ -81,7 +81,8 @@ printf '%s\n' '── validate-harness: tracked blank-line violations fail close
 BLANK_LINE_FIXTURE=$(mktemp "$REPO_ROOT/packages/prism-core/docs/.blank-line-test.XXXXXX")
 BLANK_LINE_RELATIVE=${BLANK_LINE_FIXTURE#"$REPO_ROOT"/}
 TEST_INDEX=$(mktemp)
-cp "$REPO_ROOT/.git/index" "$TEST_INDEX"
+GIT_DIR=$(git -C "$REPO_ROOT" rev-parse --absolute-git-dir)
+cp "$GIT_DIR/index" "$TEST_INDEX"
 cleanup_blank_line_fixture() {
 	rm -f "$BLANK_LINE_FIXTURE" "$TEST_INDEX"
 }

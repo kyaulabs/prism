@@ -38,35 +38,9 @@ has_obsolete_pr_title_flag() {
 	local obsolete=0
 	while IFS= read -r file; do
 		if ! awk '
-			function fence_run(line, text, ch, spaces, count) {
-				text = line
-				spaces = 0
-				while (spaces < 3 && substr(text, 1, 1) == " ") {
-					text = substr(text, 2)
-					spaces++
-				}
-				ch = substr(text, 1, 1)
-				if (ch != "`" && ch != "~") return 0
-				count = 0
-				while (substr(text, count + 1, 1) == ch) count++
-				fence_char = ch
-				return count
-			}
 			{
-				run = fence_run($0)
-				if (run >= 3) {
-					if (!in_block) {
-						in_block = 1
-						open_char = fence_char
-						open_len = run
-					} else if (fence_char == open_char && run >= open_len) {
-						in_block = 0
-						in_gh = 0
-					}
-					next
-				}
-				if (in_block && !in_gh && index($0, "gh pr create")) in_gh = 1
-				if (in_block && in_gh && index($0, "--title-file")) exit 1
+				if (!in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_gh && index($0, "--title-file")) exit 1
 				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
 			}
 		' "$file"; then

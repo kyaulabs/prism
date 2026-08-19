@@ -86,35 +86,9 @@ assert_no_obsolete_title_flag() {
 	local obsolete=0
 	while IFS= read -r file; do
 		if ! awk '
-			function fence_run(line, text, ch, spaces, count) {
-				text = line
-				spaces = 0
-				while (spaces < 3 && substr(text, 1, 1) == " ") {
-					text = substr(text, 2)
-					spaces++
-				}
-				ch = substr(text, 1, 1)
-				if (ch != "`" && ch != "~") return 0
-				count = 0
-				while (substr(text, count + 1, 1) == ch) count++
-				fence_char = ch
-				return count
-			}
 			{
-				run = fence_run($0)
-				if (run >= 3) {
-					if (!in_block) {
-						in_block = 1
-						open_char = fence_char
-						open_len = run
-					} else if (fence_char == open_char && run >= open_len) {
-						in_block = 0
-						in_gh = 0
-					}
-					next
-				}
-				if (in_block && !in_gh && index($0, "gh pr create")) in_gh = 1
-				if (in_block && in_gh && index($0, "--title-file")) exit 1
+				if (!in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_gh && index($0, "--title-file")) exit 1
 				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
 			}
 		' "$file"; then
@@ -439,8 +413,9 @@ else
 		fail 'title validation accepted an uppercase over-length title'
 	fi
 
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
-fix(pr): preserve $() `ticks` "quotes" and -hyphens as inert data
+fix(pr): inert $(touch d-canary) `touch b-canary` "q" -h
 PR_TITLE_PAYLOAD
 	payload_line=$(cat "$title_file")
 	rm -f "$validation_file"
@@ -455,11 +430,14 @@ PR_TITLE_PAYLOAD
 	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
 	if [ "$rc" -eq 0 ] \
 		&& [ "$title_after" = "$payload_line" ] \
-		&& [ "$validation_title" = "$payload_line" ]; then
+		&& [ "$validation_title" = "$payload_line" ] \
+		&& [ ! -e "$REPO_ROOT/d-canary" ] \
+		&& [ ! -e "$REPO_ROOT/b-canary" ]; then
 		pass 'title validation preserves $(), backticks, quotes, and hyphens as inert data'
 	else
 		fail 'title payload was expanded, altered, or rejected during validation'
 	fi
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
@@ -537,13 +515,14 @@ fi
 cat > "$mutation_dir/prompts/fence-forms.md" <<'EOF'
 ~~~~ shell
 gh pr create \
+  ~~~~not-a-close \
   --title-file "$TITLE_FILE"
 ~~~~
 
-````text
-```
+    gh pr create \
+      --title-file "$TITLE_FILE"
+
 gh pr create --title-file "$TITLE_FILE"
-````
 EOF
 if assert_no_obsolete_title_flag "$mutation_dir/prompts/fence-forms.md"; then
 	fail 'alternate Markdown fence forms evaded obsolete-flag detection'

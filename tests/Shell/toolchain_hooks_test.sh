@@ -366,7 +366,7 @@ EOF
 	CHECKER_LOG="$T11/checker-log"
 	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" \
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS='' \
 		PRISM_SCRIPTS_DIR="$T11/resolved-scripts" CHECKER_LOG="$CHECKER_LOG" \
 		bash "$PRE_COMMIT" 2>&1)
 	ret=$?
@@ -424,7 +424,7 @@ register_temp_dir "$T13"
 	LOG="$T13/log"
 	: > "$LOG"
 	set +e
-	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
+	output=$(PRISM_TOOL_LOG="$LOG" PRISM_TOOL="$FAKE" PRISM_RESOLVE_STATUS='' PRISM_SCRIPTS_DIR="$T13/empty-scripts" bash "$PRE_COMMIT" 2>&1)
 	ret=$?
 	set -e
 	lines=$(prism_log_lines "$LOG")

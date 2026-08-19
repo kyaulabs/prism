@@ -85,7 +85,7 @@ function validateTitle(args, context) {
         process.stderr.write('PR title validation failed: title file is unavailable\n');
         return EXIT.USAGE;
     }
-    const title = rawTitle.endsWith('\n') ? rawTitle.slice(0, -1) : rawTitle;
+    const title = rawTitle.replace(/\r?\n$/, '');
     if (title === '' || /[\r\n]/.test(title)) {
         process.stderr.write('PR title validation failed: title must be one non-empty line\n');
         return EXIT.USAGE;

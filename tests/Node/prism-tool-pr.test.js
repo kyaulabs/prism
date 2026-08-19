@@ -138,7 +138,7 @@ test('pr title validation preserves title data and writes synthetic trailers', (
     t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
     const titleFile = path.join(workDir, 'title.txt');
     const validationFile = path.join(workDir, 'validation.txt');
-    fs.writeFileSync(titleFile, 'feat(core): preserve inert $(payload) text\n', {mode: 0o600});
+    fs.writeFileSync(titleFile, 'feat(core): preserve inert $(payload) text\r\n', {mode: 0o600});
 
     const run = (command, args) => {
         if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
