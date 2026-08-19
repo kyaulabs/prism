@@ -258,6 +258,77 @@ test('pr title validation rejects malformed OCR model output', (t) => {
     assert.equal(fs.existsSync(validationFile), false);
 });
 
+test('pr title validation refuses a symlink title input', (t) => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
+    t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
+    const targetFile = path.join(workDir, 'target.txt');
+    const titleFile = path.join(workDir, 'title.txt');
+    const validationFile = path.join(workDir, 'validation.txt');
+    fs.writeFileSync(targetFile, 'feat(core): concealed title\n', {mode: 0o600});
+    fs.symlinkSync(targetFile, titleFile);
+
+    const result = captureWrites(() => main([
+        'pr',
+        'validate-title',
+        '--title-file',
+        titleFile,
+        '--validation-file',
+        validationFile,
+    ], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: {...process.env, PI_MODEL: 'provider/model'},
+        run(command, args) {
+            if (command === process.execPath) return completed(0);
+            if (path.basename(args[0]) === 'resolve-identity.sh') {
+                return completed(0, 'Test User <test@example.com>\n');
+            }
+            return completed(0, 'review-model\n');
+        },
+    }));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /title file is unavailable/);
+    assert.equal(fs.existsSync(validationFile), false);
+});
+
+test('pr title validation removes its output when commitlint rejects the title', (t) => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
+    t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
+    const titleFile = path.join(workDir, 'title.txt');
+    const validationFile = path.join(workDir, 'validation.txt');
+    fs.writeFileSync(titleFile, 'invalid title\n', {mode: 0o600});
+
+    const result = captureWrites(() => main([
+        'pr',
+        'validate-title',
+        '--title-file',
+        titleFile,
+        '--validation-file',
+        validationFile,
+    ], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: {...process.env, PI_MODEL: 'provider/model'},
+        run(command, args) {
+            if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
+                return completed(0);
+            }
+            if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
+                return completed(0, 'Test User <test@example.com>\n');
+            }
+            if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
+                return completed(0, 'review-model\n');
+            }
+            return completed(1);
+        },
+    }));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /commitlint rejected title/);
+    assert.equal(fs.existsSync(validationFile), false);
+});
+
 test('pr title validation refuses a symlink output without changing its target', (t) => {
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
     t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));

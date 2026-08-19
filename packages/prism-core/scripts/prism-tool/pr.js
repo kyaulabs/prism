@@ -15,6 +15,22 @@ function failure(message, code = EXIT.TOOL) {
     return code;
 }
 
+function closeQuietly(fd) {
+    try {
+        fs.closeSync(fd);
+    } catch {
+        return;
+    }
+}
+
+function unlinkQuietly(file) {
+    try {
+        fs.unlinkSync(file);
+    } catch {
+        return;
+    }
+}
+
 function prCommand(args, context = {}) {
     if (args.length === 1 && args[0] === 'preflight') return preflight(context);
     if (args[0] === 'validate-title') return validateTitle(args.slice(1), context);
@@ -53,11 +69,17 @@ function validateTitle(args, context) {
         return EXIT.USAGE;
     }
     let rawTitle;
+    let titleFd;
     try {
-        const stat = fs.statSync(titleFile);
+        if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error('unsupported no-follow open');
+        titleFd = fs.openSync(titleFile, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+        const stat = fs.fstatSync(titleFd);
         if (!stat.isFile() || stat.size > 4096) throw new Error('invalid title file');
-        rawTitle = fs.readFileSync(titleFile, 'utf8');
+        rawTitle = fs.readFileSync(titleFd, 'utf8');
+        fs.closeSync(titleFd);
+        titleFd = undefined;
     } catch {
+        if (titleFd !== undefined) closeQuietly(titleFd);
         process.stderr.write('PR title validation failed: title file is unavailable\n');
         return EXIT.USAGE;
     }
@@ -83,16 +105,23 @@ function validateTitle(args, context) {
     const content = `${title}\n\nImplemented-by: ${modelId}\n` +
         `Tested-by: ${ocrModelValue}\nSigned-off-by: ${identityValue}\n`;
     let validationFd;
+    let validationCreated = false;
+    const removeValidationFile = () => {
+        if (validationCreated) unlinkQuietly(validationFile);
+    };
     try {
+        if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error('unsupported no-follow open');
         const flags = fs.constants.O_CREAT | fs.constants.O_EXCL |
-            fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW ?? 0);
+            fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW;
         validationFd = fs.openSync(validationFile, flags, 0o600);
+        validationCreated = true;
         fs.writeFileSync(validationFd, content, 'utf8');
         fs.fchmodSync(validationFd, 0o600);
         fs.closeSync(validationFd);
         validationFd = undefined;
     } catch {
-        if (validationFd !== undefined) fs.closeSync(validationFd);
+        if (validationFd !== undefined) closeQuietly(validationFd);
+        removeValidationFile();
         process.stderr.write('PR title validation failed: validation file could not be written\n');
         return EXIT.TOOL;
     }
@@ -105,6 +134,7 @@ function validateTitle(args, context) {
         validationFile,
     ]);
     if (lint.error || lint.status !== 0) {
+        removeValidationFile();
         process.stderr.write('PR title validation failed: commitlint rejected title\n');
         return EXIT.TOOL;
     }
