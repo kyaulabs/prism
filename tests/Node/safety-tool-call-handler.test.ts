@@ -138,6 +138,22 @@ test("literal arithmetic passes while identifier and nested expansions block", (
     assert.equal(deps.breaker.count("s1"), 2);
 });
 
+test("delayed trap payloads fail closed", () => {
+    const commands = [
+        "trap 'cat <(touch /tmp/trap-canary)' EXIT",
+        "trap 'bash <<< \"touch /tmp/trap-canary\"' EXIT",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("single-quoted command substitution syntax fails closed", () => {
     const commands = [
         "echo '$(date)'",
@@ -207,6 +223,22 @@ test("arithmetic commands block recursively evaluated identifiers", () => {
     }
 });
 
+test("unsafe indexed assignments fail closed regardless of token position", () => {
+    const commands = [
+        "> /tmp/arithmetic-output arr[$payload]=x",
+        "echo 'arr[$payload]=x'",
+    ];
+
+    for (const command of commands) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("non-arithmetic declaration forms do not block", () => {
     const { deps } = makeDeps();
 
@@ -214,7 +246,6 @@ test("non-arithmetic declaration forms do not block", () => {
     assert.equal(handleToolCall("bash", { command: "declare -F" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "arr[1+2]=x" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "printf -v 'arr[1+2]' %s x" }, deps), undefined);
-    assert.equal(handleToolCall("bash", { command: "echo 'arr[$payload]=x'" }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
 });
 

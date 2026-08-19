@@ -196,10 +196,18 @@ function isUnsafeIndexedReference(token: string, assignment: boolean): boolean {
 }
 
 function hasUnsafeIndexedAssignment(segment: string): boolean {
-    const assignment = segment.match(
-        /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+)*([^\s]+)/,
+    return tokenizeCommand(segment)
+        .map(normalizeShellCommandWord)
+        .some((token) => isUnsafeIndexedReference(token, true));
+}
+
+function hasDelayedEvaluationBuiltin(command: string): boolean {
+    const normalizedCommand = command.replace(/\\\r?\n/g, "");
+    return splitShellSegments(normalizedCommand).some((segment) =>
+        tokenizeCommand(segment)
+            .map(normalizeShellCommandWord)
+            .some((token) => basename(token) === "trap"),
     );
-    return assignment !== null && isUnsafeIndexedReference(assignment[1], true);
 }
 
 /** True when a segment invokes a recursively evaluated arithmetic context. */
@@ -235,7 +243,7 @@ function hasArithmeticBuiltin(command: string): boolean {
  * and arithmetic commands block.
  */
 export function hasUnmodelableShellConstruct(command: string): boolean {
-    if (hasArithmeticBuiltin(command)) return true;
+    if (hasDelayedEvaluationBuiltin(command) || hasArithmeticBuiltin(command)) return true;
     let quote: '"' | "'" | null = null;
     for (let i = 0; i < command.length; i++) {
         const ch = command[i];
