@@ -61,6 +61,41 @@ function shellShape(command: string): {control: boolean; valid: boolean} {
     return {control: false, valid: quote === null};
 }
 
+function hasDynamicShellSyntax(command: string): boolean {
+    let quote: "'" | '"' | null = null;
+    let wordStart = true;
+    for (let index = 0; index < command.length; index += 1) {
+        const character = command[index];
+        if (quote === "'") {
+            if (character === "'") quote = null;
+            continue;
+        }
+        if (quote === '"') {
+            if (character === "\\" && index + 1 < command.length) {
+                index += 1;
+                continue;
+            }
+            if (character === '"') quote = null;
+            else if (character === "$" || character === "`") return true;
+            continue;
+        }
+        if (character === '"' || character === "'") {
+            quote = character;
+            wordStart = false;
+            continue;
+        }
+        if (character === "\\" && index + 1 < command.length) {
+            index += 1;
+            wordStart = false;
+            continue;
+        }
+        if (character === "$" || character === "`") return true;
+        if (character === "#" && wordStart) return true;
+        wordStart = /\s/.test(character);
+    }
+    return false;
+}
+
 function validStructuredArguments(tokens: readonly string[]): boolean {
     const rank = new Map([
         ["--type", 0], ["--scope", 1], ["--subject", 2], ["--body-file", 3],
@@ -115,7 +150,9 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
 
     if (direct.length > 0) {
         if (direct.length !== 1 || tokenized.length !== 1 || shape.control || !shape.valid ||
-            hasUnmodelableShellConstruct(command)) return "UNSAFE_ATTEMPT";
+            hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command)) {
+            return "UNSAFE_ATTEMPT";
+        }
         return validStructuredArguments(direct[0]) ? "STANDALONE" : "UNSAFE_ATTEMPT";
     }
     if (wrapperAttempt(command, tokens)) return "UNSAFE_ATTEMPT";

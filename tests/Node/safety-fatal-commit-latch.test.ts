@@ -48,6 +48,7 @@ test("bare and absolute atomic commit commands are standalone", () => {
         '/home/tester/.local/bin/prism-tool commit create --type fix --scope safety --subject "fail closed" --refs 74',
         "'/opt/prism tools/prism-tool' commit create --type docs --subject 'document atomic commits'",
         "prism-tool commit create --type docs --subject 'keep ; and | inert' --body-file 'notes/body file.txt'",
+        "prism-tool commit create --type docs --subject 'keep $ and # inert'",
     ]) {
         assert.equal(classifyCommitCreate(command), "STANDALONE", command);
     }
@@ -73,6 +74,18 @@ test("compound, redirected, wrapped, and malformed commit attempts are unsafe", 
     for (const command of commands) {
         assert.equal(classifyCommitCreate(command), "UNSAFE_ATTEMPT", command);
     }
+});
+
+test("parameter-expanded commit arguments are unsafe", () => {
+    const command = 'prism-tool commit create --type feat --subject "$SUBJECT"';
+
+    assert.equal(classifyCommitCreate(command), "UNSAFE_ATTEMPT");
+});
+
+test("trailing shell comments make commit attempts unsafe", () => {
+    const command = 'prism-tool commit create --type feat --subject "x" # trailing';
+
+    assert.equal(classifyCommitCreate(command), "UNSAFE_ATTEMPT");
 });
 
 test("ordinary commands and textual mentions are not commit attempts", () => {
