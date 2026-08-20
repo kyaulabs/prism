@@ -1,9 +1,10 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "../../packages/prism-core/extensions/safety/denial-circuit-breaker.ts";
+import { FatalCommitLatch } from "../../packages/prism-core/extensions/safety/fatal-commit-latch.ts";
 import { handleToolCall, type ToolCallDeps } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
 interface NotifyLog {
@@ -20,6 +21,7 @@ function makeDeps(overrides: Partial<ToolCallDeps> = {}): { deps: ToolCallDeps; 
         safeRelDirs: [],
         extraPaths: [],
         breaker: new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD }),
+        fatalLatch: new FatalCommitLatch(),
         notify: (msg, level) => { notifyLog.push({ msg, level }); },
         ...overrides,
     };
@@ -40,6 +42,17 @@ function markedBashBlock(source: string, start: string, end: string): string {
     assert.notEqual(block, null, start);
     return block?.[1] ?? "";
 }
+
+test("fatal commit latch blocks every tool before the denial breaker", () => {
+    const fatalLatch = new FatalCommitLatch();
+    fatalLatch.trip("s1");
+    const { deps } = makeDeps({ fatalLatch });
+    assert.deepEqual(handleToolCall("read", { path: "/repo/ok.php" }, deps), {
+        block: true,
+        reason: "[prism safety] BLOCKED: fatal commit safeguard active — all tools remain blocked until /reload.",
+        terminate: true,
+    });
+});
 
 test("tripped breaker blocks every tool before policy", () => {
     const { deps } = makeDeps({ breaker: trippedBreaker() });
