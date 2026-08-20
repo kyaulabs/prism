@@ -21,9 +21,12 @@ failures=0
 printf '%s\n' '── instruction shell safety ──'
 
 for file in "${resources[@]}"; do
-    [ -f "$file" ] || continue
-
-    if [ ! -r "$file" ]; then
+    if [ ! -e "$file" ]; then
+        printf 'FAIL: missing instruction resource %s\n' "${file#"$REPO_ROOT"/}" >&2
+        failures=$((failures + 1))
+        continue
+    fi
+    if [ ! -f "$file" ] || [ ! -r "$file" ]; then
         printf 'FAIL: cannot read instruction resource %s\n' "${file#"$REPO_ROOT"/}" >&2
         failures=$((failures + 1))
         continue
@@ -41,6 +44,50 @@ for file in "${resources[@]}"; do
 
     awk_status=0
     awk '
+        function has_prohibited_shell_syntax(line, i, ch, quote, visible) {
+            quote = ""
+            visible = ""
+            for (i = 1; i <= length(line); i++) {
+                ch = substr(line, i, 1)
+                if (quote == "single") {
+                    if (ch == tick) return 1
+                    if (ch == "\047") quote = ""
+                    visible = visible " "
+                    continue
+                }
+                if (quote == "double") {
+                    if (ch == tick) return 1
+                    if (ch == "\\") {
+                        visible = visible "  "
+                        i++
+                        continue
+                    }
+                    if (ch == "\"") quote = ""
+                    visible = visible " "
+                    continue
+                }
+                if (ch == "\\") {
+                    visible = visible "  "
+                    i++
+                    continue
+                }
+                if (ch == "\047") {
+                    quote = "single"
+                    visible = visible " "
+                    continue
+                }
+                if (ch == "\"") {
+                    quote = "double"
+                    visible = visible " "
+                    continue
+                }
+                if (ch == tick) return 1
+                visible = visible ch
+            }
+            return visible ~ /^[[:space:]]*\(/ ||
+                visible ~ /[;&|!][[:space:]]*\(/ ||
+                visible ~ /[<>]\(/ || index(visible, "<<<") > 0
+        }
         BEGIN {
             tick = sprintf("%c", 96)
             in_shell = 0
@@ -60,7 +107,8 @@ for file in "${resources[@]}"; do
                     while (substr(trimmed, fence_length + 1, 1) == fence_char) fence_length++
                     language = substr(trimmed, fence_length + 1)
                     sub(/^[[:space:]]+/, "", language)
-                    sub(/[[:space:]]+$/, "", language)
+                    sub(/[[:space:]].*$/, "", language)
+                    language = tolower(language)
                     if (language == "bash" || language == "sh" || language == "shell") {
                         in_shell = 1
                         opening_char = fence_char
@@ -79,17 +127,21 @@ for file in "${resources[@]}"; do
                 in_shell = 0
                 next
             }
-            if (trimmed ~ /^\(/ || trimmed ~ /[;&|!][[:space:]]*\(/) {
+            if (has_prohibited_shell_syntax(trimmed)) {
                 printf "%s:%d:%s\n", FILENAME, FNR, $0
                 found = 1
             }
         }
         END {
+            if (in_shell) {
+                printf "%s:unterminated shell fence\n", FILENAME
+                exit 2
+            }
             exit found ? 0 : 1
         }
     ' "$file" || awk_status=$?
     if [ "$awk_status" -eq 0 ]; then
-        printf 'FAIL: parenthesized shell subshell in %s\n' "${file#"$REPO_ROOT"/}" >&2
+        printf 'FAIL: prohibited shell-fence syntax in %s\n' "${file#"$REPO_ROOT"/}" >&2
         failures=$((failures + 1))
     elif [ "$awk_status" -gt 1 ]; then
         printf 'FAIL: cannot parse shell fences in %s\n' "${file#"$REPO_ROOT"/}" >&2
