@@ -716,7 +716,7 @@ prism-tool commit create --type feat --scope workflow --subject "automate accept
 - Produces: packaged modules, no stale approval flags or generic OCR routes,
   and documentation consistent with ADR-0074.
 
-- [ ] **Step 1: Strengthen repository-wide contract tests**
+- [x] **Step 1: Strengthen repository-wide contract tests**
 
 Update the entrypoint test to require `/setup` as the sole standing-consent
 prompt, full doctor without an approval flag, dedicated OCR review, local-only
@@ -735,7 +735,7 @@ prism-tool commit discard
 
 Historical ADRs and superseded specifications remain exempt.
 
-- [ ] **Step 2: Run focused regression tests and confirm Red**
+- [x] **Step 2: Run focused regression tests and confirm Red**
 
 Run:
 
@@ -747,7 +747,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL on stale docs/package expectations.
 
-- [ ] **Step 3: Update remaining authoritative and user-facing documentation**
+- [x] **Step 3: Update remaining authoritative and user-facing documentation**
 
 Document standing OCR consent’s global scope and revocation, installer
 local-only readiness, full doctor behavior, dedicated OCR review, atomic
@@ -756,7 +756,7 @@ Preserve human-only push/PR/merge language. Remove stale model names or other
 unrelated historical guidance only when it directly contradicts current
 accepted ADRs; do not rewrite frozen ADRs.
 
-- [ ] **Step 4: Run focused and complete verification**
+- [x] **Step 4: Run focused and complete verification**
 
 Run:
 
@@ -778,7 +778,7 @@ Run the four-axis `code-review` skill on the branch. Expected: all axes
 complete or explicitly resolved under ADR-0074, with no Blocking or unresolved
 Suggested findings.
 
-- [ ] **Step 5: Commit the integration closure**
+- [x] **Step 5: Commit the integration closure**
 
 ```bash
 git add packages/prism-core/README.md README.md CODING_HARNESS.md CONTRIBUTING.md packages/prism-core/APPEND_SYSTEM.md tests/Shell/toolchain_entrypoints_test.sh tests/Shell/pi_ci_contract_test.sh tests/Node/toolchain-packaging.test.js

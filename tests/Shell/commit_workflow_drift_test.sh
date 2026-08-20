@@ -154,7 +154,7 @@ for relative in \
 	packages/prism-core/skills/executing-plans/SKILL.md \
 	packages/prism-core/skills/brainstorming/SKILL.md \
 	packages/prism-core/skills/finishing-a-development-branch/SKILL.md; do
-	if grep -qE 'single atomic|atomic launcher|atomic `prism-tool commit create`' "$REPO_ROOT/$relative" \
+	if grep -qE 'single atomic|standalone atomic|atomic launcher|atomic `prism-tool commit create`' "$REPO_ROOT/$relative" \
 		&& ! grep -qE 'commit (prepare|apply|discard)|prepare/approval/apply' "$REPO_ROOT/$relative"; then
 		pass "$relative delegates to atomic commit creation"
 	else

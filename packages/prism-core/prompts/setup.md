@@ -73,7 +73,16 @@ Inspect standing consent without reading the record directly:
 prism-tool consent status --json
 ```
 
-- `GRANTED`: ask no OCR question and continue.
+- `GRANTED`: ask no OCR question and continue. Report that the human can
+  explicitly revoke this global consent through `/setup`; only after such a
+  request run:
+
+  ```bash
+  prism-tool consent revoke-ocr
+  ```
+
+  Revocation makes full doctor and OCR review NO-GO until consent is granted
+  again. Never revoke automatically.
 - `ABSENT`: ask exactly one question:
 
   ```text
