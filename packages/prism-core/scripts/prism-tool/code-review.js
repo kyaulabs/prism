@@ -13,6 +13,7 @@ const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const USAGE = 'usage: prism-tool code-review ocr -- review --audience agent --format json | ' +
     'prism-tool code-review ocr -- scan PATH --audience agent --format json\n';
 const REVIEW_ARGS = Object.freeze(['review', '--audience', 'agent', '--format', 'json']);
+const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 class CodeReviewError extends Error {
     constructor(code, message) {
@@ -95,7 +96,17 @@ function resolveReviewArguments(parsed, context, run, env) {
         throw new CodeReviewError(EXIT.TOOL, 'review branch is unavailable');
     }
     const target = name.startsWith('hotfix/') || name.startsWith('release/') ? 'main' : 'develop';
-    return ['review', '--from', `origin/${target}`, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
+    const base = `origin/${target}`;
+    const baseRef = run('git', ['rev-parse', '--verify', '--quiet', `${base}^{commit}`], {
+        cwd: parsed.root,
+        env,
+        maxBuffer: 1048576,
+        timeout: 30000,
+    });
+    if (baseRef.error || baseRef.status !== 0 || !SHA_RE.test(String(baseRef.stdout ?? '').trim())) {
+        throw new CodeReviewError(EXIT.TOOL, 'review base ref is unavailable');
+    }
+    return ['review', '--from', base, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
 }
 
 function fail(error) {

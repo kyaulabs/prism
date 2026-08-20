@@ -60,6 +60,14 @@ function fixture(t, overrides = {}) {
                 stderr: '',
                 error: undefined,
             };
+        } else if (executable === 'git' && args[0] === 'rev-parse') {
+            kind = 'git-base';
+            result = overrides.base ?? {
+                status: 0,
+                stdout: `${'a'.repeat(40)}\n`,
+                stderr: '',
+                error: undefined,
+            };
         } else if (executable === 'semgrep' && args[0] === '--version') {
             kind = 'semgrep-version';
             result = overrides.semgrepVersion ?? {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
@@ -120,6 +128,7 @@ test('dedicated review validates versions and connectivity before exact OCR revi
         'semgrep-version',
         'ocr-version',
         'git-branch',
+        'git-base',
         'ocr-connectivity',
         'ocr-review',
     ]);
@@ -160,6 +169,24 @@ test('dedicated review targets main for release and hotfix branches', (t) => {
             'json',
         ], branch);
     }
+});
+
+test('dedicated review rejects a missing base before OCR connectivity', (t) => {
+    const target = fixture(t, {
+        base: {status: 1, stdout: '', stderr: 'CANARY-BASE', error: undefined},
+    });
+
+    const result = capture(() => main(reviewArgs(), target.context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /review base ref is unavailable/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.deepEqual(target.calls.map(({kind}) => kind), [
+        'semgrep-version',
+        'ocr-version',
+        'git-branch',
+        'git-base',
+    ]);
 });
 
 test('dedicated scan resolves one contained non-symlinked operand', (t) => {
@@ -242,6 +269,7 @@ test('connectivity failure stops before review with a fixed diagnostic', (t) => 
         'semgrep-version',
         'ocr-version',
         'git-branch',
+        'git-base',
         'ocr-connectivity',
     ]);
     assert.match(result.stderr, /OCR connectivity failed/);
