@@ -180,6 +180,10 @@ fi
 # --- 1. install the core package -------------------------------------------
 
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
+    if [[ ! "$PRISM_CORE_SOURCE" =~ ^npm:@kyaulabs/prism-core(@[^[:space:]@]+)?$ ]]; then
+        echo "✗ configured npm core source is invalid" >&2
+        exit 2
+    fi
     SELECTED_CORE_SOURCE="$PRISM_CORE_SOURCE"
     if [ "$NETWORK_APPROVED" != true ]; then
         echo "✗ npm package installation requires --network-approved=yes" >&2

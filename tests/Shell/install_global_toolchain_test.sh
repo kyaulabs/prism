@@ -327,6 +327,25 @@ else
 fi
 
 echo "── npm source registry approval ──"
+T15=$(mktemp -d)
+register_temp_dir "$T15"
+write_fake_tools "$T15"
+mkdir -p "$T15/home" "$T15/pi-agent" "$T15/bin-dir"
+: > "$T15/pi-invocations"
+status=0
+HOME="$T15/home" \
+    PI_CODING_AGENT_DIR="$T15/pi-agent" \
+    PRISM_BIN_DIR="$T15/bin-dir" \
+    PRISM_CORE_SOURCE='npm:unrelated' \
+    PI_INVOCATIONS="$T15/pi-invocations" \
+    PATH="$T15/bin:$PATH" \
+    bash "$INSTALLER" --network-approved=yes >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -s "$T15/pi-invocations" ]; then
+    pass "non-core npm sources are rejected before Pi access"
+else
+    fail "a non-core npm source reached Pi"
+fi
+
 T2=$(mktemp -d)
 register_temp_dir "$T2"
 write_fake_tools "$T2"
