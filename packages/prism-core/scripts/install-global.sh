@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -19,9 +19,8 @@
 #   bash packages/prism-core/scripts/install-global.sh [OPTIONS]
 #
 # Options:
-#   --network-approved=yes   approve npm registry access
-#   --ocr-test-approved=yes  approve the live OCR connectivity test
-#   --uninstall-launcher     remove only a Prism-owned launcher
+#   --network-approved=yes  approve npm registry access
+#   --uninstall-launcher    remove only a Prism-owned launcher
 #
 # Env:
 #   PI_CODING_AGENT_DIR  pi config dir (default ~/.pi/agent)
@@ -38,7 +37,6 @@ PI_DIR=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
 BIN_DIR=${PRISM_BIN_DIR:-$HOME/.local/bin}
 LAUNCHER="$BIN_DIR/prism-tool"
 NETWORK_APPROVED=false
-OCR_TEST_APPROVED=false
 UNINSTALL_LAUNCHER=false
 
 for argument in "$@"; do
@@ -46,10 +44,6 @@ for argument in "$@"; do
         --network-approved=yes)
             [ "$NETWORK_APPROVED" = false ] || { echo "✗ duplicate --network-approved=yes" >&2; exit 2; }
             NETWORK_APPROVED=true
-            ;;
-        --ocr-test-approved=yes)
-            [ "$OCR_TEST_APPROVED" = false ] || { echo "✗ duplicate --ocr-test-approved=yes" >&2; exit 2; }
-            OCR_TEST_APPROVED=true
             ;;
         --uninstall-launcher)
             [ "$UNINSTALL_LAUNCHER" = false ] || { echo "✗ duplicate --uninstall-launcher" >&2; exit 2; }
@@ -62,8 +56,8 @@ for argument in "$@"; do
     esac
 done
 
-if [ "$UNINSTALL_LAUNCHER" = true ] && { [ "$NETWORK_APPROVED" = true ] || [ "$OCR_TEST_APPROVED" = true ]; }; then
-    echo "✗ --uninstall-launcher cannot be combined with approval options" >&2
+if [ "$UNINSTALL_LAUNCHER" = true ] && [ "$NETWORK_APPROVED" = true ]; then
+    echo "✗ --uninstall-launcher cannot be combined with registry approval" >&2
     exit 2
 fi
 
@@ -239,18 +233,6 @@ if ! LOCAL_REPORT=$(node "$CORE_CLI" doctor --local-only --json 2>&1); then
     exit 1
 fi
 echo "✓ prism toolchain local readiness PASS"
-if [ "$OCR_TEST_APPROVED" != true ]; then
-    echo "✗ OCR connectivity approval required: rerun with --ocr-test-approved=yes" >&2
-    exit 2
-fi
-LIVE_REPORT=""
-if ! LIVE_REPORT=$(node "$CORE_CLI" doctor --ocr-test-approved=yes --json 2>&1); then
-    printf '%s\n' "$LIVE_REPORT" >&2
-    echo "✗ prism toolchain live readiness failed" >&2
-    exit 1
-fi
-
-echo "✓ prism toolchain GO"
 
 cat <<EOF
 
@@ -260,6 +242,7 @@ cat <<EOF
   core is "always running" (ADR-0060).
 
 Next:
+  • Run /setup to grant standing OCR consent and verify live readiness.
   • Run 'pi config' to enable/disable individual resources.
   • Inside a PHP project:  pi install -l npm:@kyaulabs/prism-php-web
     (or  pi install -l ./packages/prism-php-web  for local dev).

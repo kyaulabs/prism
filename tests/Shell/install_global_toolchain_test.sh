@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 set -euo pipefail
 
@@ -60,14 +60,16 @@ register_temp_dir "$T1"
 write_fake_tools "$T1"
 mkdir -p "$T1/home" "$T1/pi-agent" "$T1/bin-dir"
 : > "$T1/pi-invocations"
+: > "$T1/ocr-invocations"
 output=""
 status=0
 output=$(HOME="$T1/home" \
     PI_CODING_AGENT_DIR="$T1/pi-agent" \
     PRISM_BIN_DIR="$T1/bin-dir" \
     PI_INVOCATIONS="$T1/pi-invocations" \
+    OCR_INVOCATIONS="$T1/ocr-invocations" \
     PATH="$T1/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes 2>&1) || status=$?
+    bash "$INSTALLER" 2>&1) || status=$?
 
 launcher="$T1/bin-dir/prism-tool"
 if [ "$status" -eq 0 ]; then
@@ -95,10 +97,13 @@ if [ "$status" -eq 0 ] && grep -qFx 'GO' <<< "$launcher_output"; then
 else
     fail "installed launcher could not execute the core CLI"
 fi
-if grep -qF 'toolchain GO' <<< "$output"; then
-    pass "approved local and live readiness reports toolchain GO"
+if grep -qF 'toolchain local readiness PASS' <<< "$output" \
+    && grep -qF '/setup' <<< "$output" \
+    && ! grep -qF 'llm test' "$T1/ocr-invocations" \
+    && [ ! -e "$T1/pi-agent/prism-consent.json" ]; then
+    pass "installer stays local-only and directs standing consent to /setup"
 else
-    fail "successful installation did not report toolchain GO"
+    fail "installer ran live OCR, created consent, or omitted the /setup next action"
 fi
 if grep -qF "$T1/bin-dir is not on PATH" <<< "$output"; then
     pass "installer reports an absent launcher directory without editing PATH"
@@ -124,7 +129,7 @@ HOME="$T1/home" \
     PRISM_BIN_DIR="$T1/bin-dir" \
     PI_INVOCATIONS="$T1/pi-invocations" \
     PATH="$T1/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 launcher_after=$(cksum "$launcher" | awk '{print $1 ":" $2}')
 if [ "$status" -eq 0 ] && [ "$launcher_before" = "$launcher_after" ]; then
     pass "managed launcher refresh is idempotent"
@@ -151,7 +156,7 @@ HOME="$T2/home" \
     PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
     PI_INVOCATIONS="$T2/pi-invocations" \
     PATH="$T2/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -ne 0 ] && [ ! -s "$T2/pi-invocations" ]; then
     pass "npm source is rejected before Pi access without registry approval"
 else
@@ -166,7 +171,7 @@ output=$(HOME="$T2/home" \
     PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
     PI_INVOCATIONS="$T2/pi-invocations" \
     PATH="$T2/bin:$PATH" \
-    bash "$INSTALLER" --network-approved=yes --ocr-test-approved=yes 2>&1) || status=$?
+    bash "$INSTALLER" --network-approved=yes 2>&1) || status=$?
 if [ "$status" -eq 0 ] \
     && grep -qF 'install npm:@kyaulabs/prism-core|ignore=true' "$T2/pi-invocations"; then
     pass "approved npm installation disables lifecycle scripts"
@@ -181,7 +186,7 @@ else
     fail "npm launcher does not target the Pi-managed package CLI"
 fi
 
-echo "── OCR approval and readiness failure retention ──"
+echo "── installer defers standing consent and live readiness to setup ──"
 T3=$(mktemp -d)
 register_temp_dir "$T3"
 write_fake_tools "$T3"
@@ -197,20 +202,20 @@ output=$(HOME="$T3/home" \
     OCR_INVOCATIONS="$T3/ocr-invocations" \
     PATH="$T3/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
-if [ "$status" -ne 0 ] \
+if [ "$status" -eq 0 ] \
     && ! grep -qF 'llm test' "$T3/ocr-invocations" \
-    && ! grep -qFx 'GO' <<< "$output" \
-    && ! grep -qF 'toolchain GO' <<< "$output"; then
-    pass "OCR connectivity is never attempted or reported GO without exact approval"
+    && [ ! -e "$T3/pi-agent/prism-consent.json" ] \
+    && grep -qF '/setup' <<< "$output"; then
+    pass "installer performs no live OCR or consent mutation"
 else
-    fail "OCR connectivity ran or reported GO without exact approval"
+    fail "installer did not defer consent and live readiness to /setup"
 fi
 if [ -f "$T3/bin-dir/prism-tool" ] \
     && [ -f "$T3/pi-agent/AGENTS.md" ] \
     && [ -f "$T3/pi-agent/APPEND_SYSTEM.md" ]; then
-    pass "declined OCR connectivity leaves installed launcher and context resources"
+    pass "local readiness leaves installed launcher and context resources"
 else
-    fail "declined OCR connectivity removed installed resources"
+    fail "local readiness did not retain installed resources"
 fi
 
 T4=$(mktemp -d)
@@ -226,14 +231,14 @@ output=$(HOME="$T4/home" \
     PI_INVOCATIONS="$T4/pi-invocations" \
     SEMGREP_VERSION='1.172.9' \
     PATH="$T4/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes 2>&1) || status=$?
+    bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -ne 0 ] \
     && [ -f "$T4/bin-dir/prism-tool" ] \
     && [ -f "$T4/pi-agent/AGENTS.md" ] \
-    && ! grep -qF 'toolchain GO' <<< "$output"; then
-    pass "failed mandatory readiness retains resources and never reports GO"
+    && ! grep -qF '/setup' <<< "$output"; then
+    pass "failed mandatory readiness retains resources and stops before setup"
 else
-    fail "failed mandatory readiness removed resources or reported GO"
+    fail "failed mandatory readiness removed resources or continued to setup"
 fi
 
 echo "── launcher ownership and uninstall ──"
@@ -250,7 +255,7 @@ HOME="$T5/home" \
     PRISM_BIN_DIR="$T5/bin-dir" \
     PI_INVOCATIONS="$T5/pi-invocations" \
     PATH="$T5/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -ne 0 ] && [ "$(cat "$T5/bin-dir/prism-tool")" = 'unrelated executable' ]; then
     pass "installer refuses to replace an unrelated executable"
 else
@@ -280,7 +285,7 @@ HOME="$T5/home" \
     PRISM_BIN_DIR="$T5/bin-dir" \
     PI_INVOCATIONS="$T5/pi-invocations" \
     PATH="$T5/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 partial_after=$(cksum "$T5/bin-dir/prism-tool" | awk '{print $1 ":" $2}')
 if [ "$status" -ne 0 ] && [ "$partial_before" = "$partial_after" ]; then
     pass "installer requires both ownership sentinels before replacement"
@@ -296,7 +301,7 @@ HOME="$T5/home" \
     PRISM_BIN_DIR="$T5/bin-dir" \
     PI_INVOCATIONS="$T5/pi-invocations" \
     PATH="$T5/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -ne 0 ] && [ -L "$T5/bin-dir/prism-tool" ] \
     && [ "$(cat "$T5/symlink-target")" = 'symlink target' ]; then
     pass "installer refuses launcher symlinks without touching their targets"
@@ -322,7 +327,7 @@ HOME="$T6/home" \
     PRISM_BIN_DIR="$T6/bin-dir" \
     PI_INVOCATIONS="$T6/pi-invocations" \
     PATH="$T6/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -eq 0 ] \
     && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$T6/bin-dir/prism-tool"; then
     pass "installer refreshes a launcher carrying both ownership sentinels"
@@ -349,7 +354,7 @@ else
     fail "uninstall unexpectedly invoked Pi"
 fi
 
-echo "── fail-closed options, paths, and live readiness ──"
+echo "── fail-closed options and paths ──"
 T7=$(mktemp -d)
 register_temp_dir "$T7"
 write_fake_tools "$T7"
@@ -370,7 +375,7 @@ for unsupported_source in "${unsupported_sources[@]}"; do
         PRISM_CORE_SOURCE="$unsupported_source" \
         PI_INVOCATIONS="$T7/pi-invocations" \
         PATH="$T7/bin:$PATH" \
-        bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+        bash "$INSTALLER" >/dev/null 2>&1 || status=$?
     if [ "$status" -eq 0 ] || [ -e "$T7/bin-dir/prism-tool" ]; then
         unsupported_failed=1
     fi
@@ -386,7 +391,7 @@ register_temp_dir "$T8"
 write_fake_tools "$T8"
 mkdir -p "$T8/home" "$T8/pi-agent" "$T8/bin-dir"
 : > "$T8/pi-invocations"
-invalid_options=('--network-approved=no' '--ocr-test-approved=YES' '--unknown')
+invalid_options=('--network-approved=no' '--ocr-test-approved=yes' '--ocr-test-approved=YES' '--unknown')
 for invalid_option in "${invalid_options[@]}"; do
     status=0
     HOME="$T8/home" \
@@ -418,29 +423,6 @@ else
     fail "invalid option diagnostics relayed untrusted argument text"
 fi
 
-T9=$(mktemp -d)
-register_temp_dir "$T9"
-write_fake_tools "$T9"
-mkdir -p "$T9/home" "$T9/pi-agent" "$T9/bin-dir"
-: > "$T9/pi-invocations"
-output=""
-status=0
-output=$(HOME="$T9/home" \
-    PI_CODING_AGENT_DIR="$T9/pi-agent" \
-    PRISM_BIN_DIR="$T9/bin-dir" \
-    PI_INVOCATIONS="$T9/pi-invocations" \
-    OCR_TEST_STATUS=1 \
-    PATH="$T9/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes 2>&1) || status=$?
-if [ "$status" -ne 0 ] \
-    && [ -f "$T9/bin-dir/prism-tool" ] \
-    && [ -f "$T9/pi-agent/AGENTS.md" ] \
-    && ! grep -qF 'toolchain GO' <<< "$output"; then
-    pass "failed approved OCR readiness retains resources and withholds GO"
-else
-    fail "failed approved OCR readiness removed resources or reported GO"
-fi
-
 T10=$(mktemp -d)
 register_temp_dir "$T10"
 write_fake_tools "$T10"
@@ -451,7 +433,7 @@ HOME="$T10/home" \
     PI_CODING_AGENT_DIR="$T10/pi-agent" \
     PI_INVOCATIONS="$T10/pi-invocations" \
     PATH="$T10/bin:$PATH" \
-    bash "$INSTALLER" --ocr-test-approved=yes >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -eq 0 ] && [ -x "$T10/home/.local/bin/prism-tool" ]; then
     pass "default launcher destination is HOME/.local/bin/prism-tool"
 else

@@ -10,7 +10,7 @@ const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
-const {consentCommand} = require('./consent');
+const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--code-egress-approved=yes] [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
@@ -107,12 +107,11 @@ function loadCoreContract(coreRoot) {
 }
 
 function parseDoctor(args) {
-    const parsed = {json: false, localOnly: false, ocrTestApproved: undefined};
+    const parsed = {json: false, localOnly: false};
     for (const argument of args) {
         if (argument === '--json') parsed.json = true;
         else if (argument === '--local-only') parsed.localOnly = true;
-        else if (argument === '--ocr-test-approved=yes') parsed.ocrTestApproved = 'yes';
-        else throw new Error('usage: prism-tool doctor [--json] [--local-only] [--ocr-test-approved=yes]');
+        else throw new Error('usage: prism-tool doctor [--json] [--local-only]');
     }
     return parsed;
 }
@@ -162,17 +161,22 @@ function doctor(args, context) {
         renderDoctor(checks, parsed.json);
         return EXIT.OK;
     }
-    if (parsed.ocrTestApproved !== 'yes') {
-        checks.push(testOcrConnectivity({approved: parsed.ocrTestApproved, run: context.run}));
+    const consent = inspectConsent(context);
+    if (consent.state !== CONSENT_STATE.GRANTED) {
+        checks.push({
+            id: 'ocr-consent',
+            status: 'FAIL',
+            message: 'run /setup to grant standing OCR consent',
+        });
         renderDoctor(checks, parsed.json);
-        return EXIT.USAGE;
+        return EXIT.READINESS;
     }
     const env = context.env ?? process.env;
     const executable = resolveExecutable('ocr', env);
     const run = executable
         ? (_command, liveArgs, options) => (context.run ?? runBounded)(executable, liveArgs, {...options, env})
         : () => ({status: null, error: {code: 'ENOENT'}});
-    checks.push(testOcrConnectivity({approved: parsed.ocrTestApproved, run}));
+    checks.push(testOcrConnectivity({run}));
     renderDoctor(checks, parsed.json);
     return checks.every((check) => check.status === 'PASS') ? EXIT.OK : EXIT.READINESS;
 }

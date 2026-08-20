@@ -53,7 +53,7 @@ instead because it also deploys the global `AGENTS.md` and
 later to make those two context files always-on. Never overwrite an existing
 global context file by hand.
 
-## 3. Mandatory toolchain readiness
+## 3. Mandatory toolchain readiness and standing OCR consent
 
 Run the fail-closed local doctor before any setup stage that depends on
 declared tools:
@@ -65,15 +65,43 @@ prism-tool doctor --local-only
 If Semgrep or OCR is missing or out of range (ADR-0063: Semgrep
 `>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`), report the human-run remediation —
 never install, configure, or authenticate either tool and never ask for or
-accept an API key. Then ask exactly one question:
+accept an API key.
 
-```text
-Approve the OCR connectivity test (ocr llm test) now? (yes/no)
+Inspect standing consent without reading the record directly:
+
+```bash
+prism-tool consent status --json
 ```
 
-Accept only `--ocr-test-approved=yes`; on approval run
-`prism-tool doctor --ocr-test-approved=yes`. A declined or failed live test
-makes the toolchain NO-GO for this setup.
+- `GRANTED`: ask no OCR question and continue.
+- `ABSENT`: ask exactly one question:
+
+  ```text
+  Grant standing OCR consent for connectivity checks and reviewed-code egress? (yes/no)
+  ```
+
+  Explain before the question that this global consent authorizes only
+  `ocr llm test` connectivity and transmission of code selected by Prism's
+  dedicated OCR review operation. It does not authorize registry access,
+  package mutation, credential access, pushes, PR creation, or merges. Accept
+  only literal `yes`; on approval run:
+
+  ```bash
+  prism-tool consent grant-ocr --approval=yes
+  ```
+
+  A decline makes the toolchain NO-GO for this setup.
+- `UNSAFE`: stop and report that `~/.pi/agent/prism-consent.json` requires
+  human remediation. Never overwrite, chmod, revoke, or remove it
+  automatically.
+
+After consent is `GRANTED`, run the full doctor without another question:
+
+```bash
+prism-tool doctor
+```
+
+A failed live test makes the toolchain NO-GO for this setup.
 
 ## 4. Optional: your model preferences
 
@@ -158,8 +186,8 @@ without mutation:
 prism-tool setup inspect --json
 ```
 
-Ask exactly one question for registry access (separate from the OCR
-connectivity approval above):
+Ask exactly one question for registry access (separate from standing OCR
+consent above):
 
 ```text
 Approve registry access to resolve and audit candidate dependency graphs? (yes/no)

@@ -1,4 +1,4 @@
-// $KYAULabs: preflight.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: preflight.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -94,14 +94,7 @@ function checkExternalTools({contract, env = process.env, run = runBounded}) {
         });
 }
 
-function testOcrConnectivity({approved, run}) {
-    if (approved !== 'yes') {
-        return {
-            id: 'ocr-connectivity',
-            status: 'FAIL',
-            message: 'approval required',
-        };
-    }
+function testOcrConnectivity({run}) {
     const result = run('ocr', ['llm', 'test'], {maxBuffer: 1048576, timeout: 30000});
     if (result.status === 0 && !result.error) {
         return {
