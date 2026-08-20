@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -121,8 +121,15 @@ test('rejects bounded requirements for undeclared external package identities', 
     }
 });
 
+test('accepts the 15-minute execution timeout ceiling', () => {
+    const contract = boundedOcrContract();
+    contract.components[0].executionTimeoutMs = 900000;
+
+    assert.doesNotThrow(() => validateContract(contract, 'fixture.json'));
+});
+
 test('rejects execution timeouts outside the bounded contract policy', () => {
-    for (const executionTimeoutMs of [999, 600001, 1.5, '360000']) {
+    for (const executionTimeoutMs of [999, 900001, 1.5, '360000']) {
         const contract = boundedOcrContract();
         contract.components[0].executionTimeoutMs = executionTimeoutMs;
         assert.throws(

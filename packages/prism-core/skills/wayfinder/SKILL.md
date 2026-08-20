@@ -22,10 +22,11 @@ Load this skill when the work is **too big for one session** or **wrapped in
 unknowns you can't yet phrase as sharp questions**. It is the entry point the
 `/router` command sends "huge" / multi-subsystem requests to.
 
-The `brainstorming` skill's scope gate also sends requests here: it runs
-`bash "$(prism-tool resolve scripts)/classify-greenfield.sh"`, and `established` or
-`indeterminate` oversized work stops detailed grilling and hands off to this
-skill to chart the map.
+The `brainstorming` skill's scope gate also sends requests here: it resolves
+the scripts directory with `prism-tool resolve scripts`, then runs the
+literal-path `classify-greenfield.sh`. An `established` or `indeterminate`
+oversized result stops detailed grilling and hands off to this skill to chart
+the map.
 
 Do NOT use this skill when a smaller on-ramp fits:
 
@@ -35,9 +36,10 @@ Do NOT use this skill when a smaller on-ramp fits:
   load `from-issue` with `#NN`.
 - A question or domain exploration → load `consult`.
 - A bug or regression → load `debug`.
-- A **strict greenfield** repository — classifier result `greenfield` from
-  `bash "$(prism-tool resolve scripts)/classify-greenfield.sh"`. The repository must
-  bootstrap first: the approved walking-skeleton spec rides the human-pushed
+- A **strict greenfield** repository — classifier result `greenfield` after
+  resolving the scripts directory and running the literal-path
+  `classify-greenfield.sh`. The repository must bootstrap first: the approved
+  walking-skeleton spec rides the human-pushed
   single-root seed (ADR-0044) onto `develop` and completes through `/check`
   and `code-review` before a fresh session may chart the remainder map.
 
@@ -86,10 +88,18 @@ Before charting, ensure the five wayfinder labels exist. Create them
 create if absent, ignore if present; `/setup-labels` is the repo-wide
 equivalent):
 
+First run:
+
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
+Validate and retain the returned `OWNER/REPO` as inert context, then render it
+literally in the label loop:
+
+```bash
 for L in wayfinder:map wayfinder:research wayfinder:prototype wayfinder:grilling wayfinder:task; do
-  gh label create "$L" --repo "$REPO" --color 5319e7 \
+  gh label create "$L" --repo OWNER/REPO --color 5319e7 \
     --description "Wayfinder: $L" 2>/dev/null || true
 done
 ```

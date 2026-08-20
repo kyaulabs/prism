@@ -136,15 +136,20 @@ or invent PASS, clean, coverage, count, signature, or architect claims.
 
 Write the complete body to BODY_FILE through the inert payload boundary.
 Display the validated title, the complete raw Markdown body in a fenced code
-block, concrete retained paths, and a cleanup command. Then display a shell
-block that assigns the concrete TITLE_FILE, BODY_FILE, TARGET_BRANCH, and
-BRANCH values and contains:
+block, concrete retained paths, and a cleanup command. Run this read-only
+repository lookup separately and retain its validated output:
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-TITLE=$(cat "$TITLE_FILE")
-gh pr create --repo "$REPO" --base "$TARGET_BRANCH" --head "$BRANCH" \
-    --title "$TITLE" --body-file "$BODY_FILE"
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
+Then display a shell block with the concrete repository, title-file path,
+body-file path, target branch, and work branch rendered literally:
+
+```bash
+IFS= read -r TITLE < /concrete/private/title-file
+gh pr create --repo OWNER/REPO --base TARGET_BRANCH --head WORK_BRANCH \
+    --title "$TITLE" --body-file /concrete/private/body-file
 ```
 
 Label the block "human-run after publishing the work branch." Do not run any

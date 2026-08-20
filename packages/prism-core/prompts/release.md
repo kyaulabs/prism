@@ -31,38 +31,41 @@ prism-tool doctor --local-only || exit 1
 
 ```bash
 # Working tree must be clean (staged, unstaged, and untracked)
-if [ -n "$(git status --porcelain)" ]; then
-    echo "✗ Working tree has uncommitted changes. Commit or stash first." >&2
-    exit 1
-fi
+git status --porcelain
 ```
+
+Any output means the tree is dirty: stop and report "Working tree has
+uncommitted changes. Commit or stash first." An empty result passes.
 
 ```bash
 # The current branch must be exactly develop
-if [ "$(git branch --show-current)" != "develop" ]; then
-    echo "✗ Releases originate from the develop branch only." >&2
-    exit 1
-fi
+git branch --show-current
 ```
 
+The output must be exactly `develop`; otherwise stop and report that releases
+originate from `develop` only.
+
+Synchronize, then obtain both SHAs in separate calls:
+
 ```bash
-# Synchronize and verify HEAD equals the fetched origin/develop
 git fetch origin develop --tags
-if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/develop)" ]; then
-    echo "✗ Local develop is not synchronized with origin/develop. Pull or reset first." >&2
-    exit 1
-fi
+git rev-parse HEAD
+git rev-parse origin/develop
 ```
+
+Validate both outputs as commit SHAs and compare them as inert data. If they
+differ, stop and report that local `develop` is not synchronized with
+`origin/develop`.
 
 ```bash
 # git-cliff 2.0+ is required through the launcher; there is no alternative —
 # CHANGELOG.md cannot be produced without it. Direct a missing-tool user to /doctor.
-CLIFF_MAJOR=$(prism-tool run git-cliff -- --version 2>/dev/null | grep -oE '^git-cliff [0-9]+' | grep -oE '[0-9]+$' || true)
-if [ -z "$CLIFF_MAJOR" ] || [ "$CLIFF_MAJOR" -lt 2 ]; then
-    echo "✗ git-cliff 2.0+ is required. Run /doctor to fix your toolchain." >&2
-    exit 1
-fi
+prism-tool run git-cliff -- --version
 ```
+
+Parse the returned version as inert data. Validate that its major component is
+an integer at least 2. If the major component is below 2, stop and direct the
+user to `/doctor`.
 
 ## Propose and confirm the version
 
@@ -79,8 +82,11 @@ fi
 Detect whether a prior release tag matching `v[0-9]*` exists:
 
 ```bash
-LAST_RELEASE_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+git describe --tags --abbrev=0 --match 'v[0-9]*'
 ```
+
+Exit 0 with output means a prior release tag exists. A no-match exit means
+this is the first release; do not mask or reinterpret other failures.
 
 When no prior release tag exists, git-cliff cannot compute an initial
 version, so do not run `prism-tool run git-cliff -- --bumped-version`. Ask the user exactly one
@@ -100,8 +106,11 @@ before 1.0.0 and MAJOR at 1.0.0+, `feat:` bumps MINOR, and
 `fix:`/`patch:` bump PATCH), then strip at most one leading `v`:
 
 ```bash
-VERSION=$(prism-tool run git-cliff -- --bumped-version 2>/dev/null | sed 's/^v//')
+prism-tool run git-cliff -- --bumped-version
 ```
+
+Strip at most one leading `v` from the observed output at the agent level and
+retain the validated result as literal `X.Y.Z` context.
 
 If the proposal is empty or invalid despite releasable commits, stop and
 report the failure — never switch to manual bumping.
@@ -109,12 +118,13 @@ report the failure — never switch to manual bumping.
 Either way, validate the candidate against the exact release grammar
 (optional prerelease, no build metadata):
 
+Render the candidate literally and validate it:
+
 ```bash
-if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-    echo "✗ Invalid version '$VERSION'." >&2
-    exit 1
-fi
+printf '%s' 'X.Y.Z' | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$"
 ```
+
+A non-zero exit means the version is invalid; stop.
 
 Present the pending commit range and bump rationale:
 
@@ -137,7 +147,14 @@ shell.
 ## Create the release branch
 
 ```bash
-bash "$(prism-tool resolve scripts)/new-branch.sh" release "$VERSION"
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory, then render the validated version
+literally:
+
+```bash
+bash /absolute/resolved/scripts/new-branch.sh release X.Y.Z
 ```
 
 The branch is `release/X.Y.Z` — the version carries no `v`.
@@ -145,20 +162,33 @@ The branch is `release/X.Y.Z` — the version carries no `v`.
 ## Generate the changelog
 
 ```bash
-prism-tool run git-cliff -- --tag "v$VERSION" --output CHANGELOG.md
+prism-tool run git-cliff -- --tag "vX.Y.Z" --output CHANGELOG.md
 ```
 
 If scaffold links survive, replace `kyaulabs/template` with the repository
 detected by `gh repo view`. Use a portable temp file + `mv` — never GNU-only
 in-place `sed` editing:
 
+First check whether replacement is needed:
+
 ```bash
-if grep -qF 'kyaulabs/template' CHANGELOG.md; then
-    OWNER_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-    TMP_FILE=$(mktemp)
-    sed "s|kyaulabs/template|${OWNER_REPO}|g" CHANGELOG.md > "$TMP_FILE"
-    mv "$TMP_FILE" CHANGELOG.md
-fi
+grep -qF 'kyaulabs/template' CHANGELOG.md
+```
+
+When it is, run the repository lookup separately and retain the validated
+`OWNER/REPO` output:
+
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
+Then use a stable project-local temp file:
+
+```bash
+mkdir -p .pi/tmp
+set -C
+sed "s|kyaulabs/template|OWNER/REPO|g" CHANGELOG.md > .pi/tmp/release-changelog.tmp &&
+    mv .pi/tmp/release-changelog.tmp CHANGELOG.md
 ```
 
 Show the generated version section for review.
@@ -174,14 +204,14 @@ abort and trim the changelog at the source — and STOP for an explicit `yes`
 before continuing.
 
 ```bash
-section_bytes=$(awk -v v="[$VERSION]" '
+awk -v v="[X.Y.Z]" '
     /^## / { if (in_sec) exit; if (index($0, v)) in_sec = 1; next }
     in_sec { print }
-' CHANGELOG.md | wc -c)
-if [ "$section_bytes" -gt 120000 ]; then
-    echo "oversized: ${section_bytes} bytes"
-fi
+' CHANGELOG.md | wc -c
 ```
+
+Validate the numeric output as inert data. A value greater than 120,000 is
+`oversized`; ask the approval question described above.
 
 ## Compute and bump per-package versions
 
@@ -199,17 +229,23 @@ package has nothing to bump — skip it entirely (no bump, no tag, no npm
 command). Otherwise bump it and record the package dir in `BUMPED_PKGS`
 (space-separated, conversation context) for the commit and handoff:
 
+For each validated package directory, run these separately:
+
 ```bash
-# For each declared package path PKG:
-PKG_NAME=$(node -e 'process.stdout.write(require(process.argv[1]).name)' "$PKG/package.json")
-PKG_PREFIX=${PKG_NAME#*/}
-PKG_CUR=$(node -e 'process.stdout.write(require(process.argv[1]).version)' "$PKG/package.json")
-PKG_NEXT=$(prism-tool run git-cliff -- --bumped-version --include-path "$PKG/*" --tag-pattern "${PKG_PREFIX}@.*" 2>/dev/null | sed "s/^${PKG_PREFIX}@//")
-if [ "$PKG_NEXT" != "$PKG_CUR" ]; then
-    (cd "$PKG" && npm version "$PKG_NEXT" --no-git-tag-version)
-    BUMPED_PKGS="$BUMPED_PKGS $PKG"
-fi
+node -e 'process.stdout.write(require(process.argv[1]).name)' "PACKAGE_DIRECTORY/package.json"
+node -e 'process.stdout.write(require(process.argv[1]).version)' "PACKAGE_DIRECTORY/package.json"
+prism-tool run git-cliff -- --bumped-version --include-path "PACKAGE_DIRECTORY/*" --tag-pattern "PACKAGE_PREFIX@.*"
 ```
+
+Retain the validated package name, scope-stripped prefix, current version, and
+normalized next version as inert context. When the next version differs from
+the current version, run:
+
+```bash
+npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION --no-git-tag-version
+```
+
+Record the literal package directory in `BUMPED_PKGS` conversation state.
 
 The `chore(release): vX.Y.Z` commit carries the bumped `package.json` files,
 so the versions land in the merge commit.

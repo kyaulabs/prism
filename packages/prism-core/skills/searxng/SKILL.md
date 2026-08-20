@@ -50,7 +50,13 @@ bash search.sh "pi coding agent skills"
 Or from a Prism source checkout:
 
 ```bash
-bash "$(prism-tool resolve skills)/searxng/search.sh" "pi coding agent skills"
+prism-tool resolve skills
+```
+
+Retain the returned absolute directory, then run:
+
+```bash
+bash /absolute/resolved/skills/searxng/search.sh "pi coding agent skills"
 ```
 
 Optional environment variables:

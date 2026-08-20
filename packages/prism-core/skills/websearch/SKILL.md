@@ -53,7 +53,13 @@ bash search.sh "pi coding agent prompt templates"
 Or from a Prism source checkout:
 
 ```bash
-bash "$(prism-tool resolve skills)/websearch/search.sh" "pi coding agent prompt templates"
+prism-tool resolve skills
+```
+
+Retain the returned absolute directory, then run:
+
+```bash
+bash /absolute/resolved/skills/websearch/search.sh "pi coding agent prompt templates"
 ```
 
 The script accepts the complete query as its arguments, sends it as JSON, and

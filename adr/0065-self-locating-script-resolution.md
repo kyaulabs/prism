@@ -4,7 +4,7 @@ Date: 2026-08-15
 
 ## Status
 
-Accepted
+Superseded by ADR-0073
 
 Depends on ADR-0058 (core/adapter package split), ADR-0060 (global-core
 install), ADR-0061 (toolchain contract, superseded where moot by ADR-0062).
