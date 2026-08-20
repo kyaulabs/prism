@@ -231,7 +231,11 @@ function repositoryState(context, coreRoot) {
         throw new CommitError(EXIT.TOOL, 'staged state is unavailable');
     }
     if (staged.status === 0) throw new CommitError(EXIT.TOOL, 'staged changes are required');
-    return {branch, head, repository};
+    const tree = shaValue(
+        requireSuccess(invoke(context, 'git', ['write-tree']), EXIT.TOOL, 'staged state is unavailable'),
+        'staged state is invalid'
+    );
+    return {branch, head, repository, tree};
 }
 
 function ensurePrivateDirectory(directory) {
@@ -282,6 +286,7 @@ function createPrivateMessage(context, repository, message) {
     const operationDir = path.join(prismDir, `commit-create-${operationId}`);
     try {
         fs.mkdirSync(operationDir, {mode: 0o700});
+        ensurePrivateDirectory(operationDir);
     } catch {
         throw new CommitError(EXIT.TOOL, 'message directory could not be created');
     }
@@ -323,6 +328,11 @@ function create(args, context) {
     );
     const owned = createPrivateMessage(context, state.repository, message);
     try {
+        const latest = repositoryState(context, coreRoot);
+        if (latest.repository !== state.repository || latest.branch !== state.branch ||
+            latest.head !== state.head || latest.tree !== state.tree) {
+            throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
+        }
         requireSuccess(
             invoke(context, 'git', ['commit', '-S', '-F', owned.file]),
             EXIT.TOOL,

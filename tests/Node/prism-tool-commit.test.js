@@ -38,6 +38,7 @@ function makeCommitContext(t, overrides = {}) {
     const calls = [];
     const observed = {};
     let currentHead = '1'.repeat(40);
+    let treeReads = 0;
     const run = (command, args, options = {}) => {
         calls.push({command, args, options});
         if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
@@ -66,6 +67,11 @@ function makeCommitContext(t, overrides = {}) {
         if (command === 'git' && args.join(' ') === 'rev-parse --verify HEAD' &&
             currentHead === '3'.repeat(40) && overrides.postCommitHeadFailure) {
             return completed(1, '', 'CANARY-POST-COMMIT');
+        }
+        if (command === 'git' && args.join(' ') === 'write-tree') {
+            treeReads += 1;
+            const tree = overrides.indexDrift && treeReads > 1 ? '4'.repeat(40) : '2'.repeat(40);
+            return completed(0, `${tree}\n`);
         }
         const responses = new Map([
             ['rev-parse --show-toplevel', completed(0, `${repository}\n`)],
@@ -229,6 +235,17 @@ test('commit create rejects unsafe body and attribution inputs', (t) => {
     assert.equal(captureWrites(() => main([
         'commit', 'create', '--type', 'fix', '--subject', 'reject identity injection',
     ], identityFixture.context)).status, 3);
+});
+
+test('commit create rejects staged-index drift before invoking Git commit', (t) => {
+    const {calls, context} = makeCommitContext(t, {indexDrift: true});
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'detect index drift',
+    ], context));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /repository state changed/);
+    assert.equal(calls.some(({command, args}) => command === 'git' && args[0] === 'commit'), false);
 });
 
 test('commit create sanitizes Git failure and cleans its private message', (t) => {
