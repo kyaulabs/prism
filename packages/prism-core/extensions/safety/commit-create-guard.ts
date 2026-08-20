@@ -17,6 +17,7 @@ const WRAPPERS = new Set([
     "bash", "sh", "zsh", "dash", "env", "command", "exec", "sudo", "timeout",
     "nice", "nohup", "setsid", "stdbuf", "xargs",
 ]);
+const INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node(?:js)?|perl|ruby|php(?:\d+(?:\.\d+)*)?)$/;
 const PREFIX_PATTERN = /(?:^|[\s'"(`])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
 
 function executableBasename(token: string): string {
@@ -136,7 +137,8 @@ function validStructuredArguments(tokens: readonly string[]): boolean {
 
 function wrapperAttempt(command: string, tokens: readonly string[]): boolean {
     const head = executableBasename(tokens[0] ?? "");
-    if (!WRAPPERS.has(head) && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0] ?? "")) return false;
+    if (!WRAPPERS.has(head) && !INTERPRETER_PATTERN.test(head) &&
+        !/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0] ?? "")) return false;
     return prefixIndex(tokens) > 0 || PREFIX_PATTERN.test(command);
 }
 
