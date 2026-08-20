@@ -1,4 +1,4 @@
-// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
@@ -11,6 +11,7 @@ import {
 } from "./sensitive-paths.ts";
 import type { DenialCircuitBreaker } from "./denial-circuit-breaker.ts";
 import { WINDOW_SIZE } from "./denial-circuit-breaker.ts";
+import type { FatalCommitLatch } from "./fatal-commit-latch.ts";
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
 
@@ -32,11 +33,13 @@ export interface ToolCallDeps {
     extraPaths: string[];
     /** Per-session windowed-bash-denial circuit breaker (ADR-0068). */
     breaker: DenialCircuitBreaker;
+    /** Fatal commit-failure latch, cleared only by extension teardown. */
+    fatalLatch: FatalCommitLatch;
     /** UI escalation surface; error escalations also fall back to console.error. */
     notify?: (msg: string, level: "error" | "warning") => void;
 }
 
-export type ToolCallResult = { block: true; reason: string } | undefined;
+export type ToolCallResult = { block: true; reason: string; terminate?: true } | undefined;
 
 /**
  * Resolve the deny-floor extension surface. `PRISM_SENSITIVE_PATHS` is a
@@ -141,6 +144,14 @@ function blockIfPatternSensitive(pattern: unknown, base: string, opts: Sensitive
  */
 export function handleToolCall(toolName: string, input: unknown, deps: ToolCallDeps): ToolCallResult {
     try {
+        if (deps.fatalLatch.isLatched(deps.sid)) {
+            return {
+                block: true,
+                reason: "[prism safety] BLOCKED: fatal commit safeguard active — all tools remain blocked until /reload.",
+                terminate: true,
+            };
+        }
+
         // 1. Circuit-breaker tripped (ADR-0042): block ALL tools while the
         //    run is tripped, before the classifier runs. Does not feed the
         //    breaker again (already tripped).

@@ -42,30 +42,18 @@ Node.js fallback.
 
 ## 3. Prism resources
 
-First run the contract-owned readiness check (never install or configure
-Semgrep/OCR):
+Run the contract-owned readiness check without asking an OCR question (never
+install or configure Semgrep/OCR):
 
 ```bash
-prism-tool doctor --local-only
+prism-tool doctor
 ```
 
 This performs mandatory Semgrep/OCR version verification (ADR-0063: Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`). Then ask exactly one
-OCR-connectivity question before any live test:
-
-```text
-Approve the OCR connectivity test (ocr llm test) now? (yes/no)
-```
-
-Accept only `--ocr-test-approved=yes`, then run:
-
-```bash
-prism-tool doctor --ocr-test-approved=yes
-```
-
-A declined or failed live test makes that operation NO-GO; a connectivity
-approval never authorizes transmitting reviewed code (that is a separate
-code-egress approval).
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`) and runs `ocr llm test` only when
+the global standing-consent record is valid. Missing or unsafe consent returns
+NO-GO with `/setup` as the remediation. Never grant, revoke, repair, or remove
+consent from `/doctor`.
 
 ```bash
 pi list

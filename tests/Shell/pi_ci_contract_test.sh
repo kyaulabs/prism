@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
@@ -61,6 +61,8 @@ assert_ci_not_contains 'open-code-review@[0-9]+\.[0-9]+\.[0-9]+' 'OCR provisioni
 assert_ci_contains '--ignore-scripts' 'OCR npm installation disables lifecycle scripts'
 assert_ci_not_contains 'ocr llm test' 'CI never runs the OCR connectivity test'
 assert_ci_not_contains 'ocr review|ocr scan' 'CI never performs an OCR review'
+assert_ci_not_contains '--ocr-test-approved|--code-egress-approved' 'CI has no retired OCR approval controls'
+assert_ci_not_contains 'prism-tool(\.js)?[[:space:]]+run[[:space:]]+ocr' 'CI has no generic OCR passthrough'
 
 echo "── locked, script-free dependency install ──"
 assert_ci_contains 'composer install[^|]*--no-scripts' 'Composer install disables lifecycle scripts'
@@ -92,6 +94,7 @@ assert_ci_not_contains 'git cliff' 'No direct git cliff invocation'
 
 echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
+assert_ci_not_contains 'prism-tool(\.js)?[[:space:]]+commit[[:space:]]+(prepare|apply|discard)' 'No retired commit workflow in CI'
 
 echo "── resilient tool downloads ──"
 # Assumes one download invocation per line with the bound flags in canonical

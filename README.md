@@ -96,7 +96,9 @@ Prism is two pi packages living under `packages/`:
    install skills/prompts/extensions but not `AGENTS.md` — ADR-0060). It is
    idempotent: a pre-existing user-owned `AGENTS.md` is backed up to `*.bak`
    and the prism block is appended (pi concatenates all `AGENTS.md` into every
-   session).
+   session). The installer runs offline local-only readiness and never creates
+   OCR consent or performs a live provider test. Run `/setup` afterward to
+   inspect or grant global standing OCR consent and complete full readiness.
 
    Published-package equivalent:
 
@@ -228,7 +230,7 @@ contracts (`packages/prism-core/toolchain.json`,
 | --- | --- | --- | --- |
 | [pi](https://pi.dev) | runtime | The coding agent this harness targets | 0.84.1 (pinned) |
 | [Semgrep](https://semgrep.dev) | mandatory external | SAST scanning (`/security`) | `>=1.173.0 <2.0.0` — verified, never installed |
-| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | mandatory external | Code review (`code-review` skill) | `>=1.9.1 <2.0.0` — verified, never installed; `ocr llm test` only after connectivity approval |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | mandatory external | Code review (`code-review` skill) | `>=1.9.1 <2.0.0` — verified, never installed; full `/doctor` and dedicated review require global standing consent |
 | [gitleaks](https://github.com/gitleaks/gitleaks) | generic control | Secrets scanning at pre-commit | 8.30.1 (pinned) |
 | [GitHub CLI (`gh`)](https://cli.github.com) | optional | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | any recent |
 | commitlint / git-cliff | bundled core | Commit validation; changelog generation via `prism-tool run git-cliff` | exact contract versions |
@@ -237,10 +239,12 @@ contracts (`packages/prism-core/toolchain.json`,
 `gh` is optional — only needed for `/release`, `/pr`, `/setup-labels`, and
 `/setup-rulesets`; all other features work without it. `/pr` only prepares and
 displays the `gh pr create` command — the human executes it after publishing
-the branch. Registry access, consumer mutation, OCR connectivity, and OCR
-code egress are four **separate** approval gates; CI provisions compatible
-Semgrep/OCR releases only to construct its ephemeral verification environment
-(runtime setup verifies, never installs).
+the branch. Registry access and consumer mutation remain separate
+operation-specific approvals. `/setup` manages one global standing OCR consent
+covering only provider connectivity and reviewed-code egress through
+`prism-tool code-review ocr`; revoke it through `/setup` with
+`prism-tool consent revoke-ocr`. Installation and CI use local-only readiness,
+never create consent, and never run OCR review.
 
 ## Git Hooks
 
@@ -364,8 +368,8 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 4. **Execute** — load the `executing-plans` skill; implement each task inline using the `tdd` skill, with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
 5. **Implement** — load the `tdd` skill per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage (adapter `tdd-php`).
 6. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
-7. **Gate** — run `/check` (delegates to the adapter stack gate, e.g. `/check-php`: php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-8. **Review** — load the `code-review` skill before push.
+7. **Commit** — after green verification, create each signed ordinary commit with one standalone `prism-tool commit create`; attribution, hooks, signing, and verification are launcher-owned. Any failed attempt blocks tools until `/reload`.
+8. **Finalize** — load `finishing-a-development-branch`; after artifact cleanup it pauses once, then an accepted attempt synchronizes, attests, runs `/check`, performs all four `code-review` axes, revalidates SHAs, and invokes preparation-only `/pr` automatically. A conflict, failed gate, unresolved finding, or stale attestation stops before `/pr`; repair requires fresh finalization acceptance.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -447,10 +451,10 @@ Pi prompt templates expand via `/name`. The core package's prompts live in
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders (adapter-aware) |
+| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; consent is global and revocable |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
+| `/doctor` | Full readiness check; validates standing consent before one OCR connectivity test, with no per-run approval prompt |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |
 
@@ -483,7 +487,20 @@ adds the PHP/web skills.
 
 ## Conventional Commits
 
-In order to abide by the conventional commit guidelines and in return get auto-generated changelogs, use the following.
+Stage exact intended files first. Run commit creation later as the only tool
+call in its assistant batch, without compound shell syntax:
+
+```bash
+git add exact/files
+```
+
+```bash
+prism-tool commit create --type feat --scope exact-scope --subject "exact subject"
+```
+
+The launcher renders this canonical message shape, resolves attribution,
+validates with commitlint, runs signed Git with hooks enabled, and verifies
+that `HEAD` advanced:
 
 ```text
 <type>[optional scope]: <subject>
@@ -492,6 +509,10 @@ In order to abide by the conventional commit guidelines and in return get auto-g
 
 [optional footer(s)]
 ```
+
+There is no per-commit approval pause. Any failed, unsafe, ambiguous, or
+non-exclusive creation attempt aborts the agent and blocks every tool until
+`/reload`.
 
 ### Type
 
@@ -547,9 +568,9 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Implemented-by',     # Required — the model pi is using (the active session model)
-  'Tested-by',          # Required — the model open-code-review is configured with (via resolve-ocr-model.sh)
-  'Signed-off-by',      # Required — the user (e.g. kyau <git@kyaulabs.com>)
+  'Implemented-by',     # Required — launcher-resolved active implementation model
+  'Tested-by',          # Required — launcher-resolved OCR review model
+  'Signed-off-by',      # Required — launcher-resolved human identity
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
   'Fixes',
@@ -559,17 +580,12 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Implemented-by`, `Tested-by`, and
-`Signed-off-by` footers. If no user is explicitly named, the default
-`Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the bare
-model ID segment after the last `/` (ADR-0064): `provider/model-id` →
-`model-id`.
-`Tested-by:` is resolved via
-`bash packages/prism-core/scripts/resolve-ocr-model.sh` (the model
-open-code-review is configured with).
-`Signed-off-by:` is resolved dynamically via
-`bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
-per ADR-0029).
+Every ordinary commit includes `Implemented-by`, `Tested-by`, and
+`Signed-off-by` footers in that order. `prism-tool commit create` resolves and
+validates all three; callers never run attribution resolver scripts or write
+these footers manually. Each model footer is the bare model ID segment after
+the last `/` (ADR-0064): `provider/model-id` → `model-id`. Human identity uses
+the Prism identity override or Git configuration and fails closed when absent.
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
 placed at the top of the footer block immediately above `Implemented-by:`.
@@ -579,9 +595,9 @@ non-closing references, in the same top-of-footer block.
 
 ### Examples
 
-The following are all examples of valid commit messages.
-
-The commit message will also go through validation with `commitlint` upon issuing `git commit`.
+The following are examples of launcher-rendered valid messages. Do not copy
+or manually construct their attribution footers. `prism-tool commit create`
+validates the complete message with commitlint before mutation.
 
 ```text
 feat(player): begin new implementation of input controller
@@ -633,20 +649,10 @@ After the initial run of git-cliff all subsequent runs should detect the version
 prism-tool run git-cliff --
 ```
 
-A typical low-level workflow should look like the following.
-
-```bash
-git add -A                      # add all un-indexed and changed files to the commit
-git commit -S -a -m "<message>" # add a conventional commit message and sign the commit
-prism-tool run git-cliff --     # generate a new changelog
-git add CHANGELOG.md            # add the changelog file to the commit
-git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-# Push the release branch and open the release PR to main (see the
-# finishing-a-development-branch skill for the PR command)
-```
-
-The fallback stops at the release PR — CI tags, publishes, and opens the
-back-merge PR after the merge.
+For a real release, use `/release`; it stages exact release artifacts and
+creates one signed `chore(release)` commit through `prism-tool commit create`.
+The procedure then displays human-run publication instructions. CI tags,
+publishes, and opens the back-merge PR only after the release PR merges.
 
 ## Attribution
 

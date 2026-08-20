@@ -22,7 +22,7 @@ Before starting, confirm the agent can:
 - edit every implementation path named by the plan and update plan checkboxes;
 - run the task's tests, linters, and `verification-before-completion` commands;
 - inspect task output and repository diffs; and
-- stage changes and present signed commits for approval.
+- stage changes and create signed commits through the atomic launcher operation.
 
 If a required capability is unavailable, do not partially run this skill.
 Surface the missing capability and halt.
@@ -36,8 +36,8 @@ The single agent executes every task directly, regardless of plan size:
 - After each task, run `verification-before-completion` and checkpoint with
   the user (ask if they want to review before continuing).
 - After each task (or logical group), load `conventional-commits` and use its
-  mandatory `prism-tool commit` prepare/approval/apply workflow with the
-  structured fields from the plan task.
+  single atomic `prism-tool commit create` operation with the structured fields
+  from the plan task. The commit is the only tool call in its assistant batch.
 
 Implementation output stays in the current session, so context management is
 part of execution, not an optional optimization.

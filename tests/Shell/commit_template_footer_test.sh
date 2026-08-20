@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
@@ -14,15 +14,18 @@ setup_result_file
 
 # ── 1. /release delegates its ordinary commit to prism-tool ────────────────
 RELEASE="$REPO_ROOT/packages/prism-core/prompts/release.md"
-if grep -qF 'prism-tool commit prepare --type chore --scope release' "$RELEASE" \
-	&& grep -qF 'prism-tool commit apply --plan' "$RELEASE" \
-	&& grep -qiF 'exact commit message' "$RELEASE" \
+if grep -qF 'prism-tool commit create --type chore --scope release' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit prepare' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit apply' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit discard' "$RELEASE" \
+	&& ! grep -qF -- '--plan' "$RELEASE" \
+	&& ! grep -qiF 'exact commit message' "$RELEASE" \
 	&& ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE" \
 	&& ! grep -qF 'resolve-ocr-model.sh' "$RELEASE" \
 	&& ! grep -qF 'resolve-identity.sh' "$RELEASE"; then
-	pass "release.md delegates its ordinary signed commit to prism-tool"
+	pass "release.md delegates one approval-free signed commit to prism-tool"
 else
-	fail "release.md does not use the launcher-owned commit approval workflow"
+	fail "release.md does not use atomic launcher-owned commit creation"
 fi
 
 # ── 2. /release never creates a local tag ──────────────────────────────────

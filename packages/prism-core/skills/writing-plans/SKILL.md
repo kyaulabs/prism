@@ -142,17 +142,18 @@ Expected: FAIL with `<the meaningful failure proving Red>`
 Run: `<same focused test command>`
 Expected: PASS
 
-- [ ] **Step 5: Prepare and approve the commit**
+- [ ] **Step 5: Create the commit**
 
 ```bash
-git add tests/exact/path/to/test-file exact/path/to/source-file
-prism-tool commit prepare --type feat --scope scope --subject "concise subject describing the change"
+git add exact/files
+prism-tool commit create --type feat --scope exact-scope --subject "exact subject"
 ```
 
 > *Replace every field with task-specific literal structured values. During
-> execution, load `conventional-commits`, present the launcher's exact rendered
-> message, wait for explicit approval, and apply the literal plan ID. Put an
-> optional multiline body in a Pi-written body file; never embed it in Bash.*
+> execution, load `conventional-commits` and run these as separate tool calls;
+> the commit command must be the only call in its assistant batch and must not
+> use compound shell syntax. Put an optional multiline body in a Pi-written
+> body file; never embed it in Bash.*
 ````
 
 ## No placeholders
@@ -169,7 +170,8 @@ failures** — never write them:
   code steps)
 - References to types, functions, or methods not defined in any task
 - Bare or direct commit recipes — prescribe structured launcher fields and
-  delegate attribution, approval, signing, and execution to `conventional-commits`
+  delegate attribution, signing, execution, and verification to
+  `conventional-commits`
 
 ## Self-review
 

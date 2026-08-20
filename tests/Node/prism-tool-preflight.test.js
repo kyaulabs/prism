@@ -44,6 +44,14 @@ function writeExecutable(directory, name, source) {
     return executable;
 }
 
+function writeConsent(directory, mode = 0o600) {
+    const consentPath = path.join(directory, 'agent', 'prism-consent.json');
+    fs.mkdirSync(path.dirname(consentPath), {mode: 0o700});
+    fs.writeFileSync(consentPath, '{"schemaVersion":1,"ocr":true}\n', {mode});
+    fs.chmodSync(consentPath, mode);
+    return consentPath;
+}
+
 function externalContract() {
     return {
         components: [
@@ -361,28 +369,9 @@ test('reports a version probe output limit without relaying output', (t) => {
     assert.doesNotMatch(JSON.stringify(checks), /CANARY-API-KEY-94f0/);
 });
 
-test('does not test OCR connectivity without exact approval', () => {
-    let runs = 0;
-    const result = testOcrConnectivity({
-        approved: undefined,
-        run: () => {
-            runs += 1;
-            throw new Error('must not run');
-        },
-    });
-
-    assert.deepEqual(result, {
-        id: 'ocr-connectivity',
-        status: 'FAIL',
-        message: 'approval required',
-    });
-    assert.equal(runs, 0);
-});
-
-test('runs an approved OCR connectivity test with fixed bounded arguments', () => {
+test('runs an OCR connectivity test with fixed bounded arguments', () => {
     const invocations = [];
     const result = testOcrConnectivity({
-        approved: 'yes',
         run: (command, args, options) => {
             invocations.push({command, args, options});
             return {status: 0, stdout: 'CANARY-API-KEY-94f0', stderr: '', error: undefined};
@@ -423,7 +412,7 @@ test('reduces OCR connectivity failures to fixed sanitized reasons', () => {
     ];
 
     for (const fixture of cases) {
-        const result = testOcrConnectivity({approved: 'yes', run: () => fixture.result});
+        const result = testOcrConnectivity({run: () => fixture.result});
         assert.deepEqual(result, {
             id: 'ocr-connectivity',
             status: 'FAIL',
@@ -464,7 +453,7 @@ test('doctor local-only reports compatible readiness without OCR connectivity', 
     assert.equal(fs.existsSync(counter), false);
 });
 
-test('doctor reports NO-GO and never connects when OCR approval is absent', async (t) => {
+test('doctor reports NO-GO and never connects when standing consent is absent', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const counter = path.join(directory, 'ocr-connectivity-runs');
@@ -476,23 +465,52 @@ test('doctor reports NO-GO and never connects when OCR approval is absent', asyn
     );
 
     const result = await captureWrites(() => main(['doctor', '--json'], {
+        consentPath: path.join(directory, 'agent', 'prism-consent.json'),
         coreRoot,
         env: {PATH: directory},
         run: runBounded,
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 3);
     assert.equal(result.stderr, '');
     assert.deepEqual(JSON.parse(result.stdout).checks.at(-1), {
-        id: 'ocr-connectivity',
+        id: 'ocr-consent',
         status: 'FAIL',
-        message: 'approval required',
+        message: 'run /setup to grant standing OCR consent',
     });
     assert.equal(JSON.parse(result.stdout).status, 'NO-GO');
     assert.equal(fs.existsSync(counter), false);
 });
 
-test('doctor runs one approved OCR connectivity test and sanitizes its output', async (t) => {
+test('doctor reports NO-GO and never connects when standing consent is unsafe', async (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    const counter = path.join(directory, 'ocr-connectivity-runs');
+    writeExecutable(directory, 'semgrep', "process.stdout.write('1.173.0\\n');\n");
+    writeExecutable(
+        directory,
+        'ocr',
+        `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n} else {\n\trequire('node:fs').appendFileSync(${JSON.stringify(counter)}, 'run\\n');\n}\n`
+    );
+    const consentPath = writeConsent(directory, 0o644);
+
+    const result = await captureWrites(() => main(['doctor', '--json'], {
+        consentPath,
+        coreRoot,
+        env: {PATH: directory},
+        run: runBounded,
+    }));
+
+    assert.equal(result.status, 3);
+    assert.deepEqual(JSON.parse(result.stdout).checks.at(-1), {
+        id: 'ocr-consent',
+        status: 'FAIL',
+        message: 'run /setup to grant standing OCR consent',
+    });
+    assert.equal(fs.existsSync(counter), false);
+});
+
+test('doctor runs one consented OCR connectivity test and sanitizes its output', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const counter = path.join(directory, 'ocr-connectivity-runs');
@@ -503,7 +521,8 @@ test('doctor runs one approved OCR connectivity test and sanitizes its output', 
         `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n} else {\n\trequire('node:fs').appendFileSync(${JSON.stringify(counter)}, 'run\\n');\n\tprocess.stdout.write('CANARY-API-KEY-94f0');\n}\n`
     );
 
-    const result = await captureWrites(() => main(['doctor', '--json', '--ocr-test-approved=yes'], {
+    const result = await captureWrites(() => main(['doctor', '--json'], {
+        consentPath: writeConsent(directory),
         coreRoot,
         env: {PATH: directory},
         run: runBounded,
@@ -520,114 +539,25 @@ test('doctor runs one approved OCR connectivity test and sanitizes its output', 
     assert.equal(fs.readFileSync(counter, 'utf8'), 'run\n');
 });
 
-test('run stops before its target when a mandatory prerequisite is missing', async (t) => {
-    const directory = makeTempDir();
-    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
-    const counter = path.join(directory, 'target-runs');
-    writeExecutable(
-        directory,
-        'ocr',
-        `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n} else {\n\trequire('node:fs').appendFileSync(${JSON.stringify(counter)}, 'run\\n');\n}\n`
-    );
-
-    const result = await captureWrites(() => main([
-        'run',
-        'ocr',
-        '--code-egress-approved=yes',
-        '--',
-        'review',
-        '--audience',
-        'agent',
-        '--format',
-        'json',
-    ], {
-        coreRoot,
-        env: {PATH: directory},
-        run: runBounded,
-        input: '',
-    }));
-
-    assert.equal(result.status, 3);
-    assert.doesNotMatch(result.stdout + result.stderr, /CANARY-API-KEY-94f0/);
-    assert.equal(fs.existsSync(counter), false);
-});
-
-test('OCR run requires separate exact code-egress approval after local preflight', async (t) => {
-    const directory = makeTempDir();
-    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
-    const counter = path.join(directory, 'target-runs');
-    writeExecutable(directory, 'semgrep', "process.stdout.write('1.173.0\\n');\n");
-    writeExecutable(
-        directory,
-        'ocr',
-        `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n} else {\n\trequire('node:fs').appendFileSync(${JSON.stringify(counter)}, 'run\\n');\n}\n`
-    );
-
-    const result = await captureWrites(() => main([
-        'run',
-        'ocr',
-        '--',
-        'review',
-        '--audience',
-        'agent',
-        '--format',
-        'json',
-    ], {
-        coreRoot,
-        env: {PATH: directory},
-        run: runBounded,
-        input: '',
-    }));
-
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /OCR code egress approval required/);
-    assert.equal(fs.existsSync(counter), false);
-});
-
-test('approved OCR run executes only the allowlisted review with inert arguments', async (t) => {
-    const directory = makeTempDir();
-    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
-    const invocations = path.join(directory, 'ocr-runs');
-    writeExecutable(directory, 'semgrep', "process.stdout.write('1.173.0\\n');\n");
-    writeExecutable(
-        directory,
-        'ocr',
-        `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n} else {\n\trequire('node:fs').writeFileSync(${JSON.stringify(invocations)}, JSON.stringify(process.argv.slice(2)));\n\tprocess.stdout.write('review complete\\n');\n}\n`
-    );
-    const calls = [];
-    const run = (command, args, options) => {
-        calls.push({args, command, options});
-        return runBounded(command, args, options);
-    };
-
-    const result = await captureWrites(() => main([
-        'run',
-        'ocr',
-        '--timeout-ms=900000',
-        '--code-egress-approved=yes',
-        '--',
-        'review',
-        '--audience',
-        'agent;$(printf injected)',
-        '--format',
-        'json',
-    ], {
-        coreRoot,
-        env: {PATH: directory},
-        run,
-        input: '',
-    }));
-
-    assert.equal(result.status, 0);
-    assert.equal(result.stdout, 'review complete\n');
-    assert.equal(calls.at(-1).options.timeout, 900000);
-    assert.deepEqual(JSON.parse(fs.readFileSync(invocations, 'utf8')), [
-        'review',
-        '--audience',
-        'agent;$(printf injected)',
-        '--format',
-        'json',
-    ]);
+test('generic OCR execution is unavailable for every former approval form', async () => {
+    for (const args of [
+        ['run', 'ocr', '--', 'review', '--audience', 'agent', '--format', 'json'],
+        ['run', 'ocr', '--code-egress-approved=yes', '--', 'review', '--audience', 'agent', '--format', 'json'],
+        ['run', 'ocr', '--timeout-ms=600000', '--', 'scan', '.'],
+    ]) {
+        let calls = 0;
+        const result = await captureWrites(() => main(args, {
+            coreRoot,
+            input: 'CANARY-REVIEW-CONTENT',
+            run: () => {
+                calls += 1;
+                throw new Error('generic OCR must not execute');
+            },
+        }));
+        assert.equal(result.status, 2, args.join(' '));
+        assert.match(result.stderr, /dedicated code-review operation|^usage:/);
+        assert.equal(calls, 0, args.join(' '));
+    }
 });
 
 test('Semgrep local scan runs without login or network approval', async (t) => {

@@ -40,13 +40,16 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One specific external effect requiring independent human approval. Registry access, consumer manifest mutation, OCR connectivity, and OCR code egress are separate boundaries; approval never transfers between them. |
+| consent boundary | One external-effect authorization. Registry access and consumer manifest mutation remain per-operation boundaries; standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked, and never transfers to other effects. |
+| standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
+| finalization acceptance | One explicit authorization for one branch-completion attempt, including disclosed Git synchronization, attestation, full checking, four-axis review, and pull-request preparation. A stopped attempt requires fresh acceptance. |
 | candidate workspace | The adapter-owned ephemeral area used to resolve and audit proposed dependency graphs before approved consumer manifests or lockfiles change. It is not a general scratch directory. |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
 | script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via a separate `prism-tool resolve` call, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0073, superseding ADR-0065's invocation syntax). |
-| safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, and bounded-window denial circuit breaker (three denials within the last ten bash calls). |
+| safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, bounded-window denial circuit breaker, and fatal commit-failure latch. |
+| fatal commit-failure latch | Per-session safety state set by any failed or unsafe agent commit attempt. It aborts the active operation and blocks every later tool call until the human reloads or otherwise tears down the extension instance. |
 | oversized request | Work too large for one specification in one session because it spans multiple independent subsystems or contains unknowns that cannot be reduced to sharp questions. It routes to wayfinder before detailed design. |
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
 | walking-skeleton bootstrap | The sole strict-greenfield exception to immediate wayfinding: scaffold plus one thin vertical slice, still following specification, planning, TDD, verification, checking, and review. |
@@ -72,6 +75,8 @@ The globally installed, language-agnostic harness package.
 - Deploys merge-safe global instructions without replacing user-owned content.
 - Exposes generic tooling through stable interfaces rather than consumer
   working-directory assumptions.
+- Owns privacy-minimal global standing-consent state through narrow,
+  explicitly approved launcher operations.
 - Never pushes a branch, merges a pull request, or accesses credentials.
 
 ### Stack Adapter
@@ -107,10 +112,12 @@ The measured state required before a toolchain entry point proceeds.
 - Missing or mismatched Semgrep or OCR is always NO-GO.
 - Semgrep must satisfy `>=1.173.0 <2.0.0`; login remains optional for local
   scanning.
-- OCR connectivity is tested during installation/setup, `/doctor`, and
-  immediately before code review; other entry points verify only the local
-  executable and the declared `>=1.9.1 <2.0.0` compatibility requirement.
-- OCR connectivity approval never authorizes transmission of reviewed code.
+- The global installer performs local readiness only. `/setup`, full
+  `/doctor`, and code review validate standing OCR consent before live OCR
+  connectivity; code review validates it again before reviewed-code egress.
+- Standing OCR consent authorizes only OCR connectivity and reviewed-code
+  egress; it never transfers to registry, mutation, Git, GitHub, or other
+  external effects.
 - A known dependency advisory at any severity prevents GO status.
 - Required tools are never silently skipped.
 
@@ -138,6 +145,9 @@ The enforced minimum protection shared across every trusted project.
   commands.
 - Three blocked bash calls within a window of ten terminate the retry loop
   for that Pi session.
+- Any failed or non-exclusive agent commit attempt activates a separate fatal
+  latch, aborts the active operation, and blocks every tool until the human
+  reloads or otherwise tears down the extension instance.
 
 ### Development Artifact
 
@@ -227,7 +237,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - Composer/npm manifests and lockfiles as ecosystem transaction boundaries.
 - Adapter safe-directory data consumed by the core safety extension.
 - Human approval at each network, mutation, connectivity, and code-egress
-  boundary.
+  boundary, either per operation or through the narrowly scoped standing OCR
+  consent defined by ADR-0074.
 
 ## Non-Goals
 
@@ -297,6 +308,7 @@ Pi-era decisions:
 - `adr/0071-explicit-project-learning-architecture.md` — explicitly invoked learning with worktree-local schema-versioned state, a canonical topic graph, validated structured-record boundaries, and launcher-owned mechanics.
 - `adr/0072-native-worktree-and-branch-policy-architecture.md` — worktree guidance separates branch-policy planning from mutation; outside-root changes are exact human-run commands.
 - `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
+- `adr/0074-approval-free-harness-operations.md` — use standing OCR consent, atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
 
 ## When to update this file
 

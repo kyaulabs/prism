@@ -32,8 +32,8 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 4. **Execute** the plan (`executing-plans` skill) → implement each task inline using the `tdd` skill, review between tasks.
 5. **Implement** each task via the `tdd` skill (Red → Green → Refactor, vertical slices).
 6. **Verify** completion (`verification-before-completion` skill).
-7. **Gate** with `/check` (delegates to the adapter stack gate, e.g. `/check-php`: lint + coverage 80%).
-8. **Review** with the `code-review` skill before push.
+7. **Commit** verified slices through one standalone `prism-tool commit create`; launcher-owned signing, hooks, and attribution remain mandatory, and failure blocks tools until `/reload`.
+8. **Finalize** with `finishing-a-development-branch`: after cleanup, one accepted attempt synchronizes, attests, runs `/check`, completes all four review axes, revalidates SHAs, and invokes preparation-only `/pr`.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -50,7 +50,7 @@ fix.
 | `packages/prism-core/APPEND_SYSTEM.md` | Anti-drift bootstrap — appended to the system prompt every turn (deploys to `~/.pi/agent/APPEND_SYSTEM.md`) |
 | `packages/prism-core/skills/` | Language-agnostic skills (loaded on demand via `/skill:name` or auto-invoked) |
 | `packages/prism-core/prompts/` | Core slash commands (pi prompt templates) |
-| `packages/prism-core/extensions/safety/` | The **one** safety extension — sensitive-path + `rm -rf` + `--no-verify` classifier + denial circuit-breaker (ADR-0056) |
+| `packages/prism-core/extensions/safety/` | The **one** safety extension — sensitive-path + `rm -rf` + `--no-verify` classifier, denial circuit breaker, and independent fatal commit latch (ADRs 0056, 0074) |
 | `packages/prism-core/scripts/` | Language-agnostic helper scripts (`new-branch.sh`, `resolve-identity.sh`, `install-global.sh`, …) |
 | `packages/prism-php-web/` | The PHP/web adapter — `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, `/check-php`, `safe-dirs.json` |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
@@ -75,15 +75,19 @@ php-cs-fixer, Playwright (Chromium only), sass, uglify-js, eslint, and
 stylelint are provisioned into the consumer project's native manifests and
 lockfiles through `prism-tool setup`.
 
-Registry access, consumer mutation, OCR connectivity, and OCR code egress are
-four **separate** approval gates; `ocr llm test` runs only after its own
-connectivity approval at the defined cadence. CI provisions compatible
-Semgrep/OCR releases only to construct its ephemeral verification
-environment — that is environment provisioning, not runtime verification
-(which remains verification-only). A candidate workspace under
-`.pi/prism-tool/work/` is ownership-marked and recovered/cleaned safely after
-interruption; the managed launcher refuses to overwrite or remove unrelated
-executables.
+Registry access and consumer mutation remain separate operation-specific
+approvals. `/setup` is the sole prompt for global standing OCR consent, which
+covers only `ocr llm test` connectivity and reviewed-code egress through the
+dedicated `prism-tool code-review ocr` operation. Full `/doctor` validates the
+record and runs one connectivity test without asking again; installer and hook
+readiness use offline `doctor --local-only`. Consent is revocable through
+`/setup` with `prism-tool consent revoke-ocr`, while unsafe records require
+human remediation. CI provisions compatible Semgrep/OCR releases only to
+construct its ephemeral verification
+environment and never creates consent or performs review. A candidate
+workspace under `.pi/prism-tool/work/` is ownership-marked and recovered or
+cleaned safely after interruption; the managed launcher refuses to overwrite
+or remove unrelated executables.
 
 ## pi mapping
 
@@ -174,9 +178,14 @@ in `AGENTS.md` § Commands); custom skills under `packages/*/skills/` (the
 index in `AGENTS.md` § Skills Available). The `writing-skills` skill governs
 authoring new ones.
 
-The ordinary branch-completion path delegates pull request preparation to
-`/pr` after synchronization, plan/spec cleanup, `/check`, and the
-`code-review` skill. `/pr` displays a conventional title, a body containing
-every pull request template section, and a human-run GitHub CLI command; it
-does not push or create the pull request. `/release` retains its separate
-release and back-merge PR procedure.
+The ordinary branch-completion path removes committed plan/spec artifacts,
+requires a clean tree, then pauses once for finalization acceptance. One
+acceptance authorizes one attempt in strict order: target synchronization,
+exact attestation, full `/check`, all four `code-review` axes, SHA
+revalidation, and automatic `/pr`. Any conflict, failed gate, incomplete axis,
+Blocking finding, unresolved Suggested finding, or stale attestation stops
+before `/pr` and requires fresh finalization acceptance after repair. `/pr`
+displays a conventional title, a body containing every pull request template
+section, and a human-run GitHub CLI command; it never pushes or creates the
+pull request.
+`/release` retains its separate release and back-merge PR procedure.

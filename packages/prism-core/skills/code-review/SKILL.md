@@ -47,31 +47,27 @@ Semgrep/OCR mismatch blocks the review):
 prism-tool doctor --local-only
 ```
 
-Ask exactly one question for OCR connectivity:
+Standing OCR consent is established globally by `/setup`; ask no connectivity
+or code-egress question here. Run exactly one dedicated OCR operation based on
+scope:
 
-```text
-Approve the OCR connectivity test (ocr llm test) now? (yes/no)
+```bash
+prism-tool code-review ocr -- review --audience agent --format json
 ```
 
-Accept only `--ocr-test-approved=yes` and run
-`prism-tool doctor --ocr-test-approved=yes`. A declined or failed live test
-makes this axis FAILED — OCR is mandatory, never discretionary. Then
-ask **separately** for code egress before transmitting any reviewed content:
+For an explicit full-path audit, use only:
 
-```text
-Approve sending the reviewed diff to the OCR external service? (yes/no)
+```bash
+prism-tool code-review ocr -- scan PATH --audience agent --format json
 ```
 
-Only with exact egress approval run OCR through the launcher as an additional
-read-only diff review:
-
-- Choose `prism-tool run ocr --code-egress-approved=yes -- review --audience agent --format json` (diff) or the `scan` form (full path) based on scope.
-- If it fails, retry ONCE with the same command. If it fails again, record the
-  exact error and continue.
-- A connectivity-test approval never authorizes code egress; never send
-  secrets.
-
-The axis still reports project lint/check evidence when OCR is unavailable.
+The launcher validates standing consent, local versions, connectivity, the
+exact argument form, and scan-path containment before code leaves the
+repository boundary. Never call OCR through generic `prism-tool run`, invoke
+`ocr` directly, retry a failed OCR operation, or send secrets. If OCR fails,
+mark this axis `FAILED` with the launcher's fixed error and continue the other
+three axes. The axis still reports project lint/check evidence when OCR is
+unavailable.
 
 #### Axis 2 — Standards review (Fowler baseline)
 
@@ -143,8 +139,8 @@ let the reviewer decide.
 - The review never freezes or hides partial evidence: always return per-axis
   status (`COMPLETE` / `FAILED` / `SKIPPED`). A human may explicitly waive an
   incomplete axis in-session.
-- External review services require explicit permission because code leaves the
-  repository boundary.
+- External OCR review requires valid global standing consent because code
+  leaves the repository boundary.
 - If the diff is empty, fail early before any axis runs.
 
 ## Cross-refs
@@ -159,7 +155,7 @@ let the reviewer decide.
 
 - *Running axes in parallel by inventing workers* — the pi conversion is
   single-agent. Run each axis inline and preserve separate output sections.
-- *Sending code to OCR without approval* — it is an external service; ask
-  before egress.
+- *Sending code to OCR outside the dedicated operation* — standing consent is
+  enforced by `prism-tool code-review ocr`; never bypass it or ask again.
 - *Treating SKIPPED as green* — a skipped or failed axis is incomplete
   evidence, never a pass.

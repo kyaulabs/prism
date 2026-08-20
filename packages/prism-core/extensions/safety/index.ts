@@ -1,4 +1,4 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 /**
  * prism-core safety extension — the single retained extension (ADR-0056).
@@ -21,6 +21,10 @@
  * ADR-0036) and the user is notified to `/reload`, which reloads the
  * extension while preserving the current conversation.
  *
+ * ADR-0074 adds a separate fatal commit-failure latch. Atomic commit creation
+ * is allowed only as one exclusive standalone tool call; unsafe or failed
+ * attempts abort the agent and block all tools until extension teardown.
+ *
  * Fail-closed invariants preserved verbatim from the opencode plugins:
  *   - any handler internal error → BLOCK (ADR-0036 — the whole policy
  *     body in `handleToolCall` is wrapped, not just `classifyCommand`)
@@ -37,6 +41,8 @@ import { resolve as resolvePath } from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { DenialCircuitBreaker, DEFAULT_THRESHOLD } from "./denial-circuit-breaker.ts";
+import { FatalCommitLatch } from "./fatal-commit-latch.ts";
+import { classifyCommitCreate, countSiblingToolCalls } from "./commit-create-guard.ts";
 import { handleToolCall, resolveExtraPaths } from "./tool-call-handler.ts";
 
 interface SafeDirsFile {
@@ -89,6 +95,38 @@ function resolveSafeRelDirs(cwd: string): readonly string[] {
 export default function (pi: ExtensionAPI) {
     /** Per-session windowed-bash-denial circuit breaker (ADR-0068). */
     const breaker = new DenialCircuitBreaker({ threshold: DEFAULT_THRESHOLD });
+    const fatalLatch = new FatalCommitLatch();
+    const fatalReason =
+        "[prism safety] BLOCKED: fatal commit safeguard active — all tools remain blocked until /reload.";
+    const fatalNotice =
+        "[prism safety] fatal commit safeguard tripped: commit creation did not complete safely. " +
+        "The agent was aborted and all tools are blocked until /reload. (ADR-0074)";
+
+    function tripFatal(sid: string, ctx: ExtensionContext): void {
+        if (fatalLatch.trip(sid)) {
+            try {
+                if (ctx.hasUI) ctx.ui.notify(fatalNotice, "error");
+                else console.error(fatalNotice);
+            } catch {
+                console.error(fatalNotice);
+            }
+        }
+        try { ctx.abort(); } catch { return; }
+    }
+
+    function fatalBlock() {
+        return { block: true as const, reason: fatalReason, terminate: true as const };
+    }
+
+    function containsCommitCreate(input: unknown): boolean {
+        try {
+            const command = (input as { command?: unknown })?.command;
+            return typeof command === "string" &&
+                /prism-tool(?:['"])?\s+commit\s+create(?:\s|$)/.test(command);
+        } catch {
+            return false;
+        }
+    }
 
     /** Fail-closed until session_start resolves the safe zones. */
     let safeRelDirs: readonly string[] = [];
@@ -100,15 +138,17 @@ export default function (pi: ExtensionAPI) {
         extraPaths = resolveExtraPaths(process.env.PRISM_SENSITIVE_PATHS);
     });
 
-    pi.on("tool_call", (event, ctx) =>
-        handleToolCall(event.toolName, event.input, {
-            sid: sessionId(ctx),
+    pi.on("tool_call", (event, ctx) => {
+        const sid = sessionId(ctx);
+        const deps = {
+            sid,
             cwd: ctx.cwd,
             home: homeDir,
             safeRelDirs,
             extraPaths,
             breaker,
-            notify: (msg, level) => {
+            fatalLatch,
+            notify: (msg: string, level: "error" | "warning") => {
                 if (level === "error") {
                     if (ctx.hasUI) {
                         ctx.ui.notify(msg, "error");
@@ -119,27 +159,82 @@ export default function (pi: ExtensionAPI) {
                     ctx.ui.notify(msg, "warning");
                 }
             },
-        })
-    );
+        };
+        let tracked = false;
+        try {
+            if (fatalLatch.isLatched(sid)) return handleToolCall(event.toolName, event.input, deps);
+            if (fatalLatch.hasPending(sid)) {
+                tripFatal(sid, ctx);
+                return fatalBlock();
+            }
+
+            if (event.toolName === "bash") {
+                const classification = classifyCommitCreate((event.input as { command?: unknown }).command);
+                if (classification === "UNSAFE_ATTEMPT") {
+                    tripFatal(sid, ctx);
+                    return fatalBlock();
+                }
+                if (classification === "STANDALONE") {
+                    let siblings: number | null = null;
+                    try {
+                        siblings = countSiblingToolCalls(ctx.sessionManager.getBranch(), event.toolCallId);
+                    } catch {
+                        siblings = null;
+                    }
+                    if (siblings !== 1) {
+                        tripFatal(sid, ctx);
+                        return fatalBlock();
+                    }
+                    fatalLatch.track(event.toolCallId, sid);
+                    tracked = true;
+                }
+            }
+
+            const result = handleToolCall(event.toolName, event.input, deps);
+            if (result?.block && tracked) {
+                fatalLatch.complete(event.toolCallId);
+                tripFatal(sid, ctx);
+                return fatalBlock();
+            }
+            return result;
+        } catch {
+            if (tracked || (event.toolName === "bash" && containsCommitCreate(event.input))) {
+                if (tracked) fatalLatch.complete(event.toolCallId);
+                tripFatal(sid, ctx);
+                return fatalBlock();
+            }
+            return {
+                block: true,
+                reason: "[prism safety] BLOCKED: safety handler internal error — failing closed per ADR-0036",
+            };
+        }
+    });
 
     // A bash that actually executed (exit 0, nonzero exit, or ask-approved)
     // is not a denial — feed a success into the window. Denials within the
     // window persist (ADR-0068); blocked calls never reach
     // tool_execution_end, so only successful executions arrive here.
     pi.on("tool_execution_end", async (event, ctx) => {
+        const trackedSid = fatalLatch.complete(event.toolCallId);
+        if (trackedSid !== undefined && (event.toolName !== "bash" || event.isError)) {
+            tripFatal(trackedSid, ctx);
+        }
         if (event.toolName !== "bash") return;
         breaker.observe(sessionId(ctx), false);
     });
 
-    // Agent run finished — drop the session streak so a later re-run starts
-    // fresh (was `session.idle` in opencode).
+    // Agent run finished — drop only the denial streak. The fatal commit
+    // latch deliberately persists until extension teardown.
     pi.on("agent_end", async (_event, ctx) => {
-        breaker.reset(sessionId(ctx));
+        const sid = sessionId(ctx);
+        if (fatalLatch.hasPending(sid)) tripFatal(sid, ctx);
+        breaker.reset(sid);
     });
 
-    // Session teardown: drop every session's breaker state.
+    // Session teardown: drop both independent state machines.
     pi.on("session_shutdown", async () => {
         breaker.clearAll();
+        fatalLatch.clearAll();
     });
 }
 

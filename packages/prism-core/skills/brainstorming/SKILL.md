@@ -70,7 +70,7 @@ Complete these in order:
    Confirmation gate: present each section, ask "Does this look right so far?",
    and wait for explicit approval before moving to the next section.
 6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md`, then
-   load `conventional-commits` and use its launcher-owned approval workflow.
+   load `conventional-commits` and use its single atomic launcher operation.
 7. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
 8. **User reviews written spec** — ask the user to review before proceeding.

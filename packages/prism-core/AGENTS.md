@@ -26,9 +26,11 @@ contracts: bundled core tools (commitlint, git-cliff), mandatory external
 prerequisites that Prism verifies but never installs (Semgrep
 `>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
 adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
-Registry access, consumer mutation, OCR connectivity, and OCR code egress are
-four separate approvals; CI environment provisioning of compatible Semgrep/OCR
-releases is not runtime verification.
+Registry access and consumer mutation remain separate operation-specific
+approvals. `/setup` manages one global standing OCR consent covering only
+connectivity and reviewed-code egress through the dedicated review operation;
+full `/doctor` validates it without asking again. Installation, hooks, and CI
+use local-only readiness and never establish consent (ADR-0074).
 
 Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
 `prism-tool resolve skills`) in one tool call, retain the returned absolute
@@ -179,8 +181,10 @@ adapter's stack skill (e.g. `scss-mobile-first`).
 After implementing any change — whether via TDD, a direct fix, an issue
 tracker resolution, or a fast-path trivial change — load the
 `conventional-commits` skill. Select structured Conventional Commit fields and
-use its mandatory `prism-tool commit` prepare → exact-message approval → apply
-workflow. The launcher owns attribution, validation, signing, and execution.
+run one standalone `prism-tool commit create` operation. It must be the only
+tool call in its assistant batch and must not use compound shell syntax. The
+launcher owns attribution, validation, signing, execution, and post-commit
+verification; there is no per-commit approval pause.
 
 ### Commit and push permissions (instruction-only)
 
@@ -189,8 +193,9 @@ gate and skill-gating are now instruction-only — ADR-0055). The discipline is
 carried by prose instead:
 
 - `git add` is permitted (staging is reversible).
-- Ordinary commits use `prism-tool commit`; `prepare` prints the exact message
-  and `apply` requires explicit approval bound to unchanged staged state.
+- Ordinary commits use one exclusive `prism-tool commit create` call. Any
+  failed, unsafe, ambiguous, or non-exclusive attempt aborts the agent and
+  blocks every tool until `/reload`.
 - **`git push` is denied to the agent.** Only the human pushes work branches
   and merges pull requests. `release.yml` alone creates release tags and
   GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a
@@ -295,9 +300,9 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator (adapter-aware) — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders across the harness |
+| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; global consent is explicitly revocable |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Toolchain health check — verifies dev tools are installed at version floors; reports PASS/FAIL/SKIPPED table + go/no-go summary |
+| `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |

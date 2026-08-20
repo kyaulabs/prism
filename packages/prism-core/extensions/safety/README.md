@@ -19,6 +19,8 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
 | `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim port, later restructured.** Pure path/operand classifier + deny floor. The audit remediation extracted the `judgeToken` predicate and the shared `resolvePathToken` resolver (also used by `pre-tool-use.ts`). No opencode imports to strip. |
 | `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The 2026-08-17 security audit remediation replaced consecutive counting with the bounded-window policy (ADR-0068). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
 | `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim, later restructured.** `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The audit remediation split `classifyCommandImpl` into a per-policy rule table (`SEGMENT_RULES`/`COMMAND_RULES`) and made `resolveTarget`/`MAX_UNWRAP_DEPTH` delegate to the shared `sensitive-paths.ts` resolver. The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
+| `commit-create-guard.ts` | **new** | Pure recognition of the sole supported atomic commit operation and fail-closed assistant-batch sibling counting (ADR-0074). |
+| `fatal-commit-latch.ts` | **new** | Pure per-session fatal state and pending commit-call correlation. It stores only session and tool-call IDs, never command or result data. |
 | `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
 | `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
 
@@ -51,6 +53,13 @@ without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056
    through the current agent run. The user may run `/reload` for an immediate
    reset while preserving the current conversation. The escalation message is redacted —
    no command text, args, output, or metadata; only identity and count.
+4. **Fatal commit-failure latch (ADR-0074).** `prism-tool commit create` is
+   allowed only as one standalone Bash tool call with no sibling calls or
+   compound shell syntax. Unsafe, ambiguous, policy-blocked, or failed commit
+   creation trips a separate per-session latch, calls `ctx.abort()`, and blocks
+   every subsequent tool until `/reload` tears down the extension. `agent_end`
+   does not clear this latch. Fatal messages contain no command text,
+   arguments, output, path, branch, provider, or session metadata.
 
 ## ADR-0042 simplification (pi vs opencode)
 
@@ -60,12 +69,13 @@ hooks — the "Probe-3" structural predicate. pi collapses this: **returning
 `{ block: true, reason }` from a `tool_call` handler is unambiguously a
 denial.** So the wrapper drives the pure `DenialCircuitBreaker` directly:
 
-| Event | Action |
-| --- | --- |
-| `tool_call` (bash) returns blocked | `breaker.observe(sid, true)` — increment; on the trip transition, redacted escalation |
-| `tool_execution_end` (bash executed) | `breaker.observe(sid, false)` — feed a success into the window (denials within the window persist; ADR-0068) |
-| `agent_end` | `breaker.reset(sid)` — clear the session streak (was `session.idle`) |
-| `session_shutdown` | `breaker.clearAll()` |
+| Event | Denial breaker | Fatal commit latch |
+| --- | --- | --- |
+| `tool_call` (blocked bash) | `observe(sid, true)` | Tracked commit blocks trip and abort; unsafe/non-exclusive attempts trip before execution |
+| `tool_call` (allowed exclusive commit) | unchanged | Track only tool-call ID → session ID |
+| `tool_execution_end` (bash executed) | `observe(sid, false)` | Complete tracked call; `isError` trips and aborts |
+| `agent_end` | `reset(sid)` | unchanged — remains latched |
+| `session_shutdown` | `clearAll()` | `clearAll()` — `/reload` recovery |
 
 Blocked bash calls never reach `tool_execution_end` (the tool did not run), so
 only successful executions feed the window. Windowed semantics supersede
@@ -82,6 +92,11 @@ no longer erase the denial count. The opencode-era
   safe-zone model, and enumerating executors is unbounded. They are
   deliberately out of scope.
 - **WARN gates are advisory.** See the enforcement list above.
+- **Commit recognition is deliberately narrow.** Shell wrappers, environment
+  prefixes, malformed controls, redirections, compound commands, and sibling
+  tool calls are fatal unsafe attempts rather than supported alternatives.
+  The latch is process-local extension state, not a session entry; teardown is
+  the recovery boundary.
 - **Benign command substitution is blocked** by the fail-closed guard —
   the agent computes such values in separate steps. `$()` and backtick spellings
   also block inside single-quoted literals because shell builtins can evaluate

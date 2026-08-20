@@ -553,12 +553,26 @@ else
 	fail "command contains stray angle-bracket placeholders: $extra_markers"
 fi
 
-# ── 15. review-gate anti-freeze contract ─────────────────────────────────────
+# ── 15. accepted-finalization evidence contract ─────────────────────────────
 
-assert_contains "$COMMAND_FILE" 'waive' \
-	'command accepts an explicit human waiver for incomplete axis evidence'
-assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
-	'command no longer hard-freezes on Suggested findings'
+assert_contains "$COMMAND_FILE" 'latest finalization acceptance' \
+	'command requires evidence from the latest accepted finalization attempt'
+assert_contains "$COMMAND_FILE" 'Require no Blocking finding and no unresolved Suggested finding.' \
+	'command blocks unresolved review findings'
+assert_contains "$COMMAND_FILE" 'axis must be complete, or covered by an eligible explicit waiver that existed' \
+	'command requires complete axes or eligible pre-existing waivers'
+assert_contains "$COMMAND_FILE" 'before the latest finalization acceptance and was recorded by that attempt' \
+	'command binds waiver evidence to the accepted attempt'
+assert_contains "$COMMAND_FILE" 'A conflict, failed check, incomplete unwaived axis, repair, new waiver,' \
+	'command enumerates attempt-consuming failures'
+assert_contains "$COMMAND_FILE" 'changed SHA, or dirty tree consumes that attempt.' \
+	'command consumes drifted or dirty attempts'
+assert_contains "$COMMAND_FILE" 'attempt is partial or stale even when an earlier gate passed.' \
+	'command rejects stale partial evidence'
+assert_contains "$COMMAND_FILE" 'fresh finalization acceptance and rerun the complete automatic sequence.' \
+	'command sends consumed attempts through fresh acceptance'
+assert_not_contains "$COMMAND_FILE" 'The review is never re-run solely to refresh evidence' \
+	'command does not preserve review evidence across failed attempts'
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 

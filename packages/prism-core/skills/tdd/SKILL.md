@@ -125,15 +125,16 @@ Run the active adapter's:
 Then load `verification-before-completion`. If any evidence is stale or fails,
 the task is not done.
 
-### Step 7 — Prepare the commit through the launcher
+### Step 7 — Create the commit through the launcher
 
 After verification, load `conventional-commits`. Select the type, optional
 scope, subject, optional body, and optional issue reference from the work
-performed. Delegate attribution, validation, exact-message presentation,
-approval binding, signing, and commit execution to its mandatory two-phase
-`prism-tool commit` process. Validate plan-provided structured fields and
-correct them when needed. Never duplicate commit construction or direct Git
-execution here.
+performed. Delegate attribution, validation, signing, commit execution, and
+post-commit verification to its single atomic `prism-tool commit create`
+process. Validate plan-provided structured fields and correct them when needed.
+The commit must be the only tool call in its assistant batch. Never duplicate
+commit construction, ask for per-commit approval, or execute ordinary Git
+commits directly.
 
 ## Test quality rules
 

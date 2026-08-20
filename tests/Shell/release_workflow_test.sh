@@ -591,19 +591,6 @@ else
 	fail "P19: /release repo-identity or portable link-replacement contract violated"
 fi
 
-# ── P20. Launcher-owned signed chore(release) commit ───────────────────────
-
-if grep -qF 'prism-tool commit prepare --type chore --scope release' "$RELEASE_CMD" && \
-   grep -qF 'prism-tool commit apply --plan' "$RELEASE_CMD" && \
-   grep -qiF 'exact commit message' "$RELEASE_CMD" && \
-   ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE_CMD" && \
-   ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
-   ! grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD"; then
-	pass "P20: /release delegates its signed chore(release) commit to prism-tool"
-else
-	fail "P20: /release launcher-owned commit contract violated"
-fi
-
 # bash_block_contains <file> <regex> — exit 0 when any ```bash code block in
 # <file> contains a line matching the ERE <regex>; exit 1 otherwise.
 bash_block_contains() {
@@ -614,6 +601,53 @@ bash_block_contains() {
 		END { exit found ? 0 : 1 }
 	' "$1"
 }
+
+# bash_block_count <file> <regex> — count matching lines inside ```bash blocks.
+bash_block_count() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block && $0 ~ re { count += 1 }
+		END { print count + 0 }
+	' "$1"
+}
+
+# bash_block_is_single_command <file> <regex> — exit 0 when one ```bash block
+# contains exactly one nonblank line and that line matches the ERE <regex>.
+bash_block_is_single_command() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; count = 0; matched = 0; next }
+		/^```/ && in_block {
+			if (count == 1 && matched == 1) found = 1
+			in_block = 0
+			next
+		}
+		in_block && $0 !~ /^[[:space:]]*$/ {
+			count += 1
+			if ($0 ~ re) matched += 1
+		}
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
+# ── P20. Launcher-owned signed chore(release) commit ───────────────────────
+
+if [ "$(bash_block_count "$RELEASE_CMD" '^[[:space:]]*prism-tool commit create')" -eq 1 ] && \
+   bash_block_is_single_command "$RELEASE_CMD" \
+   '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX[.]Y[.]Z[[:space:]]*$' && \
+   ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \
+   ! grep -qF 'prism-tool commit apply' "$RELEASE_CMD" && \
+   ! grep -qF 'prism-tool commit discard' "$RELEASE_CMD" && \
+   ! grep -qF -- '--plan' "$RELEASE_CMD" && \
+   ! grep -qiF 'exact commit message' "$RELEASE_CMD" && \
+   ! grep -qiF 'commit approval' "$RELEASE_CMD" && \
+   ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE_CMD" && \
+   ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
+   ! grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD"; then
+	pass "P20: /release creates one approval-free signed chore(release) commit through prism-tool"
+else
+	fail "P20: /release atomic launcher-owned commit contract violated"
+fi
 
 # ── P20b. Tracking-issue argument contract ($ARGUMENTS, validated) ───────────
 

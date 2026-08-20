@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 'use strict';
 
@@ -8,9 +8,8 @@ const path = require('node:path');
 const {TextDecoder} = require('node:util');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
-const USAGE = 'usage: prism-tool commit prepare --type TYPE [--scope SCOPE] --subject SUBJECT ' +
-    '[--body-file PATH] [--fixes NN | --refs NN] | prism-tool commit apply --plan PLAN_ID ' +
-    '--approval=yes | prism-tool commit discard --plan PLAN_ID\n';
+const USAGE = 'usage: prism-tool commit create --type TYPE [--scope SCOPE] --subject SUBJECT ' +
+    '[--body-file PATH] [--fixes NN | --refs NN]\n';
 const TYPES = new Set([
     'build', 'chore', 'ci', 'docs', 'feat', 'fix', 'ignore', 'patch', 'perf',
     'refactor', 'style', 'test',
@@ -55,7 +54,7 @@ function requireSuccess(result, code, message) {
     return result;
 }
 
-function parsePrepare(args) {
+function parseCreate(args) {
     const parsed = {};
     const rank = new Map([
         ['--type', 0], ['--scope', 1], ['--subject', 2], ['--body-file', 3],
@@ -66,22 +65,22 @@ function parsePrepare(args) {
         const control = args[index];
         const value = args[index + 1];
         if (!rank.has(control) || value === undefined || value.startsWith('--')) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         const key = control.slice(2).replace('-', '');
         const current = rank.get(control);
         if (current < previous || Object.hasOwn(parsed, key)) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         if ((control === '--fixes' && Object.hasOwn(parsed, 'refs')) ||
             (control === '--refs' && Object.hasOwn(parsed, 'fixes'))) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         parsed[key] = value;
         previous = current;
     }
     if (!Object.hasOwn(parsed, 'type') || !Object.hasOwn(parsed, 'subject')) {
-        throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+        throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
     }
     return parsed;
 }
@@ -99,13 +98,13 @@ function closeQuietly(descriptor) {
     return true;
 }
 
-function unlinkQuietly(file) {
-    try { fs.unlinkSync(file); } catch { return false; }
+function unlinkWith(io, file) {
+    try { io.unlinkSync(file); } catch { return false; }
     return true;
 }
 
-function rmdirQuietly(directory) {
-    try { fs.rmdirSync(directory); } catch { return false; }
+function rmdirWith(io, directory) {
+    try { io.rmdirSync(directory); } catch { return false; }
     return true;
 }
 
@@ -232,45 +231,120 @@ function repositoryState(context, coreRoot) {
         throw new CommitError(EXIT.TOOL, 'staged state is unavailable');
     }
     if (staged.status === 0) throw new CommitError(EXIT.TOOL, 'staged changes are required');
-    return {branch, head, repository};
+    const tree = shaValue(
+        requireSuccess(invoke(context, 'git', ['write-tree']), EXIT.TOOL, 'staged state is unavailable'),
+        'staged state is invalid'
+    );
+    return {branch, head, repository, tree};
 }
 
-function indexFingerprint(context) {
-    const result = invoke(context, 'git', ['ls-files', '--stage', '-z'], {encoding: null});
-    if (result.error || result.status !== 0) throw new CommitError(EXIT.TOOL, 'staged index fingerprint failed');
-    const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? '', 'utf8');
-    return crypto.createHash('sha256').update(output).digest('hex');
-}
-
-function ensurePrivateDirectory(directory) {
+function ensurePrivateDirectory(io, directory) {
     try {
-        if (!fs.existsSync(directory)) fs.mkdirSync(directory, {mode: 0o700});
-        const stat = fs.lstatSync(directory);
+        if (!io.existsSync(directory)) io.mkdirSync(directory, {mode: 0o700});
+        const stat = io.lstatSync(directory);
         if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700) throw new Error();
         if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new Error();
     } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan directory is unsafe');
+        throw new CommitError(EXIT.TRANSACTION, 'private directory is unsafe');
     }
 }
 
-function writePrivate(file, content) {
+function writePrivate(io, file, content) {
     let descriptor;
     try {
-        const noFollow = fs.constants.O_NOFOLLOW ?? 0;
-        descriptor = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_EXCL |
-            fs.constants.O_WRONLY | noFollow, 0o600);
-        fs.writeFileSync(descriptor, content);
-        fs.fchmodSync(descriptor, 0o600);
-        fs.closeSync(descriptor);
+        if (typeof io.constants.O_NOFOLLOW !== 'number') throw new Error();
+        descriptor = io.openSync(file, io.constants.O_CREAT | io.constants.O_EXCL |
+            io.constants.O_WRONLY | io.constants.O_NOFOLLOW, 0o600);
+        io.writeFileSync(descriptor, content);
+        io.fchmodSync(descriptor, 0o600);
+        io.closeSync(descriptor);
     } catch {
         if (descriptor !== undefined) closeQuietly(descriptor);
-        throw new CommitError(EXIT.TRANSACTION, 'plan could not be written');
+        throw new CommitError(EXIT.TRANSACTION, 'private file could not be written');
     }
 }
 
-function createPlan(context, state, message, fingerprint) {
+function lockIndex(context, repository) {
+    const io = context.fs ?? fs;
+    const result = requireSuccess(
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-path', 'index'], {cwd: repository}),
+        EXIT.TOOL,
+        'Git index is unavailable'
+    );
+    const indexFile = resultText(result).trim();
+    const lockFile = `${indexFile}.lock`;
+    let source;
+    let target;
+    let lockCreated = false;
+    try {
+        if (!path.isAbsolute(indexFile) || typeof io.constants.O_NOFOLLOW !== 'number') throw new Error();
+        const pathStat = io.lstatSync(indexFile);
+        if (!pathStat.isFile() || pathStat.isSymbolicLink()) throw new Error();
+        source = io.openSync(indexFile, io.constants.O_RDONLY | io.constants.O_NOFOLLOW);
+        const sourceStat = io.fstatSync(source);
+        if (!sourceStat.isFile() || sourceStat.dev !== pathStat.dev || sourceStat.ino !== pathStat.ino) {
+            throw new Error();
+        }
+        target = io.openSync(
+            lockFile,
+            io.constants.O_CREAT | io.constants.O_EXCL | io.constants.O_WRONLY | io.constants.O_NOFOLLOW,
+            0o600
+        );
+        lockCreated = true;
+        const buffer = Buffer.alloc(65536);
+        let position = 0;
+        while (true) {
+            const count = io.readSync(source, buffer, 0, buffer.length, position);
+            if (count === 0) break;
+            let written = 0;
+            while (written < count) {
+                const next = io.writeSync(target, buffer, written, count - written, position + written);
+                if (next <= 0) throw new Error();
+                written += next;
+            }
+            position += count;
+        }
+        io.fchmodSync(target, 0o600);
+        io.fsyncSync(target);
+        io.closeSync(target);
+        target = undefined;
+        io.closeSync(source);
+        source = undefined;
+        const current = io.lstatSync(indexFile);
+        if (!current.isFile() || current.isSymbolicLink() ||
+            current.dev !== sourceStat.dev || current.ino !== sourceStat.ino) {
+            throw new Error();
+        }
+    } catch {
+        if (target !== undefined) closeQuietly(target);
+        if (source !== undefined) closeQuietly(source);
+        if (lockCreated) unlinkWith(io, lockFile);
+        throw new CommitError(EXIT.TRANSACTION, 'Git index could not be locked safely');
+    }
+    return {
+        file: lockFile,
+        publish() {
+            try {
+                io.renameSync(lockFile, indexFile);
+            } catch {
+                throw new CommitError(EXIT.TRANSACTION, 'locked index publication failed');
+            }
+        },
+        discard() {
+            try {
+                io.unlinkSync(lockFile);
+                return true;
+            } catch {
+                return false;
+            }
+        },
+    };
+}
+
+function createPrivateMessage(context, repository, message) {
+    const io = context.fs ?? fs;
     const gitResult = requireSuccess(
-        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir']),
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir'], {cwd: repository}),
         EXIT.TOOL,
         'Git directory is unavailable'
     );
@@ -278,146 +352,45 @@ function createPlan(context, state, message, fingerprint) {
     try {
         gitDir = fs.realpathSync(resultText(gitResult).trim());
     } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'Git directory is unsafe');
+        throw new CommitError(EXIT.TOOL, 'Git directory is unsafe');
     }
     const prismDir = path.join(gitDir, 'prism-tool');
-    const plansDir = path.join(prismDir, 'commit-plans');
-    ensurePrivateDirectory(prismDir);
-    ensurePrivateDirectory(plansDir);
+    ensurePrivateDirectory(io, prismDir);
     const random = context.randomBytes ?? crypto.randomBytes;
-    const planId = random(16).toString('hex');
-    if (!/^[0-9a-f]{32}$/.test(planId)) throw new CommitError(EXIT.TRANSACTION, 'plan identifier failed');
-    const planDir = path.join(plansDir, planId);
-    try {
-        fs.mkdirSync(planDir, {mode: 0o700});
-    } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan could not be created');
+    const operationId = random(16).toString('hex');
+    if (!/^[0-9a-f]{32}$/.test(operationId)) {
+        throw new CommitError(EXIT.TOOL, 'message identifier failed');
     }
-    const plan = {
-        schemaVersion: 1,
-        repository: state.repository,
-        branch: state.branch,
-        head: state.head,
-        indexFingerprint: fingerprint,
-        messageSha256: crypto.createHash('sha256').update(message).digest('hex'),
-        createdAt: (context.now ?? (() => new Date().toISOString()))(),
-    };
+    const operationDir = path.join(prismDir, `commit-create-${operationId}`);
+    let operationCreated = false;
     try {
-        writePrivate(path.join(planDir, 'plan.json'), `${JSON.stringify(plan)}\n`);
-        writePrivate(path.join(planDir, 'message.txt'), message);
+        io.mkdirSync(operationDir, {mode: 0o700});
+        operationCreated = true;
+        ensurePrivateDirectory(io, operationDir);
+    } catch {
+        if (operationCreated) rmdirWith(io, operationDir);
+        throw new CommitError(EXIT.TOOL, 'message directory could not be created');
+    }
+    const messageFile = path.join(operationDir, 'message.txt');
+    try {
+        writePrivate(io, messageFile, message);
     } catch (error) {
-        for (const name of ['plan.json', 'message.txt']) unlinkQuietly(path.join(planDir, name));
-        rmdirQuietly(planDir);
+        unlinkWith(io, messageFile);
+        rmdirWith(io, operationDir);
         throw error;
     }
-    return planId;
+    return {
+        file: messageFile,
+        cleanup() {
+            const unlinked = unlinkWith(io, messageFile);
+            const removed = rmdirWith(io, operationDir);
+            return unlinked && removed;
+        },
+    };
 }
 
-function parseApply(args) {
-    if (args.length !== 3 || args[0] !== '--plan' || args[2] !== '--approval=yes' ||
-        !/^[0-9a-f]{32}$/.test(args[1])) {
-        throw new CommitError(EXIT.USAGE, 'apply arguments are invalid');
-    }
-    return args[1];
-}
-
-function resolvePlanDirectory(context, planId) {
-    const gitResult = requireSuccess(
-        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir']),
-        EXIT.TRANSACTION,
-        'plan repository is unavailable'
-    );
-    let gitDir;
-    try {
-        gitDir = fs.realpathSync(resultText(gitResult).trim());
-    } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan repository is unsafe');
-    }
-    const prismDir = path.join(gitDir, 'prism-tool');
-    const plansDir = path.join(prismDir, 'commit-plans');
-    for (const directory of [prismDir, plansDir]) {
-        let stat;
-        try { stat = fs.lstatSync(directory); } catch {
-            throw new CommitError(EXIT.TRANSACTION, 'plan is unavailable');
-        }
-        if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700 ||
-            (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-            throw new CommitError(EXIT.TRANSACTION, 'plan directory is unsafe');
-        }
-    }
-    return path.join(plansDir, planId);
-}
-
-function readPrivate(file, maximum) {
-    let descriptor;
-    try {
-        descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-        const stat = fs.fstatSync(descriptor);
-        if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size > maximum ||
-            (typeof process.getuid === 'function' && stat.uid !== process.getuid())) throw new Error();
-        const content = fs.readFileSync(descriptor);
-        fs.closeSync(descriptor);
-        return new TextDecoder('utf-8', {fatal: true}).decode(content);
-    } catch {
-        if (descriptor !== undefined) closeQuietly(descriptor);
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-}
-
-function loadPlan(planDir) {
-    let directoryStat;
-    try { directoryStat = fs.lstatSync(planDir); } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is unavailable');
-    }
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink() ||
-        (directoryStat.mode & 0o777) !== 0o700 ||
-        (typeof process.getuid === 'function' && directoryStat.uid !== process.getuid())) {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    const rawPlan = readPrivate(path.join(planDir, 'plan.json'), 16384);
-    const message = readPrivate(path.join(planDir, 'message.txt'), 131072);
-    let plan;
-    try { plan = JSON.parse(rawPlan); } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    const keys = Object.keys(plan).sort();
-    const expected = [
-        'branch', 'createdAt', 'head', 'indexFingerprint', 'messageSha256',
-        'repository', 'schemaVersion',
-    ].sort();
-    if (JSON.stringify(keys) !== JSON.stringify(expected) || plan.schemaVersion !== 1 ||
-        typeof plan.repository !== 'string' || typeof plan.branch !== 'string' ||
-        !(plan.head === 'unborn' || SHA_RE.test(plan.head)) ||
-        !/^[0-9a-f]{64}$/.test(plan.indexFingerprint) ||
-        !/^[0-9a-f]{64}$/.test(plan.messageSha256) || typeof plan.createdAt !== 'string' ||
-        crypto.createHash('sha256').update(message).digest('hex') !== plan.messageSha256) {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    return {message, plan};
-}
-
-function cleanupPlan(planDir) {
-    let directoryStat;
-    try { directoryStat = fs.lstatSync(planDir); } catch { return; }
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink() ||
-        (directoryStat.mode & 0o777) !== 0o700 ||
-        (typeof process.getuid === 'function' && directoryStat.uid !== process.getuid())) return;
-    for (const name of ['plan.json', 'message.txt', 'apply-message.txt']) {
-        const file = path.join(planDir, name);
-        try {
-            const stat = fs.lstatSync(file);
-            if (!stat.isFile() || stat.isSymbolicLink() ||
-                (typeof process.getuid === 'function' && stat.uid !== process.getuid())) continue;
-            fs.unlinkSync(file);
-        } catch {
-            continue;
-        }
-    }
-    rmdirQuietly(planDir);
-}
-
-function prepare(args, context) {
-    const parsed = parsePrepare(args);
+function create(args, context) {
+    const parsed = parseCreate(args);
     const header = validateStructured(parsed);
     const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
     const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
@@ -435,60 +408,36 @@ function prepare(args, context) {
         EXIT.TOOL,
         'commitlint rejected the message'
     );
-    const fingerprint = indexFingerprint(context);
-    const planId = createPlan(context, state, message, fingerprint);
-    process.stdout.write(`${message}\nPlan: ${planId}\n`);
-    return EXIT.OK;
-}
-
-function discard(args, context) {
-    if (args.length !== 2 || args[0] !== '--plan' || !/^[0-9a-f]{32}$/.test(args[1])) {
-        throw new CommitError(EXIT.USAGE, 'discard arguments are invalid');
-    }
-    const planDir = resolvePlanDirectory(context, args[1]);
+    const owned = createPrivateMessage(context, state.repository, message);
+    let locked;
+    let committed = false;
+    let newHead;
+    let operationError;
     try {
-        fs.lstatSync(planDir);
-    } catch (error) {
-        if (error.code === 'ENOENT') return EXIT.OK;
-        throw new CommitError(EXIT.TRANSACTION, 'plan is inaccessible');
-    }
-    loadPlan(planDir);
-    cleanupPlan(planDir);
-    return EXIT.OK;
-}
-
-function apply(args, context) {
-    const planId = parseApply(args);
-    const planDir = resolvePlanDirectory(context, planId);
-    let loaded;
-    try {
-        loaded = loadPlan(planDir);
-        const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-        const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
-        const state = repositoryState(context, coreRoot);
-        const fingerprint = indexFingerprint(context);
-        if (state.repository !== loaded.plan.repository || state.branch !== loaded.plan.branch ||
-            state.head !== loaded.plan.head || fingerprint !== loaded.plan.indexFingerprint) {
-            throw new CommitError(EXIT.TRANSACTION, 'plan is stale');
+        const latest = repositoryState(context, coreRoot);
+        if (latest.repository !== state.repository || latest.branch !== state.branch ||
+            latest.head !== state.head || latest.tree !== state.tree) {
+            throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
         }
-        requireSuccess(
-            invoke(context, process.execPath, [launcher, 'doctor', '--local-only']),
-            EXIT.READINESS,
-            'local readiness failed'
+        locked = lockIndex(context, state.repository);
+        const commitEnv = {...(context.env ?? process.env), GIT_INDEX_FILE: locked.file};
+        const lockedTree = shaValue(
+            requireSuccess(
+                invoke(context, 'git', ['write-tree'], {cwd: state.repository, env: commitEnv}),
+                EXIT.TRANSACTION,
+                'locked index is unavailable'
+            ),
+            'locked index is invalid'
         );
+        if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
         requireSuccess(
-            invoke(context, process.execPath, [launcher, 'run', 'commitlint', '--'], {input: loaded.message}),
-            EXIT.TOOL,
-            'commitlint rejected the message'
-        );
-        const applyMessage = path.join(planDir, 'apply-message.txt');
-        writePrivate(applyMessage, loaded.message);
-        requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', applyMessage]),
+            invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv}),
             EXIT.TOOL,
             'signed Git commit failed'
         );
-        const newHead = shaValue(
+        locked.publish();
+        committed = true;
+        newHead = shaValue(
             requireSuccess(
                 invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']),
                 EXIT.TOOL,
@@ -496,19 +445,26 @@ function apply(args, context) {
             ),
             'committed HEAD is invalid'
         );
-        if (newHead === loaded.plan.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
-        process.stdout.write(`Commit: ${newHead}\n`);
-        return EXIT.OK;
-    } finally {
-        cleanupPlan(planDir);
+        if (newHead === state.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
+    } catch (error) {
+        operationError = error;
     }
+    let cleanupError;
+    if (locked !== undefined && !committed && !locked.discard()) {
+        cleanupError = new CommitError(EXIT.TRANSACTION, 'Git index lock cleanup failed');
+    }
+    if (!owned.cleanup()) {
+        cleanupError = new CommitError(EXIT.TRANSACTION, 'private message cleanup failed');
+    }
+    if (cleanupError) throw cleanupError;
+    if (operationError) throw operationError;
+    process.stdout.write(`${message}\nCommit: ${newHead}\n`);
+    return EXIT.OK;
 }
 
 function commitCommand(args, context = {}) {
     try {
-        if (args[0] === 'prepare') return prepare(args.slice(1), context);
-        if (args[0] === 'apply') return apply(args.slice(1), context);
-        if (args[0] === 'discard') return discard(args.slice(1), context);
+        if (args[0] === 'create') return create(args.slice(1), context);
         process.stderr.write(USAGE);
         return EXIT.USAGE;
     } catch (error) {

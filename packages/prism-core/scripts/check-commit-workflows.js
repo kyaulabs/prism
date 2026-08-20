@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -30,14 +30,37 @@ function collectFiles(root) {
     return [...new Set(files)].sort();
 }
 
+function logicalLines(content) {
+    const joined = [];
+    let current = '';
+    let start = 0;
+    content.split('\n').forEach((line, index) => {
+        const fence = /^\s*(?:`{3,}|~{3,})/.test(line);
+        if (fence && current !== '') {
+            joined.push({index: start, line: current});
+            current = '';
+        }
+        if (current === '') start = index;
+        const trailing = line.match(/(\\+)\s*$/);
+        if (!fence && trailing && trailing[1].length % 2 === 1) {
+            current += `${line.slice(0, trailing.index)} `;
+            return;
+        }
+        joined.push({index: start, line: current + line});
+        current = '';
+    });
+    if (current !== '') joined.push({index: start, line: current});
+    return joined;
+}
+
 function checkFile(root, file) {
     const relative = path.relative(root, file).split(path.sep).join('/');
     const diagnostics = [];
     const mergeSkill = 'packages/prism-core/skills/resolve-merge-conflicts/SKILL.md';
-    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    const lines = logicalLines(fs.readFileSync(file, 'utf8'));
     let bashFence = false;
     let fenceMarker = '';
-    lines.forEach((line, index) => {
+    lines.forEach(({index, line}) => {
         const fence = line.match(/^\s*(`{3,}|~{3,})([^`]*)$/);
         if (fence) {
             if (!fenceMarker && /^(?:bash|sh|shell)\s*$/.test(fence[2].trim())) {
@@ -59,6 +82,21 @@ function checkFile(root, file) {
         }
         if (/(?:\$\(|\bbash\s+).*resolve-(?:ocr-model|identity)\.sh/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: direct attribution resolver recipe`);
+        }
+        if (/prism-tool\s+commit\s+prepare(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit prepare operation`);
+        }
+        if (/prism-tool\s+commit\s+apply(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit apply operation`);
+        }
+        if (/prism-tool\s+commit\s+discard(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit discard operation`);
+        }
+        if (/prism-tool\s+commit[^\n]*--plan(?:=|\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit plan control`);
+        }
+        if (/prism-tool\s+commit[^\n]*--approval=yes\b/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit approval control`);
         }
     });
     return diagnostics;
