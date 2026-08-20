@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_workflow_drift_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: commit_workflow_drift_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 set -euo pipefail
 
@@ -51,16 +51,34 @@ else
 	fail "direct attribution resolver rejection lacked its diagnostic"
 fi
 
+retired_cases=(
+	'prepare|prism-tool commit prepare --type fix --subject "old"|retired commit prepare operation'
+	'apply|prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes|retired commit apply operation'
+	'discard|prism-tool commit discard --plan 0123456789abcdef0123456789abcdef|retired commit discard operation'
+	'plan|prism-tool commit create --type fix --subject "old" --plan deadbeef|retired commit plan control'
+	'approval|prism-tool commit create --type fix --subject "old" --approval=yes|retired commit approval control'
+)
+for encoded in "${retired_cases[@]}"; do
+	IFS='|' read -r name recipe diagnostic <<< "$encoded"
+	root="$(fixture "retired-$name")"
+	printf '%s\n' "$recipe" > "$root/packages/prism-core/skills/example/SKILL.md"
+	if node "$CHECKER" "$root" >"$root/output" 2>&1; then
+		fail "retired commit $name workflow was accepted"
+	elif grep -qF "packages/prism-core/skills/example/SKILL.md:1: $diagnostic" "$root/output"; then
+		pass "retired commit $name workflow has a stable diagnostic"
+	else
+		fail "retired commit $name rejection lacked its stable diagnostic"
+	fi
+done
+
 CLEAN_ROOT="$(fixture clean)"
 printf '%s\n' \
-	'prism-tool commit prepare --type fix --scope core --subject "safe subject"' \
-	'prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes' \
-	'prism-tool commit discard --plan 0123456789abcdef0123456789abcdef' \
+	'prism-tool commit create --type fix --scope core --subject "safe subject"' \
 	> "$CLEAN_ROOT/packages/prism-core/skills/example/SKILL.md"
 if node "$CHECKER" "$CLEAN_ROOT" >"$CLEAN_ROOT/output" 2>&1; then
-	pass "launcher-owned commit workflow is accepted"
+	pass "atomic launcher-owned commit workflow is accepted"
 else
-	fail "launcher-owned commit workflow was rejected: $(tr '\n' ' ' < "$CLEAN_ROOT/output")"
+	fail "atomic launcher-owned commit workflow was rejected: $(tr '\n' ' ' < "$CLEAN_ROOT/output")"
 fi
 
 MERGE_ROOT="$(fixture merge)"
@@ -99,11 +117,58 @@ else
 fi
 
 HOOK="$REPO_ROOT/.github/hooks/commit-msg"
-if grep -qF 'prism-tool commit prepare' "$HOOK" \
+if grep -qF 'prism-tool commit create' "$HOOK" \
+	&& ! grep -qF 'prism-tool commit prepare' "$HOOK" \
 	&& ! grep -qF "git commit -S -m \$'" "$HOOK"; then
-	pass "commit-msg hook recommends the launcher without ANSI-C guidance"
+	pass "commit-msg hook recommends atomic creation without ANSI-C guidance"
 else
-	fail "commit-msg hook does not recommend the launcher-owned workflow"
+	fail "commit-msg hook does not recommend the atomic launcher workflow"
+fi
+
+CONVENTIONAL="$REPO_ROOT/packages/prism-core/skills/conventional-commits/SKILL.md"
+if grep -qF 'only tool call in its assistant batch' "$CONVENTIONAL" \
+	&& grep -qF "Pi's" "$CONVENTIONAL" \
+	&& grep -qF '`write` tool' "$CONVENTIONAL" \
+	&& grep -qF 'exact rendered message and commit' "$CONVENTIONAL" \
+	&& grep -qF 'fatal safety' "$CONVENTIONAL" \
+	&& grep -qF '/reload' "$CONVENTIONAL" \
+	&& ! grep -qF 'prism-tool commit prepare' "$CONVENTIONAL" \
+	&& ! grep -qF 'prism-tool commit apply' "$CONVENTIONAL" \
+	&& ! grep -qF 'prism-tool commit discard' "$CONVENTIONAL"; then
+	pass "conventional-commits owns the exclusive atomic workflow and failure recovery"
+else
+	fail "conventional-commits atomic workflow contract is incomplete"
+fi
+
+WRITING_PLAN="$REPO_ROOT/packages/prism-core/skills/writing-plans/SKILL.md"
+if grep -qF 'git add exact/files' "$WRITING_PLAN" \
+	&& grep -qF 'prism-tool commit create --type feat --scope exact-scope --subject "exact subject"' "$WRITING_PLAN" \
+	&& grep -qF 'run these as separate tool calls' "$WRITING_PLAN"; then
+	pass "writing-plans emits separate staging and atomic commit steps"
+else
+	fail "writing-plans commit template is stale"
+fi
+
+for relative in \
+	packages/prism-core/skills/tdd/SKILL.md \
+	packages/prism-core/skills/executing-plans/SKILL.md \
+	packages/prism-core/skills/brainstorming/SKILL.md \
+	packages/prism-core/skills/finishing-a-development-branch/SKILL.md; do
+	if grep -qE 'single atomic|atomic launcher|atomic `prism-tool commit create`' "$REPO_ROOT/$relative" \
+		&& ! grep -qE 'commit (prepare|apply|discard)|prepare/approval/apply' "$REPO_ROOT/$relative"; then
+		pass "$relative delegates to atomic commit creation"
+	else
+		fail "$relative retains a stale commit workflow"
+	fi
+done
+
+CORE_AGENTS="$REPO_ROOT/packages/prism-core/AGENTS.md"
+if grep -qF 'one standalone `prism-tool commit create` operation' "$CORE_AGENTS" \
+	&& grep -qF 'tool call in its assistant batch' "$CORE_AGENTS" \
+	&& grep -qF 'blocks every tool until `/reload`' "$CORE_AGENTS"; then
+	pass "AGENTS policy requires exclusive atomic creation and fatal recovery"
+else
+	fail "AGENTS commit policy is incomplete"
 fi
 
 print_summary "commit_workflow_drift"

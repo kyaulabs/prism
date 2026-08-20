@@ -179,8 +179,10 @@ adapter's stack skill (e.g. `scss-mobile-first`).
 After implementing any change — whether via TDD, a direct fix, an issue
 tracker resolution, or a fast-path trivial change — load the
 `conventional-commits` skill. Select structured Conventional Commit fields and
-use its mandatory `prism-tool commit` prepare → exact-message approval → apply
-workflow. The launcher owns attribution, validation, signing, and execution.
+run one standalone `prism-tool commit create` operation. It must be the only
+tool call in its assistant batch and must not use compound shell syntax. The
+launcher owns attribution, validation, signing, execution, and post-commit
+verification; there is no per-commit approval pause.
 
 ### Commit and push permissions (instruction-only)
 
@@ -189,8 +191,9 @@ gate and skill-gating are now instruction-only — ADR-0055). The discipline is
 carried by prose instead:
 
 - `git add` is permitted (staging is reversible).
-- Ordinary commits use `prism-tool commit`; `prepare` prints the exact message
-  and `apply` requires explicit approval bound to unchanged staged state.
+- Ordinary commits use one exclusive `prism-tool commit create` call. Any
+  failed, unsafe, ambiguous, or non-exclusive attempt aborts the agent and
+  blocks every tool until `/reload`.
 - **`git push` is denied to the agent.** Only the human pushes work branches
   and merges pull requests. `release.yml` alone creates release tags and
   GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a

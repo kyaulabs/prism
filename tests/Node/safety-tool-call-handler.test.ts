@@ -140,9 +140,7 @@ test("the exact commit workflow commands pass the safety boundary", () => {
         "utf8",
     );
     const blocks = [
-        markedBashBlock(source, "<!-- commit-prepare:start -->", "<!-- commit-prepare:end -->"),
-        markedBashBlock(source, "<!-- commit-apply:start -->", "<!-- commit-apply:end -->"),
-        markedBashBlock(source, "<!-- commit-discard:start -->", "<!-- commit-discard:end -->"),
+        markedBashBlock(source, "<!-- commit-create:start -->", "<!-- commit-create:end -->"),
     ];
 
     for (const command of blocks) {

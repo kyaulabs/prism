@@ -252,38 +252,36 @@ so the versions land in the merge commit.
 
 ## Commit the changelog
 
-Load `conventional-commits` and use its launcher-owned workflow. Stage
-`CHANGELOG.md` plus each literal bumped `package.json` path. Do not interpolate
-the package list into a commit command.
+Load `conventional-commits` and use its atomic launcher workflow. Stage
+`CHANGELOG.md` plus each exact literal bumped `package.json` path in a separate
+tool call. Do not interpolate the package list into shell source or combine
+staging with commit creation.
+
+The no-package-bump staging shape is:
+
+```bash
+git add CHANGELOG.md
+```
 
 Render the validated version as a literal `vX.Y.Z` subject. Keep
 `RELEASE_ISSUE_DIGITS` only as validated conversation state: when present,
 render the validated digits as a literal `--refs NN` argv value; when absent,
 omit the control. Never place the raw invocation argument or a shell variable
-in the prepare command.
+in the create command.
 
-The no-issue shape is:
+Run the commit in a later assistant batch as its only tool call, with no
+compound shell syntax. The no-issue shape is:
 
 ```bash
-git add CHANGELOG.md
-prism-tool commit prepare --type chore --scope release --subject vX.Y.Z
+prism-tool commit create --type chore --scope release --subject vX.Y.Z
 ```
 
-When a tracking issue was supplied, the prepare command additionally ends with
+When a tracking issue was supplied, the create command additionally ends with
 `--refs NN`, where both version and digits are already validated literals.
-The launcher resolves the three ADR-0064 footers, runs commitlint, and prints
-the exact commit message. Present that exact commit message and plan ID, ask
-for explicit approval, and STOP. The earlier release confirmation is not
-commit approval.
-
-After approval, render the returned plan ID as a literal and run:
-
-```bash
-prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes
-```
-
-If approval is declined, discard that literal plan ID. Report the resulting
-commit ID and never push.
+The launcher resolves the three ADR-0064 footers, runs commitlint, creates the
+signed commit with hooks enabled, and verifies that `HEAD` advanced. There is
+no separate per-operation pause. Report the resulting commit ID and never
+push.
 
 ## Handoff — print only, do not execute
 
@@ -317,8 +315,8 @@ merge. Stop there.
 - Never create a tag, a GitHub Release, or a back-merge PR locally — after the
   human merges the release PR, `release.yml` creates the tag and Release and
   opens the back-merge PR.
-- If there are no releasable commits or the human withholds approval, stop
-  without creating anything.
+- If there are no releasable commits or the human withholds the release
+  confirmation, stop without creating anything.
 - Never reuse a release branch after its PR is merged; create a fresh
   `release/` branch for each release.
 - The release commit is signed through `prism-tool commit` and always carries

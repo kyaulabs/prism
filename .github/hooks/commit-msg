@@ -13,12 +13,12 @@ MSG_FILE="${1:?commit-msg: message file path required}"
 if grep -qF '\n' "$MSG_FILE"; then
 	cat >&2 <<'EOF'
 ✗ Commit message contains a literal '\n' (backslash-n) sequence.
-  Ordinary agent-created commits must use the launcher-owned workflow:
+  Ordinary agent-created commits must use the launcher-owned atomic operation:
 
-      prism-tool commit prepare --type fix --scope core --subject "safe subject"
+      prism-tool commit create --type fix --scope core --subject "safe subject"
 
   The launcher constructs real newlines, resolves attribution, validates the
-  exact message, and requires explicit approval before applying the commit.
+  complete message, creates the signed commit, and verifies that HEAD advanced.
 EOF
 	exit 1
 fi

@@ -52,7 +52,7 @@ Node test runner, Bash contract tests, Git, Semgrep `>=1.173.0 <2.0.0`, OCR
   public command `prism-tool commit create --type TYPE [--scope SCOPE]
   --subject SUBJECT [--body-file PATH] [--fixes NN | --refs NN]`.
 
-- [ ] **Step 1: Rewrite the launcher tests to require one atomic operation**
+- [x] **Step 1: Rewrite the launcher tests to require one atomic operation**
 
 Replace plan-oriented assertions with behavior tests equivalent to:
 
@@ -90,14 +90,14 @@ attribution, index-bound, signing/Git failure, and inert-argv cases. Add a
 post-commit `HEAD` failure case proving the launcher returns non-zero after Git
 was invoked and never prints success.
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-commit.test.js`
 
 Expected: FAIL because `commit create` is unknown and plan operations still
 exist.
 
-- [ ] **Step 3: Implement atomic creation and remove plan persistence**
+- [x] **Step 3: Implement atomic creation and remove plan persistence**
 
 Refactor `commit.js` around these exact internal seams:
 
@@ -133,14 +133,14 @@ Delete `createPlan`, `loadPlan`, `resolvePlanDirectory`, `prepare`, `apply`, and
 `discard`. Keep all existing validation and sanitized diagnostics. Export only
 `commitCommand`; route only the `create` operation.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `node --test tests/Node/prism-tool-commit.test.js`
 
 Expected: PASS, including exact `git commit -S -F`, all previous fail-closed
 cases, no plan artifacts, and cleanup after every failure.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/commit.js tests/Node/prism-tool-commit.test.js
@@ -163,7 +163,7 @@ prism-tool commit create --type feat --scope commit --subject "create signed com
 - Public commands: `consent status --json`, `consent grant-ocr --approval=yes`,
   and `consent revoke-ocr`.
 
-- [ ] **Step 1: Write consent storage tests first**
+- [x] **Step 1: Write consent storage tests first**
 
 Create tests covering the public contract and filesystem boundary:
 
@@ -189,13 +189,13 @@ and a race where the final path appears before publication. Assert unsafe state
 is never overwritten or revoked, valid revocation is ownership-bounded, and
 absent revocation is idempotent.
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-consent.test.js`
 
 Expected: FAIL because `consent` is not routed.
 
-- [ ] **Step 3: Implement the private no-follow store**
+- [x] **Step 3: Implement the private no-follow store**
 
 Implement `consent.js` with these rules:
 
@@ -220,13 +220,13 @@ no-replace link/publication step), and clean the temp in `finally`. Treat a
 valid `ocr:false` record as `ABSENT`; Prism never writes it. Route `consent` in
 `cli.js`.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `node --test tests/Node/prism-tool-consent.test.js`
 
 Expected: PASS with no access outside the injected fixture.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/consent.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-consent.test.js
@@ -250,7 +250,7 @@ prism-tool commit create --type feat --scope consent --subject "persist standing
   `doctor --local-only` remains offline; the installer performs local-only
   readiness and directs the human to `/setup`.
 
-- [ ] **Step 1: Change doctor and installer tests to the new cadence**
+- [x] **Step 1: Change doctor and installer tests to the new cadence**
 
 Update Node tests so full doctor with injected valid consent runs exactly one
 `ocr llm test`, while absent/unsafe consent returns exit `3`, includes a fixed
@@ -269,7 +269,7 @@ succeeds after local readiness, records no `ocr llm test`, creates no consent
 record, and prints a next action directing the user to `/setup`. Assert the old
 OCR approval option is rejected as unknown.
 
-- [ ] **Step 2: Run the focused tests and confirm Red**
+- [x] **Step 2: Run the focused tests and confirm Red**
 
 Run:
 
@@ -281,7 +281,7 @@ bash tests/Shell/install_global_toolchain_test.sh
 Expected: FAIL because doctor and the installer still require per-operation
 approval.
 
-- [ ] **Step 3: Implement consent-driven readiness and prompt behavior**
+- [x] **Step 3: Implement consent-driven readiness and prompt behavior**
 
 Change `testOcrConnectivity` to execute without an `approved` parameter; its
 caller owns consent. Remove `ocrTestApproved` from `parseDoctor`. In full doctor:
@@ -303,14 +303,14 @@ for `ABSENT`, run `grant-ocr --approval=yes`, and then run full doctor. For
 `UNSAFE`, stop with human remediation; do not grant or revoke automatically.
 Update `/doctor` to run full doctor without asking a question.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run the two commands from Step 2.
 
 Expected: PASS; local-only paths remain offline and every full live test is
 preceded by valid standing consent.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/preflight.js packages/prism-core/scripts/prism-tool/cli.js packages/prism-core/scripts/install-global.sh packages/prism-core/prompts/setup.md packages/prism-core/prompts/doctor.md tests/Node/prism-tool-preflight.test.js tests/Shell/install_global_toolchain_test.sh
@@ -332,7 +332,7 @@ prism-tool commit create --type feat --scope consent --subject "apply standing c
 - Produces: `codeReviewCommand(args, context): number` and exact public review
   and contained scan forms.
 
-- [ ] **Step 1: Write operation-order and no-egress-without-consent tests**
+- [x] **Step 1: Write operation-order and no-egress-without-consent tests**
 
 Create tests that inject subprocess calls and assert this order:
 
@@ -349,7 +349,7 @@ and provider-output canaries. Assert no OCR connectivity or review subprocess
 runs before consent. Update `prism-tool-run.test.js` so every generic
 `prism-tool run ocr ...` form is rejected even with the removed approval flag.
 
-- [ ] **Step 2: Run the focused tests and confirm Red**
+- [x] **Step 2: Run the focused tests and confirm Red**
 
 Run:
 
@@ -360,7 +360,7 @@ node --test tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-run.
 Expected: FAIL because `code-review ocr` is unknown and generic OCR remains
 available.
 
-- [ ] **Step 3: Implement the exact allowlisted operation**
+- [x] **Step 3: Implement the exact allowlisted operation**
 
 Create `code-review.js` with an exact parser returning one of:
 
@@ -387,14 +387,14 @@ or the exact scan form. Remove both questions, both approval flags, and the OCR
 retry; an OCR failure marks tooling `FAILED` and the coordinator continues the
 other axes.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run the commands from Step 2.
 
 Expected: PASS; generic OCR execution is unavailable and all dedicated OCR
 network use is consent-gated.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/code-review.js packages/prism-core/scripts/prism-tool/cli.js packages/prism-core/skills/code-review/SKILL.md tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-run.test.js
@@ -418,7 +418,7 @@ prism-tool commit create --type feat --scope review --subject "gate ocr review w
   - `classifyCommitCreate(command): "NONE"|"STANDALONE"|"UNSAFE_ATTEMPT"`
   - `countSiblingToolCalls(entries, toolCallId): number | null`
 
-- [ ] **Step 1: Write pure state and recognition tests**
+- [x] **Step 1: Write pure state and recognition tests**
 
 Test that latch transition fires once, sessions are isolated, tracked calls
 resolve to their session, and `clearAll` removes latch and pending state. Test
@@ -429,13 +429,13 @@ entries with `{type:'toolCall', id, name, arguments}` and assert one call is
 exclusive, two are siblings, and missing/ambiguous current messages return
 `null` (fail closed).
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run: `node --test tests/Node/safety-fatal-commit-latch.test.ts`
 
 Expected: FAIL because both modules are absent.
 
-- [ ] **Step 3: Implement the pure modules**
+- [x] **Step 3: Implement the pure modules**
 
 Use a per-session `Set<string>` and `Map<string,string>` pending-call index; do
 not reuse `DenialCircuitBreaker`. Recognition must tokenize inert quoted
@@ -449,13 +449,13 @@ words is `NONE`.
 the assistant message containing the current tool-call ID, and counts its
 `toolCall` content parts. It returns `null` if shape validation fails.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run: `node --test tests/Node/safety-fatal-commit-latch.test.ts`
 
 Expected: PASS with no command text retained in latch state.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/extensions/safety/fatal-commit-latch.ts packages/prism-core/extensions/safety/commit-create-guard.ts tests/Node/safety-fatal-commit-latch.test.ts
@@ -477,7 +477,7 @@ prism-tool commit create --type feat --scope safety --subject "track fatal commi
 - Produces: exclusive commit preflight, fatal failure abort, all-tool latch,
   `agent_end` persistence, and teardown recovery.
 
-- [ ] **Step 1: Write a fake-Pi lifecycle test before wiring**
+- [x] **Step 1: Write a fake-Pi lifecycle test before wiring**
 
 Register the extension against a fake `pi.on` collector. Provide a context with
 one assistant Bash tool call in `sessionManager.getBranch()`. Assert:
@@ -498,7 +498,7 @@ Add cases for successful commit completion, unrelated failed Bash, sibling
 commit preflight, unsafe compound commit attempt, redacted notifications, and
 normal denial-breaker behavior remaining unchanged.
 
-- [ ] **Step 2: Run the extension tests and confirm Red**
+- [x] **Step 2: Run the extension tests and confirm Red**
 
 Run:
 
@@ -509,7 +509,7 @@ node --test tests/Node/safety-extension-lifecycle.test.ts tests/Node/safety-tool
 Expected: FAIL because the extension does not track commit calls or abort on
 failure.
 
-- [ ] **Step 3: Add lifecycle wiring without altering the classifier**
+- [x] **Step 3: Add lifecycle wiring without altering the classifier**
 
 In `index.ts`, instantiate `FatalCommitLatch` beside the denial breaker. The
 `tool_call` handler must:
@@ -532,13 +532,13 @@ session entries; `/reload` must create a fresh extension instance.
 Update the README state table and threat model. Keep every fatal message free
 of command text, arguments, output, path, branch, and provider data.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run the commands from Step 2.
 
 Expected: PASS; denial and fatal state machines remain independently tested.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/extensions/safety/index.ts packages/prism-core/extensions/safety/tool-call-handler.ts packages/prism-core/extensions/safety/README.md tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-extension-lifecycle.test.ts
@@ -567,7 +567,7 @@ prism-tool commit create --type feat --scope safety --subject "abort after faile
   apply, discard, plan ID, approval flag, direct ordinary `git commit`, or
   caller-resolved attribution.
 
-- [ ] **Step 1: Change drift and release tests to reject the old interface**
+- [x] **Step 1: Change drift and release tests to reject the old interface**
 
 Require active resources to contain `prism-tool commit create` and reject
 `commit prepare`, `commit apply`, `commit discard`, `--plan`, and commit
@@ -575,7 +575,7 @@ Require active resources to contain `prism-tool commit create` and reject
 no “exact message approval” pause. Preserve direct ordinary Git and attribution
 resolver rejection.
 
-- [ ] **Step 2: Run the focused shell tests and confirm Red**
+- [x] **Step 2: Run the focused shell tests and confirm Red**
 
 Run:
 
@@ -587,7 +587,7 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: FAIL because active resources still document two phases.
 
-- [ ] **Step 3: Rewrite the canonical workflow and all delegates**
+- [x] **Step 3: Rewrite the canonical workflow and all delegates**
 
 Make `conventional-commits` select/stage fields, optionally write the bounded
 body file through Pi’s write tool, run one standalone `commit create`, remove
@@ -606,7 +606,7 @@ prism-tool commit create --type feat --scope exact-scope --subject "exact subjec
 with no manually written footers. Update the checker to report stable
 file-and-line diagnostics for every retired operation.
 
-- [ ] **Step 4: Run focused verification and harness validation**
+- [x] **Step 4: Run focused verification and harness validation**
 
 Run:
 
@@ -619,7 +619,7 @@ bash packages/prism-core/scripts/validate-harness.sh
 
 Expected: PASS with zero old commit interface occurrences in active resources.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/AGENTS.md packages/prism-core/skills/conventional-commits/SKILL.md packages/prism-core/skills/tdd/SKILL.md packages/prism-core/skills/brainstorming/SKILL.md packages/prism-core/skills/writing-plans/SKILL.md packages/prism-core/skills/finishing-a-development-branch/SKILL.md packages/prism-core/prompts/release.md .github/hooks/commit-msg packages/prism-core/scripts/check-commit-workflows.js tests/Shell/commit_workflow_drift_test.sh tests/Shell/commit_template_footer_test.sh tests/Shell/release_workflow_test.sh

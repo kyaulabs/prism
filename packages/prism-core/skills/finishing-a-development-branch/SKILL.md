@@ -32,7 +32,7 @@ Run the items in this order; do not skip any:
    that immutable URL; otherwise halt without deleting development artifacts.
 4. **Clean up plan/spec artifacts.** Delete the tracked plan/spec files that
    match this branch's work from `docs/plans/` and `docs/specs/`, then load
-   `conventional-commits` and use its launcher-owned approval workflow for the
+   `conventional-commits` and use its single atomic launcher operation for the
    cleanup commit before any final gate (ADR-0027). If no matching artifacts
    exist, record that fact and do not create an empty cleanup commit. Map
    issues live on the GitHub tracker, outside repository cleanup; only

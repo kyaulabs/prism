@@ -593,15 +593,20 @@ fi
 
 # ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if grep -qF 'prism-tool commit prepare --type chore --scope release' "$RELEASE_CMD" && \
-   grep -qF 'prism-tool commit apply --plan' "$RELEASE_CMD" && \
-   grep -qiF 'exact commit message' "$RELEASE_CMD" && \
+if grep -qF 'prism-tool commit create --type chore --scope release' "$RELEASE_CMD" && \
+   [ "$(grep -cF 'prism-tool commit create --type chore --scope release' "$RELEASE_CMD")" -eq 1 ] && \
+   ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \
+   ! grep -qF 'prism-tool commit apply' "$RELEASE_CMD" && \
+   ! grep -qF 'prism-tool commit discard' "$RELEASE_CMD" && \
+   ! grep -qF -- '--plan' "$RELEASE_CMD" && \
+   ! grep -qiF 'exact commit message' "$RELEASE_CMD" && \
+   ! grep -qiF 'commit approval' "$RELEASE_CMD" && \
    ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE_CMD" && \
    ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
    ! grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD"; then
-	pass "P20: /release delegates its signed chore(release) commit to prism-tool"
+	pass "P20: /release creates one approval-free signed chore(release) commit through prism-tool"
 else
-	fail "P20: /release launcher-owned commit contract violated"
+	fail "P20: /release atomic launcher-owned commit contract violated"
 fi
 
 # bash_block_contains <file> <regex> — exit 0 when any ```bash code block in

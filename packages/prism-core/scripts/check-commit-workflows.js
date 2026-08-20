@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -59,6 +59,21 @@ function checkFile(root, file) {
         }
         if (/(?:\$\(|\bbash\s+).*resolve-(?:ocr-model|identity)\.sh/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: direct attribution resolver recipe`);
+        }
+        if (/prism-tool\s+commit\s+prepare(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit prepare operation`);
+        }
+        if (/prism-tool\s+commit\s+apply(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit apply operation`);
+        }
+        if (/prism-tool\s+commit\s+discard(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit discard operation`);
+        }
+        if (/prism-tool\s+commit[^\n]*--plan(?:=|\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit plan control`);
+        }
+        if (/prism-tool\s+commit[^\n]*--approval=yes(?:\s|$)/.test(line)) {
+            diagnostics.push(`${relative}:${index + 1}: retired commit approval control`);
         }
     });
     return diagnostics;
