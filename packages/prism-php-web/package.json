@@ -1,6 +1,6 @@
 {
   "name": "@kyaulabs/prism-php-web",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "KYAULabs coding harness — PHP/web stack adapter (pi)",
   "license": "AGPL-3.0-only",
   "keywords": [
