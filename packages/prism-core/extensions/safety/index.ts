@@ -118,6 +118,16 @@ export default function (pi: ExtensionAPI) {
         return { block: true as const, reason: fatalReason, terminate: true as const };
     }
 
+    function containsCommitCreate(input: unknown): boolean {
+        try {
+            const command = (input as { command?: unknown })?.command;
+            return typeof command === "string" &&
+                /(?:^|[\s'"(])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/.test(command);
+        } catch {
+            return false;
+        }
+    }
+
     /** Fail-closed until session_start resolves the safe zones. */
     let safeRelDirs: readonly string[] = [];
     let extraPaths: string[] = [];
@@ -184,8 +194,8 @@ export default function (pi: ExtensionAPI) {
             }
             return result;
         } catch {
-            if (tracked) {
-                fatalLatch.complete(event.toolCallId);
+            if (tracked || (event.toolName === "bash" && containsCommitCreate(event.input))) {
+                if (tracked) fatalLatch.complete(event.toolCallId);
                 tripFatal(sid, ctx);
                 return fatalBlock();
             }

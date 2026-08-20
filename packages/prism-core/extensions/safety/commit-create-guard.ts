@@ -15,9 +15,9 @@ const TYPES = new Set([
 ]);
 const WRAPPERS = new Set([
     "bash", "sh", "zsh", "dash", "env", "command", "exec", "sudo", "timeout",
-    "nice", "nohup", "setsid", "stdbuf", "xargs",
+    "nice", "nohup", "setsid", "stdbuf", "xargs", "find",
 ]);
-const INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node(?:js)?|perl|ruby|php(?:\d+(?:\.\d+)*)?)$/;
+const INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node(?:js)?|perl|ruby|php(?:\d+(?:\.\d+)*)?|[gmn]?awk)$/;
 const PREFIX_PATTERN = /(?:^|[\s'"(`])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
 
 function executableBasename(token: string): string {
