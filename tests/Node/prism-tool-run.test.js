@@ -141,7 +141,10 @@ test('applies the core commit policy outside the Prism checkout', (t) => {
     assert.match(result.stdout + result.stderr, /Implemented-by/);
 });
 
-test('rejects undeclared, library, malformed, and policy-bypassing runs', () => {
+test('rejects undeclared, library, malformed, and policy-bypassing runs', (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    const env = readyExternalEnvironment(directory);
     const invocations = [
         ['run', 'missing', '--'],
         ['run', 'commitlint-config-conventional', '--'],
@@ -149,11 +152,14 @@ test('rejects undeclared, library, malformed, and policy-bypassing runs', () => 
         ['run', 'ocr', '--', 'llm', 'test'],
         ['run', 'semgrep', '--', 'login'],
         ['run', 'ocr', '--code-egress-approved=true', '--', 'review'],
+        ['run', 'ocr', '--', 'review', '--audience', 'agent', '--format', 'json'],
+        ['run', 'ocr', '--code-egress-approved=yes', '--', 'review', '--audience', 'agent', '--format', 'json'],
+        ['run', 'ocr', '--', 'scan', '.'],
         ['run', 'git-cliff', '--version'],
     ];
 
     for (const invocation of invocations) {
-        const result = spawnSync(process.execPath, [cli, ...invocation], {encoding: 'utf8'});
+        const result = spawnSync(process.execPath, [cli, ...invocation], {encoding: 'utf8', env});
         assert.equal(result.status, 2, `${invocation.join(' ')}: ${result.stderr}`);
     }
 });

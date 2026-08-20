@@ -11,9 +11,10 @@ const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
+const {codeReviewCommand} = require('./code-review');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
-const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--code-egress-approved=yes] [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
+const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
 
 function packageRootFor(packageName, coreRoot) {
     let current = fs.realpathSync(coreRoot);
@@ -54,13 +55,8 @@ function parseRun(args) {
     if (!toolId || separator < 1) {
         throw new Error(RUN_USAGE);
     }
-    let codeEgressApproved;
     let timeoutMs;
     for (const control of args.slice(1, separator)) {
-        if (control === '--code-egress-approved=yes' && !codeEgressApproved) {
-            codeEgressApproved = 'yes';
-            continue;
-        }
         if (control.startsWith('--timeout-ms=') && timeoutMs === undefined) {
             const value = control.slice('--timeout-ms='.length);
             if (!/^[1-9][0-9]*$/.test(value)) throw new Error(RUN_USAGE);
@@ -70,7 +66,7 @@ function parseRun(args) {
         }
         throw new Error(RUN_USAGE);
     }
-    return {codeEgressApproved, timeoutMs, toolId, toolArgs: args.slice(separator + 1)};
+    return {timeoutMs, toolId, toolArgs: args.slice(separator + 1)};
 }
 
 function argumentsAllowed(component, args) {
@@ -560,6 +556,10 @@ function runDeclaredTool(args, context) {
         process.stderr.write('prism-tool: unknown tool id\n');
         return EXIT.USAGE;
     }
+    if (component.id === 'ocr') {
+        process.stderr.write('prism-tool: OCR requires the dedicated code-review operation\n');
+        return EXIT.USAGE;
+    }
     const defaultTimeoutMs = component.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
     if (
         parsed.timeoutMs !== undefined &&
@@ -590,10 +590,6 @@ function runDeclaredTool(args, context) {
     if (readiness.some((check) => check.status !== 'PASS')) {
         process.stderr.write('prism-tool: mandatory external readiness failed\n');
         return EXIT.READINESS;
-    }
-    if (component.id === 'ocr' && parsed.codeEgressApproved !== 'yes') {
-        process.stderr.write('prism-tool: OCR code egress approval required\n');
-        return EXIT.USAGE;
     }
     let executable;
     if (component.provisioning === 'external') {
@@ -661,6 +657,7 @@ function main(argv, context = {}) {
     if (command === 'pr') return prCommand(args, context);
     if (command === 'commit') return commitCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
+    if (command === 'code-review') return codeReviewCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }
