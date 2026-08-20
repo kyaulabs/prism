@@ -95,6 +95,22 @@ else
 	fail "continued retired commit rejection lacked its diagnostic"
 fi
 
+FENCE_ROOT="$(fixture fence-boundary)"
+printf '%s\n' \
+	'Prose with a literal trailing slash \' \
+	'```bash' \
+	'/usr/bin/git commit -S -m "old"' \
+	'```' \
+	> "$FENCE_ROOT/packages/prism-core/skills/example/SKILL.md"
+if node "$CHECKER" "$FENCE_ROOT" >"$FENCE_ROOT/output" 2>&1; then
+	fail "absolute direct commit after a continued prose line was accepted"
+elif grep -qF 'packages/prism-core/skills/example/SKILL.md:3: direct ordinary git commit recipe' \
+	"$FENCE_ROOT/output"; then
+	pass "continued prose cannot absorb a following shell fence"
+else
+	fail "continued prose corrupted the following shell-fence diagnostic"
+fi
+
 CLEAN_ROOT="$(fixture clean)"
 printf '%s\n' \
 	'prism-tool commit create --type fix --scope core --subject "safe subject"' \

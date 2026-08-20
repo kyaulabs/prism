@@ -35,8 +35,13 @@ function logicalLines(content) {
     let current = '';
     let start = 0;
     content.split('\n').forEach((line, index) => {
+        const fence = /^\s*(?:`{3,}|~{3,})/.test(line);
+        if (fence && current !== '') {
+            joined.push({index: start, line: current});
+            current = '';
+        }
         if (current === '') start = index;
-        if (/\\\s*$/.test(line)) {
+        if (!fence && /\\\s*$/.test(line)) {
             current += `${line.replace(/\\\s*$/, '')} `;
             return;
         }
