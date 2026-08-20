@@ -1,7 +1,7 @@
 # Approval-Free Harness Finalization — Specification
 
 - **Date:** 2026-08-19
-- **Status:** Approved design; written-spec review pending
+- **Status:** Approved
 - **Type:** feat
 
 ## Problem
