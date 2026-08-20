@@ -104,6 +104,21 @@ test("successful exclusive commit clears pending state without latching", async 
     assert.equal(await target.handlers.tool_call(readEvent(), target.ctx), undefined);
 });
 
+test("a new tool call while commit creation is pending trips the fatal latch", async () => {
+    const target = await fixture();
+    target.branch.push(assistantEntry(toolCall("commit-pending-tool", "bash", {command: COMMIT})));
+
+    assert.equal(await target.handlers.tool_call(bashEvent("commit-pending-tool", COMMIT), target.ctx), undefined);
+    const result = await target.handlers.tool_call(readEvent("read-during-commit"), target.ctx) as {
+        block?: boolean;
+        terminate?: boolean;
+    };
+
+    assert.equal(result.block, true);
+    assert.equal(result.terminate, true);
+    assert.equal(target.abortCalls, 1);
+});
+
 test("agent end turns an unresolved commit execution into a fatal latch", async () => {
     const target = await fixture();
     target.branch.push(assistantEntry(toolCall("commit-pending", "bash", {command: COMMIT})));

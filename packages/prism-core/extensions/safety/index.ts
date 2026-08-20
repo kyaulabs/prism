@@ -122,7 +122,7 @@ export default function (pi: ExtensionAPI) {
         try {
             const command = (input as { command?: unknown })?.command;
             return typeof command === "string" &&
-                /(?:^|[\s'"(])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/.test(command);
+                /prism-tool(?:['"])?\s+commit\s+create(?:\s|$)/.test(command);
         } catch {
             return false;
         }
@@ -163,6 +163,10 @@ export default function (pi: ExtensionAPI) {
         let tracked = false;
         try {
             if (fatalLatch.isLatched(sid)) return handleToolCall(event.toolName, event.input, deps);
+            if (fatalLatch.hasPending(sid)) {
+                tripFatal(sid, ctx);
+                return fatalBlock();
+            }
 
             if (event.toolName === "bash") {
                 const classification = classifyCommitCreate((event.input as { command?: unknown }).command);
