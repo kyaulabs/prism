@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 'use strict';
 
@@ -445,6 +445,20 @@ test('preserves a workspace whose ownership marker does not match', (t) => {
         /ownership marker does not match/
     );
     assert.equal(fs.existsSync(workspace.root), true);
+});
+
+test('normalizes a clean Composer audit with an empty advisories array', () => {
+    const result = normalizeComposerAudit({
+        status: 0,
+        stdout: JSON.stringify({advisories: []}),
+        stderr: '',
+        error: undefined,
+    });
+
+    assert.deepEqual(result, {
+        totals: {critical: 0, high: 0, moderate: 0, low: 0},
+        findings: [],
+    });
 });
 
 test('normalizes valid Composer advisory JSON even when the audit exits non-zero', () => {
