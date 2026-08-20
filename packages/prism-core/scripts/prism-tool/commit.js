@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -8,9 +8,8 @@ const path = require('node:path');
 const {TextDecoder} = require('node:util');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
-const USAGE = 'usage: prism-tool commit prepare --type TYPE [--scope SCOPE] --subject SUBJECT ' +
-    '[--body-file PATH] [--fixes NN | --refs NN] | prism-tool commit apply --plan PLAN_ID ' +
-    '--approval=yes | prism-tool commit discard --plan PLAN_ID\n';
+const USAGE = 'usage: prism-tool commit create --type TYPE [--scope SCOPE] --subject SUBJECT ' +
+    '[--body-file PATH] [--fixes NN | --refs NN]\n';
 const TYPES = new Set([
     'build', 'chore', 'ci', 'docs', 'feat', 'fix', 'ignore', 'patch', 'perf',
     'refactor', 'style', 'test',
@@ -55,7 +54,7 @@ function requireSuccess(result, code, message) {
     return result;
 }
 
-function parsePrepare(args) {
+function parseCreate(args) {
     const parsed = {};
     const rank = new Map([
         ['--type', 0], ['--scope', 1], ['--subject', 2], ['--body-file', 3],
@@ -66,22 +65,22 @@ function parsePrepare(args) {
         const control = args[index];
         const value = args[index + 1];
         if (!rank.has(control) || value === undefined || value.startsWith('--')) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         const key = control.slice(2).replace('-', '');
         const current = rank.get(control);
         if (current < previous || Object.hasOwn(parsed, key)) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         if ((control === '--fixes' && Object.hasOwn(parsed, 'refs')) ||
             (control === '--refs' && Object.hasOwn(parsed, 'fixes'))) {
-            throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+            throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
         }
         parsed[key] = value;
         previous = current;
     }
     if (!Object.hasOwn(parsed, 'type') || !Object.hasOwn(parsed, 'subject')) {
-        throw new CommitError(EXIT.USAGE, 'prepare arguments are invalid');
+        throw new CommitError(EXIT.USAGE, 'create arguments are invalid');
     }
     return parsed;
 }
@@ -235,13 +234,6 @@ function repositoryState(context, coreRoot) {
     return {branch, head, repository};
 }
 
-function indexFingerprint(context) {
-    const result = invoke(context, 'git', ['ls-files', '--stage', '-z'], {encoding: null});
-    if (result.error || result.status !== 0) throw new CommitError(EXIT.TOOL, 'staged index fingerprint failed');
-    const output = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? '', 'utf8');
-    return crypto.createHash('sha256').update(output).digest('hex');
-}
-
 function ensurePrivateDirectory(directory) {
     try {
         if (!fs.existsSync(directory)) fs.mkdirSync(directory, {mode: 0o700});
@@ -249,28 +241,28 @@ function ensurePrivateDirectory(directory) {
         if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700) throw new Error();
         if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new Error();
     } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan directory is unsafe');
+        throw new CommitError(EXIT.TRANSACTION, 'private directory is unsafe');
     }
 }
 
 function writePrivate(file, content) {
     let descriptor;
     try {
-        const noFollow = fs.constants.O_NOFOLLOW ?? 0;
+        if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error();
         descriptor = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_EXCL |
-            fs.constants.O_WRONLY | noFollow, 0o600);
+            fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600);
         fs.writeFileSync(descriptor, content);
         fs.fchmodSync(descriptor, 0o600);
         fs.closeSync(descriptor);
     } catch {
         if (descriptor !== undefined) closeQuietly(descriptor);
-        throw new CommitError(EXIT.TRANSACTION, 'plan could not be written');
+        throw new CommitError(EXIT.TRANSACTION, 'private file could not be written');
     }
 }
 
-function createPlan(context, state, message, fingerprint) {
+function createPrivateMessage(context, repository, message) {
     const gitResult = requireSuccess(
-        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir']),
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir'], {cwd: repository}),
         EXIT.TOOL,
         'Git directory is unavailable'
     );
@@ -278,146 +270,40 @@ function createPlan(context, state, message, fingerprint) {
     try {
         gitDir = fs.realpathSync(resultText(gitResult).trim());
     } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'Git directory is unsafe');
+        throw new CommitError(EXIT.TOOL, 'Git directory is unsafe');
     }
     const prismDir = path.join(gitDir, 'prism-tool');
-    const plansDir = path.join(prismDir, 'commit-plans');
     ensurePrivateDirectory(prismDir);
-    ensurePrivateDirectory(plansDir);
     const random = context.randomBytes ?? crypto.randomBytes;
-    const planId = random(16).toString('hex');
-    if (!/^[0-9a-f]{32}$/.test(planId)) throw new CommitError(EXIT.TRANSACTION, 'plan identifier failed');
-    const planDir = path.join(plansDir, planId);
-    try {
-        fs.mkdirSync(planDir, {mode: 0o700});
-    } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan could not be created');
+    const operationId = random(16).toString('hex');
+    if (!/^[0-9a-f]{32}$/.test(operationId)) {
+        throw new CommitError(EXIT.TOOL, 'message identifier failed');
     }
-    const plan = {
-        schemaVersion: 1,
-        repository: state.repository,
-        branch: state.branch,
-        head: state.head,
-        indexFingerprint: fingerprint,
-        messageSha256: crypto.createHash('sha256').update(message).digest('hex'),
-        createdAt: (context.now ?? (() => new Date().toISOString()))(),
-    };
+    const operationDir = path.join(prismDir, `commit-create-${operationId}`);
     try {
-        writePrivate(path.join(planDir, 'plan.json'), `${JSON.stringify(plan)}\n`);
-        writePrivate(path.join(planDir, 'message.txt'), message);
+        fs.mkdirSync(operationDir, {mode: 0o700});
+    } catch {
+        throw new CommitError(EXIT.TOOL, 'message directory could not be created');
+    }
+    const messageFile = path.join(operationDir, 'message.txt');
+    try {
+        writePrivate(messageFile, message);
     } catch (error) {
-        for (const name of ['plan.json', 'message.txt']) unlinkQuietly(path.join(planDir, name));
-        rmdirQuietly(planDir);
+        unlinkQuietly(messageFile);
+        rmdirQuietly(operationDir);
         throw error;
     }
-    return planId;
+    return {
+        file: messageFile,
+        cleanup() {
+            unlinkQuietly(messageFile);
+            rmdirQuietly(operationDir);
+        },
+    };
 }
 
-function parseApply(args) {
-    if (args.length !== 3 || args[0] !== '--plan' || args[2] !== '--approval=yes' ||
-        !/^[0-9a-f]{32}$/.test(args[1])) {
-        throw new CommitError(EXIT.USAGE, 'apply arguments are invalid');
-    }
-    return args[1];
-}
-
-function resolvePlanDirectory(context, planId) {
-    const gitResult = requireSuccess(
-        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir']),
-        EXIT.TRANSACTION,
-        'plan repository is unavailable'
-    );
-    let gitDir;
-    try {
-        gitDir = fs.realpathSync(resultText(gitResult).trim());
-    } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan repository is unsafe');
-    }
-    const prismDir = path.join(gitDir, 'prism-tool');
-    const plansDir = path.join(prismDir, 'commit-plans');
-    for (const directory of [prismDir, plansDir]) {
-        let stat;
-        try { stat = fs.lstatSync(directory); } catch {
-            throw new CommitError(EXIT.TRANSACTION, 'plan is unavailable');
-        }
-        if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700 ||
-            (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
-            throw new CommitError(EXIT.TRANSACTION, 'plan directory is unsafe');
-        }
-    }
-    return path.join(plansDir, planId);
-}
-
-function readPrivate(file, maximum) {
-    let descriptor;
-    try {
-        descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-        const stat = fs.fstatSync(descriptor);
-        if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size > maximum ||
-            (typeof process.getuid === 'function' && stat.uid !== process.getuid())) throw new Error();
-        const content = fs.readFileSync(descriptor);
-        fs.closeSync(descriptor);
-        return new TextDecoder('utf-8', {fatal: true}).decode(content);
-    } catch {
-        if (descriptor !== undefined) closeQuietly(descriptor);
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-}
-
-function loadPlan(planDir) {
-    let directoryStat;
-    try { directoryStat = fs.lstatSync(planDir); } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is unavailable');
-    }
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink() ||
-        (directoryStat.mode & 0o777) !== 0o700 ||
-        (typeof process.getuid === 'function' && directoryStat.uid !== process.getuid())) {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    const rawPlan = readPrivate(path.join(planDir, 'plan.json'), 16384);
-    const message = readPrivate(path.join(planDir, 'message.txt'), 131072);
-    let plan;
-    try { plan = JSON.parse(rawPlan); } catch {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    const keys = Object.keys(plan).sort();
-    const expected = [
-        'branch', 'createdAt', 'head', 'indexFingerprint', 'messageSha256',
-        'repository', 'schemaVersion',
-    ].sort();
-    if (JSON.stringify(keys) !== JSON.stringify(expected) || plan.schemaVersion !== 1 ||
-        typeof plan.repository !== 'string' || typeof plan.branch !== 'string' ||
-        !(plan.head === 'unborn' || SHA_RE.test(plan.head)) ||
-        !/^[0-9a-f]{64}$/.test(plan.indexFingerprint) ||
-        !/^[0-9a-f]{64}$/.test(plan.messageSha256) || typeof plan.createdAt !== 'string' ||
-        crypto.createHash('sha256').update(message).digest('hex') !== plan.messageSha256) {
-        throw new CommitError(EXIT.TRANSACTION, 'plan is malformed or inaccessible');
-    }
-    return {message, plan};
-}
-
-function cleanupPlan(planDir) {
-    let directoryStat;
-    try { directoryStat = fs.lstatSync(planDir); } catch { return; }
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink() ||
-        (directoryStat.mode & 0o777) !== 0o700 ||
-        (typeof process.getuid === 'function' && directoryStat.uid !== process.getuid())) return;
-    for (const name of ['plan.json', 'message.txt', 'apply-message.txt']) {
-        const file = path.join(planDir, name);
-        try {
-            const stat = fs.lstatSync(file);
-            if (!stat.isFile() || stat.isSymbolicLink() ||
-                (typeof process.getuid === 'function' && stat.uid !== process.getuid())) continue;
-            fs.unlinkSync(file);
-        } catch {
-            continue;
-        }
-    }
-    rmdirQuietly(planDir);
-}
-
-function prepare(args, context) {
-    const parsed = parsePrepare(args);
+function create(args, context) {
+    const parsed = parseCreate(args);
     const header = validateStructured(parsed);
     const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
     const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
@@ -435,56 +321,10 @@ function prepare(args, context) {
         EXIT.TOOL,
         'commitlint rejected the message'
     );
-    const fingerprint = indexFingerprint(context);
-    const planId = createPlan(context, state, message, fingerprint);
-    process.stdout.write(`${message}\nPlan: ${planId}\n`);
-    return EXIT.OK;
-}
-
-function discard(args, context) {
-    if (args.length !== 2 || args[0] !== '--plan' || !/^[0-9a-f]{32}$/.test(args[1])) {
-        throw new CommitError(EXIT.USAGE, 'discard arguments are invalid');
-    }
-    const planDir = resolvePlanDirectory(context, args[1]);
+    const owned = createPrivateMessage(context, state.repository, message);
     try {
-        fs.lstatSync(planDir);
-    } catch (error) {
-        if (error.code === 'ENOENT') return EXIT.OK;
-        throw new CommitError(EXIT.TRANSACTION, 'plan is inaccessible');
-    }
-    loadPlan(planDir);
-    cleanupPlan(planDir);
-    return EXIT.OK;
-}
-
-function apply(args, context) {
-    const planId = parseApply(args);
-    const planDir = resolvePlanDirectory(context, planId);
-    let loaded;
-    try {
-        loaded = loadPlan(planDir);
-        const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-        const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
-        const state = repositoryState(context, coreRoot);
-        const fingerprint = indexFingerprint(context);
-        if (state.repository !== loaded.plan.repository || state.branch !== loaded.plan.branch ||
-            state.head !== loaded.plan.head || fingerprint !== loaded.plan.indexFingerprint) {
-            throw new CommitError(EXIT.TRANSACTION, 'plan is stale');
-        }
         requireSuccess(
-            invoke(context, process.execPath, [launcher, 'doctor', '--local-only']),
-            EXIT.READINESS,
-            'local readiness failed'
-        );
-        requireSuccess(
-            invoke(context, process.execPath, [launcher, 'run', 'commitlint', '--'], {input: loaded.message}),
-            EXIT.TOOL,
-            'commitlint rejected the message'
-        );
-        const applyMessage = path.join(planDir, 'apply-message.txt');
-        writePrivate(applyMessage, loaded.message);
-        requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', applyMessage]),
+            invoke(context, 'git', ['commit', '-S', '-F', owned.file]),
             EXIT.TOOL,
             'signed Git commit failed'
         );
@@ -496,19 +336,17 @@ function apply(args, context) {
             ),
             'committed HEAD is invalid'
         );
-        if (newHead === loaded.plan.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
-        process.stdout.write(`Commit: ${newHead}\n`);
+        if (newHead === state.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
+        process.stdout.write(`${message}\nCommit: ${newHead}\n`);
         return EXIT.OK;
     } finally {
-        cleanupPlan(planDir);
+        owned.cleanup();
     }
 }
 
 function commitCommand(args, context = {}) {
     try {
-        if (args[0] === 'prepare') return prepare(args.slice(1), context);
-        if (args[0] === 'apply') return apply(args.slice(1), context);
-        if (args[0] === 'discard') return discard(args.slice(1), context);
+        if (args[0] === 'create') return create(args.slice(1), context);
         process.stderr.write(USAGE);
         return EXIT.USAGE;
     } catch (error) {
