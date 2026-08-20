@@ -52,7 +52,15 @@ function fixture(t, overrides = {}) {
         const executable = path.basename(command);
         let kind;
         let result;
-        if (executable === 'semgrep' && args[0] === '--version') {
+        if (executable === 'git' && args.join(' ') === 'symbolic-ref --quiet --short HEAD') {
+            kind = 'git-branch';
+            result = overrides.branch ?? {
+                status: 0,
+                stdout: 'feat/tester-abcd-code-review\n',
+                stderr: '',
+                error: undefined,
+            };
+        } else if (executable === 'semgrep' && args[0] === '--version') {
             kind = 'semgrep-version';
             result = overrides.semgrepVersion ?? {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
         } else if (executable === 'ocr' && args[0] === '--version') {
@@ -111,13 +119,47 @@ test('dedicated review validates versions and connectivity before exact OCR revi
     assert.deepEqual(target.calls.map(({kind}) => kind), [
         'semgrep-version',
         'ocr-version',
+        'git-branch',
         'ocr-connectivity',
         'ocr-review',
     ]);
-    assert.deepEqual(target.calls.at(-1).args, ['review', '--audience', 'agent', '--format', 'json']);
+    assert.deepEqual(target.calls.at(-1).args, [
+        'review',
+        '--from',
+        'origin/develop',
+        '--to',
+        'HEAD',
+        '--audience',
+        'agent',
+        '--format',
+        'json',
+    ]);
     assert.equal(target.calls.at(-1).options.timeout, 600000);
     assert.equal(target.calls.at(-1).options.maxBuffer, 1048576);
     assert.equal(target.calls.at(-1).options.cwd, target.repository);
+});
+
+test('dedicated review targets main for release and hotfix branches', (t) => {
+    for (const branch of ['release/1.2.3', 'hotfix/tester-abcd-urgent']) {
+        const target = fixture(t, {
+            branch: {status: 0, stdout: `${branch}\n`, stderr: '', error: undefined},
+        });
+
+        const result = capture(() => main(reviewArgs(), target.context));
+
+        assert.equal(result.status, 0, branch);
+        assert.deepEqual(target.calls.at(-1).args, [
+            'review',
+            '--from',
+            'origin/main',
+            '--to',
+            'HEAD',
+            '--audience',
+            'agent',
+            '--format',
+            'json',
+        ], branch);
+    }
 });
 
 test('dedicated scan resolves one contained non-symlinked operand', (t) => {
@@ -199,6 +241,7 @@ test('connectivity failure stops before review with a fixed diagnostic', (t) => 
     assert.deepEqual(target.calls.map(({kind}) => kind), [
         'semgrep-version',
         'ocr-version',
+        'git-branch',
         'ocr-connectivity',
     ]);
     assert.match(result.stderr, /OCR connectivity failed/);

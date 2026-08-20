@@ -79,6 +79,25 @@ function loadCoreContract(coreRoot) {
     return contract;
 }
 
+function resolveReviewArguments(parsed, context, run, env) {
+    if (parsed.mode !== 'review') return parsed.args;
+    const branch = run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+        cwd: parsed.root,
+        env,
+        maxBuffer: 1048576,
+        timeout: 30000,
+    });
+    if (branch.error || branch.status !== 0) {
+        throw new CodeReviewError(EXIT.TOOL, 'review branch is unavailable');
+    }
+    const name = String(branch.stdout ?? '').trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(name)) {
+        throw new CodeReviewError(EXIT.TOOL, 'review branch is unavailable');
+    }
+    const target = name.startsWith('hotfix/') || name.startsWith('release/') ? 'main' : 'develop';
+    return ['review', '--from', `origin/${target}`, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
+}
+
 function fail(error) {
     if (error instanceof CodeReviewError) {
         process.stderr.write(`prism-tool: code-review ${error.message}\n`);
@@ -112,13 +131,14 @@ function execute(args, context) {
     }
     const executable = resolveExecutable(component.executable, env);
     if (!executable) throw new CodeReviewError(EXIT.READINESS, 'external readiness failed');
+    const operationArgs = resolveReviewArguments(parsed, context, run, env);
     const connectivity = testOcrConnectivity({
         run: (_command, liveArgs, options) => run(executable, liveArgs, {...options, env}),
     });
     if (connectivity.status !== 'PASS') {
         throw new CodeReviewError(EXIT.READINESS, `OCR connectivity failed: ${connectivity.message}`);
     }
-    const result = run(executable, parsed.args, {
+    const result = run(executable, operationArgs, {
         cwd: parsed.root,
         env,
         maxBuffer: 1048576,
