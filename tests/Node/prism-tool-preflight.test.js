@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -603,6 +603,7 @@ test('approved OCR run executes only the allowlisted review with inert arguments
     const result = await captureWrites(() => main([
         'run',
         'ocr',
+        '--timeout-ms=900000',
         '--code-egress-approved=yes',
         '--',
         'review',
@@ -619,7 +620,7 @@ test('approved OCR run executes only the allowlisted review with inert arguments
 
     assert.equal(result.status, 0);
     assert.equal(result.stdout, 'review complete\n');
-    assert.equal(calls.at(-1).options.timeout, 600000);
+    assert.equal(calls.at(-1).options.timeout, 900000);
     assert.deepEqual(JSON.parse(fs.readFileSync(invocations, 'utf8')), [
         'review',
         '--audience',

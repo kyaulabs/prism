@@ -1,4 +1,4 @@
-// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -6,7 +6,7 @@ const fs = require('node:fs');
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const MIN_EXECUTION_TIMEOUT_MS = 1000;
-const MAX_EXECUTION_TIMEOUT_MS = 600000;
+const MAX_EXECUTION_TIMEOUT_MS = 900000;
 const STABLE_VERSION = /^(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})\.(?:0|[1-9]\d{0,8})$/;
 const IDENTIFIER = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EXECUTABLE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -324,6 +324,7 @@ function loadContract(filePath) {
 }
 
 module.exports = {
+    MAX_EXECUTION_TIMEOUT_MS,
     assertPackageParity,
     compareStableVersions,
     loadContract,

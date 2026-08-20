@@ -1,17 +1,18 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {assertPackageParity, loadContract} = require('./contract');
+const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
-const {runBounded} = require('./process');
+const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
+const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--code-egress-approved=yes] [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
 
 function packageRootFor(packageName, coreRoot) {
     let current = fs.realpathSync(coreRoot);
@@ -50,16 +51,25 @@ function parseRun(args) {
     const toolId = args[0];
     const separator = args.indexOf('--');
     if (!toolId || separator < 1) {
-        throw new Error('usage: prism-tool run TOOL_ID [--code-egress-approved=yes] -- ARGUMENTS');
+        throw new Error(RUN_USAGE);
     }
     let codeEgressApproved;
+    let timeoutMs;
     for (const control of args.slice(1, separator)) {
-        if (control !== '--code-egress-approved=yes' || codeEgressApproved) {
-            throw new Error('usage: prism-tool run TOOL_ID [--code-egress-approved=yes] -- ARGUMENTS');
+        if (control === '--code-egress-approved=yes' && !codeEgressApproved) {
+            codeEgressApproved = 'yes';
+            continue;
         }
-        codeEgressApproved = 'yes';
+        if (control.startsWith('--timeout-ms=') && timeoutMs === undefined) {
+            const value = control.slice('--timeout-ms='.length);
+            if (!/^[1-9][0-9]*$/.test(value)) throw new Error(RUN_USAGE);
+            timeoutMs = Number(value);
+            if (!Number.isSafeInteger(timeoutMs)) throw new Error(RUN_USAGE);
+            continue;
+        }
+        throw new Error(RUN_USAGE);
     }
-    return {codeEgressApproved, toolId, toolArgs: args.slice(separator + 1)};
+    return {codeEgressApproved, timeoutMs, toolId, toolArgs: args.slice(separator + 1)};
 }
 
 function argumentsAllowed(component, args) {
@@ -545,6 +555,14 @@ function runDeclaredTool(args, context) {
         process.stderr.write('prism-tool: unknown tool id\n');
         return EXIT.USAGE;
     }
+    const defaultTimeoutMs = component.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
+    if (
+        parsed.timeoutMs !== undefined &&
+        (parsed.timeoutMs < defaultTimeoutMs || parsed.timeoutMs > MAX_EXECUTION_TIMEOUT_MS)
+    ) {
+        process.stderr.write(`${RUN_USAGE}\n`);
+        return EXIT.USAGE;
+    }
     if (!argumentsAllowed(component, parsed.toolArgs)) {
         process.stderr.write('prism-tool: arguments rejected by contract\n');
         return EXIT.USAGE;
@@ -617,7 +635,7 @@ function runDeclaredTool(args, context) {
         env,
         input,
         maxBuffer: context.maxBuffer,
-        timeout: context.timeout ?? component.executionTimeoutMs,
+        timeout: context.timeout ?? parsed.timeoutMs ?? defaultTimeoutMs,
     });
     if (result.error) {
         const reason = result.timedOut ? 'timeout' : 'output or process failure';

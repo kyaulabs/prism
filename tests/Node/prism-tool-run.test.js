@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
@@ -65,22 +65,26 @@ function writeBundledFixture(directory, options) {
         name: rootPackageName,
         dependencies: {[options.packageName]: declaredVersion},
     });
+    const component = {
+        id: options.id,
+        kind: 'command',
+        ecosystem: 'npm',
+        package: options.packageName,
+        version: declaredVersion,
+        provisioning: 'bundled',
+        authentication: 'none',
+        executable: options.id,
+        versionArguments: ['--version'],
+        argumentPolicy: {mode: 'passthrough'},
+    };
+    if (options.executionTimeoutMs !== undefined) {
+        component.executionTimeoutMs = options.executionTimeoutMs;
+    }
     writeJson(path.join(directory, 'toolchain.json'), {
         schemaVersion: 1,
         package: contractPackage,
         role: 'core',
-        components: [{
-            id: options.id,
-            kind: 'command',
-            ecosystem: 'npm',
-            package: options.packageName,
-            version: declaredVersion,
-            provisioning: 'bundled',
-            authentication: 'none',
-            executable: options.id,
-            versionArguments: ['--version'],
-            argumentPolicy: {mode: 'passthrough'},
-        }],
+        components: [component],
     });
     const packageRoot = path.join(directory, 'node_modules', options.packageName);
     writeJson(path.join(packageRoot, 'package.json'), {
@@ -277,6 +281,109 @@ test('enforces stdin and execution timeout bounds', async (t) => {
     }));
     assert.equal(timedOut.status, 4);
     assert.match(timedOut.stderr, /tool timeout/);
+});
+
+test('applies bounded timeout overrides without forwarding the control', async (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    writeBundledFixture(directory, {
+        id: 'timed',
+        packageName: 'timed',
+        executionTimeoutMs: 600000,
+        source: "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n",
+    });
+
+    for (const timeoutMs of [600000, 900000]) {
+        const calls = [];
+        const run = (command, args, options) => {
+            calls.push({args, command, options});
+            return runBounded(command, args, options);
+        };
+        const result = await captureWrites(() => main([
+            'run',
+            'timed',
+            `--timeout-ms=${timeoutMs}`,
+            '--',
+            'payload',
+        ], {
+            coreRoot: directory,
+            input: '',
+            run,
+        }));
+
+        assert.equal(result.status, 0);
+        assert.equal(calls.at(-1).options.timeout, timeoutMs);
+        assert.deepEqual(JSON.parse(result.stdout), ['payload']);
+    }
+});
+
+test('retains the process timeout default when the component declares none', async (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    writeBundledFixture(directory, {
+        id: 'default-timed',
+        packageName: 'default-timed',
+        source: "process.stdout.write('complete');\n",
+    });
+    const calls = [];
+    const run = (command, args, options) => {
+        calls.push({args, command, options});
+        return runBounded(command, args, options);
+    };
+
+    const result = await captureWrites(() => main([
+        'run',
+        'default-timed',
+        '--',
+    ], {
+        coreRoot: directory,
+        input: '',
+        run,
+    }));
+
+    assert.equal(result.status, 0);
+    assert.equal(calls.at(-1).options.timeout, 30000);
+});
+
+test('rejects malformed, duplicate, below-default, and above-ceiling timeout controls before execution', async (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    writeBundledFixture(directory, {
+        id: 'timed',
+        packageName: 'timed',
+        executionTimeoutMs: 600000,
+        source: "process.stdout.write('executed');\n",
+    });
+    const invocations = [
+        ['--timeout-ms=599999'],
+        ['--timeout-ms=900001'],
+        ['--timeout-ms=0900000'],
+        ['--timeout-ms=+600000'],
+        ['--timeout-ms=600000.0'],
+        ['--timeout-ms=6e5'],
+        ['--timeout-ms=600000', '--timeout-ms=900000'],
+    ];
+
+    for (const controls of invocations) {
+        let calls = 0;
+        const result = await captureWrites(() => main([
+            'run',
+            'timed',
+            ...controls,
+            '--',
+            'payload',
+        ], {
+            coreRoot: directory,
+            input: '',
+            run: () => {
+                calls += 1;
+                return {error: undefined, status: 0, stderr: '', stdout: '', timedOut: false};
+            },
+        }));
+
+        assert.equal(result.status, 2, controls.join(' '));
+        assert.equal(calls, 0, controls.join(' '));
+    }
 });
 
 test('forwards bounded stdin and arguments as inert data', async (t) => {

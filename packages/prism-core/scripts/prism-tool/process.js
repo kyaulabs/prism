@@ -1,8 +1,10 @@
-// $KYAULabs: process.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: process.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 'use strict';
 
 const {spawnSync} = require('node:child_process');
+
+const DEFAULT_EXECUTION_TIMEOUT_MS = 30000;
 
 function runBounded(command, args, options = {}) {
     const result = spawnSync(command, args, {
@@ -13,7 +15,7 @@ function runBounded(command, args, options = {}) {
         env: options.env,
         input: options.input,
         maxBuffer: options.maxBuffer ?? 1048576,
-        timeout: options.timeout ?? 30000,
+        timeout: options.timeout ?? DEFAULT_EXECUTION_TIMEOUT_MS,
         windowsHide: true,
     });
 
@@ -33,6 +35,6 @@ function extractVersion(output) {
     return unique.length === 1 ? unique[0] : null;
 }
 
-module.exports = {extractVersion, runBounded};
+module.exports = {DEFAULT_EXECUTION_TIMEOUT_MS, extractVersion, runBounded};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
