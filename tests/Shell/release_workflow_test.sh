@@ -529,9 +529,8 @@ fi
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
 if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \
-   grep -qF 'Parse the returned version as inert data.' "$RELEASE_CMD" && \
-   grep -qF 'The major version must be at least' "$RELEASE_CMD" && \
-   grep -qF '2; otherwise stop and direct the user to' "$RELEASE_CMD" && \
+   grep -F -A1 'Parse the returned version as inert data. Validate that its major component is' "$RELEASE_CMD" \
+       | grep -qF 'an integer at least 2. If the major component is below 2, stop' && \
    grep -qF '/doctor' "$RELEASE_CMD"; then
 	pass "P15: /release requires git-cliff 2.0+ and points to /doctor"
 else
@@ -552,7 +551,7 @@ if grep -qF 'prism-tool run git-cliff -- --bumped-version' "$RELEASE_CMD" && \
    grep -qF 'no prior release tag' "$RELEASE_CMD" && \
    grep -qF 'initial version' "$RELEASE_CMD" && \
    grep -qF 'prism-tool resolve scripts' "$RELEASE_CMD" && \
-   grep -qF 'new-branch.sh release X.Y.Z' "$RELEASE_CMD" && \
+   grep -qF 'bash /absolute/resolved/scripts/new-branch.sh release X.Y.Z' "$RELEASE_CMD" && \
    ! grep -qF 'new-branch.sh release vX.Y.Z' "$RELEASE_CMD" && \
    ! grep -qE '(^|[^[:alpha:]])read[[:space:]]+' "$RELEASE_CMD"; then
 	pass "P17: /release proposes via prism-tool run git-cliff --bumped-version on tagged repos, requests the initial version when tagless, and uses no shell read prompt"
@@ -583,7 +582,8 @@ fi
 if grep -qF 'gh repo view --json nameWithOwner -q .nameWithOwner' "$RELEASE_CMD" && \
    grep -qF 'kyaulabs/template' "$RELEASE_CMD" && \
    grep -qF 'mkdir -p .pi/tmp' "$RELEASE_CMD" && \
-   grep -qF '.pi/tmp/release-changelog.tmp' "$RELEASE_CMD" && \
+   grep -qF 'set -C' "$RELEASE_CMD" && \
+   grep -qF '.pi/tmp/release-changelog.tmp &&' "$RELEASE_CMD" && \
    grep -qF 'mv .pi/tmp/release-changelog.tmp CHANGELOG.md' "$RELEASE_CMD" && \
    ! grep -qF 'sed -i' "$RELEASE_CMD"; then
 	pass "P19: /release resolves the repo via gh repo view and replaces kyaulabs/template links with stable temp file + sed + mv (no sed -i)"

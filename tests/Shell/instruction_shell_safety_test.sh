@@ -23,12 +23,24 @@ printf '%s\n' '── instruction shell safety ──'
 for file in "${resources[@]}"; do
     [ -f "$file" ] || continue
 
-    if grep -nHE "[$][(]|[$][']" "$file"; then
+    if [ ! -r "$file" ]; then
+        printf 'FAIL: cannot read instruction resource %s\n' "${file#"$REPO_ROOT"/}" >&2
+        failures=$((failures + 1))
+        continue
+    fi
+
+    grep_status=0
+    grep -nHE "[$][(]|[$][']" "$file" || grep_status=$?
+    if [ "$grep_status" -eq 0 ]; then
         printf 'FAIL: prohibited raw shell syntax in %s\n' "${file#"$REPO_ROOT"/}" >&2
+        failures=$((failures + 1))
+    elif [ "$grep_status" -gt 1 ]; then
+        printf 'FAIL: cannot scan instruction resource %s\n' "${file#"$REPO_ROOT"/}" >&2
         failures=$((failures + 1))
     fi
 
-    if awk '
+    awk_status=0
+    awk '
         BEGIN {
             tick = sprintf("%c", 96)
             in_shell = 0
@@ -67,7 +79,7 @@ for file in "${resources[@]}"; do
                 in_shell = 0
                 next
             }
-            if (trimmed ~ /^\(/) {
+            if (trimmed ~ /^\(/ || trimmed ~ /[;&|][[:space:]]*\(/) {
                 printf "%s:%d:%s\n", FILENAME, FNR, $0
                 found = 1
             }
@@ -75,8 +87,12 @@ for file in "${resources[@]}"; do
         END {
             exit found ? 0 : 1
         }
-    ' "$file"; then
+    ' "$file" || awk_status=$?
+    if [ "$awk_status" -eq 0 ]; then
         printf 'FAIL: parenthesized shell subshell in %s\n' "${file#"$REPO_ROOT"/}" >&2
+        failures=$((failures + 1))
+    elif [ "$awk_status" -gt 1 ]; then
+        printf 'FAIL: cannot parse shell fences in %s\n' "${file#"$REPO_ROOT"/}" >&2
         failures=$((failures + 1))
     fi
 done

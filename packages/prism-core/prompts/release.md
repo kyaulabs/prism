@@ -63,8 +63,9 @@ differ, stop and report that local `develop` is not synchronized with
 prism-tool run git-cliff -- --version
 ```
 
-Parse the returned version as inert data. The major version must be at least
-2; otherwise stop and direct the user to `/doctor`.
+Parse the returned version as inert data. Validate that its major component is
+an integer at least 2. If the major component is below 2, stop and direct the
+user to `/doctor`.
 
 ## Propose and confirm the version
 
@@ -185,8 +186,9 @@ Then use a stable project-local temp file:
 
 ```bash
 mkdir -p .pi/tmp
-sed "s|kyaulabs/template|OWNER/REPO|g" CHANGELOG.md > .pi/tmp/release-changelog.tmp
-mv .pi/tmp/release-changelog.tmp CHANGELOG.md
+set -C
+sed "s|kyaulabs/template|OWNER/REPO|g" CHANGELOG.md > .pi/tmp/release-changelog.tmp &&
+    mv .pi/tmp/release-changelog.tmp CHANGELOG.md
 ```
 
 Show the generated version section for review.
