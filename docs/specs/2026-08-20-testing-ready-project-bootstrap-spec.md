@@ -1,7 +1,7 @@
 # Spec: Testing-Ready Project Bootstrap
 
 **Date:** 2026-08-20
-**Status:** Draft
+**Status:** Approved
 
 ## Problem Statement
 
@@ -146,6 +146,7 @@ Setup ends after verified root commit creation. It never configures a remote, pu
 ### Bounded root seed
 
 - Build the seed inventory only from attested outputs of successful setup stages. It includes project-local adapter activation data, canonical adapter scaffold files, manifests and locks, generated CI, and canonical Core hooks.
+- Bind root-seed eligibility to a one-use Core launcher attestation returned only by the active invocation's `CREATE` disposition. Bind that attestation to the canonical project root, adapter identity, setup inventory and digests, hook inventory, and final staged-index digest; stale or substituted state fails closed.
 - Never stage arbitrary paths, whole directories, application code, database artifacts, production configuration, credentials, environment files, or unrelated pre-existing content.
 - Preserve and report unrelated untracked paths. Reject overlap, stale state, unsafe kinds, unexpected staged entries, or any condition that prevents proving the staged index equals the attested setup inventory.
 - Run whitespace, conflict-marker, readiness, scaffold-integrity, hook-integrity, syntax, lint, browser, test, aggregate-coverage, and changed-file-coverage checks against the staged seed before commit creation.
@@ -180,8 +181,9 @@ Setup ends after verified root commit creation. It never configures a remote, pu
 - Preserve exact initial-root and protected-branch behavior under ADR-0044 and the oversized greenfield lifecycle under ADR-0050.
 - Preserve the sole safety extension and single-agent topology.
 - Preserve standing OCR consent as the only authorization for OCR connectivity and reviewed-code egress.
-- Architecture review must reconcile invocation-implied setup networking with the current explicit registry-consent invariant in `CONTEXT.md` and accepted ADRs.
-- Architecture review must also reconcile `/setup`-authorized automatic root commit creation with ADR-0074's commit-workflow authorization and fatal-latch contract.
+- Apply ADR-0076's invocation-scoped setup-network authorization without transferring consent to mutation or unrelated external effects.
+- Apply ADR-0077's Core-owned create-only Git bootstrap, one-use seed attestation, exclusive signed root commit, and human-owned publication boundary.
+- Apply ADR-0078's packaged create-only hook surface and launcher-owned Core/adapter dispatch boundary.
 
 ## Testing Decisions
 
@@ -226,4 +228,4 @@ This specification merges the completed [testing-ready project bootstrap wayfind
 - generated CI parity; and
 - end-to-end setup orchestration.
 
-The specification is cross-cutting and changes consent and commit boundaries. Run the `architect` skill before ticketing or implementation. Architect review should return a parseable `ADR-required:` decision and identify whether existing Pi-era ADRs should be superseded or supplemented.
+Architecture review completed with a GO-WITH-CONDITIONS verdict and `ADR-required: 0076,0077,0078`. Those records are accepted and reflected in this approved specification and `CONTEXT.md`; ticketing or implementation may proceed through the normal pipeline.
