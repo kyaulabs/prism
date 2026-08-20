@@ -66,6 +66,12 @@ retired_diagnostics=(
 	'retired commit plan control'
 	'retired commit approval control'
 )
+if [ "${#retired_names[@]}" -ne "${#retired_recipes[@]}" ] \
+	|| [ "${#retired_names[@]}" -ne "${#retired_diagnostics[@]}" ]; then
+	fail 'retired workflow fixture arrays are misaligned'
+	print_summary 'commit_workflow_drift'
+	exit $?
+fi
 for index in "${!retired_names[@]}"; do
 	name="${retired_names[$index]}"
 	recipe="${retired_recipes[$index]}"

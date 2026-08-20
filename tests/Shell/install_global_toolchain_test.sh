@@ -228,12 +228,14 @@ register_temp_dir "$T4"
 write_fake_tools "$T4"
 mkdir -p "$T4/home" "$T4/pi-agent" "$T4/bin-dir"
 : > "$T4/pi-invocations"
+: > "$T4/ocr-invocations"
 output=""
 status=0
 output=$(HOME="$T4/home" \
     PI_CODING_AGENT_DIR="$T4/pi-agent" \
     PRISM_BIN_DIR="$T4/bin-dir" \
     PI_INVOCATIONS="$T4/pi-invocations" \
+    OCR_INVOCATIONS="$T4/ocr-invocations" \
     SEMGREP_VERSION='1.172.9' \
     PATH="$T4/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
@@ -241,7 +243,9 @@ if [ "$status" -ne 0 ] \
     && grep -qF 'prism toolchain local readiness failed' <<< "$output" \
     && [ -f "$T4/bin-dir/prism-tool" ] \
     && [ -f "$T4/pi-agent/AGENTS.md" ] \
-    && ! grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output"; then
+    && ! grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
+    && ! grep -qF 'llm test' "$T4/ocr-invocations" \
+    && [ ! -e "$T4/pi-agent/prism-consent.json" ]; then
     pass "failed mandatory readiness retains resources and stops before setup"
 else
     fail "failed mandatory readiness removed resources or continued to setup"

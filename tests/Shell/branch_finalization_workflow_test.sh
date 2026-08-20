@@ -15,7 +15,10 @@ section_between() {
 	awk -v start="$start" -v end="$end" '
 		$0 == start { active = 1; found_start = 1; next }
 		active && $0 == end { found_end = 1; exit }
-		active { print; found_content = 1 }
+		active {
+			print
+			if ($0 ~ /[^[:space:]]/) found_content = 1
+		}
 		END { if (!found_start || !found_end || !found_content) exit 1 }
 	' "$SKILL"
 }
@@ -141,7 +144,9 @@ else
 	fail 'the obsolete post-gate disposal menu remains'
 fi
 
-if ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)' \
+if ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+pr[[:space:]]+(create|merge|close|edit|review)([[:space:]]|$)' \
+	<<< "$pr_section" \
+	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+api([[:space:]]|$)' \
 	<<< "$pr_section" \
 	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' \
 	<<< "$pr_section" \
