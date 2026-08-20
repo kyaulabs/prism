@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 'use strict';
 
@@ -435,8 +435,8 @@ function create(args, context) {
             EXIT.TOOL,
             'signed Git commit failed'
         );
-        committed = true;
         locked.publish();
+        committed = true;
         newHead = shaValue(
             requireSuccess(
                 invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']),

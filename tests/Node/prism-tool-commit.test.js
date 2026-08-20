@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 'use strict';
 
@@ -282,7 +282,7 @@ test('commit create sanitizes Git failure and cleans its private message', (t) =
     assert.equal(fs.existsSync(observed.messageFile), false);
 });
 
-test('commit create reports index publication failure after signing', (t) => {
+test('commit create cleans the index lock after publication failure', (t) => {
     const {context, gitDir} = makeCommitContext(t, {indexPublishFailure: true});
     const result = captureWrites(() => main([
         'commit', 'create', '--type', 'fix', '--subject', 'publish locked index',
@@ -292,7 +292,7 @@ test('commit create reports index publication failure after signing', (t) => {
     assert.match(result.stderr, /locked index publication failed/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.doesNotMatch(result.stdout, /Commit:/);
-    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
 });
 
 test('commit create reports private message cleanup failure after signing', (t) => {
