@@ -98,13 +98,13 @@ function closeQuietly(descriptor) {
     return true;
 }
 
-function unlinkQuietly(file) {
-    try { fs.unlinkSync(file); } catch { return false; }
+function unlinkWith(io, file) {
+    try { io.unlinkSync(file); } catch { return false; }
     return true;
 }
 
-function rmdirQuietly(directory) {
-    try { fs.rmdirSync(directory); } catch { return false; }
+function rmdirWith(io, directory) {
+    try { io.rmdirSync(directory); } catch { return false; }
     return true;
 }
 
@@ -238,10 +238,10 @@ function repositoryState(context, coreRoot) {
     return {branch, head, repository, tree};
 }
 
-function ensurePrivateDirectory(directory) {
+function ensurePrivateDirectory(io, directory) {
     try {
-        if (!fs.existsSync(directory)) fs.mkdirSync(directory, {mode: 0o700});
-        const stat = fs.lstatSync(directory);
+        if (!io.existsSync(directory)) io.mkdirSync(directory, {mode: 0o700});
+        const stat = io.lstatSync(directory);
         if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o700) throw new Error();
         if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) throw new Error();
     } catch {
@@ -249,22 +249,100 @@ function ensurePrivateDirectory(directory) {
     }
 }
 
-function writePrivate(file, content) {
+function writePrivate(io, file, content) {
     let descriptor;
     try {
-        if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error();
-        descriptor = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_EXCL |
-            fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600);
-        fs.writeFileSync(descriptor, content);
-        fs.fchmodSync(descriptor, 0o600);
-        fs.closeSync(descriptor);
+        if (typeof io.constants.O_NOFOLLOW !== 'number') throw new Error();
+        descriptor = io.openSync(file, io.constants.O_CREAT | io.constants.O_EXCL |
+            io.constants.O_WRONLY | io.constants.O_NOFOLLOW, 0o600);
+        io.writeFileSync(descriptor, content);
+        io.fchmodSync(descriptor, 0o600);
+        io.closeSync(descriptor);
     } catch {
         if (descriptor !== undefined) closeQuietly(descriptor);
         throw new CommitError(EXIT.TRANSACTION, 'private file could not be written');
     }
 }
 
+function lockIndex(context, repository) {
+    const io = context.fs ?? fs;
+    const result = requireSuccess(
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-path', 'index'], {cwd: repository}),
+        EXIT.TOOL,
+        'Git index is unavailable'
+    );
+    const indexFile = resultText(result).trim();
+    const lockFile = `${indexFile}.lock`;
+    let source;
+    let target;
+    let lockCreated = false;
+    try {
+        if (!path.isAbsolute(indexFile) || typeof io.constants.O_NOFOLLOW !== 'number') throw new Error();
+        const pathStat = io.lstatSync(indexFile);
+        if (!pathStat.isFile() || pathStat.isSymbolicLink()) throw new Error();
+        source = io.openSync(indexFile, io.constants.O_RDONLY | io.constants.O_NOFOLLOW);
+        const sourceStat = io.fstatSync(source);
+        if (!sourceStat.isFile() || sourceStat.dev !== pathStat.dev || sourceStat.ino !== pathStat.ino) {
+            throw new Error();
+        }
+        target = io.openSync(
+            lockFile,
+            io.constants.O_CREAT | io.constants.O_EXCL | io.constants.O_WRONLY | io.constants.O_NOFOLLOW,
+            0o600
+        );
+        lockCreated = true;
+        const buffer = Buffer.alloc(65536);
+        let position = 0;
+        while (true) {
+            const count = io.readSync(source, buffer, 0, buffer.length, position);
+            if (count === 0) break;
+            let written = 0;
+            while (written < count) {
+                const next = io.writeSync(target, buffer, written, count - written, position + written);
+                if (next <= 0) throw new Error();
+                written += next;
+            }
+            position += count;
+        }
+        io.fchmodSync(target, 0o600);
+        io.fsyncSync(target);
+        io.closeSync(target);
+        target = undefined;
+        io.closeSync(source);
+        source = undefined;
+        const current = io.lstatSync(indexFile);
+        if (!current.isFile() || current.isSymbolicLink() ||
+            current.dev !== sourceStat.dev || current.ino !== sourceStat.ino) {
+            throw new Error();
+        }
+    } catch {
+        if (target !== undefined) closeQuietly(target);
+        if (source !== undefined) closeQuietly(source);
+        if (lockCreated) unlinkWith(io, lockFile);
+        throw new CommitError(EXIT.TRANSACTION, 'Git index could not be locked safely');
+    }
+    return {
+        file: lockFile,
+        publish() {
+            try {
+                io.renameSync(lockFile, indexFile);
+            } catch {
+                throw new CommitError(EXIT.TRANSACTION, 'locked index publication failed');
+            }
+        },
+        discard() {
+            try {
+                io.unlinkSync(lockFile);
+                return true;
+            } catch {
+                return false;
+            }
+        },
+    };
+}
+
 function createPrivateMessage(context, repository, message) {
+    const io = context.fs ?? fs;
     const gitResult = requireSuccess(
         invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-dir'], {cwd: repository}),
         EXIT.TOOL,
@@ -277,7 +355,7 @@ function createPrivateMessage(context, repository, message) {
         throw new CommitError(EXIT.TOOL, 'Git directory is unsafe');
     }
     const prismDir = path.join(gitDir, 'prism-tool');
-    ensurePrivateDirectory(prismDir);
+    ensurePrivateDirectory(io, prismDir);
     const random = context.randomBytes ?? crypto.randomBytes;
     const operationId = random(16).toString('hex');
     if (!/^[0-9a-f]{32}$/.test(operationId)) {
@@ -286,26 +364,27 @@ function createPrivateMessage(context, repository, message) {
     const operationDir = path.join(prismDir, `commit-create-${operationId}`);
     let operationCreated = false;
     try {
-        fs.mkdirSync(operationDir, {mode: 0o700});
+        io.mkdirSync(operationDir, {mode: 0o700});
         operationCreated = true;
-        ensurePrivateDirectory(operationDir);
+        ensurePrivateDirectory(io, operationDir);
     } catch {
-        if (operationCreated) rmdirQuietly(operationDir);
+        if (operationCreated) rmdirWith(io, operationDir);
         throw new CommitError(EXIT.TOOL, 'message directory could not be created');
     }
     const messageFile = path.join(operationDir, 'message.txt');
     try {
-        writePrivate(messageFile, message);
+        writePrivate(io, messageFile, message);
     } catch (error) {
-        unlinkQuietly(messageFile);
-        rmdirQuietly(operationDir);
+        unlinkWith(io, messageFile);
+        rmdirWith(io, operationDir);
         throw error;
     }
     return {
         file: messageFile,
         cleanup() {
-            unlinkQuietly(messageFile);
-            rmdirQuietly(operationDir);
+            const unlinked = unlinkWith(io, messageFile);
+            const removed = rmdirWith(io, operationDir);
+            return unlinked && removed;
         },
     };
 }
@@ -330,18 +409,35 @@ function create(args, context) {
         'commitlint rejected the message'
     );
     const owned = createPrivateMessage(context, state.repository, message);
+    let locked;
+    let committed = false;
+    let newHead;
+    let operationError;
     try {
         const latest = repositoryState(context, coreRoot);
         if (latest.repository !== state.repository || latest.branch !== state.branch ||
             latest.head !== state.head || latest.tree !== state.tree) {
             throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
         }
+        locked = lockIndex(context, state.repository);
+        const commitEnv = {...(context.env ?? process.env), GIT_INDEX_FILE: locked.file};
+        const lockedTree = shaValue(
+            requireSuccess(
+                invoke(context, 'git', ['write-tree'], {cwd: state.repository, env: commitEnv}),
+                EXIT.TRANSACTION,
+                'locked index is unavailable'
+            ),
+            'locked index is invalid'
+        );
+        if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
         requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', owned.file]),
+            invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv}),
             EXIT.TOOL,
             'signed Git commit failed'
         );
-        const newHead = shaValue(
+        committed = true;
+        locked.publish();
+        newHead = shaValue(
             requireSuccess(
                 invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']),
                 EXIT.TOOL,
@@ -350,11 +446,20 @@ function create(args, context) {
             'committed HEAD is invalid'
         );
         if (newHead === state.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
-        process.stdout.write(`${message}\nCommit: ${newHead}\n`);
-        return EXIT.OK;
-    } finally {
-        owned.cleanup();
+    } catch (error) {
+        operationError = error;
     }
+    let cleanupError;
+    if (locked !== undefined && !committed && !locked.discard()) {
+        cleanupError = new CommitError(EXIT.TRANSACTION, 'Git index lock cleanup failed');
+    }
+    if (!owned.cleanup()) {
+        cleanupError = new CommitError(EXIT.TRANSACTION, 'private message cleanup failed');
+    }
+    if (cleanupError) throw cleanupError;
+    if (operationError) throw operationError;
+    process.stdout.write(`${message}\nCommit: ${newHead}\n`);
+    return EXIT.OK;
 }
 
 function commitCommand(args, context = {}) {

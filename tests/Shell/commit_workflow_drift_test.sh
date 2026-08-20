@@ -103,6 +103,20 @@ else
 	fail "continued retired commit rejection lacked its diagnostic"
 fi
 
+ESCAPED_CONTINUATION_ROOT="$(fixture escaped-continuation)"
+printf '%s\n' \
+	'example ends with two literal backslashes \\' \
+	'prism-tool commit prepare --type fix --subject "old"' \
+	> "$ESCAPED_CONTINUATION_ROOT/packages/prism-core/skills/example/SKILL.md"
+if node "$CHECKER" "$ESCAPED_CONTINUATION_ROOT" >"$ESCAPED_CONTINUATION_ROOT/output" 2>&1; then
+	fail "retired workflow after escaped backslashes was accepted"
+elif grep -qF 'packages/prism-core/skills/example/SKILL.md:2: retired commit prepare operation' \
+	"$ESCAPED_CONTINUATION_ROOT/output"; then
+	pass "escaped backslashes do not continue a logical line"
+else
+	fail "escaped backslashes changed the retired-workflow logical line"
+fi
+
 FENCE_ROOT="$(fixture fence-boundary)"
 printf '%s\n' \
 	'Prose with a literal trailing slash \' \

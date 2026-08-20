@@ -602,6 +602,16 @@ bash_block_contains() {
 	' "$1"
 }
 
+# bash_block_count <file> <regex> — count matching lines inside ```bash blocks.
+bash_block_count() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block && $0 ~ re { count += 1 }
+		END { print count + 0 }
+	' "$1"
+}
+
 # bash_block_is_single_command <file> <regex> — exit 0 when one ```bash block
 # contains exactly one nonblank line and that line matches the ERE <regex>.
 bash_block_is_single_command() {
@@ -622,7 +632,7 @@ bash_block_is_single_command() {
 
 # ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if [ "$(grep -cF 'prism-tool commit create' "$RELEASE_CMD")" -eq 1 ] && \
+if [ "$(bash_block_count "$RELEASE_CMD" '^[[:space:]]*prism-tool commit create')" -eq 1 ] && \
    bash_block_is_single_command "$RELEASE_CMD" \
    '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX[.]Y[.]Z[[:space:]]*$' && \
    ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \

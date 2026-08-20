@@ -41,8 +41,9 @@ function logicalLines(content) {
             current = '';
         }
         if (current === '') start = index;
-        if (!fence && /\\\s*$/.test(line)) {
-            current += `${line.replace(/\\\s*$/, '')} `;
+        const trailing = line.match(/(\\+)\s*$/);
+        if (!fence && trailing && trailing[1].length % 2 === 1) {
+            current += `${line.slice(0, trailing.index)} `;
             return;
         }
         joined.push({index: start, line: current + line});

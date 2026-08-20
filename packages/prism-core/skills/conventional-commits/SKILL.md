@@ -95,8 +95,10 @@ prism-tool commit create --type fix --scope core --subject "create launcher-owne
 <!-- commit-create:end -->
 
 The launcher performs mandatory local readiness, repository/branch/staged
-state checks, attribution resolution, bundled commitlint validation, signed
-Git creation, and post-commit `HEAD` verification in one operation. Any
+state checks, attribution resolution, bundled commitlint validation, a private
+locked-index snapshot used by hooks and signing, atomic index publication,
+signed Git creation, private-message cleanup, and post-commit `HEAD`
+verification in one operation. Any
 non-zero result, unsafe attempt, ambiguous sibling batch, or policy block is
 fatal for the current extension instance; use `/reload` only after addressing
 the cause.
@@ -121,8 +123,11 @@ single root seed on an unborn protected branch with no matching remote ref.
 ## Enforcement
 
 - `create` runs mandatory local readiness and bundled commitlint.
-- `create` invokes signed Git with existing hooks enabled and verifies `HEAD`
-  advanced before printing success.
+- `create` serializes the staged index through a private lock, runs signed Git
+  and existing hooks against that locked index, publishes it atomically, and
+  verifies `HEAD` advanced before printing success.
+- Private-message cleanup and locked-index publication are success conditions;
+  either failure returns non-zero and activates fatal recovery.
 - The commit-msg hook rejects malformed messages and literal backslash-newline
   sequences.
 - Merge/revert completion remains owned by `resolve-merge-conflicts` and Git's

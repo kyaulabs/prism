@@ -169,6 +169,14 @@ test('unsafe parent ownership, modes, symlinks, and path types fail closed', (t)
     fs.symlinkSync(foreign, symlinkTarget.parent);
     assert.equal(inspectConsent({consentPath: symlinkTarget.consentPath}).state, 'UNSAFE');
 
+    const missingHierarchy = fixture(t);
+    const nestedConsent = path.join(missingHierarchy.root, 'missing', 'agent', 'prism-consent.json');
+    assert.equal(inspectConsent({consentPath: nestedConsent}).state, 'UNSAFE');
+    assert.equal(capture(() => main([
+        'consent', 'grant-ocr', '--approval=yes',
+    ], {consentPath: nestedConsent})).status, 5);
+    assert.equal(fs.existsSync(path.join(missingHierarchy.root, 'missing')), false);
+
     const invalidTarget = fixture(t);
     fs.writeFileSync(invalidTarget.parent, 'not a directory');
     assert.equal(inspectConsent({consentPath: invalidTarget.consentPath}).state, 'UNSAFE');
@@ -211,6 +219,32 @@ test('revoke removes only a valid owned record and absent revoke is idempotent',
     ], {consentPath: target.consentPath, fs: withWrongOwner('fstatSync')}));
     assert.equal(guarded.status, 5);
     assert.equal(fs.existsSync(target.consentPath), true);
+});
+
+test('directory sync failure reports non-success with a convergent consent state', (t) => {
+    const target = fixture(t);
+    fs.mkdirSync(target.parent, {mode: 0o700});
+    const failingSyncFs = {
+        ...fs,
+        fsyncSync(descriptor) {
+            if (fs.fstatSync(descriptor).isDirectory()) throw new Error('sync CANARY');
+            return fs.fsyncSync(descriptor);
+        },
+    };
+
+    const grant = capture(() => main([
+        'consent', 'grant-ocr', '--approval=yes',
+    ], {consentPath: target.consentPath, fs: failingSyncFs}));
+    assert.equal(grant.status, 5);
+    assert.doesNotMatch(grant.stderr, /CANARY/);
+    assert.equal(inspectConsent({consentPath: target.consentPath}).state, 'GRANTED');
+
+    const revoke = capture(() => main([
+        'consent', 'revoke-ocr',
+    ], {consentPath: target.consentPath, fs: failingSyncFs}));
+    assert.equal(revoke.status, 5);
+    assert.doesNotMatch(revoke.stderr, /CANARY/);
+    assert.equal(inspectConsent({consentPath: target.consentPath}).state, 'ABSENT');
 });
 
 test('grant never overwrites a final path created during publication', (t) => {

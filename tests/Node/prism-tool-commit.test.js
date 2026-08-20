@@ -34,6 +34,7 @@ function makeCommitContext(t, overrides = {}) {
     const repository = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-commit-test-'));
     const gitDir = path.join(repository, '.git');
     fs.mkdirSync(gitDir);
+    fs.writeFileSync(path.join(gitDir, 'index'), 'validated index');
     t.after(() => fs.rmSync(repository, {recursive: true, force: true}));
     const calls = [];
     const observed = {};
@@ -69,6 +70,9 @@ function makeCommitContext(t, overrides = {}) {
             return completed(1, '', 'CANARY-POST-COMMIT');
         }
         if (command === 'git' && args.join(' ') === 'write-tree') {
+            if (!options.env?.GIT_INDEX_FILE && fs.existsSync(path.join(gitDir, 'index.lock'))) {
+                return completed(1);
+            }
             treeReads += 1;
             const tree = overrides.indexDrift && treeReads > 1 ? '4'.repeat(40) : '2'.repeat(40);
             return completed(0, `${tree}\n`);
@@ -85,6 +89,7 @@ function makeCommitContext(t, overrides = {}) {
             ['branch -r --list */main', completed(0, overrides.remoteBranch ?? '')],
             ['diff --cached --quiet --', completed(overrides.emptyStage ? 0 : 1)],
             ['rev-parse --path-format=absolute --git-dir', completed(0, `${gitDir}\n`)],
+            ['rev-parse --path-format=absolute --git-path index', completed(0, `${path.join(gitDir, 'index')}\n`)],
         ]);
         assert.equal(command, 'git');
         const key = args.join(' ');
@@ -97,6 +102,20 @@ function makeCommitContext(t, overrides = {}) {
             coreRoot: CORE_ROOT,
             cwd: repository,
             env: {...process.env, PI_MODEL: 'provider/implementation-model'},
+            fs: new Proxy(fs, {
+                get(target, property) {
+                    if (property === 'unlinkSync' && overrides.cleanupFailure) {
+                        return (file) => {
+                            if (path.basename(file) === 'message.txt') throw new Error('cleanup CANARY');
+                            return target.unlinkSync(file);
+                        };
+                    }
+                    if (property === 'renameSync' && overrides.indexPublishFailure) {
+                        return () => { throw new Error('publish CANARY'); };
+                    }
+                    return target[property];
+                },
+            }),
             randomBytes: () => Buffer.from('0123456789abcdef0123456789abcdef', 'hex'),
             run,
         },
@@ -141,9 +160,11 @@ test('commit create renders the canonical message and creates one signed commit'
     assert.equal(result.stdout, `${message}\nCommit: ${'3'.repeat(40)}\n`);
     const commitCall = calls.find(({command, args}) => command === 'git' && args[0] === 'commit');
     assert.deepEqual(commitCall.args.slice(0, 3), ['commit', '-S', '-F']);
+    assert.equal(commitCall.options.env.GIT_INDEX_FILE, path.join(gitDir, 'index.lock'));
     assert.equal(observed.message, message);
     assert.equal(observed.messageMode, 0o600);
     assert.equal(fs.existsSync(observed.messageFile), false);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
     assert.equal(fs.existsSync(path.join(gitDir, 'prism-tool', 'commit-plans')), false);
 });
 
@@ -238,7 +259,7 @@ test('commit create rejects unsafe body and attribution inputs', (t) => {
 });
 
 test('commit create rejects staged-index drift before invoking Git commit', (t) => {
-    const {calls, context} = makeCommitContext(t, {indexDrift: true});
+    const {calls, context, gitDir} = makeCommitContext(t, {indexDrift: true});
     const result = captureWrites(() => main([
         'commit', 'create', '--type', 'fix', '--subject', 'detect index drift',
     ], context));
@@ -246,6 +267,7 @@ test('commit create rejects staged-index drift before invoking Git commit', (t) 
     assert.equal(result.status, 5);
     assert.match(result.stderr, /repository state changed/);
     assert.equal(calls.some(({command, args}) => command === 'git' && args[0] === 'commit'), false);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
 });
 
 test('commit create sanitizes Git failure and cleans its private message', (t) => {
@@ -258,6 +280,32 @@ test('commit create sanitizes Git failure and cleans its private message', (t) =
     assert.match(result.stderr, /signed Git commit failed/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.equal(fs.existsSync(observed.messageFile), false);
+});
+
+test('commit create reports index publication failure after signing', (t) => {
+    const {context, gitDir} = makeCommitContext(t, {indexPublishFailure: true});
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'publish locked index',
+    ], context));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /locked index publication failed/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.doesNotMatch(result.stdout, /Commit:/);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
+});
+
+test('commit create reports private message cleanup failure after signing', (t) => {
+    const {context, observed} = makeCommitContext(t, {cleanupFailure: true});
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'report cleanup failure',
+    ], context));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /private message cleanup failed/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.doesNotMatch(result.stdout, /Commit:/);
+    assert.equal(fs.existsSync(observed.messageFile), true);
 });
 
 test('commit create treats post-commit verification failure as non-success', (t) => {

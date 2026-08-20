@@ -90,6 +90,36 @@ if ! acceptance=$(section_between \
 	fail 'acceptance section is missing or empty'
 	acceptance=''
 fi
+if ! target_sync=$(section_between \
+	'<!-- finalization-target-sync -->' \
+	'<!-- finalization-attestation -->'); then
+	fail 'target-sync section is missing or empty'
+	target_sync=''
+fi
+if ! attestation=$(section_between \
+	'<!-- finalization-attestation -->' \
+	'<!-- finalization-check -->'); then
+	fail 'attestation section is missing or empty'
+	attestation=''
+fi
+if ! check_section=$(section_between \
+	'<!-- finalization-check -->' \
+	'<!-- finalization-code-review -->'); then
+	fail 'check section is missing or empty'
+	check_section=''
+fi
+if ! review_section=$(section_between \
+	'<!-- finalization-code-review -->' \
+	'<!-- finalization-sha-revalidation -->'); then
+	fail 'code-review section is missing or empty'
+	review_section=''
+fi
+if ! revalidation=$(section_between \
+	'<!-- finalization-sha-revalidation -->' \
+	'<!-- finalization-pr -->'); then
+	fail 'SHA-revalidation section is missing or empty'
+	revalidation=''
+fi
 if ! stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup'); then
 	fail 'stop-conditions section is missing or empty'
 	stop_conditions=''
@@ -118,6 +148,56 @@ else
 	fail 'finalization acceptance disclosure is incomplete'
 fi
 
+if grep -qF 'git fetch origin' <<< "$target_sync" \
+	&& grep -qF 'git merge origin/<validated-target-branch>' <<< "$target_sync" \
+	&& grep -qF 'main' <<< "$target_sync" \
+	&& grep -qF 'develop' <<< "$target_sync"; then
+	pass 'target synchronization derives, fetches, and merges the validated base'
+else
+	fail 'target synchronization contract is incomplete'
+fi
+
+attestation_fields=(BRANCH HEAD_SHA BASE_REF BASE_SHA)
+attestation_complete=true
+for field in "${attestation_fields[@]}"; do
+	if ! grep -qF "$field=" <<< "$attestation"; then
+		attestation_complete=false
+	fi
+done
+if [ "$attestation_complete" = true ]; then
+	pass 'attestation records branch, head, base ref, and base SHA'
+else
+	fail 'attestation omits required evidence fields'
+fi
+
+if grep -qF 'Invoke `/check`' <<< "$check_section" \
+	&& grep -qiF 'complete successful result' <<< "$check_section" \
+	&& grep -qiF 'consumes the attempt' <<< "$check_section"; then
+	pass 'check stage requires one complete green gate'
+else
+	fail 'check-stage gate contract is incomplete'
+fi
+
+if grep -qF '`code-review` skill' <<< "$review_section" \
+	&& grep -qF 'tooling/style' <<< "$review_section" \
+	&& grep -qF 'Fowler structural smells' <<< "$review_section" \
+	&& grep -qF 'requirement coverage' <<< "$review_section" \
+	&& grep -qF 'static security analysis' <<< "$review_section" \
+	&& grep -qF 'no Suggested finding remains unresolved' <<< "$review_section"; then
+	pass 'review stage requires all four complete axes and resolved findings'
+else
+	fail 'four-axis review contract is incomplete'
+fi
+
+if grep -qF 'require a clean tree' <<< "$revalidation" \
+	&& grep -qF 're-read `BRANCH`, `HEAD_SHA`,' <<< "$revalidation" \
+	&& grep -qF '`BASE_REF`, and `BASE_SHA`' <<< "$revalidation" \
+	&& grep -qF 'exactly match the attestation' <<< "$revalidation"; then
+	pass 'revalidation binds a clean tree to all attested values'
+else
+	fail 'SHA-revalidation contract is incomplete'
+fi
+
 failure_cases=(
 	'synchronization conflict'
 	'`/check` failure'
@@ -144,9 +224,10 @@ else
 	fail 'the obsolete post-gate disposal menu remains'
 fi
 
-if ! grep -qE '(^|[[:space:]`])gh([[:space:]]|$)' <<< "$pr_section" \
-	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' \
+if ! grep -qE '(^|[[:space:]`])(gh|curl|wget)([[:space:]]|$)' <<< "$pr_section" \
+	&& ! grep -qE '(^|[[:space:]`])git([^`[:space:]]|[[:space:]]+[^`[:space:]]+)*[[:space:]]+push([[:space:]]|$)' \
 	<<< "$pr_section" \
+	&& ! grep -qE 'prism-tool[[:space:]]+pr[[:space:]]+(publish|create|merge)([[:space:]]|$)' <<< "$pr_section" \
 	&& grep -qF 'preparation-only' <<< "$pr_section"; then
 	pass 'finalization neither pushes nor creates the PR'
 else

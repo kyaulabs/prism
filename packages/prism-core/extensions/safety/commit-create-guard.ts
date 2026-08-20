@@ -172,6 +172,7 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
     const dynamic = hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command);
     if (dynamic && /(?:^|\s)commit\s+create(?:\s|$)/.test(command)) return "UNSAFE_ATTEMPT";
     if (PREFIX_PATTERN.test(command) && dynamic) return "UNSAFE_ATTEMPT";
+    if (tokens.includes("--type") && tokens.includes("--subject")) return "UNSAFE_ATTEMPT";
     return "NONE";
 }
 
