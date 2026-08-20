@@ -40,10 +40,13 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Registry access and consumer manifest mutation remain per-operation boundaries; standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked, and never transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed dependency-network effects for one attempt; consumer mutation remains separately approved. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
+| setup attempt | One invocation-scoped `/setup` orchestration with bounded dependency-network authorization, independently approved mutation stages, and no standing consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | finalization acceptance | One explicit authorization for one branch-completion attempt, including disclosed Git synchronization, attestation, full checking, four-axis review, and pull-request preparation. A stopped attempt requires fresh acceptance. |
-| candidate workspace | The adapter-owned ephemeral area used to resolve and audit proposed dependency graphs before approved consumer manifests or lockfiles change. It is not a general scratch directory. |
+| candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
+| testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
+| repository seed | The sole signed root commit created on unborn `develop`, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Publication remains human-owned. |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
@@ -75,9 +78,12 @@ The globally installed, language-agnostic harness package.
 - Deploys merge-safe global instructions without replacing user-owned content.
 - Exposes generic tooling through stable interfaces rather than consumer
   working-directory assumptions.
+- Owns deterministic Git initialization, canonical hook distribution, bounded
+  repository-seed attestation, and signed root-commit orchestration.
 - Owns privacy-minimal global standing-consent state through narrow,
   explicitly approved launcher operations.
-- Never pushes a branch, merges a pull request, or accesses credentials.
+- Never configures a remote, pushes a branch, merges a pull request, or
+  accesses credentials.
 
 ### Stack Adapter
 
@@ -87,8 +93,10 @@ A project-local specialization of the Prism core.
 - Is opt-in and must not change language-agnostic core semantics.
 - Contributes data to the core safety boundary rather than loading another
   extension.
-- Provisions ecosystem dependencies only into the consumer project's native
-  manifests and lockfiles and only after explicit approval.
+- Provisions ecosystem dependencies and complete testing-ready scaffolds only
+  through an approved adapter-owned desired-state transaction.
+- Owns stack-specific local/CI quality behavior, generated CI, dependency
+  population, and browser acquisition behind Core orchestration.
 - A change that requires stack-specific logic in core is an architecture
   boundary failure and must halt for review.
 
@@ -118,20 +126,45 @@ The measured state required before a toolchain entry point proceeds.
 - Standing OCR consent authorizes only OCR connectivity and reviewed-code
   egress; it never transfers to registry, mutation, Git, GitHub, or other
   external effects.
+- `/setup` invocation separately authorizes only the bounded registry, audit,
+  locked-population, and declared browser-download effects of that attempt.
 - A known dependency advisory at any severity prevents GO status.
 - Required tools are never silently skipped.
 
 ### Candidate Transaction
 
-The pre-application dependency operation owned by an active adapter.
+The journaled desired-state operation owned by an active adapter.
 
-- Registry access occurs only after network approval.
-- Candidate graphs resolve and audit before consumer manifests change.
-- Only literal `yes` authorizes consumer manifest and lockfile replacement.
-- Pre-application failure leaves consumer files byte-identical.
-- Applied manifests and lockfiles are atomic and remain the desired state if
-  later dependency population fails.
-- Cleanup is limited to an ownership-marked candidate workspace.
+- Registry, audit, locked-population, and declared browser-download access is
+  bounded to the active setup attempt's network authorization.
+- The complete scaffold and dependency graphs prepare and audit before
+  consumer files change.
+- Only literal `yes` authorizes application of the displayed desired state.
+- Existing exact canonical files are preserved without writes; differing,
+  unsafe, or ownership-ambiguous paths fail closed.
+- Before the durable commit point, rollback is limited to exact recorded
+  transaction-owned states.
+- At and after the durable commit point, the complete desired scaffold remains
+  authoritative if dependency population or verification later fails.
+- Recovery and cleanup are limited to the ownership-marked candidate workspace
+  and its validated journal.
+
+### Repository Bootstrap
+
+The Core-owned local Git and root-seed lifecycle selected through `/setup`.
+
+- Git initialization is create-only and deterministic; existing or containing
+  repositories are preserved without normalization.
+- Only a `CREATE` disposition from the active setup attempt yields a one-use
+  root-seed attestation.
+- The attestation binds the canonical root, adapter identity, setup inventory,
+  file digests, hook inventory, and final staged-index digest.
+- The seed stages no unrelated paths and passes the shared local/CI quality
+  implementation before commit creation.
+- The exclusive signed commit launcher creates the sole root commit with the
+  reserved initial-seed type and retains fatal failure recovery.
+- Setup never configures a remote, pushes, opens a pull request, or applies a
+  GitHub ruleset.
 
 ### Safety Policy
 
@@ -236,9 +269,9 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   exit statuses.
 - Composer/npm manifests and lockfiles as ecosystem transaction boundaries.
 - Adapter safe-directory data consumed by the core safety extension.
-- Human approval at each network, mutation, connectivity, and code-egress
-  boundary, either per operation or through the narrowly scoped standing OCR
-  consent defined by ADR-0074.
+- Human authorization at each network, mutation, connectivity, and code-egress
+  boundary: invocation-scoped setup networking under ADR-0076, separately
+  approved mutations, or narrowly scoped standing OCR consent under ADR-0074.
 
 ## Non-Goals
 
@@ -310,6 +343,9 @@ Pi-era decisions:
 - `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
 - `adr/0074-approval-free-harness-operations.md` — use standing OCR consent, atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
 - `adr/0075-exclusive-global-core-package-source.md` — keep exactly one selected Prism Core source active in Pi global settings through atomic installer reconciliation.
+- `adr/0076-bounded-setup-network-authorization.md` — treat `/setup` invocation as one bounded dependency-network authorization while retaining separate mutation and external-effect boundaries.
+- `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — let Core create only an absent deterministic repository and one attested signed root seed without publication.
+- `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
 
 ## When to update this file
 

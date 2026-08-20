@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.1) [0.2.1](https://github.com/kyaulabs/prism/compare/v0.2.0...v0.2.1) - (2026-08-20)
+
+### 📝 Documentation
+
+- [Setup] Define testing-ready generated ci contract ([74509f3](https://github.com/kyaulabs/prism/commit/74509f38fc6fc9e5b54cff5d71807bdb3a08d3fb))
+- [Setup] Define testing-ready php-web scaffold ([261b5ef](https://github.com/kyaulabs/prism/commit/261b5ef11ff669ee6b2e1e482c1e819da5c8ed9f))
+- [Setup] Define php-web scaffold transaction ([82693a9](https://github.com/kyaulabs/prism/commit/82693a9d5af940c38190458dd8b425c9d552451a))
+- [Setup] Define canonical hook distribution ([c9a6b72](https://github.com/kyaulabs/prism/commit/c9a6b720c742da9a2a283d391d9d11d1b8a8f371))
+- [Setup] Define safe core git initialization ([6ef8ab0](https://github.com/kyaulabs/prism/commit/6ef8ab0a93b32db59c7fdfc38c656337ebd782d8))
+- [Setup] Specify testing-ready project bootstrap ([9ee5deb](https://github.com/kyaulabs/prism/commit/9ee5deb70c9e5f68c9c7cc6f14cbd3faaaf2e79a))
+- [Setup] Accept project bootstrap architecture ([6eea8dc](https://github.com/kyaulabs/prism/commit/6eea8dc4acfe03239e53361e2fcbf0b382a1510c))
+<!-- Auto-generated on 2026-08-20T16:20:50.271333930-07:00 -->
+
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.0) [0.2.0](https://github.com/kyaulabs/prism/compare/v0.1.0...v0.2.0) - (2026-08-20)
 
 ### ♻️ Refactor
@@ -416,7 +429,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Toolchain] Raise OCR execution timeout to 10 minutes ([3285887](https://github.com/kyaulabs/prism/commit/3285887da995f03fe33e8ff5ac7ca57c86364caa))
 - [Toolchain] Add pull request workflow operations ([65d9fa5](https://github.com/kyaulabs/prism/commit/65d9fa5ea0ba5abb3b46cbd8c0101b668950ebe3))
 - [Workflow] Automate accepted branch finalization ([090f6e0](https://github.com/kyaulabs/prism/commit/090f6e0adbb8b54462f4aa7cc31c688b12b058d9))
-<!-- Auto-generated on 2026-08-20T09:28:18.832481267-07:00 -->
+<!-- Auto-generated on 2026-08-20T16:20:50.308567748-07:00 -->
 
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.1.0) [0.1.0](https://github.com/kyaulabs/prism/commit/0ad9930922de977092ab9e39a0d8b4895fa5a17c) - (2026-08-13)
 
@@ -1381,4 +1394,4 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 
 - [Skill] Fix GraphQL shell injection and quoting in skill snippets ([312f371](https://github.com/kyaulabs/prism/commit/312f37126513694ebe6b58108abc8d8d41cf250d))
 - [Tsconfig] Enable strict type-checking ([ced28a7](https://github.com/kyaulabs/prism/commit/ced28a78d791038f58a6e1ac5c1d4af967c44d95))
-<!-- Auto-generated on 2026-08-20T09:28:18.937768479-07:00 -->
+<!-- Auto-generated on 2026-08-20T16:20:50.414233610-07:00 -->
