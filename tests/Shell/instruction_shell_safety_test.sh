@@ -79,7 +79,7 @@ for file in "${resources[@]}"; do
                 in_shell = 0
                 next
             }
-            if (trimmed ~ /^\(/ || trimmed ~ /[;&|][[:space:]]*\(/) {
+            if (trimmed ~ /^\(/ || trimmed ~ /[;&|!][[:space:]]*\(/) {
                 printf "%s:%d:%s\n", FILENAME, FNR, $0
                 found = 1
             }
