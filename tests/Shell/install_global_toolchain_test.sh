@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 set -euo pipefail
 
@@ -16,6 +16,23 @@ write_fake_tools() {
     cat > "$root/bin/pi" <<'EOF'
 #!/usr/bin/env bash
 printf '%s|ignore=%s\n' "$*" "${npm_config_ignore_scripts:-unset}" >> "$PI_INVOCATIONS"
+if [ "${PI_INSTALL_STATUS:-0}" -ne 0 ]; then
+    exit "$PI_INSTALL_STATUS"
+fi
+if [ "${1:-}" = "install" ] && [ "${PI_SKIP_SETTINGS_WRITE:-0}" != "1" ]; then
+    node - "$PI_CODING_AGENT_DIR/settings.json" "${2:-}" <<'JSEOF'
+const fs = require('node:fs');
+const path = require('node:path');
+const settingsPath = process.argv[2];
+const source = process.argv[3];
+fs.mkdirSync(path.dirname(settingsPath), {recursive: true});
+let settings = {};
+if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+if (!Array.isArray(settings.packages)) settings.packages = [];
+settings.packages.push(source);
+fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, {mode: 0o600});
+JSEOF
+fi
 if [[ "${2:-}" == npm:* ]]; then
     package_root="$PI_CODING_AGENT_DIR/npm/node_modules/@kyaulabs/prism-core"
     mkdir -p "$package_root/scripts"
@@ -143,6 +160,170 @@ if [ "$(cat "$T1/home/.bashrc")" = 'shell-startup-sentinel' ] \
     pass "installer does not edit shell startup files"
 else
     fail "installer edited a shell startup file"
+fi
+
+echo "── selected source exclusivity ──"
+T9=$(mktemp -d)
+register_temp_dir "$T9"
+write_fake_tools "$T9"
+mkdir -p "$T9/home" "$T9/pi-agent" "$T9/bin-dir" "$T9/stale-core"
+: > "$T9/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core"}\n' > "$T9/stale-core/package.json"
+cat > "$T9/pi-agent/settings.json" <<EOF
+{
+  "theme": "dark",
+  "packages": [
+    "npm:@kyaulabs/prism-core",
+    "$T9/stale-core",
+    "npm:unrelated"
+  ]
+}
+EOF
+status=0
+HOME="$T9/home" \
+    PI_CODING_AGENT_DIR="$T9/pi-agent" \
+    PRISM_BIN_DIR="$T9/bin-dir" \
+    PI_INVOCATIONS="$T9/pi-invocations" \
+    PATH="$T9/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -eq 0 ] && node - "$T9/pi-agent/settings.json" "$REPO_ROOT/packages/prism-core" <<'JSEOF'
+const fs = require('node:fs');
+const settings = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const selected = fs.realpathSync(process.argv[3]);
+if (settings.theme !== 'dark') process.exit(1);
+if (JSON.stringify(settings.packages) !== JSON.stringify(['npm:unrelated', selected])) process.exit(1);
+JSEOF
+then
+    pass "local installation removes stale npm and local core registrations"
+else
+    fail "local installation did not make the selected core source exclusive"
+fi
+
+T11=$(mktemp -d)
+register_temp_dir "$T11"
+write_fake_tools "$T11"
+mkdir -p "$T11/home" "$T11/pi-agent" "$T11/bin-dir" "$T11/stale-core"
+: > "$T11/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core"}\n' > "$T11/stale-core/package.json"
+cat > "$T11/pi-agent/settings.json" <<EOF
+{
+  "packages": [
+    "$T11/stale-core",
+    "npm:unrelated"
+  ]
+}
+EOF
+status=0
+HOME="$T11/home" \
+    PI_CODING_AGENT_DIR="$T11/pi-agent" \
+    PRISM_BIN_DIR="$T11/bin-dir" \
+    PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
+    PI_INVOCATIONS="$T11/pi-invocations" \
+    PATH="$T11/bin:$PATH" \
+    bash "$INSTALLER" --network-approved=yes >/dev/null 2>&1 || status=$?
+if [ "$status" -eq 0 ] && node - "$T11/pi-agent/settings.json" <<'JSEOF'
+const fs = require('node:fs');
+const settings = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const expected = ['npm:unrelated', 'npm:@kyaulabs/prism-core'];
+if (JSON.stringify(settings.packages) !== JSON.stringify(expected)) process.exit(1);
+JSEOF
+then
+    pass "npm installation removes stale local core registrations"
+else
+    fail "npm installation did not make the selected core source exclusive"
+fi
+
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+write_fake_tools "$T12"
+mkdir -p "$T12/home" "$T12/pi-agent" "$T12/bin-dir"
+: > "$T12/pi-invocations"
+printf '{invalid\n' > "$T12/pi-agent/settings.json"
+settings_before=$(cksum "$T12/pi-agent/settings.json" | awk '{print $1 ":" $2}')
+status=0
+HOME="$T12/home" \
+    PI_CODING_AGENT_DIR="$T12/pi-agent" \
+    PRISM_BIN_DIR="$T12/bin-dir" \
+    PI_INVOCATIONS="$T12/pi-invocations" \
+    PI_SKIP_SETTINGS_WRITE=1 \
+    PATH="$T12/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+settings_after=$(cksum "$T12/pi-agent/settings.json" | awk '{print $1 ":" $2}')
+if [ "$status" -ne 0 ] && [ "$settings_before" = "$settings_after" ] \
+    && [ ! -e "$T12/pi-agent/AGENTS.md" ] \
+    && [ ! -e "$T12/pi-agent/APPEND_SYSTEM.md" ] \
+    && [ ! -e "$T12/bin-dir/prism-tool" ]; then
+    pass "reconciliation failure preserves settings and stops deployment"
+else
+    fail "reconciliation failure changed settings or continued deployment"
+fi
+
+T13=$(mktemp -d)
+register_temp_dir "$T13"
+write_fake_tools "$T13"
+mkdir -p "$T13/home" "$T13/pi-agent" "$T13/bin-dir"
+: > "$T13/pi-invocations"
+printf '{"packages":["npm:@kyaulabs/prism-core","npm:unrelated"]}\n' > "$T13/pi-agent/settings.json"
+settings_before=$(cksum "$T13/pi-agent/settings.json" | awk '{print $1 ":" $2}')
+status=0
+HOME="$T13/home" \
+    PI_CODING_AGENT_DIR="$T13/pi-agent" \
+    PRISM_BIN_DIR="$T13/bin-dir" \
+    PI_INVOCATIONS="$T13/pi-invocations" \
+    PI_INSTALL_STATUS=9 \
+    PATH="$T13/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+settings_after=$(cksum "$T13/pi-agent/settings.json" | awk '{print $1 ":" $2}')
+if [ "$status" -ne 0 ] && [ "$settings_before" = "$settings_after" ] \
+    && [ ! -e "$T13/pi-agent/AGENTS.md" ] \
+    && [ ! -e "$T13/pi-agent/APPEND_SYSTEM.md" ] \
+    && [ ! -e "$T13/bin-dir/prism-tool" ]; then
+    pass "installation failure preserves the prior source before reconciliation"
+else
+    fail "installation failure changed settings or continued deployment"
+fi
+
+T14=$(mktemp -d)
+register_temp_dir "$T14"
+write_fake_tools "$T14"
+mkdir -p "$T14/home" "$T14/pi-agent" "$T14/bin-dir"
+: > "$T14/pi-invocations"
+cp -R "$REPO_ROOT/packages/prism-core" "$T14/pi-agent/local-core"
+cat > "$T14/pi-agent/local-core/scripts/prism-tool.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== 'doctor') process.exit(2);
+process.stdout.write('fixture\tPASS\tready\nGO\n');
+JSEOF
+chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js"
+cat > "$T14/pi-agent/settings.json" <<EOF
+{
+  "packages": [
+    "npm:@kyaulabs/prism-core",
+    "$T14/pi-agent/local-core",
+    "npm:unrelated"
+  ]
+}
+EOF
+status=0
+HOME="$T14/home" \
+    PI_CODING_AGENT_DIR="$T14/pi-agent" \
+    PRISM_BIN_DIR="$T14/bin-dir" \
+    PI_INVOCATIONS="$T14/pi-invocations" \
+    PATH="$T14/bin:$PATH" \
+    bash "$T14/pi-agent/local-core/scripts/install-global.sh" >/dev/null 2>&1 || status=$?
+if [ "$status" -eq 0 ] && [ ! -s "$T14/pi-invocations" ] \
+    && node - "$T14/pi-agent/settings.json" "$T14/pi-agent/local-core" <<'JSEOF'
+const fs = require('node:fs');
+const settings = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const selected = fs.realpathSync(process.argv[3]);
+const expected = [selected, 'npm:unrelated'];
+if (JSON.stringify(settings.packages) !== JSON.stringify(expected)) process.exit(1);
+JSEOF
+then
+    pass "an already installed local core reconciles without invoking Pi"
+else
+    fail "the under-Pi installation path did not reconcile exclusively"
 fi
 
 echo "── npm source registry approval ──"
