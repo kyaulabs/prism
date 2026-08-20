@@ -284,10 +284,13 @@ function createPrivateMessage(context, repository, message) {
         throw new CommitError(EXIT.TOOL, 'message identifier failed');
     }
     const operationDir = path.join(prismDir, `commit-create-${operationId}`);
+    let operationCreated = false;
     try {
         fs.mkdirSync(operationDir, {mode: 0o700});
+        operationCreated = true;
         ensurePrivateDirectory(operationDir);
     } catch {
+        if (operationCreated) rmdirQuietly(operationDir);
         throw new CommitError(EXIT.TOOL, 'message directory could not be created');
     }
     const messageFile = path.join(operationDir, 'message.txt');
