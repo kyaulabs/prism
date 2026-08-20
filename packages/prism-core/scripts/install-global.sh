@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -38,6 +38,7 @@ BIN_DIR=${PRISM_BIN_DIR:-$HOME/.local/bin}
 LAUNCHER="$BIN_DIR/prism-tool"
 NETWORK_APPROVED=false
 UNINSTALL_LAUNCHER=false
+SELECTED_CORE_SOURCE=""
 
 for argument in "$@"; do
     case "$argument" in
@@ -179,6 +180,11 @@ fi
 # --- 1. install the core package -------------------------------------------
 
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
+    if [[ ! "$PRISM_CORE_SOURCE" =~ ^npm:@kyaulabs/prism-core(@[^[:space:]@]+)?$ ]]; then
+        echo "✗ configured npm core source is invalid" >&2
+        exit 2
+    fi
+    SELECTED_CORE_SOURCE="$PRISM_CORE_SOURCE"
     if [ "$NETWORK_APPROVED" != true ]; then
         echo "✗ npm package installation requires --network-approved=yes" >&2
         exit 2
@@ -186,13 +192,25 @@ if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     echo "• installing core from approved npm source"
     npm_config_ignore_scripts=true pi install "$PRISM_CORE_SOURCE"
 elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
-	echo "• installing core from configured local source"
-	pi install "$PRISM_CORE_SOURCE"
+    if ! SELECTED_CORE_SOURCE=$(canonical_cli "${PRISM_CORE_SOURCE%/}"); then
+        echo "✗ configured local core source is unavailable" >&2
+        exit 1
+    fi
+    echo "• installing core from configured local source"
+    pi install "$SELECTED_CORE_SOURCE"
 elif [[ "$PKG_ROOT" == "$PI_DIR"/* ]]; then
-	echo "• core already under pi dir ($PKG_ROOT); skipping pi install"
+    SELECTED_CORE_SOURCE="$PKG_ROOT"
+    echo "• core already under pi dir ($PKG_ROOT); skipping pi install"
 else
-	echo "• installing core from local source: $PKG_ROOT"
-	pi install "$PKG_ROOT"
+    SELECTED_CORE_SOURCE="$PKG_ROOT"
+    echo "• installing core from local source: $PKG_ROOT"
+    pi install "$PKG_ROOT"
+fi
+
+if ! node "$PKG_ROOT/scripts/reconcile-core-source.js" \
+    "$PI_DIR/settings.json" "$SELECTED_CORE_SOURCE"; then
+    echo "✗ Prism Core settings reconciliation failed." >&2
+    exit 1
 fi
 
 # --- 2. deploy the always-on context files ---------------------------------
