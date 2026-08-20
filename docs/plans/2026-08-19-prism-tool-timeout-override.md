@@ -35,7 +35,7 @@
 - Consumes: `prism-tool run TOOL_ID [CONTROLS] -- ARGUMENTS`, component `executionTimeoutMs`, and the process runner's effective default.
 - Produces: optional parsed `timeoutMs`, canonical `DEFAULT_EXECUTION_TIMEOUT_MS = 30000`, canonical `MAX_EXECUTION_TIMEOUT_MS = 900000`, and a validated runner timeout that is never forwarded to the child.
 
-- [ ] **Step 1: Write failing contract and launcher tests**
+- [x] **Step 1: Write failing contract and launcher tests**
 
 Update `tests/Node/toolchain-contract.test.js` so 900,000 ms is accepted and 900,001 ms is rejected. Extend the bundled fixture helper in `tests/Node/prism-tool-run.test.js` to optionally declare `executionTimeoutMs`, then add tests proving:
 
@@ -71,7 +71,7 @@ Extend the approved OCR run test in `tests/Node/prism-tool-preflight.test.js` wi
 
 Assert the target call receives `options.timeout === 900000` and the control is absent from OCR argv.
 
-- [ ] **Step 2: Run focused tests to verify Red**
+- [x] **Step 2: Run focused tests to verify Red**
 
 Run:
 
@@ -81,7 +81,7 @@ node --test tests/Node/prism-tool-run.test.js tests/Node/prism-tool-preflight.te
 
 Expected: FAIL because `--timeout-ms` is rejected and the contract ceiling remains 600,000 ms.
 
-- [ ] **Step 3: Export canonical timeout bounds**
+- [x] **Step 3: Export canonical timeout bounds**
 
 In `process.js`, replace the inline default with:
 
@@ -99,7 +99,7 @@ const MAX_EXECUTION_TIMEOUT_MS = 900000;
 
 Export that constant with the existing contract functions.
 
-- [ ] **Step 4: Parse and validate the launcher control**
+- [x] **Step 4: Parse and validate the launcher control**
 
 In `cli.js`, import both constants and define one canonical usage string containing:
 
@@ -121,7 +121,7 @@ Return usage status when the parsed timeout is below `defaultTimeoutMs` or above
 timeout: context.timeout ?? parsed.timeoutMs ?? defaultTimeoutMs,
 ```
 
-- [ ] **Step 5: Run focused tests to verify Green**
+- [x] **Step 5: Run focused tests to verify Green**
 
 Run:
 
@@ -131,7 +131,7 @@ node --test tests/Node/prism-tool-run.test.js tests/Node/prism-tool-preflight.te
 
 Expected: PASS.
 
-- [ ] **Step 6: Refactor and run complete verification**
+- [x] **Step 6: Refactor and run complete verification**
 
 Run:
 
@@ -143,7 +143,7 @@ git diff --check
 
 Expected: all PASS with no generated assets or dependency changes.
 
-- [ ] **Step 7: Prepare the atomic implementation commit**
+- [x] **Step 7: Prepare the atomic implementation commit**
 
 Stage only the six source/test files, verify the staged diff, then use:
 
