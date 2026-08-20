@@ -67,10 +67,19 @@ CONSENT_SCAN_PATHS=(
 )
 consent_prompt_count=$({ grep -RiohE 'Grant standing OCR consent.*\(yes/no\)' \
 	"${CONSENT_SCAN_PATHS[@]}" || true; } | wc -l | tr -d ' ')
-if [ "$consent_prompt_count" -eq 1 ] && grep -qiE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md"; then
-	pass '/setup is the sole standing OCR-consent prompt'
+setup_status_line=$({ grep -niF 'prism-tool consent status --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_prompt_line=$({ grep -niE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_grant_line=$({ grep -niF 'prism-tool consent grant-ocr --approval=yes' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_doctor_line=$({ grep -niE '^prism-tool doctor$' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+if [ "$consent_prompt_count" -eq 1 ] \
+	&& [ -n "$setup_status_line" ] && [ -n "$setup_prompt_line" ] \
+	&& [ -n "$setup_grant_line" ] && [ -n "$setup_doctor_line" ] \
+	&& [ "$setup_status_line" -lt "$setup_prompt_line" ] \
+	&& [ "$setup_prompt_line" -lt "$setup_grant_line" ] \
+	&& [ "$setup_grant_line" -lt "$setup_doctor_line" ]; then
+	pass '/setup uniquely orders status, consent prompt, grant, and full readiness'
 else
-	fail "/setup is not the sole standing OCR-consent prompt (count=$consent_prompt_count)"
+	fail "/setup consent prompt is duplicated or out of order (count=$consent_prompt_count)"
 	failures=$((failures + 1))
 fi
 
@@ -161,6 +170,8 @@ STALE_SCAN_PATHS=(
 	"$REPO_ROOT/CODING_HARNESS.md"
 	"$REPO_ROOT/CONTRIBUTING.md"
 	"$REPO_ROOT/.github/hooks"
+	"$REPO_ROOT/packages/prism-core/scripts/prism-tool"
+	"$REPO_ROOT/packages/prism-core/extensions/safety"
 )
 stale_found=0
 for candidate in "${STALE_SCAN_PATHS[@]}"; do

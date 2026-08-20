@@ -61,14 +61,26 @@ else
 	fail 'finalization stages are missing, duplicated, or out of order'
 fi
 
-artifact_cleanup=$(section_between \
+if ! artifact_cleanup=$(section_between \
 	'<!-- finalization-artifact-cleanup -->' \
-	'<!-- finalization-clean-tree -->')
-acceptance=$(section_between \
+	'<!-- finalization-clean-tree -->'); then
+	fail 'artifact-cleanup section is missing or empty'
+	artifact_cleanup=''
+fi
+if ! acceptance=$(section_between \
 	'<!-- finalization-acceptance -->' \
-	'<!-- finalization-target-sync -->')
-stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup')
-pr_section=$(section_between '<!-- finalization-pr -->' '## Stop conditions')
+	'<!-- finalization-target-sync -->'); then
+	fail 'acceptance section is missing or empty'
+	acceptance=''
+fi
+if ! stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup'); then
+	fail 'stop-conditions section is missing or empty'
+	stop_conditions=''
+fi
+if ! pr_section=$(section_between '<!-- finalization-pr -->' '## Stop conditions'); then
+	fail 'PR section is missing or empty'
+	pr_section=''
+fi
 
 if grep -qF 'prism-tool commit create --type chore --scope docs --subject "remove completed development artifacts"' <<< "$artifact_cleanup" \
 	&& grep -qF 'Stage the exact deleted' <<< "$artifact_cleanup" \
