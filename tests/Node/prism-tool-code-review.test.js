@@ -135,7 +135,7 @@ test('dedicated review validates versions and connectivity before exact OCR revi
     assert.deepEqual(target.calls.at(-1).args, [
         'review',
         '--from',
-        'origin/develop',
+        'a'.repeat(40),
         '--to',
         'HEAD',
         '--audience',
@@ -160,7 +160,7 @@ test('dedicated review targets main for release and hotfix branches', (t) => {
         assert.deepEqual(target.calls.at(-1).args, [
             'review',
             '--from',
-            'origin/main',
+            'a'.repeat(40),
             '--to',
             'HEAD',
             '--audience',

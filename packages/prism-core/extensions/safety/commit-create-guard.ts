@@ -22,7 +22,7 @@ const TEXT_ONLY_COMMANDS = new Set(["echo", "printf", "grep", "rg"]);
 const PREFIX_PATTERN = /(?:^|[\s'"(`])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
 
 function executableBasename(token: string): string {
-    return basename(token);
+    return basename(token.replace(/["']/g, ""));
 }
 
 function prefixIndex(tokens: readonly string[]): number {
@@ -169,10 +169,9 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
         return validStructuredArguments(direct[0]) ? "STANDALONE" : "UNSAFE_ATTEMPT";
     }
     if (prefixIndex(tokens) === 0 || wrapperAttempt(command, tokens)) return "UNSAFE_ATTEMPT";
-    if (PREFIX_PATTERN.test(command) &&
-        (hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command))) {
-        return "UNSAFE_ATTEMPT";
-    }
+    const dynamic = hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command);
+    if (dynamic && /(?:^|\s)commit\s+create(?:\s|$)/.test(command)) return "UNSAFE_ATTEMPT";
+    if (PREFIX_PATTERN.test(command) && dynamic) return "UNSAFE_ATTEMPT";
     return "NONE";
 }
 

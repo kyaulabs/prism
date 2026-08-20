@@ -103,10 +103,11 @@ function resolveReviewArguments(parsed, context, run, env) {
         maxBuffer: 1048576,
         timeout: 30000,
     });
-    if (baseRef.error || baseRef.status !== 0 || !SHA_RE.test(String(baseRef.stdout ?? '').trim())) {
+    const baseSha = String(baseRef.stdout ?? '').trim();
+    if (baseRef.error || baseRef.status !== 0 || !SHA_RE.test(baseSha)) {
         throw new CodeReviewError(EXIT.TOOL, 'review base ref is unavailable');
     }
-    return ['review', '--from', base, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
+    return ['review', '--from', baseSha, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
 }
 
 function fail(error) {

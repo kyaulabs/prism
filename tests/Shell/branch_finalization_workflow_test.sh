@@ -144,10 +144,7 @@ else
 	fail 'the obsolete post-gate disposal menu remains'
 fi
 
-if ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+pr[[:space:]]+(create|merge|close|edit|review)([[:space:]]|$)' \
-	<<< "$pr_section" \
-	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+api([[:space:]]|$)' \
-	<<< "$pr_section" \
+if ! grep -qE '(^|[[:space:]`])gh([[:space:]]|$)' <<< "$pr_section" \
 	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' \
 	<<< "$pr_section" \
 	&& grep -qF 'preparation-only' <<< "$pr_section"; then

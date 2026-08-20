@@ -51,19 +51,21 @@ else
 	fail "direct attribution resolver rejection lacked its diagnostic"
 fi
 
-retired_names=(prepare apply discard plan approval)
+retired_names=(prepare apply discard plan approval approval-inline)
 retired_recipes=(
 	'prism-tool commit prepare --type fix --subject "old"'
 	'prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes'
 	'prism-tool commit discard --plan 0123456789abcdef0123456789abcdef'
 	'prism-tool commit create --type fix --subject "old" --plan deadbeef'
 	'prism-tool commit create --type fix --subject "old" --approval=yes'
+	'`prism-tool commit create --type fix --subject "old" --approval=yes`'
 )
 retired_diagnostics=(
 	'retired commit prepare operation'
 	'retired commit apply operation'
 	'retired commit discard operation'
 	'retired commit plan control'
+	'retired commit approval control'
 	'retired commit approval control'
 )
 if [ "${#retired_names[@]}" -ne "${#retired_recipes[@]}" ] \

@@ -94,7 +94,7 @@ function checkFile(root, file) {
         if (/prism-tool\s+commit[^\n]*--plan(?:=|\s|$)/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: retired commit plan control`);
         }
-        if (/prism-tool\s+commit[^\n]*--approval=yes(?:\s|$)/.test(line)) {
+        if (/prism-tool\s+commit[^\n]*--approval=yes\b/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: retired commit approval control`);
         }
     });
