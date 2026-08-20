@@ -62,7 +62,7 @@ assert_ci_contains '--ignore-scripts' 'OCR npm installation disables lifecycle s
 assert_ci_not_contains 'ocr llm test' 'CI never runs the OCR connectivity test'
 assert_ci_not_contains 'ocr review|ocr scan' 'CI never performs an OCR review'
 assert_ci_not_contains '--ocr-test-approved|--code-egress-approved' 'CI has no retired OCR approval controls'
-assert_ci_not_contains 'prism-tool run ocr' 'CI has no generic OCR passthrough'
+assert_ci_not_contains 'prism-tool(\.js)?[[:space:]]+run[[:space:]]+ocr' 'CI has no generic OCR passthrough'
 
 echo "── locked, script-free dependency install ──"
 assert_ci_contains 'composer install[^|]*--no-scripts' 'Composer install disables lifecycle scripts'
@@ -94,7 +94,7 @@ assert_ci_not_contains 'git cliff' 'No direct git cliff invocation'
 
 echo "── no legacy OpenCode-era surface ──"
 assert_ci_not_contains '\.opencode|eval-agent|model-tier|quality-surface\.manifest' 'No OpenCode-era eval, tier, or retired manifest surface'
-assert_ci_not_contains 'prism-tool commit (prepare|apply|discard)' 'No retired commit workflow in CI'
+assert_ci_not_contains 'prism-tool(\.js)?[[:space:]]+commit[[:space:]]+(prepare|apply|discard)' 'No retired commit workflow in CI'
 
 echo "── resilient tool downloads ──"
 # Assumes one download invocation per line with the bound flags in canonical

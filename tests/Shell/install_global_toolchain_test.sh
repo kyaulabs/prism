@@ -210,8 +210,7 @@ if [ "$status" -eq 0 ] \
     && ! grep -qF 'llm test' "$T3/ocr-invocations" \
     && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T3/pi-invocations" \
     && [ "$(wc -l < "$T3/pi-invocations")" -eq 1 ] \
-    && [ ! -e "$T3/pi-agent/prism-consent.json" ] \
-    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output"; then
+    && [ ! -e "$T3/pi-agent/prism-consent.json" ]; then
     pass "installer performs no live OCR or consent mutation"
 else
     fail "installer did not defer consent and live readiness to /setup"

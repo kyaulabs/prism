@@ -56,9 +56,23 @@ for marker in "${markers[@]}"; do
 	last="$line"
 done
 if [ "$ordered" = true ]; then
-	pass 'finalization stages appear in the required order'
+	for index in "${!markers[@]}"; do
+		start="<!-- finalization-${markers[$index]} -->"
+		if [ "$index" -lt "$((${#markers[@]} - 1))" ]; then
+			end="<!-- finalization-${markers[$((index + 1))]} -->"
+		else
+			end='## Stop conditions'
+		fi
+		if ! section_between "$start" "$end" >/dev/null; then
+			fail "finalization section is missing or empty: ${markers[$index]}"
+			ordered=false
+		fi
+	done
+fi
+if [ "$ordered" = true ]; then
+	pass 'finalization stages appear in the required order and are non-empty'
 else
-	fail 'finalization stages are missing, duplicated, or out of order'
+	fail 'finalization stages are missing, duplicated, out of order, or empty'
 fi
 
 if ! artifact_cleanup=$(section_between \
