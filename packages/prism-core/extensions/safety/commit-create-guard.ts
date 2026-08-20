@@ -18,6 +18,7 @@ const WRAPPERS = new Set([
     "nice", "nohup", "setsid", "stdbuf", "xargs", "find",
 ]);
 const INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node(?:js)?|perl|ruby|php(?:\d+(?:\.\d+)*)?|[gmn]?awk)$/;
+const TEXT_ONLY_COMMANDS = new Set(["echo", "printf", "grep", "rg"]);
 const PREFIX_PATTERN = /(?:^|[\s'"(`])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
 
 function executableBasename(token: string): string {
@@ -137,9 +138,11 @@ function validStructuredArguments(tokens: readonly string[]): boolean {
 
 function wrapperAttempt(command: string, tokens: readonly string[]): boolean {
     const head = executableBasename(tokens[0] ?? "");
+    const embedded = prefixIndex(tokens) > 0;
+    if (embedded && !TEXT_ONLY_COMMANDS.has(head) && !(head === "git" && tokens[1] === "grep")) return true;
     if (!WRAPPERS.has(head) && !INTERPRETER_PATTERN.test(head) &&
         !/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0] ?? "")) return false;
-    return prefixIndex(tokens) > 0 || PREFIX_PATTERN.test(command);
+    return embedded || PREFIX_PATTERN.test(command);
 }
 
 export function classifyCommitCreate(command: unknown): CommitCreateClassification {

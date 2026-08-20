@@ -199,7 +199,10 @@ export default function (pi: ExtensionAPI) {
                 tripFatal(sid, ctx);
                 return fatalBlock();
             }
-            return handleToolCall(event.toolName, event.input, deps);
+            return {
+                block: true,
+                reason: "[prism safety] BLOCKED: safety handler internal error — failing closed per ADR-0036",
+            };
         }
     });
 
