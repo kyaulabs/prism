@@ -150,10 +150,10 @@ export default function (pi: ExtensionAPI) {
                 }
             },
         };
+        let tracked = false;
         try {
             if (fatalLatch.isLatched(sid)) return handleToolCall(event.toolName, event.input, deps);
 
-            let tracked = false;
             if (event.toolName === "bash") {
                 const classification = classifyCommitCreate((event.input as { command?: unknown }).command);
                 if (classification === "UNSAFE_ATTEMPT") {
@@ -184,9 +184,12 @@ export default function (pi: ExtensionAPI) {
             }
             return result;
         } catch {
-            fatalLatch.complete(event.toolCallId);
-            tripFatal(sid, ctx);
-            return fatalBlock();
+            if (tracked) {
+                fatalLatch.complete(event.toolCallId);
+                tripFatal(sid, ctx);
+                return fatalBlock();
+            }
+            return handleToolCall(event.toolName, event.input, deps);
         }
     });
 
@@ -206,7 +209,9 @@ export default function (pi: ExtensionAPI) {
     // Agent run finished — drop only the denial streak. The fatal commit
     // latch deliberately persists until extension teardown.
     pi.on("agent_end", async (_event, ctx) => {
-        breaker.reset(sessionId(ctx));
+        const sid = sessionId(ctx);
+        if (fatalLatch.hasPending(sid)) tripFatal(sid, ctx);
+        breaker.reset(sid);
     });
 
     // Session teardown: drop both independent state machines.

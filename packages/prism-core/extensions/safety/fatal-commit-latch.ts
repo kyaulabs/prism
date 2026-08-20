@@ -24,6 +24,10 @@ export class FatalCommitLatch {
         return sid;
     }
 
+    hasPending(sid: string): boolean {
+        return [...this.pending.values()].some((pendingSid) => pendingSid === sid);
+    }
+
     clearAll(): void {
         this.sessions.clear();
         this.pending.clear();

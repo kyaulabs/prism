@@ -88,6 +88,15 @@ test("trailing shell comments make commit attempts unsafe", () => {
     assert.equal(classifyCommitCreate(command), "UNSAFE_ATTEMPT");
 });
 
+test("command-substituted commit creation is an unsafe attempt", () => {
+    for (const command of [
+        'echo $(prism-tool commit create --type feat --subject "x")',
+        'echo `prism-tool commit create --type feat --subject "x"`',
+    ]) {
+        assert.equal(classifyCommitCreate(command), "UNSAFE_ATTEMPT", command);
+    }
+});
+
 test("ordinary commands and textual mentions are not commit attempts", () => {
     for (const command of [
         "echo 'prism-tool commit create --type feat --subject x'",

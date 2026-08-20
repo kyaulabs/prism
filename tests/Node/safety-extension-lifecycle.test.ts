@@ -104,6 +104,28 @@ test("successful exclusive commit clears pending state without latching", async 
     assert.equal(await target.handlers.tool_call(readEvent(), target.ctx), undefined);
 });
 
+test("agent end turns an unresolved commit execution into a fatal latch", async () => {
+    const target = await fixture();
+    target.branch.push(assistantEntry(toolCall("commit-pending", "bash", {command: COMMIT})));
+
+    assert.equal(await target.handlers.tool_call(bashEvent("commit-pending", COMMIT), target.ctx), undefined);
+    await target.handlers.agent_end({type: "agent_end"}, target.ctx);
+
+    assert.equal(target.abortCalls, 1);
+    assert.equal((await target.handlers.tool_call(readEvent(), target.ctx) as {block?: boolean})?.block, true);
+});
+
+test("malformed unrelated Bash input blocks without tripping the fatal latch", async () => {
+    const target = await fixture();
+    const event = {type: "tool_call", toolCallId: "bash-malformed", toolName: "bash", input: null};
+
+    const result = await target.handlers.tool_call(event, target.ctx) as {block?: boolean; terminate?: boolean};
+
+    assert.equal(result.block, true);
+    assert.equal(result.terminate, undefined);
+    assert.equal(target.abortCalls, 0);
+});
+
 test("unrelated failed Bash execution does not trip the fatal latch", async () => {
     const target = await fixture();
     target.branch.push(assistantEntry(toolCall("bash-1", "bash", {command: "false"})));

@@ -17,7 +17,7 @@ const WRAPPERS = new Set([
     "bash", "sh", "zsh", "dash", "env", "command", "exec", "sudo", "timeout",
     "nice", "nohup", "setsid", "stdbuf", "xargs",
 ]);
-const PREFIX_PATTERN = /(?:^|[\s'"])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
+const PREFIX_PATTERN = /(?:^|[\s'"(`])(?:[^\s'"]*\/)?prism-tool\s+commit\s+create(?:\s|$)/;
 
 function executableBasename(token: string): string {
     return basename(token);
@@ -156,6 +156,10 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
         return validStructuredArguments(direct[0]) ? "STANDALONE" : "UNSAFE_ATTEMPT";
     }
     if (wrapperAttempt(command, tokens)) return "UNSAFE_ATTEMPT";
+    if (PREFIX_PATTERN.test(command) &&
+        (hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command))) {
+        return "UNSAFE_ATTEMPT";
+    }
     return "NONE";
 }
 
