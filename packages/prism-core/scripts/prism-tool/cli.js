@@ -10,6 +10,7 @@ const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
+const {consentCommand} = require('./consent');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--code-egress-approved=yes] [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
@@ -655,6 +656,7 @@ function main(argv, context = {}) {
     if (command === 'resolve') return resolveKindDir(args, context);
     if (command === 'pr') return prCommand(args, context);
     if (command === 'commit') return commitCommand(args, context);
+    if (command === 'consent') return consentCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }
