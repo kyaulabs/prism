@@ -1,7 +1,7 @@
 # Spec: Prism Tool Execution Timeout Override
 
 **Date:** 2026-08-19
-**Status:** Approved design; awaiting written-spec review
+**Status:** Approved
 
 ## Problem Statement
 
