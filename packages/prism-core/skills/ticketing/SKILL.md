@@ -82,17 +82,22 @@ After loading `tracker-operator`, run:
 
 ```bash
 gh auth status
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-OWNER=$(gh repo view --json owner -q .owner.login)
-NAME=$(gh repo view --json name -q .name)
-gh api "orgs/$OWNER/issue-types"
-gh api "orgs/$OWNER/issue-fields"
-gh label list --repo "$REPO" --json name
+gh repo view --json nameWithOwner -q .nameWithOwner
+gh repo view --json owner -q .owner.login
+gh repo view --json name -q .name
 ```
 
-Cache the returned issue type node IDs, field IDs + options, and label
-names. If `gh auth status` fails, stop and tell the user to run
-`gh auth login`.
+Validate and retain the three repository outputs as inert `REPO`, `OWNER`, and
+`NAME` context. Render their literal values in the remaining pre-flight calls:
+
+```bash
+gh api "orgs/OWNER/issue-types"
+gh api "orgs/OWNER/issue-fields"
+gh label list --repo OWNER/REPO --json name
+```
+
+Cache the returned issue type node IDs, field IDs + options, and label names.
+If `gh auth status` fails, stop and tell the user to run `gh auth login`.
 
 ## The gh create to type to fields to labels pattern
 
@@ -100,35 +105,39 @@ Follow the `tracker-operator` skill. Execute in order:
 
 ```bash
 # 1. Detect repo dynamically — never hard-code
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-OWNER=$(gh repo view --json owner -q .owner.login)
-NAME=$(gh repo view --json name -q .name)
+gh repo view --json nameWithOwner -q .nameWithOwner
+gh repo view --json owner -q .owner.login
+gh repo view --json name -q .name
+```
 
-# 2. Create the issue — capture issue number from output URL
+Validate and retain the outputs as inert `REPO`, `OWNER`, and `NAME` context,
+then render their literal values in every later command.
+
+```bash
+# 2. Create the issue — capture the issue number from the output URL.
 # Write title and body to temp files via single-quoted heredoc (no expansion).
-# gh issue create has no title-file flag, so read the title into a shell variable.
-# Double-quoted variable expansion ("$TITLE") does NOT re-parse the value for
-# quotes, $(), or backticks — the content is inert data, not executable code.
+# gh issue create has no title-file flag, so read the one-line title safely.
 cat > /tmp/issue-title.txt <<'HEREDOC'
 <title>
 HEREDOC
 cat > /tmp/issue-body.md <<'HEREDOC'
 <body>
 HEREDOC
-gh issue create --repo "$REPO" --title "$(cat /tmp/issue-title.txt)" --body-file /tmp/issue-body.md
+IFS= read -r TITLE < /tmp/issue-title.txt
+gh issue create --repo OWNER/REPO --title "$TITLE" --body-file /tmp/issue-body.md
 
-# 3. Get the issue's GraphQL node ID
-gh issue view <N> --repo "$REPO" --json id -q .id
+# 3. Get the issue's GraphQL node ID and retain the output as inert context.
+gh issue view <N> --repo OWNER/REPO --json id -q .id
 
-# 4. Set the issue type via GraphQL mutation
+# 4. Set the issue type via GraphQL mutation.
 gh api graphql -F nodeId="<NODE_ID>" -F typeId="<TYPE_NODE_ID>" -f query='mutation($nodeId:ID!,$typeId:ID!) { updateIssue(input: { id: $nodeId, issueTypeId: $typeId }) { issue { number issueType { name } } } }'
 
-# 5. Set custom field values via REST POST
-gh api "repos/$REPO/issues/<N>/issue-field-values" -X POST \
+# 5. Set custom field values via REST POST.
+gh api "repos/OWNER/REPO/issues/<N>/issue-field-values" -X POST \
   -f issue_field_values='[{"field_id": <ID>, "value": "<value>"}, ...]'
 
-# 6. Apply labels (skip if none selected)
-gh issue edit <N> --repo "$REPO" --add-label "<label1>,<label2>"
+# 6. Apply labels (skip if none selected).
+gh issue edit <N> --repo OWNER/REPO --add-label "<label1>,<label2>"
 ```
 
 Replace all `<...>` placeholders with actual values. Use cached type node
@@ -281,13 +290,17 @@ gh issue edit <task_number> --repo "$REPO" --add-blocked-by <prereq_number>
 
 If `gh --version` < 2.94.0, fall back to GraphQL:
 
-```bash
-# Get node IDs for both issues
-TASK_NODE=$(gh issue view <TASK_NUM> --repo "$REPO" --json id -q .id)
-PREREQ_NODE=$(gh issue view <PREREQ_NUM> --repo "$REPO" --json id -q .id)
+Get each node ID in a separate call and retain both outputs as inert context:
 
-# Wire via GraphQL
-gh api graphql -F taskId="$TASK_NODE" -F prereqId="$PREREQ_NODE" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
+```bash
+gh issue view <TASK_NUM> --repo OWNER/REPO --json id -q .id
+gh issue view <PREREQ_NUM> --repo OWNER/REPO --json id -q .id
+```
+
+Render the validated literal node IDs into the mutation:
+
+```bash
+gh api graphql -F taskId="TASK_NODE_ID" -F prereqId="PREREQ_NODE_ID" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
 ```
 
 ### Step 11: Report
@@ -334,10 +347,10 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
   hard-coded.
 - Never interpolate user content (issue titles, bodies, PR descriptions, label
   names) into shell command strings. Use a single-quoted heredoc
-  (`<<'HEREDOC'`) to write payloads to temp files, read them into shell
-  variables via `$(cat)`, and pass via `--title "$VAR"` / `--body-file FILE`.
-  For GraphQL, always use `-F` variable bindings — never inline `<placeholder>`
-  text inside a query string.
+  (`<<'HEREDOC'`) to write payloads to temp files, read a one-line title with
+  `IFS= read -r TITLE < FILE`, and pass it via `--title "$TITLE"`; pass bodies
+  via `--body-file FILE`. For GraphQL, always use `-F` variable bindings —
+  never inline `<placeholder>` text inside a query string.
 - No forced linear blocking edges — sequential tasks are not necessarily
   dependent.
 

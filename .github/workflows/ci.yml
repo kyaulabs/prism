@@ -16,12 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Lint, Test & Security
+  verify:
+    name: Pi toolchain verification
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      SEMGREP_TOKEN_PRESENT: ${{ secrets.SEMGREP_APP_TOKEN != '' }}
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -51,17 +49,17 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: bash .github/scripts/verify-protected-push.sh
 
-      - name: Setup PHP 8.5
+      - name: Setup PHP 8.5 with PCOV
         uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.5'
           coverage: pcov
           tools: composer
 
-      - name: Setup Node.js
+      - name: Setup Node.js 24
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: lts/*
+          node-version: '24'
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -76,19 +74,90 @@ jobs:
           key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
           restore-keys: composer-${{ runner.os }}-
 
-      - name: Install Composer dependencies
+      - name: Install Composer dependencies (scripts disabled)
         run: composer install --no-progress --no-interaction --no-scripts
 
-      - name: Install npm dependencies
+      - name: Install npm dependencies from the committed lockfile
         run: npm ci
 
-      - name: Install pi
-        # The harness validator (validate-harness.sh) and the
-        # check_skill_frontmatter shell test import-check the safety extension
-        # via `pi -e`. Pre-conversion the validator was opencode-based; the
-        # Stage 3 rewrite made it pi-dependent, so CI must install pi. Pinned
-        # for reproducibility (matches the pinned tool versions below).
+      - name: Install pi (pinned)
+        # validate-harness.sh imports the safety extension via `pi -e`, and the
+        # check_skill_frontmatter shell test depends on the pi CLI. Pinned for
+        # reproducibility (matches the pinned core peerDependency).
         run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.1
+
+      - name: Install shellcheck 0.11.0
+        # Pinned for local/CI parity with a verified SHA-256 (no curl-to-tar
+        # pipe; mktemp path defeats /tmp TOCTOU pre-planting).
+        env:
+          SC_VERSION: "0.11.0"
+          SC_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          archive="shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 \
+            -o "$tmpdir/${archive}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/${archive}"
+          echo "${SC_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
+          tar -xJ -C "$tmpdir" -f "$tmpdir/${archive}"
+          mkdir -p "$HOME/.local/bin"
+          mv "$tmpdir/shellcheck-v${SC_VERSION}/shellcheck" "$HOME/.local/bin/"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          shellcheck --version
+
+      - name: Install gitleaks 8.30.1
+        # Pinned for local/CI parity with a verified SHA-256 (no curl-to-tar
+        # pipe; mktemp path defeats /tmp TOCTOU pre-planting).
+        env:
+          GL_VERSION: "8.30.1"
+          GL_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          archive="gitleaks_${GL_VERSION}_linux_x64.tar.gz"
+          curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 \
+            -o "$tmpdir/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/${archive}"
+          echo "${GL_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
+          tar -xz -C "$tmpdir" -f "$tmpdir/${archive}"
+          mkdir -p "$HOME/.local/bin"
+          mv "$tmpdir/gitleaks" "$HOME/.local/bin/"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          gitleaks version
+
+      - name: Provision Semgrep (compatible range, isolated venv)
+        # Ephemeral CI environment provisioning only — Prism runtime/setup
+        # verifies but never installs Semgrep (ADR-0063).
+        env:
+          SEMGREP_RANGE: ">=1.173.0,<2.0.0"
+        run: |
+          set -euo pipefail
+          venv="$(mktemp -d)/semgrep-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --quiet "semgrep${SEMGREP_RANGE}"
+          echo "$venv/bin" >> "$GITHUB_PATH"
+          export PATH="$venv/bin:$PATH"
+          semgrep --version
+
+      - name: Provision OCR (compatible range, scripts disabled)
+        # Ephemeral CI environment provisioning only — Prism runtime/setup
+        # verifies but never installs OCR (ADR-0063). CI never runs the OCR
+        # connectivity test or an OCR review; only the local
+        # executable/version check is exercised.
+        env:
+          OCR_RANGE: ">=1.9.1 <2.0.0"
+        run: |
+          set -euo pipefail
+          npm install -g --ignore-scripts "@alibaba-group/open-code-review@${OCR_RANGE}"
+          ocr --version
+
+      - name: Mandatory local readiness
+        run: node packages/prism-core/scripts/prism-tool.js doctor --local-only
 
       - name: TypeScript type-check
         run: npx tsc --noEmit
@@ -99,8 +168,8 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright Chromium
+        run: node packages/prism-core/scripts/prism-tool.js run playwright -- install --with-deps chromium
 
       - name: PHP syntax check
         run: |
@@ -110,35 +179,11 @@ jobs:
             -not -path './aurora/*' \
             -print0 | xargs -0 -n1 php -l
 
+      - name: Node tests
+        run: npm run test:node
+
       - name: Harness validation
         run: bash packages/prism-core/scripts/validate-harness.sh
-
-      # Pin shellcheck to a specific version for local/CI parity. The runner
-      # image's bundled shellcheck lags upstream stable and its exit-code
-      # behavior differs from 0.11.0 (which decoupled info/style from the exit
-      # code), causing info-level findings (SC2295, SC2015) to fail CI while
-      # passing locally. Keep this version in sync with what developers run.
-      # Issue #182: verify the pinned SHA-256 before extraction (eliminate
-      # curl-to-tar pipe) and download to a mktemp path to defeat /tmp TOCTOU
-      # pre-planting.
-      - name: Install shellcheck 0.11.0
-        env:
-          SC_VERSION: "0.11.0"
-          SC_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
-        run: |
-          set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          archive="shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSL -o "$tmpdir/${archive}" \
-            "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/${archive}"
-          echo "${SC_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
-          tar -xJ -C "$tmpdir" -f "$tmpdir/${archive}"
-          mkdir -p "$HOME/.local/bin"
-          mv "$tmpdir/shellcheck-v${SC_VERSION}/shellcheck" "$HOME/.local/bin/"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          shellcheck --version
 
       - name: Shellcheck
         run: |
@@ -152,29 +197,18 @@ jobs:
         run: bash .github/scripts/check-script-executable-bits.sh
 
       - name: Shell regression tests
-        run: |
-          shopt -s nullglob
-          tests=( tests/Shell/*_test.sh )
-          if [ ${#tests[@]} -eq 0 ]; then
-            echo "No shell tests found in tests/Shell/"
-            exit 1
-          fi
-          for t in "${tests[@]}"; do
-            echo "::group::Running $t"
-            bash "$t"
-            echo "::endgroup::"
-          done
+        run: composer test:shell
 
       - name: PHP CS Fixer (dry-run)
-        run: php vendor/bin/php-cs-fixer fix --dry-run --diff
+        run: node packages/prism-core/scripts/prism-tool.js run php-cs-fixer -- fix --dry-run --diff
 
       - name: Stylelint
         if: hashFiles('cdn/sass/**/*.scss') != ''
-        run: npx stylelint "cdn/sass/**/*.scss" --allow-empty-input
+        run: node packages/prism-core/scripts/prism-tool.js run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
 
       - name: ESLint
         if: hashFiles('cdn/js/**/*.js', '.github/scripts/**/*.js') != ''
-        run: npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+        run: node packages/prism-core/scripts/prism-tool.js run eslint -- "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 
       - name: Start PHP dev server
         if: hashFiles('tests/Browser/**/*.php') != ''
@@ -183,35 +217,12 @@ jobs:
           echo "PHP_SERVER_PID=$!" >> $GITHUB_ENV
           timeout 10 bash -c 'until curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; do sleep 0.5; done'
 
-      - name: Cache pip (semgrep)
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-semgrep
-          restore-keys: pip-${{ runner.os }}-
-
-      - name: Install Semgrep
-        env:
-          SEMGREP_VERSION: "1.168.0"
-        run: |
-          set -euo pipefail
-          # Install semgrep into an isolated venv under a mktemp path to avoid
-          # PEP 668 externally-managed-environment errors on the runner image
-          # and to defeat /tmp TOCTOU pre-planting (Issue #182). pip verifies
-          # package hashes from PyPI over TLS, so no separate checksum gate is
-          # needed here — only the curl-based downloads above require it.
-          venv="$(mktemp -d)/semgrep-venv"
-          python3 -m venv "$venv"
-          "$venv/bin/pip" install --quiet "semgrep==${SEMGREP_VERSION}"
-          echo "$venv/bin" >> "$GITHUB_PATH"
-          export PATH="$venv/bin:$PATH"
-          semgrep --version
-
-      - name: Pest (coverage >= 80%)
+      - name: Pest (backend/ coverage >= 80%)
         if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
         run: |
-          # Aggregate backstop gate
-          php vendor/bin/pest --coverage --min=80
+          # Aggregate backstop gate (PCOV is configured in the environment by
+          # setup-php; the launcher delegates it to the consumer PHP config).
+          node packages/prism-core/scripts/prism-tool.js run pest -- --coverage --min=80
           # Per-changed-file gate (mechanized, same script as /check)
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="origin/${BASE_REF}"
@@ -232,17 +243,10 @@ jobs:
         if: always() && hashFiles('tests/Browser/**/*.php') != ''
         run: kill $PHP_SERVER_PID 2>/dev/null || true
 
-      - name: Semgrep App (findings dashboard)
-        if: ${{ env.SEMGREP_TOKEN_PRESENT == 'true' }}
-        timeout-minutes: 5
-        continue-on-error: true
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-        run: semgrep ci --metrics off --disable-version-check
-
       - name: Semgrep SAST
         run: >-
-          semgrep scan
+          node packages/prism-core/scripts/prism-tool.js run semgrep --
+          scan
           --config .semgrep/kyaulabs.yml
           --config p/php
           --config p/secrets
@@ -251,130 +255,70 @@ jobs:
           --metrics off
           --disable-version-check
 
-      # Pin gitleaks to a specific version for local/CI parity (same rationale
-      # as the shellcheck pin above). Binary install avoids the Docker
-      # dependency that gitleaks-action@v3 required — Docker just for a secrets
-      # scan is absurd overhead on the runner.
-      # Issue #182: verify the pinned SHA-256 before extraction (eliminate
-      # curl-to-tar pipe) and download to a mktemp path to defeat /tmp TOCTOU
-      # pre-planting.
-      - name: Install gitleaks 8.30.1
-        env:
-          GL_VERSION: "8.30.1"
-          GL_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-        run: |
-          set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          archive="gitleaks_${GL_VERSION}_linux_x64.tar.gz"
-          curl -fsSL -o "$tmpdir/${archive}" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/${archive}"
-          echo "${GL_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
-          tar -xz -C "$tmpdir" -f "$tmpdir/${archive}"
-          mkdir -p "$HOME/.local/bin"
-          mv "$tmpdir/gitleaks" "$HOME/.local/bin/"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          gitleaks version
-
       - name: Gitleaks SAST
         run: gitleaks detect --source . --redact --verbose --no-color
 
-      - name: Commitlint
+      - name: Composer audit
+        run: composer audit --locked --format=json
+
+      - name: npm audit
+        run: npm audit --audit-level=low
+
+      - name: Commitlint (PR range)
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           git fetch origin "${BASE_REF}"
-          npx commitlint --from="origin/${BASE_REF}" --to="HEAD" --verbose
+          node packages/prism-core/scripts/prism-tool.js run commitlint -- --from="origin/${BASE_REF}" --to=HEAD --verbose
 
-  check-macos:
-    name: macOS Eval & Shell
-    runs-on: macos-latest
-    timeout-minutes: 10
+  package-smoke:
+    name: Package smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-          submodules: true
           persist-credentials: false
-
-      - name: Configure git identity
-        # resolve-identity.sh (called by the /pr title-validation block that
-        # pr_command_test.sh extracts) fail-closes without a git identity.
-        # actions/checkout sets none, so configure a CI identity for repo-local
-        # git operations.
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: macOS version diagnostics
-        run: |
-          echo "=== sw_vers ==="
-          sw_vers
-          echo "=== uname ==="
-          uname -a
-          echo "=== bash version ==="
-          bash --version | head -1
-
-      - name: Setup PHP 8.5
-        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
-        with:
-          php-version: '8.5'
-          coverage: pcov
-          tools: composer
-
-      - name: Validate composer.json and lock file
-        run: composer validate --strict --no-check-publish
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.composer/cache
-          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-
-
-      - name: Install Composer dependencies
-        run: composer install --no-progress --no-interaction --no-scripts
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 'lts/*'
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
+          node-version: '24'
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Install pi
-        # Needed by validate-harness.sh (extension import check) and the
-        # check_skill_frontmatter shell test. See the check job for rationale.
-        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.1
-
-      - name: Install Homebrew bash 5 + GNU coreutils
-        run: |
-          brew install bash coreutils
-          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
-
-      - name: Check script executable bits
-        shell: bash
-        run: bash .github/scripts/check-script-executable-bits.sh
-
-      - name: Shell regression tests
+      - name: Pack and smoke both packages from an unrelated consumer
         shell: bash
         run: |
-          shopt -s nullglob
-          tests=( tests/Shell/*_test.sh )
-          if [ ${#tests[@]} -eq 0 ]; then
-            echo "No shell tests found in tests/Shell/"
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          npm pack ./packages/prism-core --ignore-scripts --pack-destination "$tmpdir" >/dev/null
+          npm pack ./packages/prism-php-web --ignore-scripts --pack-destination "$tmpdir" >/dev/null
+          core_tgz=$(ls "$tmpdir"/kyaulabs-prism-core-*.tgz)
+          adapter_tgz=$(ls "$tmpdir"/kyaulabs-prism-php-web-*.tgz)
+          tar -tzf "$core_tgz" > "$tmpdir/core.list"
+          tar -tzf "$adapter_tgz" > "$tmpdir/adapter.list"
+          grep -qx 'package/toolchain.json' "$tmpdir/core.list"
+          grep -qx 'package/scripts/prism-tool.js' "$tmpdir/core.list"
+          grep -qx 'package/toolchain.json' "$tmpdir/adapter.list"
+          grep -qx 'package/scripts/prism-tool-adapter.js' "$tmpdir/adapter.list"
+          # Install the core package into a temporary Pi-managed root.
+          core_dir="$tmpdir/pi-root/node_modules/@kyaulabs-prism-core"
+          mkdir -p "$core_dir"
+          tar -xzf "$core_tgz" -C "$core_dir" --strip-components=1
+          # Invoke the packaged CLI from an unrelated temporary consumer project;
+          # a usage failure proves the packaged entry point executes.
+          mkdir -p "$tmpdir/consumer"
+          cd "$tmpdir/consumer"
+          if node "$core_dir/scripts/prism-tool.js" unknown-command >/dev/null 2>&1; then
+            echo "packaged CLI unexpectedly succeeded" >&2
             exit 1
           fi
-          for t in "${tests[@]}"; do
-            echo "::group::Running $t"
-            bash "$t"
-            echo "::endgroup::"
-          done
+          echo "package smoke PASS"

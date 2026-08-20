@@ -47,15 +47,16 @@ The `.github/hooks/pre-commit` hook is a strip-then-insert idempotent normalizer
 headers and `vim: ft=` modelines, rebuilds the file with exactly one canonical
 header (committer identity + commit date) and one modeline, and re-stages if the
 content changed. A placeholder guard blocks commits containing literal
-`creator@host` or `YYYY/MM/DD` template text. Run
-`bash packages/prism-core/scripts/install-hooks.sh` once after cloning to activate it.
+`creator@host` or `YYYY/MM/DD` template text. Run `prism-tool resolve scripts` once after cloning, retain the returned
+absolute directory, then run
+`bash /absolute/resolved/scripts/install-hooks.sh` to activate it.
 
 ## Vim Modeline (REQUIRED at end of every source file)
 
 ```text
 PHP:  // vim: ft=php sts=4 sw=4 ts=4 et :
 SCSS: // vim: ft=scss sts=2 sw=2 ts=2 et :
-JS:   // vim: ft=javascript sts=4 sw=4 ts=4 noet :
+JS:   // vim: ft=javascript sts=4 sw=4 ts=4 et :
 Bash: # vim: ft=sh sts=4 sw=4 ts=4 et :
 TS:   // vim: ft=typescript sts=4 sw=4 ts=4 et :
 ```

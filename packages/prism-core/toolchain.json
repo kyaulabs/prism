@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "package": "@kyaulabs/prism-core",
+  "role": "core",
+  "components": [
+    {
+      "id": "commitlint",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "commitlint",
+      "version": "21.2.2",
+      "provisioning": "bundled",
+      "authentication": "none",
+      "executable": "commitlint",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "commitlint-config-conventional",
+      "kind": "library",
+      "ecosystem": "npm",
+      "package": "@commitlint/config-conventional",
+      "version": "21.2.2",
+      "provisioning": "bundled",
+      "authentication": "none"
+    },
+    {
+      "id": "git-cliff",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "git-cliff",
+      "version": "2.13.1",
+      "provisioning": "bundled",
+      "authentication": "none",
+      "executable": "git-cliff",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "semgrep",
+      "kind": "command",
+      "ecosystem": "pypi",
+      "package": "semgrep",
+      "versionRequirement": {
+        "mode": "range",
+        "minimum": "1.173.0",
+        "maximumExclusive": "2.0.0"
+      },
+      "provisioning": "external",
+      "authentication": "optional",
+      "executable": "semgrep",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "first-token", "allowed": ["scan", "ci"]}
+    },
+    {
+      "id": "ocr",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "@alibaba-group/open-code-review",
+      "versionRequirement": {
+        "mode": "range",
+        "minimum": "1.9.1",
+        "maximumExclusive": "2.0.0"
+      },
+      "provisioning": "external",
+      "authentication": "required",
+      "executable": "ocr",
+      "versionArguments": ["--version"],
+      "executionTimeoutMs": 600000,
+      "argumentPolicy": {"mode": "first-token", "allowed": ["review", "scan"]}
+    }
+  ]
+}

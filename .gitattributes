@@ -12,3 +12,9 @@
 # Mark generated files
 cdn/css/**/*.min.css linguist-generated
 cdn/javascript/**/*.min.js linguist-generated
+
+# ADR-0003 is an accepted immutable record with historical trailing padding.
+adr/0003-env-delivery-mechanism.md prism-blank-lines-exempt
+
+# ADR-0015 is an accepted immutable record with historical trailing padding.
+adr/0015-index-based-linting-in-pre-commit-hook.md prism-blank-lines-exempt

@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: prepare_commit_msg_branch_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for prepare-commit-msg hook (branch name validation, ADR-0028) ────────
 # Covers:
@@ -374,13 +365,5 @@ register_temp_dir "$T7"
 
 print_summary "prepare_commit_msg_branch_test.sh"
 exit $?
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

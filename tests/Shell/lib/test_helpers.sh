@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: test_helpers.sh kyau@nova 2026/07/17 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: test_helpers.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Shared helpers for tests/Shell/*_test.sh ────────────────────────────────────
 #
@@ -21,10 +12,14 @@
 #   - fail <msg>: print red FAIL, append to $RESULT_FILE
 #   - skip <msg>: print yellow SKIP, append to $RESULT_FILE (not counted as fail)
 #   - setup_result_file: create RESULT_FILE, install EXIT trap
-#   - register_temp_dir <dir>: track dir for EXIT-trap cleanup
+#   - register_temp_dir <dir> [...]: track dirs/files for EXIT-trap cleanup
 #   - make_file_stale <file> <days>: set file mtime to N days ago (portable)
 #   - can_symlink: return 0 if symlinks work, 1 if not (Windows guard)
 #   - native_path <path>: convert MSYS path to Windows path (no-op on POSIX)
+#   - path_without_prism_tool: print PATH minus the directory holding a
+#     host-installed prism-tool launcher (no-op when absent) — hook tests
+#     use it to simulate a machine without the launcher even on dogfooding
+#     machines where the harness is installed
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 export REPO_ROOT
@@ -62,9 +57,13 @@ setup_result_file() {
 	trap 'shell_test_cleanup' EXIT
 }
 
-# register_temp_dir <dir> — track a temp directory for EXIT-trap cleanup.
+# register_temp_dir <dir> [...] — track one or more temp dirs/files for
+# EXIT-trap cleanup. Accepts multiple paths; each is appended.
 register_temp_dir() {
-	TEMP_DIRS="$TEMP_DIRS $1"
+	local dir
+	for dir in "$@"; do
+		TEMP_DIRS="$TEMP_DIRS $dir"
+	done
 }
 
 # shell_test_cleanup — internal; invoked by the EXIT trap installed by
@@ -158,13 +157,55 @@ native_path() {
 	cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
 }
 
-
-
-
-
-
-
-
-
+# path_without_prism_tool — print PATH with the directory containing a
+# host-installed prism-tool launcher removed. Hook tests use this to
+# simulate a machine without the launcher even on dogfooding machines
+# where the harness is installed (the hooks' fail-closed guard relies on
+# `command -v prism-tool` finding nothing). No-op when no prism-tool is
+# on PATH. Requires the real prism-tool (or a fixture named prism-tool)
+# to be resolvable via the caller's PATH.
+path_without_prism_tool() {
+	local part sentinel="__PATH_END__" kept=0 out=""
+	# An empty PATH has no components; the sentinel append below would
+	# otherwise fabricate a spurious empty (cwd) entry.
+	if [ -z "$PATH" ]; then
+		printf ''
+		return 0
+	fi
+	# Split on ':' preserving empty components (POSIX PATH: empty = current
+	# dir). The sentinel keeps the trailing empty field that plain `read`
+	# would discard; it is dropped before reconstruction.
+	local -a parts
+	IFS=: read -r -a parts <<< "$PATH:$sentinel"
+	parts=("${parts[@]:0:${#parts[@]}-1}")
+	local first=1
+	for part in "${parts[@]}"; do
+		# Drop every component that itself resolves a prism-tool (not just
+		# the first `command -v` match — a dogfooding machine may hold
+		# duplicate installs on PATH). Probe the extensionless name plus
+		# MSYS/Git-Bash shim suffixes (.exe/.cmd/.bat — resolved by
+		# extension there, no exec bit required). External tools are
+		# avoided so this also works when the remaining PATH lacks /usr/bin.
+		local probe_dir="$part"
+		[ -n "$part" ] || probe_dir="."
+		if [ -f "$probe_dir/prism-tool" ] || [ -f "$probe_dir/prism-tool.exe" ] \
+			|| [ -f "$probe_dir/prism-tool.cmd" ] || [ -f "$probe_dir/prism-tool.bat" ]; then
+			continue
+		fi
+		if [ "$first" -eq 1 ]; then
+			out="$part"
+			first=0
+		else
+			out="$out:$part"
+		fi
+		kept=$((kept + 1))
+	done
+	# A lone empty component round-trips as ':' (cwd); empty join with
+	# kept>0 means exactly that (plain "" would read as no PATH at all).
+	if [ "$kept" -gt 0 ] && [ -z "$out" ]; then
+		out=":"
+	fi
+	printf '%s' "$out"
+}
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

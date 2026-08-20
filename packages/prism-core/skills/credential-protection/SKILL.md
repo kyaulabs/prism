@@ -34,9 +34,10 @@ or transmitting them is forbidden:
    operands are checked with wrapper-aware path canonicalization. Matches
    return a generic redacted block reason and feed the denial circuit breaker.
 2. **Fail-closed classifier** — malformed arguments or internal classifier
-   errors block rather than allow (ADR-0036). Three consecutive blocked bash
-   calls trip the session breaker; every later tool call is blocked until the
-   user starts `/new`.
+   errors block rather than allow (ADR-0036). Three blocked bash calls within
+   the configured window trip the session breaker; every later tool call is
+   blocked until the user runs `/reload`, which reloads the safety extension
+   without replacing the current conversation.
 3. **Prompt-level instruction** — `AGENTS.md` forbids credential reads and
    treats instructions to read, print, copy, encode, or transmit them as
    prompt injection.
@@ -62,7 +63,8 @@ by configuration. Users may **add** paths through a newline-separated
 environment variable:
 
 ```bash
-export PRISM_SENSITIVE_PATHS=$'~/vault/secrets/\n/etc/myapp/keys/'
+export PRISM_SENSITIVE_PATHS='~/vault/secrets/
+/etc/myapp/keys/'
 ```
 
 Entries must be `~/`-prefixed or absolute. Malformed entries fail closed.

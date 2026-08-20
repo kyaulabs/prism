@@ -1,29 +1,16 @@
 #!/usr/bin/env bash
-# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
+# $KYAULabs: search.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
-if [ "$#" -eq 0 ]; then
-	printf 'Usage: %s <query>\n' "$(basename "$0")" >&2
-	exit 2
-fi
-
-if ! command -v curl >/dev/null 2>&1; then
-	printf 'websearch: curl is required.\n' >&2
-	exit 3
-fi
-if ! command -v node >/dev/null 2>&1; then
-	printf 'websearch: Node.js is required to encode and format JSON safely.\n' >&2
-	exit 3
-fi
-if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
-	printf 'websearch: DEEPSEEK_API_KEY is not set. Configure it in the environment; never pass it as an argument.\n' >&2
-	exit 4
-fi
+# shellcheck disable=SC2034  # consumed by the sourced search_common.sh
+SKILL=websearch
+# shellcheck disable=SC1091  # dynamic BASH_SOURCE path; search_common.sh is linted directly
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/search_common.sh"
+usage_guard "$#"
+require_cmd curl 'curl is required.'
+require_cmd node 'Node.js is required to encode and format JSON safely.'
+require_env DEEPSEEK_API_KEY
 
 QUERY="$*"
 MODEL="${WEBSEARCH_MODEL:-deepseek-v4-flash}"
@@ -38,12 +25,7 @@ case "$THINKING" in
 		exit 2
 		;;
 esac
-case "$MAX_TOKENS" in
-	''|*[!0-9]*|0)
-		printf 'websearch: WEBSEARCH_MAX_TOKENS must be a positive integer.\n' >&2
-		exit 2
-		;;
-esac
+require_posint WEBSEARCH_MAX_TOKENS "$MAX_TOKENS"
 case "$BASE_URL" in
 	https://*) ;;
 	*)
@@ -56,11 +38,14 @@ BASE_URL="${BASE_URL%/}"
 REQUEST_FILE=$(mktemp)
 RESPONSE_FILE=$(mktemp)
 ERROR_FILE=$(mktemp)
+AUTH_HEADER_FILE=$(mktemp)
+TEMP_FILES=("$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE" "$AUTH_HEADER_FILE")
 cleanup() {
-	rm -f "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE"
+	rm -f "${TEMP_FILES[@]}"
 }
 trap cleanup EXIT
-chmod 600 "$REQUEST_FILE" "$RESPONSE_FILE" "$ERROR_FILE"
+chmod 600 "${TEMP_FILES[@]}"
+printf 'x-api-key: %s\n' "$DEEPSEEK_API_KEY" > "$AUTH_HEADER_FILE"
 
 QUERY="$QUERY" MODEL="$MODEL" THINKING="$THINKING" MAX_TOKENS="$MAX_TOKENS" \
 	node > "$REQUEST_FILE" <<'NODE'
@@ -86,12 +71,11 @@ if (process.env.THINKING === 'enabled') body.thinking = { type: 'enabled' };
 process.stdout.write(JSON.stringify(body));
 NODE
 
-HTTP_STATUS=$(curl --silent --show-error \
+HTTP_STATUS=$(search_request \
 	--output "$RESPONSE_FILE" \
-	--write-out '%{http_code}' \
 	--request POST \
 	--header 'content-type: application/json' \
-	--header "x-api-key: ${DEEPSEEK_API_KEY}" \
+	--header "@$AUTH_HEADER_FILE" \
 	--data-binary "@$REQUEST_FILE" \
 	--connect-timeout 15 \
 	--max-time 180 \
@@ -99,6 +83,7 @@ HTTP_STATUS=$(curl --silent --show-error \
 	printf 'websearch: network request failed: ' >&2
 	head -c 500 "$ERROR_FILE" >&2 || true
 	printf '\n' >&2
+	printf 'websearch: hint — if this persists, the searxng skill is an alternative search backend.\n' >&2
 	exit 5
 }
 
@@ -116,6 +101,7 @@ NODE
 )
 	[ -z "$MESSAGE" ] || printf ': %s' "$MESSAGE" >&2
 	printf '\n' >&2
+	printf 'websearch: hint — if this persists, the searxng skill is an alternative search backend.\n' >&2
 	exit 5
 fi
 
@@ -164,9 +150,5 @@ if (results.length > 0) {
 	});
 }
 NODE
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

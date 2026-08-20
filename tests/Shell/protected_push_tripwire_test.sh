@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: protected_push_tripwire_test.sh kyau@cosmos.kyaulabs 2026/07/30 -0700 Exp $
-
-
+# $KYAULabs: protected_push_tripwire_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── CI protected-push provenance tripwire tests ───────────────────────────────
 # Verifies that verify-protected-push.sh correctly gates protected-branch
@@ -113,6 +111,7 @@ fake_bin=$(mktemp -d)
 register_temp_dir "$fake_bin"
 fake_gh_setup "$fake_bin"
 fake_log=$(mktemp)
+register_temp_dir "$fake_log"
 
 exit_code=0
 run_verifier "$T1" "$fake_bin" "$fake_log" \
@@ -141,6 +140,7 @@ fake_bin2=$(mktemp -d)
 register_temp_dir "$fake_bin2"
 fake_gh_setup "$fake_bin2"
 fake_log2=$(mktemp)
+register_temp_dir "$fake_log2"
 
 exit_code=0
 run_verifier "$T2" "$fake_bin2" "$fake_log2" \
@@ -169,6 +169,7 @@ fake_bin10=$(mktemp -d)
 register_temp_dir "$fake_bin10"
 fake_gh_setup "$fake_bin10"
 fake_log10=$(mktemp)
+register_temp_dir "$fake_log10"
 
 # Bad repo name (no slash)
 exit_code=0
@@ -205,6 +206,7 @@ fake_bin3=$(mktemp -d)
 register_temp_dir "$fake_bin3"
 fake_gh_setup "$fake_bin3"
 fake_log3=$(mktemp)
+register_temp_dir "$fake_log3"
 
 exit_code=0
 run_verifier "$T3" "$fake_bin3" "$fake_log3" \
@@ -243,6 +245,7 @@ fake_bin4=$(mktemp -d)
 register_temp_dir "$fake_bin4"
 fake_gh_setup "$fake_bin4"
 fake_log4=$(mktemp)
+register_temp_dir "$fake_log4"
 
 exit_code=0
 run_verifier "$T4" "$fake_bin4" "$fake_log4" \
@@ -281,6 +284,7 @@ fake_bin5=$(mktemp -d)
 register_temp_dir "$fake_bin5"
 fake_gh_setup "$fake_bin5"
 fake_log5=$(mktemp)
+register_temp_dir "$fake_log5"
 
 # Fixture: merged PR with correct base and merge_commit_sha
 cat > "$fake_bin5/pulls.json" <<JSON
@@ -332,6 +336,7 @@ fake_bin6=$(mktemp -d)
 register_temp_dir "$fake_bin6"
 fake_gh_setup "$fake_bin6"
 fake_log6=$(mktemp)
+register_temp_dir "$fake_log6"
 
 # Fixture: empty pulls array
 echo '[]' > "$fake_bin6/pulls.json"
@@ -373,6 +378,7 @@ fake_bin7=$(mktemp -d)
 register_temp_dir "$fake_bin7"
 fake_gh_setup "$fake_bin7"
 fake_log7=$(mktemp)
+register_temp_dir "$fake_log7"
 
 # Fixture: closed PR with null merged_at
 cat > "$fake_bin7/pulls.json" <<JSON
@@ -424,6 +430,7 @@ fake_bin8=$(mktemp -d)
 register_temp_dir "$fake_bin8"
 fake_gh_setup "$fake_bin8"
 fake_log8=$(mktemp)
+register_temp_dir "$fake_log8"
 
 # Fixture: merged PR but base is wrong branch
 cat > "$fake_bin8/pulls.json" <<JSON
@@ -475,6 +482,7 @@ fake_bin9=$(mktemp -d)
 register_temp_dir "$fake_bin9"
 fake_gh_setup "$fake_bin9"
 fake_log9=$(mktemp)
+register_temp_dir "$fake_log9"
 
 # Fixture: merged PR but merge_commit_sha does not match
 cat > "$fake_bin9/pulls.json" <<JSON
@@ -526,6 +534,7 @@ fake_bin11=$(mktemp -d)
 register_temp_dir "$fake_bin11"
 fake_gh_setup "$fake_bin11"
 fake_log11=$(mktemp)
+register_temp_dir "$fake_log11"
 
 # Fixture: malformed JSON
 echo 'not json {{{' > "$fake_bin11/pulls.json"
@@ -567,6 +576,7 @@ fake_bin12=$(mktemp -d)
 register_temp_dir "$fake_bin12"
 fake_gh_setup "$fake_bin12"
 fake_log12=$(mktemp)
+register_temp_dir "$fake_log12"
 
 # Sequence mode: response.1 = failure (triggered by FAKE_GH_FAIL), response.2 = failure, response.3 = success
 # We set up pulls.json as success, then use FAKE_GH_FAIL for the first 2 calls
@@ -600,6 +610,7 @@ cat > "$fake_bin12/response.3" <<JSON
 JSON
 
 seq_file=$(mktemp)
+register_temp_dir "$seq_file"
 echo 0 > "$seq_file"
 export FAKE_GH_SEQ_FILE="$seq_file"
 

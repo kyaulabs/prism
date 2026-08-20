@@ -14,17 +14,24 @@ the working tree is clean, use `--baseline-commit HEAD~1`.
 
 ## 1. SAST scan
 
-Run Semgrep directly in **diff audit** mode. Verify `semgrep` is installed;
-if it is missing, stop this axis with a clear install instruction but do not
-install it. Use the repository's tracked Semgrep configuration and
-`--baseline-commit` with the baseline specified above. Resolve the baseline
-as an existing Git revision before passing it to Semgrep and never evaluate
+Run Semgrep through the stable launcher in **diff audit** mode with fixed
+scan arguments:
+
+```bash
+prism-tool run semgrep -- scan --config .semgrep/kyaulabs.yml --baseline-commit BASELINE --metrics off --disable-version-check --error
+```
+
+The mandatory local doctor runs before the scan; a missing or incompatible
+Semgrep stops this axis without installing anything. Resolve the baseline as
+an existing Git revision before passing it to Semgrep and never evaluate
 argument text as shell source. If the argument is empty and the working tree
 is clean, use `--baseline-commit HEAD~1` to scan the most recent commit.
 
 ## 2. Dependency audit
 
-Load the `audit-deps` skill and run both the Composer and npm audits.
+Load the `audit-deps` skill and run both the Composer and npm audits. When an
+active adapter is present, delegate the concrete audit commands to its
+handler; never invoke Composer or npm directly with undeclared arguments.
 
 ## 3. Combined report
 

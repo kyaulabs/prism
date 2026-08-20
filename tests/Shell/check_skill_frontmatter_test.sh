@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
+# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 VALIDATOR="$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh"
 PARSER="$REPO_ROOT/packages/prism-core/scripts/frontmatter-parser.js"
-PASS=0
-FAIL=0
+source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 
-pass() { printf '  PASS %s\n' "$1"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
+if ! command -v node >/dev/null 2>&1 || ! command -v pi >/dev/null 2>&1 \
+	|| ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + pi + js-yaml required (run: pnpm install)"
+	exit 0
+fi
 
 printf '%s\n' '── pi skill frontmatter contract ──'
 if grep -q "does not match directory" "$VALIDATOR"; then pass 'name-directory parity enforced'; else fail 'name-directory parity missing'; fi
@@ -24,7 +24,5 @@ if bash "$VALIDATOR" >/dev/null; then pass 'real skills satisfy contract'; else 
 
 printf '\ncheck_skill_frontmatter_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

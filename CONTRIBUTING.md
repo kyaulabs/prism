@@ -44,10 +44,15 @@ merged pull requests only (see ADR-0044).
    ```bash
    bash packages/prism-core/scripts/new-branch.sh <type> <description>
    ```
-2. Commit your changes with signed conventional-commit messages.
-3. Run `/check` and load the `code-review` skill before opening a PR.
-4. Open a pull request targeting `develop` (or `main` for hotfixes). Release PRs target `main`.
-   Use the `finishing-a-development-branch` skill to prepare the PR command.
+2. Stage exact files and create signed conventional commits through one
+   standalone `prism-tool commit create` call. The launcher owns attribution,
+   hooks, signing, and verification; a failed attempt requires `/reload`.
+3. Use `finishing-a-development-branch`. After cleanup it asks once for
+   finalization acceptance, then automatically synchronizes, attests, runs
+   `/check`, completes all four review axes, revalidates, and invokes `/pr`.
+4. Run the displayed human-only command to open a pull request targeting
+   `develop` (or `main` for hotfixes). Release PRs target `main`; `/pr` never
+   pushes or creates the pull request itself.
 5. A maintainer reviews and merges the PR. Never push directly to `develop`
    or `main`.
 
@@ -55,8 +60,9 @@ merged pull requests only (see ADR-0044).
 
 Releases are a two-half pipeline (ADR-0046):
 
-1. **Authoring** — `/release` prepares a git-cliff changelog on a
-   `release/X.Y.Z` branch and opens the release pull request to `main`.
+1. **Authoring** — `/release` prepares a git-cliff changelog and signed release
+   commit on a `release/X.Y.Z` branch, then displays the human-run publication
+   and pull-request commands for `main`.
 2. **Publication** — merging the release PR triggers `release.yml`, which
    creates the unsigned `vX.Y.Z` tag and GitHub Release at the merge commit
    and opens the `main` → `develop` back-merge PR. A maintainer reviews and
@@ -78,19 +84,16 @@ format, enforced by [commitlint](https://commitlint.js.org/) via the
 
 **Required trailers** (every non-merge, non-revert commit):
 
-- `Authored-by:` — the model that did the design/planning (e.g. `glm-5.2`)
-- `Implemented-by:` — the model that did the implementation
-- `Tested-by:` — the model that did the verification/review
-- `Signed-off-by:` — the human approver, resolved via
-  `bash packages/prism-core/scripts/resolve-identity.sh` (optional override
-  at `~/.config/prism/identity` → `git config user.name`/`user.email`; fails
-  closed, exit 3, if neither resolves).
+- `Implemented-by:` — the active implementation model
+- `Tested-by:` — the configured OCR review model
+- `Signed-off-by:` — the human identity
 
-Under the single-agent, single-primary-model design (ADR-0057) the first
-three trailers are usually the same model — the primary in use for the
-session. Cycle to the judge model (`deepseek-v4-pro`) via **Ctrl+P** for the
-review/verification step and record that model in `Tested-by:`. The value is
-the bare model id (e.g. `glm-5.2`, `deepseek-v4-pro`).
+`prism-tool commit create` resolves and validates all three in that order;
+callers do not run resolver scripts or write attribution footers manually.
+Each model value is the bare ID segment after the last `/` (for example,
+`provider/model-id` becomes `model-id`). Human identity comes from the Prism
+identity override or Git configuration and fails closed when unavailable. The
+harness prescribes no models (ADR-0067).
 
 > **Note:** The Aurora submodule retains the old `Plan-by:`/`Acked-by:` footer
 > names until a separate upstream PR lands. Aurora commits may need manual

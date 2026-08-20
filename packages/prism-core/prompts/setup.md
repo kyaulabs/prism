@@ -53,26 +53,110 @@ instead because it also deploys the global `AGENTS.md` and
 later to make those two context files always-on. Never overwrite an existing
 global context file by hand.
 
-## 3. DeepSeek model access
+## 3. Mandatory toolchain readiness and standing OCR consent
 
-Verify that pi knows both scoped model IDs without exposing credentials:
+Run the fail-closed local doctor before any setup stage that depends on
+declared tools:
 
 ```bash
-pi --list-models deepseek-v4-flash
-pi --list-models deepseek-v4-pro
+prism-tool doctor --local-only
 ```
 
-The expected strategy is:
+If Semgrep or OCR is missing or out of range (ADR-0063: Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`), report the human-run remediation —
+never install, configure, or authenticate either tool and never ask for or
+accept an API key.
 
-- primary: `deepseek/deepseek-v4-flash`
-- review/audit judge: `deepseek/deepseek-v4-pro` via Ctrl+P
-- thinking level: Shift+Tab
+Inspect standing consent without reading the record directly:
 
-If authentication is not configured, instruct the user to run
-`/login deepseek` themselves or export `DEEPSEEK_API_KEY` in their shell.
-Do not ask them to paste the key and do not write it to a project file.
+```bash
+prism-tool consent status --json
+```
 
-## 4. Detect and offer the project adapter
+- `GRANTED`: ask no OCR question and continue. Report that the human can
+  explicitly revoke this global consent through `/setup`; only after such a
+  request run:
+
+  ```bash
+  prism-tool consent revoke-ocr
+  ```
+
+  Revocation makes full doctor and OCR review NO-GO until consent is granted
+  again. Never revoke automatically.
+- `ABSENT`: ask exactly one question:
+
+  ```text
+  Grant standing OCR consent for connectivity checks and reviewed-code egress? (yes/no)
+  ```
+
+  Explain before the question that this global consent authorizes only
+  `ocr llm test` connectivity and transmission of code selected by Prism's
+  dedicated OCR review operation. It does not authorize registry access,
+  package mutation, credential access, pushes, PR creation, or merges. Accept
+  only literal `yes`; on approval run:
+
+  ```bash
+  prism-tool consent grant-ocr --approval=yes
+  ```
+
+  A decline makes the toolchain NO-GO for this setup.
+- `UNSAFE`: stop and report that `~/.pi/agent/prism-consent.json` requires
+  human remediation. Never overwrite, chmod, revoke, or remove it
+  automatically.
+
+After consent is `GRANTED`, run the full doctor without another question:
+
+```bash
+prism-tool doctor
+```
+
+A failed live test makes the toolchain NO-GO for this setup.
+
+## 4. Optional: your model preferences
+
+The harness is model-agnostic (ADR-0067): it never selects, prescribes, or
+restricts models or thinking levels. Model and thinking control is yours at
+any time — **Ctrl+P** cycles models, **Shift+Tab** sets the thinking level.
+This step optionally writes *your* choices as session defaults to
+`~/.pi/agent/settings.json`. Every question is skippable; declining any
+question leaves the user's pi configuration untouched.
+
+Ask, one question at a time:
+
+1. Provider — list pi's built-in providers as facts; no
+   recommendation. Skippable.
+2. Default model — the user names a model ID; validate with
+   `pi --list-models <id>`; if unknown, list the catalogue and let them
+   pick. Skippable.
+3. Ctrl+P pool — "Do you want to restrict which models Ctrl+P cycles
+   through?" Default answer: no restriction (every model usable). If yes,
+   collect model IDs and validate each. Skippable.
+4. Thinking level — one of pi's levels (`off`, `minimal`, `low`, `medium`,
+   `high`, `xhigh`, `max`) or skip to leave pi's own default. Skippable.
+
+Then one consent gate:
+
+```text
+Write these to ~/.pi/agent/settings.json? (yes/no)
+```
+
+Accept only `yes`. On approval, merge exactly the four preference keys the
+user answered — provider, default model, Ctrl+P pool, and thinking level —
+into the existing file with Node.js (a core floor, per doctor):
+
+```bash
+node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));Object.assign(o,JSON.parse(process.argv[2]));fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$HOME/.pi/agent/settings.json" '<merged-json>'
+```
+
+Never delete or alter other keys, never create or touch `models.json`, and
+never read credential files. Any reply other than `yes` leaves the file
+untouched.
+
+If authentication is not configured, instruct the user to run `/login`
+themselves or export the provider's API key in their shell. Do not ask them
+to paste a key and do not write it to a project file.
+
+## 5. Detect and offer the project adapter
 
 Inspect project-local evidence only:
 
@@ -102,13 +186,61 @@ globally. If no known adapter evidence is present, report that the core can
 run alone and ask which language adapter applies before any stack-specific
 work. Do not guess or install an unrelated adapter.
 
-## 5. Git hooks
+## 6. Provision the declared adapter toolchain
 
-If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
-`.github/hooks`, show:
+After the adapter is installed, discover it and inspect the consumer project
+without mutation:
 
 ```bash
-bash packages/prism-core/scripts/install-hooks.sh
+prism-tool setup inspect --json
+```
+
+Ask exactly one question for registry access (separate from standing OCR
+consent above):
+
+```text
+Approve registry access to resolve and audit candidate dependency graphs? (yes/no)
+```
+
+Accept only `--network-approved=yes`, then run:
+
+```bash
+prism-tool setup resolve --adapter=PACKAGE --network-approved=yes --json
+```
+
+Display the exact candidate manifest/lock diff, the install commands, the
+browser download (Playwright Chromium only), and the resulting versions. Then
+ask exactly one question for mutation:
+
+```text
+Apply these audited manifests and lockfiles? (yes/no)
+```
+
+Accept only literal `--approval=yes`; any other reply declines and cleans the
+candidate workspace. On approval run:
+
+```bash
+prism-tool setup apply --adapter=PACKAGE --plan=PATH --approval=yes --json
+prism-tool setup verify --adapter=PACKAGE --network-approved=yes --json
+```
+
+The plan path comes from the resolve report; never accept an arbitrary path.
+Keep every approval one question per turn and never infer one approval from
+another.
+
+## 7. Git hooks
+
+If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
+`.github/hooks`, resolve the scripts directory first:
+
+```bash
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory and show the resulting literal command:
+
+```bash
+bash /absolute/resolved/scripts/install-hooks.sh
 ```
 
 Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
@@ -116,7 +248,7 @@ Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
 that its project quality surface must provide the hooks installer; do not
 invent a path.
 
-## 6. Optional search skills
+## 8. Optional search skills
 
 Check presence only; never print values:
 
@@ -129,7 +261,7 @@ Explain that both integrations are CLI-shell skills, not MCP servers. Missing
 variables are non-blocking. The user sets them in their shell environment;
 Prism never stores them.
 
-## 7. Optional GitHub setup
+## 9. Optional GitHub setup
 
 If `gh` is available, ask whether the user wants to configure repository
 labels and rulesets. Do not contact GitHub before approval.
@@ -140,12 +272,18 @@ labels and rulesets. Do not contact GitHub before approval.
 If `gh` is missing or unauthenticated, report the local remediation
 (`gh auth login`) without attempting login.
 
-## 8. Validate and report
+## 10. Validate and report
 
 In a Prism source checkout, run:
 
 ```bash
-bash packages/prism-core/scripts/validate-harness.sh
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory, then run:
+
+```bash
+bash /absolute/resolved/scripts/validate-harness.sh
 ```
 
 Then report:

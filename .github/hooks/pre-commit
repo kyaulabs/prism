@@ -10,6 +10,28 @@ if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || \
 	exit 1
 fi
 
+# ── prism-tool boundary (fail-closed mandatory readiness) ───────────────────
+# Declared tools are resolved through the prism-tool launcher so the source
+# checkout assumption is removed. Missing launcher or failed local doctor
+# blocks the commit before any lint. See ADR-0025, ADR-0061.
+PRISM_TOOL_PATH=""
+if [ -n "${PRISM_TOOL:-}" ]; then
+	PRISM_TOOL_PATH="$PRISM_TOOL"
+elif command -v prism-tool > /dev/null 2>&1; then
+	PRISM_TOOL_PATH="$(command -v prism-tool)"
+else
+	cat >&2 <<'EOF'
+✗ prism-tool launcher is not installed.
+  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it.
+EOF
+	exit 1
+fi
+
+if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
+	echo "✗ prism-tool local readiness failed (see 'prism-tool doctor')" >&2
+	exit 1
+fi
+
 # ── Temp directory for index-based linting ───────────────────────────────────
 # Staged (index) blobs are checked out to a temp directory so linters read
 # exactly what will be committed, not the working tree. See ADR-0015.
@@ -22,6 +44,40 @@ checkout_staged() {
 	TMPF="$LINT_TMPDIR/$1"
 	mkdir -p "$(dirname "$TMPF")"
 	git show ":$1" > "$TMPF" 2>/dev/null || true
+}
+
+trim_blank_edges() {
+	awk '
+		/^[[:space:]]*$/ {
+			pending = pending $0 ORS
+			next
+		}
+		{
+			if (seen) {
+				printf "%s", pending
+			}
+			print
+			pending = ""
+			seen = 1
+		}
+	'
+}
+
+trim_leading_blank_edge() {
+	awk '
+		seen || !/^[[:space:]]*$/ {
+			seen = 1
+			print
+		}
+	'
+}
+
+trim_metadata_edges() {
+	if $APPEND_ML; then
+		trim_blank_edges
+	else
+		trim_leading_blank_edge
+	fi
 }
 
 # ── PHP syntax check (staged files only) ─────────────────────────────────────
@@ -37,62 +93,53 @@ if command -v php > /dev/null 2>&1; then
 	fi
 fi
 
-# ── php-cs-fixer (staged files only) ─────────────────────────────────────────
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	# Only scan staged PHP files, excluding third-party directories
-	STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' | grep -vE '^(vendor/|node_modules/|aurora/)' || true)
-	if [ -n "$STAGED_PHP" ]; then
-		echo "→ php-cs-fixer"
-		CS_CONFIG=""
-		if [ -f .php-cs-fixer.dist.php ]; then
-			CS_CONFIG=.php-cs-fixer.dist.php
-		elif [ -f .php-cs-fixer.php ]; then
-			CS_CONFIG=.php-cs-fixer.php
-		fi
-		# --path-mode=override: scan ONLY the explicitly-passed paths,
-		# ignoring the Finder scope entirely (prevents node_modules leakage)
-		PATHS=()
-		while IFS= read -r p; do
-			[ -n "$p" ] || continue
-			checkout_staged "$p"
-			PATHS+=("$TMPF")
-		done <<< "$STAGED_PHP"
-		if [ -n "$CS_CONFIG" ]; then
-			"$CS_FIXER" fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
-		else
-			"$CS_FIXER" fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
-		fi
+# ── php-cs-fixer (staged files only, via prism-tool) ────────────────────────
+STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' | grep -vE '^(vendor/|node_modules/|aurora/)' || true)
+if [ -n "$STAGED_PHP" ]; then
+	echo "→ php-cs-fixer"
+	CS_CONFIG=""
+	if [ -f .php-cs-fixer.dist.php ]; then
+		CS_CONFIG=.php-cs-fixer.dist.php
+	elif [ -f .php-cs-fixer.php ]; then
+		CS_CONFIG=.php-cs-fixer.php
+	fi
+	# --path-mode=override: scan ONLY the explicitly-passed paths,
+	# ignoring the Finder scope entirely (prevents node_modules leakage)
+	PATHS=()
+	while IFS= read -r p; do
+		[ -n "$p" ] || continue
+		checkout_staged "$p"
+		PATHS+=("$TMPF")
+	done <<< "$STAGED_PHP"
+	if [ -n "$CS_CONFIG" ]; then
+		"$PRISM_TOOL_PATH" run php-cs-fixer -- fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
+	else
+		"$PRISM_TOOL_PATH" run php-cs-fixer -- fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
 	fi
 fi
 
-# ── Stylelint (staged files only) ─────────────────────────────────────────────
+# ── Stylelint (staged files only, via prism-tool) ────────────────────────────
 STAGED_SCSS=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
-if [ -n "$STAGED_SCSS" ] && [ -d node_modules/stylelint ]; then
+if [ -n "$STAGED_SCSS" ]; then
 	echo "→ Stylelint"
 	SCSS_FAILED=0
 	while IFS= read -r f; do
 		[ -z "$f" ] && continue
-		if ! git show ":$f" | npx stylelint --stdin-filename "$f"; then
+		if ! git show ":$f" | "$PRISM_TOOL_PATH" run stylelint -- --stdin-filename "$f"; then
 			SCSS_FAILED=1
 		fi
 	done <<< "$STAGED_SCSS"
 	[ "$SCSS_FAILED" -eq 0 ] || exit 1
 fi
 
-# ── ESLint (staged files only) ────────────────────────────────────────────────
+# ── ESLint (staged files only, via prism-tool) ───────────────────────────────
 STAGED_JS=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '^cdn/js/.*\.js$' | grep -v '\.min\.js$' || true)
-if [ -n "$STAGED_JS" ] && [ -d node_modules/eslint ]; then
+if [ -n "$STAGED_JS" ]; then
 	echo "→ ESLint"
 	JS_FAILED=0
 	while IFS= read -r f; do
 		[ -z "$f" ] && continue
-		if ! git show ":$f" | npx eslint --stdin --stdin-filename "$f" --no-error-on-unmatched-pattern; then
+		if ! git show ":$f" | "$PRISM_TOOL_PATH" run eslint -- --stdin --stdin-filename "$f" --no-error-on-unmatched-pattern; then
 			JS_FAILED=1
 		fi
 	done <<< "$STAGED_JS"
@@ -208,7 +255,7 @@ if [ -n "$STAGED_SRC" ]; then
 		case "$EXT" in
 			php)   ML="// vim: ft=php sts=4 sw=4 ts=4 et :" ;;
 			scss)  ML="// vim: ft=scss sts=2 sw=2 ts=2 et :" ;;
-			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 noet :" ;;
+			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 et :" ;;
 			sh)    ML="# vim: ft=sh sts=4 sw=4 ts=4 et :" ;;
 			ts)    ML="// vim: ft=typescript sts=4 sw=4 ts=4 et :" ;;
 		esac
@@ -238,11 +285,38 @@ if [ -n "$STAGED_SRC" ]; then
 			#      PHP context, not templating HTML output).
 			LINE1=$(head -1 "$TMP")
 			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
-				# File starts in PHP context. Skip modeline only if
-				# it ends outside PHP context (trailing ?>).
-				LAST_CONTENT=$(grep -v '^[[:space:]]*$' "$TMP" | tail -1)
-				if echo "$LAST_CONTENT" | grep -qE '\?>\s*$'; then
-					APPEND_ML=false
+				# File starts in PHP context. Use PHP tokenization when available
+				# so closing tags in strings are inert and HTML-ending templates
+				# remain outside PHP context.
+				if command -v php > /dev/null 2>&1; then
+					if php -r '
+						$code = file_get_contents($argv[1]);
+						if ($code === false) exit(2);
+						$inPhp = false;
+						foreach (token_get_all($code) as $token) {
+							if (!is_array($token)) continue;
+							if ($token[0] === T_OPEN_TAG || $token[0] === T_OPEN_TAG_WITH_ECHO) $inPhp = true;
+							if ($token[0] === T_CLOSE_TAG) $inPhp = false;
+						}
+						exit($inPhp ? 0 : 1);
+					' "$TMP"; then
+						tokenizer_status=0
+					else
+						tokenizer_status=$?
+					fi
+					case "$tokenizer_status" in
+						0) ;;
+						1) APPEND_ML=false ;;
+						*)
+							echo "✗ PHP tokenizer failed while inspecting '$file'." >&2
+							rm -f "$TMP" "$MOD"
+							exit 1
+							;;
+					esac
+				else
+					echo "✗ PHP is required to determine safe modeline placement for '$file'." >&2
+					rm -f "$TMP" "$MOD"
+					exit 1
 				fi
 			else
 				# File does not start with <?php — likely a template
@@ -274,49 +348,49 @@ if [ -n "$STAGED_SRC" ]; then
 			fi
 		fi
 
-		# Build normalized file with exactly one canonical header + modeline
+		# Build a body without metadata-adjacent blank padding. Internal blank
+		# runs remain byte-for-byte unchanged.
+		BODY="$LINT_TMPDIR/rcs_body"
+		declare_line=""
+		if [ "$EXT" = "php" ]; then
+			declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
+			if [ -n "$declare_line" ]; then
+				skip=$((declare_line - 1))
+				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_metadata_edges > "$BODY"
+			else
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
+			fi
+		else
+			LINE1=$(head -1 "$CLEAN")
+			if echo "$LINE1" | grep -q '^#!/'; then
+				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
+			else
+				trim_metadata_edges < "$CLEAN" > "$BODY"
+			fi
+		fi
+
+		# Build normalized file with exactly one canonical header + modeline.
 		{
 			if [ "$EXT" = "php" ]; then
-				# <?php on line 1
 				head -1 "$CLEAN"
 				echo ""
-
-				# Emit declare(strict_types=1); exactly once if present anywhere
-				declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
 				if [ -n "$declare_line" ]; then
 					sed -n "${declare_line}p" "$CLEAN"
+					echo ""
 				fi
-
-				echo ""
 				echo "$HDR"
 				echo ""
-
-				# Body: skip <?php and (if found) the declare line
-				if [ -n "$declare_line" ]; then
-					skip=$((declare_line - 1))
-					tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1'
-				else
-					tail -n +2 "$CLEAN"
-				fi
 			else
-				# Non-PHP source (.sh/.js/.ts/.scss). Preserve a leading shebang
-				# on line 1 — emitting the header first would push it off line 1
-				# and break node/tsx/etc. Merged from the former .sh-only branch
-				# so all non-PHP extensions share the same dance. (#157)
-				LINE1=$(head -1 "$CLEAN")
+				# Preserve a leading shebang on line 1 for every non-PHP source.
 				if echo "$LINE1" | grep -q '^#!/'; then
 					echo "$LINE1"
-					echo "$HDR"
-					echo ""
-					tail -n +2 "$CLEAN"
-				else
-					echo "$HDR"
-					echo ""
-					cat "$CLEAN"
 				fi
-			fi
-			if $APPEND_ML; then
+				echo "$HDR"
 				echo ""
+			fi
+			cat "$BODY"
+			if $APPEND_ML; then
+				[ -s "$BODY" ] && echo ""
 				echo "$ML"
 			fi
 		} > "$MOD"
@@ -331,6 +405,33 @@ if [ -n "$STAGED_SRC" ]; then
 		rm -f "$TMP" "$CLEAN" "$MOD"
 	done <<< "$STAGED_SRC"
 fi
+
+# ── Blank-line policy (staged blobs only) ───────────────────────────────────
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$REPO_ROOT" ]; then
+	echo "✗ blank-line checker requires a Git checkout." >&2
+	exit 1
+fi
+CHECKER_REL="packages/prism-core/scripts/check-blank-lines.sh"
+CHECKER="$LINT_TMPDIR/check-blank-lines.sh"
+if git cat-file -e ":./$CHECKER_REL" 2>/dev/null; then
+	if ! git show ":./$CHECKER_REL" > "$CHECKER"; then
+		echo "✗ unable to materialize the indexed blank-line checker." >&2
+		exit 1
+	fi
+else
+	if ! SCRIPTS_DIR=$("$PRISM_TOOL_PATH" resolve scripts 2>/dev/null); then
+		echo "✗ unable to resolve prism-core scripts for blank-line checking." >&2
+		exit 1
+	fi
+	CHECKER="$SCRIPTS_DIR/check-blank-lines.sh"
+fi
+if [ ! -f "$CHECKER" ]; then
+	echo "✗ blank-line checker not found: $CHECKER" >&2
+	exit 1
+fi
+echo "→ blank-line policy"
+bash "$CHECKER" --cached
 
 # ── Skill/prompt frontmatter check (CI parity: validate-harness.sh) ─────────
 # The package validator checks Agent Skills names/descriptions and pi prompt

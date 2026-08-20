@@ -79,8 +79,6 @@ declare(strict_types=1);
 # $KYAULabs: SecurityCodingSkillTest.php kyau@nova 2026/07/26 -0700 Exp $
 
 
-
-
 /**
  * Absolute path to the security-coding skill markdown file.
  *
@@ -143,7 +141,6 @@ test('security-coding CSRF guidance generates the token once per session', funct
         ->not->toBeEmpty('CSRF section not found in security-coding skill')
         ->and($section)->toContain('empty($_SESSION[\'csrf\'])');
 });
-
 
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

@@ -18,21 +18,28 @@ pi documentation."
 The authoritative package is installed under pnpm's link store. Resolve the
 current hashed directory rather than hard-coding it:
 
+Run the version query directly:
+
 ```bash
-PI_VERSION=$(pi --version)
-PI_PACKAGE_ROOT=$(find \
-  "$HOME/.local/share/pnpm/store/v11/links" \
-  -type d \
-  -path "*/pi-coding-agent/$PI_VERSION/*/node_modules/*/pi-coding-agent" \
-  -print -quit)
-test -n "$PI_PACKAGE_ROOT"
+pi --version
 ```
 
-Then use:
+Validate and retain the returned version as inert context, then render that
+literal version in the package search:
 
-- Main overview: `$PI_PACKAGE_ROOT/README.md`
-- Detailed docs: `$PI_PACKAGE_ROOT/docs/`
-- Examples: `$PI_PACKAGE_ROOT/examples/`
+```bash
+find \
+  "$HOME/.local/share/pnpm/store/v11/links" \
+  -type d \
+  -path "*/pi-coding-agent/PI_VERSION/*/node_modules/*/pi-coding-agent" \
+  -print -quit
+```
+
+Validate and retain the returned package root. Then use its literal path for:
+
+- Main overview: `PI_PACKAGE_ROOT/README.md`
+- Detailed docs: `PI_PACKAGE_ROOT/docs/`
+- Examples: `PI_PACKAGE_ROOT/examples/`
 
 If that pnpm layout is absent, locate the package backing `command -v pi` and
 find its `README.md`, `docs/`, and `examples/` directories. Do not search or

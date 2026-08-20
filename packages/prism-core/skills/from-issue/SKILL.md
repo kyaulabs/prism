@@ -96,20 +96,27 @@ Apply exactly one Type, exactly one Progress value, and the triage meta label.
 Load `tracker-operator` and detect IDs dynamically — never hard-code (same
 pattern as `/issue`):
 
-```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-OWNER=$(gh repo view --json owner -q .owner.login)
-NAME=$(gh repo view --json name -q .name)
+Run repository discovery as separate commands:
 
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+gh repo view --json owner -q .owner.login
+gh repo view --json name -q .name
+```
+
+Validate and retain the outputs as inert `REPO`, `OWNER`, and `NAME` context,
+then render their literal values in later commands:
+
+```bash
 # Type through the issue-type field, not a label.
 # Bind all GraphQL values with gh -F variables; never inline issue content.
 
 # Progress (+ Priority/Effort) through the issue-fields endpoint.
-gh api "repos/$REPO/issues/<NN>/issue-field-values" -X POST \
+gh api "repos/OWNER/REPO/issues/<NN>/issue-field-values" -X POST \
   -f issue_field_values='<confirmed JSON payload>'
 
 # Triage meta label.
-gh issue edit <NN> --repo "$REPO" --add-label "ready-for-agent"
+gh issue edit <NN> --repo OWNER/REPO --add-label "ready-for-agent"
 ```
 
 **Confirmation gate:** present the Type, Progress, and label you intend to
@@ -172,8 +179,9 @@ single hard gate between planning and execution.
 On approval:
 
 1. Create the feature branch using the issue's classified commit type as the
-   `<type>` prefix:
-   `bash packages/prism-core/scripts/new-branch.sh <type> <description>`
+   `<type>` prefix. Run `prism-tool resolve scripts`, retain the returned
+   absolute directory, then run
+   `bash /absolute/resolved/scripts/new-branch.sh <type> <description>`.
    The helper resolves identity, generates the branch hash, and selects the
    correct base branch. See ADR-0028.
 2. End this on-ramp workflow. Load `executing-plans` and `tdd` to implement the

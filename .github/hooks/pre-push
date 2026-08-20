@@ -3,6 +3,8 @@
 
 set -euo pipefail
 
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
 RED=$'\033[1;31m'
 YELLOW=$'\033[1;33m'
 ORANGE=$'\033[38;5;208m'
@@ -141,14 +143,35 @@ EOF
 	fi
 done
 
-if [ "$BRANCH_COUNT" -ge 1 ] && [ -x packages/prism-core/scripts/validate-harness.sh ]; then
+if [ "$BRANCH_COUNT" -ge 1 ] && [ -x "$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh" ]; then
+	# ── prism-tool boundary (fail-closed mandatory readiness) ────────────────
+	# Declared tools are resolved through the prism-tool launcher. A missing
+	# launcher or failed local doctor blocks the push before harness checks.
+	PRISM_TOOL_PATH=""
+	if [ -n "${PRISM_TOOL:-}" ]; then
+		PRISM_TOOL_PATH="$PRISM_TOOL"
+	elif command -v prism-tool > /dev/null 2>&1; then
+		PRISM_TOOL_PATH="$(command -v prism-tool)"
+	else
+		cat >&2 <<'EOF'
+✗ prism-tool launcher is not installed.
+  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it.
+EOF
+		exit 1
+	fi
+
+	if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
+		echo "✗ prism-tool local readiness failed (see 'prism-tool doctor')" >&2
+		exit 1
+	fi
+
 	# ── CI-parity gate (validate-harness) ────────────────────────────────
 	# Run validate-harness.sh BEFORE the push leaves the machine. The
 	# script-existence guard above skips this entire block in test repos
 	# and minimal checkouts. See ADR-0025.
 	echo "→ pre-push CI-parity gate (validate-harness)"
 	HLOG=$(mktemp)
-	if ! bash packages/prism-core/scripts/validate-harness.sh >"$HLOG" 2>&1; then
+	if ! bash "$REPO_ROOT/packages/prism-core/scripts/validate-harness.sh" >"$HLOG" 2>&1; then
 		cat "$HLOG" >&2
 		echo "✗ pre-push: harness validation failed. Fix locally and re-commit before pushing." >&2
 		rm -f "$HLOG"

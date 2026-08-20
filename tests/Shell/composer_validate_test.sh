@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: composer_validate_test.sh kyau@nova 2026/07/13 -0700 Exp $
-
+# $KYAULabs: composer_validate_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -65,6 +64,5 @@ fi
 
 print_summary "composer_validate_test"
 exit $?
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

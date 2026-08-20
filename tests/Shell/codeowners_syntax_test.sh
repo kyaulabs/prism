@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: codeowners_syntax_test.sh kyau@nova 2026/07/13 -0700 Exp $
-
-
+# $KYAULabs: codeowners_syntax_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -57,6 +55,5 @@ done < "$CODEOWNERS"
 
 print_summary "codeowners_syntax_test"
 exit $?
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

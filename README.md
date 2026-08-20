@@ -77,13 +77,12 @@ Prism is two pi packages living under `packages/`:
 2. **Authenticate the model.** Prism targets DeepSeek (a built-in pi provider):
 
    ```bash
-   pi            # then /login  → select DeepSeek
-   # or: export DEEPSEEK_API_KEY=sk-...
+   pi            # then /login → select your provider
    ```
 
-   Default model `deepseek-v4-flash`; cycle to `deepseek-v4-pro` for
-   review/audit with **Ctrl+P** (see [Model strategy](#model-strategy),
-   ADR-0057).
+   Model and thinking selection is yours at any time — **Ctrl+P** cycles
+   models, **Shift+Tab** sets thinking (see [Model strategy](#model-strategy),
+   ADR-0067).
 
 3. **Install the core globally** (from a clone of this repo — the dev path):
 
@@ -97,7 +96,9 @@ Prism is two pi packages living under `packages/`:
    install skills/prompts/extensions but not `AGENTS.md` — ADR-0060). It is
    idempotent: a pre-existing user-owned `AGENTS.md` is backed up to `*.bak`
    and the prism block is appended (pi concatenates all `AGENTS.md` into every
-   session).
+   session). The installer runs offline local-only readiness and never creates
+   OCR consent or performs a live provider test. Run `/setup` afterward to
+   inspect or grant global standing OCR consent and complete full readiness.
 
    Published-package equivalent:
 
@@ -147,7 +148,7 @@ pre-created.
 Run the test suite after `composer install`:
 
 ```text
-php -d pcov.enabled=1 vendor/bin/pest --coverage
+prism-tool run pest -- --coverage
 ```
 
 The coverage gate enforces ≥80% line coverage on changed PHP files via
@@ -168,6 +169,13 @@ The coverage gate enforces ≥80% line coverage on changed PHP files via
 | @commitlint/config-conventional | npm | Conventional commits preset for commitlint |
 | git-cliff | npm | Changelog generation (project-local wrapper) |
 | playwright | npm | Browser testing |
+
+Exact managed versions for every tool above are declared in the package
+toolchain contracts (`packages/prism-core/toolchain.json` and
+`packages/prism-php-web/toolchain.json`) and enforced by
+`tests/Node/source-toolchain-parity.test.js`; the test baseline is Pest
+5.1.1 on PHPUnit 13 with PHP 8.5+. See ADR-0063 for the bounded Semgrep/OCR
+compatibility policy.
 
 ### Coverage driver
 
@@ -199,7 +207,7 @@ enable only when running tests with coverage:
 2. Enable per-run with the `-d` flag:
 
     ```text
-    php -d pcov.enabled=1 vendor/bin/pest --coverage
+    prism-tool run pest -- --coverage
     ```
 
 The project's `/check-php` prompt, the `tdd-php` skill, and the verification
@@ -213,24 +221,30 @@ Gitleaks scans commits for secrets at pre-commit time. Install globally via your
 
 ### Harness tools
 
-In addition to the Composer and npm dependencies above, the coding harness uses the following external tools. Install them on the dev machine to enable the corresponding capabilities:
+Tools resolve through the `prism-tool` launcher, never from the checkout's
+`node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
+contracts (`packages/prism-core/toolchain.json`,
+`packages/prism-php-web/toolchain.json`) and ADR-0063:
 
-| Tool | Purpose | Install | Known-good version |
+| Tool | Scope | Purpose | Version policy |
 | --- | --- | --- | --- |
-| [pi](https://pi.dev) | The coding agent this harness targets | `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` | 0.84.1 |
-| [Semgrep](https://semgrep.dev) | SAST scanning (`/security`) | `pip install semgrep` or [releases](https://github.com/semgrep/semgrep/releases) | 1.168.0 |
-| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | Code review (`code-review` skill) | [docs](https://alibaba.github.io/open-code-review/) | 1.7.1 |
-| [gitleaks](https://github.com/gitleaks/gitleaks) | Secrets scanning at pre-commit | [releases](https://github.com/gitleaks/gitleaks/releases) | 8.30.1 |
-| [GitHub CLI (`gh`)](https://cli.github.com) | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | [cli/cli/releases](https://github.com/cli/cli/releases) | any recent |
-| [git-cliff](https://github.com/orhun/git-cliff) | Changelog generation (`/release`, manual fallback) | `cargo install git-cliff` or your package manager | 2.0+ |
+| [pi](https://pi.dev) | runtime | The coding agent this harness targets | 0.84.1 (pinned) |
+| [Semgrep](https://semgrep.dev) | mandatory external | SAST scanning (`/security`) | `>=1.173.0 <2.0.0` — verified, never installed |
+| [OpenCodeReview (`ocr`)](https://alibaba.github.io/open-code-review/) | mandatory external | Code review (`code-review` skill) | `>=1.9.1 <2.0.0` — verified, never installed; full `/doctor` and dedicated review require global standing consent |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | generic control | Secrets scanning at pre-commit | 8.30.1 (pinned) |
+| [GitHub CLI (`gh`)](https://cli.github.com) | optional | `/release` + `/pr` + `/setup-labels` + `/setup-rulesets` | any recent |
+| commitlint / git-cliff | bundled core | Commit validation; changelog generation via `prism-tool run git-cliff` | exact contract versions |
+| php-cs-fixer, Pest 5, Playwright, sass, uglify-js, eslint, stylelint | consumer-dev | PHP/web adapter gates | exact contract versions (Pest 5 on PHPUnit 13) |
 
-> Recommended floor versions, not hard pins — refresh on each release. `gh` is
-> optional — only needed for `/release`, `/pr`, `/setup-labels`, and
-> `/setup-rulesets`; all other features work without it. `/pr` only prepares
-> and displays the `gh pr create` command — the human executes it after
-> publishing the branch. `git-cliff` is also an npm devDependency — the
-> project-local wrapper — while `/release` needs the direct `git cliff` PATH
-> binary at >= 2.0 (`cargo install git-cliff` or your package manager).
+`gh` is optional — only needed for `/release`, `/pr`, `/setup-labels`, and
+`/setup-rulesets`; all other features work without it. `/pr` only prepares and
+displays the `gh pr create` command — the human executes it after publishing
+the branch. Registry access and consumer mutation remain separate
+operation-specific approvals. `/setup` manages one global standing OCR consent
+covering only provider connectivity and reviewed-code egress through
+`prism-tool code-review ocr`; revoke it through `/setup` with
+`prism-tool consent revoke-ocr`. Installation and CI use local-only readiness,
+never create consent, and never run OCR review.
 
 ## Git Hooks
 
@@ -354,8 +368,8 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 4. **Execute** — load the `executing-plans` skill; implement each task inline using the `tdd` skill, with review gates between tasks. Halt and re-plan if a task reveals a design flaw.
 5. **Implement** — load the `tdd` skill per task (Red → Green → Refactor, vertical slices). The harness enforces 80% line coverage (adapter `tdd-php`).
 6. **Verify** — load the `verification-before-completion` skill; re-run tests, confirm green, confirm no debug artifacts remain, confirm lint passes.
-7. **Gate** — run `/check` (delegates to the adapter stack gate, e.g. `/check-php`: php-cs-fixer + stylelint + eslint + pest --coverage). On green, commit with a conventional message.
-8. **Review** — load the `code-review` skill before push (suggest Ctrl+P to the judge model).
+7. **Commit** — after green verification, create each signed ordinary commit with one standalone `prism-tool commit create`; attribution, hooks, signing, and verification are launcher-owned. Any failed attempt blocks tools until `/reload`.
+8. **Finalize** — load `finishing-a-development-branch`; after artifact cleanup it pauses once, then an accepted attempt synchronizes, attests, runs `/check`, performs all four `code-review` axes, revalidates SHAs, and invokes preparation-only `/pr` automatically. A conflict, failed gate, unresolved finding, or stale attestation stops before `/pr`; repair requires fresh finalization acceptance.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -371,8 +385,8 @@ runs everything; you load a skill when the task calls for it. The opencode-era
 "Build / Plan / Design" tabs and fifteen `@subagents` collapsed into skills
 whose bodies are the former agent prompts. Two accepted trade-offs (ADR-0055):
 plan-read-only and per-skill gating are now **instruction-only** (no tool-level
-gate), and **automatic model tiering is gone** (cycle manually — see [Model
-strategy](#model-strategy)). Cheap rollback comes from pi session branching
+gate), and **the harness prescribes no models** — model and thinking are yours to set
+at any time (see [Model strategy](#model-strategy)). Cheap rollback comes from pi session branching
 (`/tree`, `/fork`); slips are caught by `verification-before-completion` and
 `code-review`.
 
@@ -392,7 +406,7 @@ strategy](#model-strategy)). Cheap rollback comes from pi session branching
 | --- | --- |
 | `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
 | `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
-| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — single primary model + manual Ctrl+P cycling (ADR-0057) |
+| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |
 | Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
 | Fifteen `@subagents` | **collapsed** → skills |
 | `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` (Agent Skills standard) |
@@ -404,18 +418,15 @@ strategy](#model-strategy)). Cheap rollback comes from pi session branching
 
 ### Model strategy
 
-There is **no manifest/env tier layer** (ADR-0057). One primary model, one
-judge, manual cycling:
+There is **no manifest/env tier layer** (ADR-0067). The harness prescribes,
+names, restricts, and suggests no model:
 
-| Role | Model | When |
-| --- | --- | --- |
-| Primary | `deepseek/deepseek-v4-flash` | default for all pipeline work |
-| Judge | `deepseek/deepseek-v4-pro` | cycle with **Ctrl+P** for `code-review` / `spec-review` / `test-audit` / `architect` (those skills suggest the switch) |
-
+- **Model:** cycle with **Ctrl+P** at any time.
 - **Thinking:** raise/lower with **Shift+Tab**.
-- **Auth:** `/login deepseek` or `export DEEPSEEK_API_KEY`.
-- **Scoped cycling:** `enabledModels: ["deepseek-v4-flash", "deepseek-v4-pro"]`
-  (set in `settings.json` / [`.pi/settings.json`](.pi/settings.json)).
+- **Auth:** `/login` for your provider or export the provider's API key.
+- **Session defaults:** run `/setup` to write your preferred provider,
+  default model, Ctrl+P pool, and thinking level to your pi config — every
+  question is skippable and the write is consent-gated.
 
 Automatic tiering is gone by decision (B — ADR-0055/0057); review/audit run on
 the primary unless the human (or the agent, by suggesting it) manually Ctrl+P's
@@ -440,10 +451,10 @@ Pi prompt templates expand via `/name`. The core package's prompts live in
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders (adapter-aware) |
+| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; consent is global and revocable |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Toolchain health check — verifies dev tools at version floors; reports PASS/FAIL/SKIPPED + go/no-go |
+| `/doctor` | Full readiness check; validates standing consent before one OCR connectivity test, with no per-run approval prompt |
 | `/teach` | Explain recently completed work — what changed, why, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |
 
@@ -476,7 +487,20 @@ adds the PHP/web skills.
 
 ## Conventional Commits
 
-In order to abide by the conventional commit guidelines and in return get auto-generated changelogs, use the following.
+Stage exact intended files first. Run commit creation later as the only tool
+call in its assistant batch, without compound shell syntax:
+
+```bash
+git add exact/files
+```
+
+```bash
+prism-tool commit create --type feat --scope exact-scope --subject "exact subject"
+```
+
+The launcher renders this canonical message shape, resolves attribution,
+validates with commitlint, runs signed Git with hooks enabled, and verifies
+that `HEAD` advanced:
 
 ```text
 <type>[optional scope]: <subject>
@@ -485,6 +509,10 @@ In order to abide by the conventional commit guidelines and in return get auto-g
 
 [optional footer(s)]
 ```
+
+There is no per-commit approval pause. Any failed, unsafe, ambiguous, or
+non-exclusive creation attempt aborts the agent and blocks every tool until
+`/reload`.
 
 ### Type
 
@@ -540,10 +568,9 @@ Longer commit body with additional contextual information about the code changes
 <token>: <value>
 (max-length: 100)
 token (Sentence-case) = {
-  'Authored-by',        # Required — the design/planning model (e.g. glm-5.2)
-  'Implemented-by',     # Required — the implementation model (primary deepseek-v4-flash, or deepseek-v4-pro if Ctrl+P cycled)
-  'Tested-by',          # Required — the review model (deepseek-v4-pro if cycled for review, else the primary)
-  'Signed-off-by',      # Required — the user (e.g. kyau <git@kyaulabs.com>)
+  'Implemented-by',     # Required — launcher-resolved active implementation model
+  'Tested-by',          # Required — launcher-resolved OCR review model
+  'Signed-off-by',      # Required — launcher-resolved human identity
   'BREAKING CHANGE',    # Required when the type/scope includes !
   'Cc',
   'Fixes',
@@ -553,26 +580,24 @@ token (Sentence-case) = {
 }
 ```
 
-Every commit must include `Authored-by`, `Implemented-by`, `Tested-by`, and
-`Signed-off-by` footers. If no user is explicitly named, the default
-`Signed-off-by` is `kyau <git@kyaulabs.com>`. Each model footer is the model
-ID segment after the last `/` (ADR-0040): `deepseek/deepseek-v4-flash` →
-`deepseek-v4-flash`, `deepseek/deepseek-v4-pro` → `deepseek-v4-pro`.
-`Signed-off-by:` is resolved dynamically via
-`bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
-per ADR-0029).
+Every ordinary commit includes `Implemented-by`, `Tested-by`, and
+`Signed-off-by` footers in that order. `prism-tool commit create` resolves and
+validates all three; callers never run attribution resolver scripts or write
+these footers manually. Each model footer is the bare model ID segment after
+the last `/` (ADR-0064): `provider/model-id` → `model-id`. Human identity uses
+the Prism identity override or Git configuration and fails closed when absent.
 
 **Issue-closing references** use `Fixes: #NN` (Sentence-case, with colon),
-placed at the top of the footer block immediately above `Authored-by:`.
+placed at the top of the footer block immediately above `Implemented-by:`.
 commitlint rejects all other GitHub closing keywords (`Closes`, `Resolve`,
 `Fix`, `Fixed`, etc.) and no-colon forms (`Fixes #42`). Use `Refs: #NN` for
 non-closing references, in the same top-of-footer block.
 
 ### Examples
 
-The following are all examples of valid commit messages.
-
-The commit message will also go through validation with `commitlint` upon issuing `git commit`.
+The following are examples of launcher-rendered valid messages. Do not copy
+or manually construct their attribution footers. `prism-tool commit create`
+validates the complete message with commitlint before mutation.
 
 ```text
 feat(player): begin new implementation of input controller
@@ -583,9 +608,8 @@ Basic movement added.
 
 Refs: #123
 Refs: 676104e, a215868
-Authored-by: glm-5.2
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
 
@@ -594,9 +618,8 @@ fix: array parsing issue
 
 Fixes: #42
 Cc: Z
-Authored-by: glm-5.2
-Implemented-by: deepseek-v4-flash
-Tested-by: deepseek-v4-pro
+Implemented-by: <active-model-id>
+Tested-by: <ocr-model-id>
 Reviewed-by: Z
 Signed-off-by: kyau <git@kyaulabs.com>
 ```
@@ -617,29 +640,19 @@ Never create tags, Releases, or back-merge PRs locally — `release.yml` owns pu
 ### Manual changelog
 
 ```bash
-git cliff --tag v0.0.1
+prism-tool run git-cliff -- --tag v0.0.1
 ```
 
 After the initial run of git-cliff all subsequent runs should detect the version automatically.
 
 ```bash
-git cliff
+prism-tool run git-cliff --
 ```
 
-A typical low-level workflow should look like the following.
-
-```bash
-git add -A                      # add all un-indexed and changed files to the commit
-git commit -S -a -m "<message>" # add a conventional commit message and sign the commit
-git cliff                       # generate a new changelog
-git add CHANGELOG.md            # add the changelog file to the commit
-git commit --amend --no-edit    # ammend the added file to the previous un-pushed commit
-# Push the release branch and open the release PR to main (see the
-# finishing-a-development-branch skill for the PR command)
-```
-
-The fallback stops at the release PR — CI tags, publishes, and opens the
-back-merge PR after the merge.
+For a real release, use `/release`; it stages exact release artifacts and
+creates one signed `chore(release)` commit through `prism-tool commit create`.
+The procedure then displays human-run publication instructions. CI tags,
+publishes, and opens the back-merge PR only after the release PR merges.
 
 ## Attribution
 

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "package": "@kyaulabs/prism-php-web",
+  "role": "adapter",
+  "components": [
+    {
+      "id": "php-cs-fixer",
+      "kind": "command",
+      "ecosystem": "composer",
+      "package": "friendsofphp/php-cs-fixer",
+      "version": "3.95.18",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "php-cs-fixer",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "pest",
+      "kind": "command",
+      "ecosystem": "composer",
+      "package": "pestphp/pest",
+      "version": "5.1.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "pest",
+      "argvPrefix": ["php", "-d", "pcov.enabled=1"],
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "pest-browser",
+      "kind": "library",
+      "ecosystem": "composer",
+      "package": "pestphp/pest-plugin-browser",
+      "version": "5.0.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none"
+    },
+    {
+      "id": "sass",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "sass",
+      "version": "1.102.0",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "sass",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "uglify-js",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "uglify-js",
+      "version": "3.19.3",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "uglifyjs",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "eslint",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "eslint",
+      "version": "10.8.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "eslint",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "eslint-js",
+      "kind": "library",
+      "ecosystem": "npm",
+      "package": "@eslint/js",
+      "version": "10.0.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none"
+    },
+    {
+      "id": "stylelint",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "stylelint",
+      "version": "17.14.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "stylelint",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
+      "id": "stylelint-config-scss",
+      "kind": "library",
+      "ecosystem": "npm",
+      "package": "stylelint-config-standard-scss",
+      "version": "17.0.0",
+      "provisioning": "consumer-dev",
+      "authentication": "none"
+    },
+    {
+      "id": "playwright",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "playwright",
+      "version": "1.62.1",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "playwright",
+      "versionArguments": ["--version"],
+      "executionTimeoutMs": 300000,
+      "argumentPolicy": {"mode": "passthrough"}
+    }
+  ],
+  "browserTargets": ["chromium"]
+}

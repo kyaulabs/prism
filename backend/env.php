@@ -2,16 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@cosmos.kyaulabs 2026/07/23 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 /**
  * Safely reads a boolean environment variable.
@@ -22,6 +13,8 @@ declare(strict_types=1);
  *
  * Reads from $_ENV first, falling back to getenv(). An empty-string $_ENV
  * value is treated as unset so it does not shadow a real getenv() value.
+ * An unparseable (present-but-garbage) value is logged via error_log before
+ * the default is returned.
  *
  * @param  string $key      Environment variable name.
  * @param  bool   $default  Default value if the variable is unset or unparseable.
@@ -42,7 +35,20 @@ function env_bool(string $key, bool $default = false): bool
         return $default;
     }
 
-    return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
+    $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
+    if ($parsed === null) {
+        error_log(sprintf(
+            'env_bool: cannot parse value "%s" for %s; using default %s',
+            $value,
+            $key,
+            $default ? 'true' : 'false'
+        ));
+
+        return $default;
+    }
+
+    return $parsed;
 }
 
 /**
@@ -75,23 +81,23 @@ function parse_env_value(string $raw): string
 
     // Unquoted: locate the first `#` that starts the value or follows
     // whitespace. `FOO=a#b` is preserved (no whitespace before the `#`).
-    $cut = false;
+    $commentStart = null;
 
     if ($value !== '' && $value[0] === '#') {
-        $cut = 0;
+        $commentStart = 0;
     } else {
         foreach ([' #', "\t#"] as $marker) {
             $at = strpos($value, $marker);
 
             if ($at !== false) {
-                $cut = $at + 1;
+                $commentStart = $at + 1;
                 break;
             }
         }
     }
 
-    if ($cut !== false) {
-        $value = substr($value, 0, $cut);
+    if ($commentStart !== null) {
+        $value = substr($value, 0, $commentStart);
     }
 
     return rtrim($value);
@@ -130,6 +136,15 @@ function is_dangerous_env_name(string $key): bool
 }
 
 /**
+ * Environment keys whose values are secrets and must not be exported to
+ * child-process environments via putenv(). They remain readable through
+ * $_ENV. Keep in sync with the Secrets section of the env example file.
+ *
+ * @var string[]
+ */
+const SECRET_KEYS = ['APP_KEY', 'CSRF_KEY', 'DB_PASSWORD'];
+
+/**
  * Loads environment variables from a .env file.
  *
  * Parses a file with KEY=VALUE pairs (one per line), skipping blank lines
@@ -141,15 +156,19 @@ function is_dangerous_env_name(string $key): bool
  * or double quotes are stripped, and an inline `#` comment on unquoted
  * values is removed (a `#` inside quotes is preserved). Keys that already
  * exist in $_ENV or getenv() are never overwritten — server environment
- * variables take priority over file values.
+ * variables take priority over file values. Keys named in SECRET_KEYS
+ * populate $_ENV only and are not exported via putenv(), keeping them out
+ * of child-process environments.
  *
  * If the file does not exist, this function is a silent no-op (production
- * safety: absent .env means debug stays off).
+ * safety: absent .env means debug stays off). Files larger than 1 MiB or
+ * with more than 10,000 lines are refused as implausible (fail-safe no-op,
+ * logged) — bounded input (security audit L-2).
  *
  * @param string $path  Absolute or relative path to the .env file.
  * @return void
- * @note Never throws — errors (unreadable file, parse failures) are
- *       silently discarded.
+ * @note Never throws — unreadable files and failed reads are logged via
+ *       error_log and defaults are used; absent files stay a silent no-op.
  */
 function load_env(string $path): void
 {
@@ -157,9 +176,44 @@ function load_env(string $path): void
         return;
     }
 
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_readable($path)) {
+        error_log("load_env: {$path} exists but is not readable; using defaults");
+
+        return;
+    }
+
+    // Bound input before reading: a dot-env larger than 1 MiB is
+    // implausible (security audit L-2; fail-safe no-op like absent files).
+    // A stat failure (false) skips this cap — the post-read caps below
+    // still bound the content (OCR finding C1).
+    $size = @filesize($path);
+    if ($size !== false && $size > 1048576) {
+        error_log("load_env: {$path} exceeds the 1 MiB size cap; using defaults");
+
+        return;
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
     if ($lines === false) {
+        error_log("load_env: failed to read {$path}; using defaults");
+
+        return;
+    }
+
+    // Refuse implausibly many lines (belt-and-braces behind the size cap).
+    if (count($lines) > 10000) {
+        error_log("load_env: {$path} exceeds the 10000-line cap; using defaults");
+
+        return;
+    }
+
+    // Re-verify the byte total after reading: closes the size-check/read
+    // race (TOCTOU) where a file grows between filesize() and file()
+    // (OCR finding C1).
+    if (array_sum(array_map('strlen', $lines)) > 1048576) {
+        error_log("load_env: {$path} exceeds the 1 MiB byte cap after reading; using defaults");
+
         return;
     }
 
@@ -207,11 +261,13 @@ function load_env(string $path): void
         }
 
         $_ENV[$key] = $value;
-        putenv("{$key}={$value}");
+
+        // Secrets stay out of child-process environments (CWE-526); they
+        // remain readable via $_ENV by the app itself.
+        if (!in_array($key, SECRET_KEYS, true)) {
+            putenv("{$key}={$value}");
+        }
     }
 }
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

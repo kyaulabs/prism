@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: script_executable_bits_test.sh kyau@nova 2026/07/19 -0700 Exp $
-
-
-
-
+# $KYAULabs: script_executable_bits_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for check-script-executable-bits.sh ─────────────────────────────────
 # Verifies the guard catches .sh scripts under .github/scripts/ that lack the
@@ -25,17 +21,20 @@ if [ ! -f "$CHECKER" ]; then
 	exit 1
 fi
 
-# make_fixture <mode> — create an isolated git repo whose .github/scripts/
-# holds a single tracked foo.sh at the requested git index mode (100644 or
-# 100755). Echoes the repo path on stdout.
+# make_fixture <varname> <mode> — create an isolated git repo whose
+# .github/scripts/ holds a single tracked foo.sh at the requested git index
+# mode (100644 or 100755). Sets <varname> in the CALLER's shell to the repo
+# path. Must be called directly, never via command substitution (a subshell's
+# register_temp_dir() is lost — issue #322 class). The caller variable must
+# not be named 'path'.
 make_fixture() {
-	local mode="$1"
-	local repo
-	repo=$(mktemp -d)
-	register_temp_dir "$repo"
-	git_init_test_repo "$repo"
+	local var="$1" mode="$2"
+	local path
+	path=$(mktemp -d)
+	register_temp_dir "$path"
+	git_init_test_repo "$path"
 	(
-		cd "$repo" || exit 1
+		cd "$path" || exit 1
 		mkdir -p .github/scripts
 		printf '#!/usr/bin/env bash\necho hi\n' > .github/scripts/foo.sh
 		git add .github/scripts/foo.sh
@@ -44,12 +43,13 @@ make_fixture() {
 		fi
 		git commit -q -m "add foo"
 	)
-	echo "$repo"
+	printf -v "$var" '%s' "$path"
 }
 
 test_non_executable_script_is_flagged() {
 	local repo rc
-	repo=$(make_fixture 100644)
+	repo=
+	make_fixture repo 100644
 	rc=0
 	(cd "$repo" && bash "$CHECKER") > /dev/null 2>&1 || rc=$?
 	if [ "$rc" -eq 0 ]; then
@@ -61,7 +61,8 @@ test_non_executable_script_is_flagged() {
 
 test_executable_script_passes() {
 	local repo rc
-	repo=$(make_fixture 100755)
+	repo=
+	make_fixture repo 100755
 	rc=0
 	(cd "$repo" && bash "$CHECKER") > /dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 0 ]; then
@@ -87,7 +88,8 @@ test_missing_scripts_dir_passes() {
 
 test_error_message_names_remediation() {
 	local repo out
-	repo=$(make_fixture 100644)
+	repo=
+	make_fixture repo 100644
 	out=$(cd "$repo" && bash "$CHECKER" 2>&1) || true
 	if ! echo "$out" | grep -q "git update-index --chmod=+x"; then
 		fail "error message — missing 'git update-index --chmod=+x' remediation hint"
@@ -102,8 +104,33 @@ test_executable_script_passes
 test_missing_scripts_dir_passes
 test_error_message_names_remediation
 
+# ── Repo entry-point modes (Task 12) ───────────────────────────────────────
+# The toolchain CLI, adapter handler, and installers must be 100755 in the
+# git index so fresh checkouts and packed archives ship executable entry
+# points (the CI runner honors the stored index mode).
+
+test_toolchain_entry_point_modes() {
+	local entry mode bad=0
+	for entry in \
+		packages/prism-core/scripts/prism-tool.js \
+		packages/prism-core/scripts/install-global.sh \
+		packages/prism-core/scripts/install-hooks.sh \
+		packages/prism-php-web/scripts/prism-tool-adapter.js; do
+		mode=$(git -C "$REPO_ROOT" ls-files -s -- "$entry" | awk '{print $1}')
+		if [ "$mode" != "100755" ]; then
+			echo "  entry $entry is $mode (expected 100755)" >&2
+			bad=1
+		fi
+	done
+	if [ "$bad" -eq 0 ]; then
+		pass "toolchain CLI, handler, and installers are 100755 in the git index"
+	else
+		fail "a toolchain entry point is not 100755 in the git index"
+	fi
+}
+
+test_toolchain_entry_point_modes
+
 print_summary "script_executable_bits_test.sh"
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

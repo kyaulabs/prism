@@ -196,8 +196,6 @@ declare(strict_types=1);
 # $KYAULabs: CoverageGateTest.php kyau@nova 2026/07/23 -0700 Exp $
 
 
-
-
 /**
  * Unit tests for the executable-code heuristic extracted from
  * coverage-gate.php. Pure string inputs — no filesystem.

@@ -18,6 +18,29 @@ and **progress** (GitHub Progress field) — with optional **wayfinder** and
 **meta** labels. The full vocabulary is documented in
 `docs/agents/labels.md`.
 
+## Toolchain boundary
+
+Tools resolve through the `prism-tool` launcher, never from a consumer's
+`node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
+contracts: bundled core tools (commitlint, git-cliff), mandatory external
+prerequisites that Prism verifies but never installs (Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
+adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
+Registry access and consumer mutation remain separate operation-specific
+approvals. `/setup` manages one global standing OCR consent covering only
+connectivity and reviewed-code egress through the dedicated review operation;
+full `/doctor` validates it without asking again. Installation, hooks, and CI
+use local-only readiness and never establish consent (ADR-0074).
+
+Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
+`prism-tool resolve skills`) in one tool call, retain the returned absolute
+directory, then invoke the script by literal path in a later call. Resolution
+prefers the checkout copy when the working directory is inside a prism
+checkout and otherwise resolves to the installed package. Never invoke
+`packages/prism-core/...` bash paths literally; if `prism-tool` is unavailable
+in a prism checkout, fall back to the checkout copy at `packages/prism-core/`
+from the repository root.
+
 ## Hard Boundaries
 
 > [!IMPORTANT]
@@ -124,7 +147,8 @@ For architectural entropy, run `/improve-architecture` on a cadence.
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on
 failure.
 Commit message format is enforced by `.github/hooks/commit-msg` via commitlint.
-To activate hooks after cloning: `bash packages/prism-core/scripts/install-hooks.sh`
+To activate hooks after cloning, run `prism-tool resolve scripts`, retain the
+returned directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`.
 
 For linting details and responsive/mobile-first CSS rules, see the active
 adapter's stack skill (e.g. `scss-mobile-first`).
@@ -135,34 +159,32 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   PR-only — all integration uses merged pull requests. Direct commits and
   pushes to these branches are blocked by local hooks, GitHub rulesets, and
   CI verification. See ADR-0044.
-- Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028,
-  created via `bash packages/prism-core/scripts/new-branch.sh <type> <desc>`. Allowed types
+- Work branches: `<type>/<username>-<hash>-<description>` per ADR-0028.
+  Create them by running `prism-tool resolve scripts`, retaining the returned
+  directory, then invoking `/absolute/resolved/scripts/new-branch.sh` with the
+  type and description. Allowed types
   mirror commitlint vocabulary (minus `ignore`): feat, fix, patch, docs, style,
   refactor, perf, test, build, ci, chore, revert. Plus `release/<semver>` and
   `hotfix/<username>-<hash>-<description>`. Enforced by `prepare-commit-msg` hook.
 - Commits: Conventional Commits format (type[scope]: subject) — see `conventional-commits` skill.
 - Signed commits required.
-- Every commit must include `Authored-by:` (the active planning model),
-  `Implemented-by:` (the active implementation model — the primary
-  `deepseek-v4-flash` unless Ctrl+P cycled), `Tested-by:` (the active review
-  model — `deepseek-v4-pro` if cycled for review, else the primary), and
-  `Signed-off-by:` (user) footers, in pipeline order `Authored-by` →
-  `Implemented-by` → `Tested-by` → `Signed-off-by` (ADR-0040). Each model
-  footer is the model ID segment after the last `/` (e.g. `deepseek-v4-flash`,
-  `deepseek-v4-pro`). `Signed-off-by:` is resolved dynamically via
-  `bash packages/prism-core/scripts/resolve-identity.sh` (git-config fallback
-  per ADR-0029: `git config user.name`/`user.email`). Issue-closing references use `Fixes: #NN` (Sentence-case, with colon; `Closes`/`Resolve`/`Fix`/etc. are rejected by commitlint), placed at the top of the footer immediately above `Authored-by:`. Use `Refs: #NN` for non-closing references.
-- Model selection is single-model with manual cycling — see **Model strategy**
-  below (ADR-0057). There is no manifest/env tier layer.
+- Every ordinary commit must include `Implemented-by:`, `Tested-by:`, and
+  `Signed-off-by:` in that order (ADR-0064). The `prism-tool commit` workflow
+  resolves and validates all three values; callers provide only structured
+  type, optional scope, subject, optional body, and optional issue reference.
+  Issue-closing references use `Fixes: #NN`; non-closing references use
+  `Refs: #NN`, immediately above `Implemented-by:`.
+- Model and thinking selection is entirely the human's — see **Model
+  strategy** below (ADR-0067). There is no manifest/env tier layer.
 - No squash merges. Each logical change is its own atomic commit — the git history serves as the development and evaluation log. A pre-push hook warns on single-commit branches that look like squashes.
 
-After implementing any change — whether via the `tdd` skill, a direct fix, an
-issue tracker resolution, or a fast-path trivial change — produce a commit
-message in conventional commits format before committing. Load the
-`conventional-commits` skill and produce: type[scope]: subject + Authored-by +
-Implemented-by + Tested-by + Signed-off-by footers. The commit-msg hook blocks
-invalid messages, but the message should be well-formed before you reach the
-hook.
+After implementing any change — whether via TDD, a direct fix, an issue
+tracker resolution, or a fast-path trivial change — load the
+`conventional-commits` skill. Select structured Conventional Commit fields and
+run one standalone `prism-tool commit create` operation. It must be the only
+tool call in its assistant batch and must not use compound shell syntax. The
+launcher owns attribution, validation, signing, execution, and post-commit
+verification; there is no per-commit approval pause.
 
 ### Commit and push permissions (instruction-only)
 
@@ -171,7 +193,9 @@ gate and skill-gating are now instruction-only — ADR-0055). The discipline is
 carried by prose instead:
 
 - `git add` is permitted (staging is reversible).
-- `git commit` should present the full commit message before running.
+- Ordinary commits use one exclusive `prism-tool commit create` call. Any
+  failed, unsafe, ambiguous, or non-exclusive attempt aborts the agent and
+  blocks every tool until `/reload`.
 - **`git push` is denied to the agent.** Only the human pushes work branches
   and merges pull requests. `release.yml` alone creates release tags and
   GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a
@@ -188,16 +212,12 @@ carried by prose instead:
 
 ## Model strategy
 
-- **Primary:** `deepseek/deepseek-v4-flash` — the default for all pipeline
-  work (brainstorm, plan, TDD, implement, verify).
-- **Judge:** `deepseek/deepseek-v4-pro` — cycle to it with **Ctrl+P** for
-  review/audit work (`code-review`, `spec-review`, `test-audit`,
-  `architect`); those skills suggest the switch. Cycle back with Ctrl+P.
-- **Thinking:** raise/lower the thinking level with **Shift+Tab**.
-
-There is **no automatic model tiering** (ADR-0057): the agent runs on the
-primary unless the human (or the agent, by suggesting it) manually Ctrl+P's
-to the judge.
+Model and thinking selection is entirely the human's (ADR-0067). Pi gives
+full control at any time: **Ctrl+P** cycles models, **Shift+Tab** sets the
+thinking level. The harness never prescribes, names, restricts, or suggests a
+model. Sessions start on pi's own defaults; run `/setup` to write your own
+preferred provider, default model, Ctrl+P pool, and thinking level to your pi
+config — every question is skippable and the write is consent-gated.
 
 ## How this harness is installed
 
@@ -254,10 +274,10 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `audit-deps` | Scanning dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, prompts, or docs in the harness packages |
 | `architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation; returns go/no-go + `ADR-required:` line |
-| `code-review` | Reviewing staged changes before push (suggest Ctrl+P to the judge model) |
-| `spec-review` | Read-only review that checks requirement coverage against the branch's spec (suggest Ctrl+P to the judge model) |
+| `code-review` | Reviewing staged changes before push |
+| `spec-review` | Read-only review that checks requirement coverage against the branch's spec |
 | `standards-review` | Read-only structural review applying Fowler's 12 code smells against the diff; reports by severity, does not auto-fix |
-| `test-audit` | Auditing an existing test suite for quality (suggest Ctrl+P to the judge model) |
+| `test-audit` | Auditing an existing test suite for quality |
 | `debug` | Investigating bugs — disciplined 6-phase loop: feedback loop → reproduce → hypothesise → instrument → fix → post-mortem |
 | `explore` | Focused codebase exploration — read-only. Answers with the minimum scoped context needed |
 | `consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
@@ -280,9 +300,9 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator (adapter-aware) — replaces `<app>`/`<domain>`/`[EMAIL]` placeholders across the harness |
+| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; global consent is explicitly revocable |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Toolchain health check — verifies dev tools are installed at version floors; reports PASS/FAIL/SKIPPED table + go/no-go summary |
+| `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |

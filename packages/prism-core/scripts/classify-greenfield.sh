@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: classify-greenfield.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
+# $KYAULabs: classify-greenfield.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -53,9 +49,5 @@ do
 done
 
 printf 'greenfield\n'
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

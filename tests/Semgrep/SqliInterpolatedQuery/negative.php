@@ -2,12 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: negative.php kyau@cosmos.kyaulabs 2026/07/22 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: negative.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # This file uses safe query patterns — no request-reachable data
 # reaches the SQL string (first) argument of query(). The
@@ -35,8 +30,5 @@ $result = $db->query("SELECT * FROM users WHERE id = " . $safe);
 # 5. Commented-out injection — AST-based taint mode cannot produce
 #    findings from comments.
 # $db->query("SELECT * FROM users WHERE id = $id");
-
-
-
 
 // vim: ft=php sts=4 sw=4 ts=4 et :

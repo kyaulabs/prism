@@ -142,17 +142,18 @@ Expected: FAIL with `<the meaningful failure proving Red>`
 Run: `<same focused test command>`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Create the commit**
 
 ```bash
-git add tests/exact/path/to/test-file exact/path/to/source-file
-git commit -S -m $'feat(scope): concise subject describing the change\n\nAuthored-by: <active-planning-model>\nImplemented-by: <active-implementation-model>\nTested-by: <active-review-model>\nSigned-off-by: <resolved via resolve-identity.sh>'
+git add exact/files
+prism-tool commit create --type feat --scope exact-scope --subject "exact subject"
 ```
 
-> *Replace every angle-bracket field with task-specific content. Use the
-> canonical `$'...\n...'` ANSI-C quoting form — see the
-> `conventional-commits` skill. The `commit-msg` hook rejects literal `\n`
-> sequences (ADR-0025).*
+> *Replace every field with task-specific literal structured values. During
+> execution, load `conventional-commits` and run these as separate tool calls;
+> the commit command must be the only call in its assistant batch and must not
+> use compound shell syntax. Put an optional multiline body in a Pi-written
+> body file; never embed it in Bash.*
 ````
 
 ## No placeholders
@@ -168,8 +169,9 @@ failures** — never write them:
 - Steps that describe what to do without showing how (code blocks required for
   code steps)
 - References to types, functions, or methods not defined in any task
-- Bare commit messages missing scope or required footers — use the full
-  conventional-commits format (type[scope]: subject + Authored-by + Implemented-by + Tested-by + Signed-off-by)
+- Bare or direct commit recipes — prescribe structured launcher fields and
+  delegate attribution, signing, execution, and verification to
+  `conventional-commits`
 
 ## Self-review
 
@@ -200,7 +202,7 @@ single agent executes the tasks inline (ADR-0055).
 - Complete code in every step — if a step changes code, show the code.
 - Exact commands with expected output.
 - DRY, YAGNI, TDD, frequent commits.
-- Signed commits (`git commit -S`).
+- Signed ordinary commits through `prism-tool commit`.
 
 ## Cross-refs
 

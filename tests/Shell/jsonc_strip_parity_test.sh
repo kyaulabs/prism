@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: jsonc_strip_parity_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
+# $KYAULabs: jsonc_strip_parity_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -43,10 +38,5 @@ NODE
 done
 
 print_summary "jsonc_strip_parity"
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # $KYAULabs$
 
@@ -26,6 +16,10 @@ FINISHING_FILE="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-br
 
 WORK_DIR="$(mktemp -d)"
 register_temp_dir "$WORK_DIR"
+TEST_BIN="$WORK_DIR/bin"
+mkdir -p "$TEST_BIN"
+ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" "$TEST_BIN/prism-tool"
+TOOLCHAIN_PATH="$TEST_BIN:$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 PREFLIGHT_SCRIPT="$WORK_DIR/preflight.sh"
 TITLE_SCRIPT="$WORK_DIR/title_validation.sh"
 
@@ -82,8 +76,32 @@ assert_delegates_to_pr() {
 }
 
 assert_no_obsolete_title_flag() {
-	local tree="$1"
-	! grep -R -Fq -- '--title-file' "$tree"
+	local tree="$1" file matches scan_status
+	matches=$(mktemp) || return 2
+	if grep -R -l -F -- 'gh pr create' "$tree" > "$matches"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [ "$scan_status" -gt 1 ]; then
+		rm -f "$matches"
+		return 2
+	fi
+	local obsolete=0
+	while IFS= read -r file; do
+		if ! awk '
+			{
+				if (!in_gh && index($0, "gh pr create")) in_gh = 1
+				if (in_gh && index($0, "--title-file")) exit 1
+				if (in_gh && $0 !~ /\\[ \t]*$/) in_gh = 0
+			}
+		' "$file"; then
+			obsolete=1
+			break
+		fi
+	done < "$matches"
+	rm -f "$matches"
+	[ "$obsolete" -eq 0 ]
 }
 
 make_standard_fixture() {
@@ -117,17 +135,22 @@ run_preflight() {
 	local fixture="$1" script="$2" output="$3"
 	(
 		cd "$fixture"
-		bash "$script"
+		PATH="$TOOLCHAIN_PATH" bash "$script"
 	) > "$output" 2>&1
 }
 
-# new_standard_fixture — build a standard fixture in its own registered temp dir.
+# new_standard_fixture <varname> — build a standard fixture in its own
+# registered temp dir and set <varname> in the CALLER's shell to its path.
+# Must be called directly, never via command substitution: a subshell's
+# register_temp_dir() is invisible to the parent, so the EXIT-trap cleanup
+# would silently skip the dir (same subshell-tracking bug as issue #322).
+# The caller variable must not be named 'path' (the function's own local).
 new_standard_fixture() {
-	local fixture
-	fixture=$(mktemp -d)
-	register_temp_dir "$fixture"
-	make_standard_fixture "$fixture"
-	echo "$fixture"
+	local var="$1" path
+	path=$(mktemp -d)
+	register_temp_dir "$path"
+	make_standard_fixture "$path"
+	printf -v "$var" '%s' "$path"
 }
 
 # preflight_value <key> <output> — extract a tab-delimited preflight field.
@@ -219,7 +242,12 @@ fi
 
 # ── 6. baseline standard fixture ────────────────────────────────────────────
 
-baseline_fixture=$(new_standard_fixture)
+baseline_fixture=
+new_standard_fixture baseline_fixture
+case " $TEMP_DIRS " in
+	*" $baseline_fixture "*) pass 'standard fixture is tracked in TEMP_DIRS' ;;
+	*) fail 'standard fixture was not tracked in TEMP_DIRS' ;;
+esac
 baseline_output=$(mktemp)
 rc=0
 run_preflight "$baseline_fixture" "$PREFLIGHT_SCRIPT" "$baseline_output" || rc=$?
@@ -242,7 +270,8 @@ rm -f "$baseline_output"
 
 # ── 7. hotfix branch targets main ───────────────────────────────────────────
 
-hotfix_fixture=$(new_standard_fixture)
+hotfix_fixture=
+new_standard_fixture hotfix_fixture
 (
 	cd "$hotfix_fixture"
 	git switch --quiet -c hotfix/tester-abcd-urgent
@@ -261,7 +290,8 @@ rm -f "$hotfix_output"
 
 # ── 8. release branch targets main despite develop origin ───────────────────
 
-release_fixture=$(new_standard_fixture)
+release_fixture=
+new_standard_fixture release_fixture
 (
 	cd "$release_fixture"
 	git switch --quiet -c release/1.2.3-rc.1
@@ -280,31 +310,38 @@ rm -f "$release_output"
 
 # ── 9. preflight failures with specific diagnostics ─────────────────────────
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet --detach HEAD)
 assert_preflight_failure 'detached HEAD is rejected' "$fixture" 'detached HEAD; switch to a work branch'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet develop)
 assert_preflight_failure 'protected develop is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet -c feature/tester-abcd-invalid)
 assert_preflight_failure 'invalid branch family is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && printf 'dirty\n' >> state.txt)
 assert_preflight_failure 'dirty working tree is rejected' "$fixture" 'working tree is not clean'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git update-ref -d refs/remotes/origin/develop)
 assert_preflight_failure 'missing remote base ref is rejected' "$fixture" 'missing synchronized remote-tracking ref origin/develop'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (cd "$fixture" && git switch --quiet -c feat/tester-abcd-zero-ahead origin/develop)
 assert_preflight_failure 'zero-ahead branch is rejected' "$fixture" 'no commits ahead of origin/develop'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (
 	cd "$fixture"
 	parent1=$(git rev-parse 'origin/develop^')
@@ -315,7 +352,8 @@ fixture=$(new_standard_fixture)
 )
 assert_preflight_failure 'merge-only range is rejected' "$fixture" 'branch range contains no non-merge commit'
 
-fixture=$(new_standard_fixture)
+fixture=
+new_standard_fixture fixture
 (
 	cd "$fixture"
 	git switch --quiet -c feat/tester-abcd-net-empty origin/develop
@@ -332,72 +370,82 @@ assert_preflight_failure 'net-empty range is rejected' "$fixture" 'branch has no
 export PI_MODEL="${PI_MODEL:-test-model}"
 
 COMMITLINT_AVAILABLE=false
-if [ -d "$REPO_ROOT/node_modules/commitlint" ] && [ -x "$REPO_ROOT/node_modules/.bin/commitlint" ]; then
+if [ -f "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" ]; then
 	COMMITLINT_AVAILABLE=true
 fi
-
 title_dir=$(mktemp -d)
 register_temp_dir "$title_dir"
 title_file="$title_dir/title.txt"
 validation_file="$title_dir/validation.txt"
-injection_sentinel="$title_dir/pr_command_injection"
-backtick_sentinel="$title_dir/pr_command_backtick"
-
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
-	skip 'local commitlint unavailable — title-validation behavior checks skipped'
+	skip 'prism-tool source CLI unavailable — title-validation behavior checks skipped'
 else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	validation_title=""
 	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
 	if [ "$rc" -eq 0 ] \
 		&& [ "$validation_title" = 'feat(commands): prepare pull request' ] \
-		&& grep -Fq 'Signed-off-by:' "$validation_file"; then
-		pass 'title validation accepts a conventional title with attribution trailers'
+		&& grep -Fq 'Implemented-by:' "$validation_file" \
+		&& grep -Fq 'Tested-by:' "$validation_file" \
+		&& grep -Fq 'Signed-off-by:' "$validation_file" \
+		&& ! grep -Fq 'Authored-by:' "$validation_file"; then
+		pass 'title validation accepts a conventional title with three attribution trailers'
 	else
 		fail 'title validation rejected a conventional title'
 	fi
 
 	printf '%s\n' 'FEAT(COMMANDS): PREPARE PULL REQUEST WITH A VERY LONG UPPERCASE SUBJECT THAT DEFINITELY EXCEEDS THE ONE HUNDRED CHARACTER MAXIMUM HEADER LENGTH FOR COMMITLINT VALIDATION' > "$title_file"
+	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 0 ]; then
 		pass 'title validation rejects an uppercase over-length title'
 	else
 		fail 'title validation accepted an uppercase over-length title'
 	fi
 
-	rm -f "$injection_sentinel" "$backtick_sentinel"
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 	cat > "$title_file" <<'PR_TITLE_PAYLOAD'
--$(touch @@SENTINEL1@@) `touch @@SENTINEL2@@` "'; leading-and-quotes
+fix(pr): inert $(touch d-canary) `touch b-canary` "q" -h
 PR_TITLE_PAYLOAD
-	sed -e "s|@@SENTINEL1@@|$injection_sentinel|g" \
-		-e "s|@@SENTINEL2@@|$backtick_sentinel|g" "$title_file" > "$title_file.tmp" \
-		&& mv "$title_file.tmp" "$title_file"
 	payload_line=$(cat "$title_file")
+	rm -f "$validation_file"
 	rc=0
-	(cd "$REPO_ROOT" && TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
-	preserved=1
-	if [ "$rc" -eq 0 ]; then preserved=0; fi
-	if [ -e "$injection_sentinel" ]; then preserved=0; fi
-	if [ -e "$backtick_sentinel" ]; then preserved=0; fi
+	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
+		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
+		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
+		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	title_after=""
+	validation_title=""
 	IFS= read -r title_after < "$title_file" 2>/dev/null || true
-	if [ "$title_after" != "$payload_line" ]; then preserved=0; fi
-	validation_first=""
-	IFS= read -r validation_first < "$validation_file" 2>/dev/null || true
-	if [ "$validation_first" != "$payload_line" ]; then preserved=0; fi
-	if [ "$preserved" -eq 1 ]; then
-		pass 'title validation preserves $(), backticks, quotes, and leading hyphen as inert data'
+	IFS= read -r validation_title < "$validation_file" 2>/dev/null || true
+	if [ "$rc" -eq 0 ] \
+		&& [ "$title_after" = "$payload_line" ] \
+		&& [ "$validation_title" = "$payload_line" ] \
+		&& [ ! -e "$REPO_ROOT/d-canary" ] \
+		&& [ ! -e "$REPO_ROOT/b-canary" ]; then
+		pass 'title validation preserves $(), backticks, quotes, and hyphens as inert data'
 	else
-		fail 'title payload was expanded or altered during validation'
+		fail 'title payload was expanded, altered, or rejected during validation'
 	fi
+	rm -f "$REPO_ROOT/d-canary" "$REPO_ROOT/b-canary"
 fi
 
 assert_contains "$COMMAND_FILE" '--title "$TITLE"' 'displayed gh command passes the title as quoted data'
-assert_contains "$COMMAND_FILE" '--body-file "$BODY_FILE"' 'displayed gh command passes the body through --body-file'
-assert_not_contains "$COMMAND_FILE" '--title-file' 'command never emits the obsolete --title-file option'
+assert_contains "$COMMAND_FILE" '--body-file /concrete/private/body-file' 'displayed gh command passes the body through --body-file'
+if assert_no_obsolete_title_flag "$COMMAND_FILE"; then
+	pass 'displayed gh command never emits the obsolete --title-file option'
+else
+	fail 'displayed gh command emits the obsolete --title-file option'
+fi
 
 # ── 11. heading parity mutation proof ────────────────────────────────────────
 
@@ -452,14 +500,33 @@ else
 fi
 
 mkdir -p "$mutation_dir/prompts"
-cp "$COMMAND_FILE" "$mutation_dir/prompts/pr.md"
-printf '\n%s\n' 'obsolete-title-file-token' >> "$mutation_dir/prompts/pr.md"
-sed -i.bak 's/obsolete-title-file-token/--title-file/' "$mutation_dir/prompts/pr.md"
-rm -f "$mutation_dir/prompts/pr.md.bak"
-if assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
+sed 's/--title "$TITLE"/--title-file "$TITLE_FILE"/' \
+	"$COMMAND_FILE" > "$mutation_dir/prompts/pr.md"
+if cmp -s "$COMMAND_FILE" "$mutation_dir/prompts/pr.md" \
+	|| ! grep -Fq -- '--title-file "$TITLE_FILE"' "$mutation_dir/prompts/pr.md"; then
+	fail 'obsolete flag mutation could not be applied'
+elif assert_no_obsolete_title_flag "$mutation_dir/prompts"; then
 	fail 'obsolete flag mutation was not detected'
 else
 	pass 'obsolete flag mutation is detected'
+fi
+
+cat > "$mutation_dir/prompts/fence-forms.md" <<'EOF'
+~~~~ shell
+gh pr create \
+  ~~~~not-a-close \
+  --title-file "$TITLE_FILE"
+~~~~
+
+    gh pr create \
+      --title-file "$TITLE_FILE"
+
+gh pr create --title-file "$TITLE_FILE"
+EOF
+if assert_no_obsolete_title_flag "$mutation_dir/prompts/fence-forms.md"; then
+	fail 'alternate Markdown fence forms evaded obsolete-flag detection'
+else
+	pass 'alternate Markdown fence forms are inspected'
 fi
 
 # ── 13. living-document command index ────────────────────────────────────────
@@ -486,27 +553,30 @@ else
 	fail "command contains stray angle-bracket placeholders: $extra_markers"
 fi
 
-# ── 15. review-gate anti-freeze contract ─────────────────────────────────────
+# ── 15. accepted-finalization evidence contract ─────────────────────────────
 
-assert_contains "$COMMAND_FILE" 'waive' \
-	'command accepts an explicit human waiver for incomplete axis evidence'
-assert_not_contains "$COMMAND_FILE" 'Blocking or Suggested' \
-	'command no longer hard-freezes on Suggested findings'
+assert_contains "$COMMAND_FILE" 'latest finalization acceptance' \
+	'command requires evidence from the latest accepted finalization attempt'
+assert_contains "$COMMAND_FILE" 'Require no Blocking finding and no unresolved Suggested finding.' \
+	'command blocks unresolved review findings'
+assert_contains "$COMMAND_FILE" 'axis must be complete, or covered by an eligible explicit waiver that existed' \
+	'command requires complete axes or eligible pre-existing waivers'
+assert_contains "$COMMAND_FILE" 'before the latest finalization acceptance and was recorded by that attempt' \
+	'command binds waiver evidence to the accepted attempt'
+assert_contains "$COMMAND_FILE" 'A conflict, failed check, incomplete unwaived axis, repair, new waiver,' \
+	'command enumerates attempt-consuming failures'
+assert_contains "$COMMAND_FILE" 'changed SHA, or dirty tree consumes that attempt.' \
+	'command consumes drifted or dirty attempts'
+assert_contains "$COMMAND_FILE" 'attempt is partial or stale even when an earlier gate passed.' \
+	'command rejects stale partial evidence'
+assert_contains "$COMMAND_FILE" 'fresh finalization acceptance and rerun the complete automatic sequence.' \
+	'command sends consumed attempts through fresh acceptance'
+assert_not_contains "$COMMAND_FILE" 'The review is never re-run solely to refresh evidence' \
+	'command does not preserve review evidence across failed attempts'
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 
 print_summary "pr command"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

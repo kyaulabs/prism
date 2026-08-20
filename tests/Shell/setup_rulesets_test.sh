@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: setup_rulesets_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for setup-rulesets.sh ───────────────────────────────────────────────
 # Verifies ruleset discovery, canonical comparison, dry-run, check, and apply
@@ -245,6 +232,7 @@ test_default_mode_is_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -278,6 +266,7 @@ test_accepts_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -379,6 +368,7 @@ test_requires_gh_auth() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -415,6 +405,7 @@ test_detects_repo_dynamically() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -459,6 +450,7 @@ test_absent_ruleset_reports_create() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -499,6 +491,7 @@ test_matching_ruleset_reports_unchanged() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -540,6 +533,7 @@ test_drifted_ruleset_reports_update() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -581,6 +575,7 @@ test_duplicate_rulesets_exit_2() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -627,6 +622,7 @@ test_unrelated_rulesets_preserved() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -678,6 +674,7 @@ test_dry_run_exits_zero() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -712,6 +709,7 @@ test_check_exits_one_on_drift() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -743,6 +741,7 @@ test_check_exits_zero_when_canonical() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -774,6 +773,7 @@ test_no_mutations_in_dry_run() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -805,6 +805,7 @@ test_no_mutations_in_check() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -836,6 +837,7 @@ test_apply_absent_ruleset_posts() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -888,6 +890,7 @@ test_apply_drifted_ruleset_puts() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -943,6 +946,7 @@ test_apply_matching_ruleset_no_mutation() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -985,6 +989,7 @@ test_apply_drifted_merge_patches() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1041,6 +1046,7 @@ test_apply_matching_merge_no_patch() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1083,6 +1089,7 @@ test_apply_unrelated_rulesets_untouched() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1140,6 +1147,7 @@ test_apply_duplicate_fails_before_mutation() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1192,6 +1200,7 @@ test_apply_second_run_noop() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1252,6 +1261,7 @@ test_apply_403_names_permission() {
 	register_temp_dir "$fake_bin"
 	fake_log=$(mktemp)
 	: > "$fake_log"
+	register_temp_dir "$fake_log"
 	export FAKE_GH_LOG="$fake_log"
 	export FAKE_GH_FIXTURES="$fake_bin"
 
@@ -1311,22 +1321,478 @@ echo ""
 echo "── Test 28: No code path emits DELETE ──"
 test_no_delete_code_path
 
+# ── Test 29: All gh api call sites route through the gh_api wrapper ───────────
+
+test_gh_api_call_sites_wrapped() {
+	local outside bare wrapped
+	# Static audit coupled to the script's formatting: assumes `gh_api() {`
+	# at column 0 closed by a column-0 `}`, calls written as `gh_api "..."`,
+	# and no literal `gh api` text in payloads. Formatting drift in
+	# setup-rulesets.sh requires updating this audit (deliberate coupling).
+	# Strip the gh_api() definition; any remaining `gh api ` mention outside
+	# it — and not in a comment — is a bare, unbounded call site. Occurrence
+	# counting (grep -o | wc -l) so multiple calls on one line cannot hide.
+	outside=$(awk '/^gh_api\(\) \{/{skip=1} skip && /^\}/{skip=0; next} !skip {print}' "$SCRIPT")
+	# Strip full-line and inline comments, then match `gh api` followed by
+	# whitespace or end-of-line so tabs or multiple spaces cannot hide a bare call.
+	bare=$(printf '%s\n' "$outside" | sed 's/#.*//' | grep -oE 'gh api([[:space:]]|$)' | wc -l | tr -d ' ' || true)
+	wrapped=$(grep -o 'gh_api ' "$SCRIPT" | wc -l | tr -d ' ' || true)
+	if [ "$bare" -eq 0 ] && [ "$wrapped" -ge 1 ]; then
+		pass "gh api call sites — no bare gh api outside the wrapper ($wrapped wrapped occurrences)"
+	else
+		fail "gh api call sites — bare=$bare wrapped=$wrapped (expected 0 bare, at least one wrapped)"
+	fi
+}
+
+echo ""
+echo "── Test 29: All gh api call sites route through gh_api ──"
+test_gh_api_call_sites_wrapped
+
+# ── Test 30: gh_api wraps calls in timeout 60 when timeout exists ──────────────
+
+test_gh_api_uses_timeout_when_available() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api timeout — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^60 gh api ' "$timeout_log"; then
+		fail "gh_api timeout — no 'timeout 60 gh api' invocation recorded"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	if ! grep -q '^60 gh repo view ' "$timeout_log"; then
+		fail "gh_api timeout — repo view not wrapped in timeout 60"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	if ! grep -q '^60 gh auth status' "$timeout_log"; then
+		fail "gh_api timeout — auth status not wrapped in timeout 60"
+		echo "  log: $(cat "$timeout_log")" >&2
+		return
+	fi
+	pass "gh_api timeout — auth, api, and repo-view calls wrapped in timeout 60"
+}
+
+echo ""
+echo "── Test 30: gh_api wraps calls when timeout exists ──"
+test_gh_api_uses_timeout_when_available
+
+# ── Test 31: gh_api falls back to bare gh api when timeout is absent ───────────
+
+test_gh_api_bare_without_timeout() {
+	local fake_bin fake_log output exit_code tool
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	: > "$fake_log"
+	register_temp_dir "$fake_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	# Minimal PATH: the --dry-run path uses exactly these externals (the rest
+	# are bash builtins). Deliberately no timeout/gtimeout so the gh_api
+	# fallback is exercised; extend this list if the script gains externals
+	# (set -euo pipefail aborts on a missing command).
+	for tool in bash php mktemp cat grep rm head; do
+		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
+			fail "minimal PATH — cannot symlink $tool (missing external?)"
+			unset FAKE_GH_LOG FAKE_GH_FIXTURES
+			return
+		fi
+	done
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin" bash "$SCRIPT" --dry-run 2>&1) || exit_code=$?
+
+	unset FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api bare — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^api repos/testowner/testrepo/rulesets' "$fake_log"; then
+		fail "gh_api bare — gh api not invoked"
+		return
+	fi
+	pass "gh_api bare — calls gh api directly when timeout is absent"
+}
+
+echo ""
+echo "── Test 31: gh_api falls back to bare gh api ──"
+test_gh_api_bare_without_timeout
+
+# ── Test 32: gh_api wraps calls in gtimeout when only gtimeout exists ─────────
+
+test_gh_api_uses_gtimeout_when_available() {
+	local fake_bin fake_log gtimeout_log output exit_code tool
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	gtimeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$gtimeout_log"
+	register_temp_dir "$fake_log" "$gtimeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+	# Minimal PATH (like Test 31) so the host's /usr/bin/timeout cannot
+	# shadow the gtimeout-only scenario; plus the gtimeout shim.
+	for tool in bash php mktemp cat grep rm head; do
+		if ! ln -s "$(command -v "$tool")" "$fake_bin/$tool" 2>/dev/null; then
+			fail "gtimeout minimal PATH — cannot symlink $tool (missing external?)"
+			unset FAKE_GH_LOG FAKE_GH_FIXTURES
+			return
+		fi
+	done
+
+	cat > "$fake_bin/gtimeout" <<'GTIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_GTIMEOUT_LOG:?FAKE_GTIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+exec "$cmd" "$@"
+GTIMEOUT_SHIM
+	chmod +x "$fake_bin/gtimeout"
+	export FAKE_GTIMEOUT_LOG="$gtimeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(env PATH="$fake_bin" bash "$SCRIPT" --dry-run 2>&1) || exit_code=$?
+
+	unset FAKE_GTIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 0 ]; then
+		fail "gh_api gtimeout — exit code $exit_code (expected 0)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! grep -q '^60 gh api ' "$gtimeout_log"; then
+		fail "gh_api gtimeout — no 'gtimeout 60 gh api' invocation recorded"
+		echo "  log: $(cat "$gtimeout_log")" >&2
+		return
+	fi
+	pass "gh_api gtimeout — api calls wrapped in gtimeout 60 when timeout is absent"
+}
+
+echo ""
+echo "── Test 32: gh_api wraps calls when only gtimeout exists ──"
+test_gh_api_uses_gtimeout_when_available
+
+# ── Test 33: a timeout-killed mutation names the unknown outcome ───────────────
+
+test_timeout_killed_mutation_names_outcome() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) mutation verbs only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" -X POST "*|*" -X PUT "*|*" -X PATCH "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	# Drifted ruleset + merge so --apply issues a PUT and a PATCH.
+	make_fixture "$fake_bin" "42" "$DRIFTED_RULESET" "$DRIFTED_MERGE"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--apply") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "timeout kill — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "timeout kill — output does not name the unknown outcome: $output"
+		return
+	fi
+	pass "timeout kill — exit 2 with 'timed out after 60s' diagnostic"
+}
+
+echo ""
+echo "── Test 33: a timeout-killed mutation names the unknown outcome ──"
+test_timeout_killed_mutation_names_outcome
+
+# ── Test 34: a hung repo view names the timeout, not a missing repo ────────────
+
+test_repo_view_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) repo view and api calls only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" api "*|*" repo view "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "repo view hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "repo view hang — output does not name the timeout: $output"
+		return
+	fi
+	if ! grep -q '^60 gh repo view ' "$timeout_log"; then
+		fail "repo view hang — repo view was never attempted"
+		return
+	fi
+	pass "repo view hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 34: a hung repo view names the timeout ──"
+test_repo_view_hang_names_timeout
+
+# ── Test 35: a hung read-only fetch names the timeout ──────────────────────────
+
+test_fetch_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) api calls only — repo view survives.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" api "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "fetch hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "fetch hang — output does not name the timeout: $output"
+		return
+	fi
+	if ! grep -q '^60 gh api ' "$timeout_log"; then
+		fail "fetch hang — the rulesets api call was never attempted"
+		return
+	fi
+	pass "fetch hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 35: a hung read-only fetch names the timeout ──"
+test_fetch_hang_names_timeout
+
+# ── Test 36: a hung auth status names the timeout, not an auth problem ────────
+
+test_auth_hang_names_timeout() {
+	local fake_bin fake_log timeout_log output exit_code
+	fake_bin=$(mktemp -d)
+	register_temp_dir "$fake_bin"
+	fake_log=$(mktemp)
+	timeout_log=$(mktemp)
+	: > "$fake_log"
+	: > "$timeout_log"
+	register_temp_dir "$fake_log" "$timeout_log"
+	export FAKE_GH_LOG="$fake_log"
+	export FAKE_GH_FIXTURES="$fake_bin"
+
+	fake_gh_setup "$fake_bin"
+
+	# Timeout shim that kills (exit 124) the auth status call only.
+	cat > "$fake_bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+	echo "timeout (GNU coreutils) 9.11"
+	exit 0
+fi
+echo "$@" >> "${FAKE_TIMEOUT_LOG:?FAKE_TIMEOUT_LOG not set}"
+shift
+cmd="$1"
+shift
+case " $* " in
+	*" auth status "*) exit 124 ;;
+esac
+exec "$cmd" "$@"
+TIMEOUT_SHIM
+	chmod +x "$fake_bin/timeout"
+	export FAKE_TIMEOUT_LOG="$timeout_log"
+
+	write_fixture_auth "$fake_bin" "ok"
+	write_fixture_repo_view "$fake_bin" "testowner/testrepo"
+	echo '[]' > "$fake_bin/rulesets-list.json"
+	echo "$CANONICAL_MERGE" > "$fake_bin/repo-settings.json"
+
+	exit_code=0
+	output=$(run_script "$fake_bin" "$fake_log" "--dry-run") || exit_code=$?
+
+	unset FAKE_TIMEOUT_LOG FAKE_GH_LOG FAKE_GH_FIXTURES
+
+	if [ "$exit_code" -ne 2 ]; then
+		fail "auth hang — exit code $exit_code (expected 2)"
+		echo "  output: $output" >&2
+		return
+	fi
+	if ! echo "$output" | grep -q 'timed out after 60s'; then
+		fail "auth hang — output does not name the timeout: $output"
+		return
+	fi
+	if ! grep -q '^60 gh auth status' "$timeout_log"; then
+		fail "auth hang — auth status was never attempted"
+		return
+	fi
+	pass "auth hang — exit 2 naming 'timed out after 60s'"
+}
+
+echo ""
+echo "── Test 36: a hung auth status names the timeout ──"
+test_auth_hang_names_timeout
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 print_summary "setup_rulesets_test.sh"
 exit $?
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

@@ -8,10 +8,6 @@ acceptance criteria defined in the relevant spec file. This complements the
 `code-review` tooling, structural, and security axes with distinct
 requirement-traceability analysis.
 
-For the strongest cross-model review, suggest that the human cycle to
-`deepseek-v4-pro` with Ctrl+P before continuing. Proceed on the current model
-if they decline.
-
 ## Spec discovery
 
 1. Resolve the current branch name (`git branch --show-current`).

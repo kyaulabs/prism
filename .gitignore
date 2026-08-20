@@ -40,6 +40,10 @@ prototype_*
 # Kept ignored so it cannot be accidentally committed; safe to remove once gone.
 graphify-out/
 
+# External audit reports (never committed; local review artifacts)
+audits/
+graphify-out/
+
 # Scaffold test targets (setup-scaffold.sh containment tests — issue #193)
 /.test-scaffold-tmp/
 

@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@cosmos.kyaulabs 2026/07/27 -0700 Exp $
-
-
-
-
-
-
-
-
-
+# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
@@ -37,19 +28,41 @@ fi
 # shellcheck disable=SC2034  # used in Task 2 (merge/revert exemption)
 COMMITLINT_AVAILABLE=$([ -d "$REPO_ROOT/node_modules/commitlint" ] && echo true || echo false)
 
-# ── Test 1: Guard skips with notice when commitlint absent ───────────────────
-# A stub `npx` is placed first on PATH so the unguarded hook (before the fix)
-# fails fast without a network fetch. After the fix, the guard fires before
-# npx is ever reached.
+copy_commitlint_config() {
+	local destination="$1"
+	mkdir -p "$destination/packages/prism-core/config"
+	cp "$REPO_ROOT/commitlint.config.js" "$destination/commitlint.config.js"
+	cp "$REPO_ROOT/packages/prism-core/config/commitlint.config.cjs" \
+		"$destination/packages/prism-core/config/commitlint.config.cjs"
+}
+
+# install_launcher_hook <dir> — git-init a fixture, install the real hook, and
+# stage fake in-range Semgrep/OCR executables so the real source CLI's local
+# doctor passes. Git commits in the fixture must run with PRISM_TOOL pointing
+# at the source CLI and the fixture toolchain bin first on PATH.
+# shellcheck disable=SC2030,SC2031  # PRISM_TOOL/PATH exports are intentional and scoped to each fixture subshell
+install_launcher_hook() {
+	local dir="$1"
+	git_init_test_repo "$dir"
+	mkdir -p "$dir/toolchain-bin"
+	cp "$REPO_ROOT/tests/Shell/fixtures/bin/semgrep" "$dir/toolchain-bin/semgrep"
+	cp "$REPO_ROOT/tests/Shell/fixtures/bin/ocr" "$dir/toolchain-bin/ocr"
+	chmod +x "$dir/toolchain-bin/semgrep" "$dir/toolchain-bin/ocr"
+	cp "$REAL_HOOK" "$dir/.git/hooks/commit-msg"
+	chmod +x "$dir/.git/hooks/commit-msg"
+}
+
+# ── Test 1: Guard fails closed when the launcher is absent ───────────────────
+# A stub `npx` is placed first on PATH so a hook that bypasses the launcher
+# boundary (pre-fix state) fails fast without a network fetch. After the fix,
+# the launcher guard fires before npx is ever reached.
 
 echo ""
-echo "── Test 1: Guard fails closed when commitlint not installed ──"
+echo "── Test 1: Guard fails closed when launcher not installed ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
 (
 	cd "$T1"
-	# Stub npx: exits non-zero with a known message. Only reached if the
-	# hook lacks a guard (the pre-fix state).
 	mkdir -p "$T1/bin"
 	cat > "$T1/bin/npx" <<'STUB'
 #!/usr/bin/env bash
@@ -59,15 +72,15 @@ STUB
 	chmod +x "$T1/bin/npx"
 
 	# Sample valid commit message (content irrelevant — guard fires first)
-	printf 'feat: test\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
+	printf 'feat: test\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > msg
 
 	set +e
-	output=$(PATH="$T1/bin:$PATH" "$REAL_HOOK" msg 2>&1)
+	output=$(PATH="$T1/bin:$(path_without_prism_tool)" env -u PRISM_TOOL "$REAL_HOOK" msg 2>&1)
 	ret=$?
 	set -e
 
-	if [ "$ret" -eq 1 ] && echo "$output" | grep -qi "commitlint is not installed"; then
-		pass "Guard fails closed when commitlint absent (exit 1)"
+	if [ "$ret" -eq 1 ] && echo "$output" | grep -qi "prism-tool launcher is not installed"; then
+		pass "Guard fails closed when launcher absent (exit 1)"
 	else
 		fail "Guard did not fail closed (exit=$ret): $output"
 	fi
@@ -84,14 +97,11 @@ T2=$(mktemp -d)
 register_temp_dir "$T2"
 (
 	cd "$T2"
-	git_init_test_repo "$T2"
-	# Expose commitlint + config to the hook (which checks ./node_modules/commitlint)
-	ln -s "$REPO_ROOT/node_modules" "$T2/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T2/commitlint.config.js"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T2"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T2/toolchain-bin:$PATH"
 
-	VALID=$'feat: base commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: base commit\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	git checkout -q -b feature
 	echo b > b; git add b; git commit -q -m "$VALID"
@@ -120,13 +130,11 @@ T3=$(mktemp -d)
 register_temp_dir "$T3"
 (
 	cd "$T3"
-	git_init_test_repo "$T3"
-	ln -s "$REPO_ROOT/node_modules" "$T3/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T3/commitlint.config.js"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T3"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T3/toolchain-bin:$PATH"
 
-	VALID=$'feat: original\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: original\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a; git commit -q -m "$VALID"
 	TARGET=$(git rev-parse HEAD)
 
@@ -153,11 +161,9 @@ T4=$(mktemp -d)
 register_temp_dir "$T4"
 (
 	cd "$T4"
-	git_init_test_repo "$T4"
-	ln -s "$REPO_ROOT/node_modules" "$T4/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T4/commitlint.config.js"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T4"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T4/toolchain-bin:$PATH"
 
 	echo a > a; git add a
 	set +e
@@ -183,13 +189,11 @@ T5=$(mktemp -d)
 register_temp_dir "$T5"
 (
 	cd "$T5"
-	git_init_test_repo "$T5"
-	ln -s "$REPO_ROOT/node_modules" "$T5/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T5/commitlint.config.js"
-	cp "$REAL_HOOK" .git/hooks/commit-msg
-	chmod +x .git/hooks/commit-msg
+	install_launcher_hook "$T5"
+	export PRISM_TOOL="$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	export PATH="$T5/toolchain-bin:$PATH"
 
-	VALID=$'feat: valid commit\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
+	VALID=$'feat: valid commit\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>'
 	echo a > a; git add a
 	set +e
 	output=$(git commit -q -m "$VALID" 2>&1)
@@ -219,7 +223,7 @@ register_temp_dir "$T6"
 	cd "$T6"
 	git_init_test_repo "$T6"
 	ln -s "$REPO_ROOT/node_modules" "$T6/node_modules"
-	cp "$REPO_ROOT/commitlint.config.js" "$T6/commitlint.config.js"
+	copy_commitlint_config "$T6"
 
 	# Non-standard merge message — does NOT match isIgnored's ^Merge branch
 	# pattern, so commitlint evaluates our trailersExist rule. Our rule
@@ -248,7 +252,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nCloses #40\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nCloses #40\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -271,7 +275,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nResolve: #50\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nResolve: #50\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -294,7 +298,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -317,7 +321,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nfixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nfixes: #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -332,15 +336,15 @@ else
 )
 fi
 
-# ── Test 11: Reject Fixes: placed after Authored-by: (placement) ───────────────────
+# ── Test 11: Reject Fixes: placed after Implemented-by: (placement) ───────────────
 
-echo "── Test 11: Fixes: after Authored-by: rejected ──"
+echo "── Test 11: Fixes: after Implemented-by: rejected ──"
 if [ "$COMMITLINT_AVAILABLE" = false ]; then
 	skip "Test 11 (placement) — commitlint not installed"
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\nFixes: #42\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -348,9 +352,9 @@ else
 	set -e
 	rm -f "$MSG"
 	if [ "$ret" -ne 0 ]; then
-		pass "Test 11: Fixes: after Authored-by: rejected (placement)"
+		pass "Test 11: Fixes: after Implemented-by: rejected (placement)"
 	else
-		fail "Test 11: Fixes: after Authored-by: accepted (should be rejected) (exit=$ret): $output"
+		fail "Test 11: Fixes: after Implemented-by: accepted (should be rejected) (exit=$ret): $output"
 	fi
 )
 fi
@@ -363,7 +367,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFixes: #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFixes: #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -386,7 +390,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'feat(db): add index\n\nRefs: #123\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'feat(db): add index\n\nRefs: #123\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -409,7 +413,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -432,7 +436,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nAuthored-by: x\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'fix(db): sqli in search\n\nFix #42 was the hardest part of this refactor.\n\nImplemented-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -455,7 +459,7 @@ if [ "$COMMITLINT_AVAILABLE" = false ]; then
 else
 (
 	MSG=$(mktemp)
-	printf 'feat: missing impl\n\nAuthored-by: x\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
+	printf 'feat: missing impl\n\nTested-by: x\nSigned-off-by: x <x@x>\n' > "$MSG"
 	cd "$REPO_ROOT"
 	set +e
 	output=$(npx commitlint --edit "$MSG" 2>&1)
@@ -474,6 +478,5 @@ fi
 
 print_summary "commit-msg_test.sh"
 exit $?
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

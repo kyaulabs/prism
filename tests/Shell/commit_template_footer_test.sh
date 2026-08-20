@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
-
-
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
 
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
@@ -22,22 +12,20 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-# ── 1. /release changelog commit carries required footers ───────────────────
-# The release commit is a normal chore(release): commit (not a merge/revert),
-# so commitlint's trailers-exist rule requires Authored-by/Implemented-by/
-# Tested-by/Signed-off-by. The old footerless double-quoted form must be gone.
+# ── 1. /release delegates its ordinary commit to prism-tool ────────────────
 RELEASE="$REPO_ROOT/packages/prism-core/prompts/release.md"
-if grep -qF 'git commit -S -m "chore(release): vX.Y.Z"' "$RELEASE"; then
-	fail "release.md still uses footerless double-quoted commit form"
+if grep -qF 'prism-tool commit create --type chore --scope release' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit prepare' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit apply' "$RELEASE" \
+	&& ! grep -qF 'prism-tool commit discard' "$RELEASE" \
+	&& ! grep -qF -- '--plan' "$RELEASE" \
+	&& ! grep -qiF 'exact commit message' "$RELEASE" \
+	&& ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE" \
+	&& ! grep -qF 'resolve-ocr-model.sh' "$RELEASE" \
+	&& ! grep -qF 'resolve-identity.sh' "$RELEASE"; then
+	pass "release.md delegates one approval-free signed commit to prism-tool"
 else
-	if grep -qF "Authored-by:" "$RELEASE" \
-		&& grep -qF "Implemented-by:" "$RELEASE" \
-		&& grep -qF "Tested-by:" "$RELEASE" \
-		&& grep -qF "Signed-off-by:" "$RELEASE"; then
-		pass "release.md changelog commit includes required footers"
-	else
-		fail "release.md changelog commit missing Authored-by/Implemented-by/Tested-by/Signed-off-by"
-	fi
+	fail "release.md does not use atomic launcher-owned commit creation"
 fi
 
 # ── 2. /release never creates a local tag ──────────────────────────────────
@@ -61,14 +49,5 @@ else
 fi
 
 print_summary "commit_template_footer"
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

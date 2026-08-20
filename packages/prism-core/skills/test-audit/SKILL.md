@@ -8,10 +8,6 @@ description: Use when auditing an existing test suite for quality problems — c
 Audit the test suite for this project. Do NOT make any code changes — produce a
 report only.
 
-For the strongest cross-model audit, suggest that the human cycle to
-`deepseek-v4-pro` with Ctrl+P before continuing. Proceed on the current model
-if they decline.
-
 ## Gather the baseline
 
 Load the active adapter's TDD skill and run its test/coverage baseline command.

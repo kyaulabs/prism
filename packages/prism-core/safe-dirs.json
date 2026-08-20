@@ -3,6 +3,7 @@
     "node_modules",
     ".git",
     ".pi/npm",
-    ".pi/git"
+    ".pi/git",
+    ".pi/prism-tool/work"
   ]
 }

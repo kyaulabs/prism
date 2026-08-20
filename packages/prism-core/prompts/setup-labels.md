@@ -44,8 +44,11 @@ links unavailable. Consider upgrading.
 Detect the repo dynamically:
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh repo view --json nameWithOwner -q .nameWithOwner
 ```
+
+Validate and retain the returned `OWNER/REPO` as inert context. Render that
+literal value in every later `--repo` argument.
 
 ## 2. Read the label vocabulary
 
@@ -88,8 +91,7 @@ Meta labels (10):
 Run directly in the current agent:
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh label list --repo "$REPO" --json name,color,description
+gh label list --repo OWNER/REPO --json name,color,description
 ```
 
 Cache the returned JSON so each label from Step 2 can be compared against the
@@ -103,15 +105,13 @@ For each of the 17 labels from Step 2, run directly in the current agent:
 
 **Label does not exist** → create:
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh label create "<name>" --repo "$REPO" --color "<color>" --description "<description>"
+gh label create "<name>" --repo OWNER/REPO --color "<color>" --description "<description>"
 ```
 → Status: **Created**.
 
 **Label exists with differing color or description** → update:
 ```bash
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-gh label edit "<name>" --repo "$REPO" --color "<color>" --description "<description>"
+gh label edit "<name>" --repo OWNER/REPO --color "<color>" --description "<description>"
 ```
 → Status: **Updated** (note what changed: color, description, or both).
 

@@ -7,35 +7,48 @@ MSG_FILE="${1:?commit-msg: message file path required}"
 
 # ── Literal backslash-n guard (pure bash, no deps) ───────────────────────────
 # Reject messages containing the two-char sequence '\' + 'n'. These come from
-# `git commit -m "...\n..."` in regular quotes; bash interprets \n only inside
-# $'...'. commitlint's body-max-line-length / trailers-exist would also catch
-# the fallout, but this guard yields a targeted, actionable error. See ADR-0025.
+# malformed direct commit arguments. commitlint's body-max-line-length and
+# trailer checks would also catch the fallout, but this guard points ordinary
+# agent-created commits to the launcher-owned workflow. See ADR-0025, ADR-0070.
 if grep -qF '\n' "$MSG_FILE"; then
 	cat >&2 <<'EOF'
 ✗ Commit message contains a literal '\n' (backslash-n) sequence.
-  This usually means the message was passed via -m "...\n..." in regular
-  quotes. Use a single -m with $'...\n...' so bash interprets newlines:
+  Ordinary agent-created commits must use the launcher-owned atomic operation:
 
-      git commit -S -m $'type[scope]: subject\n\nBody line.\n\nAuthored-by: model\nTested-by: model\nSigned-off-by: user <email>'
+      prism-tool commit create --type fix --scope core --subject "safe subject"
 
-  Never use multiple -m flags (they insert blank lines that break trailers).
+  The launcher constructs real newlines, resolves attribution, validates the
+  complete message, creates the signed commit, and verifies that HEAD advanced.
 EOF
 	exit 1
 fi
 
-# ── commitlint (fail-closed: CI parity requires local enforcement) ───────────
-# A missing node_modules/commitlint is a broken dev environment. CI enforces
+# ── prism-tool (fail-closed: CI parity requires local enforcement) ───────────
+# A missing prism-tool launcher is a broken dev environment. CI enforces
 # commitlint on every PR; for local parity the commit must block until the
-# toolchain is installed. See ADR-0025.
-if [ ! -d node_modules/commitlint ]; then
+# toolchain is installed. See ADR-0025, ADR-0061.
+PRISM_TOOL_PATH=""
+if [ -n "${PRISM_TOOL:-}" ]; then
+	PRISM_TOOL_PATH="$PRISM_TOOL"
+elif command -v prism-tool > /dev/null 2>&1; then
+	PRISM_TOOL_PATH="$(command -v prism-tool)"
+else
 	cat >&2 <<'EOF'
-✗ commitlint is not installed — cannot validate the commit message locally.
-  Run 'npm install' to install the toolchain, then re-run the commit.
-  (CI enforces commitlint on every PR; local parity requires it here too.)
+✗ prism-tool launcher is not installed — cannot validate the commit message locally.
+  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it,
+  then re-run the commit. (CI enforces commitlint on every PR; local parity requires it here too.)
 EOF
 	exit 1
 fi
 
-npx commitlint --edit "$MSG_FILE"
+if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
+	cat >&2 <<'EOF'
+✗ prism-tool local readiness failed — mandatory Semgrep/OCR check did not pass.
+  Fix readiness (see 'prism-tool doctor'), then re-run the commit.
+EOF
+	exit 1
+fi
+
+"$PRISM_TOOL_PATH" run commitlint -- --edit "$MSG_FILE"
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

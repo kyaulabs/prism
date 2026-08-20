@@ -1,13 +1,6 @@
 <?php
 
-
-# $KYAULabs: negative.php kyau@nova 2026/07/14 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: negative.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # This file contains POST forms WITH token hidden inputs in various
 # attribute-order, case, and quote variants. The
@@ -36,4 +29,3 @@ header('Content-Type: text/html; charset=UTF-8');
     <input type="text" name="name">
     <button type="submit">Register</button>
 </form>
-

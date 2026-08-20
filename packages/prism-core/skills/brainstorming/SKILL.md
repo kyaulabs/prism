@@ -46,7 +46,9 @@ Complete these in order:
 
 1. **Explore project context** — check files, docs, recent commits, `CONTEXT.md`.
 2. **Assess scope before detailed grilling**
-   - Run `bash packages/prism-core/scripts/classify-greenfield.sh` from the project root.
+   - Run `prism-tool resolve scripts`, retain the returned absolute directory,
+     then run `bash /absolute/resolved/scripts/classify-greenfield.sh` from the
+     project root.
    - If the request spans multiple independent subsystems or its unknowns
      cannot be expressed as sharp questions, it is oversized.
    - For classifier results `established` or `indeterminate`, stop detailed
@@ -67,12 +69,15 @@ Complete these in order:
 5. **Present design** — in sections scaled to their complexity. Use grilling's
    Confirmation gate: present each section, ask "Does this look right so far?",
    and wait for explicit approval before moving to the next section.
-6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md` and commit.
+6. **Write spec** — save to `docs/specs/YYYY-MM-DD-<topic>-spec.md`, then
+   load `conventional-commits` and use its single atomic launcher operation.
 7. **Spec self-review** — quick inline check for placeholders, contradictions,
    ambiguity, scope.
 8. **User reviews written spec** — ask the user to review before proceeding.
-9. **Create feature branch** — `bash packages/prism-core/scripts/new-branch.sh <type> <desc>`
-   off `develop` (or `main` for hotfixes). See ADR-0028.
+9. **Create feature branch** — run `prism-tool resolve scripts`, retain the
+   returned absolute directory, then run
+   `bash /absolute/resolved/scripts/new-branch.sh <type> <desc>` off `develop`
+   (or `main` for hotfixes). See ADR-0028.
 10. **Transition** — load the `writing-plans` skill for implementation
     planning. Do NOT begin implementation or load `executing-plans`/`tdd`
     before the plan is approved (ADR-0055).
@@ -90,8 +95,9 @@ real code (see the `wayfinder` skill).
 The bootstrap handoff differs from the normal branch flow:
 
 - A no-commit repository cannot create a work branch yet. The approved spec
-  is included in the ADR-0044 **single-root seed** on `develop`, and the
-  **human** performs that initial push — the agent never pushes.
+  is included in the ADR-0044 **single-root seed** on `develop`, prepared
+  through `conventional-commits`, and the **human** performs that initial push
+  — the agent never pushes.
 - Only after the seed push does `new-branch.sh` create the implementation
   work branch for the scaffold plus the vertical slice.
 - Implementation follows the normal single-agent pipeline (`writing-plans` →
@@ -202,7 +208,13 @@ After the user approves the spec, create the feature branch off `develop`
 (or `main` for hotfixes):
 
 ```bash
-bash packages/prism-core/scripts/new-branch.sh <type> <description>
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory, then run:
+
+```bash
+bash /absolute/resolved/scripts/new-branch.sh <type> <description>
 ```
 
 Where `<type>` reflects the work type (`feat` for new features, `fix` for

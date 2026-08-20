@@ -25,39 +25,47 @@ to its digits: when present, the release commit footer is exactly
 Stop immediately (exit 1) if any of these hold:
 
 ```bash
-# Working tree must be clean (staged, unstaged, and untracked)
-if [ -n "$(git status --porcelain)" ]; then
-    echo "✗ Working tree has uncommitted changes. Commit or stash first." >&2
-    exit 1
-fi
+# Mandatory local readiness (fail-closed; missing launcher or Semgrep/OCR failure blocks)
+prism-tool doctor --local-only || exit 1
 ```
+
+```bash
+# Working tree must be clean (staged, unstaged, and untracked)
+git status --porcelain
+```
+
+Any output means the tree is dirty: stop and report "Working tree has
+uncommitted changes. Commit or stash first." An empty result passes.
 
 ```bash
 # The current branch must be exactly develop
-if [ "$(git branch --show-current)" != "develop" ]; then
-    echo "✗ Releases originate from the develop branch only." >&2
-    exit 1
-fi
+git branch --show-current
 ```
 
+The output must be exactly `develop`; otherwise stop and report that releases
+originate from `develop` only.
+
+Synchronize, then obtain both SHAs in separate calls:
+
 ```bash
-# Synchronize and verify HEAD equals the fetched origin/develop
 git fetch origin develop --tags
-if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/develop)" ]; then
-    echo "✗ Local develop is not synchronized with origin/develop. Pull or reset first." >&2
-    exit 1
-fi
+git rev-parse HEAD
+git rev-parse origin/develop
 ```
 
+Validate both outputs as commit SHAs and compare them as inert data. If they
+differ, stop and report that local `develop` is not synchronized with
+`origin/develop`.
+
 ```bash
-# git-cliff 2.0+ is required; there is no alternative — CHANGELOG.md cannot
-# be produced without it. Direct a missing-tool user to /doctor.
-CLIFF_MAJOR=$(git cliff --version 2>/dev/null | grep -oE '^git-cliff [0-9]+' | grep -oE '[0-9]+$' || true)
-if [ -z "$CLIFF_MAJOR" ] || [ "$CLIFF_MAJOR" -lt 2 ]; then
-    echo "✗ git-cliff 2.0+ is required. Run /doctor to fix your toolchain." >&2
-    exit 1
-fi
+# git-cliff 2.0+ is required through the launcher; there is no alternative —
+# CHANGELOG.md cannot be produced without it. Direct a missing-tool user to /doctor.
+prism-tool run git-cliff -- --version
 ```
+
+Parse the returned version as inert data. Validate that its major component is
+an integer at least 2. If the major component is below 2, stop and direct the
+user to `/doctor`.
 
 ## Propose and confirm the version
 
@@ -65,7 +73,7 @@ Stop when there are no releasable commits — with none pending, the unreleased
 changelog contains no list items:
 
 ```bash
-if ! git cliff --unreleased --strip header 2>/dev/null | grep -qE '^[-*] '; then
+if ! prism-tool run git-cliff -- --unreleased --strip header 2>/dev/null | grep -qE '^[-*] '; then
     echo "No releasable commits — nothing to release." >&2
     exit 1
 fi
@@ -74,11 +82,14 @@ fi
 Detect whether a prior release tag matching `v[0-9]*` exists:
 
 ```bash
-LAST_RELEASE_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+git describe --tags --abbrev=0 --match 'v[0-9]*'
 ```
 
+Exit 0 with output means a prior release tag exists. A no-match exit means
+this is the first release; do not mask or reinterpret other failures.
+
 When no prior release tag exists, git-cliff cannot compute an initial
-version, so do not run `git cliff --bumped-version`. Ask the user exactly one
+version, so do not run `prism-tool run git-cliff -- --bumped-version`. Ask the user exactly one
 question — the initial version (e.g. `0.1.0`) — and STOP and wait for the
 reply:
 
@@ -90,13 +101,16 @@ Validate the reply against `^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$` before
 any shell or ref use; an invalid reply stops the release.
 
 When a prior release tag exists, let `cliff.toml` compute the bump with
-`git cliff --bumped-version` (breaking changes bump MINOR before 1.0.0 and
-MAJOR at 1.0.0+, `feat:` bumps MINOR, and `fix:`/`patch:` bump PATCH), then
-strip at most one leading `v`:
+`prism-tool run git-cliff -- --bumped-version` (breaking changes bump MINOR
+before 1.0.0 and MAJOR at 1.0.0+, `feat:` bumps MINOR, and
+`fix:`/`patch:` bump PATCH), then strip at most one leading `v`:
 
 ```bash
-VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+prism-tool run git-cliff -- --bumped-version
 ```
+
+Strip at most one leading `v` from the observed output at the agent level and
+retain the validated result as literal `X.Y.Z` context.
 
 If the proposal is empty or invalid despite releasable commits, stop and
 report the failure — never switch to manual bumping.
@@ -104,17 +118,18 @@ report the failure — never switch to manual bumping.
 Either way, validate the candidate against the exact release grammar
 (optional prerelease, no build metadata):
 
+Render the candidate literally and validate it:
+
 ```bash
-if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-    echo "✗ Invalid version '$VERSION'." >&2
-    exit 1
-fi
+printf '%s' 'X.Y.Z' | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$"
 ```
+
+A non-zero exit means the version is invalid; stop.
 
 Present the pending commit range and bump rationale:
 
 ```bash
-git cliff --unreleased --strip header
+prism-tool run git-cliff -- --unreleased --strip header
 ```
 
 Then ask the final release-confirmation question — exactly one question in
@@ -132,7 +147,14 @@ shell.
 ## Create the release branch
 
 ```bash
-bash packages/prism-core/scripts/new-branch.sh release "$VERSION"
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory, then render the validated version
+literally:
+
+```bash
+bash /absolute/resolved/scripts/new-branch.sh release X.Y.Z
 ```
 
 The branch is `release/X.Y.Z` — the version carries no `v`.
@@ -140,75 +162,126 @@ The branch is `release/X.Y.Z` — the version carries no `v`.
 ## Generate the changelog
 
 ```bash
-git cliff --tag "v$VERSION" --output CHANGELOG.md
+prism-tool run git-cliff -- --tag "vX.Y.Z" --output CHANGELOG.md
 ```
 
 If scaffold links survive, replace `kyaulabs/template` with the repository
 detected by `gh repo view`. Use a portable temp file + `mv` — never GNU-only
 in-place `sed` editing:
 
+First check whether replacement is needed:
+
 ```bash
-if grep -qF 'kyaulabs/template' CHANGELOG.md; then
-    OWNER_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-    TMP_FILE=$(mktemp)
-    sed "s|kyaulabs/template|${OWNER_REPO}|g" CHANGELOG.md > "$TMP_FILE"
-    mv "$TMP_FILE" CHANGELOG.md
-fi
+grep -qF 'kyaulabs/template' CHANGELOG.md
+```
+
+When it is, run the repository lookup separately and retain the validated
+`OWNER/REPO` output:
+
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
+Then use a stable project-local temp file:
+
+```bash
+mkdir -p .pi/tmp
+set -C
+sed "s|kyaulabs/template|OWNER/REPO|g" CHANGELOG.md > .pi/tmp/release-changelog.tmp &&
+    mv .pi/tmp/release-changelog.tmp CHANGELOG.md
 ```
 
 Show the generated version section for review.
 
-## Commit the changelog
+## Pre-flight the release-body size
 
-Resolve the four ADR-0040 footers from the current pi session, then create
-the signed `chore(release): vX.Y.Z` commit through the normal instruction
-gate. Carry the validated digits from the Arguments step into the block below
-as `RELEASE_ISSUE_DIGITS` (empty when no argument was supplied); the block
-instantiates `RELEASE_REF` from it in the same shell invocation and fails
-closed if the footer state is missing or malformed. If a valid issue was
-supplied, the commit must carry exactly `Refs: #<digits>` — never commit
-without it:
+Measure the generated `v$VERSION` section (bytes >= characters for UTF-8, so
+120,000 bytes is a conservative proxy for GitHub's 125,000-character
+release-body limit). When the block below reports `oversized`, ask the human
+exactly one question — proceed (on merge `release.yml` truncates the body at
+the limit and attaches the full changelog as `full-changelog-vX.Y.Z.md`) or
+abort and trim the changelog at the source — and STOP for an explicit `yes`
+before continuing.
 
 ```bash
-: "${PI_MODEL:?current pi model is required before committing}"
-MODEL_ID="${PI_MODEL##*/}"
-# RELEASE_ISSUE_DIGITS: validated digits from the invocation argument. The
-# agent renders the validated value into the assignment below (empty when no
-# argument was supplied); the raw invocation argument never enters a shell
-# command.
-RELEASE_ISSUE_DIGITS=""
-# Fail closed FIRST, before any assignment-derived value is used: a
-# non-empty value must be exactly ^[1-9][0-9]*$ so raw invocation input
-# can never reach a shell command.
-if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_ISSUE_DIGITS" | grep -qE '^[1-9][0-9]*$'; then
-    echo "✗ Release-issue digits are malformed." >&2
-    exit 1
-fi
-# Instantiate RELEASE_REF in this same shell invocation: empty when no issue
-# was supplied, otherwise exactly "Refs: #<digits>".
-RELEASE_REF=""
-if [ -n "$RELEASE_ISSUE_DIGITS" ]; then
-    RELEASE_REF="Refs: #${RELEASE_ISSUE_DIGITS}"
-fi
-# Fail closed: a validated issue must yield exactly "Refs: #<digits>".
-if [ -n "$RELEASE_ISSUE_DIGITS" ] && ! printf '%s' "$RELEASE_REF" | grep -qE '^Refs: #[1-9][0-9]*$'; then
-    echo "✗ Release-issue footer is missing or malformed." >&2
-    exit 1
-fi
-git add CHANGELOG.md
-if [ -n "$RELEASE_REF" ]; then
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\n%s\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
-        "$VERSION" "$RELEASE_REF" "$MODEL_ID" \
-        "$MODEL_ID" "$MODEL_ID" \
-        "$(bash packages/prism-core/scripts/resolve-identity.sh)")
-else
-    RELEASE_MSG=$(printf 'chore(release): v%s\n\nAuthored-by: %s\nImplemented-by: %s\nTested-by: %s\nSigned-off-by: %s' \
-        "$VERSION" "$MODEL_ID" \
-        "$MODEL_ID" "$MODEL_ID" \
-        "$(bash packages/prism-core/scripts/resolve-identity.sh)")
-fi
-git commit -S -m "$RELEASE_MSG"
+awk -v v="[X.Y.Z]" '
+    /^## / { if (in_sec) exit; if (index($0, v)) in_sec = 1; next }
+    in_sec { print }
+' CHANGELOG.md | wc -c
 ```
+
+Validate the numeric output as inert data. A value greater than 120,000 is
+`oversized`; ask the approval question described above.
+
+## Compute and bump per-package versions
+
+Release-managed packages are declared in `.prism/release.json` at the repo
+root — `{ "packages": ["relative/dir", ...] }`. When the file is absent or its
+`packages` array empty, skip this entire section: no per-package behavior.
+When present but malformed (absolute path, `..`, whitespace, missing
+`package.json`, unparseable JSON), stop the release.
+
+For each declared package, compute its bump from commits touching that path
+since its last `<prefix>@*` tag. The prefix is the package's `package.json`
+`name` with the scope stripped (`@kyaulabs/prism-core` → `prism-core`). A
+computed version equal to the current `package.json` version means the
+package has nothing to bump — skip it entirely (no bump, no tag, no npm
+command). Otherwise bump it and record the package dir in `BUMPED_PKGS`
+(space-separated, conversation context) for the commit and handoff:
+
+For each validated package directory, run these separately:
+
+```bash
+node -e 'process.stdout.write(require(process.argv[1]).name)' "PACKAGE_DIRECTORY/package.json"
+node -e 'process.stdout.write(require(process.argv[1]).version)' "PACKAGE_DIRECTORY/package.json"
+prism-tool run git-cliff -- --bumped-version --include-path "PACKAGE_DIRECTORY/*" --tag-pattern "PACKAGE_PREFIX@.*"
+```
+
+Retain the validated package name, scope-stripped prefix, current version, and
+normalized next version as inert context. When the next version differs from
+the current version, run:
+
+```bash
+npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION --no-git-tag-version
+```
+
+Record the literal package directory in `BUMPED_PKGS` conversation state.
+
+The `chore(release): vX.Y.Z` commit carries the bumped `package.json` files,
+so the versions land in the merge commit.
+
+## Commit the changelog
+
+Load `conventional-commits` and use its atomic launcher workflow. Stage
+`CHANGELOG.md` plus each exact literal bumped `package.json` path in a separate
+tool call. Do not interpolate the package list into shell source or combine
+staging with commit creation.
+
+The no-package-bump staging shape is:
+
+```bash
+git add CHANGELOG.md
+```
+
+Render the validated version as a literal `vX.Y.Z` subject. Keep
+`RELEASE_ISSUE_DIGITS` only as validated conversation state: when present,
+render the validated digits as a literal `--refs NN` argv value; when absent,
+omit the control. Never place the raw invocation argument or a shell variable
+in the create command.
+
+Run the commit in a later assistant batch as its only tool call, with no
+compound shell syntax. The no-issue shape is:
+
+```bash
+prism-tool commit create --type chore --scope release --subject vX.Y.Z
+```
+
+When a tracking issue was supplied, the create command additionally ends with
+`--refs NN`, where both version and digits are already validated literals.
+The launcher resolves the three ADR-0064 footers, runs commitlint, creates the
+signed commit with hooks enabled, and verifies that `HEAD` advanced. There is
+no separate per-operation pause. Report the resulting commit ID and never
+push.
 
 ## Handoff — print only, do not execute
 
@@ -223,11 +296,18 @@ git push -u origin release/X.Y.Z
 gh pr create --base main --head release/X.Y.Z \
     --title "Release vX.Y.Z" \
     --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA and opens the back-merge PR for a human to merge."
+
+# After the release PR merges, publish each bumped package (release.yml
+# already tagged them; npm prompts for OTP if 2FA is enabled):
+#   cd <pkg> && npm publish --access public
+#   (one line per bumped package; none when no package bumped)
 ```
 
 State that after the human merges the PR, `release.yml` creates the unsigned
-`vX.Y.Z` tag and GitHub Release at the merge SHA and opens the
-`main` → `develop` back-merge PR, which a human reviews and merges. Stop there.
+`vX.Y.Z` tag and GitHub Release at the merge SHA, tags every bumped package
+(`<prefix>@<ver>`), and opens the `main` → `develop` back-merge PR, which a
+human reviews and merges. The printed `npm publish` commands run after the
+merge. Stop there.
 
 ## Rules
 
@@ -235,10 +315,10 @@ State that after the human merges the PR, `release.yml` creates the unsigned
 - Never create a tag, a GitHub Release, or a back-merge PR locally — after the
   human merges the release PR, `release.yml` creates the tag and Release and
   opens the back-merge PR.
-- If there are no releasable commits or the human withholds approval, stop
-  without creating anything.
+- If there are no releasable commits or the human withholds the release
+  confirmation, stop without creating anything.
 - Never reuse a release branch after its PR is merged; create a fresh
   `release/` branch for each release.
-- The release commit is signed (`git commit -S`) and always carries the four
-  ADR-0040 footers; a `Refs:` footer appears only from a validated invocation
-  argument.
+- The release commit is signed through `prism-tool commit` and always carries
+  the three ADR-0064 footers; `Refs:` appears only from a validated invocation
+  argument rendered as literal argv.

@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: command_portability_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
+# $KYAULabs: command_portability_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # $KYAULabs$
 
@@ -66,10 +63,5 @@ fi
 
 print_summary "command_portability_test"
 exit $?
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

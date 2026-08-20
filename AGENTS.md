@@ -27,7 +27,7 @@ The repo also carries **PHP/Aurora project heritage** (`aurora/` submodule,
 
 `composer.json` and `aurora/` are present, so load the **`php-web-stack`**
 skill for stack specifics: PHP 8.5+, MariaDB, nginx, SCSS → Dart Sass, vanilla
-JS, Pest v4 on PHPUnit 12, no-MVC, flat procedural PHP. The adapter's
+JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP. The adapter's
 `tdd-php`, `rcs-header`, `aurora-page`, `scss-mobile-first`, `database`,
 `security-coding-php`, and related skills apply for PHP work in `backend/`,
 `cdn/`, `tests/`, and `aurora/`.
@@ -49,16 +49,16 @@ credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
 
 - **Fresh clone:** `git submodule update --init` (`aurora/` is a submodule:
   `kyaulabs/aurora`, branch `main`).
-- **Hooks:** `bash packages/prism-core/scripts/install-hooks.sh` (pre-commit,
-  commit-msg, pre-push).
+- **Hooks:** run `prism-tool resolve scripts`, retain the returned absolute
+  directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`
+  (pre-commit, commit-msg, pre-push).
 - **Gate:** `/check` → delegates to `/check-php` (php-cs-fixer + stylelint +
   eslint + Pest coverage ≥ 80%).
 - **Assets:** `/build-assets` (adapter command — Dart Sass + uglify-js) when
   `cdn/sass` or `cdn/js` sources change. Never edit generated
   `cdn/css/*.min.css` or `cdn/javascript/*.min.js`.
-- **Identity:** commit `Signed-off-by` resolves via
-  `packages/prism-core/scripts/resolve-identity.sh` (optional
-  `~/.config/prism/identity` override → `git config`; fail-closed).
+- **Commits:** `prism-tool commit` resolves `Signed-off-by` from the optional
+  Prism identity override or Git config and fails closed when unavailable.
 
 ## Deeper docs
 

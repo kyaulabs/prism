@@ -8,10 +8,6 @@ description: "Use before push to run a read-only, four-axis review of a staged, 
 Run four review axes in the single agent and assemble their findings into one
 report. Do NOT auto-fix anything — report only.
 
-For the strongest cross-model review, suggest that the human cycle to
-`deepseek-v4-pro` with Ctrl+P before continuing. Proceed on the current model
-if they decline.
-
 ## Coordinator workflow
 
 ### 1. Empty-diff guard (MUST run first)
@@ -44,20 +40,34 @@ native severity separate; do not re-rank across axes.
 
 #### Axis 1 — Tooling / style / lint
 
-Prefer existing project checks and the active adapter's `/check-<stack>`
-guidance. If the `ocr` CLI is available and the human explicitly approves its
-external data egress, run it as an additional read-only diff review:
+Run the fail-closed local readiness first (missing launcher or
+Semgrep/OCR mismatch blocks the review):
 
-- Verify `command -v ocr` first. If missing, mark the optional OCR component
-  SKIPPED; do not install it autonomously.
-- Choose `ocr review` (diff) or `ocr scan` (full path) based on scope.
-- Use `--audience agent --format json`.
-- If it fails, retry ONCE with the same command. If it fails again, record the
-  exact error and continue.
-- `ocr` transmits reviewed content to a third-party service. Never invoke it
-  without explicit permission and never send secrets.
+```bash
+prism-tool doctor --local-only
+```
 
-The axis still reports project lint/check evidence when OCR is skipped.
+Standing OCR consent is established globally by `/setup`; ask no connectivity
+or code-egress question here. Run exactly one dedicated OCR operation based on
+scope:
+
+```bash
+prism-tool code-review ocr -- review --audience agent --format json
+```
+
+For an explicit full-path audit, use only:
+
+```bash
+prism-tool code-review ocr -- scan PATH --audience agent --format json
+```
+
+The launcher validates standing consent, local versions, connectivity, the
+exact argument form, and scan-path containment before code leaves the
+repository boundary. Never call OCR through generic `prism-tool run`, invoke
+`ocr` directly, retry a failed OCR operation, or send secrets. If OCR fails,
+mark this axis `FAILED` with the launcher's fixed error and continue the other
+three axes. The axis still reports project lint/check evidence when OCR is
+unavailable.
 
 #### Axis 2 — Standards review (Fowler baseline)
 
@@ -129,8 +139,8 @@ let the reviewer decide.
 - The review never freezes or hides partial evidence: always return per-axis
   status (`COMPLETE` / `FAILED` / `SKIPPED`). A human may explicitly waive an
   incomplete axis in-session.
-- External review services require explicit permission because code leaves the
-  repository boundary.
+- External OCR review requires valid global standing consent because code
+  leaves the repository boundary.
 - If the diff is empty, fail early before any axis runs.
 
 ## Cross-refs
@@ -145,7 +155,7 @@ let the reviewer decide.
 
 - *Running axes in parallel by inventing workers* — the pi conversion is
   single-agent. Run each axis inline and preserve separate output sections.
-- *Sending code to OCR without approval* — it is an external service; ask
-  before egress.
+- *Sending code to OCR outside the dedicated operation* — standing consent is
+  enforced by `prism-tool code-review ocr`; never bypass it or ask again.
 - *Treating SKIPPED as green* — a skipped or failed axis is incomplete
   evidence, never a pass.

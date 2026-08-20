@@ -13,7 +13,9 @@ the discipline and output contract.
 
 1. Inspect the project root and declared workspaces for package manifests.
 2. For each manifest, identify the corresponding committed lockfile.
-3. Load the active adapter's stack skill for its audit command.
+3. Load the active adapter's stack skill for its audit command; when an
+   active adapter handler is registered, delegate the concrete read-only audit
+   invocation to it (the adapter owns Composer/npm command forms).
 4. If a manifest exists without a lockfile, report the gap and skip that
    ecosystem. A fresh clone cannot be audited deterministically without the
    resolved versions.

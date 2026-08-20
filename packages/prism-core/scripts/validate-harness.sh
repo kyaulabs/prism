@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/13 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -129,7 +122,7 @@ while IFS= read -r -d '' extension_entry; do
 	tmp_agent_dir="$(mktemp -d)"
 	if ! PI_CODING_AGENT_DIR="$tmp_agent_dir" PI_OFFLINE=1 \
 		pi --no-session --no-context-files --no-skills --no-prompt-templates \
-		--no-extensions -e "$extension_entry" --list-models deepseek-v4-flash \
+		--no-extensions -e "$extension_entry" --list-models \
 		>/dev/null 2>"$tmp_agent_dir/error.log"; then
 		err "$relative: pi failed to import extension: $(tr '\n' ' ' < "$tmp_agent_dir/error.log" | head -c 500)"
 	fi
@@ -155,6 +148,99 @@ else
 	ok "$MANIFEST_COUNT package manifest(s) checked for pi core peerDependencies"
 fi
 
+printf '%s\n' '── Validating toolchain contracts ──'
+CONTRACT_LOADER="$REPO_ROOT/packages/prism-core/scripts/prism-tool/contract.js"
+if [ ! -f "$CONTRACT_LOADER" ]; then
+	err "toolchain contract loader missing: ${CONTRACT_LOADER#$REPO_ROOT/}"
+else
+	TOOLCHAIN_COUNT=0
+	while IFS= read -r -d '' pkg_json; do
+		if ! toolchain_output=$(node - "$CONTRACT_LOADER" "$pkg_json" 2>&1 <<'NODE'
+const path = require('node:path');
+const {assertPackageParity, loadContract} = require(process.argv[2]);
+const packagePath = path.resolve(process.argv[3]);
+const packageJson = require(packagePath);
+
+if (!packageJson.prism?.toolchain) process.exit(0);
+const packageRoot = path.dirname(packagePath);
+const contractPath = path.resolve(packageRoot, packageJson.prism.toolchain);
+const relative = path.relative(packageRoot, contractPath);
+if (relative.startsWith('..') || path.isAbsolute(relative)) {
+	throw new Error(`${packagePath}: prism.toolchain escapes package root`);
+}
+const contract = loadContract(contractPath);
+assertPackageParity(contract, packageJson);
+process.stdout.write(`${contract.package}\n`);
+NODE
+		); then
+			err "${pkg_json#$REPO_ROOT/}: $toolchain_output"
+		elif [ -n "$toolchain_output" ]; then
+			TOOLCHAIN_COUNT=$((TOOLCHAIN_COUNT + 1))
+			ok "$toolchain_output"
+		fi
+	done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+		-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+	ok "$TOOLCHAIN_COUNT toolchain contract(s) checked"
+fi
+
+printf '%s\n' '── Validating toolchain entry points ──'
+ENTRY_POINTS=(
+	"$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
+	"$REPO_ROOT/packages/prism-core/scripts/install-global.sh"
+	"$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
+	"$REPO_ROOT/packages/prism-php-web/scripts/prism-tool-adapter.js"
+)
+ENTRY_COUNT=0
+for entry in "${ENTRY_POINTS[@]}"; do
+	if [ ! -f "$entry" ]; then
+		err "toolchain entry point missing: ${entry#$REPO_ROOT/}"
+		continue
+	fi
+	ENTRY_COUNT=$((ENTRY_COUNT + 1))
+	mode="$(git ls-files -s -- "$entry" | awk '{print $1}')"
+	if [ "$mode" != "100755" ]; then
+		err "${entry#$REPO_ROOT/}: git index mode $mode (expected 100755)"
+	fi
+done
+ok "$ENTRY_COUNT toolchain entry point(s) executable"
+
+printf '%s\n' '── Validating package archive inclusions ──'
+INCLUDE_COUNT=0
+while IFS= read -r -d '' pkg_json; do
+	if ! inclusion_output=$(node - "$pkg_json" 2>&1 <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const pkg = require(process.argv[2]);
+const files = Array.isArray(pkg.files) ? pkg.files : [];
+const isCovered = (file) => {
+	const clean = file.replace(/^\.\//, '');
+	return files.some((entry) => {
+		const candidate = entry.replace(/^\.\//, '');
+		return candidate === clean || clean.startsWith(candidate + '/');
+	});
+};
+const required = [];
+if (pkg.prism?.toolchain) required.push('toolchain.json');
+if (pkg.name === '@kyaulabs/prism-core') {
+	required.push('safe-dirs.json', 'scripts/prism-tool.js', 'config/commitlint.config.cjs');
+}
+if (pkg.name === '@kyaulabs/prism-php-web') {
+	required.push('safe-dirs.json', 'scripts/prism-tool-adapter.js');
+}
+const missing = required.filter((file) => !isCovered(file));
+if (missing.length) {
+	throw new Error(`files array omits ${missing.join(', ')}`);
+}
+NODE
+	); then
+		err "${pkg_json#$REPO_ROOT/}: $inclusion_output"
+	else
+		INCLUDE_COUNT=$((INCLUDE_COUNT + 1))
+	fi
+done < <(find "$REPO_ROOT/packages" -maxdepth 2 -name package.json \
+	-not -path '*/node_modules/*' -print0 2>/dev/null | sort -z)
+ok "$INCLUDE_COUNT package manifest(s) include owned archive paths"
+
 printf '%s\n' '── Validating shell helpers ──'
 while IFS= read -r -d '' script; do
 	SCRIPT_COUNT=$((SCRIPT_COUNT + 1))
@@ -170,12 +256,63 @@ while IFS= read -r -d '' script; do
 done < <(find "$REPO_ROOT/packages" -type f -name '*.sh' -print0 2>/dev/null | sort -z)
 ok "$SCRIPT_COUNT shell helper(s) checked"
 
+printf '%s\n' '── Checking blank-line policy ──'
+BLANK_LINE_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
+if [ ! -f "$BLANK_LINE_CHECKER" ]; then
+	err "blank-line checker missing: ${BLANK_LINE_CHECKER#$REPO_ROOT/}"
+else
+	if blank_line_output=$(bash "$BLANK_LINE_CHECKER" --tracked 2>&1); then
+		blank_line_status=0
+	else
+		blank_line_status=$?
+	fi
+	if [ "$blank_line_status" -ne 0 ]; then
+		while IFS= read -r diagnostic; do
+			[ -n "$diagnostic" ] && err "$diagnostic"
+		done <<< "$blank_line_output"
+		[ -n "$blank_line_output" ] \
+			|| err "blank-line checker failed with status $blank_line_status"
+	fi
+fi
+
 printf '%s\n' '── Checking package path references ──'
 legacy_script_prefix="$(printf '%s' 'github-scripts' | tr '-' '/')"
 while IFS=: read -r file line text; do
 	[ -n "$file" ] || continue
 	err "${file#$REPO_ROOT/}:$line: stale script reference: $text"
 done < <(grep -RInE "\\.${legacy_script_prefix}/(new-branch|validate-branch-name|classify-greenfield|install-hooks|frontmatter-parser|glob-match|resolve-identity|validate-harness|jsonc-strip)\\.(sh|js)" "$REPO_ROOT/packages" 2>/dev/null || true)
+
+printf '%s\n' '── Checking instruction-layer script references ──'
+while IFS=: read -r file line text; do
+	[ -n "$file" ] || continue
+	err "${file#$REPO_ROOT/}:$line: checkout-relative script reference: $text"
+done < <(grep -RInE 'bash packages/prism-core/(scripts|skills)/' \
+	"$REPO_ROOT/AGENTS.md" \
+	"$REPO_ROOT/packages/prism-core/AGENTS.md" \
+	"$REPO_ROOT/packages/prism-core/skills" \
+	"$REPO_ROOT/packages/prism-core/prompts" \
+	"$REPO_ROOT/packages/prism-php-web/skills" \
+	"$REPO_ROOT/packages/prism-php-web/prompts" \
+	"$REPO_ROOT/.github/hooks" \
+	2>/dev/null || true)
+
+printf '%s\n' '── Checking commit workflow ownership ──'
+COMMIT_WORKFLOW_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-commit-workflows.js"
+if [ ! -f "$COMMIT_WORKFLOW_CHECKER" ]; then
+	err "commit workflow checker missing: ${COMMIT_WORKFLOW_CHECKER#$REPO_ROOT/}"
+else
+	if commit_workflow_output=$(node "$COMMIT_WORKFLOW_CHECKER" "$REPO_ROOT" 2>&1); then
+		commit_workflow_status=0
+	else
+		commit_workflow_status=$?
+	fi
+	while IFS= read -r diagnostic; do
+		[ -n "$diagnostic" ] && err "$diagnostic"
+	done <<< "$commit_workflow_output"
+	if [ "$commit_workflow_status" -ne 0 ] && [ -z "$commit_workflow_output" ]; then
+		err "commit workflow checker failed with status $commit_workflow_status"
+	fi
+fi
 
 printf '%s\n' '── Checking retired config references ──'
 retired_pattern="$(printf '%s' 'prism-manifest|Prism-Manifest|OPENCODE-CONFIG-CONTENT|OPENCODE-MODEL-|OPENCODE-VARIANT-' | tr '-' '_')"
@@ -193,12 +330,5 @@ fi
 printf '✗ Harness validation FAILED — %d error(s)\n' "$ERRORS" >&2
 printf '%s\n' '═══════════════════════════════════════════════════════════════' >&2
 exit 1
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

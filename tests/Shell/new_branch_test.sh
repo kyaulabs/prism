@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: new_branch_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
-
+# $KYAULabs: new_branch_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 set -euo pipefail
 
@@ -235,13 +227,5 @@ register_temp_dir "$T9"
 
 print_summary "new_branch_test.sh"
 exit $?
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

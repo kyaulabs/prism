@@ -5,114 +5,118 @@ description: Pre-push gate. Runs PHP CS fixer (dry-run), stylelint, eslint, and 
 Run the project's full pre-push check suite and report failures grouped by
 tool. Do not push or commit anything.
 
+## 0. Mandatory local readiness
+
+```bash
+prism-tool doctor --local-only
+```
+
+A missing launcher or failed Semgrep/OCR readiness is blocking; report the
+remediation and stop.
+
 ## 1. PHP code style
 
 ```bash
-CS_FIXER=""
-if [ -x vendor/bin/php-cs-fixer ]; then
-	CS_FIXER=vendor/bin/php-cs-fixer
-elif command -v php-cs-fixer > /dev/null 2>&1; then
-	CS_FIXER=php-cs-fixer
-fi
-if [ -n "$CS_FIXER" ]; then
-	"$CS_FIXER" fix --dry-run --diff
-else
-	echo "SKIPPED: php-cs-fixer not found (install via composer install or globally)"
-fi
+prism-tool run php-cs-fixer -- fix --dry-run --diff
 ```
 
 If violations are found, list the affected files and a one-line summary of the
-fix. Do not auto-fix.
+fix. Do not auto-fix. The launcher resolves the adapter-owned fixer from the
+consumer project; a missing tool is a hard failure, never SKIPPED.
 
 ## 2. SCSS lint
 
 ```bash
-npx stylelint "cdn/sass/**/*.scss"
+prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
 ```
 
-Skip with a note if stylelint is not configured or no SCSS exists.
+Skip with a note if no SCSS source exists.
 
 ## 3. JS lint
 
 ```bash
-npx eslint "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
+prism-tool run eslint -- "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
 ```
 
-Skip with a note if eslint is not configured or no JS source exists.
+Skip with a note if no JS source exists.
 
 ## 4. Tests with coverage
 
-First, identify the PHP files that have changed and stand up a dev server
-for browser tests (mirrors CI's start/wait/run/stop dance in `ci.yml`):
+Run this section as the separate, simple commands shown — never recombined
+into one compound script. The safety extension fails closed on command
+substitution, backticks, ANSI-C quoted strings, and deferred-execution
+builtins, so the gate uses plain pipelines, literal values, and
+project-local temp files under `.pi/tmp/`.
+
+Identify the changed PHP files (staged first, as at pre-commit time; fall
+back to the working tree when nothing is staged):
 
 ```bash
-CHANGED=$(mktemp)
-PHP_SERVER_PID=""
-cleanup() {
-    rm -f "$CHANGED"
-    [ -n "$PHP_SERVER_PID" ] && kill "$PHP_SERVER_PID" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-# Staged files (pre-commit); fall back to working-tree if nothing staged
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' > "$CHANGED"
-if [ ! -s "$CHANGED" ]; then
-  git diff --name-only | grep '\.php$' > "$CHANGED"
-fi
-echo "Changed PHP files:" && cat "$CHANGED"
-
-# Start a PHP dev server for browser tests. Reuse an existing server on
-# :8080 if one is already serving smoke.html (avoids a port-bind failure
-# when the developer already has a server running). The readiness poll is
-# a bounded while-loop rather than `timeout` so this works on macOS too.
-BROWSER_URL=""
-if [ -n "$(find tests/Browser -name '*.php' -print -quit 2>/dev/null)" ] \
-   && command -v curl > /dev/null 2>&1; then
-    if curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; then
-        BROWSER_URL="http://localhost:8080"
-        echo "→ reusing existing dev server at $BROWSER_URL"
-    else
-        php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 &
-        PHP_SERVER_PID=$!
-        attempts=0
-        ready=0
-        while [ "$attempts" -lt 20 ]; do
-            if curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1; then
-                ready=1
-                break
-            fi
-            sleep 0.5
-            attempts=$((attempts + 1))
-        done
-        if [ "$ready" -eq 1 ]; then
-            BROWSER_URL="http://localhost:8080"
-            echo "→ started dev server $BROWSER_URL (pid $PHP_SERVER_PID)"
-        else
-            echo "⚠ dev server did not become ready within ~10s — browser tests may fail"
-            kill "$PHP_SERVER_PID" 2>/dev/null || true
-            PHP_SERVER_PID=""
-        fi
-    fi
-fi
+mkdir -p .pi/tmp
+git diff --staged --name-only --diff-filter=AM | grep "\.php$" > .pi/tmp/check-changed-php.txt || true
 ```
 
-Then run the full suite with coverage (Clover XML feeds the changed-file
-gate). The dev server URL is passed via `PEST_BROWSER_BASE_URL` exactly as
-CI sets it:
+```bash
+if [ ! -s .pi/tmp/check-changed-php.txt ]; then git diff --name-only | grep "\.php$" > .pi/tmp/check-changed-php.txt || true; fi
+echo "Changed PHP files:"; cat .pi/tmp/check-changed-php.txt
+```
+
+Stand up a dev server for browser tests (mirrors CI's start/wait/run/stop
+dance in `ci.yml`). First check whether :8080 already serves smoke.html and
+reuse that server — this avoids a port-bind failure when the developer
+already has one running:
 
 ```bash
-if [ -n "$BROWSER_URL" ]; then
-    PEST_BROWSER_BASE_URL="$BROWSER_URL" php -d pcov.enabled=1 vendor/bin/pest --coverage
-else
-    php -d pcov.enabled=1 vendor/bin/pest --coverage
-fi
+curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && echo "reusing existing dev server" || echo "no server on :8080"
+```
+
+When no server answers and `tests/Browser` contains PHP files, start one
+and record the echoed PID for cleanup:
+
+```bash
+nohup php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 & echo "dev server pid: $!"
+```
+
+Wait for readiness with a bounded literal-list poll (no external `timeout`
+command, so this works on macOS too):
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && break; sleep 0.5; done
+curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && echo "ready" || echo "WARN: dev server not ready within ~10s — browser tests may fail"
+```
+
+**Coverage-driver preflight** — without a driver the suite exits 1 silently
+(Pest/PHPUnit abort before running any tests). pcov loaded-but-disabled is
+fine: the launcher injects `php -d pcov.enabled=1` via the toolchain
+`argvPrefix`. Only a totally missing driver is blocking:
+
+```bash
+php -m 2>/dev/null | grep -E "^(pcov|xdebug)$"
+```
+
+Empty output means FAIL: no PHP coverage driver loaded (pcov or xdebug).
+Report the remediation (install pcov via pecl, or enable xdebug) and stop.
+`pcov.enabled=0` is fine — the pest launcher injects `-d pcov.enabled=1`.
+
+Then run the full suite with coverage (Clover XML feeds the changed-file
+gate) through the launcher. When a dev server is up, pass its URL via
+`PEST_BROWSER_BASE_URL` exactly as CI sets it:
+
+```bash
+PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+```
+
+When no browser tests or dev server are involved, run without the variable:
+
+```bash
+prism-tool run pest -- --coverage
 ```
 
 **Changed-file coverage gate** — enforced mechanically by the same script
 CI uses (`coverage-gate.php`):
 
 ```bash
-cat "$CHANGED" | php packages/prism-php-web/scripts/coverage-gate.php tests/coverage.xml
+cat .pi/tmp/check-changed-php.txt | php packages/prism-php-web/scripts/coverage-gate.php tests/coverage.xml
 ```
 
 - Gate: **≥ 80% line coverage** on each changed file that is in the
@@ -129,6 +133,15 @@ cat "$CHANGED" | php packages/prism-php-web/scripts/coverage-gate.php tests/cove
   file passes — this means technical debt in untouched files, not a
   blocker.
 - If any test fails, list the failing tests with their messages.
+
+Clean up when done: stop a dev server you started (substitute the literal
+PID echoed at startup; skip this when you reused an existing server) and
+remove the temp file:
+
+```bash
+kill <pid> 2>/dev/null || true
+rm -f .pi/tmp/check-changed-php.txt
+```
 
 ## 5. JS/TS tests
 
@@ -147,7 +160,7 @@ missing.
 ## 6. PHP syntax (sanity)
 
 ```bash
-git diff --staged --name-only --diff-filter=AM | grep '\.php$' | while read -r f; do php -l "$f"; done
+git diff --staged --name-only --diff-filter=AM | grep "\.php$" | while read -r f; do php -l "$f"; done
 ```
 
 Run on staged files; if nothing is staged, run on the working tree's modified

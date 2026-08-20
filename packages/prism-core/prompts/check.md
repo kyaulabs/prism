@@ -5,13 +5,25 @@ description: Pre-push gate. Runs language-agnostic repository checks and the ver
 Run the project's full pre-push check suite and report failures grouped by
 gate. Do not push, commit, or auto-fix anything.
 
-## 1. Verification evidence
+## 1. Mandatory local readiness
+
+Run the fail-closed local doctor before any gate that depends on declared
+tools (hooks, /check, /pr, and release all perform local-only readiness):
+
+```bash
+prism-tool doctor --local-only
+```
+
+A missing launcher or failed Semgrep/OCR readiness is blocking — report the
+remediation and stop.
+
+## 2. Verification evidence
 
 Load the `verification-before-completion` skill and apply its checklist to the
 completed work. Evidence must be current: run the commands that prove each
 claim rather than relying on an earlier summary.
 
-## 2. Repository state
+## 3. Repository state
 
 ```bash
 set -euo pipefail
@@ -25,7 +37,7 @@ git diff --check
 - Confirm the current branch is not `main` or `develop` unless this is the
   documented single-root greenfield seed exception (ADR-0044).
 
-## 3. Debug-artifact audit
+## 4. Debug-artifact audit
 
 Inspect every file changed from the branch merge-base and confirm no temporary
 instrumentation, breakpoints, scratch files, focused-test flags, or debug-only
@@ -45,13 +57,14 @@ fi
 Historical examples in frozen ADRs and plans are excluded; inspect any other
 hit as inert text before deciding whether it is a real conflict marker.
 
-## 4. Harness validation
+## 5. Harness validation
 
 When this repository contains the Prism packages, run:
 
 ```bash
-if [ -x packages/prism-core/scripts/validate-harness.sh ]; then
-    bash packages/prism-core/scripts/validate-harness.sh
+CORE_VALIDATOR="packages/prism-core/scripts/validate-harness.sh"
+if [ -x "$CORE_VALIDATOR" ]; then
+    bash "$CORE_VALIDATOR"
 else
     echo "SKIPPED: prism-core source validator is not present in this project"
 fi
@@ -61,7 +74,7 @@ A validator failure is blocking. In an ordinary consumer project where the
 package source is not checked out, report this gate SKIPPED rather than
 inventing a package path.
 
-## 5. Active adapter gate
+## 6. Active adapter gate
 
 Delegate framework-specific lint, tests, coverage, syntax, and asset checks to
 the active stack adapter:

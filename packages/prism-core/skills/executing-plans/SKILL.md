@@ -22,7 +22,7 @@ Before starting, confirm the agent can:
 - edit every implementation path named by the plan and update plan checkboxes;
 - run the task's tests, linters, and `verification-before-completion` commands;
 - inspect task output and repository diffs; and
-- stage changes and present signed commits for approval.
+- stage changes and create signed commits through the atomic launcher operation.
 
 If a required capability is unavailable, do not partially run this skill.
 Surface the missing capability and halt.
@@ -35,8 +35,9 @@ The single agent executes every task directly, regardless of plan size:
 - Implement the task inline using one Red → Green → Refactor cycle at a time.
 - After each task, run `verification-before-completion` and checkpoint with
   the user (ask if they want to review before continuing).
-- Commit after each task (or logical group) with the commit message from the
-  plan task's step.
+- After each task (or logical group), load `conventional-commits` and use its
+  single atomic `prism-tool commit create` operation with the structured fields
+  from the plan task. The commit is the only tool call in its assistant batch.
 
 Implementation output stays in the current session, so context management is
 part of execution, not an optional optimization.
@@ -54,8 +55,8 @@ Does the task output match what the plan specified?
 - [ ] Interfaces match: the "Produces" signatures match what neighboring
       tasks expect in their "Consumes" blocks.
 - [ ] Test names and locations match the plan.
-- [ ] Commit message matches the plan task's prescribed message (or follows
-      conventional-commits format if the plan didn't prescribe one).
+- [ ] Structured commit fields match the plan task (or follow
+      `conventional-commits` when the plan did not prescribe them).
 - [ ] No scope creep — the task implemented only what was specified, not
       neighbouring tasks or speculative features.
 
@@ -120,9 +121,8 @@ context. Manage it proactively rather than waiting for degradation:
 
 - After each task completes, run both stages of the review gate BEFORE
   starting the next task.
-- Commit after each task (or logical group) with the plan's prescribed
-  commit message. Validate the message format before committing (see
-  `conventional-commits` skill).
+- Commit after each task (or logical group) through the exact-message approval
+  process owned by `conventional-commits`; never duplicate direct Git mechanics.
 - Update the plan's checkbox status after each task completes.
 - Never continue past a halt trigger without user intervention.
 - The agent handles code-quality fixes (missing required headers, debug

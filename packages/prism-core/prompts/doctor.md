@@ -10,19 +10,17 @@ Stack runtimes, test frameworks, linters, coverage tools, and asset builders
 belong to the active adapter and are reported separately; this core prompt
 does not guess their commands.
 
-## 1. pi and models
+## 1. pi runtime
 
 ```bash
 set -o pipefail
 pi --version 2>/dev/null || echo "NOT_FOUND"
-pi --list-models deepseek-v4-flash 2>/dev/null || echo "NOT_FOUND"
-pi --list-models deepseek-v4-pro 2>/dev/null || echo "NOT_FOUND"
 ```
 
-PASS requires pi to run and both `deepseek/deepseek-v4-flash` and
-`deepseek/deepseek-v4-pro` to appear in the model catalogue. Catalogue
-presence does not prove authentication. Never inspect the auth store; if a
-live request later reports an auth error, direct the user to `/login deepseek`.
+PASS requires pi to run. The harness prescribes no models (ADR-0067); model
+availability and authentication are user-managed. Never inspect the auth
+store; if a live request later reports an auth error, direct the user to
+`/login` for their provider.
 
 ## 2. Core command-line tools
 
@@ -43,6 +41,19 @@ floor. `jq` is optional because the search scripts have a dependency-free
 Node.js fallback.
 
 ## 3. Prism resources
+
+Run the contract-owned readiness check without asking an OCR question (never
+install or configure Semgrep/OCR):
+
+```bash
+prism-tool doctor
+```
+
+This performs mandatory Semgrep/OCR version verification (ADR-0063: Semgrep
+`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`) and runs `ocr llm test` only when
+the global standing-consent record is valid. Missing or unsafe consent returns
+NO-GO with `/setup` as the remediation. Never grant, revoke, repair, or remove
+consent from `/doctor`.
 
 ```bash
 pi list
@@ -66,8 +77,9 @@ source checkout, a missing listed path is FAIL.
 Run the package validator when present:
 
 ```bash
-if [ -x packages/prism-core/scripts/validate-harness.sh ]; then
-    bash packages/prism-core/scripts/validate-harness.sh
+CORE_VALIDATOR="packages/prism-core/scripts/validate-harness.sh"
+if [ -x "$CORE_VALIDATOR" ]; then
+    bash "$CORE_VALIDATOR"
 else
     echo "SKIPPED: source validator not present in this checkout"
 fi
@@ -75,18 +87,30 @@ fi
 
 ## 4. Commit pipeline
 
-```bash
-hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
-if [ "$hooks_path" = ".github/hooks" ]; then
-    echo "INSTALLED ($hooks_path)"
-else
-    echo "NOT_INSTALLED — run 'bash packages/prism-core/scripts/install-hooks.sh'"
-fi
+Run the hooks-path check directly:
 
-if [ -x ./node_modules/.bin/commitlint ]; then
-    ./node_modules/.bin/commitlint --version
+```bash
+git config core.hooksPath
+```
+
+An exact `.github/hooks` output means INSTALLED. Empty output or any other
+value means NOT_INSTALLED. For the remediation, resolve the script directory
+in a separate call:
+
+```bash
+prism-tool resolve scripts
+```
+
+Retain the returned absolute directory and report the literal remediation
+`bash /absolute/resolved/scripts/install-hooks.sh`.
+
+Run the remaining checks independently:
+
+```bash
+if command -v prism-tool > /dev/null 2>&1; then
+    prism-tool run commitlint -- --version
 else
-    echo "commitlint (local) NOT_INSTALLED"
+    echo "prism-tool launcher NOT_INSTALLED — deploy via install-global.sh or /setup"
 fi
 
 git config user.name >/dev/null 2>&1 \
@@ -96,10 +120,10 @@ git config user.name >/dev/null 2>&1 \
 ```
 
 A repository that ships the Prism hooks needs `.github/hooks` configured and
-local commitlint available; the commit-msg hook fails closed without it. A
-consumer that does not ship these hooks reports the section SKIPPED. Missing
-identity is blocking for signed commits because `resolve-identity.sh` fails
-closed.
+the prism-tool launcher available; the commit-msg hook fails closed without
+it. A consumer that does not ship these hooks reports the section SKIPPED.
+Missing identity is blocking for signed commits because
+`resolve-identity.sh` fails closed.
 
 ## 5. Search skill prerequisites
 

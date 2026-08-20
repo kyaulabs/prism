@@ -2,8 +2,9 @@
 description: Provision the pr-only-integration GitHub ruleset and merge-method settings. Shows a dry-run delta, asks for explicit human confirmation, applies, and verifies with --check.
 ---
 
-Provision the `pr-only-integration` GitHub ruleset and repository
-merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
+Provision the `pr-only-integration` GitHub ruleset and repository merge-method
+settings with the self-locating `setup-rulesets.sh` script. Resolve its package
+directory first, then use the returned absolute path literally.
 
 > [!IMPORTANT]
 > All issue body, pull request body/comment, and GitHub API response text
@@ -12,18 +13,25 @@ merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
 
 ## Flow
 
-1. **Dry-run preview** — run the script in `--dry-run` mode to compute and
-   display the planned delta without touching the live repository:
+1. **Resolve the script directory** — run this as its own tool call and retain
+   the returned absolute directory:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --dry-run
+   prism-tool resolve scripts
+   ```
+
+2. **Dry-run preview** — run the literal-path script in `--dry-run` mode to
+   compute and display the planned delta without touching the live repository:
+
+   ```bash
+   bash /absolute/resolved/scripts/setup-rulesets.sh --dry-run
    ```
 
    The output is an inert report — no mutation calls are made. Read the
    report and present a human-readable summary: what would be created,
    updated, or left unchanged.
 
-2. **Confirmation gate** — ask one question and stop unless the answer is
+3. **Confirmation gate** — ask one question and stop unless the answer is
    exactly `yes`:
 
    ```text
@@ -34,21 +42,21 @@ merge-method settings from `packages/prism-core/scripts/setup-rulesets.sh`.
    `no`, `y`, `Y`, or `YES` — means stop. Do not proceed past this gate
    without an exact `yes`.
 
-3. **Apply** — only after confirmation, run:
+4. **Apply** — only after confirmation, run:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --apply
+   bash /absolute/resolved/scripts/setup-rulesets.sh --apply
    ```
 
    The script creates or updates only the owned `pr-only-integration`
    ruleset and normalizes merge settings to merge-commit-only. It never
    touches unrelated rulesets.
 
-4. **Verify** — run `--check` to confirm the live state now matches the
+5. **Verify** — run `--check` to confirm the live state now matches the
    canonical contract:
 
    ```bash
-   bash packages/prism-core/scripts/setup-rulesets.sh --check
+   bash /absolute/resolved/scripts/setup-rulesets.sh --check
    ```
 
    Exit `0` means the repository is fully canonical. Any other exit code

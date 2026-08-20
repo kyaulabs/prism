@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
+# $KYAULabs: install-hooks.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # Run once after cloning: bash packages/prism-core/scripts/install-hooks.sh
 #
@@ -27,12 +21,6 @@ git config core.hooksPath .github/hooks
 
 echo "✓ Hooks installed via core.hooksPath = .github/hooks"
 echo "  All commits will now run lint + gitleaks + commitlint."
-echo "  Prerequisite: 'npm install' (commit-msg now fails closed without commitlint — ADR-0025)."
-
-
-
-
-
-
+echo "  Prerequisite: 'prism-tool doctor --local-only' (deploy the launcher via install-global.sh or /setup)."
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

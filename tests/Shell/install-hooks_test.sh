@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/08/12 -0700 Exp $
-
-
-
-
-
-
-
+# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
 
 # ── Repro-first tests for install-hooks.sh ─────────────────────────────────────
 # Bugs under test (from Fable 5 audit):
@@ -139,14 +132,5 @@ git_init_test_repo "$T4"
 
 print_summary "install-hooks"
 exit $?
-
-
-
-
-
-
-
-
-
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :
