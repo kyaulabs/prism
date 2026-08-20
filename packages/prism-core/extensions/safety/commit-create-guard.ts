@@ -35,6 +35,14 @@ function prefixIndex(tokens: readonly string[]): number {
     return -1;
 }
 
+function canonicalPrefixIndex(tokens: readonly string[]): number {
+    for (let index = 0; index + 2 < tokens.length; index += 1) {
+        if (tokens[index] === "prism-tool" && tokens[index + 1] === "commit" &&
+            tokens[index + 2] === "create") return index;
+    }
+    return -1;
+}
+
 function shellShape(command: string): {control: boolean; valid: boolean} {
     let quote: "'" | '"' | null = null;
     for (let index = 0; index < command.length; index += 1) {
@@ -149,7 +157,7 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
     if (typeof command !== "string" || command.trim() === "") return "NONE";
     const segments = splitShellSegments(command);
     const tokenized = segments.map((segment) => tokenizeCommand(segment)).filter((tokens) => tokens.length > 0);
-    const direct = tokenized.filter((tokens) => prefixIndex(tokens) === 0);
+    const direct = tokenized.filter((tokens) => canonicalPrefixIndex(tokens) === 0);
     const tokens = tokenizeCommand(command);
     const shape = shellShape(command);
 
@@ -160,7 +168,7 @@ export function classifyCommitCreate(command: unknown): CommitCreateClassificati
         }
         return validStructuredArguments(direct[0]) ? "STANDALONE" : "UNSAFE_ATTEMPT";
     }
-    if (wrapperAttempt(command, tokens)) return "UNSAFE_ATTEMPT";
+    if (prefixIndex(tokens) === 0 || wrapperAttempt(command, tokens)) return "UNSAFE_ATTEMPT";
     if (PREFIX_PATTERN.test(command) &&
         (hasUnmodelableShellConstruct(command) || hasDynamicShellSyntax(command))) {
         return "UNSAFE_ATTEMPT";

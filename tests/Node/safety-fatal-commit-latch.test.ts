@@ -42,11 +42,9 @@ test("clearAll removes fatal and pending state without command text", () => {
     assert.equal(latch.complete("call-commit"), undefined);
 });
 
-test("bare and absolute atomic commit commands are standalone", () => {
+test("bare atomic commit commands are standalone", () => {
     for (const command of [
         'prism-tool commit create --type feat --subject "create signed commits"',
-        '/home/tester/.local/bin/prism-tool commit create --type fix --scope safety --subject "fail closed" --refs 74',
-        "'/opt/prism tools/prism-tool' commit create --type docs --subject 'document atomic commits'",
         "prism-tool commit create --type docs --subject 'keep ; and | inert' --body-file 'notes/body file.txt'",
         "prism-tool commit create --type docs --subject 'keep $ and # inert'",
     ]) {
@@ -74,6 +72,8 @@ test("compound, redirected, wrapped, and malformed commit attempts are unsafe", 
         'find . -exec prism-tool commit create --type feat --subject x \\;',
         'find . -execdir prism-tool commit create --type feat --subject x \\;',
         'custom-launcher prism-tool commit create --type feat --subject x',
+        '/home/tester/.local/bin/prism-tool commit create --type fix --subject x',
+        "'/opt/prism tools/prism-tool' commit create --type docs --subject x",
         'time prism-tool commit create --type feat --subject x',
         '! prism-tool commit create --type feat --subject x',
         'prism-tool commit create',
