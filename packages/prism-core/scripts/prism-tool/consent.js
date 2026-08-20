@@ -37,6 +37,14 @@ function isOwned(stat, context) {
     return uid === undefined || stat.uid === uid;
 }
 
+function isTrustedAncestor(stat, context) {
+    const uid = currentUid(context);
+    const trustedOwner = uid === undefined || stat.uid === uid || stat.uid === 0;
+    const writable = (stat.mode & 0o022) !== 0;
+    const sticky = (stat.mode & 0o1000) !== 0;
+    return trustedOwner && (!writable || sticky);
+}
+
 function closeQuietly(io, descriptor) {
     try { io.closeSync(descriptor); } catch { return false; }
     return true;
@@ -75,6 +83,9 @@ function inspectParent(context, consentPath) {
             return {parent, state: STATE.UNSAFE};
         }
         if (!stat.isDirectory() || stat.isSymbolicLink()) return {parent, state: STATE.UNSAFE};
+        if (index < components.length - 1 && !isTrustedAncestor(stat, context)) {
+            return {parent, state: STATE.UNSAFE};
+        }
         if (index === components.length - 1 &&
             (!isOwned(stat, context) || (stat.mode & 0o022) !== 0)) {
             return {parent, state: STATE.UNSAFE};

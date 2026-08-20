@@ -144,6 +144,15 @@ test('exact schema, private mode, ownership, and no-follow rules fail closed', (
 });
 
 test('unsafe parent ownership, modes, symlinks, and path types fail closed', (t) => {
+    const ancestorTarget = fixture(t);
+    const shared = path.join(ancestorTarget.root, 'shared');
+    const nested = path.join(shared, 'agent');
+    fs.mkdirSync(nested, {mode: 0o700, recursive: true});
+    fs.chmodSync(shared, 0o770);
+    assert.equal(inspectConsent({
+        consentPath: path.join(nested, 'prism-consent.json'),
+    }).state, 'UNSAFE');
+
     const writableTarget = fixture(t);
     fs.mkdirSync(writableTarget.parent, {mode: 0o700});
     fs.chmodSync(writableTarget.parent, 0o770);
