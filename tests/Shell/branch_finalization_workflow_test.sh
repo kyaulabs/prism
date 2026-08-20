@@ -10,6 +10,15 @@ setup_result_file
 
 SKILL="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"
 
+section_between() {
+	local start="$1" end="$2"
+	awk -v start="$start" -v end="$end" '
+		$0 == start { active = 1 }
+		$0 == end { exit }
+		active { print }
+	' "$SKILL"
+}
+
 marker_line() {
 	local marker="$1" count line
 	count=$(grep -cF "<!-- finalization-$marker -->" "$SKILL" || true)
@@ -51,18 +60,26 @@ else
 	fail 'finalization stages are missing, duplicated, or out of order'
 fi
 
-if grep -qF 'prism-tool commit create' "$SKILL" \
-	&& grep -qF 'artifact cleanup' "$SKILL"; then
+artifact_cleanup=$(section_between \
+	'<!-- finalization-artifact-cleanup -->' \
+	'<!-- finalization-clean-tree -->')
+acceptance=$(section_between \
+	'<!-- finalization-acceptance -->' \
+	'<!-- finalization-target-sync -->')
+stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup')
+
+if grep -qF 'prism-tool commit create' <<< "$artifact_cleanup" \
+	&& grep -qF 'only tool call' <<< "$artifact_cleanup"; then
 	pass 'artifact cleanup uses atomic commit creation'
 else
 	fail 'artifact cleanup does not use atomic commit creation'
 fi
 
-if grep -qF 'git fetch origin' "$SKILL" \
-	&& grep -qiF 'merge commit' "$SKILL" \
-	&& grep -qiF 'one attempt' "$SKILL" \
-	&& grep -qF 'automatically invoke `/pr`' "$SKILL" \
-	&& grep -qF 'Standing OCR consent' "$SKILL"; then
+if grep -qF 'git fetch origin' <<< "$acceptance" \
+	&& grep -qiF 'merge commit' <<< "$acceptance" \
+	&& grep -qiF 'one attempt' <<< "$acceptance" \
+	&& grep -qF 'automatically invoke `/pr`' <<< "$acceptance" \
+	&& grep -qF 'Standing OCR consent' <<< "$acceptance"; then
 	pass 'the single acceptance discloses fetch, merge mutation, automatic PR preparation, and OCR boundary'
 else
 	fail 'finalization acceptance disclosure is incomplete'
@@ -74,9 +91,10 @@ failure_cases=(
 	'incomplete review axis'
 	'Blocking finding'
 	'unresolved Suggested finding'
+	'changed attestation or dirty tree'
 )
 for failure_case in "${failure_cases[@]}"; do
-	if grep -qF "$failure_case must stop before \`/pr\` and requires fresh finalization acceptance" "$SKILL"; then
+	if grep -qF "$failure_case must stop before \`/pr\` and requires fresh finalization acceptance" <<< "$stop_conditions"; then
 		pass "$failure_case stops the attempt and requires fresh acceptance"
 	else
 		fail "$failure_case lacks stop-before-PR and fresh-acceptance semantics"

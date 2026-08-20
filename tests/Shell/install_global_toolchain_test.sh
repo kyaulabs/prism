@@ -203,6 +203,7 @@ output=$(HOME="$T3/home" \
     PATH="$T3/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -eq 0 ] \
+    && grep -qF 'prism toolchain local readiness PASS' <<< "$output" \
     && ! grep -qF 'llm test' "$T3/ocr-invocations" \
     && [ ! -e "$T3/pi-agent/prism-consent.json" ] \
     && grep -qF '/setup' <<< "$output"; then
@@ -233,6 +234,7 @@ output=$(HOME="$T4/home" \
     PATH="$T4/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -ne 0 ] \
+    && grep -qF 'prism toolchain local readiness failed' <<< "$output" \
     && [ -f "$T4/bin-dir/prism-tool" ] \
     && [ -f "$T4/pi-agent/AGENTS.md" ] \
     && ! grep -qF '/setup' <<< "$output"; then

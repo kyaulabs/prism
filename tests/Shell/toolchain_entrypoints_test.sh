@@ -53,7 +53,7 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 's
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 
-consent_prompt_count=$(grep -RilE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS" "$CORE_SKILLS" | wc -l | tr -d ' ')
+consent_prompt_count=$({ grep -RhoE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS" "$CORE_SKILLS" || true; } | wc -l | tr -d ' ')
 if [ "$consent_prompt_count" -eq 1 ] && grep -qiE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md"; then
 	pass '/setup is the sole standing OCR-consent prompt'
 else
@@ -178,6 +178,7 @@ if [ "$stale_found" -eq 0 ]; then
 	pass 'active resources contain no retired approvals, generic OCR, old commits, or direct declared-tool invocation'
 else
 	fail 'active resources contain a retired workflow or direct declared-tool invocation'
+	failures=$((failures + 1))
 fi
 
 if [ "$failures" -gt 0 ]; then
