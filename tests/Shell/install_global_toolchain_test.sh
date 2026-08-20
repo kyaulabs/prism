@@ -100,6 +100,8 @@ fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
     && ! grep -qF 'llm test' "$T1/ocr-invocations" \
+    && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T1/pi-invocations" \
+    && [ "$(wc -l < "$T1/pi-invocations")" -eq 1 ] \
     && [ ! -e "$T1/pi-agent/prism-consent.json" ]; then
     pass "installer stays local-only and directs standing consent to /setup"
 else
@@ -206,8 +208,10 @@ if [ "$status" -eq 0 ] \
     && grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
     && ! grep -qF 'llm test' "$T3/ocr-invocations" \
+    && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T3/pi-invocations" \
+    && [ "$(wc -l < "$T3/pi-invocations")" -eq 1 ] \
     && [ ! -e "$T3/pi-agent/prism-consent.json" ] \
-    && grep -qF '/setup' <<< "$output"; then
+    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output"; then
     pass "installer performs no live OCR or consent mutation"
 else
     fail "installer did not defer consent and live readiness to /setup"
@@ -238,7 +242,7 @@ if [ "$status" -ne 0 ] \
     && grep -qF 'prism toolchain local readiness failed' <<< "$output" \
     && [ -f "$T4/bin-dir/prism-tool" ] \
     && [ -f "$T4/pi-agent/AGENTS.md" ] \
-    && ! grep -qF '/setup' <<< "$output"; then
+    && ! grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output"; then
     pass "failed mandatory readiness retains resources and stops before setup"
 else
     fail "failed mandatory readiness removed resources or continued to setup"

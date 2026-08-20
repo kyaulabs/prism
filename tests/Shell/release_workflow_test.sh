@@ -591,9 +591,39 @@ else
 	fail "P19: /release repo-identity or portable link-replacement contract violated"
 fi
 
+# bash_block_contains <file> <regex> — exit 0 when any ```bash code block in
+# <file> contains a line matching the ERE <regex>; exit 1 otherwise.
+bash_block_contains() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; next }
+		/^```/ && in_block { in_block = 0; next }
+		in_block && $0 ~ re { found = 1; exit }
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
+# bash_block_is_single_command <file> <regex> — exit 0 when one ```bash block
+# contains exactly one nonblank line and that line matches the ERE <regex>.
+bash_block_is_single_command() {
+	awk -v re="$2" '
+		/^```bash/ { in_block = 1; count = 0; matched = 0; next }
+		/^```/ && in_block {
+			if (count == 1 && matched == 1) found = 1
+			in_block = 0
+			next
+		}
+		in_block && $0 !~ /^[[:space:]]*$/ {
+			count += 1
+			if ($0 ~ re) matched += 1
+		}
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
 # ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if [ "$(grep -cE '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX\.Y\.Z[[:space:]]*$' "$RELEASE_CMD")" -eq 1 ] && \
+if bash_block_is_single_command "$RELEASE_CMD" \
+   '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX[.]Y[.]Z[[:space:]]*$' && \
    ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \
    ! grep -qF 'prism-tool commit apply' "$RELEASE_CMD" && \
    ! grep -qF 'prism-tool commit discard' "$RELEASE_CMD" && \
@@ -607,17 +637,6 @@ if [ "$(grep -cE '^[[:space:]]*prism-tool commit create --type chore --scope rel
 else
 	fail "P20: /release atomic launcher-owned commit contract violated"
 fi
-
-# bash_block_contains <file> <regex> — exit 0 when any ```bash code block in
-# <file> contains a line matching the ERE <regex>; exit 1 otherwise.
-bash_block_contains() {
-	awk -v re="$2" '
-		/^```bash/ { in_block = 1; next }
-		/^```/ && in_block { in_block = 0; next }
-		in_block && $0 ~ re { found = 1; exit }
-		END { exit found ? 0 : 1 }
-	' "$1"
-}
 
 # ── P20b. Tracking-issue argument contract ($ARGUMENTS, validated) ───────────
 
