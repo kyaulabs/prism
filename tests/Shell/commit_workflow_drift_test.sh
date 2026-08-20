@@ -71,6 +71,19 @@ for encoded in "${retired_cases[@]}"; do
 	fi
 done
 
+CONTINUATION_ROOT="$(fixture continuation)"
+printf '%s\n' \
+	'prism-tool commit \' \
+	'prepare --type fix --subject "old"' \
+	> "$CONTINUATION_ROOT/packages/prism-core/skills/example/SKILL.md"
+if node "$CHECKER" "$CONTINUATION_ROOT" >"$CONTINUATION_ROOT/output" 2>&1; then
+	fail "continued retired commit workflow was accepted"
+elif grep -qF 'retired commit prepare operation' "$CONTINUATION_ROOT/output"; then
+	pass "continued retired commit workflow is rejected"
+else
+	fail "continued retired commit rejection lacked its diagnostic"
+fi
+
 CLEAN_ROOT="$(fixture clean)"
 printf '%s\n' \
 	'prism-tool commit create --type fix --scope core --subject "safe subject"' \
@@ -141,8 +154,16 @@ else
 fi
 
 WRITING_PLAN="$REPO_ROOT/packages/prism-core/skills/writing-plans/SKILL.md"
-if grep -qF 'git add exact/files' "$WRITING_PLAN" \
-	&& grep -qF 'prism-tool commit create --type feat --scope exact-scope --subject "exact subject"' "$WRITING_PLAN" \
+writing_plan_commit=$(awk '
+	/- \[ \] \*\*Step 5: Create the commit\*\*/ { step = 1; next }
+	step && /^```bash$/ { block = 1; next }
+	block && /^```/ { exit }
+	block { print }
+' "$WRITING_PLAN")
+expected_plan_commit=$(printf '%s\n%s' \
+	'git add exact/files' \
+	'prism-tool commit create --type feat --scope exact-scope --subject "exact subject"')
+if [ "$writing_plan_commit" = "$expected_plan_commit" ] \
 	&& grep -qF 'run these as separate tool calls' "$WRITING_PLAN"; then
 	pass "writing-plans emits separate staging and atomic commit steps"
 else

@@ -53,7 +53,7 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 's
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 
-consent_prompt_count=$({ grep -RhoE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS" "$CORE_SKILLS" || true; } | wc -l | tr -d ' ')
+consent_prompt_count=$({ grep -RiohE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS" "$CORE_SKILLS" || true; } | wc -l | tr -d ' ')
 if [ "$consent_prompt_count" -eq 1 ] && grep -qiE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md"; then
 	pass '/setup is the sole standing OCR-consent prompt'
 else

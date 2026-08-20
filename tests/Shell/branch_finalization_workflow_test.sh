@@ -67,8 +67,11 @@ acceptance=$(section_between \
 	'<!-- finalization-acceptance -->' \
 	'<!-- finalization-target-sync -->')
 stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup')
+pr_section=$(section_between '<!-- finalization-pr -->' '## Stop conditions')
 
-if grep -qF 'prism-tool commit create' <<< "$artifact_cleanup" \
+if grep -qF 'prism-tool commit create --type chore --scope docs --subject "remove completed development artifacts"' <<< "$artifact_cleanup" \
+	&& grep -qF 'Stage the exact deleted' <<< "$artifact_cleanup" \
+	&& grep -qF 'paths, load `conventional-commits`' <<< "$artifact_cleanup" \
 	&& grep -qF 'only tool call' <<< "$artifact_cleanup"; then
 	pass 'artifact cleanup uses atomic commit creation'
 else
@@ -111,9 +114,9 @@ else
 	fail 'the obsolete post-gate disposal menu remains'
 fi
 
-if ! grep -qF 'gh pr create' "$SKILL" \
-	&& ! grep -qE '^[[:space:]]*git push([[:space:]]|$)' "$SKILL" \
-	&& grep -qF '`/pr` remains preparation-only' "$SKILL"; then
+if ! grep -qF 'gh pr create' <<< "$pr_section" \
+	&& ! grep -qE '^[[:space:]]*git push([[:space:]]|$)' <<< "$pr_section" \
+	&& grep -qF 'preparation-only' <<< "$pr_section"; then
 	pass 'finalization neither pushes nor creates the PR'
 else
 	fail 'finalization offers publication or GitHub mutation'

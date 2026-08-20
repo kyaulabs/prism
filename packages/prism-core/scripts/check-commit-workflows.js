@@ -30,14 +30,31 @@ function collectFiles(root) {
     return [...new Set(files)].sort();
 }
 
+function logicalLines(content) {
+    const joined = [];
+    let current = '';
+    let start = 0;
+    content.split('\n').forEach((line, index) => {
+        if (current === '') start = index;
+        if (/\\\s*$/.test(line)) {
+            current += `${line.replace(/\\\s*$/, '')} `;
+            return;
+        }
+        joined.push({index: start, line: current + line});
+        current = '';
+    });
+    if (current !== '') joined.push({index: start, line: current});
+    return joined;
+}
+
 function checkFile(root, file) {
     const relative = path.relative(root, file).split(path.sep).join('/');
     const diagnostics = [];
     const mergeSkill = 'packages/prism-core/skills/resolve-merge-conflicts/SKILL.md';
-    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    const lines = logicalLines(fs.readFileSync(file, 'utf8'));
     let bashFence = false;
     let fenceMarker = '';
-    lines.forEach((line, index) => {
+    lines.forEach(({index, line}) => {
         const fence = line.match(/^\s*(`{3,}|~{3,})([^`]*)$/);
         if (fence) {
             if (!fenceMarker && /^(?:bash|sh|shell)\s*$/.test(fence[2].trim())) {

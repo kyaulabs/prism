@@ -97,8 +97,8 @@ if [ "$status" -eq 0 ] && grep -qFx 'GO' <<< "$launcher_output"; then
 else
     fail "installed launcher could not execute the core CLI"
 fi
-if grep -qF 'toolchain local readiness PASS' <<< "$output" \
-    && grep -qF '/setup' <<< "$output" \
+if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
+    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
     && ! grep -qF 'llm test' "$T1/ocr-invocations" \
     && [ ! -e "$T1/pi-agent/prism-consent.json" ]; then
     pass "installer stays local-only and directs standing consent to /setup"
@@ -203,7 +203,8 @@ output=$(HOME="$T3/home" \
     PATH="$T3/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -eq 0 ] \
-    && grep -qF 'prism toolchain local readiness PASS' <<< "$output" \
+    && grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
+    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
     && ! grep -qF 'llm test' "$T3/ocr-invocations" \
     && [ ! -e "$T3/pi-agent/prism-consent.json" ] \
     && grep -qF '/setup' <<< "$output"; then

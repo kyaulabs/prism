@@ -593,8 +593,7 @@ fi
 
 # ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if grep -qF 'prism-tool commit create --type chore --scope release' "$RELEASE_CMD" && \
-   [ "$(grep -cF 'prism-tool commit create --type chore --scope release' "$RELEASE_CMD")" -eq 1 ] && \
+if [ "$(grep -cE '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX\.Y\.Z[[:space:]]*$' "$RELEASE_CMD")" -eq 1 ] && \
    ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \
    ! grep -qF 'prism-tool commit apply' "$RELEASE_CMD" && \
    ! grep -qF 'prism-tool commit discard' "$RELEASE_CMD" && \

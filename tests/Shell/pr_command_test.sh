@@ -561,6 +561,8 @@ assert_contains "$COMMAND_FILE" 'fresh finalization acceptance' \
 	'command sends repaired or newly waived attempts back through acceptance'
 assert_contains "$COMMAND_FILE" 'unresolved Suggested finding' \
 	'command blocks unresolved Suggested findings'
+assert_contains "$COMMAND_FILE" 'waiver' \
+	'command requires explicit eligible waiver evidence'
 assert_contains "$COMMAND_FILE" 'incomplete' \
 	'command rejects incomplete evidence'
 assert_contains "$COMMAND_FILE" 'stale' \
