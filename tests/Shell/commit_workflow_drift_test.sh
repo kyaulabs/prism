@@ -51,15 +51,25 @@ else
 	fail "direct attribution resolver rejection lacked its diagnostic"
 fi
 
-retired_cases=(
-	'prepare|prism-tool commit prepare --type fix --subject "old"|retired commit prepare operation'
-	'apply|prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes|retired commit apply operation'
-	'discard|prism-tool commit discard --plan 0123456789abcdef0123456789abcdef|retired commit discard operation'
-	'plan|prism-tool commit create --type fix --subject "old" --plan deadbeef|retired commit plan control'
-	'approval|prism-tool commit create --type fix --subject "old" --approval=yes|retired commit approval control'
+retired_names=(prepare apply discard plan approval)
+retired_recipes=(
+	'prism-tool commit prepare --type fix --subject "old"'
+	'prism-tool commit apply --plan 0123456789abcdef0123456789abcdef --approval=yes'
+	'prism-tool commit discard --plan 0123456789abcdef0123456789abcdef'
+	'prism-tool commit create --type fix --subject "old" --plan deadbeef'
+	'prism-tool commit create --type fix --subject "old" --approval=yes'
 )
-for encoded in "${retired_cases[@]}"; do
-	IFS='|' read -r name recipe diagnostic <<< "$encoded"
+retired_diagnostics=(
+	'retired commit prepare operation'
+	'retired commit apply operation'
+	'retired commit discard operation'
+	'retired commit plan control'
+	'retired commit approval control'
+)
+for index in "${!retired_names[@]}"; do
+	name="${retired_names[$index]}"
+	recipe="${retired_recipes[$index]}"
+	diagnostic="${retired_diagnostics[$index]}"
 	root="$(fixture "retired-$name")"
 	printf '%s\n' "$recipe" > "$root/packages/prism-core/skills/example/SKILL.md"
 	if node "$CHECKER" "$root" >"$root/output" 2>&1; then
@@ -78,8 +88,9 @@ printf '%s\n' \
 	> "$CONTINUATION_ROOT/packages/prism-core/skills/example/SKILL.md"
 if node "$CHECKER" "$CONTINUATION_ROOT" >"$CONTINUATION_ROOT/output" 2>&1; then
 	fail "continued retired commit workflow was accepted"
-elif grep -qF 'retired commit prepare operation' "$CONTINUATION_ROOT/output"; then
-	pass "continued retired commit workflow is rejected"
+elif grep -qF 'packages/prism-core/skills/example/SKILL.md:1: retired commit prepare operation' \
+	"$CONTINUATION_ROOT/output"; then
+	pass "continued retired commit workflow is rejected with its logical start line"
 else
 	fail "continued retired commit rejection lacked its diagnostic"
 fi
