@@ -639,7 +639,7 @@ prism-tool commit create --type docs --scope commit --subject "remove per-commit
   synchronization, attestation, `/check`, four-axis review, and automatic
   `/pr`; any failed gate stops and requires fresh acceptance.
 
-- [ ] **Step 1: Add static ordering and stop-semantics tests**
+- [x] **Step 1: Add static ordering and stop-semantics tests**
 
 The new shell test must locate unique markers/headings and assert this order:
 
@@ -657,7 +657,7 @@ menu remains and no push/PR execution is offered.
 Update `/pr` tests to require evidence from the accepted finishing attempt and
 to preserve preparation-only output.
 
-- [ ] **Step 2: Run focused tests and confirm Red**
+- [x] **Step 2: Run focused tests and confirm Red**
 
 Run:
 
@@ -669,7 +669,7 @@ bash tests/Shell/pr_command_test.sh
 Expected: FAIL because finishing currently runs gates before presenting a
 three-option menu.
 
-- [ ] **Step 3: Rewrite finishing and align `/pr` evidence language**
+- [x] **Step 3: Rewrite finishing and align `/pr` evidence language**
 
 Before the pause, require completed tasks, strict-greenfield checkpoint when
 applicable, ADR-0027 cleanup through `commit create`, and a clean tree. Ask one
@@ -684,13 +684,13 @@ pause again. Invoke `/pr` automatically only when every condition passes.
 Keep `/pr` preparation-only and remove wording that permits stale or
 unattested evidence.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run the commands from Step 2.
 
 Expected: PASS with the required order and no automatic publication.
 
-- [ ] **Step 5: Commit the vertical slice**
+- [x] **Step 5: Commit the vertical slice**
 
 ```bash
 git add packages/prism-core/skills/finishing-a-development-branch/SKILL.md packages/prism-core/prompts/pr.md tests/Shell/branch_finalization_workflow_test.sh tests/Shell/pr_command_test.sh
