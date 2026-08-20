@@ -13,9 +13,10 @@ SKILL="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKIL
 section_between() {
 	local start="$1" end="$2"
 	awk -v start="$start" -v end="$end" '
-		$0 == start { active = 1 }
-		$0 == end { exit }
-		active { print }
+		$0 == start { active = 1; found_start = 1; next }
+		active && $0 == end { found_end = 1; exit }
+		active { print; found_content = 1 }
+		END { if (!found_start || !found_end || !found_content) exit 1 }
 	' "$SKILL"
 }
 
@@ -114,8 +115,10 @@ else
 	fail 'the obsolete post-gate disposal menu remains'
 fi
 
-if ! grep -qF 'gh pr create' <<< "$pr_section" \
-	&& ! grep -qE '^[[:space:]]*git push([[:space:]]|$)' <<< "$pr_section" \
+if ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)' \
+	<<< "$pr_section" \
+	&& ! grep -qE '(^|[[:space:]`])(command[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)' \
+	<<< "$pr_section" \
 	&& grep -qF 'preparation-only' <<< "$pr_section"; then
 	pass 'finalization neither pushes nor creates the PR'
 else

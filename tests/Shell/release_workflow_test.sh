@@ -622,7 +622,8 @@ bash_block_is_single_command() {
 
 # ── P20. Launcher-owned signed chore(release) commit ───────────────────────
 
-if bash_block_is_single_command "$RELEASE_CMD" \
+if [ "$(grep -cF 'prism-tool commit create' "$RELEASE_CMD")" -eq 1 ] && \
+   bash_block_is_single_command "$RELEASE_CMD" \
    '^[[:space:]]*prism-tool commit create --type chore --scope release --subject vX[.]Y[.]Z[[:space:]]*$' && \
    ! grep -qF 'prism-tool commit prepare' "$RELEASE_CMD" && \
    ! grep -qF 'prism-tool commit apply' "$RELEASE_CMD" && \
