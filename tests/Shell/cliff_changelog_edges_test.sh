@@ -16,7 +16,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
-CLIFF="$REPO_ROOT/node_modules/.bin/git-cliff"
+CLIFF="${CLIFF_BIN:-$REPO_ROOT/node_modules/.bin/git-cliff}"
 
 if [ ! -x "$CLIFF" ]; then
 	skip "bundled git-cliff is not installed"
@@ -28,13 +28,31 @@ echo "── generated changelog satisfies the blank-line policy ──"
 T=$(mktemp -d)
 register_temp_dir "$T"
 git_init_test_repo "$T"
-(
-	cd "$T"
-	git commit --quiet --allow-empty -m "feat: fixture feature"
-	git commit --quiet --allow-empty -m "fix: fixture fix"
-	"$CLIFF" --config "$REPO_ROOT/cliff.toml" --unreleased --tag v9.9.9 --output CHANGELOG.md >/dev/null 2>&1
-	git add CHANGELOG.md
-)
+git -C "$T" commit --quiet --allow-empty -m "feat: fixture feature"
+git -C "$T" commit --quiet --allow-empty -m "fix: fixture fix"
+
+set +e
+CLIFF_OUTPUT=$(cd "$T" && "$CLIFF" --config "$REPO_ROOT/cliff.toml" --unreleased --tag v9.9.9 --output CHANGELOG.md 2>&1)
+CLIFF_STATUS=$?
+set -e
+if [ "$CLIFF_STATUS" -ne 0 ]; then
+	fail "git-cliff failed (exit=$CLIFF_STATUS): $CLIFF_OUTPUT"
+	print_summary "cliff_changelog_edges_test"
+	exit 1
+fi
+if [ ! -s "$T/CHANGELOG.md" ]; then
+	fail "git-cliff generated an empty changelog"
+	print_summary "cliff_changelog_edges_test"
+	exit 1
+fi
+for expected in 'Fixture feature' 'Fixture fix'; do
+	if ! grep -Fq "$expected" "$T/CHANGELOG.md"; then
+		fail "generated changelog is missing the entry: $expected"
+		print_summary "cliff_changelog_edges_test"
+		exit 1
+	fi
+done
+git -C "$T" add CHANGELOG.md
 
 set +e
 CHECK_OUTPUT=$(cd "$T" && bash "$CHECKER" --tracked 2>&1)
