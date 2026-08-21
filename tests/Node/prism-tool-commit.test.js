@@ -62,7 +62,7 @@ function makeCommitContext(t, overrides = {}) {
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
             if (overrides.commitFailure) {
-                return completed(1, '', overrides.commitFailureStderr ?? 'signing failed CANARY');
+                return completed(1, '', overrides.commitFailureStderr ?? 'error: gpg failed to sign the data CANARY');
             }
             currentHead = '3'.repeat(40);
             return completed(0, `[branch ${currentHead.slice(0, 7)}] commit\n`);
@@ -298,6 +298,20 @@ test('commit create classifies hook rejection without relaying hook output', (t)
     assert.doesNotMatch(result.stderr, /signing/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.equal(fs.existsSync(observed.messageFile), false);
+});
+
+test('commit create classifies hook rejection that mentions signing policy', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'commit message is missing its signing-off trailer CANARY-HOOK',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail signing-policy hook',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /repository hook rejected the commit/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
 test('commit create cleans the index lock after publication failure', (t) => {

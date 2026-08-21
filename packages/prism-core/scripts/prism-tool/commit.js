@@ -433,7 +433,7 @@ function create(args, context) {
         const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
         if (commitResult.error || commitResult.status !== 0) {
             const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
-            const signing = commitResult.error || /gpg|signing/i.test(detail);
+            const signing = commitResult.error || /gpg failed to sign|failed to sign the data|gpg:/i.test(detail);
             throw new CommitError(
                 EXIT.TOOL,
                 signing
