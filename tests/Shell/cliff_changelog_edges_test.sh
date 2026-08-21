@@ -18,14 +18,20 @@ setup_result_file
 CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
 CLIFF="${CLIFF_BIN:-$REPO_ROOT/node_modules/.bin/git-cliff}"
 
-if [[ "$CLIFF" == */* ]]; then
-	if [ ! -x "$CLIFF" ]; then
-		skip "bundled git-cliff is not installed"
+if [ -n "${CLIFF_BIN:-}" ]; then
+	if [[ "$CLIFF" == */* ]]; then
+		if [ ! -x "$CLIFF" ]; then
+			fail "CLIFF_BIN is not executable: $CLIFF"
+			print_summary "cliff_changelog_edges_test"
+			exit 1
+		fi
+	elif ! command -v "$CLIFF" >/dev/null 2>&1; then
+		fail "CLIFF_BIN is not on PATH: $CLIFF"
 		print_summary "cliff_changelog_edges_test"
-		exit $?
+		exit 1
 	fi
-elif ! command -v "$CLIFF" >/dev/null 2>&1; then
-	skip "git-cliff is not on PATH"
+elif [ ! -x "$CLIFF" ]; then
+	skip "bundled git-cliff is not installed"
 	print_summary "cliff_changelog_edges_test"
 	exit $?
 fi
@@ -61,7 +67,7 @@ done
 git -C "$T" add CHANGELOG.md
 
 set +e
-CHECK_OUTPUT=$(cd "$T" && bash "$CHECKER" --tracked 2>&1)
+CHECK_OUTPUT=$(cd "$T" && bash "$CHECKER" --cached 2>&1)
 CHECK_STATUS=$?
 set -e
 
