@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -61,7 +61,9 @@ function makeCommitContext(t, overrides = {}) {
             observed.messageFile = args[3];
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
-            if (overrides.commitFailure) return completed(1, '', 'signing failed CANARY');
+            if (overrides.commitFailure) {
+                return completed(1, '', overrides.commitFailureStderr ?? 'signing failed CANARY');
+            }
             currentHead = '3'.repeat(40);
             return completed(0, `[branch ${currentHead.slice(0, 7)}] commit\n`);
         }
@@ -278,6 +280,22 @@ test('commit create sanitizes Git failure and cleans its private message', (t) =
 
     assert.equal(result.status, 4);
     assert.match(result.stderr, /signed Git commit failed/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.equal(fs.existsSync(observed.messageFile), false);
+});
+
+test('commit create classifies hook rejection without relaying hook output', (t) => {
+    const {context, observed} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'CHANGELOG.md:1398: trailing blank line CANARY-HOOK',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail hook safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /repository hook rejected the commit/);
+    assert.doesNotMatch(result.stderr, /signing/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.equal(fs.existsSync(observed.messageFile), false);
 });

@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -430,11 +430,17 @@ function create(args, context) {
             'locked index is invalid'
         );
         if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
-        requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv}),
-            EXIT.TOOL,
-            'signed Git commit failed'
-        );
+        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
+        if (commitResult.error || commitResult.status !== 0) {
+            const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
+            const signing = commitResult.error || /gpg|signing/i.test(detail);
+            throw new CommitError(
+                EXIT.TOOL,
+                signing
+                    ? 'signed Git commit failed'
+                    : 'a repository hook rejected the commit; run the repository hooks locally for diagnostics'
+            );
+        }
         locked.publish();
         committed = true;
         newHead = shaValue(
