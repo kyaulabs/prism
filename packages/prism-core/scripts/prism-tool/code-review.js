@@ -1,4 +1,4 @@
-// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -7,7 +7,7 @@ const path = require('node:path');
 const {assertPackageParity, loadContract} = require('./contract');
 const {STATE: CONSENT_STATE, inspectConsent} = require('./consent');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
-const {runBounded} = require('./process');
+const {runBounded, sanitizeDetail} = require('./process');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const USAGE = 'usage: prism-tool code-review ocr -- review --audience agent --format json | ' +
@@ -160,7 +160,10 @@ function execute(args, context) {
         const message = result.timedOut ? 'OCR review timed out' : 'OCR review output or process failure';
         throw new CodeReviewError(EXIT.TOOL, message);
     }
-    if (result.status !== 0) throw new CodeReviewError(EXIT.TOOL, 'OCR review failed');
+    if (result.status !== 0) {
+        const detail = sanitizeDetail(result.stderr);
+        throw new CodeReviewError(EXIT.TOOL, detail === '' ? 'OCR review failed' : `OCR review failed: ${detail}`);
+    }
     if (result.stdout) process.stdout.write(result.stdout);
     return EXIT.OK;
 }
