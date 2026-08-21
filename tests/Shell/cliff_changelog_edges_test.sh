@@ -17,6 +17,9 @@ setup_result_file
 
 CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
 CLIFF="${CLIFF_BIN:-$REPO_ROOT/node_modules/.bin/git-cliff}"
+if [[ "$CLIFF" == */* && "$CLIFF" != /* ]]; then
+	CLIFF="$PWD/$CLIFF"
+fi
 
 if [ -n "${CLIFF_BIN:-}" ]; then
 	if [[ "$CLIFF" == */* ]]; then
