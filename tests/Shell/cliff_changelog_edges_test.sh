@@ -18,8 +18,14 @@ setup_result_file
 CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
 CLIFF="${CLIFF_BIN:-$REPO_ROOT/node_modules/.bin/git-cliff}"
 
-if [ ! -x "$CLIFF" ]; then
-	skip "bundled git-cliff is not installed"
+if [[ "$CLIFF" == */* ]]; then
+	if [ ! -x "$CLIFF" ]; then
+		skip "bundled git-cliff is not installed"
+		print_summary "cliff_changelog_edges_test"
+		exit $?
+	fi
+elif ! command -v "$CLIFF" >/dev/null 2>&1; then
+	skip "git-cliff is not on PATH"
 	print_summary "cliff_changelog_edges_test"
 	exit $?
 fi
