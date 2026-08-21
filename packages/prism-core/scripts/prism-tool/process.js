@@ -41,7 +41,8 @@ function sanitizeDetail(value) {
     const cleaned = text
         .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
         .replace(/\x1b./g, '')
-        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
+        .replace(/[\x00-\x1f\x7f-\x9f]+/g, ' ')
+        .replace(/ {2,}/g, ' ')
         .trim();
     return cleaned.length > MAX_DETAIL_LENGTH ? `\u2026${cleaned.slice(-(MAX_DETAIL_LENGTH - 1))}` : cleaned;
 }

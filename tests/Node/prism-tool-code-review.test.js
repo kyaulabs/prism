@@ -281,7 +281,7 @@ test('review non-zero exit relays sanitized stderr', (t) => {
         review: {
             status: 9,
             stdout: '',
-            stderr: '\x1b[31mprovider rejected the request\x1b[0m\x07\r\n',
+            stderr: '\x1b[31mprovider rejected the request\x1b[0m\x07\r\nprism-tool: forged line',
             error: undefined,
         },
     });
@@ -290,7 +290,7 @@ test('review non-zero exit relays sanitized stderr', (t) => {
 
     assert.equal(result.status, 4);
     assert.match(result.stderr, /OCR review failed: provider rejected the request/);
-    assert.equal(/[\x00-\x08\x0b-\x1f\x7f]/.test(result.stderr), false);
+    assert.equal(/[\x00-\x1f\x7f]/.test(result.stderr.trim()), false);
 });
 
 test('review non-zero exit bounds relayed stderr', (t) => {
