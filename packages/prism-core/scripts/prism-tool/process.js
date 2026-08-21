@@ -43,7 +43,7 @@ function sanitizeDetail(value) {
         .replace(/\x1b./g, '')
         .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
         .trim();
-    return cleaned.length > MAX_DETAIL_LENGTH ? `\u2026${cleaned.slice(-MAX_DETAIL_LENGTH)}` : cleaned;
+    return cleaned.length > MAX_DETAIL_LENGTH ? `\u2026${cleaned.slice(-(MAX_DETAIL_LENGTH - 1))}` : cleaned;
 }
 
 module.exports = {DEFAULT_EXECUTION_TIMEOUT_MS, extractVersion, runBounded, sanitizeDetail};

@@ -307,7 +307,7 @@ test('review non-zero exit bounds relayed stderr', (t) => {
 
     assert.equal(result.status, 4);
     assert.match(result.stderr, /final provider error/);
-    assert.equal(result.stderr.length < 2200, true);
+    assert.equal(result.stderr.length <= 'prism-tool: code-review OCR review failed: \n'.length + 2048, true);
 });
 
 test('review timeout and output-limit failures are bounded and redacted', (t) => {
