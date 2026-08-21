@@ -1,4 +1,4 @@
-// $KYAULabs: audit.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: audit.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -36,13 +36,14 @@ function normalizeComposerAudit(result) {
     if (
         document.advisories === null ||
         typeof document.advisories !== 'object' ||
-        Array.isArray(document.advisories)
+        (Array.isArray(document.advisories) && document.advisories.length > 0)
     ) {
         throw new Error('Composer audit output is malformed');
     }
+    const entries = Array.isArray(document.advisories) ? [] : Object.entries(document.advisories);
     const totals = emptyTotals();
     const findings = [];
-    for (const [packageName, advisories] of Object.entries(document.advisories)) {
+    for (const [packageName, advisories] of entries) {
         if (!PACKAGE_NAME.test(packageName) || !Array.isArray(advisories)) {
             throw new Error('Composer audit output is malformed');
         }
