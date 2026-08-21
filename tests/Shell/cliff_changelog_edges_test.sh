@@ -31,9 +31,9 @@ if [ -n "${CLIFF_BIN:-}" ]; then
 		exit 1
 	fi
 elif [ ! -x "$CLIFF" ]; then
-	skip "bundled git-cliff is not installed"
+	fail "bundled git-cliff is not installed; install dependencies before running this required regression test"
 	print_summary "cliff_changelog_edges_test"
-	exit $?
+	exit 1
 fi
 
 echo "── generated changelog satisfies the blank-line policy ──"
@@ -71,7 +71,8 @@ CHECK_OUTPUT=$(cd "$T" && bash "$CHECKER" --cached 2>&1)
 CHECK_STATUS=$?
 set -e
 
-if [ "$CHECK_STATUS" -eq 0 ]; then
+if [ "$CHECK_STATUS" -eq 0 ] \
+	&& [ "$(tail -c 2 "$T/CHANGELOG.md" | od -An -t x1 | tr -d '[:space:]')" != "0a0a" ]; then
 	pass 'generated changelog satisfies the blank-line policy'
 else
 	fail "generated changelog violates the blank-line policy: $CHECK_OUTPUT"
