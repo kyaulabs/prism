@@ -297,7 +297,7 @@ test('commit create classifies hook rejection without relaying hook output', (t)
     ], context));
 
     assert.equal(result.status, 4);
-    assert.match(result.stderr, /repository hook rejected the commit/);
+    assert.match(result.stderr, /Git commit failed; a repository hook rejection is the likely cause/);
     assert.doesNotMatch(result.stderr, /signing/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.equal(fs.existsSync(observed.messageFile), false);
@@ -313,7 +313,7 @@ test('commit create classifies hook rejection that mentions signing policy', (t)
     ], context));
 
     assert.equal(result.status, 4);
-    assert.match(result.stderr, /repository hook rejected the commit/);
+    assert.match(result.stderr, /Git commit failed; a repository hook rejection is the likely cause/);
     assert.doesNotMatch(result.stderr, /CANARY/);
 });
 

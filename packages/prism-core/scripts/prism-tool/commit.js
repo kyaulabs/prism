@@ -433,7 +433,8 @@ function create(args, context) {
         const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
         if (commitResult.error || commitResult.status !== 0) {
             const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
-            let message = 'a repository hook rejected the commit; run the repository hooks locally for diagnostics';
+            let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
+                'run the repository hooks locally for diagnostics';
             if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
                 message = 'signed Git commit failed';
             } else if (commitResult.error) {
