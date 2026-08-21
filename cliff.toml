@@ -50,7 +50,7 @@ body = """
         {% endif -%}
     {% endfor -%}
     {% raw %}\n{% endraw %}\
-{% endfor %}<!-- Auto-generated on {{ now() | date(format="%+") }} -->\n
+{% endfor %}<!-- Auto-generated on {{ now() | date(format="%+") }} -->
 """
 # remove the leading and trailing whitespace from the template
 trim = true
