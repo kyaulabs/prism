@@ -314,6 +314,20 @@ test('commit create classifies hook rejection that mentions signing policy', (t)
     assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
+test('commit create classifies git identity failure separately', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'Author identity unknown\n*** Please tell me who you are. CANARY-GIT',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail identity safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit identity is not configured/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+});
+
 test('commit create cleans the index lock after publication failure', (t) => {
     const {context, gitDir} = makeCommitContext(t, {indexPublishFailure: true});
     const result = captureWrites(() => main([
