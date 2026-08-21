@@ -435,10 +435,10 @@ function create(args, context) {
             const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
             let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
                 'run the repository hooks locally for diagnostics';
-            if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
-                message = 'signed Git commit failed';
-            } else if (commitResult.error) {
+            if (commitResult.error || commitResult.status === null) {
                 message = 'Git commit process failed';
+            } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
+                message = 'signed Git commit failed';
             } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
                 message = 'Git commit identity is not configured';
             }

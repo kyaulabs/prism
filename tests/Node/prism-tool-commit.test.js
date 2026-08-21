@@ -63,7 +63,12 @@ function makeCommitContext(t, overrides = {}) {
             observed.message = fs.readFileSync(args[3], 'utf8');
             if (overrides.commitFailure) {
                 if (overrides.commitFailureError) {
-                    return {status: null, stdout: '', stderr: '', error: {code: 'ENOENT'}};
+                    return {
+                        status: null,
+                        stdout: '',
+                        stderr: overrides.commitFailureStderr ?? '',
+                        error: {code: 'ENOENT'},
+                    };
                 }
                 return completed(1, '', overrides.commitFailureStderr ?? 'error: gpg failed to sign the data CANARY');
             }
@@ -341,6 +346,22 @@ test('commit create classifies git process failure separately from signing', (t)
     assert.match(result.stderr, /Git commit process failed/);
     assert.doesNotMatch(result.stderr, /signing/);
     assert.doesNotMatch(result.stderr, /hook/);
+});
+
+test('commit create classifies process failure with gpg output as process failure', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureError: true,
+        commitFailureStderr: 'gpg: signing failed: killed mid-operation CANARY',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail process over content',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit process failed/);
+    assert.doesNotMatch(result.stderr, /signed Git commit failed/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
 test('commit create cleans the index lock after publication failure', (t) => {
