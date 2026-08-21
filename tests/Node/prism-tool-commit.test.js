@@ -62,6 +62,9 @@ function makeCommitContext(t, overrides = {}) {
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
             if (overrides.commitFailure) {
+                if (overrides.commitFailureError) {
+                    return {status: null, stdout: '', stderr: '', error: {code: 'ENOENT'}};
+                }
                 return completed(1, '', overrides.commitFailureStderr ?? 'error: gpg failed to sign the data CANARY');
             }
             currentHead = '3'.repeat(40);
@@ -326,6 +329,18 @@ test('commit create classifies git identity failure separately', (t) => {
     assert.equal(result.status, 4);
     assert.match(result.stderr, /Git commit identity is not configured/);
     assert.doesNotMatch(result.stderr, /CANARY/);
+});
+
+test('commit create classifies git process failure separately from signing', (t) => {
+    const {context} = makeCommitContext(t, {commitFailure: true, commitFailureError: true});
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail process safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit process failed/);
+    assert.doesNotMatch(result.stderr, /signing/);
+    assert.doesNotMatch(result.stderr, /hook/);
 });
 
 test('commit create cleans the index lock after publication failure', (t) => {
