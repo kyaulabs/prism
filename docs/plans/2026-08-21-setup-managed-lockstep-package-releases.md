@@ -416,7 +416,7 @@ prism-tool commit create --type fix --scope release --subject "publish repositor
 - Consumes: confirmed literal repository version `X.Y.Z` and validated managed configuration.
 - Produces: one version update and inert publish command per configured package; no conversational `BUMPED_PKGS` state.
 
-- [ ] **Step 1: Change prompt contract tests to lockstep behavior**
+- [x] **Step 1: Change prompt contract tests to lockstep behavior**
 
 Replace P23/P24 assertions and add checks requiring:
 
@@ -429,13 +429,13 @@ git add PACKAGE_DIRECTORY/package.json
 
 Assert absence of `--include-path`, `--tag-pattern`, `PACKAGE_PREFIX@.*`, `NEXT_VERSION`, `BUMPED_PKGS`, and “bumped packages”. Assert no-config prose explicitly says repository-only and no npm commands. Assert publish commands are emitted for every configured package and remain outside executable Bash fences.
 
-- [ ] **Step 2: Run the prompt contract and confirm Red**
+- [x] **Step 2: Run the prompt contract and confirm Red**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: FAIL because `/release` still computes independent package versions and fetches no `main` ref.
 
-- [ ] **Step 3: Replace stale-main and per-package authoring sections**
+- [x] **Step 3: Replace stale-main and per-package authoring sections**
 
 Use this preflight sequence:
 
@@ -456,13 +456,13 @@ npm --prefix PACKAGE_DIRECTORY version X.Y.Z --no-git-tag-version
 
 Read each resulting manifest and require exact `X.Y.Z`. Stage `CHANGELOG.md`, then stage each literal `PACKAGE_DIRECTORY/package.json` in separate calls. Print one inert `cd PACKAGE_DIRECTORY && npm publish --access public` line for every configured package. State that CI tags every configured package, not only source-changed packages.
 
-- [ ] **Step 4: Run the prompt/workflow suite**
+- [x] **Step 4: Run the prompt/workflow suite**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: PASS with no independent-version vocabulary or executable npm publication.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/prompts/release.md tests/Shell/release_workflow_test.sh

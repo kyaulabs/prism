@@ -717,14 +717,17 @@ else
 	fail "P13: /release does not stop on a dirty working tree"
 fi
 
-# ── P14. Pre-flight requires develop synchronized with origin/develop ────────
+# ── P14. Pre-flight requires synchronized develop containing latest main ────
 
 if grep -qF 'git branch --show-current' "$RELEASE_CMD" && \
-   grep -qF 'git fetch origin develop --tags' "$RELEASE_CMD" && \
-   grep -qF 'origin/develop' "$RELEASE_CMD"; then
-	pass "P14: /release requires branch develop and HEAD equal to fetched origin/develop"
+   grep -qF 'git fetch origin develop main --tags' "$RELEASE_CMD" && \
+   grep -qF 'git rev-parse origin/develop' "$RELEASE_CMD" && \
+   grep -qF 'git merge-base --is-ancestor origin/main HEAD' "$RELEASE_CMD" && \
+   grep -qF 'main' "$RELEASE_CMD" && \
+   grep -qF 'back-merge PR' "$RELEASE_CMD"; then
+	pass "P14: /release requires synchronized develop containing the latest main"
 else
-	fail "P14: /release missing branch/fetch/sync pre-flight checks"
+	fail "P14: /release missing develop synchronization or stale-main pre-flight checks"
 fi
 
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
@@ -898,25 +901,36 @@ else
 	fail "P22: /release still contains local tag/publication/back-merge operations"
 fi
 
-# ── P23. Config-driven per-package versions; no hardcoded glob discovery ─────
+# ── P23. Configured package versions are authored in repository lockstep ─────
 
 if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
-   grep -qF -- '--include-path' "$RELEASE_CMD" && \
-   grep -qF 'npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION' "$RELEASE_CMD" && \
-   grep -qF -- '--no-git-tag-version' "$RELEASE_CMD" && \
+   grep -qF '"managedBy": "@kyaulabs/prism-core"' "$RELEASE_CMD" && \
+   grep -qF '"versionPolicy": "lockstep"' "$RELEASE_CMD" && \
+   grep -qF 'npm --prefix PACKAGE_DIRECTORY version X.Y.Z --no-git-tag-version' "$RELEASE_CMD" && \
+   grep -qF 'git add PACKAGE_DIRECTORY/package.json' "$RELEASE_CMD" && \
+   grep -qiF 'repository-only' "$RELEASE_CMD" && \
+   ! grep -qF -- '--include-path' "$RELEASE_CMD" && \
+   ! grep -qF -- '--tag-pattern' "$RELEASE_CMD" && \
+   ! grep -qF 'PACKAGE_PREFIX@.*' "$RELEASE_CMD" && \
+   ! grep -qF 'NEXT_VERSION' "$RELEASE_CMD" && \
+   ! grep -qF 'BUMPED_PKGS' "$RELEASE_CMD" && \
+   ! grep -qiF 'bumped packages' "$RELEASE_CMD" && \
    ! grep -qE 'packages/\*' "$RELEASE_CMD"; then
-	pass "P23: /release discovers packages via .prism/release.json only and bumps with npm version --no-git-tag-version"
+	pass "P23: /release authors every configured package at the repository version"
 else
-	fail "P23: /release package discovery is hardcoded or the bump command is missing"
+	fail "P23: /release retains independent package versions or lacks lockstep authoring"
 fi
 
-# ── P24. Pipeline never runs npm publish; commands are inert text only ───────
+# ── P24. Every configured package gets one inert human publish command ───────
 
-if grep -qF 'npm publish' "$RELEASE_CMD" && \
+if grep -qF 'cd PACKAGE_DIRECTORY && npm publish --access public' "$RELEASE_CMD" && \
+   grep -qF 'one literal line per configured package' "$RELEASE_CMD" && \
+   grep -qF 'For a repository-only release, print no npm command.' "$RELEASE_CMD" && \
+   grep -qF 'tags every configured' "$RELEASE_CMD" && \
    ! bash_block_contains "$RELEASE_CMD" 'npm publish'; then
-	pass "P24: /release prints npm publish commands as inert text only, never in a bash block"
+	pass "P24: /release prints one inert publish command per configured package"
 else
-	fail "P24: /release npm publish command is executable or absent"
+	fail "P24: /release package publication handoff is incomplete or executable"
 fi
 
 # ── P25. Release-body pre-flight flags the 125,000-character limit ───────────
