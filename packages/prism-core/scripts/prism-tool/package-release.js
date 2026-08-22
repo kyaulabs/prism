@@ -563,16 +563,31 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             data: {disposition: plan.disposition},
         };
     } catch {
+        let recoveryFailed = false;
         if (!durable) {
             for (const relativePath of [...mutated].reverse()) {
-                const targetPath = path.join(canonicalProject, relativePath);
-                const original = originals.get(relativePath);
-                if (original.content === null) fs.rmSync(targetPath, {force: true});
-                else writeAtomic(targetPath, original.content, original.mode, rename);
+                try {
+                    const targetPath = path.join(canonicalProject, relativePath);
+                    const original = originals.get(relativePath);
+                    if (original.content === null) fs.rmSync(targetPath, {force: true});
+                    else writeAtomic(targetPath, original.content, original.mode, rename);
+                } catch {
+                    recoveryFailed = true;
+                }
             }
-            removeEmptyCreatedDirectories(createdDirectories);
+            try {
+                removeEmptyCreatedDirectories(createdDirectories);
+            } catch {
+                recoveryFailed = true;
+            }
         }
-        if (operation) recoverOwnedOperation(canonicalProject);
+        if (operation && !recoveryFailed) {
+            try {
+                recoverOwnedOperation(canonicalProject);
+            } catch {
+                recoveryFailed = true;
+            }
+        }
         return {
             status: 'NO-GO',
             checks: [
@@ -580,7 +595,9 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             ],
             data: {
                 reason: durable ? 'verification failure' : 'transaction failure',
-                recovery: durable ? 'prism-tool package-release verify' : undefined,
+                recovery: recoveryFailed
+                    ? 'manual recovery required'
+                    : durable ? 'prism-tool package-release verify' : undefined,
             },
         };
     } finally {
