@@ -50,10 +50,10 @@ function readRegularFile(filePath, label) {
     }
 }
 
-function readJsonObject(filePath, label) {
+function parseJsonObject(content, label) {
     let value;
     try {
-        value = JSON.parse(readRegularFile(filePath, label).toString('utf8'));
+        value = JSON.parse(content.toString('utf8'));
     } catch {
         throw new Error(`${label} is invalid`);
     }
@@ -61,6 +61,56 @@ function readJsonObject(filePath, label) {
         throw new Error(`${label} is invalid`);
     }
     return value;
+}
+
+function readJsonObject(filePath, label) {
+    return parseJsonObject(readRegularFile(filePath, label), label);
+}
+
+function holdManagedParent(projectRoot, relativePath) {
+    let current = projectRoot;
+    for (const segment of path.dirname(relativePath).split('/')) {
+        if (segment === '.') continue;
+        current = path.join(current, segment);
+        const entry = fileEntry(current);
+        if (entry === undefined) return null;
+        if (entry.isSymbolicLink() || !entry.isDirectory()) {
+            throw new Error('managed release parent is invalid');
+        }
+    }
+    return holdDirectory(projectRoot, current);
+}
+
+function managedFileEntry(projectRoot, relativePath) {
+    const parent = holdManagedParent(projectRoot, relativePath);
+    if (parent === null) return undefined;
+    try {
+        parent.assertCurrent();
+        const entry = fs.lstatSync(
+            path.join(parent.anchor, path.basename(relativePath)),
+            {throwIfNoEntry: false}
+        );
+        parent.assertCurrent();
+        return entry;
+    } finally {
+        parent.close();
+    }
+}
+
+function readManagedFile(projectRoot, relativePath, label) {
+    const parent = holdManagedParent(projectRoot, relativePath);
+    if (parent === null) throw new Error(`${label} is invalid`);
+    try {
+        parent.assertCurrent();
+        const content = readRegularFile(
+            path.join(parent.anchor, path.basename(relativePath)),
+            label
+        );
+        parent.assertCurrent();
+        return content;
+    } finally {
+        parent.close();
+    }
 }
 
 function packageTagPrefix(name) {
@@ -169,9 +219,14 @@ function validateConfiguredPackages({projectRoot, packagePaths}) {
 }
 
 function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
-    const configPath = path.join(fs.realpathSync(projectRoot), CONFIG_PATH);
-    if (!fs.existsSync(configPath)) return {kind: 'ABSENT', packages: []};
-    const value = readJsonObject(configPath, 'release configuration');
+    const canonicalProject = fs.realpathSync(projectRoot);
+    if (managedFileEntry(canonicalProject, CONFIG_PATH) === undefined) {
+        return {kind: 'ABSENT', packages: []};
+    }
+    const value = parseJsonObject(
+        readManagedFile(canonicalProject, CONFIG_PATH, 'release configuration'),
+        'release configuration'
+    );
     const keys = Object.keys(value).sort();
     let kind;
     if (
@@ -225,15 +280,19 @@ function inspectReleaseCapability({
 }) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalCore = fs.realpathSync(coreRoot);
-    const configPath = path.join(canonicalProject, CONFIG_PATH);
-    const workflowPath = path.join(canonicalProject, WORKFLOW_PATH);
     const canonicalWorkflow = readRegularFile(
         path.join(canonicalCore, 'config', 'release.yml'),
         'canonical release workflow'
     );
     const candidates = discoverReleasePackages({projectRoot: canonicalProject});
-    const configExists = fileEntry(configPath) !== undefined;
-    const workflowExists = fileEntry(workflowPath) !== undefined;
+    let configExists;
+    let workflowExists;
+    try {
+        configExists = managedFileEntry(canonicalProject, CONFIG_PATH) !== undefined;
+        workflowExists = managedFileEntry(canonicalProject, WORKFLOW_PATH) !== undefined;
+    } catch {
+        return conflictResult(candidates);
+    }
     if (!configExists && !workflowExists) {
         return {
             status: 'GO',
@@ -259,7 +318,7 @@ function inspectReleaseCapability({
     }
     let workflowContent;
     try {
-        workflowContent = readRegularFile(workflowPath, 'release workflow');
+        workflowContent = readManagedFile(canonicalProject, WORKFLOW_PATH, 'release workflow');
     } catch {
         return conflictResult(candidates, configuration.packages);
     }
@@ -278,7 +337,7 @@ function inspectReleaseCapability({
     if (configuration.kind !== 'MANAGED' || !workflowState.startsWith('OWNED_')) {
         return conflictResult(candidates, configuration.packages);
     }
-    const configContent = readRegularFile(configPath, 'release configuration');
+    const configContent = readManagedFile(canonicalProject, CONFIG_PATH, 'release configuration');
     const desiredConfig = Buffer.from(renderManagedConfiguration(candidates));
     const unchanged = configContent.equals(desiredConfig) && workflowState === 'OWNED_CANONICAL';
     return {
@@ -410,10 +469,9 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         const files = {};
         let diff = '';
         for (const [relativePath, after] of desired) {
-            const targetPath = path.join(canonicalProject, relativePath);
-            const before = fs.existsSync(targetPath)
-                ? readRegularFile(targetPath, 'managed release file')
-                : null;
+            const before = managedFileEntry(canonicalProject, relativePath) === undefined
+                ? null
+                : readManagedFile(canonicalProject, relativePath, 'managed release file');
             if (before !== null) writePlanFile(operation.root, 'before', relativePath, before);
             writePlanFile(operation.root, 'after', relativePath, after);
             files[relativePath] = {

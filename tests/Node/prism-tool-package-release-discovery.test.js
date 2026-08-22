@@ -62,7 +62,12 @@ test('does not follow a release configuration replaced after validation', (t) =>
     let replaced = false;
     t.mock.method(fs, 'lstatSync', (filePath, ...args) => {
         const stat = lstatSync(filePath, ...args);
-        if (!replaced && filePath === configPath) {
+        if (
+            !replaced &&
+            typeof filePath === 'string' &&
+            filePath !== configPath &&
+            path.basename(filePath) === 'release.json'
+        ) {
             replaced = true;
             fs.rmSync(configPath);
             fs.symlinkSync(externalConfig, configPath);

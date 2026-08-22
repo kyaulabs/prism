@@ -97,6 +97,31 @@ test('classifies a dangling managed release path as CONFLICT', (t) => {
     assert.equal(result.disposition, 'CONFLICT');
 });
 
+test('rejects a symlinked managed parent before inspection or planning', (t) => {
+    const fixture = makeFixture(t);
+    const externalPrism = path.join(path.dirname(fixture.projectRoot), 'external-prism');
+    writeJson(path.join(externalPrism, 'release.json'), {
+        schemaVersion: 1,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+    });
+    fs.symlinkSync(externalPrism, path.join(fixture.projectRoot, '.prism'));
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.writeFileSync(workflowPath, `${CANONICAL_WORKFLOW}# outdated\n`);
+
+    const inspection = inspectReleaseCapability(fixture);
+    const plan = planReleaseCapability(fixture);
+
+    assert.equal(inspection.status, 'NO-GO');
+    assert.equal(inspection.disposition, 'CONFLICT');
+    assert.equal(plan.status, 'NO-GO');
+    assert.equal(plan.disposition, 'CONFLICT');
+    assert.equal(plan.planPath, null);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi')), false);
+});
+
 test('classifies owned outdated, legacy, and mixed ownership states', (t) => {
     const updateFixture = makeFixture(t);
     installManagedFiles(
