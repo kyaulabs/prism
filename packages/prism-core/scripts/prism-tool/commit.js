@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -430,11 +430,20 @@ function create(args, context) {
             'locked index is invalid'
         );
         if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
-        requireSuccess(
-            invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv}),
-            EXIT.TOOL,
-            'signed Git commit failed'
-        );
+        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
+        if (commitResult.error || commitResult.status !== 0) {
+            const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
+            let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
+                'run the repository hooks locally for diagnostics';
+            if (commitResult.error || commitResult.status === null) {
+                message = 'Git commit process failed';
+            } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
+                message = 'signed Git commit failed';
+            } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
+                message = 'Git commit identity is not configured';
+            }
+            throw new CommitError(EXIT.TOOL, message);
+        }
         locked.publish();
         committed = true;
         newHead = shaValue(

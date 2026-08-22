@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -276,10 +276,43 @@ test('connectivity failure stops before review with a fixed diagnostic', (t) => 
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, /CANARY-PROVIDER/);
 });
 
-test('review timeout, non-zero, and output-limit failures are bounded and redacted', (t) => {
+test('review non-zero exit relays sanitized stderr', (t) => {
+    const target = fixture(t, {
+        review: {
+            status: 9,
+            stdout: '',
+            stderr: '\x1b[31mprovider rejected the request\x1b[0m\x07\r\nprism-tool: forged line',
+            error: undefined,
+        },
+    });
+
+    const result = capture(() => main(reviewArgs(), target.context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /OCR review failed: provider rejected the request/);
+    assert.equal(/[\x00-\x1f\x7f]/.test(result.stderr.trim()), false);
+});
+
+test('review non-zero exit bounds relayed stderr', (t) => {
+    const target = fixture(t, {
+        review: {
+            status: 9,
+            stdout: '',
+            stderr: `${'x'.repeat(5000)}final provider error`,
+            error: undefined,
+        },
+    });
+
+    const result = capture(() => main(reviewArgs(), target.context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /final provider error/);
+    assert.equal(result.stderr.length <= 'prism-tool: code-review OCR review failed: \n'.length + 2048, true);
+});
+
+test('review timeout and output-limit failures are bounded and redacted', (t) => {
     const cases = [
         [{status: null, stdout: '', stderr: 'CANARY-PROVIDER', timedOut: true, error: {code: 'ETIMEDOUT'}}, /timed out/],
-        [{status: 9, stdout: '', stderr: 'CANARY-PROVIDER', error: undefined}, /OCR review failed/],
         [{status: null, stdout: 'CANARY-PROVIDER', stderr: '', timedOut: false, error: {code: 'ENOBUFS'}}, /output or process failure/],
     ];
     for (const [review, pattern] of cases) {

@@ -1,4 +1,4 @@
-// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
@@ -7,6 +7,7 @@ import {
     sensitiveOperandCheck,
     sensitivePathMatch,
     sensitivePatternCheck,
+    type SensitiveMatch,
     type SensitivePathOptions,
 } from "./sensitive-paths.ts";
 import type { DenialCircuitBreaker } from "./denial-circuit-breaker.ts";
@@ -14,6 +15,15 @@ import { WINDOW_SIZE } from "./denial-circuit-breaker.ts";
 import type { FatalCommitLatch } from "./fatal-commit-latch.ts";
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
+const UNRESOLVABLE_REASON =
+    "command could not be analyzed for sensitive-path safety — failing closed per ADR-0047";
+const MALFORMED_REASON = "malformed path or pattern argument — failing closed per ADR-0047";
+
+function blockReasonFor(match: SensitiveMatch): string {
+    if (match.className === "unresolvable") return UNRESOLVABLE_REASON;
+    if (match.className === "malformed") return MALFORMED_REASON;
+    return SENSITIVE_REASON;
+}
 
 /**
  * Dependencies injected by the extension wiring (index.ts). Everything the
@@ -71,21 +81,21 @@ export function resolveExtraPaths(envValue: string | undefined, log: (msg: strin
 }
 
 /**
- * True when a path-shaped argument resolves into the sensitive deny floor.
- * A leading `@` (pi/curl file-ref prefix) is stripped first. `undefined`
- * means "no path arg supplied" (allow); any other non-string shape is
+ * Resolve a path-shaped argument against the sensitive deny floor. A leading
+ * `@` (pi/curl file-ref prefix) is stripped first. `undefined` means "no
+ * path arg supplied" (allow, null); any other non-string shape is
  * present-but-malformed and fails closed (ADR-0036).
  */
-function sensitivePathBlocks(pathArg: unknown, opts: SensitivePathOptions): boolean {
-    if (pathArg === undefined) return false;
-    if (typeof pathArg !== "string") return true;
-    if (pathArg === "") return false;
+function sensitivePathMatchArg(pathArg: unknown, opts: SensitivePathOptions): SensitiveMatch | null {
+    if (pathArg === undefined) return null;
+    if (typeof pathArg !== "string") return { className: "malformed" };
+    if (pathArg === "") return null;
     const path = pathArg.replace(/^@+/, "");
-    if (path === "") return false;
+    if (path === "") return null;
     const abs = path.startsWith("~")
         ? normalize(opts.home + path.slice(1))
         : normalize(resolvePath(opts.projectDir, path));
-    return sensitivePathMatch(abs, opts) !== null;
+    return sensitivePathMatch(abs, opts);
 }
 
 /**
@@ -114,8 +124,9 @@ function noteBashDenial(sid: string, deps: ToolCallDeps): void {
  * branches so the block idiom cannot drift between tools.
  */
 function blockIfSensitive(pathArg: unknown, opts: SensitivePathOptions): ToolCallResult {
-    if (sensitivePathBlocks(pathArg, opts)) {
-        return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
+    const match = sensitivePathMatchArg(pathArg, opts);
+    if (match) {
+        return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(match)}` };
     }
     return undefined;
 }
@@ -126,8 +137,9 @@ function blockIfSensitive(pathArg: unknown, opts: SensitivePathOptions): ToolCal
  * (pattern) branches.
  */
 function blockIfPatternSensitive(pattern: unknown, base: string, opts: SensitivePathOptions): ToolCallResult {
-    if (sensitivePatternCheck(pattern, base, opts)) {
-        return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
+    const match = sensitivePatternCheck(pattern, base, opts);
+    if (match) {
+        return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(match)}` };
     }
     return undefined;
 }
@@ -182,7 +194,7 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
             const operandMatch = sensitiveOperandCheck(command, opts);
             if (operandMatch) {
                 noteBashDenial(deps.sid, deps);
-                return { block: true, reason: `[prism safety] BLOCKED: ${SENSITIVE_REASON}` };
+                return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(operandMatch)}` };
             }
             const finding = classifyCommand(command, { projectDir: deps.cwd, safeRelDirs: deps.safeRelDirs });
             if (finding?.severity === "block") {

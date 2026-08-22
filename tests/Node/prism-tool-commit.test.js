@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -61,7 +61,17 @@ function makeCommitContext(t, overrides = {}) {
             observed.messageFile = args[3];
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
-            if (overrides.commitFailure) return completed(1, '', 'signing failed CANARY');
+            if (overrides.commitFailure) {
+                if (overrides.commitFailureError) {
+                    return {
+                        status: null,
+                        stdout: '',
+                        stderr: overrides.commitFailureStderr ?? '',
+                        error: {code: 'ENOENT'},
+                    };
+                }
+                return completed(1, '', overrides.commitFailureStderr ?? 'error: gpg failed to sign the data CANARY');
+            }
             currentHead = '3'.repeat(40);
             return completed(0, `[branch ${currentHead.slice(0, 7)}] commit\n`);
         }
@@ -280,6 +290,78 @@ test('commit create sanitizes Git failure and cleans its private message', (t) =
     assert.match(result.stderr, /signed Git commit failed/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.equal(fs.existsSync(observed.messageFile), false);
+});
+
+test('commit create classifies hook rejection without relaying hook output', (t) => {
+    const {context, observed} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'CHANGELOG.md:1398: trailing blank line CANARY-HOOK',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail hook safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit failed; a repository hook rejection is the likely cause/);
+    assert.doesNotMatch(result.stderr, /signing/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.equal(fs.existsSync(observed.messageFile), false);
+});
+
+test('commit create classifies hook rejection that mentions signing policy', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'commit message is missing its signing-off trailer CANARY-HOOK',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail signing-policy hook',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit failed; a repository hook rejection is the likely cause/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+});
+
+test('commit create classifies git identity failure separately', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureStderr: 'Author identity unknown\n*** Please tell me who you are. CANARY-GIT',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail identity safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit identity is not configured/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+});
+
+test('commit create classifies git process failure separately from signing', (t) => {
+    const {context} = makeCommitContext(t, {commitFailure: true, commitFailureError: true});
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail process safely',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit process failed/);
+    assert.doesNotMatch(result.stderr, /signing/);
+    assert.doesNotMatch(result.stderr, /hook/);
+});
+
+test('commit create classifies process failure with gpg output as process failure', (t) => {
+    const {context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureError: true,
+        commitFailureStderr: 'gpg: signing failed: killed mid-operation CANARY',
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'fail process over content',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit process failed/);
+    assert.doesNotMatch(result.stderr, /signed Git commit failed/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
 test('commit create cleans the index lock after publication failure', (t) => {
