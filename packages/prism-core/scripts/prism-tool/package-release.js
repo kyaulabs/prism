@@ -360,32 +360,69 @@ function operationPath(projectRoot) {
 }
 
 function acquirePackageReleaseLock(projectRoot) {
-    const lockPath = path.join(projectRoot, '.pi', 'prism-tool', 'package-release.lock');
-    ensureDirectory(projectRoot, path.join('.pi', 'prism-tool'));
-    const descriptor = fs.openSync(lockPath, 'wx', 0o600);
+    const lockDirectory = ensureDirectory(projectRoot, path.join('.pi', 'prism-tool'));
+    const parent = holdDirectory(projectRoot, lockDirectory);
+    const anchoredLock = path.join(parent.anchor, 'package-release.lock');
+    let descriptor;
+    try {
+        parent.assertCurrent();
+        descriptor = fs.openSync(anchoredLock, 'wx', 0o600);
+        parent.assertCurrent();
+    } catch (error) {
+        if (descriptor !== undefined) {
+            fs.closeSync(descriptor);
+            fs.rmSync(anchoredLock, {force: true});
+        }
+        parent.close();
+        throw error;
+    }
     return {
         release() {
-            fs.closeSync(descriptor);
-            fs.rmSync(lockPath, {force: true});
+            try {
+                fs.closeSync(descriptor);
+                fs.rmSync(anchoredLock, {force: true});
+            } finally {
+                parent.close();
+            }
         },
     };
 }
 
 function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
     let current = projectRoot;
-    for (const segment of relativeDirectory.split(path.sep)) {
-        current = path.join(current, segment);
-        if (fs.existsSync(current)) {
-            const stat = fs.lstatSync(current);
-            if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    let parent = holdDirectory(projectRoot, projectRoot);
+    try {
+        for (const segment of relativeDirectory.split(path.sep)) {
+            parent.assertCurrent();
+            const anchoredChild = path.join(parent.anchor, segment);
+            let entry = fs.lstatSync(anchoredChild, {throwIfNoEntry: false});
+            if (entry === undefined) {
+                let created = false;
+                try {
+                    fs.mkdirSync(anchoredChild, {mode});
+                    created = true;
+                } catch (error) {
+                    if (error.code !== 'EEXIST') throw error;
+                }
+                entry = fs.lstatSync(anchoredChild);
+                if (created && !entry.isSymbolicLink() && entry.isDirectory()) {
+                    fs.chmodSync(anchoredChild, mode);
+                }
+            }
+            if (entry.isSymbolicLink() || !entry.isDirectory()) {
                 throw new Error('package-release operation directory is invalid');
             }
-            continue;
+            const childPath = path.join(current, segment);
+            const child = holdAnchoredDirectory(projectRoot, childPath, anchoredChild, entry);
+            parent.assertCurrent();
+            parent.close();
+            parent = child;
+            current = childPath;
         }
-        fs.mkdirSync(current, {mode});
-        fs.chmodSync(current, mode);
+        return current;
+    } finally {
+        parent.close();
     }
-    return current;
 }
 
 function readOwnedOperation(projectRoot) {
@@ -418,13 +455,21 @@ function recoverOwnedOperation(projectRoot) {
 function createOperation(projectRoot) {
     recoverOwnedOperation(projectRoot);
     const root = ensureDirectory(projectRoot, OPERATION_ROOT);
+    const parent = holdDirectory(projectRoot, root);
     const markerPath = path.join(root, OPERATION_MARKER);
-    fs.writeFileSync(markerPath, `${JSON.stringify({
-        schemaVersion: 1,
-        managedBy: MANAGED_BY,
-        projectRoot,
-    }, null, 2)}\n`, {flag: 'wx', mode: 0o600});
-    fs.chmodSync(markerPath, 0o600);
+    const anchoredMarker = path.join(parent.anchor, OPERATION_MARKER);
+    try {
+        parent.assertCurrent();
+        fs.writeFileSync(anchoredMarker, `${JSON.stringify({
+            schemaVersion: 1,
+            managedBy: MANAGED_BY,
+            projectRoot,
+        }, null, 2)}\n`, {flag: 'wx', mode: 0o600});
+        fs.chmodSync(anchoredMarker, 0o600);
+        parent.assertCurrent();
+    } finally {
+        parent.close();
+    }
     return {markerPath, root};
 }
 
@@ -558,57 +603,81 @@ function sameFile(left, right) {
     return left.dev === right.dev && left.ino === right.ino;
 }
 
+function createHeldDirectory(projectRoot, directoryPath, descriptor, expected) {
+    try {
+        const held = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(directoryPath);
+        if (
+            expected.isSymbolicLink() ||
+            !expected.isDirectory() ||
+            current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            !sameFile(expected, held) ||
+            !sameFile(current, held) ||
+            fs.realpathSync(directoryPath) !== directoryPath ||
+            !isInside(projectRoot, directoryPath)
+        ) {
+            throw new Error('managed release parent changed');
+        }
+        let anchor;
+        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+            try {
+                if (sameFile(fs.statSync(candidate), held)) {
+                    anchor = candidate;
+                    break;
+                }
+            } catch {
+                continue;
+            }
+        }
+        if (anchor === undefined) {
+            throw new Error('managed release parent cannot be held safely');
+        }
+        return {
+            anchor,
+            assertCurrent() {
+                const latest = fs.lstatSync(directoryPath);
+                if (
+                    latest.isSymbolicLink() ||
+                    !latest.isDirectory() ||
+                    !sameFile(latest, held) ||
+                    fs.realpathSync(directoryPath) !== directoryPath
+                ) {
+                    throw new Error('managed release parent changed');
+                }
+            },
+            close() {
+                fs.closeSync(descriptor);
+            },
+        };
+    } catch (error) {
+        fs.closeSync(descriptor);
+        throw error;
+    }
+}
+
+function holdAnchoredDirectory(projectRoot, directoryPath, anchoredPath, expected) {
+    const descriptor = fs.openSync(
+        anchoredPath,
+        fs.constants.O_RDONLY |
+            (fs.constants.O_DIRECTORY ?? 0) |
+            (fs.constants.O_NOFOLLOW ?? 0)
+    );
+    return createHeldDirectory(projectRoot, directoryPath, descriptor, expected);
+}
+
 function holdDirectory(projectRoot, directoryPath) {
     const initial = fs.lstatSync(directoryPath);
-    if (
-        initial.isSymbolicLink() ||
-        !initial.isDirectory() ||
-        fs.realpathSync(directoryPath) !== directoryPath ||
-        !isInside(projectRoot, directoryPath)
-    ) {
+    if (initial.isSymbolicLink() || !initial.isDirectory()) {
         throw new Error('managed release parent is invalid');
     }
     const descriptor = fs.openSync(
         directoryPath,
-        fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0)
+        fs.constants.O_RDONLY |
+            (fs.constants.O_DIRECTORY ?? 0) |
+            (fs.constants.O_NOFOLLOW ?? 0)
     );
-    const held = fs.fstatSync(descriptor);
-    if (!sameFile(initial, held)) {
-        fs.closeSync(descriptor);
-        throw new Error('managed release parent changed');
-    }
-    let anchor;
-    for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
-        try {
-            if (sameFile(fs.statSync(candidate), held)) {
-                anchor = candidate;
-                break;
-            }
-        } catch {
-            continue;
-        }
-    }
-    if (anchor === undefined) {
-        fs.closeSync(descriptor);
-        throw new Error('managed release parent cannot be held safely');
-    }
-    return {
-        anchor,
-        assertCurrent() {
-            const current = fs.lstatSync(directoryPath);
-            if (
-                current.isSymbolicLink() ||
-                !current.isDirectory() ||
-                !sameFile(current, held) ||
-                fs.realpathSync(directoryPath) !== directoryPath
-            ) {
-                throw new Error('managed release parent changed');
-            }
-        },
-        close() {
-            fs.closeSync(descriptor);
-        },
-    };
+    return createHeldDirectory(projectRoot, directoryPath, descriptor, initial);
 }
 
 function restoreHeldTarget(parent, targetPath, state, rename) {

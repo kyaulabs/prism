@@ -243,6 +243,27 @@ test('does not let a replacement plan reuse an earlier approval path', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
 });
 
+test('does not follow a replaced operation parent while creating the package-release lock', (t) => {
+    const fixture = makeFixture(t);
+    const piPath = path.join(fixture.projectRoot, '.pi');
+    const movedPi = path.join(path.dirname(fixture.projectRoot), 'moved-pi');
+    const externalPi = path.join(path.dirname(fixture.projectRoot), 'external-pi');
+    const mkdirSync = fs.mkdirSync;
+    let replaced = false;
+    t.mock.method(fs, 'mkdirSync', (directory, ...args) => {
+        if (!replaced && path.basename(directory) === 'prism-tool') {
+            replaced = true;
+            fs.renameSync(piPath, movedPi);
+            mkdirSync(externalPi);
+            fs.symlinkSync(externalPi, piPath);
+        }
+        return mkdirSync(directory, ...args);
+    });
+
+    assert.throws(() => planReleaseCapability(fixture));
+    assert.equal(fs.existsSync(path.join(externalPi, 'prism-tool')), false);
+});
+
 test('refuses to replace a plan while the package-release lock is held', (t) => {
     const fixture = makeFixture(t);
     const firstPlan = planReleaseCapability(fixture);
