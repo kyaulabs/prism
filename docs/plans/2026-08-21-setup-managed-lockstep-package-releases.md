@@ -485,7 +485,7 @@ prism-tool commit create --type feat --scope release --subject "author package v
 - Consumes: `package-release inspect|plan|apply|verify` JSON reports.
 - Produces: one fresh-enable question and one displayed-diff mutation approval; adapter detection remains separate.
 
-- [ ] **Step 1: Add failing setup prompt and CLI report assertions**
+- [x] **Step 1: Add failing setup prompt and CLI report assertions**
 
 Require `/setup` to run `prism-tool package-release inspect --json` before adapter detection and to handle:
 
@@ -499,7 +499,7 @@ Require `/setup` to run `prism-tool package-release inspect --json` before adapt
 
 Assert the package-release section neither names the PHP adapter nor depends on adapter installation.
 
-- [ ] **Step 2: Run focused tests and confirm Red**
+- [x] **Step 2: Run focused tests and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
@@ -507,7 +507,7 @@ Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: FAIL because setup orchestration does not mention the new launcher operations.
 
-- [ ] **Step 3: Add the package-release setup stage**
+- [x] **Step 3: Add the package-release setup stage**
 
 Insert a Core capability stage after global readiness/model preferences and before adapter detection. Use these exact observable commands in separate Bash fences:
 
@@ -529,7 +529,7 @@ prism-tool package-release verify --json
 
 Keep report values as validated inert conversation data. Only `CREATE` asks the enablement question. `UPDATE` and `MIGRATE` are already opted in but still require the displayed-diff mutation approval. `UNCHANGED` writes nothing. `CONFLICT` stops this capability while allowing the human to continue unrelated setup stages only after the conflict is clearly reported; it never invents a merge or overwrite path.
 
-- [ ] **Step 4: Run focused setup/release tests**
+- [x] **Step 4: Run focused setup/release tests**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
@@ -537,7 +537,7 @@ Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md tests/Shell/release_workflow_test.sh tests/Node/prism-tool-package-release-transaction.test.js

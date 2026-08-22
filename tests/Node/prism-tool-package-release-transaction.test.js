@@ -276,12 +276,26 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
     const fixture = makeFixture(t);
     const inspect = captureWrites(() => main(['package-release', 'inspect', '--json'], fixture));
     assert.equal(inspect.status, 0);
-    assert.equal(JSON.parse(inspect.stdout).disposition, 'CREATE');
+    assert.deepEqual(JSON.parse(inspect.stdout), {
+        schemaVersion: 1,
+        command: 'package-release inspect',
+        status: 'GO',
+        disposition: 'CREATE',
+        candidates: [
+            {name: 'fixture-root', path: '.', version: '1.2.3', tagPrefix: 'fixture-root'},
+        ],
+        configuredPackages: [],
+        checks: [
+            {id: 'package-release-ownership', status: 'PASS', message: 'managed release files can be created'},
+        ],
+    });
 
     const planned = captureWrites(() => main(['package-release', 'plan', '--json'], fixture));
     assert.equal(planned.status, 0);
     const planReport = JSON.parse(planned.stdout);
     assert.equal(planReport.disposition, 'CREATE');
+    assert.match(planReport.planPath, /[.]pi\/prism-tool\/package-release\/plan[.]json$/);
+    assert.match(planReport.diff, /[+] {2}"managedBy": "@kyaulabs\/prism-core"/);
 
     const applied = captureWrites(() => main([
         'package-release',
@@ -291,11 +305,27 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
         '--json',
     ], fixture));
     assert.equal(applied.status, 0);
-    assert.equal(JSON.parse(applied.stdout).status, 'GO');
+    assert.deepEqual(JSON.parse(applied.stdout), {
+        schemaVersion: 1,
+        command: 'package-release apply',
+        status: 'GO',
+        checks: [
+            {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
+        ],
+        data: {disposition: 'CREATE'},
+    });
 
     const verified = captureWrites(() => main(['package-release', 'verify', '--json'], fixture));
     assert.equal(verified.status, 0);
-    assert.deepEqual(JSON.parse(verified.stdout).data.packages, ['.']);
+    assert.deepEqual(JSON.parse(verified.stdout), {
+        schemaVersion: 1,
+        command: 'package-release verify',
+        status: 'GO',
+        checks: [
+            {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
+        ],
+        data: {packages: ['.']},
+    });
 });
 
 test('rejects plan drift and preserves an ownership-ambiguous operation marker', (t) => {

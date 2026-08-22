@@ -708,6 +708,36 @@ fi
 # assertions pin the pi release prompt to the authoring half.
 
 RELEASE_CMD="$REPO_ROOT/packages/prism-core/prompts/release.md"
+SETUP_CMD="$REPO_ROOT/packages/prism-core/prompts/setup.md"
+
+# ── P12a. /setup manages package releases before adapter detection ──────────
+
+inspect_line=$(grep -nF 'prism-tool package-release inspect --json' "$SETUP_CMD" | cut -d: -f1 || true)
+adapter_line=$(grep -nF '## 6. Detect and offer the project adapter' "$SETUP_CMD" | cut -d: -f1 || true)
+package_release_section=$(awk '/^## 5[.] Managed npm package releases$/{capture=1} /^## 6[.] Detect and offer the project adapter$/{capture=0} capture' "$SETUP_CMD")
+if [ -n "$inspect_line" ] && [ -n "$adapter_line" ] && [ "$inspect_line" -lt "$adapter_line" ] && \
+   grep -qF 'prism-tool package-release plan --json' "$SETUP_CMD" && \
+   grep -qF 'prism-tool package-release apply --plan=/validated/project-local/plan.json --approval=yes --json' "$SETUP_CMD" && \
+   grep -qF 'prism-tool package-release verify --json' "$SETUP_CMD" && \
+   grep -qF 'Enable lockstep npm package releases for these packages? (yes/no)' "$SETUP_CMD" && \
+   grep -qF 'CREATE' "$SETUP_CMD" && \
+   grep -qF 'UNCHANGED' "$SETUP_CMD" && \
+   grep -qF 'UPDATE' "$SETUP_CMD" && \
+   grep -qF 'MIGRATE' "$SETUP_CMD" && \
+   grep -qF 'CONFLICT' "$SETUP_CMD" && \
+   grep -qF 'display every exact `name`, `path`, and `version`' "$SETUP_CMD" && \
+   grep -qF 'display the complete returned diff' "$SETUP_CMD" && \
+   grep -qF 'A decline runs no plan or apply operation' "$SETUP_CMD" && \
+   grep -qF 'never removes an installed' "$SETUP_CMD" && \
+   grep -qF 'package releases      project' "$SETUP_CMD" && \
+   grep -qF '.prism/release.json' <<< "$package_release_section" && \
+   grep -qF '.github/workflows/release.yml' <<< "$package_release_section" && \
+   ! grep -qiF 'php-web' <<< "$package_release_section" && \
+   ! grep -qiF 'adapter' <<< "$package_release_section"; then
+	pass "P12a: /setup manages lockstep package releases independently before adapter detection"
+else
+	fail "P12a: /setup package-release orchestration is missing, ordered incorrectly, or adapter-coupled"
+fi
 
 # ── P13. Pre-flight stops on a dirty tree ────────────────────────────────────
 
