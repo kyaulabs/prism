@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -84,6 +84,17 @@ test('packs the core package with every owned resource and executable modes', ()
     const packed = packPackage(CORE_PKG);
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('config/commitlint.config.cjs'), true);
+    assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
+    assert.equal(
+        packed.files.has('scripts/prism-tool/package-release.js'),
+        true,
+        'package-release launcher module packaged'
+    );
+    const releaseWorkflow = execFileSync('tar', ['-xOzf', packed.tarball, 'package/config/release.yml'], {
+        encoding: 'utf8',
+    });
+    assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 1$/m);
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
@@ -106,6 +117,20 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+});
+
+test('documents human npm publication for managed lockstep package releases', () => {
+    const npmDocs = fs.readFileSync(path.join(root, 'NPM.md'), 'utf8');
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(npmDocs, /lockstep/i);
+    assert.match(npmDocs, /GitHub Release first/);
+    assert.match(npmDocs, /one human-run publication command per configured/);
+    assert.doesNotMatch(npmDocs, /NPM_AUTOMATION_TOKEN/);
+    assert.doesNotMatch(npmDocs, /packages? versions? independently|each package versions independently/i);
+    assert.match(coreReadme, /Managed lockstep npm releases/);
+    assert.match(coreReadme, /displays the exact package list/);
+    assert.match(coreReadme, /explicit enablement and displayed-diff mutation approval/);
 });
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {

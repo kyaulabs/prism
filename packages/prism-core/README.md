@@ -26,6 +26,11 @@ language-neutral half; install it **globally** so it runs in every project.
   by `install-global.sh` so the core is "always running".
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
+- **Managed lockstep npm releases** — `/setup` discovers publishable root and
+  declared-workspace packages, displays the exact package list, and installs
+  the Core-owned release configuration plus canonical workflow only after
+  explicit enablement and displayed-diff mutation approval. Package-release
+  setup remains independent of language adapters.
 
 ## Install
 

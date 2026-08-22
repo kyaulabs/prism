@@ -560,7 +560,7 @@ prism-tool commit create --type feat --scope setup --subject "manage lockstep pa
 - Consumes: final Core module/template and managed lockstep behavior.
 - Produces: published Core tarball containing `config/release.yml` and `scripts/prism-tool/package-release.js`; accurate human publication playbook.
 
-- [ ] **Step 1: Add failing tarball assertions**
+- [x] **Step 1: Add failing tarball assertions**
 
 Extend the Core package test:
 
@@ -575,13 +575,13 @@ assert.equal(
 
 Read the packed `config/release.yml` and assert both ownership markers are present. Also read `NPM.md` and assert it contains `lockstep`, contains no `NPM_AUTOMATION_TOKEN`, and contains no sentence stating that packages version independently.
 
-- [ ] **Step 2: Run packaging test and confirm Red on stale publication documentation**
+- [x] **Step 2: Run packaging test and confirm Red on stale publication documentation**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because `NPM.md` still describes independent versions and an npm automation token; package inventory assertions must also remain green.
 
-- [ ] **Step 3: Update Core and npm documentation**
+- [x] **Step 3: Update Core and npm documentation**
 
 In `packages/prism-core/README.md`, add the package-release capability to “What it provides” and document that `/setup` discovers root/workspace packages, shows the exact list, and installs owned configuration plus workflow only after approval.
 
@@ -594,7 +594,7 @@ In `NPM.md`:
 - preserve OTP/2FA and `--access public` guidance;
 - remove `NPM_AUTOMATION_TOKEN` from checklists and troubleshooting because CI owns no npm credentials.
 
-- [ ] **Step 4: Run packaging and full Node suites**
+- [x] **Step 4: Run packaging and full Node suites**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js`
 
@@ -604,7 +604,7 @@ Run: `npm run test:node`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add tests/Node/toolchain-packaging.test.js packages/prism-core/README.md NPM.md
