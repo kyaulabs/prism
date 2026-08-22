@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -38,6 +38,42 @@ test('discovers the publishable root first and declared workspaces lexically', (
         {name: '@fixture/alpha', path: 'packages/alpha', version: '1.2.3', tagPrefix: 'alpha'},
         {name: '@fixture/zeta', path: 'packages/zeta', version: '1.2.3', tagPrefix: 'zeta'},
     ]);
+});
+
+test('does not follow a release configuration replaced after validation', (t) => {
+    const root = makeTempDir();
+    const projectRoot = path.join(root, 'project');
+    const externalConfig = path.join(root, 'external-release.json');
+    const configPath = path.join(projectRoot, '.prism', 'release.json');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    fs.mkdirSync(projectRoot);
+    writePackageJson(projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.0.0',
+    });
+    writeJson(configPath, {
+        schemaVersion: 1,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+    });
+    writeJson(externalConfig, {packages: ['.']});
+    const lstatSync = fs.lstatSync;
+    let replaced = false;
+    t.mock.method(fs, 'lstatSync', (filePath, ...args) => {
+        const stat = lstatSync(filePath, ...args);
+        if (!replaced && filePath === configPath) {
+            replaced = true;
+            fs.rmSync(configPath);
+            fs.symlinkSync(externalConfig, configPath);
+        }
+        return stat;
+    });
+
+    assert.throws(
+        () => loadReleaseConfiguration({projectRoot, allowLegacy: true}),
+        /release configuration is invalid/
+    );
 });
 
 test('rejects traversal workspace patterns before expanding them', (t) => {

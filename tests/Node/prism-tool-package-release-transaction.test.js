@@ -319,6 +319,32 @@ test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 
+test('preserves concurrent target edits during rollback', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    const concurrentContent = 'concurrent workflow edit\n';
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 2) {
+                fs.writeFileSync(workflowPath, concurrentContent);
+                throw new Error('fixture rename failure');
+            }
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), concurrentContent);
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
+});
+
 test('reports manual recovery when created-directory cleanup fails', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);

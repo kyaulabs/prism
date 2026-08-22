@@ -28,11 +28,26 @@ function fileEntry(filePath) {
 }
 
 function readRegularFile(filePath, label) {
-    const stat = fs.lstatSync(filePath);
-    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_JSON_BYTES) {
+    const initial = fs.lstatSync(filePath);
+    if (initial.isSymbolicLink() || !initial.isFile() || initial.size > MAX_JSON_BYTES) {
         throw new Error(`${label} is invalid`);
     }
-    return fs.readFileSync(filePath);
+    let descriptor;
+    try {
+        descriptor = fs.openSync(
+            filePath,
+            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0)
+        );
+        const held = fs.fstatSync(descriptor);
+        if (!held.isFile() || held.size > MAX_JSON_BYTES || !sameFile(initial, held)) {
+            throw new Error(`${label} is invalid`);
+        }
+        const content = fs.readFileSync(descriptor);
+        if (content.length > MAX_JSON_BYTES) throw new Error(`${label} is invalid`);
+        return content;
+    } finally {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+    }
 }
 
 function readJsonObject(filePath, label) {
@@ -636,6 +651,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
     let operation;
     const createdDirectories = [];
     const originals = new Map();
+    const appliedDigests = new Map();
     const mutated = [];
     let durable = false;
     try {
@@ -674,7 +690,10 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                 after,
                 original.mode ?? defaultMode,
                 rename,
-                () => mutated.push(relativePath),
+                () => {
+                    mutated.push(relativePath);
+                    appliedDigests.set(relativePath, plan.files[relativePath].after);
+                },
                 original
             );
         }
@@ -699,6 +718,9 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                 try {
                     const targetPath = path.join(canonicalProject, relativePath);
                     const original = originals.get(relativePath);
+                    if (currentFileState(targetPath).digest !== appliedDigests.get(relativePath)) {
+                        throw new Error('managed release target changed during recovery');
+                    }
                     if (original.content === null) removeManagedTarget(canonicalProject, targetPath);
                     else {
                         const replacedState = currentFileState(targetPath);
