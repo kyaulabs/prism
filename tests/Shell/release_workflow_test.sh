@@ -42,6 +42,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 RELEASE_FILE="$REPO_ROOT/.github/workflows/release.yml"
+CANONICAL_RELEASE_FILE="$REPO_ROOT/packages/prism-core/config/release.yml"
 MANIFEST="$REPO_ROOT/.github/scripts/quality-surface.manifest"
 
 # ── 1. release.yml exists and retired scaffold manifest is absent ────────────
@@ -68,6 +69,15 @@ if node -e '
 	pass "release.yml is syntactically valid YAML"
 else
 	fail "release.yml is not syntactically valid YAML"
+fi
+
+if [ -f "$CANONICAL_RELEASE_FILE" ] && \
+   cmp -s "$RELEASE_FILE" "$CANONICAL_RELEASE_FILE" && \
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 1'; then
+	pass "installed workflow is ownership-marked and byte-identical to the Core template"
+else
+	fail "installed workflow is not ownership-marked or differs from the Core template"
 fi
 
 # ── 2. pull_request closed/main + workflow_dispatch trigger ──────────────────
@@ -458,23 +468,202 @@ fi
 
 PKG_CONFIG="$REPO_ROOT/.prism/release.json"
 if [ -f "$PKG_CONFIG" ] && \
-   grep -qF '"packages"' "$PKG_CONFIG" && \
-   grep -qF 'packages/prism-core' "$PKG_CONFIG" && \
-   grep -qF 'packages/prism-php-web' "$PKG_CONFIG"; then
-	pass "9c: .prism/release.json declares the release packages"
+   jq -e '.schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and .packages == ["packages/prism-core", "packages/prism-php-web"]' "$PKG_CONFIG" >/dev/null && \
+   [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "managedBy,packages,schemaVersion,versionPolicy" ]; then
+	pass "9c: .prism/release.json is the exact owned lockstep configuration"
 else
-	fail "9c: .prism/release.json missing or does not declare both packages"
+	fail "9c: .prism/release.json is not the exact owned lockstep configuration"
 fi
 
+prepare_line=$(grep -nF -- '- name: Prepare package release metadata' "$RELEASE_FILE" | cut -d: -f1)
+publish_line=$(grep -nF -- '- name: Publish release' "$RELEASE_FILE" | cut -d: -f1)
+reconcile_line=$(grep -nF -- '- name: Reconcile package tags' "$RELEASE_FILE" | cut -d: -f1)
 if grep -qF '.prism/release.json' "$RELEASE_FILE" && \
    grep -qF 'git/refs' "$RELEASE_FILE" && \
    grep -qF 'gh api -X POST' "$RELEASE_FILE" && \
    grep -qF '### 📦 Packages' "$RELEASE_FILE" && \
+   [ "$prepare_line" -lt "$publish_line" ] && \
+   [ "$publish_line" -lt "$reconcile_line" ] && \
    ! grep -qF 'npm publish' "$RELEASE_FILE" && \
    ! grep -qF 'git push' "$RELEASE_FILE"; then
-	pass "package tags created via git refs API from .prism/release.json; Packages block present; no npm publish or git push"
+	pass "package metadata precedes repository publication, which precedes package tags; no npm publish or git push"
 else
-	fail "package-tag or Packages-block contract violated"
+	fail "package preparation/publication/tag ordering contract violated"
+fi
+
+if grep -qF "if: \${{ always() && steps.validate.outcome == 'success' }}" "$RELEASE_FILE" && \
+   grep -qF 'id: validate' "$RELEASE_FILE"; then
+	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
+else
+	fail "back-merge is not guarded by always() and successful merge validation"
+fi
+
+# ── 9d. Executable package metadata validation ──────────────────────────────
+
+package_sim=$(mktemp -d)
+register_temp_dir "$package_sim"
+mkdir -p "$package_sim/.prism" "$package_sim/packages/example"
+printf 'reviewed notes\n' > "$package_sim/body.md"
+printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
+
+if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package release metadata"); then
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && grep -qF $'example\t@fixture/example\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv" && \
+	   grep -qF 'example@1.2.3' "$package_sim/body.md"; then
+		pass "schema-v1 package metadata validates and prepares inert tags and notes"
+	else
+		fail "schema-v1 package metadata preparation failed"
+	fi
+
+	printf '%s\n' '{"name":"@fixture/example","version":"1.2.2"}' > "$package_sim/packages/example/package.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "package/repository version mismatch did not fail"
+	else
+		pass "package/repository version mismatch fails before publication"
+	fi
+
+	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
+	printf '%s\n' '{"packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		pass "dispatch accepts the exact legacy packages-only recovery shape"
+	else
+		fail "dispatch rejected the exact legacy packages-only recovery shape"
+	fi
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "pull-request publication accepted legacy package configuration"
+	else
+		pass "pull-request publication rejects legacy package configuration"
+	fi
+
+	printf '%s\n' '{"schemaVersion":1,"managedBy":"other","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "unowned package configuration was accepted"
+	else
+		pass "malformed or unowned package configuration is rejected"
+	fi
+
+	rm "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && [ ! -s "$package_sim/.prism-package-tags.tsv" ]; then
+		pass "absent configuration remains repository-only for historical recovery"
+	else
+		fail "absent configuration did not remain repository-only"
+	fi
+else
+	fail "could not extract package metadata preparation block"
+fi
+
+# ── 9e. Executable package-tag reconciliation states ────────────────────────
+
+tag_sim=$(mktemp -d)
+register_temp_dir "$tag_sim"
+git_init_test_repo "$tag_sim"
+printf 'first\n' > "$tag_sim/file.txt"
+git -C "$tag_sim" add file.txt
+git -C "$tag_sim" commit --quiet -m first
+first_sha=$(git -C "$tag_sim" rev-parse HEAD)
+printf 'second\n' >> "$tag_sim/file.txt"
+git -C "$tag_sim" add file.txt
+git -C "$tag_sim" commit --quiet -m second
+merge_sha=$(git -C "$tag_sim" rev-parse HEAD)
+printf '%s\n' $'example\t@fixture/example\tpackages/example\t1.2.3' > "$tag_sim/.prism-package-tags.tsv"
+mkdir -p "$tag_sim/bin"
+cat > "$tag_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+EOF
+chmod +x "$tag_sim/bin/gh"
+: > "$tag_sim/gh.log"
+
+if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile package tags"); then
+	if (
+		cd "$tag_sim" || exit 1
+		PATH="$tag_sim/bin:$PATH" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
+	) && grep -qF 'git/refs' "$tag_sim/gh.log"; then
+		pass "absent package tag is created at the merge SHA"
+	else
+		fail "absent package tag was not created"
+	fi
+
+	git -C "$tag_sim" tag example@1.2.3 "$merge_sha"
+	: > "$tag_sim/gh.log"
+	if (
+		cd "$tag_sim" || exit 1
+		PATH="$tag_sim/bin:$PATH" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
+	) && [ ! -s "$tag_sim/gh.log" ]; then
+		pass "package tag already at the merge SHA is idempotently skipped"
+	else
+		fail "same-target package tag was not idempotently skipped"
+	fi
+
+	git -C "$tag_sim" tag -d example@1.2.3 >/dev/null
+	git -C "$tag_sim" tag example@1.2.3 "$first_sha"
+	if (
+		cd "$tag_sim" || exit 1
+		PATH="$tag_sim/bin:$PATH" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
+	); then
+		fail "wrong-target package tag did not fail"
+	else
+		pass "wrong-target package tag fails without moving or deleting it"
+	fi
+else
+	fail "could not extract package-tag reconciliation block"
+fi
+
+# The executable sequence must publish the repository Release before it
+# creates any package ref.
+order_sim=$(mktemp -d)
+register_temp_dir "$order_sim"
+git_init_test_repo "$order_sim"
+printf 'release\n' > "$order_sim/file.txt"
+git -C "$order_sim" add file.txt
+git -C "$order_sim" commit --quiet -m release
+order_sha=$(git -C "$order_sim" rev-parse HEAD)
+printf 'notes\n' > "$order_sim/body.md"
+printf 'notes\n' > "$order_sim/notes.md"
+printf '%s\n' $'example\t@fixture/example\tpackages/example\t1.2.3' > "$order_sim/.prism-package-tags.tsv"
+mkdir -p "$order_sim/bin"
+cat > "$order_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+case "$*" in
+  api*releases/tags*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$order_sim/bin/gh"
+: > "$order_sim/gh.log"
+if publish_order_block=$(extract_run_block "$RELEASE_FILE" "Publish release") && \
+   reconcile_order_block=$(extract_run_block "$RELEASE_FILE" "Reconcile package tags") && (
+	cd "$order_sim" || exit 1
+	PATH="$order_sim/bin:$PATH" GH_LOG="$order_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$order_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$publish_order_block"
+	PATH="$order_sim/bin:$PATH" GH_LOG="$order_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$order_sha" bash -c "$reconcile_order_block"
+) >/dev/null 2>&1; then
+	release_log_line=$(grep -nF 'release create v1.2.3' "$order_sim/gh.log" | cut -d: -f1)
+	package_log_line=$(grep -nF 'git/refs' "$order_sim/gh.log" | cut -d: -f1)
+	if [ -n "$release_log_line" ] && [ -n "$package_log_line" ] && [ "$release_log_line" -lt "$package_log_line" ]; then
+		pass "fake-gh execution publishes the repository Release before package refs"
+	else
+		fail "fake-gh log did not record repository-first publication"
+	fi
+else
+	fail "repository-first fake-gh execution failed"
 fi
 
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──

@@ -327,7 +327,7 @@ prism-tool commit create --type feat --scope setup --subject "apply package rele
 - Produces: `.prism-package-tags.tsv` containing validated `tag<TAB>name<TAB>path<TAB>version` records and a deterministic `Packages` release-note block.
 - Preserves: existing validated event/version/merge-SHA gate, changelog extraction/body cap/full asset, repository publication state machine, least privileges, and dispatch inputs.
 
-- [ ] **Step 1: Rewrite shell assertions and simulations first**
+- [x] **Step 1: Rewrite shell assertions and simulations first**
 
 Change the static guards to require both ownership comments near the top, schema-v1 configuration fields, and byte parity with `packages/prism-core/config/release.yml`. Add executable fake-`gh` simulations for:
 
@@ -344,13 +344,13 @@ Change the static guards to require both ownership comments near the top, schema
 
 Use one fake `gh` executable that appends each argv array to a fixture log. Assert ordering by line number in that log, not by grepping workflow source alone.
 
-- [ ] **Step 2: Run the workflow test and confirm Red**
+- [x] **Step 2: Run the workflow test and confirm Red**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: FAIL on missing ownership markers/template parity, lockstep schema, repository-first ordering, and failure-independent back-merge simulations.
 
-- [ ] **Step 3: Implement the final owned workflow and migrate Prism's config**
+- [x] **Step 3: Implement the final owned workflow and migrate Prism's config**
 
 Place these exact comments before `name: Release` in both workflow copies:
 
@@ -388,13 +388,13 @@ Give the merge/version validation step `id: validate`. Set the back-merge step t
 
 Do not add `continue-on-error`, `git push`, `gh pr merge`, npm commands, package permissions, or credentials. Copy the completed installed workflow byte-for-byte to `packages/prism-core/config/release.yml`.
 
-- [ ] **Step 4: Run YAML/parity and execution simulations**
+- [x] **Step 4: Run YAML/parity and execution simulations**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: PASS, including release-before-package-tag ordering and back-merge calls after forced publication/tag failure.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add .github/workflows/release.yml .prism/release.json packages/prism-core/config/release.yml tests/Shell/release_workflow_test.sh
