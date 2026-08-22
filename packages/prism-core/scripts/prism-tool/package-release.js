@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -457,24 +457,101 @@ function currentFileState(filePath) {
     return {digest: sha256(content), content, mode: stat.mode & 0o777};
 }
 
-function writeAtomic(filePath, content, mode, rename = fs.renameSync) {
-    const tempPath = path.join(
-        path.dirname(filePath),
-        `.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function holdDirectory(projectRoot, directoryPath) {
+    const initial = fs.lstatSync(directoryPath);
+    if (
+        initial.isSymbolicLink() ||
+        !initial.isDirectory() ||
+        fs.realpathSync(directoryPath) !== directoryPath ||
+        !isInside(projectRoot, directoryPath)
+    ) {
+        throw new Error('managed release parent is invalid');
+    }
+    const descriptor = fs.openSync(
+        directoryPath,
+        fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0)
     );
+    const held = fs.fstatSync(descriptor);
+    if (!sameFile(initial, held)) {
+        fs.closeSync(descriptor);
+        throw new Error('managed release parent changed');
+    }
+    let anchor;
+    for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+        try {
+            if (sameFile(fs.statSync(candidate), held)) {
+                anchor = candidate;
+                break;
+            }
+        } catch {
+            continue;
+        }
+    }
+    if (anchor === undefined) {
+        fs.closeSync(descriptor);
+        throw new Error('managed release parent cannot be held safely');
+    }
+    return {
+        anchor,
+        assertCurrent() {
+            const current = fs.lstatSync(directoryPath);
+            if (
+                current.isSymbolicLink() ||
+                !current.isDirectory() ||
+                !sameFile(current, held) ||
+                fs.realpathSync(directoryPath) !== directoryPath
+            ) {
+                throw new Error('managed release parent changed');
+            }
+        },
+        close() {
+            fs.closeSync(descriptor);
+        },
+    };
+}
+
+function writeAtomic(projectRoot, filePath, content, mode, rename = fs.renameSync, onMutation = () => {}) {
+    const parent = holdDirectory(projectRoot, path.dirname(filePath));
+    const tempName = `.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const tempPath = path.join(parent.anchor, tempName);
+    const targetPath = path.join(parent.anchor, path.basename(filePath));
     let descriptor;
+    let renamed = false;
     try {
+        parent.assertCurrent();
         descriptor = fs.openSync(tempPath, 'wx', mode);
         fs.writeFileSync(descriptor, content);
         fs.fsyncSync(descriptor);
         fs.closeSync(descriptor);
         descriptor = undefined;
         fs.chmodSync(tempPath, mode);
-        rename(tempPath, filePath);
+        parent.assertCurrent();
+        rename(tempPath, targetPath);
+        renamed = true;
+        onMutation();
+        parent.assertCurrent();
     } catch (error) {
         if (descriptor !== undefined) fs.closeSync(descriptor);
         fs.rmSync(tempPath, {force: true});
+        if (renamed) fs.rmSync(targetPath, {force: true});
         throw error;
+    } finally {
+        parent.close();
+    }
+}
+
+function removeManagedTarget(projectRoot, filePath) {
+    const parent = holdDirectory(projectRoot, path.dirname(filePath));
+    try {
+        parent.assertCurrent();
+        fs.rmSync(path.join(parent.anchor, path.basename(filePath)), {force: true});
+        parent.assertCurrent();
+    } finally {
+        parent.close();
     }
 }
 
@@ -495,11 +572,7 @@ function ensureTargetParent(projectRoot, relativePath, createdDirectories) {
 
 function removeEmptyCreatedDirectories(createdDirectories) {
     for (const directory of [...createdDirectories].reverse()) {
-        try {
-            if (fs.readdirSync(directory).length === 0) fs.rmdirSync(directory);
-        } catch {
-            return;
-        }
+        if (fs.readdirSync(directory).length === 0) fs.rmdirSync(directory);
     }
 }
 
@@ -545,8 +618,14 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             );
             const original = originals.get(relativePath);
             const defaultMode = relativePath === CONFIG_PATH ? 0o600 : 0o644;
-            writeAtomic(targetPath, after, original.mode ?? defaultMode, rename);
-            mutated.push(relativePath);
+            writeAtomic(
+                canonicalProject,
+                targetPath,
+                after,
+                original.mode ?? defaultMode,
+                rename,
+                () => mutated.push(relativePath)
+            );
         }
         durable = true;
         const verification = inspectReleaseCapability({projectRoot: canonicalProject, coreRoot});
@@ -569,8 +648,8 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                 try {
                     const targetPath = path.join(canonicalProject, relativePath);
                     const original = originals.get(relativePath);
-                    if (original.content === null) fs.rmSync(targetPath, {force: true});
-                    else writeAtomic(targetPath, original.content, original.mode, rename);
+                    if (original.content === null) removeManagedTarget(canonicalProject, targetPath);
+                    else writeAtomic(canonicalProject, targetPath, original.content, original.mode, rename);
                 } catch {
                     recoveryFailed = true;
                 }

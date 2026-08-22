@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -284,6 +284,66 @@ test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('reports manual recovery when created-directory cleanup fails', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const configParent = path.join(fixture.projectRoot, '.prism');
+    const movedConfigParent = path.join(path.dirname(fixture.projectRoot), 'moved-prism');
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 2) {
+                fs.renameSync(configParent, movedConfigParent);
+                fs.symlinkSync('missing-prism', configParent);
+                throw new Error('fixture rename failure');
+            }
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
+});
+
+test('does not follow a replaced managed parent during atomic rename', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowParent = path.join(fixture.projectRoot, '.github', 'workflows');
+    const movedParent = path.join(path.dirname(fixture.projectRoot), 'moved-workflows');
+    const externalParent = path.join(path.dirname(fixture.projectRoot), 'external-workflows');
+    let renameCount = 0;
+    let externalSentinelPath;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 1) {
+                fs.renameSync(workflowParent, movedParent);
+                fs.mkdirSync(externalParent);
+                fs.symlinkSync(externalParent, workflowParent);
+                externalSentinelPath = path.join(externalParent, path.basename(source));
+                fs.writeFileSync(externalSentinelPath, 'external sentinel\n');
+            }
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.existsSync(externalSentinelPath), true);
+    assert.equal(fs.readFileSync(externalSentinelPath, 'utf8'), 'external sentinel\n');
+    assert.equal(fs.existsSync(path.join(externalParent, 'release.yml')), false);
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.existsSync(path.join(movedParent, 'release.yml')), false);
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
 });
 
 test('reports manual recovery when restoring an existing file fails', (t) => {
