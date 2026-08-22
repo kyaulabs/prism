@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -402,6 +402,12 @@ if grep -qF 'TRUNCATE_BUDGET' "$RELEASE_FILE" && \
 	pass "body cap (TRUNCATE_BUDGET), truncation flag, and conditional full-changelog asset present"
 else
 	fail "body-cap or asset contract violated"
+fi
+
+if grep -qF "printf '%s' \"\$footer\" >> body_capped.md" "$RELEASE_FILE"; then
+	pass "truncation footer stays inside the exact release-body byte budget"
+else
+	fail "truncation footer appends an unbudgeted byte"
 fi
 
 # ── 9. Rerun states: local rev-parse tag probe, four states, no early exit ───

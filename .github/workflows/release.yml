@@ -273,7 +273,7 @@ jobs:
                   break
                 fi
               done < .prism-package-body-source.md
-              printf '%s\n' "$footer" >> body_capped.md
+              printf '%s' "$footer" >> body_capped.md
               cat .prism-package-notes.md >> body_capped.md
               mv body_capped.md body.md
               echo "RELEASE_BODY_TRUNCATED=yes" >> "${GITHUB_ENV:-/dev/null}"
