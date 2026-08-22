@@ -190,7 +190,7 @@ prism-tool commit create --type feat --scope release --subject "discover release
 - Produces: `planReleaseCapability({projectRoot, coreRoot}) -> {status, disposition, planPath, diff, candidates}`.
 - Plan schema: `{schemaVersion: 1, managedBy, projectRoot, disposition, files: {'.prism/release.json': {before, after}, '.github/workflows/release.yml': {before, after}}}` where digests are 64 lowercase hex or `absent`.
 
-- [ ] **Step 1: Write failing disposition and plan tests**
+- [x] **Step 1: Write failing disposition and plan tests**
 
 Use a fixture Core root with `config/release.yml` containing the final ownership comments and a fixture project with publishable packages. Cover:
 
@@ -210,13 +210,13 @@ const states = [
 
 Assert `CREATE`, `UPDATE`, and `MIGRATE` plans contain exact before/after digests and a unified diff for only the two managed paths; `UNCHANGED` produces no plan; `CONFLICT` produces no plan and preserves all bytes.
 
-- [ ] **Step 2: Run the focused transaction test and confirm Red**
+- [x] **Step 2: Run the focused transaction test and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
 Expected: FAIL because ownership inspection and planning exports are missing.
 
-- [ ] **Step 3: Implement ownership markers, classification, operational workspace, and plan creation**
+- [x] **Step 3: Implement ownership markers, classification, operational workspace, and plan creation**
 
 Add exact ownership constants:
 
@@ -233,13 +233,13 @@ Render managed configuration deterministically with two-space JSON indentation a
 
 Create the operational directory as mode `0700` with `.prism-package-release.json` mode `0600` containing exact Core identity and canonical project root. Write `plan.json`, `before/`, and `after/` regular files with `wx`; use Node to render the diff from bounded line arrays rather than invoking shell. A fresh plan removes only a previously ownership-proven operation directory.
 
-- [ ] **Step 4: Run transaction tests and inspect plan contents**
+- [x] **Step 4: Run transaction tests and inspect plan contents**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
 Expected: PASS for all dispositions, exact digests, exact candidate ordering, and byte-preserving conflicts.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/package-release.js tests/Node/prism-tool-package-release-transaction.test.js

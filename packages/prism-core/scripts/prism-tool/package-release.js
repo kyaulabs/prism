@@ -2,6 +2,7 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -10,15 +11,30 @@ const RELEASE_VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*
 const MAX_JSON_BYTES = 1048576;
 const MANAGED_BY = '@kyaulabs/prism-core';
 const RELEASE_SCHEMA_VERSION = 1;
+const CONFIG_PATH = '.prism/release.json';
+const WORKFLOW_PATH = '.github/workflows/release.yml';
+const WORKFLOW_MARKER = '# prism-managed: @kyaulabs/prism-core';
+const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 1';
+const LEGACY_WORKFLOW_SHA256 = 'dd4cd0fdf362e4243117e620c906a7bfe42b8b52c011759a2a6ea8f1850f0ef6';
+const OPERATION_ROOT = path.join('.pi', 'prism-tool', 'package-release');
+const OPERATION_MARKER = '.prism-package-release.json';
 
-function readJsonObject(filePath, label) {
+function sha256(value) {
+    return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function readRegularFile(filePath, label) {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_JSON_BYTES) {
         throw new Error(`${label} is invalid`);
     }
+    return fs.readFileSync(filePath);
+}
+
+function readJsonObject(filePath, label) {
     let value;
     try {
-        value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        value = JSON.parse(readRegularFile(filePath, label).toString('utf8'));
     } catch {
         throw new Error(`${label} is invalid`);
     }
@@ -134,7 +150,7 @@ function validateConfiguredPackages({projectRoot, packagePaths}) {
 }
 
 function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
-    const configPath = path.join(fs.realpathSync(projectRoot), '.prism', 'release.json');
+    const configPath = path.join(fs.realpathSync(projectRoot), CONFIG_PATH);
     if (!fs.existsSync(configPath)) return {kind: 'ABSENT', packages: []};
     const value = readJsonObject(configPath, 'release configuration');
     const keys = Object.keys(value).sort();
@@ -153,6 +169,245 @@ function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
     }
     const records = validateConfiguredPackages({projectRoot, packagePaths: value.packages});
     return {kind, packages: records.map(({path: packagePath}) => packagePath)};
+}
+
+function renderManagedConfiguration(candidates) {
+    return `${JSON.stringify({
+        schemaVersion: RELEASE_SCHEMA_VERSION,
+        managedBy: MANAGED_BY,
+        versionPolicy: 'lockstep',
+        packages: candidates.map(({path: packagePath}) => packagePath),
+    }, null, 2)}\n`;
+}
+
+function workflowOwnership(content, canonicalContent, legacyWorkflowSha256) {
+    const firstLines = content.toString('utf8').split('\n', 5);
+    const owned = firstLines.includes(WORKFLOW_MARKER) && firstLines.includes(WORKFLOW_SCHEMA_MARKER);
+    if (owned) return content.equals(canonicalContent) ? 'OWNED_CANONICAL' : 'OWNED_OUTDATED';
+    return sha256(content) === legacyWorkflowSha256 ? 'LEGACY' : 'UNOWNED';
+}
+
+function conflictResult(candidates, configuredPackages = []) {
+    return {
+        status: 'NO-GO',
+        disposition: 'CONFLICT',
+        candidates,
+        configuredPackages,
+        checks: [
+            {id: 'package-release-ownership', status: 'FAIL', message: 'managed release files conflict'},
+        ],
+    };
+}
+
+function inspectReleaseCapability({
+    projectRoot,
+    coreRoot,
+    legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256,
+}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    const canonicalCore = fs.realpathSync(coreRoot);
+    const configPath = path.join(canonicalProject, CONFIG_PATH);
+    const workflowPath = path.join(canonicalProject, WORKFLOW_PATH);
+    const canonicalWorkflow = readRegularFile(
+        path.join(canonicalCore, 'config', 'release.yml'),
+        'canonical release workflow'
+    );
+    const candidates = discoverReleasePackages({projectRoot: canonicalProject});
+    const configExists = fs.existsSync(configPath);
+    const workflowExists = fs.existsSync(workflowPath);
+    if (!configExists && !workflowExists) {
+        return {
+            status: 'GO',
+            disposition: 'CREATE',
+            candidates,
+            configuredPackages: [],
+            checks: [
+                {
+                    id: 'package-release-ownership',
+                    status: 'PASS',
+                    message: 'managed release files can be created',
+                },
+            ],
+        };
+    }
+    if (configExists !== workflowExists) return conflictResult(candidates);
+
+    let configuration;
+    try {
+        configuration = loadReleaseConfiguration({projectRoot: canonicalProject, allowLegacy: true});
+    } catch {
+        return conflictResult(candidates);
+    }
+    let workflowContent;
+    try {
+        workflowContent = readRegularFile(workflowPath, 'release workflow');
+    } catch {
+        return conflictResult(candidates, configuration.packages);
+    }
+    const workflowState = workflowOwnership(workflowContent, canonicalWorkflow, legacyWorkflowSha256);
+    if (configuration.kind === 'LEGACY' && workflowState === 'LEGACY') {
+        return {
+            status: 'GO',
+            disposition: 'MIGRATE',
+            candidates,
+            configuredPackages: configuration.packages,
+            checks: [
+                {id: 'package-release-ownership', status: 'PASS', message: 'legacy release files can be migrated'},
+            ],
+        };
+    }
+    if (configuration.kind !== 'MANAGED' || !workflowState.startsWith('OWNED_')) {
+        return conflictResult(candidates, configuration.packages);
+    }
+    const configContent = readRegularFile(configPath, 'release configuration');
+    const desiredConfig = Buffer.from(renderManagedConfiguration(candidates));
+    const unchanged = configContent.equals(desiredConfig) && workflowState === 'OWNED_CANONICAL';
+    return {
+        status: 'GO',
+        disposition: unchanged ? 'UNCHANGED' : 'UPDATE',
+        candidates,
+        configuredPackages: configuration.packages,
+        checks: [
+            {
+                id: 'package-release-ownership',
+                status: 'PASS',
+                message: unchanged ? 'managed release files are current' : 'managed release files can be updated',
+            },
+        ],
+    };
+}
+
+function operationPath(projectRoot) {
+    return path.join(projectRoot, OPERATION_ROOT);
+}
+
+function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
+    let current = projectRoot;
+    for (const segment of relativeDirectory.split(path.sep)) {
+        current = path.join(current, segment);
+        if (fs.existsSync(current)) {
+            const stat = fs.lstatSync(current);
+            if (stat.isSymbolicLink() || !stat.isDirectory()) {
+                throw new Error('package-release operation directory is invalid');
+            }
+            continue;
+        }
+        fs.mkdirSync(current, {mode});
+        fs.chmodSync(current, mode);
+    }
+    return current;
+}
+
+function readOwnedOperation(projectRoot) {
+    const root = operationPath(projectRoot);
+    if (!fs.existsSync(root)) return null;
+    const stat = fs.lstatSync(root);
+    if (stat.isSymbolicLink() || !stat.isDirectory() || fs.realpathSync(root) !== root) {
+        throw new Error('package-release operation directory is invalid');
+    }
+    const markerPath = path.join(root, OPERATION_MARKER);
+    const marker = readJsonObject(markerPath, 'package-release ownership marker');
+    if (
+        Object.keys(marker).sort().join(',') !== 'managedBy,projectRoot,schemaVersion' ||
+        marker.schemaVersion !== 1 ||
+        marker.managedBy !== MANAGED_BY ||
+        marker.projectRoot !== projectRoot
+    ) {
+        throw new Error('package-release ownership marker does not match');
+    }
+    return {markerPath, root};
+}
+
+function recoverOwnedOperation(projectRoot) {
+    const operation = readOwnedOperation(projectRoot);
+    if (!operation) return false;
+    fs.rmSync(operation.root, {recursive: true, force: false});
+    return true;
+}
+
+function createOperation(projectRoot) {
+    recoverOwnedOperation(projectRoot);
+    const root = ensureDirectory(projectRoot, OPERATION_ROOT);
+    const markerPath = path.join(root, OPERATION_MARKER);
+    fs.writeFileSync(markerPath, `${JSON.stringify({
+        schemaVersion: 1,
+        managedBy: MANAGED_BY,
+        projectRoot,
+    }, null, 2)}\n`, {flag: 'wx', mode: 0o600});
+    fs.chmodSync(markerPath, 0o600);
+    return {markerPath, root};
+}
+
+function renderDiff(relativePath, before, after) {
+    const beforeLines = before === null ? [] : before.toString('utf8').split('\n');
+    const afterLines = after.toString('utf8').split('\n');
+    const lines = [`--- a/${relativePath}`, `+++ b/${relativePath}`];
+    lines.push(...beforeLines.filter((line, index) => line.length > 0 || index < beforeLines.length - 1)
+        .map((line) => `-${line}`));
+    lines.push(...afterLines.filter((line, index) => line.length > 0 || index < afterLines.length - 1)
+        .map((line) => `+${line}`));
+    return `${lines.join('\n')}\n`;
+}
+
+function writePlanFile(root, area, relativePath, content) {
+    const destination = path.join(root, area, relativePath);
+    fs.mkdirSync(path.dirname(destination), {recursive: true, mode: 0o700});
+    fs.writeFileSync(destination, content, {flag: 'wx', mode: 0o600});
+    fs.chmodSync(destination, 0o600);
+}
+
+function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    const inspection = inspectReleaseCapability({
+        projectRoot: canonicalProject,
+        coreRoot,
+        legacyWorkflowSha256,
+    });
+    if (!['CREATE', 'UPDATE', 'MIGRATE'].includes(inspection.disposition)) {
+        return {...inspection, planPath: null, diff: ''};
+    }
+    const operation = createOperation(canonicalProject);
+    const desired = new Map([
+        [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
+        [WORKFLOW_PATH, readRegularFile(
+            path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
+            'canonical release workflow'
+        )],
+    ]);
+    const files = {};
+    let diff = '';
+    for (const [relativePath, after] of desired) {
+        const targetPath = path.join(canonicalProject, relativePath);
+        const before = fs.existsSync(targetPath)
+            ? readRegularFile(targetPath, 'managed release file')
+            : null;
+        if (before !== null) writePlanFile(operation.root, 'before', relativePath, before);
+        writePlanFile(operation.root, 'after', relativePath, after);
+        files[relativePath] = {
+            before: before === null ? 'absent' : sha256(before),
+            after: sha256(after),
+        };
+        diff += renderDiff(relativePath, before, after);
+    }
+    const plan = {
+        schemaVersion: 1,
+        managedBy: MANAGED_BY,
+        projectRoot: canonicalProject,
+        disposition: inspection.disposition,
+        files,
+    };
+    const planPath = path.join(operation.root, 'plan.json');
+    fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
+    fs.chmodSync(planPath, 0o600);
+    return {
+        status: 'GO',
+        disposition: inspection.disposition,
+        candidates: inspection.candidates,
+        configuredPackages: inspection.configuredPackages,
+        checks: inspection.checks,
+        planPath,
+        diff,
+    };
 }
 
 function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
@@ -189,11 +444,20 @@ function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
 }
 
 module.exports = {
+    CONFIG_PATH,
+    LEGACY_WORKFLOW_SHA256,
     MANAGED_BY,
     RELEASE_SCHEMA_VERSION,
+    WORKFLOW_MARKER,
+    WORKFLOW_PATH,
+    WORKFLOW_SCHEMA_MARKER,
     discoverReleasePackages,
+    inspectReleaseCapability,
     loadReleaseConfiguration,
     packageTagPrefix,
+    planReleaseCapability,
+    renderManagedConfiguration,
+    sha256,
     validateConfiguredPackages,
 };
 
