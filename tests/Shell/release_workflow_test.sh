@@ -666,6 +666,67 @@ else
 	fail "repository-first fake-gh execution failed"
 fi
 
+# A failed publication or package-tag reconciliation must still execute the
+# back-merge block selected by the workflow's always() guard.
+failure_sim=$(mktemp -d)
+register_temp_dir "$failure_sim"
+git_init_test_repo "$failure_sim"
+printf 'release\n' > "$failure_sim/file.txt"
+git -C "$failure_sim" add file.txt
+git -C "$failure_sim" commit --quiet -m release
+failure_sha=$(git -C "$failure_sim" rev-parse HEAD)
+printf 'notes\n' > "$failure_sim/body.md"
+printf 'notes\n' > "$failure_sim/notes.md"
+mkdir -p "$failure_sim/bin"
+cat > "$failure_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\t%s\n' "$GH_MODE" "$*" >> "$GH_LOG"
+case "$GH_MODE:$*" in
+  publish:api*releases/tags*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
+  backmerge:api*compare*) printf '%s\n' '1' ;;
+  backmerge:pr\ list*) exit 0 ;;
+  backmerge:pr\ create*) printf '%s\n' 'https://example.invalid/pr/1' ;;
+esac
+EOF
+chmod +x "$failure_sim/bin/gh"
+: > "$failure_sim/gh.log"
+
+if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") && \
+   failure_backmerge_block=$(extract_run_block "$RELEASE_FILE" "Open back-merge PR"); then
+	if (
+		cd "$failure_sim" || exit 1
+		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
+	); then
+		fail "forced repository publication failure unexpectedly succeeded"
+	elif (
+		cd "$failure_sim" || exit 1
+		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
+	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
+	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
+		pass "back-merge executes after a forced repository publication failure"
+	else
+		fail "back-merge did not execute after repository publication failure"
+	fi
+
+	: > "$failure_sim/gh.log"
+	if (
+		cd "$tag_sim" || exit 1
+		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
+	); then
+		fail "forced package-tag failure unexpectedly succeeded"
+	elif (
+		cd "$tag_sim" || exit 1
+		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
+	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
+	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
+		pass "back-merge executes after a forced package-tag failure"
+	else
+		fail "back-merge did not execute after package-tag failure"
+	fi
+else
+	fail "could not extract publication and back-merge failure simulation blocks"
+fi
+
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──
 
 if grep -qF 'gh release create' "$RELEASE_FILE" && \
