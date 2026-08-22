@@ -179,7 +179,7 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
 
     assert.equal(result.status, 'GO');
     assert.equal(result.disposition, 'CREATE');
-    assert.match(result.planPath, /[.]pi\/prism-tool\/package-release\/plan[.]json$/);
+    assert.match(result.planPath, /[.]pi\/prism-tool\/package-release\/plan-[a-f0-9]{64}[.]json$/);
     assert.match(result.diff, /[+] {2}"schemaVersion": 1/);
     const plan = JSON.parse(fs.readFileSync(result.planPath, 'utf8'));
     assert.equal(plan.schemaVersion, 1);
@@ -194,6 +194,39 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
         assert.equal(file.before, 'absent');
         assert.match(file.after, /^[a-f0-9]{64}$/);
     }
+});
+
+test('does not let a replacement plan reuse an earlier approval path', (t) => {
+    const fixture = makeFixture(t);
+    const firstPlan = planReleaseCapability(fixture);
+    writePackageJson(fixture.projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+        workspaces: ['packages/*'],
+    });
+    writePackageJson(fixture.projectRoot, 'packages/added', {
+        name: 'fixture-added',
+        version: '1.2.3',
+    });
+
+    const secondPlan = planReleaseCapability(fixture);
+    const result = applyReleaseCapability({...fixture, planPath: firstPlan.planPath});
+
+    assert.notEqual(secondPlan.planPath, firstPlan.planPath);
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+});
+
+test('refuses to replace a plan while the package-release lock is held', (t) => {
+    const fixture = makeFixture(t);
+    const firstPlan = planReleaseCapability(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
+    fs.writeFileSync(lockPath, 'concurrent\n', {flag: 'wx', mode: 0o600});
+
+    assert.throws(() => planReleaseCapability(fixture), {code: 'EEXIST'});
+    assert.equal(fs.existsSync(firstPlan.planPath), true);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'concurrent\n');
 });
 
 test('rejects non-literal package-release mutation approval before changing files', (t) => {
@@ -346,6 +379,42 @@ test('does not follow a replaced managed parent during atomic rename', (t) => {
     assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
 });
 
+test('restores existing managed bytes when a held parent moves after rename', (t) => {
+    const fixture = makeFixture(t);
+    const originalWorkflow = `${CANONICAL_WORKFLOW}# outdated\n`;
+    installManagedFiles(fixture.projectRoot, originalWorkflow);
+    const plan = planReleaseCapability(fixture);
+    const workflowParent = path.join(fixture.projectRoot, '.github', 'workflows');
+    const movedParent = path.join(path.dirname(fixture.projectRoot), 'moved-update-workflows');
+    const externalParent = path.join(path.dirname(fixture.projectRoot), 'external-update-workflows');
+    let renameCount = 0;
+    let externalSentinelPath;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 1) {
+                fs.renameSync(workflowParent, movedParent);
+                fs.mkdirSync(externalParent);
+                fs.symlinkSync(externalParent, workflowParent);
+                externalSentinelPath = path.join(externalParent, path.basename(source));
+                fs.writeFileSync(externalSentinelPath, 'external sentinel\n');
+            }
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.existsSync(externalSentinelPath), true);
+    assert.equal(fs.existsSync(path.join(externalParent, 'release.yml')), false);
+    assert.equal(fs.existsSync(path.join(movedParent, 'release.yml')), true);
+    assert.equal(fs.readFileSync(path.join(movedParent, 'release.yml'), 'utf8'), originalWorkflow);
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
+});
+
 test('reports manual recovery when restoring an existing file fails', (t) => {
     const fixture = makeFixture(t);
     installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
@@ -424,7 +493,7 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
     assert.equal(planned.status, 0);
     const planReport = JSON.parse(planned.stdout);
     assert.equal(planReport.disposition, 'CREATE');
-    assert.match(planReport.planPath, /[.]pi\/prism-tool\/package-release\/plan[.]json$/);
+    assert.match(planReport.planPath, /[.]pi\/prism-tool\/package-release\/plan-[a-f0-9]{64}[.]json$/);
     assert.match(planReport.diff, /[+] {2}"managedBy": "@kyaulabs\/prism-core"/);
 
     const applied = captureWrites(() => main([

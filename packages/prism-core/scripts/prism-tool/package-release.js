@@ -285,6 +285,18 @@ function operationPath(projectRoot) {
     return path.join(projectRoot, OPERATION_ROOT);
 }
 
+function acquirePackageReleaseLock(projectRoot) {
+    const lockPath = path.join(projectRoot, '.pi', 'prism-tool', 'package-release.lock');
+    ensureDirectory(projectRoot, path.join('.pi', 'prism-tool'));
+    const descriptor = fs.openSync(lockPath, 'wx', 0o600);
+    return {
+        release() {
+            fs.closeSync(descriptor);
+            fs.rmSync(lockPath, {force: true});
+        },
+    };
+}
+
 function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
     let current = projectRoot;
     for (const segment of relativeDirectory.split(path.sep)) {
@@ -370,55 +382,64 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
     if (!['CREATE', 'UPDATE', 'MIGRATE'].includes(inspection.disposition)) {
         return {...inspection, planPath: null, diff: ''};
     }
-    const operation = createOperation(canonicalProject);
-    const desired = new Map([
-        [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
-        [WORKFLOW_PATH, readRegularFile(
-            path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
-            'canonical release workflow'
-        )],
-    ]);
-    const files = {};
-    let diff = '';
-    for (const [relativePath, after] of desired) {
-        const targetPath = path.join(canonicalProject, relativePath);
-        const before = fs.existsSync(targetPath)
-            ? readRegularFile(targetPath, 'managed release file')
-            : null;
-        if (before !== null) writePlanFile(operation.root, 'before', relativePath, before);
-        writePlanFile(operation.root, 'after', relativePath, after);
-        files[relativePath] = {
-            before: before === null ? 'absent' : sha256(before),
-            after: sha256(after),
+    const lock = acquirePackageReleaseLock(canonicalProject);
+    try {
+        const operation = createOperation(canonicalProject);
+        const desired = new Map([
+            [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
+            [WORKFLOW_PATH, readRegularFile(
+                path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
+                'canonical release workflow'
+            )],
+        ]);
+        const files = {};
+        let diff = '';
+        for (const [relativePath, after] of desired) {
+            const targetPath = path.join(canonicalProject, relativePath);
+            const before = fs.existsSync(targetPath)
+                ? readRegularFile(targetPath, 'managed release file')
+                : null;
+            if (before !== null) writePlanFile(operation.root, 'before', relativePath, before);
+            writePlanFile(operation.root, 'after', relativePath, after);
+            files[relativePath] = {
+                before: before === null ? 'absent' : sha256(before),
+                after: sha256(after),
+            };
+            diff += renderDiff(relativePath, before, after);
+        }
+        const plan = {
+            schemaVersion: 1,
+            managedBy: MANAGED_BY,
+            projectRoot: canonicalProject,
+            disposition: inspection.disposition,
+            files,
         };
-        diff += renderDiff(relativePath, before, after);
+        const planPath = path.join(operation.root, `plan-${sha256(JSON.stringify(plan))}.json`);
+        fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
+        fs.chmodSync(planPath, 0o600);
+        return {
+            status: 'GO',
+            disposition: inspection.disposition,
+            candidates: inspection.candidates,
+            configuredPackages: inspection.configuredPackages,
+            checks: inspection.checks,
+            planPath,
+            diff,
+        };
+    } finally {
+        lock.release();
     }
-    const plan = {
-        schemaVersion: 1,
-        managedBy: MANAGED_BY,
-        projectRoot: canonicalProject,
-        disposition: inspection.disposition,
-        files,
-    };
-    const planPath = path.join(operation.root, 'plan.json');
-    fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
-    fs.chmodSync(planPath, 0o600);
-    return {
-        status: 'GO',
-        disposition: inspection.disposition,
-        candidates: inspection.candidates,
-        configuredPackages: inspection.configuredPackages,
-        checks: inspection.checks,
-        planPath,
-        diff,
-    };
 }
 
 function readPlan(operation, planPath, projectRoot) {
-    const expectedPlan = path.join(operation.root, 'plan.json');
-    if (typeof planPath !== 'string' || path.resolve(planPath) !== expectedPlan) {
+    if (
+        typeof planPath !== 'string' ||
+        path.dirname(path.resolve(planPath)) !== operation.root ||
+        !/^plan-[a-f0-9]{64}[.]json$/.test(path.basename(planPath))
+    ) {
         throw new Error('package-release plan path is invalid');
     }
+    const expectedPlan = path.resolve(planPath);
     const plan = readJsonObject(expectedPlan, 'package-release plan');
     if (
         Object.keys(plan).sort().join(',') !== 'disposition,files,managedBy,projectRoot,schemaVersion' ||
@@ -445,6 +466,9 @@ function readPlan(operation, planPath, projectRoot) {
         ) {
             throw new Error('package-release plan is invalid');
         }
+    }
+    if (path.basename(expectedPlan) !== `plan-${sha256(JSON.stringify(plan))}.json`) {
+        throw new Error('package-release plan is invalid');
     }
     return plan;
 }
@@ -514,7 +538,37 @@ function holdDirectory(projectRoot, directoryPath) {
     };
 }
 
-function writeAtomic(projectRoot, filePath, content, mode, rename = fs.renameSync, onMutation = () => {}) {
+function restoreHeldTarget(parent, targetPath, state, rename) {
+    if (state.content === null) {
+        fs.rmSync(targetPath, {force: true});
+        return;
+    }
+    const tempPath = `${targetPath}.restore-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let descriptor;
+    try {
+        descriptor = fs.openSync(tempPath, 'wx', state.mode);
+        fs.writeFileSync(descriptor, state.content);
+        fs.fsyncSync(descriptor);
+        fs.closeSync(descriptor);
+        descriptor = undefined;
+        fs.chmodSync(tempPath, state.mode);
+        rename(tempPath, targetPath);
+    } catch (error) {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        fs.rmSync(tempPath, {force: true});
+        throw error;
+    }
+}
+
+function writeAtomic(
+    projectRoot,
+    filePath,
+    content,
+    mode,
+    rename = fs.renameSync,
+    onMutation = () => {},
+    replacedState = {content: null, mode: null}
+) {
     const parent = holdDirectory(projectRoot, path.dirname(filePath));
     const tempName = `.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const tempPath = path.join(parent.anchor, tempName);
@@ -537,7 +591,7 @@ function writeAtomic(projectRoot, filePath, content, mode, rename = fs.renameSyn
     } catch (error) {
         if (descriptor !== undefined) fs.closeSync(descriptor);
         fs.rmSync(tempPath, {force: true});
-        if (renamed) fs.rmSync(targetPath, {force: true});
+        if (renamed) restoreHeldTarget(parent, targetPath, replacedState, rename);
         throw error;
     } finally {
         parent.close();
@@ -578,18 +632,14 @@ function removeEmptyCreatedDirectories(createdDirectories) {
 
 function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.renameSync}) {
     const canonicalProject = fs.realpathSync(projectRoot);
-    const lockPath = path.join(canonicalProject, '.pi', 'prism-tool', 'package-release.lock');
-    ensureDirectory(canonicalProject, path.join('.pi', 'prism-tool'));
-    let lockDescriptor;
-    let lockOwned = false;
+    let lock;
     let operation;
     const createdDirectories = [];
     const originals = new Map();
     const mutated = [];
     let durable = false;
     try {
-        lockDescriptor = fs.openSync(lockPath, 'wx', 0o600);
-        lockOwned = true;
+        lock = acquirePackageReleaseLock(canonicalProject);
         operation = readOwnedOperation(canonicalProject);
         if (!operation) throw new Error('package-release operation is missing');
         const plan = readPlan(operation, planPath, canonicalProject);
@@ -624,7 +674,8 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                 after,
                 original.mode ?? defaultMode,
                 rename,
-                () => mutated.push(relativePath)
+                () => mutated.push(relativePath),
+                original
             );
         }
         durable = true;
@@ -649,7 +700,18 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                     const targetPath = path.join(canonicalProject, relativePath);
                     const original = originals.get(relativePath);
                     if (original.content === null) removeManagedTarget(canonicalProject, targetPath);
-                    else writeAtomic(canonicalProject, targetPath, original.content, original.mode, rename);
+                    else {
+                        const replacedState = currentFileState(targetPath);
+                        writeAtomic(
+                            canonicalProject,
+                            targetPath,
+                            original.content,
+                            original.mode,
+                            rename,
+                            () => {},
+                            replacedState
+                        );
+                    }
                 } catch {
                     recoveryFailed = true;
                 }
@@ -680,8 +742,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             },
         };
     } finally {
-        if (lockDescriptor !== undefined) fs.closeSync(lockDescriptor);
-        if (lockOwned) fs.rmSync(lockPath, {force: true});
+        if (lock !== undefined) lock.release();
     }
 }
 
