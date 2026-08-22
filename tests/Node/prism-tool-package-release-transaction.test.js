@@ -85,6 +85,18 @@ test('classifies two absent managed release files as CREATE', (t) => {
     });
 });
 
+test('classifies a dangling managed release path as CONFLICT', (t) => {
+    const fixture = makeFixture(t);
+    const configPath = path.join(fixture.projectRoot, '.prism', 'release.json');
+    fs.mkdirSync(path.dirname(configPath), {recursive: true});
+    fs.symlinkSync('missing-release.json', configPath);
+
+    const result = inspectReleaseCapability(fixture);
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.disposition, 'CONFLICT');
+});
+
 test('classifies owned outdated, legacy, and mixed ownership states', (t) => {
     const updateFixture = makeFixture(t);
     installManagedFiles(
@@ -272,6 +284,27 @@ test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects target drift introduced between managed file replacements', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const configPath = path.join(fixture.projectRoot, '.prism', 'release.json');
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            fs.renameSync(source, destination);
+            renameCount += 1;
+            if (renameCount === 1) writeJson(configPath, {foreign: true});
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.deepEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), {foreign: true});
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
 });
 
 test('verifies the installed owned configuration and canonical workflow', (t) => {

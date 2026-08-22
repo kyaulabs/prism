@@ -23,6 +23,10 @@ function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+function fileEntry(filePath) {
+    return fs.lstatSync(filePath, {throwIfNoEntry: false});
+}
+
 function readRegularFile(filePath, label) {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_JSON_BYTES) {
@@ -213,8 +217,8 @@ function inspectReleaseCapability({
         'canonical release workflow'
     );
     const candidates = discoverReleasePackages({projectRoot: canonicalProject});
-    const configExists = fs.existsSync(configPath);
-    const workflowExists = fs.existsSync(workflowPath);
+    const configExists = fileEntry(configPath) !== undefined;
+    const workflowExists = fileEntry(workflowPath) !== undefined;
     if (!configExists && !workflowExists) {
         return {
             status: 'GO',
@@ -446,8 +450,8 @@ function readPlan(operation, planPath, projectRoot) {
 }
 
 function currentFileState(filePath) {
-    if (!fs.existsSync(filePath)) return {digest: 'absent', content: null, mode: null};
-    const stat = fs.lstatSync(filePath);
+    const stat = fileEntry(filePath);
+    if (stat === undefined) return {digest: 'absent', content: null, mode: null};
     if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('managed release target is invalid');
     const content = fs.readFileSync(filePath);
     return {digest: sha256(content), content, mode: stat.mode & 0o777};
@@ -532,6 +536,9 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
         for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
             ensureTargetParent(canonicalProject, relativePath, createdDirectories);
             const targetPath = path.join(canonicalProject, relativePath);
+            if (currentFileState(targetPath).digest !== plan.files[relativePath].before) {
+                throw new Error('package-release plan is stale');
+            }
             const after = readRegularFile(
                 path.join(operation.root, 'after', relativePath),
                 'planned release file'
