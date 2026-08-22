@@ -172,10 +172,13 @@ jobs:
           : > .prism-package-tags.tsv
           : > .prism-package-prefixes
           packages=""
-          if [ ! -e "$config_file" ]; then
+          if [ -L "$config_file" ]; then
+            echo "::error::$config_file must be a regular non-symlink file" >&2
+            exit 1
+          elif [ ! -e "$config_file" ]; then
             echo "no $config_file; repository-only release"
           else
-            if [ -L "$config_file" ] || [ ! -f "$config_file" ]; then
+            if [ ! -f "$config_file" ]; then
               echo "::error::$config_file must be a regular non-symlink file" >&2
               exit 1
             fi
@@ -193,6 +196,10 @@ jobs:
               case "$pkg" in
                 ""|/*|../*|*/../*|*/..|./*|*" "*) echo "::error::invalid package path '$pkg'" >&2; exit 1 ;;
               esac
+              if printf '%s' "$pkg" | LC_ALL=C grep -q '[[:space:][:cntrl:]]'; then
+                echo "::error::invalid package path '$pkg'" >&2
+                exit 1
+              fi
               if ! canonical_pkg=$(realpath -e -- "$pkg" 2>/dev/null); then
                 echo "::error::package path '$pkg' does not exist" >&2
                 exit 1
@@ -216,6 +223,10 @@ jobs:
               case "$name" in
                 ""|*" "*) echo "::error::package '$pkg' has no usable name" >&2; exit 1 ;;
               esac
+              if printf '%s' "$name" | LC_ALL=C grep -q '[[:space:][:cntrl:]]'; then
+                echo "::error::package '$pkg' has no usable name" >&2
+                exit 1
+              fi
               if [ "$ver" != "$VERSION" ]; then
                 echo "::error::package '$pkg' version '$ver' does not equal repository version '$VERSION'" >&2
                 exit 1

@@ -587,6 +587,19 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "non-string package configuration entries are rejected by schema validation"
 	fi
 
+	tab_package=$'packages/tab\tpkg'
+	mkdir -p "$package_sim/$tab_package"
+	printf '%s\n' '{"name":"@fixture/tabbed","version":"1.2.3"}' > "$package_sim/$tab_package/package.json"
+	node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({schemaVersion:1,managedBy:"@kyaulabs/prism-core",versionPolicy:"lockstep",packages:["packages/tab\tpkg"]})+"\n")' "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "control character in package path was accepted"
+	else
+		pass "control characters in package paths are rejected before TSV serialization"
+	fi
+
 	rm "$package_sim/.prism/release.json"
 	printf 'reviewed notes\n' > "$package_sim/body.md"
 	if (
@@ -598,6 +611,17 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	else
 		fail "absent configuration did not remain repository-only"
 	fi
+
+	ln -s missing-release.json "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "dangling release configuration symlink was treated as absent"
+	else
+		pass "dangling release configuration symlink is rejected"
+	fi
+	rm "$package_sim/.prism/release.json"
 else
 	fail "could not extract package metadata preparation block"
 fi
