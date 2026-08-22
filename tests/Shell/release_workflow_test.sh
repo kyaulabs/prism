@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -56,6 +56,18 @@ if [ ! -e "$MANIFEST" ]; then
 	pass "retired quality-surface.manifest is absent"
 else
 	fail "quality-surface.manifest should be retired"
+fi
+
+# ── 1b. Workflow is syntactically valid YAML ────────────────────────────────
+
+if node -e '
+	const fs = require("node:fs");
+	const yaml = require("js-yaml");
+	yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+' "$RELEASE_FILE" >/dev/null 2>&1; then
+	pass "release.yml is syntactically valid YAML"
+else
+	fail "release.yml is not syntactically valid YAML"
 fi
 
 # ── 2. pull_request closed/main + workflow_dispatch trigger ──────────────────
