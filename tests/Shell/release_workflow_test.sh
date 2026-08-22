@@ -600,6 +600,17 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "control characters in package paths are rejected before TSV serialization"
 	fi
 
+	printf '%s\n' '{"name":"@fixture/bad..tag","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
+	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "invalid Git package tag prefix was accepted"
+	else
+		pass "invalid Git package tag prefixes are rejected before publication"
+	fi
+
 	rm "$package_sim/.prism/release.json"
 	printf 'reviewed notes\n' > "$package_sim/body.md"
 	if (
@@ -652,7 +663,7 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 	if (
 		cd "$tag_sim" || exit 1
 		PATH="$tag_sim/bin:$PATH" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
-	) && grep -qF 'git/refs' "$tag_sim/gh.log"; then
+	) && grep -qF "api -X POST repos/fixture/repo/git/refs -f ref=refs/tags/example@1.2.3 -f sha=$merge_sha" "$tag_sim/gh.log"; then
 		pass "absent package tag is created at the merge SHA"
 	else
 		fail "absent package tag was not created"

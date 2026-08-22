@@ -232,6 +232,10 @@ jobs:
                 exit 1
               fi
               prefix=${name#*/}
+              if ! git check-ref-format "refs/tags/${prefix}@${ver}"; then
+                echo "::error::package '$pkg' produces an invalid tag" >&2
+                exit 1
+              fi
               if grep -qxF "$prefix" .prism-package-prefixes; then
                 echo "::error::duplicate package tag prefix '$prefix'" >&2
                 exit 1
