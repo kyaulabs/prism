@@ -4,7 +4,9 @@ Date: 2026-08-15
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by ADR-0079.
 
 Supersedes the publication-state clause of ADR-0046 for package tagging and
 extends the automated release pipeline (ADR-0046) with per-package npm

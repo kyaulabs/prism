@@ -63,7 +63,10 @@ documentation, and conversation.
 | learning state | Privacy-minimal, worktree-local progress evidence written only by explicit learning actions and never read by normal development workflows. |
 | mastery | A topic's evidence state: unseen, in progress, learned against the current content digest, or stale after relevant evidence changes. |
 | contributor curriculum overlay | The technical-only, repository-owned Prism curriculum that extends the project technical graph without adding another learning engine, command, or skill. |
-| package release | A release event that publishes the repo's GitHub Release and bumps the declared release-managed npm packages (`.prism/release.json`) to independently computed versions, tagging each; `npm publish` remains a human-run step. |
+| package-release capability | The Core-owned, setup-managed combination of owned release configuration, canonical workflow, lockstep package authoring, package tags, recovery behavior, and human-run npm publication handoff. |
+| release-managed package | A publishable npm package whose validated relative directory appears in the owned release configuration and whose version matches the repository release. |
+| owned release file | A release configuration or workflow carrying the supported Prism Core ownership and schema marker, which `/setup` may update only through an approved displayed transaction. |
+| package release | A repository release event that publishes the GitHub Release and gives every release-managed package the same version, including prereleases; `npm publish` remains a human-run step. |
 | tracker operator | The least-privilege workflow that performs approved GitHub issue, label, field, and blocking-edge operations for ticketing. External tracker content remains untrusted data. |
 
 ## Entities & Invariants
@@ -82,6 +85,8 @@ The globally installed, language-agnostic harness package.
   repository-seed attestation, and signed root-commit orchestration.
 - Owns privacy-minimal global standing-consent state through narrow,
   explicitly approved launcher operations.
+- Owns the opt-in package-release capability, canonical release workflow,
+  managed release-file transaction, and lockstep npm package semantics.
 - Never configures a remote, pushes a branch, merges a pull request, or
   accesses credentials.
 
@@ -165,6 +170,26 @@ The Core-owned local Git and root-seed lifecycle selected through `/setup`.
   reserved initial-seed type and retains fatal failure recovery.
 - Setup never configures a remote, pushes, opens a pull request, or applies a
   GitHub ruleset.
+
+### Package-Release Capability
+
+The opt-in Core-owned release lifecycle for repositories publishing npm packages.
+
+- Setup discovers only the publishable root package and packages reachable
+  through declared npm workspaces; private, malformed, duplicate, escaping,
+  or ownership-ambiguous candidates never become release-managed.
+- The capability is installed only when both owned release files are created,
+  updated, or migrated through one approved, atomic, verified transaction.
+- Repositories without managed release configuration remain repository-only
+  and receive no package bumps, package tags, or npm publication commands.
+- Every release-managed package version equals the repository release version,
+  including prereleases, in the reviewed merge commit.
+- CI publishes or recovers the repository tag and GitHub Release before it
+  creates or verifies package tags at the immutable merge SHA.
+- Validated release merges remain eligible for a human-merged back-merge PR
+  even when publication or package-tag reconciliation fails.
+- npm authentication, OTP handling, and publication remain human-owned; agents
+  and CI hold no npm credentials and never run `npm publish`.
 
 ### Safety Policy
 
@@ -334,7 +359,7 @@ Pi-era decisions:
 - `adr/0061-scope-owned-toolchain-contract.md` — superseded scope-owned toolchain baseline retained as historical context.
 - `adr/0062-bounded-ocr-compatibility.md` — superseded bounded-OCR policy retained as historical context.
 - `adr/0063-bounded-external-tool-compatibility.md` — retain exact managed tools while allowing bounded compatible Semgrep and OCR 1.x releases.
-- `adr/0066-per-package-release-versions.md` — release-managed npm packages version independently, tagged from the merge result.
+- `adr/0066-per-package-release-versions.md` — superseded independent package-version policy retained as historical context.
 - `adr/0067-model-agnostic-harness-user-driven-model-config.md` — the harness selects no model or thinking level; `/setup` writes only the user's choices; commit footers record passively.
 - `adr/0069-reload-recovery-for-denial-circuit-breaker.md` — a tripped safety extension recovers through user-invoked `/reload` without replacing the conversation; ADR-0068 still owns window and threshold semantics.
 - `adr/0070-launcher-owned-workflow-mechanics.md` — fixed prompt workflow mechanics that exceed the safety tokenizer run through narrow, audited `prism-tool` operations.
@@ -346,6 +371,7 @@ Pi-era decisions:
 - `adr/0076-bounded-setup-network-authorization.md` — treat `/setup` invocation as one bounded dependency-network authorization while retaining separate mutation and external-effect boundaries.
 - `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — let Core create only an absent deterministic repository and one attested signed root seed without publication.
 - `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
+- `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
 
 ## When to update this file
 
