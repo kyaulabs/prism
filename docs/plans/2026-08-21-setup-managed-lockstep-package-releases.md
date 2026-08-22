@@ -267,7 +267,7 @@ prism-tool commit create --type feat --scope setup --subject "plan managed packa
   - `prism-tool package-release apply --plan=PATH --approval=yes [--json]`
   - `prism-tool package-release verify [--json]`
 
-- [ ] **Step 1: Extend failing tests for approval, drift, lock, rollback, apply, and verify**
+- [x] **Step 1: Extend failing tests for approval, drift, lock, rollback, apply, and verify**
 
 Add assertions that:
 
@@ -278,13 +278,13 @@ assert.equal(runCount, 0);
 
 Cover non-literal approval, arbitrary plan path, marker substitution, plan digest drift, target drift, concurrent lock refusal, failure on first and second rename, rollback of absent/existing files and newly created empty parent directories, successful `CREATE`/`UPDATE`/`MIGRATE`, exact mode preservation (`0600` for new config and `0644` for new workflow), operation cleanup, and final verification rejecting schema/workflow parity drift.
 
-- [ ] **Step 2: Run transaction tests and confirm Red**
+- [x] **Step 2: Run transaction tests and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
 Expected: FAIL because apply/verify and CLI dispatch do not exist.
 
-- [ ] **Step 3: Implement the mutation boundary**
+- [x] **Step 3: Implement the mutation boundary**
 
 Acquire `.pi/prism-tool/package-release.lock` with `openSync(..., 'wx', 0o600)`. Re-read and validate the ownership marker, canonical project root, exact plan path, plan schema, before digests, and after digests before the first write. Prepare same-directory temporary files with `wx`, `fsyncSync`, canonical modes, and final `renameSync`.
 
@@ -292,7 +292,7 @@ Apply workflow first and configuration second; configuration publication is the 
 
 Add CLI report construction with schema version 1 and exit codes `OK`, `USAGE`, `TOOL`, and `TRANSACTION`. Apply must reject any approval other than exact `--approval=yes` before reading an arbitrary plan path. These local operations perform no registry or GitHub access.
 
-- [ ] **Step 4: Run focused and existing launcher suites**
+- [x] **Step 4: Run focused and existing launcher suites**
 
 Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js`
 
@@ -302,7 +302,7 @@ Run: `node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-
 
 Expected: PASS with no adapter setup regression.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/package-release.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-package-release-transaction.test.js

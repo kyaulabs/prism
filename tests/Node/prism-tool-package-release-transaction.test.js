@@ -6,10 +6,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
+    applyReleaseCapability,
     inspectReleaseCapability,
     planReleaseCapability,
     sha256,
+    verifyReleaseCapability,
 } = require('../../packages/prism-core/scripts/prism-tool/package-release');
 const {makeTempDir, writeJson, writePackageJson} = require('./helpers');
 
@@ -17,6 +20,27 @@ const CANONICAL_WORKFLOW = `# prism-managed: @kyaulabs/prism-core
 # prism-release-schema: 1
 name: Release
 `;
+
+function captureWrites(action) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => {
+        stdout += chunk;
+        return true;
+    };
+    process.stderr.write = (chunk) => {
+        stderr += chunk;
+        return true;
+    };
+    try {
+        return {status: action(), stdout, stderr};
+    } finally {
+        process.stdout.write = stdoutWrite;
+        process.stderr.write = stderrWrite;
+    }
+}
 
 function makeFixture(t) {
     const root = makeTempDir();
@@ -160,6 +184,171 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
     }
 });
 
+test('rejects non-literal package-release mutation approval before changing files', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+
+    const result = captureWrites(() => main([
+        'package-release',
+        'apply',
+        `--plan=${plan.planPath}`,
+        '--approval=no',
+    ], fixture));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /mutation approval required/);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+});
+
+test('applies a CREATE plan and installs both canonical owned files', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'GO');
+    assert.deepEqual(result.checks, [
+        {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
+    ]);
+    assert.equal(
+        fs.readFileSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml'), 'utf8'),
+        CANONICAL_WORKFLOW
+    );
+    assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'), 'utf8')),
+        {
+            schemaVersion: 1,
+            managedBy: '@kyaulabs/prism-core',
+            versionPolicy: 'lockstep',
+            packages: ['.'],
+        }
+    );
+    assert.equal(
+        fs.statSync(path.join(fixture.projectRoot, '.prism', 'release.json')).mode & 0o777,
+        0o600
+    );
+    assert.equal(
+        fs.statSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')).mode & 0o777,
+        0o644
+    );
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), false);
+});
+
+test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 2) throw new Error('fixture rename failure');
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('verifies the installed owned configuration and canonical workflow', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    assert.equal(applyReleaseCapability({...fixture, planPath: plan.planPath}).status, 'GO');
+
+    assert.deepEqual(verifyReleaseCapability(fixture), {
+        status: 'GO',
+        checks: [
+            {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
+        ],
+        data: {packages: ['.']},
+    });
+});
+
+test('dispatches inspect, plan, approved apply, and verify as stable JSON reports', (t) => {
+    const fixture = makeFixture(t);
+    const inspect = captureWrites(() => main(['package-release', 'inspect', '--json'], fixture));
+    assert.equal(inspect.status, 0);
+    assert.equal(JSON.parse(inspect.stdout).disposition, 'CREATE');
+
+    const planned = captureWrites(() => main(['package-release', 'plan', '--json'], fixture));
+    assert.equal(planned.status, 0);
+    const planReport = JSON.parse(planned.stdout);
+    assert.equal(planReport.disposition, 'CREATE');
+
+    const applied = captureWrites(() => main([
+        'package-release',
+        'apply',
+        `--plan=${planReport.planPath}`,
+        '--approval=yes',
+        '--json',
+    ], fixture));
+    assert.equal(applied.status, 0);
+    assert.equal(JSON.parse(applied.stdout).status, 'GO');
+
+    const verified = captureWrites(() => main(['package-release', 'verify', '--json'], fixture));
+    assert.equal(verified.status, 0);
+    assert.deepEqual(JSON.parse(verified.stdout).data.packages, ['.']);
+});
+
+test('rejects plan drift and preserves an ownership-ambiguous operation marker', (t) => {
+    const staleFixture = makeFixture(t);
+    const stalePlan = planReleaseCapability(staleFixture);
+    writeJson(path.join(staleFixture.projectRoot, '.prism', 'release.json'), {foreign: true});
+    const staleResult = applyReleaseCapability({...staleFixture, planPath: stalePlan.planPath});
+    assert.equal(staleResult.status, 'NO-GO');
+    assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(staleFixture.projectRoot, '.prism', 'release.json'), 'utf8')),
+        {foreign: true}
+    );
+    assert.equal(fs.existsSync(path.join(staleFixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+
+    const markerFixture = makeFixture(t);
+    const markerPlan = planReleaseCapability(markerFixture);
+    const operationRoot = path.dirname(markerPlan.planPath);
+    writeJson(path.join(operationRoot, '.prism-package-release.json'), {
+        schemaVersion: 1,
+        managedBy: '@fixture/other',
+        projectRoot: fs.realpathSync(markerFixture.projectRoot),
+    });
+    const markerResult = applyReleaseCapability({...markerFixture, planPath: markerPlan.planPath});
+    assert.equal(markerResult.status, 'NO-GO');
+    assert.equal(fs.existsSync(operationRoot), true);
+    assert.equal(fs.existsSync(path.join(markerFixture.projectRoot, '.prism', 'release.json')), false);
+});
+
+test('reports verification drift without repairing managed files', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    assert.equal(applyReleaseCapability({...fixture, planPath: plan.planPath}).status, 'GO');
+    fs.appendFileSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml'), '# drift\n');
+
+    const result = verifyReleaseCapability(fixture);
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'UPDATE');
+});
+
+test('refuses a concurrent package-release lock without removing it', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
+    fs.writeFileSync(lockPath, 'concurrent\n', {flag: 'wx', mode: 0o600});
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'concurrent\n');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+});
+
 test('records existing file digests in UPDATE plans without changing target bytes', (t) => {
     const fixture = makeFixture(t);
     installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
@@ -167,6 +356,8 @@ test('records existing file digests in UPDATE plans without changing target byte
     const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
     const originalConfig = fs.readFileSync(configPath);
     const originalWorkflow = fs.readFileSync(workflowPath);
+    fs.chmodSync(configPath, 0o640);
+    fs.chmodSync(workflowPath, 0o660);
 
     const result = planReleaseCapability(fixture);
     const plan = JSON.parse(fs.readFileSync(result.planPath, 'utf8'));
@@ -176,6 +367,9 @@ test('records existing file digests in UPDATE plans without changing target byte
     assert.match(plan.files['.github/workflows/release.yml'].before, /^[a-f0-9]{64}$/);
     assert.deepEqual(fs.readFileSync(configPath), originalConfig);
     assert.deepEqual(fs.readFileSync(workflowPath), originalWorkflow);
+    assert.equal(applyReleaseCapability({...fixture, planPath: result.planPath}).status, 'GO');
+    assert.equal(fs.statSync(configPath).mode & 0o777, 0o640);
+    assert.equal(fs.statSync(workflowPath).mode & 0o777, 0o660);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

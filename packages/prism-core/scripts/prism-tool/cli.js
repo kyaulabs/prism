@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -12,6 +12,12 @@ const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {codeReviewCommand} = require('./code-review');
+const {
+    applyReleaseCapability,
+    inspectReleaseCapability,
+    planReleaseCapability,
+    verifyReleaseCapability,
+} = require('./package-release');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
@@ -648,6 +654,94 @@ function runDeclaredTool(args, context) {
     return result.status === 0 ? EXIT.OK : EXIT.TOOL;
 }
 
+function renderPackageReleaseReport(report, json) {
+    if (json) {
+        process.stdout.write(`${JSON.stringify(report)}\n`);
+        return;
+    }
+    for (const check of report.checks ?? []) {
+        process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+    }
+    if (report.disposition) process.stdout.write(`disposition\t${report.disposition}\n`);
+    process.stdout.write(`${report.status}\n`);
+}
+
+function packageReleaseRoots(context) {
+    return {
+        projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+    };
+}
+
+function parseJsonControl(controls) {
+    const jsonCount = controls.filter((argument) => argument === '--json').length;
+    if (jsonCount > 1) throw new Error('invalid JSON control');
+    return jsonCount === 1;
+}
+
+function packageReleaseCommand(args, context) {
+    const [operation, ...controls] = args;
+    let json;
+    try {
+        json = parseJsonControl(controls);
+    } catch {
+        process.stderr.write('usage: prism-tool package-release inspect|plan|apply|verify [controls]\n');
+        return EXIT.USAGE;
+    }
+    const roots = packageReleaseRoots(context);
+    if (operation === 'inspect' || operation === 'plan' || operation === 'verify') {
+        if (controls.some((argument) => argument !== '--json')) {
+            process.stderr.write(`usage: prism-tool package-release ${operation} [--json]\n`);
+            return EXIT.USAGE;
+        }
+        let result;
+        try {
+            if (operation === 'inspect') result = inspectReleaseCapability(roots);
+            else if (operation === 'plan') result = planReleaseCapability(roots);
+            else result = verifyReleaseCapability(roots);
+        } catch {
+            process.stderr.write('prism-tool: package-release operation failed\n');
+            return EXIT.TOOL;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: `package-release ${operation}`,
+            ...result,
+        };
+        renderPackageReleaseReport(report, json);
+        return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    if (operation === 'apply') {
+        const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+        if (approvals.length !== 1 || approvals[0] !== '--approval=yes') {
+            process.stderr.write('prism-tool: mutation approval required\n');
+            return EXIT.USAGE;
+        }
+        const plans = controls.filter((argument) => argument.startsWith('--plan='));
+        if (
+            plans.length !== 1 ||
+            plans[0].length === '--plan='.length ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--approval=') &&
+                !argument.startsWith('--plan=')
+            )
+        ) {
+            process.stderr.write('usage: prism-tool package-release apply --plan=PATH [--json] --approval=yes\n');
+            return EXIT.USAGE;
+        }
+        const result = applyReleaseCapability({
+            ...roots,
+            planPath: plans[0].slice('--plan='.length),
+        });
+        const report = {schemaVersion: 1, command: 'package-release apply', ...result};
+        renderPackageReleaseReport(report, json);
+        return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    process.stderr.write('usage: prism-tool package-release inspect|plan|apply|verify [controls]\n');
+    return EXIT.USAGE;
+}
+
 function main(argv, context = {}) {
     const [command, ...args] = argv;
     if (command === 'run') return runDeclaredTool(args, context);
@@ -658,6 +752,7 @@ function main(argv, context = {}) {
     if (command === 'commit') return commitCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
     if (command === 'code-review') return codeReviewCommand(args, context);
+    if (command === 'package-release') return packageReleaseCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }

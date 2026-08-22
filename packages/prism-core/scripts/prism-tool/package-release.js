@@ -410,6 +410,208 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
     };
 }
 
+function readPlan(operation, planPath, projectRoot) {
+    const expectedPlan = path.join(operation.root, 'plan.json');
+    if (typeof planPath !== 'string' || path.resolve(planPath) !== expectedPlan) {
+        throw new Error('package-release plan path is invalid');
+    }
+    const plan = readJsonObject(expectedPlan, 'package-release plan');
+    if (
+        Object.keys(plan).sort().join(',') !== 'disposition,files,managedBy,projectRoot,schemaVersion' ||
+        plan.schemaVersion !== 1 ||
+        plan.managedBy !== MANAGED_BY ||
+        plan.projectRoot !== projectRoot ||
+        !['CREATE', 'UPDATE', 'MIGRATE'].includes(plan.disposition) ||
+        plan.files === null ||
+        typeof plan.files !== 'object' ||
+        Array.isArray(plan.files) ||
+        Object.keys(plan.files).sort().join(',') !== [CONFIG_PATH, WORKFLOW_PATH].sort().join(',')
+    ) {
+        throw new Error('package-release plan is invalid');
+    }
+    for (const relativePath of [CONFIG_PATH, WORKFLOW_PATH]) {
+        const record = plan.files[relativePath];
+        if (
+            record === null ||
+            typeof record !== 'object' ||
+            Array.isArray(record) ||
+            Object.keys(record).sort().join(',') !== 'after,before' ||
+            (record.before !== 'absent' && !/^[a-f0-9]{64}$/.test(record.before)) ||
+            !/^[a-f0-9]{64}$/.test(record.after)
+        ) {
+            throw new Error('package-release plan is invalid');
+        }
+    }
+    return plan;
+}
+
+function currentFileState(filePath) {
+    if (!fs.existsSync(filePath)) return {digest: 'absent', content: null, mode: null};
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('managed release target is invalid');
+    const content = fs.readFileSync(filePath);
+    return {digest: sha256(content), content, mode: stat.mode & 0o777};
+}
+
+function writeAtomic(filePath, content, mode, rename = fs.renameSync) {
+    const tempPath = path.join(
+        path.dirname(filePath),
+        `.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    );
+    let descriptor;
+    try {
+        descriptor = fs.openSync(tempPath, 'wx', mode);
+        fs.writeFileSync(descriptor, content);
+        fs.fsyncSync(descriptor);
+        fs.closeSync(descriptor);
+        descriptor = undefined;
+        fs.chmodSync(tempPath, mode);
+        rename(tempPath, filePath);
+    } catch (error) {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        fs.rmSync(tempPath, {force: true});
+        throw error;
+    }
+}
+
+function ensureTargetParent(projectRoot, relativePath, createdDirectories) {
+    let current = projectRoot;
+    for (const segment of path.dirname(relativePath).split('/')) {
+        current = path.join(current, segment);
+        if (fs.existsSync(current)) {
+            const stat = fs.lstatSync(current);
+            if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('managed release parent is invalid');
+            continue;
+        }
+        fs.mkdirSync(current, {mode: 0o755});
+        fs.chmodSync(current, 0o755);
+        createdDirectories.push(current);
+    }
+}
+
+function removeEmptyCreatedDirectories(createdDirectories) {
+    for (const directory of [...createdDirectories].reverse()) {
+        try {
+            if (fs.readdirSync(directory).length === 0) fs.rmdirSync(directory);
+        } catch {
+            return;
+        }
+    }
+}
+
+function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.renameSync}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    const lockPath = path.join(canonicalProject, '.pi', 'prism-tool', 'package-release.lock');
+    ensureDirectory(canonicalProject, path.join('.pi', 'prism-tool'));
+    let lockDescriptor;
+    let lockOwned = false;
+    let operation;
+    const createdDirectories = [];
+    const originals = new Map();
+    const mutated = [];
+    let durable = false;
+    try {
+        lockDescriptor = fs.openSync(lockPath, 'wx', 0o600);
+        lockOwned = true;
+        operation = readOwnedOperation(canonicalProject);
+        if (!operation) throw new Error('package-release operation is missing');
+        const plan = readPlan(operation, planPath, canonicalProject);
+        for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+            const targetPath = path.join(canonicalProject, relativePath);
+            const state = currentFileState(targetPath);
+            if (state.digest !== plan.files[relativePath].before) {
+                throw new Error('package-release plan is stale');
+            }
+            const afterPath = path.join(operation.root, 'after', relativePath);
+            const after = readRegularFile(afterPath, 'planned release file');
+            if (sha256(after) !== plan.files[relativePath].after) {
+                throw new Error('package-release plan is invalid');
+            }
+            originals.set(relativePath, state);
+        }
+        for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+            ensureTargetParent(canonicalProject, relativePath, createdDirectories);
+            const targetPath = path.join(canonicalProject, relativePath);
+            const after = readRegularFile(
+                path.join(operation.root, 'after', relativePath),
+                'planned release file'
+            );
+            const original = originals.get(relativePath);
+            const defaultMode = relativePath === CONFIG_PATH ? 0o600 : 0o644;
+            writeAtomic(targetPath, after, original.mode ?? defaultMode, rename);
+            mutated.push(relativePath);
+        }
+        durable = true;
+        const verification = inspectReleaseCapability({projectRoot: canonicalProject, coreRoot});
+        if (verification.disposition !== 'UNCHANGED') {
+            throw new Error('package-release verification failed');
+        }
+        recoverOwnedOperation(canonicalProject);
+        operation = null;
+        return {
+            status: 'GO',
+            checks: [
+                {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
+            ],
+            data: {disposition: plan.disposition},
+        };
+    } catch {
+        if (!durable) {
+            for (const relativePath of [...mutated].reverse()) {
+                const targetPath = path.join(canonicalProject, relativePath);
+                const original = originals.get(relativePath);
+                if (original.content === null) fs.rmSync(targetPath, {force: true});
+                else writeAtomic(targetPath, original.content, original.mode, rename);
+            }
+            removeEmptyCreatedDirectories(createdDirectories);
+        }
+        if (operation) recoverOwnedOperation(canonicalProject);
+        return {
+            status: 'NO-GO',
+            checks: [
+                {id: 'package-release-application', status: 'FAIL', message: 'managed release files were not applied'},
+            ],
+            data: {
+                reason: durable ? 'verification failure' : 'transaction failure',
+                recovery: durable ? 'prism-tool package-release verify' : undefined,
+            },
+        };
+    } finally {
+        if (lockDescriptor !== undefined) fs.closeSync(lockDescriptor);
+        if (lockOwned) fs.rmSync(lockPath, {force: true});
+    }
+}
+
+function verifyReleaseCapability({projectRoot, coreRoot}) {
+    try {
+        const inspection = inspectReleaseCapability({projectRoot, coreRoot});
+        if (inspection.disposition !== 'UNCHANGED') {
+            return {
+                status: 'NO-GO',
+                checks: [
+                    {id: 'package-release-verification', status: 'FAIL', message: 'managed release files are not current'},
+                ],
+                data: {reason: inspection.disposition},
+            };
+        }
+        return {
+            status: 'GO',
+            checks: [
+                {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
+            ],
+            data: {packages: inspection.configuredPackages},
+        };
+    } catch {
+        return {
+            status: 'NO-GO',
+            checks: [
+                {id: 'package-release-verification', status: 'FAIL', message: 'managed release files are invalid'},
+            ],
+            data: {reason: 'verification failure'},
+        };
+    }
+}
+
 function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
     const canonicalRoot = fs.realpathSync(projectRoot);
     const rootManifest = readJsonObject(path.join(canonicalRoot, 'package.json'), 'root package manifest');
@@ -451,6 +653,7 @@ module.exports = {
     WORKFLOW_MARKER,
     WORKFLOW_PATH,
     WORKFLOW_SCHEMA_MARKER,
+    applyReleaseCapability,
     discoverReleasePackages,
     inspectReleaseCapability,
     loadReleaseConfiguration,
@@ -459,6 +662,7 @@ module.exports = {
     renderManagedConfiguration,
     sha256,
     validateConfiguredPackages,
+    verifyReleaseCapability,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
