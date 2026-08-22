@@ -58,7 +58,7 @@
 - Produces: `loadReleaseConfiguration({projectRoot, allowLegacy?: boolean}) -> {kind: 'ABSENT'|'MANAGED'|'LEGACY', packages: string[]}`.
 - Produces: `validateConfiguredPackages({projectRoot, packagePaths}) -> Array<{name, path, version, tagPrefix}>`.
 
-- [ ] **Step 1: Write failing table-driven discovery tests**
+- [x] **Step 1: Write failing table-driven discovery tests**
 
 Add fixture helpers that write manifests with regular-file modes, then cover root-first ordering, both workspace declaration shapes, lexical workspace ordering, private exclusion, undeclared-directory exclusion, invalid root JSON, unsupported workspace shape, invalid package name/version, duplicate canonical target, duplicate tag prefix, missing manifest, traversal pattern, and symlink package/escape rejection.
 
@@ -108,13 +108,13 @@ test('excludes private packages but rejects a private configured package', (t) =
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-package-release-discovery.test.js`
 
 Expected: FAIL because `package-release.js` and its exports do not exist.
 
-- [ ] **Step 3: Implement bounded JSON, workspace, path, package, and configuration validation**
+- [x] **Step 3: Implement bounded JSON, workspace, path, package, and configuration validation**
 
 Implement with no dependency and these exact constants/exports:
 
@@ -160,13 +160,13 @@ Use `fs.globSync(`${pattern.replace(/\/$/, '')}/package.json`, {cwd: canonicalRo
 
 Export the public functions plus `MANAGED_BY`, `RELEASE_SCHEMA_VERSION`, and a `sha256(value)` helper for the transaction tests.
 
-- [ ] **Step 4: Run discovery tests and refactor diagnostics**
+- [x] **Step 4: Run discovery tests and refactor diagnostics**
 
 Run: `node --test tests/Node/prism-tool-package-release-discovery.test.js`
 
 Expected: PASS, with errors naming only the invalid package path/category and never manifest contents.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/package-release.js tests/Node/prism-tool-package-release-discovery.test.js tests/Node/helpers.js
