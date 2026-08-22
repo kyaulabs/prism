@@ -179,8 +179,8 @@ jobs:
               echo "::error::$config_file must be a regular non-symlink file" >&2
               exit 1
             fi
-            managed='type == "object" and (keys | sort) == ["managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0)'
-            legacy='type == "object" and keys == ["packages"] and (.packages | type == "array" and length > 0)'
+            managed='type == "object" and (keys | sort) == ["managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0 and all(.[]; type == "string"))'
+            legacy='type == "object" and keys == ["packages"] and (.packages | type == "array" and length > 0 and all(.[]; type == "string"))'
             if jq -e "$managed" "$config_file" >/dev/null 2>&1; then
               :
             elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && jq -e "$legacy" "$config_file" >/dev/null 2>&1; then
@@ -234,7 +234,37 @@ jobs:
             done < .prism-package-tags.tsv
           fi
           if [ -n "$packages" ]; then
-            printf '\n### 📦 Packages\n\n%s\n' "$packages" >> body.md
+            printf '\n### 📦 Packages\n\n%s\n' "$packages" > .prism-package-notes.md
+            RELEASE_BODY_BUDGET=120000
+            body_bytes=$(wc -c < body.md)
+            package_bytes=$(wc -c < .prism-package-notes.md)
+            if [ $((body_bytes + package_bytes)) -gt "$RELEASE_BODY_BUDGET" ]; then
+              footer=$(printf '\n\n%s' "...truncated at GitHub's 125,000-character release-body limit. Full changelog attached as full-changelog-v${VERSION}.md, and in CHANGELOG.md.")
+              footer_bytes=$(printf '%s' "$footer" | wc -c)
+              keep_budget=$((RELEASE_BODY_BUDGET - package_bytes - footer_bytes))
+              if [ "$keep_budget" -lt 0 ]; then
+                echo "::error::package release notes exceed the release-body budget" >&2
+                exit 1
+              fi
+              tail -n +2 notes.md > .prism-package-body-source.md
+              : > body_capped.md
+              size=0
+              while IFS= read -r line; do
+                line_bytes=$(printf '%s\n' "$line" | wc -c)
+                if [ $((size + line_bytes)) -le "$keep_budget" ]; then
+                  printf '%s\n' "$line" >> body_capped.md
+                  size=$((size + line_bytes))
+                else
+                  break
+                fi
+              done < .prism-package-body-source.md
+              printf '%s\n' "$footer" >> body_capped.md
+              cat .prism-package-notes.md >> body_capped.md
+              mv body_capped.md body.md
+              echo "RELEASE_BODY_TRUNCATED=yes" >> "${GITHUB_ENV:-/dev/null}"
+            else
+              cat .prism-package-notes.md >> body.md
+            fi
           fi
 
       - name: Publish release

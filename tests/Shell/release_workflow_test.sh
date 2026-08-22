@@ -518,6 +518,24 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		fail "schema-v1 package metadata preparation failed"
 	fi
 
+	node -e 'process.stdout.write("x".repeat(119980) + "\n")' > "$package_sim/body.md"
+	{
+		printf '## [1.2.3]\n'
+		cat "$package_sim/body.md"
+	} > "$package_sim/notes.md"
+	: > "$package_sim/github-env"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request GITHUB_ENV="$package_sim/github-env" bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && [ "$(wc -c < "$package_sim/body.md")" -le 120000 ] && \
+	   grep -qF '### 📦 Packages' "$package_sim/body.md" && \
+	   grep -qF 'Full changelog attached' "$package_sim/body.md"; then
+		pass "package metadata remains inside the capped release body"
+	else
+		fail "package metadata can push the release body beyond its cap"
+	fi
+
+	printf 'reviewed notes\n' > "$package_sim/body.md"
 	printf '%s\n' '{"name":"@fixture/example","version":"1.2.2"}' > "$package_sim/packages/example/package.json"
 	if (
 		cd "$package_sim" || exit 1
@@ -557,11 +575,25 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "malformed or unowned package configuration is rejected"
 	fi
 
-	rm "$package_sim/.prism/release.json"
+	mkdir -p "$package_sim/1"
+	printf '%s\n' '{"name":"@fixture/numeric","version":"1.2.3"}' > "$package_sim/1/package.json"
+	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[1]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
-	) && [ ! -s "$package_sim/.prism-package-tags.tsv" ]; then
+	); then
+		fail "non-string package configuration entry was accepted"
+	else
+		pass "non-string package configuration entries are rejected by schema validation"
+	fi
+
+	rm "$package_sim/.prism/release.json"
+	printf 'reviewed notes\n' > "$package_sim/body.md"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && [ ! -s "$package_sim/.prism-package-tags.tsv" ] && \
+	   ! grep -qF '### 📦 Packages' "$package_sim/body.md"; then
 		pass "absent configuration remains repository-only for historical recovery"
 	else
 		fail "absent configuration did not remain repository-only"
@@ -683,6 +715,7 @@ cat > "$failure_sim/bin/gh" <<'EOF'
 printf '%s\t%s\n' "$GH_MODE" "$*" >> "$GH_LOG"
 case "$GH_MODE:$*" in
   publish:api*releases/tags*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
+  tag:api*-X\ POST*git/refs*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
   backmerge:api*compare*) printf '%s\n' '1' ;;
   backmerge:pr\ list*) exit 0 ;;
   backmerge:pr\ create*) printf '%s\n' 'https://example.invalid/pr/1' ;;
@@ -709,6 +742,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 	fi
 
 	: > "$failure_sim/gh.log"
+	git -C "$tag_sim" tag -d example@1.2.3 >/dev/null
 	if (
 		cd "$tag_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
