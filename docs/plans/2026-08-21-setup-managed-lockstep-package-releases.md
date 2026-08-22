@@ -625,7 +625,7 @@ prism-tool commit create --type docs --scope release --subject "document managed
 - Consumes: all prior task commits.
 - Produces: verified acceptance-criteria evidence and a clean staged/working tree before branch finalization.
 
-- [ ] **Step 1: Run focused release suites**
+- [x] **Step 1: Run focused release suites**
 
 Run: `node --test tests/Node/prism-tool-package-release-discovery.test.js tests/Node/prism-tool-package-release-transaction.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -635,7 +635,7 @@ Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: PASS with YAML parsing, canonical parity, historical recovery, repository-first ordering, all package-tag states, and back-merge-after-failure simulations.
 
-- [ ] **Step 2: Run aggregate project verification**
+- [x] **Step 2: Run aggregate project verification**
 
 Run: `npm run test:node`
 
@@ -649,7 +649,7 @@ Load `verification-before-completion`, then run `/check`.
 
 Expected: GO, including Pest, PHP CS Fixer, Stylelint, ESLint, Semgrep, harness validation, workflow YAML validation, and changed-file coverage requirements.
 
-- [ ] **Step 3: Inspect acceptance criteria and repository state**
+- [x] **Step 3: Inspect acceptance criteria and repository state**
 
 Verify all 17 spec acceptance criteria against tests/diff. Confirm:
 
@@ -660,11 +660,11 @@ git status --short
 
 Expected: no whitespace errors; only intentional uncommitted review fixes, or a clean tree after the final fix commit.
 
-- [ ] **Step 4: Commit only gate-driven fixes when necessary**
+- [x] **Step 4: Commit only gate-driven fixes when necessary**
 
 Stage only the exact files changed to resolve verified failures, then use a task-specific Conventional Commit subject through the exclusive launcher. If no files changed, create no empty commit.
 
-- [ ] **Step 5: Run four-axis review and triage**
+- [x] **Step 5: Run four-axis review and triage**
 
 Load `code-review` and run tooling/style, Fowler structural, requirement coverage, and static security axes. Load `receiving-code-review` for any findings; fix Blocking findings and resolve or explicitly defer eligible non-blocking findings without expanding the approved design.
 
