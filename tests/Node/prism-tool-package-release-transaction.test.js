@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {EXIT, main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     applyReleaseCapability,
     inspectReleaseCapability,
@@ -199,6 +199,22 @@ test('rejects non-literal package-release mutation approval before changing file
     assert.match(result.stderr, /mutation approval required/);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+});
+
+test('maps package-release apply setup failures to a controlled tool response', (t) => {
+    const root = makeTempDir();
+    const projectRoot = path.join(root, 'missing-project');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'package-release',
+        'apply',
+        `--plan=${path.join(projectRoot, '.pi', 'prism-tool', 'package-release', 'plan.json')}`,
+        '--approval=yes',
+    ], {projectRoot, coreRoot: root}));
+
+    assert.equal(result.status, EXIT.TOOL);
+    assert.equal(result.stderr, 'prism-tool: package-release operation failed\n');
 });
 
 test('applies a CREATE plan and installs both canonical owned files', (t) => {

@@ -730,10 +730,16 @@ function packageReleaseCommand(args, context) {
             process.stderr.write('usage: prism-tool package-release apply --plan=PATH [--json] --approval=yes\n');
             return EXIT.USAGE;
         }
-        const result = applyReleaseCapability({
-            ...roots,
-            planPath: plans[0].slice('--plan='.length),
-        });
+        let result;
+        try {
+            result = applyReleaseCapability({
+                ...roots,
+                planPath: plans[0].slice('--plan='.length),
+            });
+        } catch {
+            process.stderr.write('prism-tool: package-release operation failed\n');
+            return EXIT.TOOL;
+        }
         const report = {schemaVersion: 1, command: 'package-release apply', ...result};
         renderPackageReleaseReport(report, json);
         return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
