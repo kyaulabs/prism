@@ -1410,7 +1410,7 @@ function verifyReleaseCapability({projectRoot, coreRoot}) {
     }
 }
 
-function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
+function discoverReleasePackagesOnce({projectRoot, glob}) {
     const canonicalRoot = fs.realpathSync(projectRoot);
     const rootManifest = readJsonObject(path.join(canonicalRoot, 'package.json'), 'root package manifest');
     const records = [];
@@ -1442,6 +1442,15 @@ function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
     }
     if (records.length === 0) throw new Error('no publishable release packages discovered');
     return assertUniqueRecords(records);
+}
+
+function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
+    const first = discoverReleasePackagesOnce({projectRoot, glob});
+    const second = discoverReleasePackagesOnce({projectRoot, glob});
+    if (JSON.stringify(first) !== JSON.stringify(second)) {
+        throw new Error('package discovery inputs changed');
+    }
+    return second;
 }
 
 module.exports = {

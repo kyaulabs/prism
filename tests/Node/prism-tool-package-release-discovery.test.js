@@ -40,6 +40,35 @@ test('discovers the publishable root first and declared workspaces lexically', (
     ]);
 });
 
+test('rejects package discovery assembled from changing workspace inputs', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {
+        name: '@fixture/root',
+        version: '1.2.3',
+        workspaces: ['packages/*'],
+    });
+    writePackageJson(projectRoot, 'packages/alpha', {name: '@fixture/alpha', version: '1.2.3'});
+    writePackageJson(projectRoot, 'packages/zeta', {name: '@fixture/zeta', version: '1.2.3'});
+    const openSync = fs.openSync;
+    let manifestOpens = 0;
+    t.mock.method(fs, 'openSync', (file, ...args) => {
+        if (path.basename(file) === 'package.json') {
+            manifestOpens += 1;
+            if (manifestOpens === 4) {
+                writePackageJson(projectRoot, '.', {
+                    name: '@fixture/root',
+                    version: '1.2.3',
+                    workspaces: ['packages/alpha'],
+                });
+            }
+        }
+        return openSync(file, ...args);
+    });
+
+    assert.throws(() => discoverReleasePackages({projectRoot}), /inputs changed/);
+});
+
 test('does not follow a release configuration replaced after validation', (t) => {
     const root = makeTempDir();
     const projectRoot = path.join(root, 'project');
