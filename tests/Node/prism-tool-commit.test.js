@@ -62,6 +62,10 @@ function makeCommitContext(t, overrides = {}) {
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
             if (overrides.commitFailure) {
+                if (overrides.commitAdvanced) {
+                    currentHead = '3'.repeat(40);
+                    fs.writeFileSync(path.join(gitDir, 'index.lock'), 'committed index');
+                }
                 if (overrides.commitFailureError) {
                     return {
                         status: null,
@@ -79,6 +83,11 @@ function makeCommitContext(t, overrides = {}) {
         if (command === 'git' && args.join(' ') === 'rev-parse --verify HEAD' &&
             currentHead === '3'.repeat(40) && overrides.postCommitHeadFailure) {
             return completed(1, '', 'CANARY-POST-COMMIT');
+        }
+        if (command === 'git' && args[0] === 'cat-file' && args[1] === 'commit') {
+            const tree = overrides.commitObjectTree ?? '2'.repeat(40);
+            const parent = overrides.unborn ? '' : `parent ${'1'.repeat(40)}\n`;
+            return completed(0, `tree ${tree}\n${parent}author Test\ncommitter Test\n\n${observed.message}`);
         }
         if (command === 'git' && args.join(' ') === 'write-tree') {
             if (!options.env?.GIT_INDEX_FILE && fs.existsSync(path.join(gitDir, 'index.lock'))) {
@@ -365,6 +374,41 @@ test('commit create gives repository hooks the bounded long-running timeout', (t
     assert.equal(commitCall.options.timeout, 300000);
 });
 
+test('commit create reconciles a matching commit after the process times out', (t) => {
+    const {context, gitDir} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureError: true,
+        commitTimedOut: true,
+        commitAdvanced: true,
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'reconcile timed out commit',
+    ], context));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, new RegExp(`Commit: ${'3'.repeat(40)}`));
+    assert.equal(fs.readFileSync(path.join(gitDir, 'index'), 'utf8'), 'committed index');
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
+});
+
+test('commit create preserves recovery evidence for an ambiguous timed out commit', (t) => {
+    const {context, gitDir, observed} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureError: true,
+        commitTimedOut: true,
+        commitAdvanced: true,
+        commitObjectTree: '4'.repeat(40),
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'preserve timed out evidence',
+    ], context));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /manual recovery required/);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
+    assert.equal(fs.existsSync(observed.messageFile), true);
+});
+
 test('commit create classifies process failure with gpg output as process failure', (t) => {
     const {context} = makeCommitContext(t, {
         commitFailure: true,
@@ -381,7 +425,7 @@ test('commit create classifies process failure with gpg output as process failur
     assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
-test('commit create cleans the index lock after publication failure', (t) => {
+test('commit create preserves recovery evidence after index publication failure', (t) => {
     const {context, gitDir} = makeCommitContext(t, {indexPublishFailure: true});
     const result = captureWrites(() => main([
         'commit', 'create', '--type', 'fix', '--subject', 'publish locked index',
@@ -391,7 +435,7 @@ test('commit create cleans the index lock after publication failure', (t) => {
     assert.match(result.stderr, /locked index publication failed/);
     assert.doesNotMatch(result.stderr, /CANARY/);
     assert.doesNotMatch(result.stdout, /Commit:/);
-    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
 });
 
 test('commit create reports private message cleanup failure after signing', (t) => {

@@ -390,6 +390,35 @@ function createPrivateMessage(context, repository, message) {
     };
 }
 
+function reconcileTimedOutCommit(context, state, lockedTree, message) {
+    const headResult = invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']);
+    if (headResult.error || headResult.status !== 0) {
+        return state.head === 'unborn' && !headResult.error ? {outcome: 'unchanged'} : {outcome: 'ambiguous'};
+    }
+    const head = shaValue(headResult, 'timed out commit HEAD is invalid');
+    if (head === state.head) return {outcome: 'unchanged'};
+    const objectResult = invoke(context, 'git', ['cat-file', 'commit', head]);
+    if (objectResult.error || objectResult.status !== 0) return {outcome: 'ambiguous'};
+    const object = resultText(objectResult);
+    const separator = object.indexOf('\n\n');
+    if (separator === -1) return {outcome: 'ambiguous'};
+    const headers = object.slice(0, separator).split('\n');
+    const body = object.slice(separator + 2);
+    const trees = headers.filter((line) => line.startsWith('tree ')).map((line) => line.slice(5));
+    const parents = headers.filter((line) => line.startsWith('parent ')).map((line) => line.slice(7));
+    const expectedParents = state.head === 'unborn' ? [] : [state.head];
+    if (
+        trees.length !== 1 ||
+        trees[0] !== lockedTree ||
+        parents.length !== expectedParents.length ||
+        parents.some((parent, index) => parent !== expectedParents[index]) ||
+        body !== message
+    ) {
+        return {outcome: 'ambiguous'};
+    }
+    return {outcome: 'committed', head};
+}
+
 function create(args, context) {
     const parsed = parseCreate(args);
     const header = validateStructured(parsed);
@@ -414,6 +443,7 @@ function create(args, context) {
     let committed = false;
     let newHead;
     let operationError;
+    let preserveEvidence = false;
     try {
         const latest = repositoryState(context, coreRoot);
         if (latest.repository !== state.repository || latest.branch !== state.branch ||
@@ -436,22 +466,41 @@ function create(args, context) {
             timeout: COMMIT_EXECUTION_TIMEOUT_MS,
         });
         if (commitResult.error || commitResult.status !== 0) {
-            const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
-            let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
-                'run the repository hooks locally for diagnostics';
             if (commitResult.timedOut) {
-                message = 'Git commit timed out';
-            } else if (commitResult.error || commitResult.status === null) {
-                message = 'Git commit process failed';
-            } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
-                message = 'signed Git commit failed';
-            } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
-                message = 'Git commit identity is not configured';
+                const reconciliation = reconcileTimedOutCommit(context, state, lockedTree, message);
+                if (reconciliation.outcome === 'committed') {
+                    preserveEvidence = true;
+                    locked.publish();
+                    preserveEvidence = false;
+                    committed = true;
+                    newHead = reconciliation.head;
+                } else {
+                    preserveEvidence = reconciliation.outcome === 'ambiguous';
+                    throw new CommitError(
+                        preserveEvidence ? EXIT.TRANSACTION : EXIT.TOOL,
+                        preserveEvidence ? 'Git commit timed out; manual recovery required' : 'Git commit timed out'
+                    );
+                }
+            } else {
+                const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
+                let failureMessage = 'Git commit failed; a repository hook rejection is the likely cause — ' +
+                    'run the repository hooks locally for diagnostics';
+                if (commitResult.error || commitResult.status === null) {
+                    failureMessage = 'Git commit process failed';
+                } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
+                    failureMessage = 'signed Git commit failed';
+                } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
+                    failureMessage = 'Git commit identity is not configured';
+                }
+                throw new CommitError(EXIT.TOOL, failureMessage);
             }
-            throw new CommitError(EXIT.TOOL, message);
         }
-        locked.publish();
-        committed = true;
+        if (!committed) {
+            preserveEvidence = true;
+            locked.publish();
+            preserveEvidence = false;
+            committed = true;
+        }
         newHead = shaValue(
             requireSuccess(
                 invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']),
@@ -465,10 +514,10 @@ function create(args, context) {
         operationError = error;
     }
     let cleanupError;
-    if (locked !== undefined && !committed && !locked.discard()) {
+    if (locked !== undefined && !committed && !preserveEvidence && !locked.discard()) {
         cleanupError = new CommitError(EXIT.TRANSACTION, 'Git index lock cleanup failed');
     }
-    if (!owned.cleanup()) {
+    if (!preserveEvidence && !owned.cleanup()) {
         cleanupError = new CommitError(EXIT.TRANSACTION, 'private message cleanup failed');
     }
     if (cleanupError) throw cleanupError;
