@@ -665,7 +665,7 @@ function assertNoPartialPublication(projectRoot, operation) {
     for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
         if (plan.files[relativePath].after === plan.files[relativePath].before) continue;
         changed += 1;
-        const state = currentFileState(path.join(projectRoot, relativePath));
+        const state = managedFileState(projectRoot, relativePath);
         if (state.digest === plan.files[relativePath].after) published += 1;
     }
     if (published > 0 && published < changed) {
@@ -934,6 +934,19 @@ function currentFileState(filePath) {
     return {digest: sha256(state.content), content: state.content, mode: state.mode};
 }
 
+function managedFileState(projectRoot, relativePath) {
+    const parent = holdManagedParent(projectRoot, relativePath);
+    if (parent === null) return {digest: 'absent', content: null, mode: null};
+    try {
+        parent.assertCurrent();
+        const state = currentFileState(path.join(parent.anchor, path.basename(relativePath)));
+        parent.assertCurrent();
+        return state;
+    } finally {
+        parent.close();
+    }
+}
+
 function sameFile(left, right) {
     return left.dev === right.dev && left.ino === right.ino;
 }
@@ -981,6 +994,9 @@ function createHeldDirectory(projectRoot, directoryPath, descriptor, expected) {
                 ) {
                     throw new Error('managed release parent changed');
                 }
+            },
+            sync() {
+                fs.fsyncSync(descriptor);
             },
             close() {
                 fs.closeSync(descriptor);
@@ -1057,6 +1073,7 @@ function writeAtomic(
         if (replacedState.content !== null) {
             fs.renameSync(targetPath, guardPath);
             guardMoved = true;
+            parent.sync();
             const guardedState = currentFileState(guardPath);
             if (!stateMatches(guardedState, replacedState)) {
                 publishNoReplace(guardPath, targetPath);
@@ -1066,10 +1083,12 @@ function writeAtomic(
         }
         rename(tempPath, targetPath);
         published = true;
+        parent.sync();
         parent.assertCurrent();
         if (guardMoved) {
             fs.rmSync(guardPath, {force: false});
             guardMoved = false;
+            parent.sync();
         }
         onMutation();
     } catch (error) {
@@ -1092,10 +1111,12 @@ function writeAtomic(
                 }
                 fs.rmSync(targetPath, {force: false});
                 published = false;
+                parent.sync();
             }
             if (guardMoved) {
                 publishNoReplace(guardPath, targetPath);
                 guardMoved = false;
+                parent.sync();
             }
         } catch {
             recoveryFailed = true;
@@ -1106,6 +1127,11 @@ function writeAtomic(
             recoveryFailed = true;
         }
         fs.rmSync(tempPath, {force: true});
+        try {
+            parent.sync();
+        } catch {
+            recoveryFailed = true;
+        }
         if (recoveryFailed) error.recoveryFailed = true;
         throw error;
     } finally {
@@ -1123,19 +1149,23 @@ function removeManagedTarget(projectRoot, filePath, expectedDigest) {
         parent.assertCurrent();
         fs.renameSync(targetPath, guardPath);
         moved = true;
+        parent.sync();
         if (currentFileState(guardPath).digest !== expectedDigest) {
             publishNoReplace(guardPath, targetPath);
             moved = false;
+            parent.sync();
             throw new Error('managed release target changed during recovery');
         }
         fs.rmSync(guardPath, {force: false});
         moved = false;
+        parent.sync();
         parent.assertCurrent();
     } catch (error) {
         if (moved) {
             try {
                 publishNoReplace(guardPath, targetPath);
                 moved = false;
+                parent.sync();
             } catch {
                 error.recoveryFailed = true;
             }
@@ -1200,8 +1230,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             throw new Error('package-release plan inputs changed');
         }
         for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
-            const targetPath = path.join(canonicalProject, relativePath);
-            const state = currentFileState(targetPath);
+            const state = managedFileState(canonicalProject, relativePath);
             if (state.digest !== plan.files[relativePath].before) {
                 const error = new Error('package-release plan is stale');
                 if (state.digest === plan.files[relativePath].after) error.recoveryFailed = true;
@@ -1216,7 +1245,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
         for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
             ensureTargetParent(canonicalProject, relativePath, createdDirectories);
             const targetPath = path.join(canonicalProject, relativePath);
-            if (currentFileState(targetPath).digest !== plan.files[relativePath].before) {
+            if (managedFileState(canonicalProject, relativePath).digest !== plan.files[relativePath].before) {
                 throw new Error('package-release plan is stale');
             }
             const after = readPlanFile(operation, 'after', relativePath);
@@ -1256,14 +1285,14 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
                 try {
                     const targetPath = path.join(canonicalProject, relativePath);
                     const original = originals.get(relativePath);
-                    if (currentFileState(targetPath).digest !== appliedDigests.get(relativePath)) {
+                    if (managedFileState(canonicalProject, relativePath).digest !== appliedDigests.get(relativePath)) {
                         throw new Error('managed release target changed during recovery', {cause: error});
                     }
                     if (original.content === null) {
                         removeManagedTarget(canonicalProject, targetPath, appliedDigests.get(relativePath));
                     }
                     else {
-                        const replacedState = currentFileState(targetPath);
+                        const replacedState = managedFileState(canonicalProject, relativePath);
                         writeAtomic(
                             canonicalProject,
                             targetPath,
