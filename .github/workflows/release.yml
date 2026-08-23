@@ -371,7 +371,7 @@ jobs:
       # then continue reconciling only missing package refs.
       - name: Reconcile package tags
         id: reconcile
-        if: ${{ steps.publish.outcome == 'success' || steps.publish.outcome == 'failure' }}
+        if: ${{ steps.publish.outcome == 'success' }}
         run: |
           set -euo pipefail
 

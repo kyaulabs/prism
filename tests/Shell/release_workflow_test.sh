@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -277,8 +277,7 @@ validate_workflow_graph() {
 		const reconcile = job.steps.find(({name}) => name === "Reconcile package tags");
 		const terminal = job.steps.find(({name}) => name === "Fail unsuccessful publication");
 		const quote = String.fromCharCode(39);
-		const reconcileIf = "${{ steps.publish.outcome == " + quote + "success" + quote +
-			" || steps.publish.outcome == " + quote + "failure" + quote + " }}";
+		const reconcileIf = "${{ steps.publish.outcome == " + quote + "success" + quote + " }}";
 		const terminalIf = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
 			" && steps.package_metadata.outcome == " + quote + "success" + quote +
 			" && (steps.publish.outcome != " + quote + "success" + quote +
@@ -582,6 +581,13 @@ if grep -qF '.prism/release.json' <<< "$prepare_contract_block" && \
 	pass "package metadata precedes repository publication, which precedes package tags; no npm publish or git push"
 else
 	fail "package preparation/publication/tag ordering contract violated"
+fi
+
+reconcile_guard=$(extract_step_if "$RELEASE_FILE" "Reconcile package tags")
+if [ "$reconcile_guard" = "\${{ steps.publish.outcome == 'success' }}" ]; then
+	pass "package-tag reconciliation requires successful repository publication"
+else
+	fail "package-tag reconciliation can run without a successful repository Release"
 fi
 
 backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
