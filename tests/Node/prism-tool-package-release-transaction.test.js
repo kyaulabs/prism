@@ -474,6 +474,45 @@ test('preserves concurrent target edits during rollback', (t) => {
     assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
 });
 
+test('does not remove a concurrent edit at the rollback deletion boundary', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    const concurrentContent = 'concurrent rollback-boundary edit\n';
+    const renameSync = fs.renameSync;
+    const rmSync = fs.rmSync;
+    let replaced = false;
+    t.mock.method(fs, 'renameSync', (source, destination) => {
+        if (!replaced && path.basename(destination).includes('.prism-rollback-')) {
+            replaced = true;
+            fs.writeFileSync(workflowPath, concurrentContent);
+        }
+        return renameSync(source, destination);
+    });
+    t.mock.method(fs, 'rmSync', (target, options) => {
+        if (!replaced && path.basename(target) === 'release.yml') {
+            replaced = true;
+            fs.writeFileSync(workflowPath, concurrentContent);
+        }
+        return rmSync(target, options);
+    });
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            renameCount += 1;
+            if (renameCount === 2) throw new Error('second publication failed');
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), concurrentContent);
+});
+
 test('does not follow a replaced managed parent while creating target directories', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);

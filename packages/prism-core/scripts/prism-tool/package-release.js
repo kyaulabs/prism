@@ -593,7 +593,7 @@ function assertNoExternalTransactionArtifacts(projectRoot) {
             for (const name of fs.readdirSync(parent.anchor)) {
                 if (!name.startsWith(prefix)) continue;
                 const suffix = name.slice(prefix.length);
-                if (/^(?:guard-)?[0-9]+-[0-9]+-[a-f0-9]+$/.test(suffix)) {
+                if (/^(?:(?:guard|rollback)-)?[0-9]+-[0-9]+-[a-f0-9]+$/.test(suffix)) {
                     throw new Error('manual recovery required for package-release transaction artifacts');
                 }
             }
@@ -1059,12 +1059,34 @@ function writeAtomic(
     }
 }
 
-function removeManagedTarget(projectRoot, filePath) {
+function removeManagedTarget(projectRoot, filePath, expectedDigest) {
     const parent = holdDirectory(projectRoot, path.dirname(filePath));
+    const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const targetPath = path.join(parent.anchor, path.basename(filePath));
+    const guardPath = path.join(parent.anchor, `.${path.basename(filePath)}.prism-rollback-${nonce}`);
+    let moved = false;
     try {
         parent.assertCurrent();
-        fs.rmSync(path.join(parent.anchor, path.basename(filePath)), {force: true});
+        fs.renameSync(targetPath, guardPath);
+        moved = true;
+        if (currentFileState(guardPath).digest !== expectedDigest) {
+            publishNoReplace(guardPath, targetPath);
+            moved = false;
+            throw new Error('managed release target changed during recovery');
+        }
+        fs.rmSync(guardPath, {force: false});
+        moved = false;
         parent.assertCurrent();
+    } catch (error) {
+        if (moved) {
+            try {
+                publishNoReplace(guardPath, targetPath);
+                moved = false;
+            } catch {
+                error.recoveryFailed = true;
+            }
+        }
+        throw error;
     } finally {
         parent.close();
     }
@@ -1185,7 +1207,9 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
                     if (currentFileState(targetPath).digest !== appliedDigests.get(relativePath)) {
                         throw new Error('managed release target changed during recovery', {cause: error});
                     }
-                    if (original.content === null) removeManagedTarget(canonicalProject, targetPath);
+                    if (original.content === null) {
+                        removeManagedTarget(canonicalProject, targetPath, appliedDigests.get(relativePath));
+                    }
                     else {
                         const replacedState = currentFileState(targetPath);
                         writeAtomic(
