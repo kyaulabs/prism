@@ -142,10 +142,10 @@ fresh explicit approval; `/check` reruns do not.
 Finalization records one complete initial review across all four axes in a
 bounded chain. After a Blocking repair, a freshly approved review covers only
 the continuous repair delta and records closure evidence. Advisory findings
-remain visible but do not block `/pr` or require waivers; base or history
-changes, discontinuity, malformed state, incomplete axes, or mismatched HEAD
-invalidate the chain and require the next approved review to be a new complete
-initial review. `/pr` remains preparation-only; humans push and mutate GitHub.
+remain visible but do not block `/pr` or require waivers; base or history changes,
+discontinuity, malformed state, incomplete axes, or mismatched HEAD invalidate
+the chain and require the next approved review to be a new complete initial
+review. `/pr` remains preparation-only; humans push and mutate GitHub.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable

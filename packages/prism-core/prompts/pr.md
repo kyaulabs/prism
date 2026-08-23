@@ -42,9 +42,9 @@ and do not block preparation.
 
 A conflict, incomplete axis, invalid chain, changed SHA, moved base,
 discontinuous history, or dirty tree stops preparation. Local `/check` may rerun
-without additional approval. An ordinary repair may preserve a valid chain but
-requires fresh explicit approval for the next four-axis review of only the
-continuous repair delta before preparation.
+without additional approval. An ordinary repair may preserve a valid chain but requires
+fresh explicit approval for the next four-axis review of only the continuous repair delta
+before preparation.
 
 If any authorization, value, ordering step, gate, chain segment, review result,
 or revalidation is absent, ambiguous, partial, stale, or failed, stop before

@@ -112,8 +112,7 @@ evidence.
 Invoke `/check` and require a complete successful result. Plan approval
 authorizes unlimited local `/check` executions. When a failure is within the
 approved spec and plan, repair it inline through TDD, verification, and an
-atomic commit, refresh the exact attestation for the new HEAD, and rerun
-`/check` without asking.
+atomic commit, refresh the exact attestation for the new HEAD, and rerun `/check` without asking.
 
 A partial run, skipped required adapter gate, failed coverage gate, or other
 non-green result is not review-ready. Requirement changes, invalid plan
@@ -126,8 +125,7 @@ through.
 
 After `/check` passes, consume the plan's one initial review authorization and
 run the `code-review` skill for the attested state. Require all four axes:
-tooling/style, Fowler structural smells, requirement coverage, and static
-security analysis.
+tooling/style, Fowler structural smells, requirement coverage, and static security analysis.
 
 When no valid review chain exists, run one complete initial branch review and
 record it. When a valid chain ends at an ancestor of current HEAD, preserve its
