@@ -423,7 +423,7 @@ prism-tool commit create --type feat --scope review --subject "finalize through 
 - Documents review-chain lifecycle, diff-causal Blocking, Advisory disclosure, invalidation, and absence of force/waiver behavior.
 - Existing branches without a review chain start with one complete initial review; no migration of old session evidence is attempted.
 
-- [ ] **Step 1: Write failing documentation and migration assertions**
+- [x] **Step 1: Write failing documentation and migration assertions**
 
 ```javascript
 assert.match(coreReadme, /review chain/i);
@@ -436,7 +436,7 @@ Add shell assertions that contributor and harness docs explain: one full initial
 review, continuous repair ranges, base/history invalidation, all axes mandatory,
 and human-run GitHub publication unchanged.
 
-- [ ] **Step 2: Run packaging and entrypoint tests and confirm Red**
+- [x] **Step 2: Run packaging and entrypoint tests and confirm Red**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js`
 
@@ -444,7 +444,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: FAIL on missing review-chain documentation.
 
-- [ ] **Step 3: Update user-facing documentation and migration wording**
+- [x] **Step 3: Update user-facing documentation and migration wording**
 
 ```text
 A completed branch receives one complete four-axis review. If a concrete
@@ -458,7 +458,7 @@ State explicitly that existing branches begin a new initial chain, local chain
 state is untracked, `/pr` does not create issues, and humans still push and
 create pull requests.
 
-- [ ] **Step 4: Run aggregate verification**
+- [x] **Step 4: Run aggregate verification**
 
 Run: `prism-tool doctor --local-only`
 
@@ -484,7 +484,7 @@ Run: `git diff --check`
 
 Expected: every command passes; Node and shell suites have zero failures; Pest reports at least 80% coverage; Semgrep reports zero blocking findings.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/README.md README.md CODING_HARNESS.md CONTRIBUTING.md packages/prism-core/AGENTS.md tests/Node/toolchain-packaging.test.js tests/Shell/toolchain_entrypoints_test.sh

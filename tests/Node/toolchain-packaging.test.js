@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -105,7 +105,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
         'cli', 'code-review', 'commit', 'consent', 'contract', 'discovery',
-        'preflight', 'process',
+        'preflight', 'process', 'review-chain',
     ]) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }
@@ -131,6 +131,17 @@ test('documents human npm publication for managed lockstep package releases', ()
     assert.match(coreReadme, /Managed lockstep npm releases/);
     assert.match(coreReadme, /displays the exact package list/);
     assert.match(coreReadme, /explicit enablement and displayed-diff mutation approval/);
+});
+
+test('documents bounded diff-causal review chains', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /review chain/i);
+    assert.match(coreReadme, /repair delta/i);
+    assert.match(coreReadme, /Advisory findings do not block/i);
+    assert.match(coreReadme, /all four axes/i);
+    assert.match(coreReadme, /base or history changes/i);
+    assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
 });
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {

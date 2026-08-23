@@ -156,6 +156,10 @@ done
 assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'prism-tool commit create' 'CONTRIBUTING documents atomic signed commits'
 assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'finalization acceptance' 'CONTRIBUTING documents automatic finalization'
 assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'Humans push work branches and merge pull requests' 'CONTRIBUTING preserves human-only publication'
+assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'one complete initial review' 'CONTRIBUTING documents initial review-chain evidence'
+assert_file_contains "$REPO_ROOT/CODING_HARNESS.md" 'continuous repair delta' 'CODING_HARNESS documents repair-delta review'
+assert_file_contains "$REPO_ROOT/README.md" 'Advisory findings do not block' 'README documents non-blocking Advisory findings'
+assert_file_contains "$REPO_ROOT/packages/prism-core/AGENTS.md" 'base or history changes' 'packaged AGENTS documents chain invalidation'
 
 echo "── stale workflow scan across active resources ──"
 STALE_SCAN_PATHS=(
