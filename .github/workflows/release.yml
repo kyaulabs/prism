@@ -75,7 +75,11 @@ jobs:
               exit 1
             fi
           fi
-          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+          if ! node -e '
+            const version = process.argv[1];
+            const semver = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)(?:\.(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+            process.exit(semver.test(version) ? 0 : 1);
+          ' "$version"; then
             echo "Error: invalid release version: $version" >&2
             exit 1
           fi
@@ -218,11 +222,16 @@ jobs:
                 echo "::error::configured package '$pkg' is private" >&2
                 exit 1
               fi
-              name=$(jq -r '.name // empty' "$manifest")
-              ver=$(jq -r '.version // empty' "$manifest")
-              case "$name" in
-                ""|*" "*) echo "::error::package '$pkg' has no usable name" >&2; exit 1 ;;
-              esac
+              if ! jq -e '(.name | type == "string") and (.version | type == "string")' "$manifest" >/dev/null; then
+                echo "::error::package '$pkg' must have string name and version" >&2
+                exit 1
+              fi
+              name=$(jq -r '.name' "$manifest")
+              ver=$(jq -r '.version' "$manifest")
+              if ! printf '%s' "$name" | grep -qE '^(@[a-z0-9]([a-z0-9._-]*[a-z0-9])?/)?[a-z0-9]([a-z0-9._-]*[a-z0-9])?$'; then
+                echo "::error::package '$pkg' has an invalid name" >&2
+                exit 1
+              fi
               if printf '%s' "$name" | LC_ALL=C grep -q '[[:space:][:cntrl:]]'; then
                 echo "::error::package '$pkg' has no usable name" >&2
                 exit 1
@@ -245,7 +254,7 @@ jobs:
             done
             while IFS=$'\t' read -r prefix name pkg ver; do
               [ -n "$prefix" ] || continue
-              packages="$packages ${prefix}@${ver}"
+              packages="${packages}${packages:+$'\n'}- ${prefix}@${ver}"
             done < .prism-package-tags.tsv
           fi
           if [ -n "$packages" ]; then

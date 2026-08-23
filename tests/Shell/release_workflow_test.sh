@@ -170,7 +170,7 @@ fi
 
 # ── 7. Version and merge-SHA validation precede GITHUB_ENV export ────────────
 
-regex_line=$(grep -nF '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
+regex_line=$(grep -nF 'const semver = /^(?:0|[1-9][0-9]*)' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
 sha_line=$(grep -nF '^[0-9a-f]{40}$' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
 env_line=$(grep -nF '>> "$GITHUB_ENV"' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
 head_line=$(grep -nF 'git rev-parse HEAD' "$RELEASE_FILE" | head -1 | cut -d: -f1 || true)
@@ -551,21 +551,20 @@ else
 fi
 
 backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
-workflow_schedules_backmerge() {
-	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && \
-		[ "$1" = "success" ]
-}
-if workflow_schedules_backmerge success && grep -qF 'id: validate' "$RELEASE_FILE" && \
-   validate_workflow_graph "$RELEASE_FILE"; then
+if [ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && \
+   grep -qF 'id: validate' "$RELEASE_FILE" && validate_workflow_graph "$RELEASE_FILE"; then
 	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
 else
 	fail "back-merge is not guarded by always() and successful merge validation"
 fi
-if workflow_schedules_backmerge failure; then
-	fail "back-merge is scheduled when merge validation fails"
-else
+if [[ "$backmerge_guard" == *"steps.validate.outcome == 'success'"* ]]; then
 	pass "back-merge is not scheduled when merge validation fails"
+else
+	fail "back-merge lacks an explicit successful-validation outcome guard"
 fi
+workflow_schedules_backmerge() {
+	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && [ "$1" = "success" ]
+}
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
 
@@ -581,7 +580,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
 	) && grep -qF $'example\t@fixture/example\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv" && \
-	   grep -qF 'example@1.2.3' "$package_sim/body.md"; then
+	   grep -qF -- '- example@1.2.3' "$package_sim/body.md"; then
 		pass "schema-v1 package metadata validates and prepares inert tags and notes"
 	else
 		fail "schema-v1 package metadata preparation failed"
@@ -592,10 +591,19 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
-	) && grep -qF -- $'-fixture\t-fixture\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv"; then
-		pass "option-like package tag prefixes are compared as inert data"
+	); then
+		fail "invalid package name reached tag preparation"
 	else
-		fail "option-like package tag prefix reached grep option parsing"
+		pass "package metadata rejects invalid npm package names"
+	fi
+	printf '%s\n' '{"name":123,"version":"1.2.3"}' > "$package_sim/packages/example/package.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "non-string package name reached tag preparation"
+	else
+		pass "package metadata rejects non-string names"
 	fi
 	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 
@@ -970,19 +978,19 @@ inspect_line=$(grep -nF 'prism-tool package-release inspect --json' "$SETUP_CMD"
 adapter_line=$(grep -nF '## 6. Detect and offer the project adapter' "$SETUP_CMD" | cut -d: -f1 || true)
 package_release_section=$(awk '/^## 5[.] Managed npm package releases$/{capture=1} /^## 6[.] Detect and offer the project adapter$/{capture=0} capture' "$SETUP_CMD")
 if [ -n "$inspect_line" ] && [ -n "$adapter_line" ] && [ "$inspect_line" -lt "$adapter_line" ] && \
-   grep -qF 'prism-tool package-release plan --json' "$SETUP_CMD" && \
-   grep -qF 'prism-tool package-release apply --plan=/validated/project-local/plan.json --approval=yes --json' "$SETUP_CMD" && \
-   grep -qF 'prism-tool package-release verify --json' "$SETUP_CMD" && \
-   grep -qF 'Enable lockstep npm package releases for these packages? (yes/no)' "$SETUP_CMD" && \
-   grep -qF 'CREATE' "$SETUP_CMD" && \
-   grep -qF 'UNCHANGED' "$SETUP_CMD" && \
-   grep -qF 'UPDATE' "$SETUP_CMD" && \
-   grep -qF 'MIGRATE' "$SETUP_CMD" && \
-   grep -qF 'CONFLICT' "$SETUP_CMD" && \
-   grep -qF 'display every exact `name`, `path`, and `version`' "$SETUP_CMD" && \
-   grep -qF 'display the complete returned diff' "$SETUP_CMD" && \
-   grep -qF 'A decline runs no plan or apply operation' "$SETUP_CMD" && \
-   grep -qF 'never removes an installed' "$SETUP_CMD" && \
+   grep -qF 'prism-tool package-release plan --json' <<< "$package_release_section" && \
+   grep -qF 'prism-tool package-release apply --plan=/validated/project-local/plan.json --approval=yes --json' <<< "$package_release_section" && \
+   grep -qF 'prism-tool package-release verify --json' <<< "$package_release_section" && \
+   grep -qF 'Enable lockstep npm package releases for these packages? (yes/no)' <<< "$package_release_section" && \
+   grep -qF 'CREATE' <<< "$package_release_section" && \
+   grep -qF 'UNCHANGED' <<< "$package_release_section" && \
+   grep -qF 'UPDATE' <<< "$package_release_section" && \
+   grep -qF 'MIGRATE' <<< "$package_release_section" && \
+   grep -qF 'CONFLICT' <<< "$package_release_section" && \
+   grep -qF 'display every exact `name`, `path`, and `version`' <<< "$package_release_section" && \
+   grep -qF 'display the complete returned diff' <<< "$package_release_section" && \
+   grep -qF 'A decline runs no plan or apply operation' <<< "$package_release_section" && \
+   grep -qF 'never removes an installed' <<< "$package_release_section" && \
    grep -qF 'package releases      project' "$SETUP_CMD" && \
    grep -qF '.prism/release.json' <<< "$package_release_section" && \
    grep -qF '.github/workflows/release.yml' <<< "$package_release_section" && \
