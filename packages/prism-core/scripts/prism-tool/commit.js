@@ -416,6 +416,8 @@ function reconcileTimedOutCommit(context, state, lockedTree, message) {
     ) {
         return {outcome: 'ambiguous'};
     }
+    const signature = invoke(context, 'git', ['verify-commit', '--raw', head]);
+    if (signature.error || signature.status !== 0) return {outcome: 'ambiguous'};
     return {outcome: 'committed', head};
 }
 
