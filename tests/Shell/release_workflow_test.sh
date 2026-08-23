@@ -259,6 +259,10 @@ validate_workflow_graph() {
 			prior = index;
 		}
 		if (job.steps.some((step) => step["continue-on-error"] !== undefined)) process.exit(1);
+		const validate = job.steps.find(({name}) => name === "Validate merge SHA and release version");
+		const publish = job.steps.find(({name}) => name === "Publish release");
+		const reconcile = job.steps.find(({name}) => name === "Reconcile package tags");
+		if (validate.id !== "validate" || publish.if !== undefined || reconcile.if !== undefined) process.exit(1);
 		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
 		const quote = String.fromCharCode(39);
 		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote + " }}";
@@ -607,6 +611,21 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	fi
 	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 
+	traversal_sim=$(mktemp -d)
+	register_temp_dir "$traversal_sim"
+	mkdir -p "$traversal_sim/project/.prism"
+	printf 'reviewed notes\n' > "$traversal_sim/project/body.md"
+	printf '%s\n' '{"name":"@fixture/outside","version":"1.2.3"}' > "$traversal_sim/package.json"
+	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[".."]}' > "$traversal_sim/project/.prism/release.json"
+	if (
+		cd "$traversal_sim/project" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	); then
+		fail "exact parent traversal package path was accepted"
+	else
+		pass "exact parent traversal package path is rejected"
+	fi
+
 	node -e 'process.stdout.write("x".repeat(119980) + "\n")' > "$package_sim/body.md"
 	{
 		printf '## [1.2.3]\n'
@@ -622,6 +641,15 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "package metadata remains inside the capped release body"
 	else
 		fail "package metadata can push the release body beyond its cap"
+	fi
+
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 RELEASE_BODY_TRUNCATED=yes GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && [ "$(grep -cF "...truncated at GitHub's 125,000-character release-body limit." "$package_sim/body.md")" -eq 1 ]; then
+		pass "package-note recapping emits one truncation footer"
+	else
+		fail "package-note recapping duplicated the truncation footer"
 	fi
 
 	node -e 'process.stdout.write("first actual changelog line\n" + "x".repeat(119960) + "\n")' > "$package_sim/body.md"
@@ -763,6 +791,8 @@ case "${GH_MODE:-normal}:$*" in
   race:api*commits/example@1.2.3*) printf '%s\n' "$MERGE_SHA" ;;
   wrongrace:api*commits/example@1.2.3*) printf '%s\n' "$WRONG_SHA" ;;
   normal:api*git/ref/tags/example@1.2.3*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
+  normal:api*-X\ POST*git/refs*) exit 0 ;;
+  *) exit 127 ;;
 esac
 EOF
 chmod +x "$tag_sim/bin/gh"
@@ -843,6 +873,9 @@ printf '%s\n' "$*" >> "$GH_LOG"
 case "$*" in
   api*releases/tags*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
   api*git/ref/tags*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
+  release\ create*) exit 0 ;;
+  api*-X\ POST*git/refs*) exit 0 ;;
+  *) exit 127 ;;
 esac
 EOF
 chmod +x "$order_sim/bin/gh"
@@ -886,6 +919,7 @@ case "$GH_MODE:$*" in
   backmerge:api*compare*) printf '%s\n' '1' ;;
   backmerge:pr\ list*) exit 0 ;;
   backmerge:pr\ create*) printf '%s\n' 'https://example.invalid/pr/1' ;;
+  *) exit 127 ;;
 esac
 EOF
 chmod +x "$failure_sim/bin/gh"

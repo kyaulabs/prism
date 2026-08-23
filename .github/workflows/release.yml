@@ -198,7 +198,7 @@ jobs:
             fi
             jq -r '.packages[]' "$config_file" | while IFS= read -r pkg; do
               case "$pkg" in
-                ""|/*|../*|*/../*|*/..|./*|*" "*) echo "::error::invalid package path '$pkg'" >&2; exit 1 ;;
+                ""|..|/*|../*|*/../*|*/..|./*|*" "*) echo "::error::invalid package path '$pkg'" >&2; exit 1 ;;
               esac
               if printf '%s' "$pkg" | LC_ALL=C grep -q '[[:space:][:cntrl:]]'; then
                 echo "::error::invalid package path '$pkg'" >&2
@@ -270,7 +270,14 @@ jobs:
                 echo "::error::package release notes exceed the release-body budget" >&2
                 exit 1
               fi
-              cp body.md .prism-package-body-source.md
+              if [ "${RELEASE_BODY_TRUNCATED:-no}" = "yes" ]; then
+                case "$(head -n 1 notes.md)" in
+                  "## "*) tail -n +2 notes.md > .prism-package-body-source.md ;;
+                  *) cp notes.md .prism-package-body-source.md ;;
+                esac
+              else
+                cp body.md .prism-package-body-source.md
+              fi
               : > body_capped.md
               size=0
               while IFS= read -r line; do
