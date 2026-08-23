@@ -169,6 +169,7 @@ jobs:
           fi
 
       - name: Prepare package release metadata
+        id: package_metadata
         run: |
           set -euo pipefail
 
@@ -426,7 +427,7 @@ jobs:
       # Back-merge preparation is intentionally independent of publication
       # success so main cannot remain absent from develop (ADR-0079 AC13).
       - name: Open back-merge PR
-        if: ${{ always() && steps.validate.outcome == 'success' }}
+        if: ${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}
         run: |
           set -euo pipefail
 

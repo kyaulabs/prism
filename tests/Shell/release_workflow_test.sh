@@ -268,12 +268,19 @@ validate_workflow_graph() {
 		}
 		if (job.steps.some((step) => step["continue-on-error"] !== undefined)) process.exit(1);
 		const validate = job.steps.find(({name}) => name === "Validate merge SHA and release version");
+		const metadata = job.steps.find(({name}) => name === "Prepare package release metadata");
 		const publish = job.steps.find(({name}) => name === "Publish release");
 		const reconcile = job.steps.find(({name}) => name === "Reconcile package tags");
-		if (validate.id !== "validate" || publish.if !== undefined || reconcile.if !== undefined) process.exit(1);
+		if (
+			validate.id !== "validate" ||
+			metadata.id !== "package_metadata" ||
+			publish.if !== undefined ||
+			reconcile.if !== undefined
+		) process.exit(1);
 		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
 		const quote = String.fromCharCode(39);
-		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote + " }}";
+		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
+			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
 		if (backmerge.if !== expected) process.exit(1);
 	' "$workflow"
 }
@@ -563,7 +570,7 @@ else
 fi
 
 backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
-if [ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && \
+if [ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] && \
    grep -qF 'id: validate' "$RELEASE_FILE" && validate_workflow_graph "$RELEASE_FILE"; then
 	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
 else
@@ -575,21 +582,27 @@ else
 	fail "back-merge lacks an explicit successful-validation outcome guard"
 fi
 workflow_schedules_backmerge() {
-	local validate_outcome="$1" publish_outcome="$2" reconcile_outcome="$3"
-	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] || return 1
+	local validate_outcome="$1" metadata_outcome="$2" publish_outcome="$3" reconcile_outcome="$4"
+	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] || return 1
 	[ "$validate_outcome" = "success" ] || return 1
+	[ "$metadata_outcome" = "success" ] || return 1
 	case "$publish_outcome:$reconcile_outcome" in
 		success:success|failure:skipped|success:failure|cancelled:skipped|skipped:skipped) return 0 ;;
 		*) return 1 ;;
 	esac
 }
-if workflow_schedules_backmerge failure skipped skipped; then
+if workflow_schedules_backmerge failure skipped skipped skipped; then
 	fail "workflow outcome simulation schedules back-merge after failed validation"
 else
 	pass "workflow outcome simulation blocks back-merge after failed validation"
 fi
-if workflow_schedules_backmerge success cancelled skipped && \
-   workflow_schedules_backmerge success skipped skipped; then
+if workflow_schedules_backmerge success failure skipped skipped; then
+	fail "workflow outcome simulation schedules back-merge after failed package metadata"
+else
+	pass "workflow outcome simulation blocks back-merge after failed package metadata"
+fi
+if workflow_schedules_backmerge success success cancelled skipped && \
+   workflow_schedules_backmerge success success skipped skipped; then
 	pass "workflow outcome simulation covers cancelled and skipped publication states"
 else
 	fail "workflow outcome simulation omits cancelled or skipped publication states"
@@ -957,7 +970,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
 	); then
 		fail "forced repository publication failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success failure skipped && (
+	elif workflow_schedules_backmerge success success failure skipped && (
 		cd "$failure_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
@@ -974,7 +987,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
 	); then
 		fail "forced package-tag failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success success failure && (
+	elif workflow_schedules_backmerge success success success failure && (
 		cd "$tag_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
