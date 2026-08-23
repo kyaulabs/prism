@@ -582,10 +582,54 @@ function removeOwnedOperationContents(projectRoot, directoryPath, directory, rel
     directory.assertCurrent();
 }
 
+function assertNoExternalTransactionArtifacts(projectRoot) {
+    for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+        const parentPath = path.join(projectRoot, path.dirname(relativePath));
+        if (fileEntry(parentPath) === undefined) continue;
+        const parent = holdDirectory(projectRoot, parentPath);
+        try {
+            parent.assertCurrent();
+            const prefix = `.${path.basename(relativePath)}.prism-`;
+            for (const name of fs.readdirSync(parent.anchor)) {
+                if (!name.startsWith(prefix)) continue;
+                const suffix = name.slice(prefix.length);
+                if (/^(?:guard-)?[0-9]+-[0-9]+-[a-f0-9]+$/.test(suffix)) {
+                    throw new Error('manual recovery required for package-release transaction artifacts');
+                }
+            }
+            parent.assertCurrent();
+        } finally {
+            parent.close();
+        }
+    }
+}
+
+function assertNoPartialPublication(projectRoot, operation) {
+    operation.rootHandle.assertCurrent();
+    const planNames = fs.readdirSync(operation.rootHandle.anchor)
+        .filter((name) => /^plan-[a-f0-9]{64}[.]json$/.test(name));
+    if (planNames.length === 0) return;
+    if (planNames.length !== 1) throw new Error('package-release operation directory is invalid');
+    const plan = readPlan(operation, path.join(operation.root, planNames[0]), projectRoot);
+    let changed = 0;
+    let published = 0;
+    for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+        if (plan.files[relativePath].after === plan.files[relativePath].before) continue;
+        changed += 1;
+        const state = currentFileState(path.join(projectRoot, relativePath));
+        if (state.digest === plan.files[relativePath].after) published += 1;
+    }
+    if (published > 0 && published < changed) {
+        throw new Error('manual recovery required for partial package-release publication');
+    }
+}
+
 function recoverOwnedOperation(projectRoot, operation = null) {
     const owned = operation ?? readOwnedOperation(projectRoot);
     if (!owned) return false;
     try {
+        assertNoExternalTransactionArtifacts(projectRoot);
+        assertNoPartialPublication(projectRoot, owned);
         removeOwnedOperationContents(projectRoot, owned.root, owned.rootHandle);
         owned.rootHandle.assertCurrent();
         const identity = owned.rootHandle.identity;
@@ -754,6 +798,10 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             managedBy: MANAGED_BY,
             projectRoot: canonicalProject,
             disposition: inspection.disposition,
+            inputs: {
+                candidates: sha256(JSON.stringify(inspection.candidates)),
+                workflow: files[WORKFLOW_PATH].after,
+            },
             files,
         };
         const planName = `plan-${sha256(JSON.stringify(plan))}.json`;
@@ -797,11 +845,17 @@ function readPlan(operation, planPath, projectRoot) {
     );
     operation.rootHandle.assertCurrent();
     if (
-        Object.keys(plan).sort().join(',') !== 'disposition,files,managedBy,projectRoot,schemaVersion' ||
+        Object.keys(plan).sort().join(',') !== 'disposition,files,inputs,managedBy,projectRoot,schemaVersion' ||
         plan.schemaVersion !== 1 ||
         plan.managedBy !== MANAGED_BY ||
         plan.projectRoot !== projectRoot ||
         !['CREATE', 'UPDATE', 'MIGRATE'].includes(plan.disposition) ||
+        plan.inputs === null ||
+        typeof plan.inputs !== 'object' ||
+        Array.isArray(plan.inputs) ||
+        Object.keys(plan.inputs).sort().join(',') !== 'candidates,workflow' ||
+        !/^[a-f0-9]{64}$/.test(plan.inputs.candidates) ||
+        !/^[a-f0-9]{64}$/.test(plan.inputs.workflow) ||
         plan.files === null ||
         typeof plan.files !== 'object' ||
         Array.isArray(plan.files) ||
@@ -1060,6 +1114,17 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
         operation = readOwnedOperation(canonicalProject);
         if (!operation) throw new Error('package-release operation is missing');
         const plan = readPlan(operation, planPath, canonicalProject);
+        const currentCandidates = discoverReleasePackages({projectRoot: canonicalProject});
+        const canonicalWorkflow = readRegularFile(
+            path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
+            'canonical release workflow'
+        );
+        if (
+            sha256(JSON.stringify(currentCandidates)) !== plan.inputs.candidates ||
+            sha256(canonicalWorkflow) !== plan.inputs.workflow
+        ) {
+            throw new Error('package-release plan inputs changed');
+        }
         for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
             const targetPath = path.join(canonicalProject, relativePath);
             const state = currentFileState(targetPath);

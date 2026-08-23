@@ -243,6 +243,17 @@ test('does not follow a replaced plan artifact directory', (t) => {
     assert.equal(fs.existsSync(path.join(externalAfter, '.github', 'workflows', 'release.yml')), false);
 });
 
+test('preserves an operation that has external transaction artifacts', (t) => {
+    const fixture = makeFixture(t);
+    const firstPlan = planReleaseCapability(fixture);
+    const workflowParent = path.join(fixture.projectRoot, '.github', 'workflows');
+    fs.mkdirSync(workflowParent, {recursive: true});
+    fs.writeFileSync(path.join(workflowParent, '.release.yml.prism-123-456-deadbeef'), 'temporary\n');
+
+    assert.throws(() => planReleaseCapability(fixture), /manual recovery required/);
+    assert.equal(fs.existsSync(path.dirname(firstPlan.planPath)), true);
+});
+
 test('does not recursively delete an operation path after ownership validation', (t) => {
     const fixture = makeFixture(t);
     const firstPlan = planReleaseCapability(fixture);
@@ -723,6 +734,38 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
         ],
         data: {packages: ['.']},
     });
+});
+
+test('rejects package metadata drift after plan approval', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    writePackageJson(fixture.projectRoot, '.', {
+        name: 'fixture-root',
+        version: '2.0.0',
+    });
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+});
+
+test('does not discard partial publication evidence while replanning', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.copyFileSync(
+        path.join(path.dirname(plan.planPath), 'after', '.github', 'workflows', 'release.yml'),
+        workflowPath
+    );
+
+    const result = planReleaseCapability(fixture);
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.disposition, 'CONFLICT');
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
 });
 
 test('preserves operation evidence after interrupted partial publication', (t) => {
