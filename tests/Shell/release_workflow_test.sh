@@ -252,6 +252,7 @@ validate_workflow_graph() {
 			"Reconcile package tags",
 			"Open back-merge PR",
 		];
+		if (ordered.some((name) => names.filter((candidate) => candidate === name).length !== 1)) process.exit(1);
 		let prior = -1;
 		for (const name of ordered) {
 			const index = names.indexOf(name);
