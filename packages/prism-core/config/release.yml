@@ -355,8 +355,8 @@ jobs:
           set -euo pipefail
 
           probe_remote_package_tag() {
-            local tag="$1" probe commit
-            if probe=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1); then
+            local tag="$1" probe commit status
+            if probe=$(gh api --include "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1); then
               if ! commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq '.sha' 2>&1) || \
                  ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
                 return 2
@@ -364,10 +364,9 @@ jobs:
               REMOTE_PACKAGE_TAG_COMMIT="$commit"
               return 0
             fi
-            case "$probe" in
-              *"HTTP 404"*) return 1 ;;
-              *) return 2 ;;
-            esac
+            status=$(printf '%s\n' "$probe" | awk '$1 ~ /^HTTP\// { code=$2 } END { print code }')
+            if [ "$status" = "404" ]; then return 1; fi
+            return 2
           }
 
           while IFS=$'\t' read -r prefix name pkg ver; do

@@ -750,11 +750,11 @@ printf '%s\n' "$*" >> "$GH_LOG"
 case "${GH_MODE:-normal}:$*" in
   race:api*-X\ POST*git/refs*|wrongrace:api*-X\ POST*git/refs*) : > "$GH_STATE"; exit 1 ;;
   race:api*git/ref/tags/example@1.2.3*|wrongrace:api*git/ref/tags/example@1.2.3*)
-    if [ -f "$GH_STATE" ]; then printf '%s\n' '{"object":{"sha":"concurrent"}}'; else printf '%s\n' 'HTTP 404' >&2; exit 1; fi
+    if [ -f "$GH_STATE" ]; then printf '%s\n' '{"object":{"sha":"concurrent"}}'; else printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1; fi
     ;;
   race:api*commits/example@1.2.3*) printf '%s\n' "$MERGE_SHA" ;;
   wrongrace:api*commits/example@1.2.3*) printf '%s\n' "$WRONG_SHA" ;;
-  normal:api*git/ref/tags/example@1.2.3*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
+  normal:api*git/ref/tags/example@1.2.3*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
 esac
 EOF
 chmod +x "$tag_sim/bin/gh"
@@ -775,7 +775,7 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 		cd "$tag_sim" || exit 1
 		PATH="$tag_sim/bin:$PATH" GH_MODE=race GH_STATE="$tag_sim/race-created" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
 	) && grep -qF 'api -X POST repos/fixture/repo/git/refs' "$tag_sim/gh.log" && \
-	   grep -qF 'api repos/fixture/repo/git/ref/tags/example@1.2.3' "$tag_sim/gh.log"; then
+	   grep -qF 'api --include repos/fixture/repo/git/ref/tags/example@1.2.3' "$tag_sim/gh.log"; then
 		pass "concurrent same-target package tag creation is reconciled"
 	else
 		fail "concurrent same-target package tag creation was not reconciled"
@@ -834,7 +834,7 @@ cat > "$order_sim/bin/gh" <<'EOF'
 printf '%s\n' "$*" >> "$GH_LOG"
 case "$*" in
   api*releases/tags*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
-  api*git/ref/tags*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
+  api*git/ref/tags*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
 esac
 EOF
 chmod +x "$order_sim/bin/gh"
@@ -873,7 +873,7 @@ cat > "$failure_sim/bin/gh" <<'EOF'
 printf '%s\t%s\n' "$GH_MODE" "$*" >> "$GH_LOG"
 case "$GH_MODE:$*" in
   publish:api*releases/tags*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
-  tag:api*git/ref/tags*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
+  tag:api*git/ref/tags*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
   tag:api*-X\ POST*git/refs*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
   backmerge:api*compare*) printf '%s\n' '1' ;;
   backmerge:pr\ list*) exit 0 ;;
