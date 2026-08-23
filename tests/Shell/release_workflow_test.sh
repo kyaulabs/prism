@@ -41,8 +41,9 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-if ! command -v node >/dev/null 2>&1 || ! node -e "require('js-yaml')" 2>/dev/null; then
-	skip "node + js-yaml required (run: pnpm install)"
+if ! command -v jq >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || \
+   ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + js-yaml + jq required (run: pnpm install and install jq)"
 	exit 0
 fi
 
