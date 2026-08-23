@@ -212,6 +212,91 @@ function inspectReviewChain(context = {}) {
     }
 }
 
+function validateStoredFinding(value) {
+    const common = ['state', 'fingerprint', 'axis', 'path', 'line', 'summary', 'classification'];
+    const blocking = [...common, 'causality', 'impact', 'evidence'];
+    const keys = value?.classification === 'BLOCKING' ? blocking : common;
+    if (value?.state === 'CLOSED') keys.push('closureEvidence');
+    exactKeys(value, keys, 'stored finding');
+    if (!['OPEN', 'CLOSED'].includes(value.state) || !FINGERPRINT_RE.test(value.fingerprint)) {
+        throw new ReviewChainError('stored finding state is invalid');
+    }
+    const {state, fingerprint, closureEvidence, ...input} = value;
+    const finding = validateFinding(input);
+    if (finding.fingerprint !== fingerprint) throw new ReviewChainError('stored finding fingerprint is invalid');
+    if (state === 'CLOSED') text(closureEvidence, 'closure evidence', 4096);
+    return value;
+}
+
+function validateStoredSegmentFinding(value) {
+    if (value === null || Array.isArray(value) || typeof value !== 'object' || !FINGERPRINT_RE.test(value.fingerprint)) {
+        throw new ReviewChainError('stored segment finding is invalid');
+    }
+    const {fingerprint, ...input} = value;
+    const finding = validateFinding(input);
+    if (finding.fingerprint !== fingerprint) throw new ReviewChainError('stored segment finding fingerprint is invalid');
+    return value;
+}
+
+function validateStoredSegment(segment) {
+    exactKeys(segment, [
+        'schemaVersion', 'kind', 'branch', 'baseRef', 'baseSha', 'from', 'to',
+        'axes', 'findings', 'closures',
+    ], 'stored review segment');
+    if (segment.schemaVersion !== 1 || !['initial', 'repair'].includes(segment.kind) ||
+        !BRANCH_RE.test(segment.branch) || !/^origin\/(?:develop|main)$/.test(segment.baseRef) ||
+        !SHA_RE.test(segment.baseSha) || !SHA_RE.test(segment.from) || !SHA_RE.test(segment.to) ||
+        !Array.isArray(segment.findings) || !Array.isArray(segment.closures)) {
+        throw new ReviewChainError('stored review segment is invalid');
+    }
+    validateAxes(segment.axes);
+    segment.findings.forEach(validateStoredSegmentFinding);
+    segment.closures.forEach((closure) => {
+        exactKeys(closure, ['fingerprint', 'evidence'], 'stored finding closure');
+        if (!FINGERPRINT_RE.test(closure.fingerprint)) throw new ReviewChainError('stored closure fingerprint is invalid');
+        text(closure.evidence, 'stored closure evidence', 4096);
+    });
+    return segment;
+}
+
+function replayStoredSegments(record) {
+    let prior = record.baseSha;
+    let findings = [];
+    const fingerprints = new Set();
+    for (const [index, segmentValue] of record.segments.entries()) {
+        const segment = validateStoredSegment(segmentValue);
+        const expectedKind = index === 0 ? 'initial' : 'repair';
+        if (segment.kind !== expectedKind || segment.branch !== record.branch ||
+            segment.baseRef !== record.baseRef || segment.baseSha !== record.baseSha ||
+            segment.from !== prior || index === 0 && segment.from !== record.baseSha) {
+            throw new ReviewChainError('stored review history is discontinuous');
+        }
+        const closures = new Map();
+        for (const closure of segment.closures) {
+            if (segment.kind !== 'repair' || closures.has(closure.fingerprint) ||
+                !findings.some(({fingerprint, state}) => fingerprint === closure.fingerprint && state === 'OPEN')) {
+                throw new ReviewChainError('stored finding closure is invalid');
+            }
+            closures.set(closure.fingerprint, closure.evidence);
+        }
+        findings = findings.map((finding) => closures.has(finding.fingerprint)
+            ? {...finding, state: 'CLOSED', closureEvidence: closures.get(finding.fingerprint)}
+            : finding);
+        for (const finding of segment.findings) {
+            if (fingerprints.has(finding.fingerprint)) {
+                throw new ReviewChainError('stored finding fingerprints contain duplicates');
+            }
+            fingerprints.add(finding.fingerprint);
+            findings.push({state: 'OPEN', ...finding});
+        }
+        prior = segment.to;
+    }
+    if (record.segments.length === 0 || prior !== record.headSha) {
+        throw new ReviewChainError('stored review history is discontinuous');
+    }
+    return findings;
+}
+
 function validateRecordShape(record) {
     exactKeys(record, [
         'schemaVersion', 'branch', 'baseRef', 'baseSha', 'headSha', 'segments',
@@ -222,6 +307,17 @@ function validateRecordShape(record) {
         !SHA_RE.test(record.headSha) || !Array.isArray(record.segments) ||
         !Array.isArray(record.findings) || !Array.isArray(record.openBlocking)) {
         throw new ReviewChainError('review chain schema is invalid');
+    }
+    const findings = record.findings.map(validateStoredFinding);
+    const replayed = replayStoredSegments(record);
+    if (JSON.stringify(replayed) !== JSON.stringify(findings)) {
+        throw new ReviewChainError('review chain findings are inconsistent');
+    }
+    const openBlocking = findings
+        .filter(({classification, state}) => classification === 'BLOCKING' && state === 'OPEN')
+        .map(({fingerprint}) => fingerprint);
+    if (JSON.stringify(openBlocking) !== JSON.stringify(record.openBlocking)) {
+        throw new ReviewChainError('review chain blocking state is inconsistent');
     }
 }
 
@@ -271,6 +367,10 @@ function recordReviewSegment(input, context = {}) {
         if (record.branch !== segment.branch || record.baseRef !== segment.baseRef ||
             record.baseSha !== segment.baseSha || record.headSha !== segment.from) {
             throw new ReviewChainError('repair review is not continuous');
+        }
+        const priorFingerprints = new Set(record.findings.map(({fingerprint}) => fingerprint));
+        if (segment.findings.some(({fingerprint}) => priorFingerprints.has(fingerprint))) {
+            throw new ReviewChainError('repair findings contain duplicate fingerprints');
         }
         const closureMap = new Map(segment.closures.map((closure) => [closure.fingerprint, closure.evidence]));
         findings = record.findings.map((finding) => closureMap.has(finding.fingerprint)

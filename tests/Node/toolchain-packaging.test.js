@@ -135,6 +135,7 @@ test('documents human npm publication for managed lockstep package releases', ()
 
 test('documents bounded diff-causal review chains', () => {
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 
     assert.match(coreReadme, /review chain/i);
     assert.match(coreReadme, /repair delta/i);
@@ -142,6 +143,7 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /all four axes/i);
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
+    assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {

@@ -118,6 +118,51 @@ test('records and verifies one complete initial review segment', (t) => {
     }, target), /unresolved Blocking/);
 });
 
+test('rejects persisted blocking state that disagrees with nested findings', (t) => {
+    const target = fixture(t);
+    const record = recordReviewSegment({
+        schemaVersion: 1,
+        kind: 'initial',
+        branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop',
+        baseSha: target.baseSha,
+        from: target.baseSha,
+        to: target.headSha,
+        axes: axes(),
+        findings: [{
+            axis: 'tooling', path: 'file.txt', line: 1,
+            summary: 'changed flow has a deterministic defect',
+            classification: 'BLOCKING', causality: 'introduced by the delta',
+            impact: 'changed flow cannot complete', evidence: 'focused fixture fails',
+        }],
+        closures: [],
+    }, target);
+    const tampered = JSON.parse(fs.readFileSync(record.path, 'utf8'));
+    tampered.openBlocking = [];
+    fs.writeFileSync(record.path, `${JSON.stringify(tampered)}\n`, {mode: 0o600});
+
+    assert.equal(inspectReviewChain(target).state, 'UNSAFE');
+});
+
+test('rejects persisted findings that disagree with recorded segments', (t) => {
+    const target = fixture(t);
+    const record = recordReviewSegment({
+        schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha, axes: axes(), findings: [{
+            axis: 'tooling', path: 'file.txt', line: 1, summary: 'deterministic defect',
+            classification: 'BLOCKING', causality: 'introduced by the delta',
+            impact: 'changed flow cannot complete', evidence: 'focused fixture fails',
+        }], closures: [],
+    }, target);
+    const tampered = JSON.parse(fs.readFileSync(record.path, 'utf8'));
+    tampered.findings = [];
+    tampered.openBlocking = [];
+    fs.writeFileSync(record.path, `${JSON.stringify(tampered)}\n`, {mode: 0o600});
+
+    assert.equal(inspectReviewChain(target).state, 'UNSAFE');
+});
+
 test('appends a continuous repair and preserves Advisory findings', (t) => {
     const target = fixture(t);
     const initial = recordReviewSegment({
@@ -164,6 +209,28 @@ test('appends a continuous repair and preserves Advisory findings', (t) => {
     }, target);
     assert.equal(verified.advisoryFindings.length, 1);
     assert.equal(verified.record.segments.length, 2);
+});
+
+test('rejects duplicate finding fingerprints across repair segments', (t) => {
+    const target = fixture(t);
+    const finding = {
+        axis: 'standards', path: 'file.txt', line: 1,
+        summary: 'follow-up naming cleanup', classification: 'ADVISORY',
+    };
+    recordReviewSegment({
+        schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha, axes: axes(), findings: [finding], closures: [],
+    }, target);
+    fs.writeFileSync(path.join(target.projectRoot, 'file.txt'), 'repaired\n');
+    git(target.projectRoot, 'commit', '-qam', 'repair');
+    const repairedHead = git(target.projectRoot, 'rev-parse', 'HEAD');
+
+    assert.throws(() => recordReviewSegment({
+        schemaVersion: 1, kind: 'repair', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.headSha,
+        to: repairedHead, axes: axes(), findings: [finding], closures: [],
+    }, target), /duplicate fingerprints/);
 });
 
 test('rejects malformed Blocking evidence and symlinked chain state', (t) => {
