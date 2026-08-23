@@ -419,7 +419,8 @@ function acquirePackageReleaseLock(projectRoot) {
         parent.close();
         if (error.code === 'EEXIST') {
             throw new Error(
-                'package-release lock exists; manual recovery requires verifying no package-release process is active'
+                'package-release lock exists; manual recovery requires verifying no package-release process is active',
+                {cause: error}
             );
         }
         throw error;
