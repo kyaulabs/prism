@@ -407,6 +407,9 @@ function acquirePackageReleaseLock(projectRoot) {
     try {
         parent.assertCurrent();
         descriptor = fs.openSync(anchoredLock, 'wx', 0o600);
+        fs.writeFileSync(descriptor, `${JSON.stringify({schemaVersion: 1, pid: process.pid})}\n`);
+        fs.fsyncSync(descriptor);
+        parent.sync();
         parent.assertCurrent();
     } catch (error) {
         if (descriptor !== undefined) {
@@ -414,6 +417,11 @@ function acquirePackageReleaseLock(projectRoot) {
             fs.rmSync(anchoredLock, {force: true});
         }
         parent.close();
+        if (error.code === 'EEXIST') {
+            throw new Error(
+                'package-release lock exists; manual recovery requires verifying no package-release process is active'
+            );
+        }
         throw error;
     }
     return {

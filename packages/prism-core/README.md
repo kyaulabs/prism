@@ -30,7 +30,10 @@ language-neutral half; install it **globally** so it runs in every project.
   declared-workspace packages, displays the exact package list, and installs
   the Core-owned release configuration plus canonical workflow only after
   explicit enablement and displayed-diff mutation approval. Package-release
-  setup remains independent of language adapters.
+  setup remains independent of language adapters. The operation lock records
+  its owner PID in `.pi/prism-tool/package-release.lock`; after a crash, a
+  human must verify that PID is no longer running before removing that exact
+  lock file. Prism does not auto-remove an existing lock.
 
 ## Install
 

@@ -365,7 +365,7 @@ test('refuses to replace a plan while the package-release lock is held', (t) => 
     const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
     fs.writeFileSync(lockPath, 'concurrent\n', {flag: 'wx', mode: 0o600});
 
-    assert.throws(() => planReleaseCapability(fixture), {code: 'EEXIST'});
+    assert.throws(() => planReleaseCapability(fixture), /manual recovery requires verifying/);
     assert.equal(fs.existsSync(firstPlan.planPath), true);
     assert.equal(fs.readFileSync(lockPath, 'utf8'), 'concurrent\n');
 });
@@ -392,6 +392,25 @@ test('reports lock cleanup failure as structured recovery state', (t) => {
 
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.recovery, 'manual recovery required');
+});
+
+test('records lock ownership for manual crash recovery', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
+    let owner;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            if (owner === undefined) owner = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+            fs.renameSync(source, destination);
+        },
+    });
+
+    assert.equal(result.status, 'GO');
+    assert.deepEqual(owner, {schemaVersion: 1, pid: process.pid});
 });
 
 test('does not remove a replacement package-release lock during cleanup', (t) => {
