@@ -1,4 +1,4 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -68,6 +68,16 @@ test("bash sensitive operand blocks and feeds the breaker", () => {
     const result = handleToolCall("bash", { command: "cat ~/.ssh/id_rsa" }, deps);
     assert.equal(result?.block, true);
     assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
+test("bash unanalyzable command blocks with an analysis reason, not a path hit", () => {
+    const { deps } = makeDeps();
+    const command = 'node -e "console.log(`[${1}]`)"';
+    const result = handleToolCall("bash", { command }, deps);
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /could not be analyzed/);
+    assert.doesNotMatch(result?.reason ?? "", /sensitive-path policy/);
     assert.equal(deps.breaker.count("s1"), 1);
 });
 
@@ -158,12 +168,12 @@ test("literal arithmetic passes while identifier and nested expansions block", (
 
     const identifier = handleToolCall("bash", { command: "attempts=$((attempts + 1))" }, deps);
     assert.equal(identifier?.block, true);
-    assert.match(identifier?.reason ?? "", /sensitive-path policy/);
+    assert.match(identifier?.reason ?? "", /could not be analyzed/);
     assert.equal(deps.breaker.count("s1"), 1);
 
     const nested = handleToolCall("bash", { command: "value=$((1 + $(cat ~/.ssh/id_rsa)))" }, deps);
     assert.equal(nested?.block, true);
-    assert.match(nested?.reason ?? "", /sensitive-path policy/);
+    assert.match(nested?.reason ?? "", /could not be analyzed/);
     assert.equal(deps.breaker.count("s1"), 2);
 });
 
@@ -178,7 +188,7 @@ test("delayed trap payloads fail closed", () => {
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -207,7 +217,7 @@ test("recursive evaluator wrappers fail closed on delayed destructive payloads",
     const result = handleToolCall("bash", { command }, deps);
 
     assert.equal(result?.block, true);
-    assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.match(result?.reason ?? "", /could not be analyzed/);
     assert.equal(deps.breaker.count("s1"), 1);
 });
 
@@ -222,7 +232,7 @@ test("parameter-constructed recursive evaluators fail closed", () => {
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -233,7 +243,7 @@ test("grouped recursive evaluators fail closed on escaped substitution payloads"
     const result = handleToolCall("bash", { command }, deps);
 
     assert.equal(result?.block, true);
-    assert.match(result?.reason ?? "", /sensitive-path policy/);
+    assert.match(result?.reason ?? "", /could not be analyzed/);
     assert.equal(deps.breaker.count("s1"), 1);
 });
 
@@ -250,7 +260,7 @@ test("single-quoted command substitution syntax fails closed", () => {
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -301,7 +311,7 @@ test("arithmetic commands block recursively evaluated identifiers", () => {
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -318,7 +328,7 @@ test("unsafe indexed parameter reads fail closed", () => {
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -335,7 +345,7 @@ test("unsafe indexed assignments fail closed regardless of token position", () =
         const result = handleToolCall("bash", { command }, deps);
 
         assert.equal(result?.block, true, command);
-        assert.match(result?.reason ?? "", /sensitive-path policy/, command);
+        assert.match(result?.reason ?? "", /could not be analyzed/, command);
         assert.equal(deps.breaker.count("s1"), 1, command);
     }
 });
@@ -350,6 +360,22 @@ test("non-arithmetic declaration forms do not block", () => {
     assert.equal(handleToolCall("bash", { command: "echo \"${arr[1+2]}\"" }, deps), undefined);
     assert.equal(handleToolCall("bash", { command: "printf '%s' '${arr[$PAYLOAD]}'" }, deps), undefined);
     assert.equal(deps.breaker.count("s1"), 0);
+});
+
+test("read malformed path arg blocks with a malformed reason, not a path hit", () => {
+    const { deps } = makeDeps();
+    const result = handleToolCall("read", { path: 42 }, deps);
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /malformed/);
+    assert.doesNotMatch(result?.reason ?? "", /sensitive-path policy/);
+});
+
+test("grep malformed glob blocks with a malformed reason, not a path hit", () => {
+    const { deps } = makeDeps();
+    const result = handleToolCall("grep", { path: "/repo", glob: 42 }, deps);
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /malformed/);
+    assert.doesNotMatch(result?.reason ?? "", /sensitive-path policy/);
 });
 
 test("read/ls/find sensitive paths block without feeding the breaker", () => {

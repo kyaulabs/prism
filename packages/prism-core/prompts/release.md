@@ -45,17 +45,21 @@ git branch --show-current
 The output must be exactly `develop`; otherwise stop and report that releases
 originate from `develop` only.
 
-Synchronize, then obtain both SHAs in separate calls:
+Synchronize both integration refs, then obtain the local and remote develop
+SHAs in separate calls:
 
 ```bash
-git fetch origin develop --tags
+git fetch origin develop main --tags
 git rev-parse HEAD
 git rev-parse origin/develop
+git merge-base --is-ancestor origin/main HEAD
 ```
 
-Validate both outputs as commit SHAs and compare them as inert data. If they
-differ, stop and report that local `develop` is not synchronized with
-`origin/develop`.
+Validate both SHA outputs and compare them as inert data. If they differ, stop
+and report that local `develop` is not synchronized with `origin/develop`.
+Exit 0 from the ancestry check confirms that `develop` contains the latest
+`main`. Exit 1 means the human must merge the `main` → `develop` back-merge PR
+before preparing another release. Treat every other Git failure as fatal.
 
 ```bash
 # git-cliff 2.0+ is required through the launcher; there is no alternative —
@@ -213,55 +217,60 @@ awk -v v="[X.Y.Z]" '
 Validate the numeric output as inert data. A value greater than 120,000 is
 `oversized`; ask the approval question described above.
 
-## Compute and bump per-package versions
+## Author configured package versions in lockstep
 
-Release-managed packages are declared in `.prism/release.json` at the repo
-root — `{ "packages": ["relative/dir", ...] }`. When the file is absent or its
-`packages` array empty, skip this entire section: no per-package behavior.
-When present but malformed (absolute path, `..`, whitespace, missing
-`package.json`, unparseable JSON), stop the release.
+Release-managed packages are declared only by `.prism/release.json` at the
+repository root. When the file is absent, state explicitly that this is a
+repository-only release and run no npm command.
 
-For each declared package, compute its bump from commits touching that path
-since its last `<prefix>@*` tag. The prefix is the package's `package.json`
-`name` with the scope stripped (`@kyaulabs/prism-core` → `prism-core`). A
-computed version equal to the current `package.json` version means the
-package has nothing to bump — skip it entirely (no bump, no tag, no npm
-command). Otherwise bump it and record the package dir in `BUMPED_PKGS`
-(space-separated, conversation context) for the commit and handoff:
+When present, require the exact owned configuration shape before changing any
+manifest:
 
-For each validated package directory, run these separately:
-
-```bash
-node -e 'process.stdout.write(require(process.argv[1]).name)' "PACKAGE_DIRECTORY/package.json"
-node -e 'process.stdout.write(require(process.argv[1]).version)' "PACKAGE_DIRECTORY/package.json"
-prism-tool run git-cliff -- --bumped-version --include-path "PACKAGE_DIRECTORY/*" --tag-pattern "PACKAGE_PREFIX@.*"
+```json
+{
+  "schemaVersion": 1,
+  "managedBy": "@kyaulabs/prism-core",
+  "versionPolicy": "lockstep",
+  "packages": ["relative/package/directory"]
+}
 ```
 
-Retain the validated package name, scope-stripped prefix, current version, and
-normalized next version as inert context. When the next version differs from
-the current version, run:
+Reject unknown keys, an empty package list, duplicate paths or tag prefixes,
+absolute or escaping paths, whitespace, symlinks, private packages, missing
+or malformed `package.json` files, unusable package names, and any path that
+resolves outside the repository. Validate every configured package before
+running the first npm command; partial package-version mutation is forbidden.
+
+After validation, render the confirmed repository version and each validated
+package directory literally. Run this once for every configured package:
 
 ```bash
-npm --prefix PACKAGE_DIRECTORY version NEXT_VERSION --no-git-tag-version
+npm --prefix PACKAGE_DIRECTORY version X.Y.Z --no-git-tag-version
 ```
 
-Record the literal package directory in `BUMPED_PKGS` conversation state.
-
-The `chore(release): vX.Y.Z` commit carries the bumped `package.json` files,
-so the versions land in the merge commit.
+Read each resulting `PACKAGE_DIRECTORY/package.json` separately and require
+its version to equal the exact confirmed `X.Y.Z`. The release commit therefore
+carries every configured package at the repository release version, whether
+or not that package's source changed.
 
 ## Commit the changelog
 
 Load `conventional-commits` and use its atomic launcher workflow. Stage
-`CHANGELOG.md` plus each exact literal bumped `package.json` path in a separate
-tool call. Do not interpolate the package list into shell source or combine
-staging with commit creation.
-
-The no-package-bump staging shape is:
+`CHANGELOG.md` first:
 
 ```bash
 git add CHANGELOG.md
 ```
+
+For every configured package, stage its validated literal manifest path in a
+separate call:
+
+```bash
+git add PACKAGE_DIRECTORY/package.json
+```
+
+Do not interpolate the package list into shell source or combine staging with
+commit creation. A repository-only release stages no package manifest.
 
 Render the validated version as a literal `vX.Y.Z` subject. Keep
 `RELEASE_ISSUE_DIGITS` only as validated conversation state: when present,
@@ -297,17 +306,21 @@ gh pr create --base main --head release/X.Y.Z \
     --title "Release vX.Y.Z" \
     --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA and opens the back-merge PR for a human to merge."
 
-# After the release PR merges, publish each bumped package (release.yml
-# already tagged them; npm prompts for OTP if 2FA is enabled):
-#   cd <pkg> && npm publish --access public
-#   (one line per bumped package; none when no package bumped)
+# After the release PR merges, publish every configured package (release.yml
+# already tagged each one; npm prompts for OTP if 2FA is enabled):
+#   cd PACKAGE_DIRECTORY && npm publish --access public
+#   (print one literal line per configured package)
 ```
 
+For a repository-only release, print no npm command. Otherwise, render one
+inert `cd PACKAGE_DIRECTORY && npm publish --access public` line for every
+configured package outside executable Bash fences.
+
 State that after the human merges the PR, `release.yml` creates the unsigned
-`vX.Y.Z` tag and GitHub Release at the merge SHA, tags every bumped package
-(`<prefix>@<ver>`), and opens the `main` → `develop` back-merge PR, which a
-human reviews and merges. The printed `npm publish` commands run after the
-merge. Stop there.
+`vX.Y.Z` tag and GitHub Release at the merge SHA, tags every configured
+package (`<prefix>@X.Y.Z`), and opens the `main` → `develop` back-merge PR,
+which a human reviews and merges. The printed npm publication commands run
+after the merge. Stop there.
 
 ## Rules
 

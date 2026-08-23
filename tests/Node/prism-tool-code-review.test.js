@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -60,6 +60,9 @@ function fixture(t, overrides = {}) {
                 stderr: '',
                 error: undefined,
             };
+        } else if (executable === 'git' && args[0] === 'merge-base') {
+            kind = 'git-ancestor';
+            result = overrides.ancestor ?? {status: 0, stdout: '', stderr: '', error: undefined};
         } else if (executable === 'git' && args[0] === 'rev-parse') {
             kind = 'git-base';
             result = overrides.base ?? {
@@ -146,6 +149,24 @@ test('dedicated review validates versions and connectivity before exact OCR revi
     assert.equal(target.calls.at(-1).options.timeout, 600000);
     assert.equal(target.calls.at(-1).options.maxBuffer, 1048576);
     assert.equal(target.calls.at(-1).options.cwd, target.repository);
+});
+
+test('dedicated review accepts one explicit validated repair range', (t) => {
+    const target = fixture(t);
+    const from = 'b'.repeat(40);
+
+    const result = capture(() => main([
+        'code-review', 'ocr', '--', 'review', '--from', from, '--to', 'HEAD',
+        '--audience', 'agent', '--format', 'json',
+    ], target.context));
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(target.calls.map(({kind}) => kind), [
+        'semgrep-version', 'ocr-version', 'git-ancestor', 'ocr-connectivity', 'ocr-review',
+    ]);
+    assert.deepEqual(target.calls.at(-1).args, [
+        'review', '--from', from, '--to', 'HEAD', '--audience', 'agent', '--format', 'json',
+    ]);
 });
 
 test('dedicated review targets main for release and hotfix branches', (t) => {
@@ -276,10 +297,46 @@ test('connectivity failure stops before review with a fixed diagnostic', (t) => 
     assert.doesNotMatch(`${result.stdout}${result.stderr}`, /CANARY-PROVIDER/);
 });
 
-test('review timeout, non-zero, and output-limit failures are bounded and redacted', (t) => {
+test('review non-zero exit relays sanitized stderr', (t) => {
+    const target = fixture(t, {
+        review: {
+            status: 9,
+            stdout: '',
+            stderr: '\x1b[31mprovider rejected the request\x1b[0m\x07\r\nprism-tool: forged line',
+            error: undefined,
+        },
+    });
+
+    const result = capture(() => main(reviewArgs(), target.context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /OCR review failed: provider rejected the request/);
+    assert.equal([...result.stderr.trim()].every((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 32 && code !== 127;
+    }), true);
+});
+
+test('review non-zero exit bounds relayed stderr', (t) => {
+    const target = fixture(t, {
+        review: {
+            status: 9,
+            stdout: '',
+            stderr: `${'x'.repeat(5000)}final provider error`,
+            error: undefined,
+        },
+    });
+
+    const result = capture(() => main(reviewArgs(), target.context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /final provider error/);
+    assert.equal(result.stderr.length <= 'prism-tool: code-review OCR review failed: \n'.length + 2048, true);
+});
+
+test('review timeout and output-limit failures are bounded and redacted', (t) => {
     const cases = [
         [{status: null, stdout: '', stderr: 'CANARY-PROVIDER', timedOut: true, error: {code: 'ETIMEDOUT'}}, /timed out/],
-        [{status: 9, stdout: '', stderr: 'CANARY-PROVIDER', error: undefined}, /OCR review failed/],
         [{status: null, stdout: 'CANARY-PROVIDER', stderr: '', timedOut: false, error: {code: 'ENOBUFS'}}, /output or process failure/],
     ];
     for (const [review, pattern] of cases) {

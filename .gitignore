@@ -2,9 +2,10 @@
 .php-cs-fixer.cache
 .phpunit.cache
 
-# pi runtime caches (per-project package/npm/git stores)
+# pi runtime caches and untracked Prism evidence
 .pi/npm/
 .pi/git/
+.pi/prism-tool/
 
 # Semgrep settings (API keys, registry tokens)
 .semgrep/settings.yml

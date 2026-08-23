@@ -1,4 +1,4 @@
-// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -7,12 +7,20 @@ const path = require('node:path');
 const {assertPackageParity, loadContract} = require('./contract');
 const {STATE: CONSENT_STATE, inspectConsent} = require('./consent');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
-const {runBounded} = require('./process');
+const {runBounded, sanitizeDetail} = require('./process');
+const {
+    ReviewChainError,
+    inspectReviewChain,
+    recordReviewSegment,
+    verifyReviewChain,
+} = require('./review-chain');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
-const USAGE = 'usage: prism-tool code-review ocr -- review --audience agent --format json | ' +
-    'prism-tool code-review ocr -- scan PATH --audience agent --format json\n';
+const USAGE = 'usage: prism-tool code-review ocr -- review [--from SHA --to HEAD] --audience agent --format json | ' +
+    'prism-tool code-review ocr -- scan PATH --audience agent --format json | ' +
+    'prism-tool code-review chain inspect|record|verify [controls]\n';
 const REVIEW_ARGS = Object.freeze(['review', '--audience', 'agent', '--format', 'json']);
+const EXPLICIT_REVIEW_LENGTH = 9;
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 class CodeReviewError extends Error {
@@ -59,6 +67,20 @@ function parseCodeReview(args, context) {
             root: resolveRoot(context),
         };
     }
+    if (
+        operation.length === EXPLICIT_REVIEW_LENGTH &&
+        operation[0] === 'review' && operation[1] === '--from' && SHA_RE.test(operation[2]) &&
+        operation[3] === '--to' && operation[4] === 'HEAD' &&
+        operation[5] === '--audience' && operation[6] === 'agent' &&
+        operation[7] === '--format' && operation[8] === 'json'
+    ) {
+        return {
+            args: [...operation],
+            explicitFrom: operation[2],
+            mode: 'review',
+            root: resolveRoot(context),
+        };
+    }
     if (operation.length === 6 && operation[0] === 'scan' &&
         operation[2] === '--audience' && operation[3] === 'agent' &&
         operation[4] === '--format' && operation[5] === 'json') {
@@ -82,6 +104,18 @@ function loadCoreContract(coreRoot) {
 
 function resolveReviewArguments(parsed, context, run, env) {
     if (parsed.mode !== 'review') return parsed.args;
+    if (parsed.explicitFrom !== undefined) {
+        const ancestor = run('git', ['merge-base', '--is-ancestor', parsed.explicitFrom, 'HEAD'], {
+            cwd: parsed.root,
+            env,
+            maxBuffer: 1048576,
+            timeout: 30000,
+        });
+        if (ancestor.error || ancestor.status !== 0) {
+            throw new CodeReviewError(EXIT.TOOL, 'review range is not continuous');
+        }
+        return parsed.args;
+    }
     const branch = run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
         cwd: parsed.root,
         env,
@@ -110,10 +144,53 @@ function resolveReviewArguments(parsed, context, run, env) {
     return ['review', '--from', baseSha, '--to', 'HEAD', ...REVIEW_ARGS.slice(1)];
 }
 
+function readChainInput(operand, context) {
+    const resolved = resolveScanPath(operand, context);
+    const stat = fs.lstatSync(resolved.path);
+    if (!stat.isFile() || stat.size > 131072) throw new CodeReviewError(EXIT.USAGE, 'chain input is invalid');
+    try {
+        return JSON.parse(fs.readFileSync(resolved.path, 'utf8'));
+    } catch {
+        throw new CodeReviewError(EXIT.USAGE, 'chain input is invalid');
+    }
+}
+
+function parseVerifyControls(args) {
+    const expected = {};
+    for (const key of ['branch', 'base-ref', 'base-sha', 'head-sha']) {
+        const matches = args.filter((argument) => argument.startsWith(`--${key}=`));
+        if (matches.length !== 1) throw new CodeReviewError(EXIT.USAGE, 'chain verify arguments are invalid');
+        expected[key.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase())] = matches[0].slice(key.length + 3);
+    }
+    if (args.length !== 5 || !args.includes('--json')) {
+        throw new CodeReviewError(EXIT.USAGE, 'chain verify arguments are invalid');
+    }
+    return expected;
+}
+
+function reviewChainCommand(args, context) {
+    if (sameArguments(args, ['inspect', '--json'])) {
+        const inspected = inspectReviewChain(context);
+        process.stdout.write(`${JSON.stringify({schemaVersion: 1, ...inspected})}\n`);
+        return inspected.state === 'UNSAFE' ? EXIT.TOOL : EXIT.OK;
+    }
+    if (args.length === 4 && args[0] === 'record' && args[1] === '--input' && args[3] === '--json') {
+        const record = recordReviewSegment(readChainInput(args[2], context), context);
+        process.stdout.write(`${JSON.stringify({schemaVersion: 1, status: 'GO', data: record})}\n`);
+        return EXIT.OK;
+    }
+    if (args[0] === 'verify') {
+        const verified = verifyReviewChain(parseVerifyControls(args.slice(1)), context);
+        process.stdout.write(`${JSON.stringify({schemaVersion: 1, status: 'GO', data: verified})}\n`);
+        return EXIT.OK;
+    }
+    throw new CodeReviewError(EXIT.USAGE, 'chain arguments are invalid');
+}
+
 function fail(error) {
-    if (error instanceof CodeReviewError) {
+    if (error instanceof CodeReviewError || error instanceof ReviewChainError) {
         process.stderr.write(`prism-tool: code-review ${error.message}\n`);
-        return error.code;
+        return error.code ?? EXIT.TOOL;
     }
     process.stderr.write('prism-tool: code-review operation failed\n');
     return EXIT.TOOL;
@@ -160,13 +237,17 @@ function execute(args, context) {
         const message = result.timedOut ? 'OCR review timed out' : 'OCR review output or process failure';
         throw new CodeReviewError(EXIT.TOOL, message);
     }
-    if (result.status !== 0) throw new CodeReviewError(EXIT.TOOL, 'OCR review failed');
+    if (result.status !== 0) {
+        const detail = sanitizeDetail(result.stderr);
+        throw new CodeReviewError(EXIT.TOOL, detail === '' ? 'OCR review failed' : `OCR review failed: ${detail}`);
+    }
     if (result.stdout) process.stdout.write(result.stdout);
     return EXIT.OK;
 }
 
 function codeReviewCommand(args, context = {}) {
     try {
+        if (args[0] === 'chain') return reviewChainCommand(args.slice(1), context);
         return execute(args, context);
     } catch (error) {
         if (error instanceof CodeReviewError && error.code === EXIT.USAGE) {

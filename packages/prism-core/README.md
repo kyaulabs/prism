@@ -26,6 +26,14 @@ language-neutral half; install it **globally** so it runs in every project.
   by `install-global.sh` so the core is "always running".
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
+- **Managed lockstep npm releases** — `/setup` discovers publishable root and
+  declared-workspace packages, displays the exact package list, and installs
+  the Core-owned release configuration plus canonical workflow only after
+  explicit enablement and displayed-diff mutation approval. Package-release
+  setup remains independent of language adapters. The operation lock records
+  its owner PID in `.pi/prism-tool/package-release.lock`; after a crash, a
+  human must verify that PID is no longer running before removing that exact
+  lock file. Prism does not auto-remove an existing lock.
 
 ## Install
 
@@ -104,8 +112,15 @@ After implementation and ADR-0027 artifact cleanup, the
 `finishing-a-development-branch` skill pauses once for finalization acceptance.
 One acceptance authorizes one synchronization, attestation, full `/check`,
 four-axis review, SHA revalidation, and automatic `/pr` preparation attempt.
-Any failure stops before `/pr` and requires fresh finalization acceptance after
-repair.
+The first accepted review creates a bounded review chain with all four axes.
+After a Blocking repair, fresh acceptance reviews only the continuous repair delta and records closure evidence. Advisory findings do not block `/pr` and
+need no waiver. Base or history changes, discontinuity, malformed state, or a
+HEAD mismatch invalidate the chain and require a new complete initial review.
+Existing branches without chain state follow that initial-review path; Prism
+never migrates session-only evidence. Chain state is untracked under
+`.pi/prism-tool/code-review/`. `/pr` does not create issues or mutate GitHub.
+Any failed gate stops before `/pr` and requires fresh finalization acceptance
+after repair.
 
 `/pr` remains preparation-only: humans push, create pull requests, and merge.
 

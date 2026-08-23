@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -445,6 +445,32 @@ test('preserves a workspace whose ownership marker does not match', (t) => {
         /ownership marker does not match/
     );
     assert.equal(fs.existsSync(workspace.root), true);
+});
+
+test('normalizes Composer zero advisories emitted as an empty array', () => {
+    const result = normalizeComposerAudit({
+        status: 0,
+        stdout: '{"advisories": [], "abandoned": [], "filter": []}',
+        stderr: '',
+        error: undefined,
+    });
+
+    assert.deepEqual(result, {
+        totals: {critical: 0, high: 0, moderate: 0, low: 0},
+        findings: [],
+    });
+});
+
+test('rejects Composer advisories emitted as a non-empty array', () => {
+    assert.throws(
+        () => normalizeComposerAudit({
+            status: 0,
+            stdout: '{"advisories": [{"advisoryId": "CVE-2099-0001", "severity": "low"}]}',
+            stderr: '',
+            error: undefined,
+        }),
+        /Composer audit output is malformed/
+    );
 });
 
 test('normalizes valid Composer advisory JSON even when the audit exits non-zero', () => {

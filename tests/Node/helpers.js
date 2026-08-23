@@ -1,4 +1,4 @@
-// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
 
 'use strict';
 
@@ -22,10 +22,17 @@ function writeExecutable(filePath, body) {
     fs.chmodSync(filePath, 0o755);
 }
 
+function writePackageJson(projectRoot, relativeDirectory, manifest) {
+    const directory = relativeDirectory === '.'
+        ? projectRoot
+        : path.join(projectRoot, relativeDirectory);
+    writeJson(path.join(directory, 'package.json'), manifest);
+}
+
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-module.exports = {makeTempDir, sha256, writeExecutable, writeJson};
+module.exports = {makeTempDir, sha256, writeExecutable, writeJson, writePackageJson};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

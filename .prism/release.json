@@ -1,3 +1,9 @@
 {
-  "packages": ["packages/prism-core", "packages/prism-php-web"]
+  "schemaVersion": 1,
+  "managedBy": "@kyaulabs/prism-core",
+  "versionPolicy": "lockstep",
+  "packages": [
+    "packages/prism-core",
+    "packages/prism-php-web"
+  ]
 }
