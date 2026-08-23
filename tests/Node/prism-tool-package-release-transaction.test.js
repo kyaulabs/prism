@@ -390,6 +390,31 @@ test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 
+test('preserves a concurrent edit introduced at the publication boundary', (t) => {
+    const fixture = makeFixture(t);
+    installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    const concurrentContent = 'concurrent publication edit\n';
+    const renameSync = fs.renameSync;
+    let replaced = false;
+    t.mock.method(fs, 'renameSync', (source, destination) => {
+        if (
+            !replaced &&
+            (path.basename(source) === 'release.yml' || path.basename(destination) === 'release.yml')
+        ) {
+            replaced = true;
+            fs.writeFileSync(workflowPath, concurrentContent);
+        }
+        return renameSync(source, destination);
+    });
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), concurrentContent);
+});
+
 test('preserves concurrent target edits during rollback', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);

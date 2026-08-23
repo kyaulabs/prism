@@ -843,26 +843,13 @@ function holdDirectory(projectRoot, directoryPath) {
     return createHeldDirectory(projectRoot, directoryPath, descriptor, initial);
 }
 
-function restoreHeldTarget(parent, targetPath, state, rename) {
-    if (state.content === null) {
-        fs.rmSync(targetPath, {force: true});
-        return;
-    }
-    const tempPath = `${targetPath}.restore-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    let descriptor;
-    try {
-        descriptor = fs.openSync(tempPath, 'wx', state.mode);
-        fs.writeFileSync(descriptor, state.content);
-        fs.fsyncSync(descriptor);
-        fs.closeSync(descriptor);
-        descriptor = undefined;
-        fs.chmodSync(tempPath, state.mode);
-        rename(tempPath, targetPath);
-    } catch (error) {
-        if (descriptor !== undefined) fs.closeSync(descriptor);
-        fs.rmSync(tempPath, {force: true});
-        throw error;
-    }
+function publishNoReplace(source, destination) {
+    fs.linkSync(source, destination);
+    fs.rmSync(source, {force: false});
+}
+
+function stateMatches(left, right) {
+    return left.digest === right.digest && left.mode === right.mode;
 }
 
 function writeAtomic(
@@ -870,16 +857,19 @@ function writeAtomic(
     filePath,
     content,
     mode,
-    rename = fs.renameSync,
+    rename = publishNoReplace,
     onMutation = () => {},
-    replacedState = {content: null, mode: null}
+    replacedState = {digest: 'absent', content: null, mode: null}
 ) {
     const parent = holdDirectory(projectRoot, path.dirname(filePath));
-    const tempName = `.${path.basename(filePath)}.prism-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const tempPath = path.join(parent.anchor, tempName);
+    const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const tempPath = path.join(parent.anchor, `.${path.basename(filePath)}.prism-${nonce}`);
+    const guardPath = path.join(parent.anchor, `.${path.basename(filePath)}.prism-guard-${nonce}`);
     const targetPath = path.join(parent.anchor, path.basename(filePath));
+    const desiredDigest = sha256(content);
     let descriptor;
-    let renamed = false;
+    let guardMoved = false;
+    let published = false;
     try {
         parent.assertCurrent();
         descriptor = fs.openSync(tempPath, 'wx', mode);
@@ -889,14 +879,53 @@ function writeAtomic(
         descriptor = undefined;
         fs.chmodSync(tempPath, mode);
         parent.assertCurrent();
+        if (replacedState.content !== null) {
+            fs.renameSync(targetPath, guardPath);
+            guardMoved = true;
+            const guardedState = currentFileState(guardPath);
+            if (!stateMatches(guardedState, replacedState)) {
+                publishNoReplace(guardPath, targetPath);
+                guardMoved = false;
+                throw new Error('managed release target changed before publication');
+            }
+        }
         rename(tempPath, targetPath);
-        renamed = true;
-        onMutation();
+        published = true;
         parent.assertCurrent();
+        if (guardMoved) {
+            fs.rmSync(guardPath, {force: false});
+            guardMoved = false;
+        }
+        onMutation();
     } catch (error) {
+        let recoveryFailed = false;
         if (descriptor !== undefined) fs.closeSync(descriptor);
+        try {
+            const current = currentFileState(targetPath);
+            if (!published && current.digest === desiredDigest && current.mode === mode) {
+                published = true;
+            }
+            if (published) {
+                if (current.digest !== desiredDigest || current.mode !== mode) {
+                    throw new Error('managed release target changed during publication recovery', {cause: error});
+                }
+                fs.rmSync(targetPath, {force: false});
+                published = false;
+            }
+            if (guardMoved) {
+                publishNoReplace(guardPath, targetPath);
+                guardMoved = false;
+            }
+        } catch {
+            recoveryFailed = true;
+        }
+        try {
+            parent.assertCurrent();
+        } catch {
+            recoveryFailed = true;
+        }
         fs.rmSync(tempPath, {force: true});
-        if (renamed) restoreHeldTarget(parent, targetPath, replacedState, rename);
+        if (recoveryFailed) error.recoveryFailed = true;
         throw error;
     } finally {
         parent.close();
@@ -944,7 +973,7 @@ function removeEmptyCreatedDirectories(projectRoot, createdDirectories) {
     }
 }
 
-function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.renameSync}) {
+function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publishNoReplace}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     let lock;
     let operation;
@@ -1010,15 +1039,15 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             ],
             data: {disposition: plan.disposition},
         };
-    } catch {
-        let recoveryFailed = false;
+    } catch (error) {
+        let recoveryFailed = error.recoveryFailed === true;
         if (!durable) {
             for (const relativePath of [...mutated].reverse()) {
                 try {
                     const targetPath = path.join(canonicalProject, relativePath);
                     const original = originals.get(relativePath);
                     if (currentFileState(targetPath).digest !== appliedDigests.get(relativePath)) {
-                        throw new Error('managed release target changed during recovery');
+                        throw new Error('managed release target changed during recovery', {cause: error});
                     }
                     if (original.content === null) removeManagedTarget(canonicalProject, targetPath);
                     else {
