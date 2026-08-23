@@ -234,6 +234,38 @@ extract_step_if() {
 	' "$workflow" "$step_name"
 }
 
+validate_workflow_graph() {
+	local workflow="$1"
+	node -e '
+		const fs = require("node:fs");
+		const yaml = require("js-yaml");
+		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+		const jobs = Object.values(workflow.jobs);
+		if (jobs.length !== 1) process.exit(1);
+		const job = jobs[0];
+		if (job.needs !== undefined || job["continue-on-error"] !== undefined) process.exit(1);
+		const names = job.steps.map(({name}) => name).filter(Boolean);
+		const ordered = [
+			"Validate merge SHA and release version",
+			"Prepare package release metadata",
+			"Publish release",
+			"Reconcile package tags",
+			"Open back-merge PR",
+		];
+		let prior = -1;
+		for (const name of ordered) {
+			const index = names.indexOf(name);
+			if (index <= prior) process.exit(1);
+			prior = index;
+		}
+		if (job.steps.some((step) => step["continue-on-error"] !== undefined)) process.exit(1);
+		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
+		const quote = String.fromCharCode(39);
+		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote + " }}";
+		if (backmerge.if !== expected) process.exit(1);
+	' "$workflow"
+}
+
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
 # the fixture into a fresh registered temp dir as CHANGELOG.md, execute the
 # workflow's extraction run block with VERSION set, and compare the exit
@@ -523,7 +555,8 @@ workflow_schedules_backmerge() {
 	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && \
 		[ "$1" = "success" ]
 }
-if workflow_schedules_backmerge success && grep -qF 'id: validate' "$RELEASE_FILE"; then
+if workflow_schedules_backmerge success && grep -qF 'id: validate' "$RELEASE_FILE" && \
+   validate_workflow_graph "$RELEASE_FILE"; then
 	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
 else
 	fail "back-merge is not guarded by always() and successful merge validation"
@@ -581,6 +614,17 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "package metadata remains inside the capped release body"
 	else
 		fail "package metadata can push the release body beyond its cap"
+	fi
+
+	node -e 'process.stdout.write("first actual changelog line\n" + "x".repeat(119960) + "\n")' > "$package_sim/body.md"
+	cp "$package_sim/body.md" "$package_sim/notes.md"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request GITHUB_ENV="$package_sim/github-env" bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && grep -qF 'first actual changelog line' "$package_sim/body.md"; then
+		pass "package-note truncation preserves a body without a release heading"
+	else
+		fail "package-note truncation dropped the first body line"
 	fi
 
 	printf 'reviewed notes\n' > "$package_sim/body.md"
@@ -704,11 +748,12 @@ cat > "$tag_sim/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_LOG"
 case "${GH_MODE:-normal}:$*" in
-  race:api*-X\ POST*git/refs*) : > "$GH_STATE"; exit 1 ;;
-  race:api*git/ref/tags/example@1.2.3*)
+  race:api*-X\ POST*git/refs*|wrongrace:api*-X\ POST*git/refs*) : > "$GH_STATE"; exit 1 ;;
+  race:api*git/ref/tags/example@1.2.3*|wrongrace:api*git/ref/tags/example@1.2.3*)
     if [ -f "$GH_STATE" ]; then printf '%s\n' '{"object":{"sha":"concurrent"}}'; else printf '%s\n' 'HTTP 404' >&2; exit 1; fi
     ;;
   race:api*commits/example@1.2.3*) printf '%s\n' "$MERGE_SHA" ;;
+  wrongrace:api*commits/example@1.2.3*) printf '%s\n' "$WRONG_SHA" ;;
   normal:api*git/ref/tags/example@1.2.3*) printf '%s\n' 'HTTP 404' >&2; exit 1 ;;
 esac
 EOF
@@ -734,6 +779,16 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 		pass "concurrent same-target package tag creation is reconciled"
 	else
 		fail "concurrent same-target package tag creation was not reconciled"
+	fi
+
+	rm -f "$tag_sim/race-created"
+	if (
+		cd "$tag_sim" || exit 1
+		PATH="$tag_sim/bin:$PATH" GH_MODE=wrongrace GH_STATE="$tag_sim/race-created" WRONG_SHA="$first_sha" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
+	); then
+		fail "concurrent wrong-target package tag creation was accepted"
+	else
+		pass "concurrent wrong-target package tag creation is rejected"
 	fi
 
 	git -C "$tag_sim" tag example@1.2.3 "$merge_sha"

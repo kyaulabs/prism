@@ -261,7 +261,7 @@ jobs:
                 echo "::error::package release notes exceed the release-body budget" >&2
                 exit 1
               fi
-              tail -n +2 notes.md > .prism-package-body-source.md
+              cp body.md .prism-package-body-source.md
               : > body_capped.md
               size=0
               while IFS= read -r line; do
