@@ -354,6 +354,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          probe_remote_package_tag() {
+            local tag="$1" probe commit
+            if probe=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1); then
+              if ! commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq '.sha' 2>&1) || \
+                 ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+                return 2
+              fi
+              REMOTE_PACKAGE_TAG_COMMIT="$commit"
+              return 0
+            fi
+            case "$probe" in
+              *"HTTP 404"*) return 1 ;;
+              *) return 2 ;;
+            esac
+          }
+
           while IFS=$'\t' read -r prefix name pkg ver; do
             [ -n "$prefix" ] || continue
             tag="${prefix}@${ver}"
@@ -366,9 +382,30 @@ jobs:
               echo "::error::tag $tag exists at $existing, expected merge SHA $MERGE_SHA" >&2
               exit 1
             fi
-            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
-              -f "ref=refs/tags/$tag" -f "sha=$MERGE_SHA" >/dev/null
-            echo "tagged $tag at $MERGE_SHA"
+            if probe_remote_package_tag "$tag"; then
+              if [ "$REMOTE_PACKAGE_TAG_COMMIT" = "$MERGE_SHA" ]; then
+                echo "tag $tag already at the merge SHA; skipping"
+                continue
+              fi
+              echo "::error::tag $tag exists at $REMOTE_PACKAGE_TAG_COMMIT, expected merge SHA $MERGE_SHA" >&2
+              exit 1
+            else
+              probe_status=$?
+              if [ "$probe_status" -ne 1 ]; then
+                echo "::error::remote tag probe failed for $tag" >&2
+                exit 1
+              fi
+            fi
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$tag" -f "sha=$MERGE_SHA" >/dev/null; then
+              echo "tagged $tag at $MERGE_SHA"
+            elif probe_remote_package_tag "$tag" && \
+                 [ "$REMOTE_PACKAGE_TAG_COMMIT" = "$MERGE_SHA" ]; then
+              echo "tag $tag was created concurrently at the merge SHA; skipping"
+            else
+              echo "::error::tag $tag could not be created or reconciled" >&2
+              exit 1
+            fi
           done < .prism-package-tags.tsv
 
       # Back-merge preparation is intentionally independent of publication
