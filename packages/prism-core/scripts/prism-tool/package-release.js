@@ -818,7 +818,7 @@ function readPlanFile(operation, area, relativePath) {
 
 function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256}) {
     const canonicalProject = fs.realpathSync(projectRoot);
-    const inspection = inspectReleaseCapability({
+    let inspection = inspectReleaseCapability({
         projectRoot: canonicalProject,
         coreRoot,
         legacyWorkflowSha256,
@@ -829,6 +829,19 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
     const lock = acquirePackageReleaseLock(canonicalProject);
     let operation;
     try {
+        const lockedInspection = inspectReleaseCapability({
+            projectRoot: canonicalProject,
+            coreRoot,
+            legacyWorkflowSha256,
+        });
+        if (
+            lockedInspection.disposition !== inspection.disposition ||
+            JSON.stringify(lockedInspection.candidates) !== JSON.stringify(inspection.candidates) ||
+            JSON.stringify(lockedInspection.configuredPackages) !== JSON.stringify(inspection.configuredPackages)
+        ) {
+            throw new Error('package-release ownership changed while planning');
+        }
+        inspection = lockedInspection;
         operation = createOperation(canonicalProject);
         const desired = new Map([
             [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],

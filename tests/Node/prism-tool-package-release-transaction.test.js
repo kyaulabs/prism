@@ -258,6 +258,24 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
     }
 });
 
+test('rejects ownership changes introduced before planning acquires its lock', (t) => {
+    const fixture = makeFixture(t);
+    installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
+    const configPath = path.join(fixture.projectRoot, '.prism', 'release.json');
+    const openSync = fs.openSync;
+    let replaced = false;
+    t.mock.method(fs, 'openSync', (file, ...args) => {
+        if (!replaced && path.basename(file) === 'package-release.lock') {
+            replaced = true;
+            writeJson(configPath, {foreign: true});
+        }
+        return openSync(file, ...args);
+    });
+
+    assert.throws(() => planReleaseCapability(fixture), /ownership changed while planning/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), {foreign: true});
+});
+
 test('does not follow a replaced plan artifact directory', (t) => {
     const fixture = makeFixture(t);
     const operationRoot = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release');
