@@ -161,7 +161,7 @@ prism-tool commit create --type feat --scope review --subject "record bounded re
 - Produces `prism-tool code-review chain record --input PATH --json`.
 - Produces `prism-tool code-review chain verify --branch B --base-ref R --base-sha S --head-sha H --json`.
 
-- [ ] **Step 1: Write failing exact-grammar and dispatch tests**
+- [x] **Step 1: Write failing exact-grammar and dispatch tests**
 
 ```javascript
 const deltaArgs = [
@@ -180,13 +180,13 @@ and uncontained/symlinked input files. Add JSON contract tests for chain inspect
 record, and verify with fixed generic diagnostics that never relay record input
 or OCR provider output.
 
-- [ ] **Step 2: Run focused tests and confirm Red**
+- [x] **Step 2: Run focused tests and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-review-chain.test.js`
 
 Expected: FAIL because explicit review ranges and chain subcommands are rejected.
 
-- [ ] **Step 3: Implement strict range parsing and chain dispatch**
+- [x] **Step 3: Implement strict range parsing and chain dispatch**
 
 ```javascript
 const EXPLICIT_REVIEW_PREFIX = Object.freeze(['review', '--from']);
@@ -216,7 +216,7 @@ Keep the existing default full-branch review grammar unchanged for an initial
 review. The explicit range is the sole OCR delta-review form and remains behind
 standing consent, readiness, connectivity, timeout, and redaction boundaries.
 
-- [ ] **Step 4: Run focused tests and lint**
+- [x] **Step 4: Run focused tests and lint**
 
 Run: `node --test tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-review-chain.test.js`
 
@@ -224,7 +224,7 @@ Run: `prism-tool run eslint -- packages/prism-core/scripts/prism-tool/code-revie
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/code-review.js tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-review-chain.test.js

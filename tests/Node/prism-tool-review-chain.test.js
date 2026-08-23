@@ -9,6 +9,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const test = require('node:test');
 
+const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     inspectReviewChain,
     recordReviewSegment,
@@ -38,9 +39,47 @@ function fixture(t) {
     return {baseSha, headSha, projectRoot};
 }
 
+function capture(callback) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => { stdout += String(chunk); return true; };
+    process.stderr.write = (chunk) => { stderr += String(chunk); return true; };
+    try { return {status: callback(), stderr, stdout}; }
+    finally { process.stdout.write = stdoutWrite; process.stderr.write = stderrWrite; }
+}
+
 function axes() {
     return {tooling: 'COMPLETE', standards: 'COMPLETE', spec: 'COMPLETE', sast: 'COMPLETE'};
 }
+
+test('dispatches chain record, inspect, and verify as JSON', (t) => {
+    const target = fixture(t);
+    const inputPath = path.join(target.projectRoot, 'segment.json');
+    fs.writeFileSync(inputPath, JSON.stringify({
+        schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha, axes: axes(), findings: [{
+            axis: 'standards', path: 'file.txt', line: 1,
+            summary: 'follow-up naming cleanup', classification: 'ADVISORY',
+        }], closures: [],
+    }));
+    const recorded = capture(() => main([
+        'code-review', 'chain', 'record', '--input', 'segment.json', '--json',
+    ], target));
+    assert.equal(recorded.status, 0);
+    assert.equal(JSON.parse(recorded.stdout).status, 'GO');
+    const inspected = capture(() => main(['code-review', 'chain', 'inspect', '--json'], target));
+    assert.equal(JSON.parse(inspected.stdout).state, 'VALID');
+    const verified = capture(() => main([
+        'code-review', 'chain', 'verify', `--branch=fix/tester-abcd-review-chain`,
+        '--base-ref=origin/develop', `--base-sha=${target.baseSha}`,
+        `--head-sha=${target.headSha}`, '--json',
+    ], target));
+    assert.equal(verified.status, 0);
+    assert.equal(JSON.parse(verified.stdout).data.advisoryFindings.length, 1);
+});
 
 test('records and verifies one complete initial review segment', (t) => {
     const target = fixture(t);
