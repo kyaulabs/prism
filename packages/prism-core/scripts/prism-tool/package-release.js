@@ -1105,6 +1105,10 @@ function writeAtomic(
         }
         rename(tempPath, targetPath);
         published = true;
+        const publishedEntry = fs.lstatSync(targetPath);
+        if (tempIdentity === undefined || !sameFile(publishedEntry, tempIdentity)) {
+            throw new Error('managed release target changed after publication');
+        }
         parent.sync();
         parent.assertCurrent();
         if (guardMoved) {
@@ -1128,7 +1132,13 @@ function writeAtomic(
                 published = true;
             }
             if (published) {
-                if (current.digest !== desiredDigest || current.mode !== mode) {
+                if (
+                    current.digest !== desiredDigest ||
+                    current.mode !== mode ||
+                    currentEntry === undefined ||
+                    tempIdentity === undefined ||
+                    !sameFile(currentEntry, tempIdentity)
+                ) {
                     throw new Error('managed release target changed during publication recovery', {cause: error});
                 }
                 fs.rmSync(targetPath, {force: false});

@@ -567,6 +567,27 @@ test('preserves an identical external target after publication fails', (t) => {
     assert.equal(fs.readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);
 });
 
+test('preserves an identical replacement introduced after publication', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            fs.renameSync(source, destination);
+            const content = fs.readFileSync(destination);
+            fs.rmSync(destination);
+            fs.writeFileSync(destination, content, {mode: 0o644});
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);
+});
+
 test('preserves a concurrent edit introduced at the publication boundary', (t) => {
     const fixture = makeFixture(t);
     installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
