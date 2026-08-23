@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -112,6 +112,8 @@ assert_file_contains "$CORE_PROMPTS/security.md" 'prism-tool run semgrep' 'secur
 echo "── code-review uses standing consent and the dedicated OCR boundary ──"
 assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Standing OCR consent' 'code-review relies on global standing consent'
 assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review ocr' 'code-review uses the dedicated OCR operation'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review chain inspect --json' 'code-review inspects bounded review-chain evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review chain record' 'code-review records bounded review-chain evidence'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" '--ocr-test-approved|--code-egress-approved' 'code-review has no per-run approval flags'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool run ocr' 'code-review cannot use generic OCR passthrough'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'optional.*[Oo]cr|OCR.*optional|SKIPPED.*OCR' 'code-review treats OCR as mandatory, not optional'

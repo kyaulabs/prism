@@ -22,8 +22,9 @@ requirement-traceability analysis.
    - Compare the cleaned stem against the branch description (case-insensitive,
      hyphen-insensitive substring match).
 4. If exactly one match is found, proceed to requirement coverage analysis.
-5. If zero matches or multiple matches, produce an informational message:
-   "no spec found — requirement-coverage skipped." (This is NOT a failure.)
+5. If zero matches or multiple matches, produce the completed informational
+   outcome `COMPLETE_NO_SPEC`: "no spec found — requirement-coverage completed
+   without a matched spec." This is not a failed or skipped axis.
 
 ## Requirement coverage analysis (when a spec is found)
 

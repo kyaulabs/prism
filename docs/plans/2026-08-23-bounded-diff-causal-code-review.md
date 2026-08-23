@@ -248,7 +248,7 @@ prism-tool commit create --type feat --scope review --subject "support repair de
 - Produces one normalized classification vocabulary: `Blocking` and `Advisory`.
 - Produces a complete initial segment or continuous repair segment after all axes finish.
 
-- [ ] **Step 1: Write failing policy contract tests**
+- [x] **Step 1: Write failing policy contract tests**
 
 ```bash
 assert_file_contains "$CODE_REVIEW" 'introduced or materially worsened by the reviewed delta' \
@@ -266,13 +266,13 @@ is a completed informational outcome, changed-test findings block only when they
 can invalidate a changed acceptance criterion, all four axes complete before a
 segment is recorded, and Advisory findings are retained for PR disclosure.
 
-- [ ] **Step 2: Run contract tests and confirm Red**
+- [x] **Step 2: Run contract tests and confirm Red**
 
 Run: `bash tests/Shell/diff_causal_review_contract_test.sh`
 
 Expected: FAIL on the old severity-only and full-review-restart wording.
 
-- [ ] **Step 3: Rewrite review and receiving policy around ADR-0080**
+- [x] **Step 3: Rewrite review and receiving policy around ADR-0080**
 
 ```text
 Blocking requires all applicable conditions:
@@ -292,7 +292,7 @@ Define the repair path as `chain inspect`, explicit OCR using the validated
 all applicable axes over the same delta, and
 `chain record kind=repair`. Never auto-waive or create issues.
 
-- [ ] **Step 4: Run review contract, harness validation, and ShellCheck**
+- [x] **Step 4: Run review contract, harness validation, and ShellCheck**
 
 Run: `bash tests/Shell/diff_causal_review_contract_test.sh`
 
@@ -302,7 +302,7 @@ Run: `shellcheck tests/Shell/diff_causal_review_contract_test.sh tests/Shell/too
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/skills/code-review/SKILL.md packages/prism-core/skills/receiving-code-review/SKILL.md packages/prism-core/skills/standards-review/SKILL.md packages/prism-core/skills/spec-review/SKILL.md tests/Shell/toolchain_entrypoints_test.sh tests/Shell/diff_causal_review_contract_test.sh

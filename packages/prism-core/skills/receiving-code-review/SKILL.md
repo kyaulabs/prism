@@ -14,56 +14,44 @@ findings.
 **Announce at start:** "I'm using the receiving-code-review skill to triage
 findings from `code-review`."
 
-## Triage matrix
+## Diff-causal triage
 
-Classify each finding — exactly one category:
+Normalize each finding to exactly one category: **Blocking** or **Advisory**.
+A finding is Blocking only when all applicable conditions are established:
 
-| Severity | Action required | Example |
-|---|---|---|
-| **Blocking** | Must fix before proceeding. Do not push back. | exploitable injection, secret exposure, logic error, missing requirement, hard-boundary violation |
-| **Suggested** | Fix if clean and low-risk; otherwise defer with a one-line reason. | Style drift not caught by linters, missing test coverage for new logic, unclear naming |
-| **Informational** | Acknowledge and move on. No action needed. | Minor style preferences, future refactor suggestions, "consider" notes |
+1. It was introduced or materially worsened by the reviewed delta.
+2. It affects behavior or verification evidence changed by that delta.
+3. It has a deterministic reproduction, violated invariant, or direct security or data-loss path.
+4. It can make the changed runtime, build, setup, release, or verification flow incorrect.
 
-If you cannot articulate the bug or regression a finding would prevent,
-it is at most **Suggested** — not Blocking.
+If any condition is not established, classify the finding Advisory. A changed-test finding is Blocking only when it can falsely pass, falsely fail, or omit evidence for a changed acceptance criterion. Pre-existing, unrelated, tertiary,
+maintainability-only, speculative, out-of-platform, and broader-hardening
+observations are Advisory by default.
 
 ## Normalizing the 4 axes
 
 `code-review` returns a **multi-axis report with 4 axes** — **tooling**,
 **standards**, **spec**, **sast**. The axes use three different vocabularies.
-Normalize every finding into the single Blocking / Suggested / Informational
-triage **before** applying the process below.
+Normalize every finding into Blocking or Advisory before applying the process.
+Native severity is evidence, not the final gate.
 
-| Axis | Native vocabulary | → Receiving triage |
+| Axis | Native vocabulary | Receiving rule |
 |---|---|---|
-| **tooling** | Blocking / Suggested / Informational | unchanged — pass through |
-| **standards** (`standards-review`, Fowler smells) | Blocking / Suggested / Informational | **cap at Suggested — never Blocking.** Structural smells are maintainability, not correctness bugs. |
-| **spec** (`spec-review`) | Covered / Omitted / Deliberately-omitted | **Omitted → Blocking** (a missing requirement ships an incomplete feature); Deliberately-omitted → Informational; "no spec found" → Informational |
-| **sast** (configured static scanner) | ERROR / WARNING / INFO | **ERROR → Blocking**; WARNING → Suggested; INFO → Informational |
-
-> **Why standards is capped at Suggested:** if you cannot articulate the bug or
-> regression a finding prevents, it is at most Suggested (rule above). Fowler
-> design smells describe maintainability risk, not correctness bugs, so they
-> never clear the Blocking bar at consumption time — regardless of what
-> `standards-review` reported.
->
-> _Deferred cleanup (out of scope here): `standards-review` still emits
-> Blocking for three smells. Aligning the producer with this consumer rule is
-> tracked separately; until then this skill caps them._
+| **tooling** | Blocking / Suggested / Informational | Apply all four diff-causal conditions. |
+| **standards** | Fowler smells | Advisory; structural smells alone do not demonstrate incorrect behavior. |
+| **spec** | Covered / Omitted / Deliberately-omitted | Omitted blocks only when the reviewed delta was required to implement that criterion; otherwise Advisory. |
+| **sast** | ERROR / WARNING / INFO | Apply causality and concrete reachable-path evidence; pre-existing or unrelated scanner output is Advisory. |
 
 ## Process
 
-1. **Read all findings** before acting on any. Group by severity.
-2. **Fix Blocking** first — security, correctness, hard boundaries, missing
-   RCS headers on new files.
-3. **Review Suggested** one by one:
-   - If the fix is clean and low-risk (under 5 lines, obvious correctness) →
-     apply it.
-   - If the fix is risky, introduces new surface area, or doesn't map to a bug →
-     defer with a one-line reason.
-4. **Acknowledge Informational** — read them, then move on. Do not implement.
-5. **Re-run `code-review`** after fixes to confirm Blocking is resolved.
-6. **Present a summary** to the user: what was fixed, what was deferred and why.
+1. **Read all findings** before acting on any.
+2. **Classify diff causality** and record the evidence for each Blocking decision.
+3. **Fix Blocking** findings through TDD.
+4. **Retain Advisory** findings for PR disclosure or an inert follow-up issue recommendation; do not implement them merely to clear review.
+5. **Review only the continuous repair delta** from the prior reviewed HEAD,
+   verify closure evidence for the Blocking finding, and append that evidence to
+   the review chain.
+6. **Present a summary** to the user: what was fixed and which Advisory findings remain visible.
 
 ## Response format
 
@@ -81,12 +69,9 @@ separate per-axis lists).
 - [spec] AC#2 omitted — <implemented the missing handler>
 - [sast] ERROR <finding> — <moved secret to env var>
 
-### Deferred (N)
-- [standards] Long Method (Fowler) — <one-line reason for deferral>
-
-### Informational (N)
-- [spec] 1 deliberately-omitted (out of scope) — acknowledged
-- [sast] INFO <finding> — acknowledged
+### Advisory (N)
+- [standards] Long Method (Fowler) — maintainability observation with no demonstrated changed-flow defect
+- [spec] deliberately omitted criterion — acknowledged as outside this delta
 ```
 
 ## Rules
@@ -97,8 +82,9 @@ separate per-axis lists).
   `code-review` returns.
 - The deferral reason must be substantive, not a dismissal. "Too risky given
   the timeline" is fine; "I don't agree" without reasoning is not.
-- If a finding falls between categories, err toward the lower severity —
-  deferring a Suggested finding is fine; deferring a Blocking finding is not.
+- If causality, relevance, concreteness, or workflow impact is not proven,
+  classify the finding Advisory.
+- Advisory findings do not require waivers and do not block `/pr`.
 
 ## Cross-refs
 
@@ -116,5 +102,4 @@ separate per-axis lists).
   preference. Fix it, then argue if you still disagree.
 - *Deferring without a reason* — "deferred" without explanation reads as
   laziness. Every deferral gets a one-line reason.
-- *Forgetting to re-run code-review* — after fixing Blocking items, run it
-  again. A fix can introduce a new finding.
+- *Restarting full-branch review after a repair* — inspect the chain and review only the continuous repair delta; unchanged content retains its completed evidence.

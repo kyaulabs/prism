@@ -20,18 +20,26 @@ the diff is **empty**, FAIL immediately with a clear message:
 
 Do not run any review axis when the diff is empty.
 
-### 2. Determine scope
+### 2. Determine scope and review-chain position
 
-Infer the review scope from context:
+Inspect bounded review evidence first:
+
+```bash
+prism-tool code-review chain inspect --json
+```
 
 | Context | Scope |
 |---|---|
 | "review my staged changes" | Staged diff (`git diff --staged`) |
 | "review the last commit" | `HEAD` commit |
-| "review this branch" | `develop..HEAD` |
-| "audit <path>" | Full scan of the explicit path |
+| Initial finalization review | Attested target base SHA through attested HEAD |
+| Repair finalization review | Validated `record.headSha` through current attested HEAD |
+| "audit PATH" | Full scan of the explicit contained path |
 
-If unclear, ask before proceeding.
+An absent chain selects one complete initial branch review. A valid chain whose
+`record.headSha` is an ancestor of current HEAD selects only that continuous
+repair delta. Unsafe, stale, discontinuous, or wrong-base state fails closed.
+If scope remains unclear, ask before proceeding.
 
 ### 3. Run four axes inline
 
@@ -48,13 +56,19 @@ prism-tool doctor --local-only
 ```
 
 Standing OCR consent is established globally by `/setup`; ask no connectivity
-or code-egress question here. Run exactly one dedicated OCR operation based on
-scope:
+or code-egress question here. Initial review uses:
 
 ```bash
 prism-tool code-review ocr -- review --audience agent --format json
 ```
 
+Repair review uses the validated prior reviewed HEAD:
+
+```bash
+prism-tool code-review ocr -- review --from RECORD_HEAD_SHA --to HEAD --audience agent --format json
+```
+
+`RECORD_HEAD_SHA` is the literal validated `record.headSha` from chain inspect.
 For an explicit full-path audit, use only:
 
 ```bash
@@ -86,7 +100,34 @@ scope. Use the active adapter or `/security` guidance for the concrete command.
 If no scanner is configured, mark the axis SKIPPED with that reason. Never
 install a scanner or download rules autonomously.
 
-### 4. Assemble output
+### 4. Apply diff-causal classification and record evidence
+
+Normalize every finding to `Blocking` or `Advisory`. A finding is Blocking only
+when all applicable conditions are established:
+
+1. **Causal** — introduced or materially worsened by the reviewed delta.
+2. **Relevant** — affects behavior or verification evidence changed by the delta.
+3. **Concrete** — includes a deterministic reproduction, violated invariant, or direct security or data-loss path.
+4. **Workflow-impacting** — can make the changed runtime, build, setup, release, or verification flow incorrect.
+
+If any condition is not established, classify the finding Advisory. A changed-test
+finding is Blocking only when it can falsely pass, falsely fail, or omit evidence
+for a changed acceptance criterion. Pre-existing, unrelated, tertiary,
+maintainability-only, speculative, out-of-platform, and broader-hardening
+observations are Advisory by default.
+
+After all four axes finish, write one bounded segment input containing no raw OCR
+output, then record it:
+
+```bash
+prism-tool code-review chain record --input REVIEW_SEGMENT_PATH --json
+```
+
+Initial segments cover the target base through HEAD. Repair segments start at
+validated `record.headSha`, include closure evidence for prior Blocking findings,
+and cover only the repair delta and directly affected tests.
+
+### 5. Assemble output
 
 Report every axis's completion status at the top:
 
@@ -135,13 +176,15 @@ let the reviewer decide.
 - Run all axes in the single agent; do not dispatch workers or claim parallel
   execution.
 - If an axis fails, report the exact error and continue with the remaining
-  axes.
+  axes; do not record a complete segment.
 - The review never freezes or hides partial evidence: always return per-axis
   status (`COMPLETE` / `FAILED` / `SKIPPED`). A human may explicitly waive an
   incomplete axis in-session.
 - External OCR review requires valid global standing consent because code
   leaves the repository boundary.
 - If the diff is empty, fail early before any axis runs.
+- Never rescan unchanged branch content solely because a repair advanced HEAD.
+- Advisory findings remain visible but never block `/pr` or require a waiver.
 
 ## Cross-refs
 
