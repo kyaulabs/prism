@@ -78,7 +78,7 @@ prism-tool commit create --type fix --scope execution --subject "continue comple
 - Consumes: approved-plan authorization from `executing-plans`, matching completed artifacts, work-branch state, and standing OCR consent
 - Produces: automatic cleanup, synchronization, attestation, unlimited `/check`, one four-axis review, revalidation, and `/pr`; fresh approval before every additional review attempt
 
-- [ ] **Step 1: Run the failing authorization check**
+- [x] **Step 1: Run the failing authorization check**
 
 ```bash
 rg -n "Pause once for finalization acceptance|one acceptance authorizes one attempt|A `/check` failure.*fresh finalization acceptance" packages/prism-core/skills/finishing-a-development-branch/SKILL.md
@@ -86,7 +86,7 @@ rg -n "Pause once for finalization acceptance|one acceptance authorizes one atte
 
 Expected: matches proving the obsolete separate acceptance and single-use check model remain.
 
-- [ ] **Step 2: Replace the acceptance model**
+- [x] **Step 2: Replace the acceptance model**
 
 Update the skill description, introduction, authorization section, `/check` section, review section, stop conditions, rules, and gotchas so that:
 
@@ -100,7 +100,7 @@ Update the skill description, introduction, authorization section, `/check` sect
 - successful revalidation invokes /pr automatically.
 ```
 
-- [ ] **Step 3: Verify authorization boundaries**
+- [x] **Step 3: Verify authorization boundaries**
 
 Run:
 
@@ -112,7 +112,7 @@ git diff --check
 
 Expected: obsolete wording is absent; new authorization boundaries are explicit; diff check passes.
 
-- [ ] **Step 4: Create the commit**
+- [x] **Step 4: Create the commit**
 
 ```bash
 git add packages/prism-core/skills/finishing-a-development-branch/SKILL.md docs/plans/2026-08-23-automatic-plan-finalization.md
