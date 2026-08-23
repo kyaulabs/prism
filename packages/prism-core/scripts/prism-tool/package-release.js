@@ -38,9 +38,12 @@ function readRegularFileState(filePath, label, allowMissing = false) {
     }
     let descriptor;
     try {
+        if (typeof fs.constants.O_NOFOLLOW !== 'number') {
+            throw new Error('safe filesystem flags are unavailable');
+        }
         descriptor = fs.openSync(
             filePath,
-            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0)
+            fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
         );
         const held = fs.fstatSync(descriptor);
         if (!held.isFile() || held.size > MAX_JSON_BYTES || !sameFile(initial, held)) {
@@ -946,13 +949,18 @@ function createHeldDirectory(projectRoot, directoryPath, descriptor, expected) {
     }
 }
 
+function directoryOpenFlags() {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    return fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
+}
+
 function holdAnchoredDirectory(projectRoot, directoryPath, anchoredPath, expected) {
-    const descriptor = fs.openSync(
-        anchoredPath,
-        fs.constants.O_RDONLY |
-            (fs.constants.O_DIRECTORY ?? 0) |
-            (fs.constants.O_NOFOLLOW ?? 0)
-    );
+    const descriptor = fs.openSync(anchoredPath, directoryOpenFlags());
     return createHeldDirectory(projectRoot, directoryPath, descriptor, expected);
 }
 
@@ -961,12 +969,7 @@ function holdDirectory(projectRoot, directoryPath) {
     if (initial.isSymbolicLink() || !initial.isDirectory()) {
         throw new Error('managed release parent is invalid');
     }
-    const descriptor = fs.openSync(
-        directoryPath,
-        fs.constants.O_RDONLY |
-            (fs.constants.O_DIRECTORY ?? 0) |
-            (fs.constants.O_NOFOLLOW ?? 0)
-    );
+    const descriptor = fs.openSync(directoryPath, directoryOpenFlags());
     return createHeldDirectory(projectRoot, directoryPath, descriptor, initial);
 }
 

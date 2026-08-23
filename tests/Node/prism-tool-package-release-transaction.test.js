@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 const {EXIT, main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     applyReleaseCapability,
@@ -57,6 +58,26 @@ function makeFixture(t) {
     return {coreRoot, projectRoot};
 }
 
+function loadPackageReleaseWithConstants(constants) {
+    const sourcePath = path.resolve(__dirname, '../../packages/prism-core/scripts/prism-tool/package-release.js');
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    const module = {exports: {}};
+    const mockedFs = Object.create(fs);
+    Object.defineProperty(mockedFs, 'constants', {value: constants});
+    vm.runInNewContext(source, {
+        Buffer,
+        __dirname: path.dirname(sourcePath),
+        __filename: sourcePath,
+        module,
+        process,
+        require(identifier) {
+            if (identifier === 'node:fs') return mockedFs;
+            return require(identifier);
+        },
+    }, {filename: sourcePath});
+    return module.exports;
+}
+
 function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW) {
     writeJson(path.join(projectRoot, '.prism', 'release.json'), {
         schemaVersion: 1,
@@ -68,6 +89,22 @@ function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW) {
     fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
     fs.writeFileSync(workflowPath, workflow);
 }
+
+test('rejects file reads when no-follow filesystem support is unavailable', (t) => {
+    const fixture = makeFixture(t);
+    const constants = {...fs.constants, O_NOFOLLOW: undefined};
+    const isolated = loadPackageReleaseWithConstants(constants);
+
+    assert.throws(() => isolated.inspectReleaseCapability(fixture), /safe filesystem flags/);
+});
+
+test('rejects held directories when safe filesystem flags are unavailable', (t) => {
+    const fixture = makeFixture(t);
+    const constants = {...fs.constants, O_DIRECTORY: undefined};
+    const isolated = loadPackageReleaseWithConstants(constants);
+
+    assert.throws(() => isolated.planReleaseCapability(fixture), /safe filesystem flags/);
+});
 
 test('classifies two absent managed release files as CREATE', (t) => {
     const fixture = makeFixture(t);
