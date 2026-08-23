@@ -233,6 +233,40 @@ test('rejects duplicate finding fingerprints across repair segments', (t) => {
     }, target), /duplicate fingerprints/);
 });
 
+test('rejects closure evidence on an initial review segment', (t) => {
+    const target = fixture(t);
+
+    assert.throws(() => recordReviewSegment({
+        schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha, axes: axes(), findings: [], closures: [{
+            fingerprint: '0'.repeat(64), evidence: 'not applicable to an initial review',
+        }],
+    }, target), /closure/);
+    assert.equal(inspectReviewChain(target).state, 'ABSENT');
+});
+
+test('rejects repair closures that do not identify one open finding', (t) => {
+    const target = fixture(t);
+    recordReviewSegment({
+        schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha, axes: axes(), findings: [], closures: [],
+    }, target);
+    fs.writeFileSync(path.join(target.projectRoot, 'file.txt'), 'repaired\n');
+    git(target.projectRoot, 'commit', '-qam', 'repair');
+    const repairedHead = git(target.projectRoot, 'rev-parse', 'HEAD');
+
+    assert.throws(() => recordReviewSegment({
+        schemaVersion: 1, kind: 'repair', branch: 'fix/tester-abcd-review-chain',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.headSha,
+        to: repairedHead, axes: axes(), findings: [], closures: [{
+            fingerprint: '0'.repeat(64), evidence: 'unknown finding',
+        }],
+    }, target), /closure/);
+    assert.equal(inspectReviewChain(target).record.headSha, target.headSha);
+});
+
 test('rejects malformed Blocking evidence and symlinked chain state', (t) => {
     const target = fixture(t);
     const input = {

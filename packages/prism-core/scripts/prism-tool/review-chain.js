@@ -356,6 +356,7 @@ function recordReviewSegment(input, context = {}) {
     let findings;
     let segments;
     if (segment.kind === 'initial') {
+        if (segment.closures.length !== 0) throw new ReviewChainError('initial review closures are invalid');
         if (current.state !== STATE.ABSENT || segment.from !== segment.baseSha) {
             throw new ReviewChainError('initial review chain state is invalid');
         }
@@ -371,6 +372,16 @@ function recordReviewSegment(input, context = {}) {
         const priorFingerprints = new Set(record.findings.map(({fingerprint}) => fingerprint));
         if (segment.findings.some(({fingerprint}) => priorFingerprints.has(fingerprint))) {
             throw new ReviewChainError('repair findings contain duplicate fingerprints');
+        }
+        const openFingerprints = new Set(record.findings
+            .filter(({state}) => state === 'OPEN')
+            .map(({fingerprint}) => fingerprint));
+        const closureFingerprints = new Set();
+        for (const closure of segment.closures) {
+            if (!openFingerprints.has(closure.fingerprint) || closureFingerprints.has(closure.fingerprint)) {
+                throw new ReviewChainError('repair closure is invalid');
+            }
+            closureFingerprints.add(closure.fingerprint);
         }
         const closureMap = new Map(segment.closures.map((closure) => [closure.fingerprint, closure.evidence]));
         findings = record.findings.map((finding) => closureMap.has(finding.fingerprint)
