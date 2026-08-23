@@ -1064,7 +1064,9 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             const targetPath = path.join(canonicalProject, relativePath);
             const state = currentFileState(targetPath);
             if (state.digest !== plan.files[relativePath].before) {
-                throw new Error('package-release plan is stale');
+                const error = new Error('package-release plan is stale');
+                if (state.digest === plan.files[relativePath].after) error.recoveryFailed = true;
+                throw error;
             }
             const after = readPlanFile(operation, 'after', relativePath);
             if (sha256(after) !== plan.files[relativePath].after) {

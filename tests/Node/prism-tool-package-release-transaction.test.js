@@ -725,6 +725,24 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
     });
 });
 
+test('preserves operation evidence after interrupted partial publication', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.copyFileSync(
+        path.join(path.dirname(plan.planPath), 'after', '.github', 'workflows', 'release.yml'),
+        workflowPath
+    );
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+    assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+});
+
 test('rejects plan drift and preserves an ownership-ambiguous operation marker', (t) => {
     const staleFixture = makeFixture(t);
     const stalePlan = planReleaseCapability(staleFixture);
