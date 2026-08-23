@@ -236,7 +236,7 @@ jobs:
                 echo "::error::package '$pkg' produces an invalid tag" >&2
                 exit 1
               fi
-              if grep -qxF "$prefix" .prism-package-prefixes; then
+              if grep -qxF -- "$prefix" .prism-package-prefixes; then
                 echo "::error::duplicate package tag prefix '$prefix'" >&2
                 exit 1
               fi
@@ -347,6 +347,9 @@ jobs:
             exit 1
           fi
 
+      # Repository-first publication is intentional (ADR-0079). Reruns treat
+      # an existing repository Release and same-target package tags as success,
+      # then continue reconciling only missing package refs.
       - name: Reconcile package tags
         run: |
           set -euo pipefail
@@ -368,6 +371,8 @@ jobs:
             echo "tagged $tag at $MERGE_SHA"
           done < .prism-package-tags.tsv
 
+      # Back-merge preparation is intentionally independent of publication
+      # success so main cannot remain absent from develop (ADR-0079 AC13).
       - name: Open back-merge PR
         if: ${{ always() && steps.validate.outcome == 'success' }}
         run: |

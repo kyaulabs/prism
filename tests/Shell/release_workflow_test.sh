@@ -41,6 +41,11 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
+if ! command -v node >/dev/null 2>&1 || ! node -e "require('js-yaml')" 2>/dev/null; then
+	skip "node + js-yaml required (run: pnpm install)"
+	exit 0
+fi
+
 RELEASE_FILE="$REPO_ROOT/.github/workflows/release.yml"
 CANONICAL_RELEASE_FILE="$REPO_ROOT/packages/prism-core/config/release.yml"
 MANIFEST="$REPO_ROOT/.github/scripts/quality-surface.manifest"
@@ -213,6 +218,19 @@ extract_run_block() {
 	' "$workflow") || return 1
 	[ -n "$found" ] || return 1
 	printf '%s\n' "$found"
+}
+
+extract_step_if() {
+	local workflow="$1" step_name="$2"
+	node -e '
+		const fs = require("node:fs");
+		const yaml = require("js-yaml");
+		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+		const steps = Object.values(workflow.jobs).flatMap((job) => job.steps ?? []);
+		const step = steps.find(({name}) => name === process.argv[2]);
+		if (!step || typeof step.if !== "string") process.exit(1);
+		process.stdout.write(step.if);
+	' "$workflow" "$step_name"
 }
 
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
@@ -484,10 +502,12 @@ fi
 prepare_line=$(grep -nF -- '- name: Prepare package release metadata' "$RELEASE_FILE" | cut -d: -f1)
 publish_line=$(grep -nF -- '- name: Publish release' "$RELEASE_FILE" | cut -d: -f1)
 reconcile_line=$(grep -nF -- '- name: Reconcile package tags' "$RELEASE_FILE" | cut -d: -f1)
-if grep -qF '.prism/release.json' "$RELEASE_FILE" && \
-   grep -qF 'git/refs' "$RELEASE_FILE" && \
-   grep -qF 'gh api -X POST' "$RELEASE_FILE" && \
-   grep -qF '### 📦 Packages' "$RELEASE_FILE" && \
+prepare_contract_block=$(extract_run_block "$RELEASE_FILE" "Prepare package release metadata")
+reconcile_contract_block=$(extract_run_block "$RELEASE_FILE" "Reconcile package tags")
+if grep -qF '.prism/release.json' <<< "$prepare_contract_block" && \
+   grep -qF 'git/refs' <<< "$reconcile_contract_block" && \
+   grep -qF 'gh api -X POST' <<< "$reconcile_contract_block" && \
+   grep -qF '### 📦 Packages' <<< "$prepare_contract_block" && \
    [ "$prepare_line" -lt "$publish_line" ] && \
    [ "$publish_line" -lt "$reconcile_line" ] && \
    ! grep -qF 'npm publish' "$RELEASE_FILE" && \
@@ -497,11 +517,20 @@ else
 	fail "package preparation/publication/tag ordering contract violated"
 fi
 
-if grep -qF "if: \${{ always() && steps.validate.outcome == 'success' }}" "$RELEASE_FILE" && \
-   grep -qF 'id: validate' "$RELEASE_FILE"; then
+backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
+workflow_schedules_backmerge() {
+	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && \
+		[ "$1" = "success" ]
+}
+if workflow_schedules_backmerge success && grep -qF 'id: validate' "$RELEASE_FILE"; then
 	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
 else
 	fail "back-merge is not guarded by always() and successful merge validation"
+fi
+if workflow_schedules_backmerge failure; then
+	fail "back-merge is scheduled when merge validation fails"
+else
+	pass "back-merge is not scheduled when merge validation fails"
 fi
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
@@ -523,6 +552,18 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	else
 		fail "schema-v1 package metadata preparation failed"
 	fi
+
+	printf 'reviewed notes\n' > "$package_sim/body.md"
+	printf '%s\n' '{"name":"-fixture","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && grep -qF -- $'-fixture\t-fixture\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv"; then
+		pass "option-like package tag prefixes are compared as inert data"
+	else
+		fail "option-like package tag prefix reached grep option parsing"
+	fi
+	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 
 	node -e 'process.stdout.write("x".repeat(119980) + "\n")' > "$package_sim/body.md"
 	{
@@ -772,7 +813,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
 	); then
 		fail "forced repository publication failure unexpectedly succeeded"
-	elif (
+	elif workflow_schedules_backmerge success && (
 		cd "$failure_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
@@ -789,7 +830,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
 	); then
 		fail "forced package-tag failure unexpectedly succeeded"
-	elif (
+	elif workflow_schedules_backmerge success && (
 		cd "$tag_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
