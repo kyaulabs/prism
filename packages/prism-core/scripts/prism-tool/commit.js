@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -17,6 +17,7 @@ const TYPES = new Set([
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MODEL_RE = /^[A-Za-z0-9._-]+$/;
 const IDENTITY_RE = /^[^<>\r\n]+ <[^<>\s@]+@[^<>\s@]+>$/;
+const COMMIT_EXECUTION_TIMEOUT_MS = 300000;
 
 class CommitError extends Error {
     constructor(code, message) {
@@ -413,6 +414,7 @@ function create(args, context) {
     let committed = false;
     let newHead;
     let operationError;
+    let preserveEvidence = false;
     try {
         const latest = repositoryState(context, coreRoot);
         if (latest.repository !== state.repository || latest.branch !== state.branch ||
@@ -430,21 +432,31 @@ function create(args, context) {
             'locked index is invalid'
         );
         if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
-        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
+        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {
+            env: commitEnv,
+            timeout: COMMIT_EXECUTION_TIMEOUT_MS,
+        });
         if (commitResult.error || commitResult.status !== 0) {
-            const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
-            let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
-                'run the repository hooks locally for diagnostics';
-            if (commitResult.error || commitResult.status === null) {
-                message = 'Git commit process failed';
-            } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
-                message = 'signed Git commit failed';
-            } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
-                message = 'Git commit identity is not configured';
+            if (commitResult.timedOut) {
+                preserveEvidence = true;
+                throw new CommitError(EXIT.TRANSACTION, 'Git commit timed out; manual recovery required');
+            } else {
+                const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
+                let failureMessage = 'Git commit failed; a repository hook rejection is the likely cause — ' +
+                    'run the repository hooks locally for diagnostics';
+                if (commitResult.error || commitResult.status === null) {
+                    failureMessage = 'Git commit process failed';
+                } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
+                    failureMessage = 'signed Git commit failed';
+                } else if (/please tell me who you are|unable to auto-detect|no (?:name|email) was given/i.test(detail)) {
+                    failureMessage = 'Git commit identity is not configured';
+                }
+                throw new CommitError(EXIT.TOOL, failureMessage);
             }
-            throw new CommitError(EXIT.TOOL, message);
         }
+        preserveEvidence = true;
         locked.publish();
+        preserveEvidence = false;
         committed = true;
         newHead = shaValue(
             requireSuccess(
@@ -459,10 +471,10 @@ function create(args, context) {
         operationError = error;
     }
     let cleanupError;
-    if (locked !== undefined && !committed && !locked.discard()) {
+    if (locked !== undefined && !committed && !preserveEvidence && !locked.discard()) {
         cleanupError = new CommitError(EXIT.TRANSACTION, 'Git index lock cleanup failed');
     }
-    if (!owned.cleanup()) {
+    if (!preserveEvidence && !owned.cleanup()) {
         cleanupError = new CommitError(EXIT.TRANSACTION, 'private message cleanup failed');
     }
     if (cleanupError) throw cleanupError;

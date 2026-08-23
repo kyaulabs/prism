@@ -50,6 +50,10 @@ merged pull requests only (see ADR-0044).
 3. Use `finishing-a-development-branch`. After cleanup it asks once for
    finalization acceptance, then automatically synchronizes, attests, runs
    `/check`, completes all four review axes, revalidates, and invokes `/pr`.
+   The chain starts with one complete initial review. Repairs require fresh
+   acceptance but review only the continuous delta; Advisory findings remain
+   visible without blocking. Base or history changes or discontinuity require
+   a new initial review.
 4. Run the displayed human-only command to open a pull request targeting
    `develop` (or `main` for hotfixes). Release PRs target `main`; `/pr` never
    pushes or creates the pull request itself.

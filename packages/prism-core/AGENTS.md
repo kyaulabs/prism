@@ -134,6 +134,14 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 7. **Gate** with `/check` (delegates to the adapter stack gate, e.g. `/check-php`).
 8. **Review** with the `code-review` skill before push.
 
+Finalization records one complete initial review across all four axes in a
+bounded chain. After a Blocking repair, fresh acceptance reviews only the
+continuous repair delta and records closure evidence. Advisory findings remain
+visible but do not block `/pr` or require waivers; base or history changes,
+discontinuity, malformed state, incomplete axes, or mismatched HEAD invalidate
+the chain and require a new complete initial review. `/pr` remains
+preparation-only; humans push and mutate GitHub.
+
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
 `ADR-required:` line. The ticketing skill (`/issue`) checks this line before

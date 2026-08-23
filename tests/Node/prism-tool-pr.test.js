@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -66,6 +66,15 @@ test('pr preflight reports the exact branch attestation', () => {
         cwd: '/repo',
         env: process.env,
         run,
+        verifyReviewChain: (expected) => {
+            assert.deepEqual(expected, {
+                branch: 'fix/tester-abcd-example',
+                baseRef: 'origin/develop',
+                baseSha: '1111111111111111111111111111111111111111',
+                headSha: '2222222222222222222222222222222222222222',
+            });
+            return {advisoryFindings: [{summary: 'follow-up cleanup'}]};
+        },
     }));
 
     assert.equal(result.status, 0);
@@ -79,6 +88,8 @@ test('pr preflight reports the exact branch attestation', () => {
         'MERGE_BASE\t1111111111111111111111111111111111111111',
         'COMMIT_COUNT\t2',
         'NON_MERGE_COUNT\t2',
+        'REVIEW_CHAIN\tVALID',
+        'ADVISORY_COUNT\t1',
         '',
     ].join('\n'));
 });
@@ -101,6 +112,7 @@ test('pr preflight accepts SHA-256 object ids', () => {
         cwd: '/repo',
         env: process.env,
         run,
+        verifyReviewChain: () => ({advisoryFindings: []}),
     }));
 
     assert.equal(result.status, 0);
@@ -125,12 +137,27 @@ test('pr preflight fails closed with stable diagnostics', () => {
             cwd: '/repo',
             env: process.env,
             run: makePreflightRun(new Map([[key, response]])),
+            verifyReviewChain: () => ({advisoryFindings: []}),
         }));
 
         assert.notEqual(result.status, 0, key);
         assert.match(result.stderr, new RegExp(diagnostic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), key);
         assert.doesNotMatch(result.stderr, /CANARY/, key);
     }
+});
+
+test('pr preflight rejects invalid review-chain evidence', () => {
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        verifyReviewChain: () => { throw new Error('CANARY'); },
+    }));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /review chain is incomplete, stale, or has unresolved Blocking findings/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
 test('pr title validation preserves title data and writes synthetic trailers', (t) => {

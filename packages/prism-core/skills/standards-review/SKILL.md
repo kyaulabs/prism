@@ -52,14 +52,11 @@ For each smell, assess whether it appears in the diff:
 
 1. Read the diff provided by the coordinator.
 2. Scan each changed file for the 12 smells above.
-3. Group findings by severity:
-   - **Blocking** — Duplicated Code (if the duplication introduces a
-     maintenance risk), Conditional Complexity >5 levels, Primitive Obsession
-     on security-sensitive data.
-   - **Suggested** — Long Method, Large Class, Long Parameter List, Feature
-     Envy, Data Clumps, Shotgun Surgery, Temporary Field.
-   - **Informational** — Divergent Change (if only potential), Speculative
-     Generality (if harmless).
+3. Report every structural smell as **Advisory**. Fowler smells identify
+   maintainability pressure; they do not by themselves demonstrate a concrete
+   diff-caused runtime, build, setup, release, security, data-loss, or
+   verification failure. If inspection exposes such a defect, describe the
+   concrete behavior and let `code-review` apply ADR-0080's diff-causal policy.
 4. Report findings grouped by file, with the smell name and a one-line
    rationale per finding.
 5. If no structural smells detected, report: "No structural design smells

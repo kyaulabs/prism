@@ -33,7 +33,7 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 5. **Implement** each task via the `tdd` skill (Red → Green → Refactor, vertical slices).
 6. **Verify** completion (`verification-before-completion` skill).
 7. **Commit** verified slices through one standalone `prism-tool commit create`; launcher-owned signing, hooks, and attribution remain mandatory, and failure blocks tools until `/reload`.
-8. **Finalize** with `finishing-a-development-branch`: after cleanup, one accepted attempt synchronizes, attests, runs `/check`, completes all four review axes, revalidates SHAs, and invokes preparation-only `/pr`.
+8. **Finalize** with `finishing-a-development-branch`: after cleanup, one accepted attempt synchronizes, attests, runs `/check`, completes all four review axes, revalidates SHAs, and invokes preparation-only `/pr`. One complete initial review starts the bounded chain; subsequent accepted repairs review only the continuous repair delta and retain Advisory findings for disclosure. Base or history changes, discontinuity, incomplete axes, or a HEAD mismatch require a new initial review. Humans still push and create or merge pull requests.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable

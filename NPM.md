@@ -11,7 +11,7 @@ Two **scoped** packages, each a real [pi package](https://pi.dev/packages):
 
 | Package | Source dir | Ships | `pi` manifest |
 | --- | --- | --- | --- |
-| `@kyaulabs/prism-core` | `packages/prism-core` | skills, prompts, the **safety extension** (`extensions/`), `AGENTS.md`, `APPEND_SYSTEM.md`, scripts, `safe-dirs.json`, NOTICE | `extensions` + `skills` + `prompts` |
+| `@kyaulabs/prism-core` | `packages/prism-core` | skills, prompts, the **safety extension** (`extensions/`), managed release workflow (`config/release.yml`), package-release launcher module, `AGENTS.md`, `APPEND_SYSTEM.md`, scripts, `safe-dirs.json`, NOTICE | `extensions` + `skills` + `prompts` |
 | `@kyaulabs/prism-php-web` | `packages/prism-php-web` | PHP/web skills + prompts, `safe-dirs.json`, NOTICE | `skills` + `prompts` |
 
 **No build step.** pi extensions are jiti-transpiled `.ts` loaded at runtime;
@@ -81,11 +81,8 @@ Add to **`packages/prism-core/package.json`** only (the PHP adapter has no
 > loads the `.ts` extension through jiti regardless of `"type"`, so it is not
 > needed.
 
-> **Provenance is CI-only.** Omit `publishConfig.provenance` for manual
-> publishes — add it (or pass `--provenance`) only inside the GitHub Actions
-> workflow (see
-> [Publishing a release (automated)](#publishing-a-release-automated-recommended)),
-> where OIDC is available.
+> Omit `publishConfig.provenance`. Prism intentionally keeps npm publication a
+> human-run operation and does not give release CI npm credentials.
 
 ### 3. Add a per-package `README.md` (recommended)
 
@@ -136,34 +133,31 @@ Confirm the safety extension loads and a known-blocked command is blocked
    npm whoami            # confirm: your username
    npm org ls kyaulabs   # confirm org membership
    ```
-3. **(For CI) create a granular access token.** In npm → Access Tokens →
-   **Granular Access Token**, scope it to `@kyaulabs/prism-*`, permission
-   **Read and write**, expiry bounded. Store it as the GitHub secret
-   `NPM_AUTOMATION_TOKEN`. Granular tokens bypass interactive 2FA and are the
-   recommended CI credential (preferred over legacy automation tokens).
 
 ---
 
 ## Publishing a release (manual, post-merge)
 
-The `/release` pipeline owns version bumps and tags; humans own `npm publish`.
-After the release PR merges, `release.yml` has already tagged every bumped
-package (`prism-core@0.2.0`-style) at the merge SHA.
+The `/release` pipeline authors every configured package in lockstep with the
+repository release, while humans own `npm publish`. For repository release
+`vX.Y.Z`, each configured `package.json` contains `X.Y.Z` without the leading
+`v`, including releases where a package changed only because its version was
+updated.
+
+After the release PR merges, release CI creates the GitHub Release first and
+then reconciles every configured package tag (`prism-core@X.Y.Z`-style) at the
+merge SHA. `/release` prints one human-run publication command per configured
+package:
 
 ```bash
-# For each bumped package printed by /release (run after the merge):
-cd packages/prism-core   && npm publish --access public   # OTP prompt if 2FA on writes
+# Run every line printed by /release after the release PR merges:
+cd packages/prism-core && npm publish --access public      # OTP prompt if 2FA is enabled
 cd packages/prism-php-web && npm publish --access public
 ```
 
 > **Tag shape.** Package tags are `prism-core@<ver>` / `prism-php-web@<ver>` —
-> never bare `v*` (that is the repo release tag from `release.yml`). The
-> pipeline creates them; do not tag manually.
-
-**Versioning while pre-1.0:** each package versions independently. Breaking
-changes bump the minor (`0.2.0 → 0.3.0`); fixes/additions bump the patch
-(`0.2.0 → 0.2.1`). Bumps are computed automatically per package from its own
-commit history; a package with no changes is not republished.
+> never bare `v*` (the repository release tag). CI creates them only after the
+> GitHub Release; do not create or move package tags manually.
 
 ### `npm publish` quick reference
 
@@ -172,52 +166,12 @@ commit history; a package with no changes is not republished.
 | `--access public` | First publish of a scoped package (or always — harmless). Baked in via `publishConfig.access`. |
 | `--otp 123456` | If your account has 2FA on writes and you're publishing interactively without a prompt. |
 | `--dry-run` | Rehearse without uploading. |
-| `--provenance` | CI only (GitHub Actions OIDC). Baked in via `publishConfig.provenance`. Ignored locally. |
 
 ---
 
-## Publishing a release (automated, recommended)
-
-A GitHub Actions workflow that publishes on tag push. Provenance is signed
-automatically via OIDC. Save as `.github/workflows/publish-packages.yml`:
-
-```yaml
-name: publish-packages
-on:
-  push:
-    tags: ['prism-core@*', 'prism-php-web@*']
-permissions:
-  contents: read
-  id-token: write        # required for npm provenance
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.19'
-          registry-url: 'https://registry.npmjs.org'
-      - name: Resolve package dir from tag
-        id: pkg
-        run: |
-          name="${GITHUB_REF_NAME%@*}"      # prism-core  /  prism-php-web
-          echo "dir=packages/$name" >> "$GITHUB_OUTPUT"
-      - run: npm publish --access public --provenance
-        working-directory: ${{ steps.pkg.outputs.dir }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
-```
-
-With this in place, the human `npm publish` step above is replaced by
-tag pushes; CI does the upload and signs provenance. The
-`NPM_AUTOMATION_TOKEN` secret must be a **granular** token (publish rights
-on `@kyaulabs/prism-*`); legacy classic tokens do not participate in
-provenance.
-
-> The repo's existing `.github/workflows/release.yml` is the **app** release
-> (git-cliff changelog → GitHub Release → back-merge PR). It is unrelated to
-> npm and must not be repurposed for package publishing.
+Release CI never authenticates to npm and never runs `npm publish`. It owns
+only repository publication, package-tag reconciliation, and back-merge PR
+creation; the human-run commands above remain the npm publication boundary.
 
 ---
 
@@ -225,19 +179,16 @@ provenance.
 
 ### Maintainer (cutting a new version)
 
-Bumps and tags come from the release pipeline — run `/release` (ADR-0066):
-it computes each package's version, bumps `package.json` on the release
-branch, and `release.yml` tags every bumped package after merge. The
-maintainer then publishes each bumped package after the merge:
-
-```bash
-# For each bumped package printed by /release (run after the merge):
-cd packages/prism-core && npm publish --access public   # OTP prompt if 2FA on writes
-cd packages/prism-php-web && npm publish --access public
-```
+Versions and tags come from the release pipeline — run `/release` (ADR-0066).
+It writes the confirmed repository version into every configured
+`package.json`, commits those manifests on the release branch, and prints one
+human-run `npm publish --access public` command per configured package. After
+the merge, `release.yml` creates the GitHub Release and then reconciles every
+configured package tag at that same merge SHA. Run every printed publication
+command, including for packages whose only change is the lockstep version.
 
 If you maintain a `CHANGELOG.md` per package (optional), update it in the
-release commit. Each package versions independently from its own history.
+release commit.
 
 ### Consumer (getting updates)
 
@@ -308,8 +259,7 @@ deliberate policy decision requiring an ADR — do not change `license` silently
 | --- | --- |
 | `npm ERR! 402 Payment Required` on publish | Scoped package published as private and you have no paid org. Add `--access public` (or `publishConfig.access`). |
 | Extension fails to load in consumer: `Cannot find module '@earendil-works/pi-coding-agent'` | Missing `peerDependencies` in `prism-core` (checklist §1). |
-| `npm publish` asks for OTP and stalls in CI | You used a classic token with 2FA. Switch to a **granular** access token for CI. |
-| `--provenance` rejected locally | Provenance is CI-only (needs GitHub OIDC). It works automatically in the workflow above; drop it for manual publishes. |
+| `npm publish` asks for OTP | Complete the account's 2FA prompt, or pass the current code with `--otp`. Publication is intentionally human-run. |
 | `npm pack` lists `node_modules/` or tests | Tighten the `files` array (or add `.npmignore`). Only the `files` entries should ship. |
 | Wrong/mismatched tag pushed `v0.2.0` | Use distinct `prism-core@<ver>` / `prism-php-web@<ver>` tags; never bare `v*` for packages. |
 | `pi update` won't move a package | It's version-pinned in settings (`npm:@kyaulabs/prism-core@0.2.0`). Re-install at the new version to move it. |
@@ -324,6 +274,5 @@ deliberate policy decision requiring an ADR — do not change `license` silently
 - [ ] `npm pack --dry-run` shows the expected files only
 - [ ] Local tarball `pi install` + extension smoke test passes
 - [ ] npm account in `@kyaulabs`, 2FA on, `npm login` works
-- [ ] `NPM_AUTOMATION_TOKEN` granular secret in GitHub (for CI)
-- [ ] `.github/workflows/publish-packages.yml` merged
-- [ ] Bump/tag via the release pipeline (ADR-0066), then `npm publish` per bumped package
+- [ ] Run `/release` to author lockstep versions and merge the release PR
+- [ ] Run every human `npm publish --access public` command printed for the configured packages

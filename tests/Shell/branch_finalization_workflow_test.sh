@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 set -euo pipefail
 
@@ -183,8 +183,11 @@ if grep -qF '`code-review` skill' <<< "$review_section" \
 	&& grep -qF 'Fowler structural smells' <<< "$review_section" \
 	&& grep -qF 'requirement coverage' <<< "$review_section" \
 	&& grep -qF 'static security analysis' <<< "$review_section" \
-	&& grep -qF 'no Suggested finding remains unresolved' <<< "$review_section"; then
-	pass 'review stage requires all four complete axes and resolved findings'
+	&& grep -qF 'review chain' <<< "$review_section" \
+	&& grep -qF 'record.headSha' <<< "$review_section" \
+	&& grep -qF 'no unresolved' <<< "$review_section" \
+	&& grep -qF 'Advisory findings remain' <<< "$review_section"; then
+	pass 'review stage requires all four axes, continuous chain evidence, and no open Blocking findings'
 else
 	fail 'four-axis review contract is incomplete'
 fi
@@ -202,8 +205,8 @@ failure_cases=(
 	'synchronization conflict'
 	'`/check` failure'
 	'incomplete review axis'
-	'Blocking finding'
-	'unresolved Suggested finding'
+	'unresolved diff-causal Blocking finding'
+	'An invalid, stale, discontinuous, or wrong-base review chain'
 	'changed attestation or dirty tree'
 )
 for failure_case in "${failure_cases[@]}"; do
