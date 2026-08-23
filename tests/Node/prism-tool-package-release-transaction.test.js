@@ -221,6 +221,31 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
     }
 });
 
+test('does not recursively delete an operation path after ownership validation', (t) => {
+    const fixture = makeFixture(t);
+    const firstPlan = planReleaseCapability(fixture);
+    const operationRoot = path.dirname(firstPlan.planPath);
+    const movedOperation = path.join(path.dirname(fixture.projectRoot), 'moved-operation');
+    const rmSync = fs.rmSync;
+    let replaced = false;
+    t.mock.method(fs, 'rmSync', (target, options) => {
+        if (!replaced && target === operationRoot && options?.recursive === true) {
+            replaced = true;
+            fs.renameSync(operationRoot, movedOperation);
+            fs.mkdirSync(operationRoot);
+            fs.writeFileSync(path.join(operationRoot, 'sentinel'), 'replacement\n');
+            rmSync(target, options);
+            throw new Error('fixture recursive recovery failure');
+        }
+        return rmSync(target, options);
+    });
+
+    const replacement = planReleaseCapability(fixture);
+
+    assert.equal(replacement.status, 'GO');
+    assert.equal(replaced, false);
+});
+
 test('does not let a replacement plan reuse an earlier approval path', (t) => {
     const fixture = makeFixture(t);
     const firstPlan = planReleaseCapability(fixture);
@@ -391,6 +416,35 @@ test('preserves concurrent target edits during rollback', (t) => {
     assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
 });
 
+test('does not follow a replaced managed parent while creating target directories', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const githubPath = path.join(fixture.projectRoot, '.github');
+    const movedGithub = path.join(path.dirname(fixture.projectRoot), 'moved-create-github');
+    const externalGithub = path.join(path.dirname(fixture.projectRoot), 'external-create-github');
+    const mkdirSync = fs.mkdirSync;
+    let replaced = false;
+    t.mock.method(fs, 'mkdirSync', (directory, ...args) => {
+        if (!replaced && path.basename(directory) === 'workflows') {
+            replaced = true;
+            fs.renameSync(githubPath, movedGithub);
+            mkdirSync(externalGithub);
+            fs.symlinkSync(externalGithub, githubPath);
+        }
+        const result = mkdirSync(directory, ...args);
+        const externalWorkflows = path.join(externalGithub, 'workflows');
+        if (replaced && fs.existsSync(externalWorkflows)) {
+            fs.writeFileSync(path.join(externalWorkflows, 'sentinel'), 'external\n');
+        }
+        return result;
+    });
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.existsSync(path.join(externalGithub, 'workflows')), false);
+});
+
 test('reports manual recovery when created-directory cleanup fails', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);
@@ -506,6 +560,31 @@ test('reports manual recovery when restoring an existing file fails', (t) => {
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.recovery, 'manual recovery required');
     assert.equal(fs.existsSync(path.dirname(plan.planPath)), true);
+});
+
+test('does not reopen a managed target after validating its file identity', (t) => {
+    const fixture = makeFixture(t);
+    const originalWorkflow = `${CANONICAL_WORKFLOW}# outdated\n`;
+    installManagedFiles(fixture.projectRoot, originalWorkflow);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    const externalWorkflow = path.join(path.dirname(fixture.projectRoot), 'external-release.yml');
+    fs.writeFileSync(externalWorkflow, originalWorkflow);
+    const readFileSync = fs.readFileSync;
+    let replaced = false;
+    t.mock.method(fs, 'readFileSync', (file, ...args) => {
+        if (!replaced && file === workflowPath) {
+            replaced = true;
+            fs.rmSync(workflowPath);
+            fs.symlinkSync(externalWorkflow, workflowPath);
+        }
+        return readFileSync(file, ...args);
+    });
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'GO');
+    assert.equal(readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);
 });
 
 test('rejects target drift introduced between managed file replacements', (t) => {

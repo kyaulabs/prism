@@ -27,8 +27,12 @@ function fileEntry(filePath) {
     return fs.lstatSync(filePath, {throwIfNoEntry: false});
 }
 
-function readRegularFile(filePath, label) {
-    const initial = fs.lstatSync(filePath);
+function readRegularFileState(filePath, label, allowMissing = false) {
+    const initial = fileEntry(filePath);
+    if (initial === undefined) {
+        if (allowMissing) return null;
+        throw new Error(`${label} is invalid`);
+    }
     if (initial.isSymbolicLink() || !initial.isFile() || initial.size > MAX_JSON_BYTES) {
         throw new Error(`${label} is invalid`);
     }
@@ -44,10 +48,14 @@ function readRegularFile(filePath, label) {
         }
         const content = fs.readFileSync(descriptor);
         if (content.length > MAX_JSON_BYTES) throw new Error(`${label} is invalid`);
-        return content;
+        return {content, mode: held.mode & 0o777};
     } finally {
         if (descriptor !== undefined) fs.closeSync(descriptor);
     }
+}
+
+function readRegularFile(filePath, label) {
+    return readRegularFileState(filePath, label).content;
 }
 
 function parseJsonObject(content, label) {
@@ -388,7 +396,7 @@ function acquirePackageReleaseLock(projectRoot) {
     };
 }
 
-function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
+function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700, createdDirectories = null) {
     let current = projectRoot;
     let parent = holdDirectory(projectRoot, projectRoot);
     try {
@@ -396,8 +404,8 @@ function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
             parent.assertCurrent();
             const anchoredChild = path.join(parent.anchor, segment);
             let entry = fs.lstatSync(anchoredChild, {throwIfNoEntry: false});
+            let created = false;
             if (entry === undefined) {
-                let created = false;
                 try {
                     fs.mkdirSync(anchoredChild, {mode});
                     created = true;
@@ -415,6 +423,13 @@ function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
             const childPath = path.join(current, segment);
             const child = holdAnchoredDirectory(projectRoot, childPath, anchoredChild, entry);
             parent.assertCurrent();
+            if (created && createdDirectories !== null) {
+                createdDirectories.push({
+                    path: childPath,
+                    dev: child.identity.dev,
+                    ino: child.identity.ino,
+                });
+            }
             parent.close();
             parent = child;
             current = childPath;
@@ -425,31 +440,172 @@ function ensureDirectory(projectRoot, relativeDirectory, mode = 0o700) {
     }
 }
 
-function readOwnedOperation(projectRoot) {
-    const root = operationPath(projectRoot);
-    if (!fs.existsSync(root)) return null;
-    const stat = fs.lstatSync(root);
-    if (stat.isSymbolicLink() || !stat.isDirectory() || fs.realpathSync(root) !== root) {
-        throw new Error('package-release operation directory is invalid');
+function closeOwnedOperation(operation) {
+    if (operation.rootHandle !== null) {
+        operation.rootHandle.close();
+        operation.rootHandle = null;
     }
-    const markerPath = path.join(root, OPERATION_MARKER);
-    const marker = readJsonObject(markerPath, 'package-release ownership marker');
-    if (
-        Object.keys(marker).sort().join(',') !== 'managedBy,projectRoot,schemaVersion' ||
-        marker.schemaVersion !== 1 ||
-        marker.managedBy !== MANAGED_BY ||
-        marker.projectRoot !== projectRoot
-    ) {
-        throw new Error('package-release ownership marker does not match');
+    if (operation.parentHandle !== null) {
+        operation.parentHandle.close();
+        operation.parentHandle = null;
     }
-    return {markerPath, root};
 }
 
-function recoverOwnedOperation(projectRoot) {
-    const operation = readOwnedOperation(projectRoot);
-    if (!operation) return false;
-    fs.rmSync(operation.root, {recursive: true, force: false});
-    return true;
+function readOwnedOperation(projectRoot) {
+    const root = operationPath(projectRoot);
+    const parentPath = path.dirname(root);
+    if (fileEntry(parentPath) === undefined) return null;
+    const parentHandle = holdDirectory(projectRoot, parentPath);
+    let rootHandle;
+    try {
+        parentHandle.assertCurrent();
+        const anchoredRoot = path.join(parentHandle.anchor, path.basename(root));
+        const stat = fs.lstatSync(anchoredRoot, {throwIfNoEntry: false});
+        if (stat === undefined) {
+            parentHandle.close();
+            return null;
+        }
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+            throw new Error('package-release operation directory is invalid');
+        }
+        rootHandle = holdAnchoredDirectory(projectRoot, root, anchoredRoot, stat);
+        parentHandle.assertCurrent();
+        const markerPath = path.join(root, OPERATION_MARKER);
+        const marker = parseJsonObject(
+            readRegularFile(
+                path.join(rootHandle.anchor, OPERATION_MARKER),
+                'package-release ownership marker'
+            ),
+            'package-release ownership marker'
+        );
+        rootHandle.assertCurrent();
+        if (
+            Object.keys(marker).sort().join(',') !== 'managedBy,projectRoot,schemaVersion' ||
+            marker.schemaVersion !== 1 ||
+            marker.managedBy !== MANAGED_BY ||
+            marker.projectRoot !== projectRoot
+        ) {
+            throw new Error('package-release ownership marker does not match');
+        }
+        return {
+            anchoredRoot,
+            markerPath,
+            parentHandle,
+            root,
+            rootHandle,
+        };
+    } catch (error) {
+        if (rootHandle !== undefined) rootHandle.close();
+        parentHandle.close();
+        throw error;
+    }
+}
+
+function operationEntryKind(relativeDirectory, name) {
+    if (relativeDirectory === '') {
+        if (name === OPERATION_MARKER || /^plan-[a-f0-9]{64}[.]json$/.test(name)) return 'file';
+        if (name === 'before' || name === 'after') return 'directory';
+        return null;
+    }
+    if (relativeDirectory === 'before' || relativeDirectory === 'after') {
+        return name === '.github' || name === '.prism' ? 'directory' : null;
+    }
+    if (relativeDirectory === 'before/.github' || relativeDirectory === 'after/.github') {
+        return name === 'workflows' ? 'directory' : null;
+    }
+    if (
+        relativeDirectory === 'before/.github/workflows' ||
+        relativeDirectory === 'after/.github/workflows'
+    ) {
+        return name === 'release.yml' ? 'file' : null;
+    }
+    if (relativeDirectory === 'before/.prism' || relativeDirectory === 'after/.prism') {
+        return name === 'release.json' ? 'file' : null;
+    }
+    return null;
+}
+
+function removeOwnedOperationContents(projectRoot, directoryPath, directory, relativeDirectory = '') {
+    directory.assertCurrent();
+    const names = fs.readdirSync(directory.anchor);
+    if (names.length > 16) throw new Error('package-release operation directory is invalid');
+    if (relativeDirectory === '') {
+        names.sort((left, right) => {
+            if (left === right) return 0;
+            if (left === OPERATION_MARKER) return 1;
+            if (right === OPERATION_MARKER) return -1;
+            return left.localeCompare(right);
+        });
+    }
+    for (const name of names) {
+        const kind = operationEntryKind(relativeDirectory, name);
+        if (kind === null) throw new Error('package-release operation directory is invalid');
+        directory.assertCurrent();
+        const anchoredEntry = path.join(directory.anchor, name);
+        const entry = fs.lstatSync(anchoredEntry, {throwIfNoEntry: false});
+        if (entry === undefined) continue;
+        if (kind === 'file') {
+            if (entry.isSymbolicLink() || !entry.isFile()) {
+                throw new Error('package-release operation directory is invalid');
+            }
+            fs.rmSync(anchoredEntry, {force: false});
+            continue;
+        }
+        if (entry.isSymbolicLink() || !entry.isDirectory()) {
+            throw new Error('package-release operation directory is invalid');
+        }
+        const childPath = path.join(directoryPath, name);
+        const child = holdAnchoredDirectory(projectRoot, childPath, anchoredEntry, entry);
+        try {
+            removeOwnedOperationContents(
+                projectRoot,
+                childPath,
+                child,
+                relativeDirectory === '' ? name : `${relativeDirectory}/${name}`
+            );
+        } finally {
+            child.close();
+        }
+        directory.assertCurrent();
+        const current = fs.lstatSync(anchoredEntry);
+        if (
+            current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            current.dev !== child.identity.dev ||
+            current.ino !== child.identity.ino
+        ) {
+            throw new Error('package-release operation directory changed');
+        }
+        fs.rmdirSync(anchoredEntry);
+    }
+    directory.assertCurrent();
+}
+
+function recoverOwnedOperation(projectRoot, operation = null) {
+    const owned = operation ?? readOwnedOperation(projectRoot);
+    if (!owned) return false;
+    try {
+        removeOwnedOperationContents(projectRoot, owned.root, owned.rootHandle);
+        owned.rootHandle.assertCurrent();
+        const identity = owned.rootHandle.identity;
+        owned.rootHandle.close();
+        owned.rootHandle = null;
+        owned.parentHandle.assertCurrent();
+        const current = fs.lstatSync(owned.anchoredRoot);
+        if (
+            current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            current.dev !== identity.dev ||
+            current.ino !== identity.ino
+        ) {
+            throw new Error('package-release operation directory changed');
+        }
+        fs.rmdirSync(owned.anchoredRoot);
+        owned.parentHandle.assertCurrent();
+        return true;
+    } finally {
+        closeOwnedOperation(owned);
+    }
 }
 
 function createOperation(projectRoot) {
@@ -558,7 +714,15 @@ function readPlan(operation, planPath, projectRoot) {
         throw new Error('package-release plan path is invalid');
     }
     const expectedPlan = path.resolve(planPath);
-    const plan = readJsonObject(expectedPlan, 'package-release plan');
+    operation.rootHandle.assertCurrent();
+    const plan = parseJsonObject(
+        readRegularFile(
+            path.join(operation.rootHandle.anchor, path.basename(expectedPlan)),
+            'package-release plan'
+        ),
+        'package-release plan'
+    );
+    operation.rootHandle.assertCurrent();
     if (
         Object.keys(plan).sort().join(',') !== 'disposition,files,managedBy,projectRoot,schemaVersion' ||
         plan.schemaVersion !== 1 ||
@@ -592,11 +756,9 @@ function readPlan(operation, planPath, projectRoot) {
 }
 
 function currentFileState(filePath) {
-    const stat = fileEntry(filePath);
-    if (stat === undefined) return {digest: 'absent', content: null, mode: null};
-    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('managed release target is invalid');
-    const content = fs.readFileSync(filePath);
-    return {digest: sha256(content), content, mode: stat.mode & 0o777};
+    const state = readRegularFileState(filePath, 'managed release target', true);
+    if (state === null) return {digest: 'absent', content: null, mode: null};
+    return {digest: sha256(state.content), content: state.content, mode: state.mode};
 }
 
 function sameFile(left, right) {
@@ -635,6 +797,7 @@ function createHeldDirectory(projectRoot, directoryPath, descriptor, expected) {
         }
         return {
             anchor,
+            identity: {dev: held.dev, ino: held.ino},
             assertCurrent() {
                 const latest = fs.lstatSync(directoryPath);
                 if (
@@ -752,23 +915,32 @@ function removeManagedTarget(projectRoot, filePath) {
 }
 
 function ensureTargetParent(projectRoot, relativePath, createdDirectories) {
-    let current = projectRoot;
-    for (const segment of path.dirname(relativePath).split('/')) {
-        current = path.join(current, segment);
-        if (fs.existsSync(current)) {
-            const stat = fs.lstatSync(current);
-            if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('managed release parent is invalid');
-            continue;
-        }
-        fs.mkdirSync(current, {mode: 0o755});
-        fs.chmodSync(current, 0o755);
-        createdDirectories.push(current);
-    }
+    ensureDirectory(projectRoot, path.dirname(relativePath), 0o755, createdDirectories);
 }
 
-function removeEmptyCreatedDirectories(createdDirectories) {
-    for (const directory of [...createdDirectories].reverse()) {
-        if (fs.readdirSync(directory).length === 0) fs.rmdirSync(directory);
+function removeEmptyCreatedDirectories(projectRoot, createdDirectories) {
+    for (const created of [...createdDirectories].reverse()) {
+        const parent = holdDirectory(projectRoot, path.dirname(created.path));
+        try {
+            parent.assertCurrent();
+            const anchoredDirectory = path.join(parent.anchor, path.basename(created.path));
+            const entry = fs.lstatSync(anchoredDirectory, {throwIfNoEntry: false});
+            if (entry === undefined) continue;
+            if (
+                entry.isSymbolicLink() ||
+                !entry.isDirectory() ||
+                entry.dev !== created.dev ||
+                entry.ino !== created.ino
+            ) {
+                throw new Error('managed release created directory changed');
+            }
+            if (fs.readdirSync(anchoredDirectory).length === 0) {
+                fs.rmdirSync(anchoredDirectory);
+            }
+            parent.assertCurrent();
+        } finally {
+            parent.close();
+        }
     }
 }
 
@@ -829,7 +1001,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
         if (verification.disposition !== 'UNCHANGED') {
             throw new Error('package-release verification failed');
         }
-        recoverOwnedOperation(canonicalProject);
+        recoverOwnedOperation(canonicalProject, operation);
         operation = null;
         return {
             status: 'GO',
@@ -866,14 +1038,15 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
                 }
             }
             try {
-                removeEmptyCreatedDirectories(createdDirectories);
+                removeEmptyCreatedDirectories(canonicalProject, createdDirectories);
             } catch {
                 recoveryFailed = true;
             }
         }
         if (operation && !recoveryFailed) {
             try {
-                recoverOwnedOperation(canonicalProject);
+                recoverOwnedOperation(canonicalProject, operation);
+                operation = null;
             } catch {
                 recoveryFailed = true;
             }
@@ -891,6 +1064,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = fs.re
             },
         };
     } finally {
+        if (operation) closeOwnedOperation(operation);
         if (lock !== undefined) lock.release();
     }
 }
