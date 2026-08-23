@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -17,6 +17,7 @@ const TYPES = new Set([
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MODEL_RE = /^[A-Za-z0-9._-]+$/;
 const IDENTITY_RE = /^[^<>\r\n]+ <[^<>\s@]+@[^<>\s@]+>$/;
+const COMMIT_EXECUTION_TIMEOUT_MS = 300000;
 
 class CommitError extends Error {
     constructor(code, message) {
@@ -430,12 +431,17 @@ function create(args, context) {
             'locked index is invalid'
         );
         if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
-        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {env: commitEnv});
+        const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {
+            env: commitEnv,
+            timeout: COMMIT_EXECUTION_TIMEOUT_MS,
+        });
         if (commitResult.error || commitResult.status !== 0) {
             const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
             let message = 'Git commit failed; a repository hook rejection is the likely cause — ' +
                 'run the repository hooks locally for diagnostics';
-            if (commitResult.error || commitResult.status === null) {
+            if (commitResult.timedOut) {
+                message = 'Git commit timed out';
+            } else if (commitResult.error || commitResult.status === null) {
                 message = 'Git commit process failed';
             } else if (/gpg failed to sign|failed to sign the data|gpg:/i.test(detail)) {
                 message = 'signed Git commit failed';

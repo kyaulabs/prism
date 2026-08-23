@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -67,7 +67,8 @@ function makeCommitContext(t, overrides = {}) {
                         status: null,
                         stdout: '',
                         stderr: overrides.commitFailureStderr ?? '',
-                        error: {code: 'ENOENT'},
+                        timedOut: overrides.commitTimedOut === true,
+                        error: {code: overrides.commitTimedOut ? 'ETIMEDOUT' : 'ENOENT'},
                     };
                 }
                 return completed(1, '', overrides.commitFailureStderr ?? 'error: gpg failed to sign the data CANARY');
@@ -346,6 +347,22 @@ test('commit create classifies git process failure separately from signing', (t)
     assert.match(result.stderr, /Git commit process failed/);
     assert.doesNotMatch(result.stderr, /signing/);
     assert.doesNotMatch(result.stderr, /hook/);
+});
+
+test('commit create gives repository hooks the bounded long-running timeout', (t) => {
+    const {calls, context} = makeCommitContext(t, {
+        commitFailure: true,
+        commitFailureError: true,
+        commitTimedOut: true,
+    });
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'allow repository hooks to finish',
+    ], context));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /Git commit timed out/);
+    const commitCall = calls.find(({command, args}) => command === 'git' && args[0] === 'commit');
+    assert.equal(commitCall.options.timeout, 300000);
 });
 
 test('commit create classifies process failure with gpg output as process failure', (t) => {
