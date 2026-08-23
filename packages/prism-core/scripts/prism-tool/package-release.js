@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -1296,11 +1296,11 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
                 original
             );
         }
-        durable = true;
         const verification = inspectReleaseCapability({projectRoot: canonicalProject, coreRoot});
         if (verification.disposition !== 'UNCHANGED') {
             throw new Error('package-release verification failed');
         }
+        durable = true;
         recoverOwnedOperation(canonicalProject, operation);
         operation = null;
         result = {

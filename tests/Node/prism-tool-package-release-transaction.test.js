@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -896,6 +896,36 @@ test('rejects target drift introduced between managed file replacements', (t) =>
 
     assert.equal(result.status, 'NO-GO');
     assert.deepEqual(JSON.parse(fs.readFileSync(configPath, 'utf8')), {foreign: true});
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
+});
+
+test('rolls back managed files when package discovery drifts before final verification', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    let renameCount = 0;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            fs.renameSync(source, destination);
+            renameCount += 1;
+            if (renameCount === 2) {
+                writePackageJson(fixture.projectRoot, 'packages/added', {
+                    name: '@fixture/added',
+                    version: '1.2.3',
+                });
+                writePackageJson(fixture.projectRoot, '.', {
+                    name: 'fixture-root',
+                    version: '1.2.3',
+                    workspaces: ['packages/*'],
+                });
+            }
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
 });
 
