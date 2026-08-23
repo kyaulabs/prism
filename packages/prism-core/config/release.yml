@@ -148,7 +148,7 @@ jobs:
           TRUNCATE_BUDGET=120000
           if [ "$(wc -c < body.md)" -gt "$TRUNCATE_BUDGET" ]; then
             footer=$(printf '\n\n%s' "...truncated at GitHub's 125,000-character release-body limit. Full changelog attached as full-changelog-v${VERSION}.md, and in CHANGELOG.md.")
-            footer_bytes=$(printf '%s' "$footer" | wc -c)
+            footer_bytes=$(printf '%s\n' "$footer" | wc -c)
             keep_budget=$((TRUNCATE_BUDGET - footer_bytes))
             : > body_capped.md
             size=0
@@ -264,7 +264,7 @@ jobs:
             package_bytes=$(wc -c < .prism-package-notes.md)
             if [ $((body_bytes + package_bytes)) -gt "$RELEASE_BODY_BUDGET" ]; then
               footer=$(printf '\n\n%s' "...truncated at GitHub's 125,000-character release-body limit. Full changelog attached as full-changelog-v${VERSION}.md, and in CHANGELOG.md.")
-              footer_bytes=$(printf '%s' "$footer" | wc -c)
+              footer_bytes=$(printf '%s\n' "$footer" | wc -c)
               keep_budget=$((RELEASE_BODY_BUDGET - package_bytes - footer_bytes))
               if [ "$keep_budget" -lt 0 ]; then
                 echo "::error::package release notes exceed the release-body budget" >&2

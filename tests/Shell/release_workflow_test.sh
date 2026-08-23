@@ -571,7 +571,7 @@ workflow_schedules_backmerge() {
 	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] || return 1
 	[ "$validate_outcome" = "success" ] || return 1
 	case "$publish_outcome:$reconcile_outcome" in
-		success:success|failure:skipped|success:failure) return 0 ;;
+		success:success|failure:skipped|success:failure|cancelled:skipped|skipped:skipped) return 0 ;;
 		*) return 1 ;;
 	esac
 }
@@ -579,6 +579,12 @@ if workflow_schedules_backmerge failure skipped skipped; then
 	fail "workflow outcome simulation schedules back-merge after failed validation"
 else
 	pass "workflow outcome simulation blocks back-merge after failed validation"
+fi
+if workflow_schedules_backmerge success cancelled skipped && \
+   workflow_schedules_backmerge success skipped skipped; then
+	pass "workflow outcome simulation covers cancelled and skipped publication states"
+else
+	fail "workflow outcome simulation omits cancelled or skipped publication states"
 fi
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
