@@ -114,6 +114,18 @@ test('rejects unsupported keys in the workspace package object', (t) => {
     assert.throws(() => discoverReleasePackages({projectRoot}), /root workspaces declaration is invalid/);
 });
 
+test('accepts strict SemVer and rejects malformed prerelease identifiers', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {name: 'fixture-root', version: '1.2.3+build.5'});
+
+    assert.equal(discoverReleasePackages({projectRoot})[0].version, '1.2.3+build.5');
+    for (const version of ['1.2.3-', '1.2.3-.beta', '1.2.3-a..b', '1.2.3-01']) {
+        writePackageJson(projectRoot, '.', {name: 'fixture-root', version});
+        assert.throws(() => discoverReleasePackages({projectRoot}), /invalid version/, version);
+    }
+});
+
 test('rejects npm package names with a non-alphanumeric terminal character', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
