@@ -873,13 +873,17 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 	fi
 
 	rm -f "$tag_sim/race-created"
+	: > "$tag_sim/gh.log"
 	if (
 		cd "$tag_sim" || exit 1
 		PATH="$tag_sim/bin:$PATH" GH_MODE=wrongrace GH_STATE="$tag_sim/race-created" WRONG_SHA="$first_sha" GH_LOG="$tag_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
 	); then
 		fail "concurrent wrong-target package tag creation was accepted"
-	else
+	elif grep -qF 'api -X POST repos/fixture/repo/git/refs' "$tag_sim/gh.log" && \
+	     grep -qF 'api --include repos/fixture/repo/git/ref/tags/example@1.2.3' "$tag_sim/gh.log"; then
 		pass "concurrent wrong-target package tag creation is rejected"
+	else
+		fail "concurrent wrong-target package tag race was not exercised"
 	fi
 
 	git -C "$tag_sim" tag example@1.2.3 "$merge_sha"
