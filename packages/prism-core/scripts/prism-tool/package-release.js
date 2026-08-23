@@ -1043,6 +1043,7 @@ function writeAtomic(
     let descriptor;
     let guardMoved = false;
     let published = false;
+    let tempIdentity;
     try {
         parent.assertCurrent();
         descriptor = fs.openSync(tempPath, 'wx', mode);
@@ -1051,6 +1052,7 @@ function writeAtomic(
         fs.closeSync(descriptor);
         descriptor = undefined;
         fs.chmodSync(tempPath, mode);
+        tempIdentity = fs.lstatSync(tempPath);
         parent.assertCurrent();
         if (replacedState.content !== null) {
             fs.renameSync(targetPath, guardPath);
@@ -1074,8 +1076,14 @@ function writeAtomic(
         let recoveryFailed = false;
         if (descriptor !== undefined) fs.closeSync(descriptor);
         try {
+            const currentEntry = fs.lstatSync(targetPath, {throwIfNoEntry: false});
             const current = currentFileState(targetPath);
-            if (!published && current.digest === desiredDigest && current.mode === mode) {
+            if (
+                !published &&
+                currentEntry !== undefined &&
+                tempIdentity !== undefined &&
+                sameFile(currentEntry, tempIdentity)
+            ) {
                 published = true;
             }
             if (published) {

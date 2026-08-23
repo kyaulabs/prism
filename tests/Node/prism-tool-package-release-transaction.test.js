@@ -487,6 +487,25 @@ test('rolls back a partial CREATE when the second atomic rename fails', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 
+test('preserves an identical external target after publication fails', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            fs.writeFileSync(destination, fs.readFileSync(source));
+            fs.chmodSync(destination, 0o644);
+            throw new Error('publication failed after external creation');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);
+});
+
 test('preserves a concurrent edit introduced at the publication boundary', (t) => {
     const fixture = makeFixture(t);
     installManagedFiles(fixture.projectRoot, `${CANONICAL_WORKFLOW}# outdated\n`);
