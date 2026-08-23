@@ -390,35 +390,13 @@ function createPrivateMessage(context, repository, message) {
     };
 }
 
-function reconcileTimedOutCommit(context, state, lockedTree, message) {
+function timedOutCommitOutcome(context, state) {
     const headResult = invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']);
     if (headResult.error || headResult.status !== 0) {
-        return state.head === 'unborn' && !headResult.error ? {outcome: 'unchanged'} : {outcome: 'ambiguous'};
+        return state.head === 'unborn' && !headResult.error ? 'unchanged' : 'ambiguous';
     }
     const head = shaValue(headResult, 'timed out commit HEAD is invalid');
-    if (head === state.head) return {outcome: 'unchanged'};
-    const objectResult = invoke(context, 'git', ['cat-file', 'commit', head]);
-    if (objectResult.error || objectResult.status !== 0) return {outcome: 'ambiguous'};
-    const object = resultText(objectResult);
-    const separator = object.indexOf('\n\n');
-    if (separator === -1) return {outcome: 'ambiguous'};
-    const headers = object.slice(0, separator).split('\n');
-    const body = object.slice(separator + 2);
-    const trees = headers.filter((line) => line.startsWith('tree ')).map((line) => line.slice(5));
-    const parents = headers.filter((line) => line.startsWith('parent ')).map((line) => line.slice(7));
-    const expectedParents = state.head === 'unborn' ? [] : [state.head];
-    if (
-        trees.length !== 1 ||
-        trees[0] !== lockedTree ||
-        parents.length !== expectedParents.length ||
-        parents.some((parent, index) => parent !== expectedParents[index]) ||
-        body !== message
-    ) {
-        return {outcome: 'ambiguous'};
-    }
-    const signature = invoke(context, 'git', ['verify-commit', '--raw', head]);
-    if (signature.error || signature.status !== 0) return {outcome: 'ambiguous'};
-    return {outcome: 'committed', head};
+    return head === state.head ? 'unchanged' : 'ambiguous';
 }
 
 function create(args, context) {
@@ -469,20 +447,11 @@ function create(args, context) {
         });
         if (commitResult.error || commitResult.status !== 0) {
             if (commitResult.timedOut) {
-                const reconciliation = reconcileTimedOutCommit(context, state, lockedTree, message);
-                if (reconciliation.outcome === 'committed') {
-                    preserveEvidence = true;
-                    locked.publish();
-                    preserveEvidence = false;
-                    committed = true;
-                    newHead = reconciliation.head;
-                } else {
-                    preserveEvidence = reconciliation.outcome === 'ambiguous';
-                    throw new CommitError(
-                        preserveEvidence ? EXIT.TRANSACTION : EXIT.TOOL,
-                        preserveEvidence ? 'Git commit timed out; manual recovery required' : 'Git commit timed out'
-                    );
-                }
+                preserveEvidence = timedOutCommitOutcome(context, state) === 'ambiguous';
+                throw new CommitError(
+                    preserveEvidence ? EXIT.TRANSACTION : EXIT.TOOL,
+                    preserveEvidence ? 'Git commit timed out; manual recovery required' : 'Git commit timed out'
+                );
             } else {
                 const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
                 let failureMessage = 'Git commit failed; a repository hook rejection is the likely cause — ' +

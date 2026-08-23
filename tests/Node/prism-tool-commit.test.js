@@ -84,14 +84,6 @@ function makeCommitContext(t, overrides = {}) {
             currentHead === '3'.repeat(40) && overrides.postCommitHeadFailure) {
             return completed(1, '', 'CANARY-POST-COMMIT');
         }
-        if (command === 'git' && args[0] === 'cat-file' && args[1] === 'commit') {
-            const tree = overrides.commitObjectTree ?? '2'.repeat(40);
-            const parent = overrides.unborn ? '' : `parent ${'1'.repeat(40)}\n`;
-            return completed(0, `tree ${tree}\n${parent}author Test\ncommitter Test\n\n${observed.message}`);
-        }
-        if (command === 'git' && args[0] === 'verify-commit') {
-            return completed(overrides.commitSignatureFailure ? 1 : 0);
-        }
         if (command === 'git' && args.join(' ') === 'write-tree') {
             if (!options.env?.GIT_INDEX_FILE && fs.existsSync(path.join(gitDir, 'index.lock'))) {
                 return completed(1);
@@ -377,8 +369,8 @@ test('commit create gives repository hooks the bounded long-running timeout', (t
     assert.equal(commitCall.options.timeout, 300000);
 });
 
-test('commit create reconciles a matching commit after the process times out', (t) => {
-    const {context, gitDir} = makeCommitContext(t, {
+test('commit create preserves matching commit evidence after the process times out', (t) => {
+    const {context, gitDir, observed} = makeCommitContext(t, {
         commitFailure: true,
         commitFailureError: true,
         commitTimedOut: true,
@@ -388,10 +380,11 @@ test('commit create reconciles a matching commit after the process times out', (
         'commit', 'create', '--type', 'fix', '--subject', 'reconcile timed out commit',
     ], context));
 
-    assert.equal(result.status, 0);
-    assert.match(result.stdout, new RegExp(`Commit: ${'3'.repeat(40)}`));
-    assert.equal(fs.readFileSync(path.join(gitDir, 'index'), 'utf8'), 'committed index');
-    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /manual recovery required/);
+    assert.equal(fs.readFileSync(path.join(gitDir, 'index'), 'utf8'), 'validated index');
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
+    assert.equal(fs.existsSync(observed.messageFile), true);
 });
 
 test('commit create preserves recovery evidence for an ambiguous timed out commit', (t) => {
@@ -404,24 +397,6 @@ test('commit create preserves recovery evidence for an ambiguous timed out commi
     });
     const result = captureWrites(() => main([
         'commit', 'create', '--type', 'fix', '--subject', 'preserve timed out evidence',
-    ], context));
-
-    assert.equal(result.status, 5);
-    assert.match(result.stderr, /manual recovery required/);
-    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
-    assert.equal(fs.existsSync(observed.messageFile), true);
-});
-
-test('commit create preserves timed out evidence when signature verification fails', (t) => {
-    const {context, gitDir, observed} = makeCommitContext(t, {
-        commitFailure: true,
-        commitFailureError: true,
-        commitTimedOut: true,
-        commitAdvanced: true,
-        commitSignatureFailure: true,
-    });
-    const result = captureWrites(() => main([
-        'commit', 'create', '--type', 'fix', '--subject', 'verify timed out signature',
     ], context));
 
     assert.equal(result.status, 5);
