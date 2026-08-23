@@ -44,6 +44,8 @@ documentation, and conversation.
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded dependency-network authorization, independently approved mutation stages, and no standing consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | finalization acceptance | One explicit authorization for one branch-completion attempt, including disclosed Git synchronization, attestation, full checking, four-axis review, and pull-request preparation. A stopped attempt requires fresh acceptance. |
+| review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
+| diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
 | testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
 | repository seed | The sole signed root commit created on unborn `develop`, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Publication remains human-owned. |
@@ -206,6 +208,17 @@ The enforced minimum protection shared across every trusted project.
 - Any failed or non-exclusive agent commit attempt activates a separate fatal
   latch, aborts the active operation, and blocks every tool until the human
   reloads or otherwise tears down the extension instance.
+
+### Review Chain
+
+The bounded finalization evidence for one continuously reviewed work-branch history.
+
+- Begins with one complete four-axis review of the attested branch range.
+- Extends through continuous repair-delta reviews rather than rescanning unchanged branch content.
+- Blocks only on unresolved diff-causal findings with concrete workflow impact.
+- Keeps tertiary, speculative, pre-existing, unrelated, and maintainability observations Advisory and visible.
+- Fails closed on incomplete axes, target-base movement, rewritten or discontinuous history, unreviewed commits, identity drift, or malformed local state.
+- Ends at the exact attested HEAD required by preparation-only `/pr`.
 
 ### Development Artifact
 
@@ -372,6 +385,7 @@ Pi-era decisions:
 - `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — let Core create only an absent deterministic repository and one attested signed root seed without publication.
 - `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
 - `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
+- `adr/0080-bounded-diff-causal-review-chains.md` — preserve one complete initial review and append repair-delta evidence while blocking finalization only on concrete diff-caused defects.
 
 ## When to update this file
 
