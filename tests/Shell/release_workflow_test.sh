@@ -567,8 +567,19 @@ else
 	fail "back-merge lacks an explicit successful-validation outcome guard"
 fi
 workflow_schedules_backmerge() {
-	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] && [ "$1" = "success" ]
+	local validate_outcome="$1" publish_outcome="$2" reconcile_outcome="$3"
+	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' }}" ] || return 1
+	[ "$validate_outcome" = "success" ] || return 1
+	case "$publish_outcome:$reconcile_outcome" in
+		success:success|failure:skipped|success:failure) return 0 ;;
+		*) return 1 ;;
+	esac
 }
+if workflow_schedules_backmerge failure skipped skipped; then
+	fail "workflow outcome simulation schedules back-merge after failed validation"
+else
+	pass "workflow outcome simulation blocks back-merge after failed validation"
+fi
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
 
@@ -932,7 +943,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
 	); then
 		fail "forced repository publication failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success && (
+	elif workflow_schedules_backmerge success failure skipped && (
 		cd "$failure_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
@@ -949,7 +960,7 @@ if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") 
 		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
 	); then
 		fail "forced package-tag failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success && (
+	elif workflow_schedules_backmerge success success failure && (
 		cd "$tag_sim" || exit 1
 		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
 	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
