@@ -90,7 +90,7 @@ function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW) {
     fs.writeFileSync(workflowPath, workflow);
 }
 
-function isFileIdentityHeld(filePath) {
+function heldDescriptorFor(filePath) {
     const identity = fs.lstatSync(filePath);
     for (const descriptorRoot of ['/proc/self/fd', '/dev/fd']) {
         try {
@@ -98,7 +98,9 @@ function isFileIdentityHeld(filePath) {
                 if (!/^[0-9]+$/.test(descriptor)) continue;
                 try {
                     const held = fs.statSync(path.join(descriptorRoot, descriptor));
-                    if (held.dev === identity.dev && held.ino === identity.ino) return true;
+                    if (held.dev === identity.dev && held.ino === identity.ino) {
+                        return Number(descriptor);
+                    }
                 } catch {
                     continue;
                 }
@@ -107,7 +109,7 @@ function isFileIdentityHeld(filePath) {
             continue;
         }
     }
-    return false;
+    return undefined;
 }
 
 test('rejects file reads when no-follow filesystem support is unavailable', (t) => {
@@ -626,7 +628,7 @@ test('preserves an identical replacement introduced after publication', (t) => {
         ...fixture,
         planPath: plan.planPath,
         rename(source, destination) {
-            publicationIdentityHeld = publicationIdentityHeld || isFileIdentityHeld(source);
+            publicationIdentityHeld = publicationIdentityHeld || heldDescriptorFor(source) !== undefined;
             fs.renameSync(source, destination);
             const content = fs.readFileSync(destination);
             fs.rmSync(destination);
@@ -638,6 +640,42 @@ test('preserves an identical replacement introduced after publication', (t) => {
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.recovery, 'manual recovery required');
     assert.equal(fs.readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);
+});
+
+test('recovers when the publication descriptor close fails', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const closeSync = fs.closeSync;
+    let publicationDescriptor;
+    let closeAttempts = 0;
+    t.mock.method(fs, 'closeSync', (descriptor) => {
+        if (descriptor === publicationDescriptor) {
+            closeAttempts += 1;
+            throw new Error('fixture publication descriptor close failure');
+        }
+        return closeSync(descriptor);
+    });
+    let result;
+
+    try {
+        assert.doesNotThrow(() => {
+            result = applyReleaseCapability({
+                ...fixture,
+                planPath: plan.planPath,
+                rename(source, destination) {
+                    publicationDescriptor = heldDescriptorFor(source);
+                    fs.renameSync(source, destination);
+                },
+            });
+        });
+    } finally {
+        if (publicationDescriptor !== undefined) closeSync(publicationDescriptor);
+    }
+
+    assert.equal(closeAttempts, 1);
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml')), false);
 });
 
 test('preserves a concurrent edit introduced at the publication boundary', (t) => {

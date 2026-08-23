@@ -1107,8 +1107,9 @@ function writeAtomic(
         if (tempIdentity === undefined || !sameFile(publishedEntry, tempIdentity)) {
             throw new Error('managed release target changed after publication');
         }
-        fs.closeSync(descriptor);
+        const publishedDescriptor = descriptor;
         descriptor = undefined;
+        fs.closeSync(publishedDescriptor);
         parent.sync();
         parent.assertCurrent();
         if (guardMoved) {
