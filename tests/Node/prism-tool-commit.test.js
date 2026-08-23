@@ -354,7 +354,7 @@ test('commit create classifies git process failure separately from signing', (t)
 });
 
 test('commit create gives repository hooks the bounded long-running timeout', (t) => {
-    const {calls, context} = makeCommitContext(t, {
+    const {calls, context, gitDir, observed} = makeCommitContext(t, {
         commitFailure: true,
         commitFailureError: true,
         commitTimedOut: true,
@@ -363,10 +363,12 @@ test('commit create gives repository hooks the bounded long-running timeout', (t
         'commit', 'create', '--type', 'fix', '--subject', 'allow repository hooks to finish',
     ], context));
 
-    assert.equal(result.status, 4);
-    assert.match(result.stderr, /Git commit timed out/);
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /Git commit timed out; manual recovery required/);
     const commitCall = calls.find(({command, args}) => command === 'git' && args[0] === 'commit');
     assert.equal(commitCall.options.timeout, 300000);
+    assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);
+    assert.equal(fs.existsSync(observed.messageFile), true);
 });
 
 test('commit create preserves matching commit evidence after the process times out', (t) => {

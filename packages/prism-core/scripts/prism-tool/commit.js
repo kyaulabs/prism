@@ -390,15 +390,6 @@ function createPrivateMessage(context, repository, message) {
     };
 }
 
-function timedOutCommitOutcome(context, state) {
-    const headResult = invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']);
-    if (headResult.error || headResult.status !== 0) {
-        return state.head === 'unborn' && !headResult.error ? 'unchanged' : 'ambiguous';
-    }
-    const head = shaValue(headResult, 'timed out commit HEAD is invalid');
-    return head === state.head ? 'unchanged' : 'ambiguous';
-}
-
 function create(args, context) {
     const parsed = parseCreate(args);
     const header = validateStructured(parsed);
@@ -447,11 +438,8 @@ function create(args, context) {
         });
         if (commitResult.error || commitResult.status !== 0) {
             if (commitResult.timedOut) {
-                preserveEvidence = timedOutCommitOutcome(context, state) === 'ambiguous';
-                throw new CommitError(
-                    preserveEvidence ? EXIT.TRANSACTION : EXIT.TOOL,
-                    preserveEvidence ? 'Git commit timed out; manual recovery required' : 'Git commit timed out'
-                );
+                preserveEvidence = true;
+                throw new CommitError(EXIT.TRANSACTION, 'Git commit timed out; manual recovery required');
             } else {
                 const detail = `${resultText(commitResult)}\n${commitResult.stderr ?? ''}`;
                 let failureMessage = 'Git commit failed; a repository hook rejection is the likely cause — ' +
