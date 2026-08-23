@@ -42,7 +42,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 if ! command -v jq >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || \
-   ! node -e "require('js-yaml')" 2>/dev/null; then
+   ! (cd "$REPO_ROOT" && node -e "require('js-yaml')" 2>/dev/null); then
 	fail "node + js-yaml + jq are required for release workflow validation"
 	exit 1
 fi
@@ -243,7 +243,14 @@ validate_workflow_graph() {
 		const jobs = Object.values(workflow.jobs);
 		if (jobs.length !== 1) process.exit(1);
 		const job = jobs[0];
-		if (job.needs !== undefined || job["continue-on-error"] !== undefined) process.exit(1);
+		const jobGateTerms = ["workflow_dispatch", "pull_request.merged", "startsWith", "head.repo.full_name"];
+		if (
+			typeof job.if !== "string" ||
+			jobGateTerms.some((term) => !job.if.includes(term)) ||
+			/(?:always|failure|cancelled|success)\(\)/.test(job.if) ||
+			job.needs !== undefined ||
+			job["continue-on-error"] !== undefined
+		) process.exit(1);
 		const names = job.steps.map(({name}) => name).filter(Boolean);
 		const ordered = [
 			"Validate merge SHA and release version",
