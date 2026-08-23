@@ -221,6 +221,28 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
     }
 });
 
+test('does not follow a replaced plan artifact directory', (t) => {
+    const fixture = makeFixture(t);
+    const operationRoot = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release');
+    const afterRoot = path.join(operationRoot, 'after');
+    const movedAfter = path.join(path.dirname(fixture.projectRoot), 'moved-plan-after');
+    const externalAfter = path.join(path.dirname(fixture.projectRoot), 'external-plan-after');
+    fs.mkdirSync(externalAfter);
+    const mkdirSync = fs.mkdirSync;
+    let replaced = false;
+    t.mock.method(fs, 'mkdirSync', (directory, options) => {
+        if (!replaced && String(directory).includes('.github')) {
+            replaced = true;
+            fs.renameSync(afterRoot, movedAfter);
+            fs.symlinkSync(externalAfter, afterRoot);
+        }
+        return mkdirSync(directory, options);
+    });
+
+    assert.throws(() => planReleaseCapability(fixture));
+    assert.equal(fs.existsSync(path.join(externalAfter, '.github', 'workflows', 'release.yml')), false);
+});
+
 test('does not recursively delete an operation path after ownership validation', (t) => {
     const fixture = makeFixture(t);
     const firstPlan = planReleaseCapability(fixture);

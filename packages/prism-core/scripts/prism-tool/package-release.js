@@ -491,6 +491,7 @@ function readOwnedOperation(projectRoot) {
             anchoredRoot,
             markerPath,
             parentHandle,
+            projectRoot,
             root,
             rootHandle,
         };
@@ -612,7 +613,6 @@ function createOperation(projectRoot) {
     recoverOwnedOperation(projectRoot);
     const root = ensureDirectory(projectRoot, OPERATION_ROOT);
     const parent = holdDirectory(projectRoot, root);
-    const markerPath = path.join(root, OPERATION_MARKER);
     const anchoredMarker = path.join(parent.anchor, OPERATION_MARKER);
     try {
         parent.assertCurrent();
@@ -626,7 +626,7 @@ function createOperation(projectRoot) {
     } finally {
         parent.close();
     }
-    return {markerPath, root};
+    return readOwnedOperation(projectRoot);
 }
 
 function renderDiff(relativePath, before, after) {
@@ -640,11 +640,78 @@ function renderDiff(relativePath, before, after) {
     return `${lines.join('\n')}\n`;
 }
 
-function writePlanFile(root, area, relativePath, content) {
-    const destination = path.join(root, area, relativePath);
-    fs.mkdirSync(path.dirname(destination), {recursive: true, mode: 0o700});
-    fs.writeFileSync(destination, content, {flag: 'wx', mode: 0o600});
-    fs.chmodSync(destination, 0o600);
+function holdOperationDirectory(operation, relativeDirectory, create) {
+    let parent = operation.rootHandle;
+    let ownedParent = false;
+    let currentPath = operation.root;
+    let currentRelative = '';
+    try {
+        for (const segment of relativeDirectory.split('/').filter(Boolean)) {
+            if (operationEntryKind(currentRelative, segment) !== 'directory') {
+                throw new Error('package-release operation path is invalid');
+            }
+            parent.assertCurrent();
+            const anchoredChild = path.join(parent.anchor, segment);
+            let entry = fs.lstatSync(anchoredChild, {throwIfNoEntry: false});
+            if (entry === undefined) {
+                if (!create) throw new Error('package-release operation artifact is missing');
+                fs.mkdirSync(anchoredChild, {mode: 0o700});
+                entry = fs.lstatSync(anchoredChild);
+                fs.chmodSync(anchoredChild, 0o700);
+            }
+            if (entry.isSymbolicLink() || !entry.isDirectory()) {
+                throw new Error('package-release operation path is invalid');
+            }
+            const childPath = path.join(currentPath, segment);
+            const child = holdAnchoredDirectory(operation.projectRoot, childPath, anchoredChild, entry);
+            parent.assertCurrent();
+            if (ownedParent) parent.close();
+            parent = child;
+            ownedParent = true;
+            currentPath = childPath;
+            currentRelative = currentRelative === '' ? segment : `${currentRelative}/${segment}`;
+        }
+        if (!ownedParent) throw new Error('package-release operation path is invalid');
+        return parent;
+    } catch (error) {
+        if (ownedParent) parent.close();
+        throw error;
+    }
+}
+
+function writePlanFile(operation, area, relativePath, content) {
+    const directory = `${area}/${path.posix.dirname(relativePath)}`;
+    const name = path.posix.basename(relativePath);
+    if (operationEntryKind(directory, name) !== 'file') {
+        throw new Error('package-release operation artifact path is invalid');
+    }
+    const parent = holdOperationDirectory(operation, directory, true);
+    try {
+        parent.assertCurrent();
+        const destination = path.join(parent.anchor, name);
+        fs.writeFileSync(destination, content, {flag: 'wx', mode: 0o600});
+        fs.chmodSync(destination, 0o600);
+        parent.assertCurrent();
+    } finally {
+        parent.close();
+    }
+}
+
+function readPlanFile(operation, area, relativePath) {
+    const directory = `${area}/${path.posix.dirname(relativePath)}`;
+    const name = path.posix.basename(relativePath);
+    if (operationEntryKind(directory, name) !== 'file') {
+        throw new Error('package-release operation artifact path is invalid');
+    }
+    const parent = holdOperationDirectory(operation, directory, false);
+    try {
+        parent.assertCurrent();
+        const content = readRegularFile(path.join(parent.anchor, name), 'planned release file');
+        parent.assertCurrent();
+        return content;
+    } finally {
+        parent.close();
+    }
 }
 
 function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256}) {
@@ -658,8 +725,9 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         return {...inspection, planPath: null, diff: ''};
     }
     const lock = acquirePackageReleaseLock(canonicalProject);
+    let operation;
     try {
-        const operation = createOperation(canonicalProject);
+        operation = createOperation(canonicalProject);
         const desired = new Map([
             [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
             [WORKFLOW_PATH, readRegularFile(
@@ -673,8 +741,8 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             const before = managedFileEntry(canonicalProject, relativePath) === undefined
                 ? null
                 : readManagedFile(canonicalProject, relativePath, 'managed release file');
-            if (before !== null) writePlanFile(operation.root, 'before', relativePath, before);
-            writePlanFile(operation.root, 'after', relativePath, after);
+            if (before !== null) writePlanFile(operation, 'before', relativePath, before);
+            writePlanFile(operation, 'after', relativePath, after);
             files[relativePath] = {
                 before: before === null ? 'absent' : sha256(before),
                 after: sha256(after),
@@ -688,9 +756,13 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             disposition: inspection.disposition,
             files,
         };
-        const planPath = path.join(operation.root, `plan-${sha256(JSON.stringify(plan))}.json`);
-        fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
-        fs.chmodSync(planPath, 0o600);
+        const planName = `plan-${sha256(JSON.stringify(plan))}.json`;
+        const planPath = path.join(operation.root, planName);
+        operation.rootHandle.assertCurrent();
+        const anchoredPlan = path.join(operation.rootHandle.anchor, planName);
+        fs.writeFileSync(anchoredPlan, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
+        fs.chmodSync(anchoredPlan, 0o600);
+        operation.rootHandle.assertCurrent();
         return {
             status: 'GO',
             disposition: inspection.disposition,
@@ -701,6 +773,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             diff,
         };
     } finally {
+        if (operation !== undefined) closeOwnedOperation(operation);
         lock.release();
     }
 }
@@ -993,8 +1066,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             if (state.digest !== plan.files[relativePath].before) {
                 throw new Error('package-release plan is stale');
             }
-            const afterPath = path.join(operation.root, 'after', relativePath);
-            const after = readRegularFile(afterPath, 'planned release file');
+            const after = readPlanFile(operation, 'after', relativePath);
             if (sha256(after) !== plan.files[relativePath].after) {
                 throw new Error('package-release plan is invalid');
             }
@@ -1006,10 +1078,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             if (currentFileState(targetPath).digest !== plan.files[relativePath].before) {
                 throw new Error('package-release plan is stale');
             }
-            const after = readRegularFile(
-                path.join(operation.root, 'after', relativePath),
-                'planned release file'
-            );
+            const after = readPlanFile(operation, 'after', relativePath);
             const original = originals.get(relativePath);
             const defaultMode = relativePath === CONFIG_PATH ? 0o600 : 0o644;
             writeAtomic(
@@ -1158,6 +1227,7 @@ function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
         const record = packageRecord(canonicalRoot, directory);
         if (record) records.push(record);
     }
+    if (records.length === 0) throw new Error('no publishable release packages discovered');
     return assertUniqueRecords(records);
 }
 

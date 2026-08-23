@@ -186,6 +186,18 @@ test('loads only exact managed and explicitly allowed legacy configurations', (t
     });
 });
 
+test('rejects discovery when no publishable release package exists', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.0.0',
+        private: true,
+    });
+
+    assert.throws(() => discoverReleasePackages({projectRoot}), /no publishable release packages/);
+});
+
 test('excludes private discovery candidates but rejects a configured private package', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
