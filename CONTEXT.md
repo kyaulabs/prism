@@ -43,7 +43,7 @@ documentation, and conversation.
 | consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed dependency-network effects for one attempt; consumer mutation remains separately approved. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded dependency-network authorization, independently approved mutation stages, and no standing consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
-| finalization acceptance | One explicit authorization for one branch-completion attempt, including disclosed Git synchronization, attestation, full checking, four-axis review, and pull-request preparation. A stopped attempt requires fresh acceptance. |
+| plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
@@ -386,6 +386,7 @@ Pi-era decisions:
 - `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
 - `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
 - `adr/0080-bounded-diff-causal-review-chains.md` — preserve one complete initial review and append repair-delta evidence while blocking finalization only on concrete diff-caused defects.
+- `adr/0081-plan-approved-automatic-finalization.md` — let approved plans continue automatically through cleanup, synchronization, unlimited local checks, one four-axis review, and preparation-only `/pr`; require fresh approval only for additional review attempts.
 
 ## When to update this file
 
