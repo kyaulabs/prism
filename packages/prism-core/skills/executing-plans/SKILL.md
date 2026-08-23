@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use when executing an approved multi-task implementation plan from docs/plans/. Defines uninterrupted inline task execution with the tdd skill, internal per-task review gates, halt/re-plan policy, and proactive context management across long plans.
+description: Use when executing an approved multi-task implementation plan from docs/plans/. Defines uninterrupted inline task execution with the tdd skill, internal per-task review gates, automatic finalization handoff, halt/re-plan policy, and proactive context management across long plans.
 derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
@@ -42,6 +42,9 @@ The single agent executes every task directly, regardless of plan size:
   from the plan task. The commit is the only tool call in its assistant batch.
 - Do not ask the user to review, approve, or authorize continuation between
   tasks. Interrupt execution only when the halt/re-plan policy requires it.
+- When no unchecked tasks remain, automatically load
+  `finishing-a-development-branch`. Plan approval remains active as the initial
+  finalization authorization; do not add another routine acceptance pause.
 
 Implementation output stays in the current session, so context management is
 part of execution, not an optional optimization.
@@ -87,9 +90,11 @@ delegate these fixes — they are the parent's responsibility.
 ### After both stages pass
 
 Run `verification-before-completion` on the task's output. Once all checks
-pass, update the plan's checkbox status (`- [x]`), create the task's atomic
-commit, and start the next unchecked task automatically. Do not pause for
-routine user review or approval.
+pass, update the plan's checkbox status (`- [x]`) and create the task's atomic
+commit. Start the next unchecked task automatically. When no unchecked tasks
+remain, transition directly to `finishing-a-development-branch` under the
+approved plan's finalization authorization. Do not pause for routine user
+review or approval.
 
 ## Halt / re-plan policy
 
@@ -127,8 +132,12 @@ context. Manage it proactively rather than waiting for degradation:
 
 - After each task completes, run both stages of the internal review gate BEFORE
   starting the next task.
-- After plan approval, continue through every successful task without routine
-  user prompts; only the halt/re-plan policy may interrupt execution.
+- After plan approval, continue through every successful task and the initial
+  finalization path without routine user prompts; only a defined halt or review
+  reauthorization boundary may interrupt execution.
+- When no unchecked tasks remain, automatically load
+  `finishing-a-development-branch`; never ask for separate initial finalization
+  acceptance.
 - Commit after each task (or logical group) through the atomic process owned by
   `conventional-commits`; never duplicate direct Git mechanics.
 - Update the plan's checkbox status after each task completes.
@@ -149,6 +158,8 @@ context. Manage it proactively rather than waiting for degradation:
   requirements change.
 - `conventional-commits` skill — validate commit messages.
 - `rcs-header` skill — fix missing RCS headers during code-quality review.
+- `finishing-a-development-branch` skill — automatically consumes the
+  successful terminal handoff and plan-approved initial finalization.
 - `packages/prism-core/docs/context-management.md` — context thresholds and
   compaction.
 - `/handoff` command — save state when context degrades.
@@ -158,6 +169,9 @@ context. Manage it proactively rather than waiting for degradation:
 Known failure modes that compound over time. Add entries when this skill
 causes a preventable mistake.
 
+- *Stopping after the final task* — successful plan execution flows directly
+  into `finishing-a-development-branch`; the plan's approval already authorizes
+  initial finalization.
 - *Treating the internal review gate as a user checkpoint* — plan approval
   already authorizes execution of every task. Run the review yourself and
   continue automatically unless a halt/re-plan trigger applies.
