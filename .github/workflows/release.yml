@@ -300,6 +300,8 @@ jobs:
           fi
 
       - name: Publish release
+        id: publish
+        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -368,6 +370,8 @@ jobs:
       # an existing repository Release and same-target package tags as success,
       # then continue reconciling only missing package refs.
       - name: Reconcile package tags
+        id: reconcile
+        if: ${{ steps.publish.outcome == 'success' || steps.publish.outcome == 'failure' }}
         run: |
           set -euo pipefail
 
@@ -470,3 +474,7 @@ jobs:
             echo "::error::gh api compare develop...main failed" >&2
             exit 1
           fi
+
+      - name: Fail unsuccessful publication
+        if: ${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' && (steps.publish.outcome != 'success' || steps.reconcile.outcome != 'success') }}
+        run: exit 1

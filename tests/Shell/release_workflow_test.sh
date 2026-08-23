@@ -258,6 +258,7 @@ validate_workflow_graph() {
 			"Publish release",
 			"Reconcile package tags",
 			"Open back-merge PR",
+			"Fail unsuccessful publication",
 		];
 		if (ordered.some((name) => names.filter((candidate) => candidate === name).length !== 1)) process.exit(1);
 		let prior = -1;
@@ -266,19 +267,33 @@ validate_workflow_graph() {
 			if (index <= prior) process.exit(1);
 			prior = index;
 		}
-		if (job.steps.some((step) => step["continue-on-error"] !== undefined)) process.exit(1);
+		const unexpectedContinue = job.steps.filter(({name, ["continue-on-error"]: value}) =>
+			value !== undefined && name !== "Publish release"
+		);
+		if (unexpectedContinue.length !== 0) process.exit(1);
 		const validate = job.steps.find(({name}) => name === "Validate merge SHA and release version");
 		const metadata = job.steps.find(({name}) => name === "Prepare package release metadata");
 		const publish = job.steps.find(({name}) => name === "Publish release");
 		const reconcile = job.steps.find(({name}) => name === "Reconcile package tags");
+		const terminal = job.steps.find(({name}) => name === "Fail unsuccessful publication");
+		const quote = String.fromCharCode(39);
+		const reconcileIf = "${{ steps.publish.outcome == " + quote + "success" + quote +
+			" || steps.publish.outcome == " + quote + "failure" + quote + " }}";
+		const terminalIf = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
+			" && steps.package_metadata.outcome == " + quote + "success" + quote +
+			" && (steps.publish.outcome != " + quote + "success" + quote +
+			" || steps.reconcile.outcome != " + quote + "success" + quote + ") }}";
 		if (
 			validate.id !== "validate" ||
 			metadata.id !== "package_metadata" ||
+			publish.id !== "publish" ||
 			publish.if !== undefined ||
-			reconcile.if !== undefined
+			publish["continue-on-error"] !== true ||
+			reconcile.id !== "reconcile" ||
+			reconcile.if !== reconcileIf ||
+			terminal.if !== terminalIf
 		) process.exit(1);
 		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
-		const quote = String.fromCharCode(39);
 		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
 			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
 		if (backmerge.if !== expected) process.exit(1);
@@ -1022,7 +1037,7 @@ if grep -qF 'gh pr list' "$RELEASE_FILE" && \
    grep -qF 'gh pr create' "$RELEASE_FILE" && \
    grep -qF -- '--base develop --head main' "$RELEASE_FILE" && \
    ! grep -qF '|| true' "$RELEASE_FILE" && \
-   ! grep -qF 'continue-on-error' "$RELEASE_FILE"; then
+   validate_workflow_graph "$RELEASE_FILE"; then
 	pass "back-merge checks existing PR and develop...main, opens base-develop/head-main PR, no failure masking"
 else
 	fail "back-merge handling or failure-masking contract violated"
