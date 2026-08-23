@@ -4,7 +4,141 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
-## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.1) [0.2.1](https://github.com/kyaulabs/prism/compare/v0.2.0...v0.2.1) - (2026-08-20)
+## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.3.0) [0.3.0](https://github.com/kyaulabs/prism/compare/v0.2.1...v0.3.0) - (2026-08-23)
+
+### ♻️ Refactor
+
+- [Toolchain] Simplify index publication transition ([d8eb2f0](https://github.com/kyaulabs/prism/commit/d8eb2f0285ca13e706e5d0a644f677550d065415))
+
+### ⚗️ Testing
+
+- [Finalization] Enforce retry authorization boundaries ([f9645ba](https://github.com/kyaulabs/prism/commit/f9645baa6de959a76540f56371f6813c5b12fa09))
+- [Release] Verify back-merge after publication failures ([85ad1dd](https://github.com/kyaulabs/prism/commit/85ad1dd186de05d9d108573f2e6ff5c1ca44ba0c))
+- [Release] Model workflow step scheduling ([9c3e802](https://github.com/kyaulabs/prism/commit/9c3e802bf854590e6d319ec4a23683a51bdbfb38))
+- [Release] Declare workflow test prerequisites ([87e0405](https://github.com/kyaulabs/prism/commit/87e0405d34c915269d74e2d272147de7613dee92))
+- [Release] Simulate back-merge step outcomes ([c624f1d](https://github.com/kyaulabs/prism/commit/c624f1d278a1005201b493d45e9791af77c566fa))
+- [Release] Reject duplicate workflow stages ([0b3b70e](https://github.com/kyaulabs/prism/commit/0b3b70e4f40708ccea8b5e1940fac72605034f14))
+- [Release] Anchor workflow graph prerequisites ([5006fa7](https://github.com/kyaulabs/prism/commit/5006fa7cdb8d6e191c14b254766357a08cfedb46))
+- [Release] Isolate wrong-target tag race ([35ffb19](https://github.com/kyaulabs/prism/commit/35ffb190a0f9bbe227823277242297d86985126d))
+
+### 🐛 Bug Fixes
+
+- [Ci] Align finalization contract assertions ([2c8d770](https://github.com/kyaulabs/prism/commit/2c8d77085eb0134a2667ed4cea7ef77f48a0a0d2))
+- [Execution] Continue approved plans without task prompts ([4c88a57](https://github.com/kyaulabs/prism/commit/4c88a5781717c3b57a6dcde0fcf9673250bea629))
+- [Execution] Continue completed plans into finalization ([34ecec0](https://github.com/kyaulabs/prism/commit/34ecec0b6ffa0cd6d3d75bbefaa7efb4ba7c0bda))
+- [Finalization] Derive initial finalization from plan approval ([ed0eadf](https://github.com/kyaulabs/prism/commit/ed0eadfc5fc1ef3df1caf7b3a34cae4b030ce572))
+- [Pipeline] Document plan-approved automatic finalization ([f8e0352](https://github.com/kyaulabs/prism/commit/f8e0352a794d6765020a6f86147a6aa14658ad55))
+- [Pr] Accept plan-approved finalization evidence ([83d9957](https://github.com/kyaulabs/prism/commit/83d9957fa2b935ad72c7c055b064b9ceaa763501))
+- [Release] Restore valid workflow yaml ([f2296cb](https://github.com/kyaulabs/prism/commit/f2296cbe3ab8aea93510f94b8f6a55b577c95998))
+- [Release] Publish repository releases before package tags ([cc167ac](https://github.com/kyaulabs/prism/commit/cc167ac152dfdddcab8bd3d974a3b1a263e4d1f4))
+- [Release] Validate package metadata within body limits ([6cdfdcc](https://github.com/kyaulabs/prism/commit/6cdfdcc27b7838ca5679be864fc913844aca6f15))
+- [Release] Reject unsafe package metadata inputs ([bca562e](https://github.com/kyaulabs/prism/commit/bca562e47a00ae90dbf7a9cd25557ec190d594fb))
+- [Release] Validate package tag refs before publication ([e1a8d81](https://github.com/kyaulabs/prism/commit/e1a8d81799fb51460f1db2bde232b43f1beba228))
+- [Release] Enforce exact release body budget ([a5646ca](https://github.com/kyaulabs/prism/commit/a5646ca5e016e5898950e2432763bf7ffd0e052c))
+- [Release] Reconcile concurrent package tags ([e25448c](https://github.com/kyaulabs/prism/commit/e25448c605b35a4c478992bf6568da77d66e97b7))
+- [Release] Preserve truncated release body content ([fed03ee](https://github.com/kyaulabs/prism/commit/fed03ee67ec08f7a6519f86fec3e9c5ed1fbf808))
+- [Release] Parse remote tag response status ([a1408a1](https://github.com/kyaulabs/prism/commit/a1408a104458810ef8f17cc5f68f97e8274f9d40))
+- [Release] Validate workflow package metadata ([096a383](https://github.com/kyaulabs/prism/commit/096a383a72c953ced9297907828e93df0a01e7bd))
+- [Release] Reject parent package traversal ([b9669b8](https://github.com/kyaulabs/prism/commit/b9669b8aec49b22c1e5c8b54c83cd84dcdbce7bc))
+- [Release] Budget truncation footer bytes exactly ([669b482](https://github.com/kyaulabs/prism/commit/669b482945103961bcd565201d1f13c0dd4448e3))
+- [Release] Gate back-merge on package metadata ([a01f529](https://github.com/kyaulabs/prism/commit/a01f529613064b378a99ac2c51b3ec4f587ef70f))
+- [Release] Reconcile tags after partial publication ([ad96137](https://github.com/kyaulabs/prism/commit/ad96137162e0908fed473764a6f4c6e70765f2e3))
+- [Release] Require repository release before package tags ([8eceeb8](https://github.com/kyaulabs/prism/commit/8eceeb82d9a72f6b54af7f5d970e70660a4ad71b))
+- [Release] Rollback package discovery drift ([b96cdeb](https://github.com/kyaulabs/prism/commit/b96cdeb49c13fad63faa126e00a883bc15574057))
+- [Release] Pin package publication identity ([1ec9153](https://github.com/kyaulabs/prism/commit/1ec9153f401bb4814c1c4f7971c8766ef34e7aa3))
+- [Release] Recover from publication close failures ([39b9c51](https://github.com/kyaulabs/prism/commit/39b9c51912823031cb9ffeb2de294b40bfd85843))
+- [Review] Validate persisted review evidence ([0076cd6](https://github.com/kyaulabs/prism/commit/0076cd6157bc8d14789e3e68978c95a6ac63f718))
+- [Review] Validate closure evidence before publication ([c217347](https://github.com/kyaulabs/prism/commit/c2173475a0e99043543b7d3db64c6b58f2aaed47))
+- [Setup] Report package release apply failures ([a83d213](https://github.com/kyaulabs/prism/commit/a83d2132ad0fa4502bac1bf6341d02e56537a0fd))
+- [Setup] Revalidate managed release targets ([8169205](https://github.com/kyaulabs/prism/commit/8169205314187c576084dca45dfade91ea04653a))
+- [Setup] Report incomplete package release recovery ([1037814](https://github.com/kyaulabs/prism/commit/1037814f9078c240388e562e5a7df65170e79724))
+- [Setup] Contain managed release file transactions ([68ceca2](https://github.com/kyaulabs/prism/commit/68ceca2ce789d32c3eb778f222cd6da8c6e608eb))
+- [Setup] Preserve approved release transaction state ([9d79717](https://github.com/kyaulabs/prism/commit/9d79717d24f8b48c28025c757f68568cc45a9738))
+- [Setup] Guard managed release transaction boundaries ([8567b36](https://github.com/kyaulabs/prism/commit/8567b36183a079a092ab6698e1980fbe4d042f2c))
+- [Setup] Reject symlinked managed release parents ([9184ee2](https://github.com/kyaulabs/prism/commit/9184ee24741daed7590099deb73926b173a5d157))
+- [Setup] Anchor package release operation directories ([8bc7e93](https://github.com/kyaulabs/prism/commit/8bc7e936924637267d1dbe938b3773a1ecc8fcfb))
+- [Setup] Contain remaining release transaction races ([3bf3562](https://github.com/kyaulabs/prism/commit/3bf3562ad1c953468d40dad189487fdb52f104a5))
+- [Setup] Prevent concurrent release target clobbering ([f903f5e](https://github.com/kyaulabs/prism/commit/f903f5ec6bebc859ed013b3bc9ac976702e78a03))
+- [Setup] Anchor release plan artifacts ([6d48600](https://github.com/kyaulabs/prism/commit/6d4860019f717445d50621efc58e2005f350f3fa))
+- [Setup] Retain interrupted release recovery evidence ([92fddbd](https://github.com/kyaulabs/prism/commit/92fddbd42d697ad0cdcaa84432a964042a14c49d))
+- [Setup] Bind release plans to approved inputs ([f06f41c](https://github.com/kyaulabs/prism/commit/f06f41c512f6de03aa5ea29c5cb93b1cf9799846))
+- [Setup] Guard rollback target deletion ([a15514a](https://github.com/kyaulabs/prism/commit/a15514a1d93cf6163d6bb1b788ebca4a9c5c0434))
+- [Setup] Require safe filesystem flags ([3ea0ea5](https://github.com/kyaulabs/prism/commit/3ea0ea55481a8135b4f1cb7575b21b63601af780))
+- [Setup] Hold release input and lock identities ([961f17d](https://github.com/kyaulabs/prism/commit/961f17d0bdf7a108f86b1da1bbf3a4bc18bdf7c7))
+- [Setup] Validate package versions as semver ([fdb2a7e](https://github.com/kyaulabs/prism/commit/fdb2a7eae14ab4bc1dadffc210edcb97b8261dab))
+- [Setup] Identify transaction-owned publications ([cc3dc40](https://github.com/kyaulabs/prism/commit/cc3dc40bcd1662a2ffce2c347f9360ecb64dbcf3))
+- [Setup] Report release lock cleanup failures ([982a839](https://github.com/kyaulabs/prism/commit/982a83953d95647c82d22d1a3811f82aa9dae986))
+- [Setup] Anchor and sync managed release state ([e777d13](https://github.com/kyaulabs/prism/commit/e777d13eadd90dc7e5d3b1b0d12001a7fc14acc7))
+- [Setup] Record release lock recovery ownership ([26a9b1d](https://github.com/kyaulabs/prism/commit/26a9b1df14fa1fcdcd05f93f3f6b0110ee1c5896))
+- [Setup] Preserve lock acquisition failure cause ([f4a0aaf](https://github.com/kyaulabs/prism/commit/f4a0aaf3e497f4fbf3166d248887286db82c839e))
+- [Setup] Revalidate release ownership under lock ([c9224dc](https://github.com/kyaulabs/prism/commit/c9224dc06ce5dc6a6a304afd476bb7c39847988a))
+- [Setup] Reject unstable package discovery ([949d5f8](https://github.com/kyaulabs/prism/commit/949d5f852f7ff2efcee0bdc2a64f6f0600e02578))
+- [Setup] Preserve replaced publication targets ([3ab0111](https://github.com/kyaulabs/prism/commit/3ab0111e53f43ca4f74ab4fa14da9078e8e179b4))
+- [Setup] Preserve package release JSON failures ([e2ff6b9](https://github.com/kyaulabs/prism/commit/e2ff6b98e5d80c4d471ac0c13e26e2ad2ce670fd))
+- [Toolchain] Allow repository hooks to finish ([50ad36a](https://github.com/kyaulabs/prism/commit/50ad36a2e355952574a6047f5f2f17b60bae8b8d))
+- [Toolchain] Reconcile timed out commit outcomes ([c32f408](https://github.com/kyaulabs/prism/commit/c32f4089ea2050d77b020ea2a9becdef38e49628))
+- [Toolchain] Verify reconciled commit signatures ([f5ab27d](https://github.com/kyaulabs/prism/commit/f5ab27db0f9d20ef896979c9260c86603f561388))
+- [Toolchain] Preserve all timed out commit evidence ([e491676](https://github.com/kyaulabs/prism/commit/e4916769197b5276728f86b844ff31a941a5b61c))
+- [Toolchain] Retain evidence after commit timeout ([5f85a52](https://github.com/kyaulabs/prism/commit/5f85a52337216f206194a43aa0f546d185a28d83))
+
+### 📝 Documentation
+
+- [Architecture] Adopt plan-approved automatic finalization ([8249e0f](https://github.com/kyaulabs/prism/commit/8249e0f8ecf23df77cbbfcd88eb229e2eff37e9d))
+- [Execution] Specify uninterrupted plan execution ([5812532](https://github.com/kyaulabs/prism/commit/581253279fd9cd0cd247e2d6c5d015f51f43b6a5))
+- [Execution] Specify automatic plan finalization ([8238bfc](https://github.com/kyaulabs/prism/commit/8238bfc082990536f80d353de808edcbd94595a9))
+- [Handoff] Record lockstep package release continuation ([2c3bd95](https://github.com/kyaulabs/prism/commit/2c3bd953fa5351ddf666d2f7fa4063d26ddf242f))
+- [Plan] Complete managed package release implementation ([a3cca12](https://github.com/kyaulabs/prism/commit/a3cca1230d2bfff8d41588dbc88b5a2ae11b9ca8))
+- [Release] Specify setup-managed lockstep package releases ([ce8e1c9](https://github.com/kyaulabs/prism/commit/ce8e1c92966cd43ff0dc324edc1fea50d3772d83))
+- [Release] Adopt lockstep package release architecture ([469a3da](https://github.com/kyaulabs/prism/commit/469a3daa5de0f9cc230d606c73958c478dc61200))
+- [Release] Plan managed lockstep package releases ([6d01fc1](https://github.com/kyaulabs/prism/commit/6d01fc17890ff3f4044fdc0b5873a4fee79fe176))
+- [Release] Document managed lockstep package releases ([052d3f4](https://github.com/kyaulabs/prism/commit/052d3f45ee9559ebfe39d505f65bd403f6ce3c33))
+- [Review] Specify bounded diff-causal review ([e4ca00c](https://github.com/kyaulabs/prism/commit/e4ca00cabda302d577efbe3d3b19f46ed36863e1))
+- [Review] Record bounded review chain architecture ([136af4f](https://github.com/kyaulabs/prism/commit/136af4f4e979e499c1aec9c9a2b04dd761dbf959))
+- [Review] Plan bounded diff-causal review ([c49daed](https://github.com/kyaulabs/prism/commit/c49daed584096ca644f2e17ff934915b18172056))
+- [Review] Document bounded review finalization ([112019a](https://github.com/kyaulabs/prism/commit/112019a7b6136324d74ec2df72c9de0398b40827))
+
+### 🔮 Misc
+
+- [Docs] Remove completed development artifacts ([c856f94](https://github.com/kyaulabs/prism/commit/c856f948b42aa35376cb65d26a49a085efe30611))
+- [Docs] Remove completed development artifacts ([d1f761d](https://github.com/kyaulabs/prism/commit/d1f761d6e9506d7823d3b74be57f58f8daa89643))
+- [Review] Remove completed review artifacts ([3398693](https://github.com/kyaulabs/prism/commit/339869301ce1c9bdf3fae6245020c30ed338f3a8))
+
+### 🚀 Features
+
+- [Release] Discover release-managed npm packages ([c239010](https://github.com/kyaulabs/prism/commit/c239010783a28b16269f4fc68642926c54b0ae1b))
+- [Release] Author package versions in lockstep ([db88f09](https://github.com/kyaulabs/prism/commit/db88f09ef91401f7b032176b6d3e95f609adb658))
+- [Review] Record bounded review chains ([871c1be](https://github.com/kyaulabs/prism/commit/871c1be6fe66c12a8ce9def3c8ab939c54aca098))
+- [Review] Support repair delta reviews ([353e040](https://github.com/kyaulabs/prism/commit/353e040e569a1e20e9df727cd6262d8fd51c6e8f))
+- [Review] Classify findings by diff causality ([d350fe0](https://github.com/kyaulabs/prism/commit/d350fe0dde210709b81134206c1919b8198fb34c))
+- [Review] Finalize through continuous review evidence ([02eb195](https://github.com/kyaulabs/prism/commit/02eb19588525c0cb4a30adf947a8a470bce676eb))
+- [Setup] Plan managed package release files ([fd07373](https://github.com/kyaulabs/prism/commit/fd07373eda67747eabed7673dc4a81d081fa20ef))
+- [Setup] Apply package release capability atomically ([388c2cd](https://github.com/kyaulabs/prism/commit/388c2cd3f1f8683fd43241682368657beacb5370))
+- [Setup] Manage lockstep package releases ([d46bd43](https://github.com/kyaulabs/prism/commit/d46bd43dd30e330fae58250cfd05cd4955725b03))
+<!-- Auto-generated on 2026-08-23T16:32:20.761715200-07:00 -->
+## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.1) [0.2.1](https://github.com/kyaulabs/prism/compare/v0.2.0...v0.2.1) - (2026-08-21)
+
+### ⚗️ Testing
+
+- [Release] Guard cliff changelog test against empty and failed generation ([79c6bc0](https://github.com/kyaulabs/prism/commit/79c6bc0053918595f7b665a68348c1566830bf4f))
+- [Release] Accept PATH-resolved git-cliff overrides in changelog test ([a051c5d](https://github.com/kyaulabs/prism/commit/a051c5d692cf37355e897c11f1ce1eeb0102c386))
+- [Release] Check staged changelog blob and fail on broken cliff overrides ([352f7fb](https://github.com/kyaulabs/prism/commit/352f7fbecae73290842bf95da69d492cf9464b24))
+- [Release] Fail without bundled git-cliff and assert changelog bytes directly ([b935293](https://github.com/kyaulabs/prism/commit/b9352935733280d75d7915a08da61ae71e7ef92f))
+- [Release] Resolve relative cliff overrides before entering the fixture repo ([d7b8851](https://github.com/kyaulabs/prism/commit/d7b8851e208f3a9a4fb6537e91eebd807551581d))
+
+### 🐛 Bug Fixes
+
+- [Audit] Accept Composer zero-advisory empty array ([055c2f9](https://github.com/kyaulabs/prism/commit/055c2f9eb54fca59c96e7d3f4767c063de14fee5))
+- [Code-review] Relay sanitized OCR stderr on review failure ([e305407](https://github.com/kyaulabs/prism/commit/e3054071cc6236a031e78b36acadf9d13b5c8b84))
+- [Code-review] Include truncation marker within the relayed detail bound ([bcd23e4](https://github.com/kyaulabs/prism/commit/bcd23e455491e9c77cf29d3785c008545e6613a5))
+- [Code-review] Collapse relayed OCR stderr to a single bounded line ([6f5f59e](https://github.com/kyaulabs/prism/commit/6f5f59e67629f73b4feb454751d6432300816705))
+- [Commit] Distinguish hook rejection from signing failure ([3a863ec](https://github.com/kyaulabs/prism/commit/3a863eccffcc518208d8cf6bf9ebfd06aa0aff1b))
+- [Commit] Match git signing diagnostics precisely in failure classification ([321968b](https://github.com/kyaulabs/prism/commit/321968ba62185a68d7910e08d916654a2ddd812b))
+- [Commit] Classify git identity failure separately from hook rejection ([bbb0387](https://github.com/kyaulabs/prism/commit/bbb03871bbbf291ef5e97f949b342c2520cfb17f))
+- [Commit] Report git process failure separately from signing failure ([22db9cd](https://github.com/kyaulabs/prism/commit/22db9cdb8434447bc6285b3e537f9ae2f48888f6))
+- [Commit] Qualify default failure guidance as likely hook rejection ([bcf15c4](https://github.com/kyaulabs/prism/commit/bcf15c46e98a29a3fc2c9b56025bb2e1d13be546))
+- [Commit] Classify process failure before inspecting partial output ([90fe0be](https://github.com/kyaulabs/prism/commit/90fe0be8112c8db385589faa99fb14e93f7d38a7))
+- [Release] Drop trailing blank line from generated changelog ([ce01233](https://github.com/kyaulabs/prism/commit/ce012335a01f64598f35269170adc0320a8023a3))
+- [Safety] Attribute fail-closed blocks to their actual cause ([44fda5d](https://github.com/kyaulabs/prism/commit/44fda5d9ed99c135eae279e33b67b9caf8f485d9))
 
 ### 📝 Documentation
 
@@ -15,8 +149,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Define safe core git initialization ([6ef8ab0](https://github.com/kyaulabs/prism/commit/6ef8ab0a93b32db59c7fdfc38c656337ebd782d8))
 - [Setup] Specify testing-ready project bootstrap ([9ee5deb](https://github.com/kyaulabs/prism/commit/9ee5deb70c9e5f68c9c7cc6f14cbd3faaaf2e79a))
 - [Setup] Accept project bootstrap architecture ([6eea8dc](https://github.com/kyaulabs/prism/commit/6eea8dc4acfe03239e53361e2fcbf0b382a1510c))
-<!-- Auto-generated on 2026-08-20T16:20:50.271333930-07:00 -->
-
+<!-- Auto-generated on 2026-08-23T16:32:20.765314733-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.0) [0.2.0](https://github.com/kyaulabs/prism/compare/v0.1.0...v0.2.0) - (2026-08-20)
 
 ### ♻️ Refactor
@@ -429,8 +562,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Toolchain] Raise OCR execution timeout to 10 minutes ([3285887](https://github.com/kyaulabs/prism/commit/3285887da995f03fe33e8ff5ac7ca57c86364caa))
 - [Toolchain] Add pull request workflow operations ([65d9fa5](https://github.com/kyaulabs/prism/commit/65d9fa5ea0ba5abb3b46cbd8c0101b668950ebe3))
 - [Workflow] Automate accepted branch finalization ([090f6e0](https://github.com/kyaulabs/prism/commit/090f6e0adbb8b54462f4aa7cc31c688b12b058d9))
-<!-- Auto-generated on 2026-08-20T16:20:50.308567748-07:00 -->
-
+<!-- Auto-generated on 2026-08-23T16:32:20.803921435-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.1.0) [0.1.0](https://github.com/kyaulabs/prism/commit/0ad9930922de977092ab9e39a0d8b4895fa5a17c) - (2026-08-13)
 
 ### ⏪ Reverts
@@ -1394,4 +1526,4 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 
 - [Skill] Fix GraphQL shell injection and quoting in skill snippets ([312f371](https://github.com/kyaulabs/prism/commit/312f37126513694ebe6b58108abc8d8d41cf250d))
 - [Tsconfig] Enable strict type-checking ([ced28a7](https://github.com/kyaulabs/prism/commit/ced28a78d791038f58a6e1ac5c1d4af967c44d95))
-<!-- Auto-generated on 2026-08-20T16:20:50.414233610-07:00 -->
+<!-- Auto-generated on 2026-08-23T16:32:20.911286172-07:00 -->
