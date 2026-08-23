@@ -133,7 +133,7 @@ prism-tool commit create --type fix --scope finalization --subject "derive initi
 - Consumes: `executing-plans` and `finishing-a-development-branch` authorization contracts
 - Produces: always-loaded global pipeline instructions consistent with ADR-0081
 
-- [ ] **Step 1: Run the failing global-contract check**
+- [x] **Step 1: Run the failing global-contract check**
 
 ```bash
 rg -n "plan approval.*unlimited.*`/check`|additional.*review.*approval|automatic.*`/pr`" packages/prism-core/AGENTS.md
@@ -141,7 +141,7 @@ rg -n "plan approval.*unlimited.*`/check`|additional.*review.*approval|automatic
 
 Expected: no matches proving the global instructions do not yet describe ADR-0081.
 
-- [ ] **Step 2: Update global instructions**
+- [x] **Step 2: Update global instructions**
 
 Update the engineering pipeline, finalization summary, skill descriptions, and any stale acceptance wording to state:
 
@@ -149,7 +149,7 @@ Update the engineering pipeline, finalization summary, skill descriptions, and a
 Approved plans continue through cleanup, synchronization, unlimited local /check runs, one four-axis review, revalidation, and preparation-only /pr. Additional review attempts require fresh approval. Publication remains human-owned.
 ```
 
-- [ ] **Step 3: Run full verification**
+- [x] **Step 3: Run full verification**
 
 Run:
 
@@ -161,7 +161,7 @@ git diff --check
 
 Expected: all authorization semantics are present; harness validation and diff check pass.
 
-- [ ] **Step 4: Create the commit**
+- [x] **Step 4: Create the commit**
 
 ```bash
 git add packages/prism-core/AGENTS.md docs/plans/2026-08-23-automatic-plan-finalization.md

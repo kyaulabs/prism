@@ -115,32 +115,37 @@ branch and hands off to planning; bootstrap branches also require `/check`
 and the `code-review` skill plus the wayfinder map's immutable bootstrap-spec
 link in Notes before ADR-0027 cleanup.
 
-→  **brainstorming** (brainstorming / to-spec / prototype (if needed)) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → /check → code-review
+→  **brainstorming** (brainstorming / to-spec / prototype (if needed)) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → one four-axis review → /pr
 
 `/router` maps a free-form request to the right on-ramp. Trivial
 zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
 test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
 
 ```text
-brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → /check → code-review
+brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → one four-axis review → /pr
 ```
 
 1. **Brainstorm** the change (load the `brainstorming` skill — its sole owner, ADR-0054) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
 2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (prototype skill — brainstorming-owned, ADR-0054).
 3. **Plan** the implementation (writing-plans skill) → plan in `docs/plans/`.
-4. **Execute** the plan (executing-plans skill) → implement each task inline using the `tdd` skill's Red-Green-Refactor discipline, review between tasks.
+4. **Execute** the approved plan (executing-plans skill) → implement every task inline using the `tdd` skill's Red-Green-Refactor discipline and internal per-task review gates.
 5. **Implement** each task via the `tdd` skill (Red → Green → Refactor, vertical slices).
 6. **Verify** completion (verification-before-completion skill).
-7. **Gate** with `/check` (delegates to the adapter stack gate, e.g. `/check-php`).
-8. **Review** with the `code-review` skill before push.
+7. **Finalize automatically** (finishing-a-development-branch skill) → clean matching artifacts, synchronize, attest, rerun `/check` without limit until green, run the plan-authorized four-axis review, revalidate, and invoke preparation-only `/pr`.
+
+Plan approval authorizes the initial finalization path, including cleanup
+commits, target fetch/merge synchronization, unlimited local `/check` runs, one
+four-axis review, and automatic `/pr`. Standing OCR consent remains the sole
+authority for reviewed-code egress. Every additional review attempt requires
+fresh explicit approval; `/check` reruns do not.
 
 Finalization records one complete initial review across all four axes in a
-bounded chain. After a Blocking repair, fresh acceptance reviews only the
-continuous repair delta and records closure evidence. Advisory findings remain
-visible but do not block `/pr` or require waivers; base or history changes,
-discontinuity, malformed state, incomplete axes, or mismatched HEAD invalidate
-the chain and require a new complete initial review. `/pr` remains
-preparation-only; humans push and mutate GitHub.
+bounded chain. After a Blocking repair, a freshly approved review covers only
+the continuous repair delta and records closure evidence. Advisory findings
+remain visible but do not block `/pr` or require waivers; base or history
+changes, discontinuity, malformed state, incomplete axes, or mismatched HEAD
+invalidate the chain and require the next approved review to be a new complete
+initial review. `/pr` remains preparation-only; humans push and mutate GitHub.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -264,11 +269,11 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `to-spec` | Turning the current conversation into a spec WITHOUT interviewing — synthesis only. Sketches test seams, uses CONTEXT.md + ADRs, writes docs/specs/ |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
-| `executing-plans` | After writing-plans — implements every approved task inline using the `tdd` skill, continuing automatically through internal per-task review gates unless a halt/re-plan condition applies |
+| `executing-plans` | After writing-plans — implements every approved task inline using the `tdd` skill, then automatically hands completed plans to initial finalization unless a halt/re-plan condition applies |
 | `tdd` | Language-agnostic Red → Green → Refactor discipline for any new feature or bug fix requiring tests (load the adapter's `tdd-<lang>` for the test framework/coverage/lint) |
 | `ticketing` | Creating a GitHub issue/ticket or decomposing a plan or spec into an epic with vertical-slice task sub-issues |
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
-| `finishing-a-development-branch` | When a feature branch is complete — verify readiness (checklist), present disposal options (merge/PR/keep/discard), enforce no-squash policy |
+| `finishing-a-development-branch` | When a feature branch is complete — consume plan approval for cleanup, synchronization, unlimited `/check`, one four-axis review, revalidation, and automatic preparation-only `/pr`; require fresh approval for additional reviews |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
 | `receiving-code-review` | Triaging and responding to `code-review` findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
