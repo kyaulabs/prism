@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
 
 'use strict';
 
@@ -666,6 +666,25 @@ function renderPackageReleaseReport(report, json) {
     process.stdout.write(`${report.status}\n`);
 }
 
+function renderPackageReleaseFailure(operation, json) {
+    if (json) {
+        renderPackageReleaseReport({
+            schemaVersion: 1,
+            command: `package-release ${operation}`,
+            status: 'NO-GO',
+            checks: [{
+                id: 'package-release-operation',
+                status: 'FAIL',
+                message: 'package-release operation failed',
+            }],
+            data: {reason: 'operation failure'},
+        }, true);
+    } else {
+        process.stderr.write('prism-tool: package-release operation failed\n');
+    }
+    return EXIT.TOOL;
+}
+
 function packageReleaseRoots(context) {
     return {
         projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
@@ -700,8 +719,7 @@ function packageReleaseCommand(args, context) {
             else if (operation === 'plan') result = planReleaseCapability(roots);
             else result = verifyReleaseCapability(roots);
         } catch {
-            process.stderr.write('prism-tool: package-release operation failed\n');
-            return EXIT.TOOL;
+            return renderPackageReleaseFailure(operation, json);
         }
         const report = {
             schemaVersion: 1,
@@ -737,8 +755,7 @@ function packageReleaseCommand(args, context) {
                 planPath: plans[0].slice('--plan='.length),
             });
         } catch {
-            process.stderr.write('prism-tool: package-release operation failed\n');
-            return EXIT.TOOL;
+            return renderPackageReleaseFailure('apply', json);
         }
         const report = {schemaVersion: 1, command: 'package-release apply', ...result};
         renderPackageReleaseReport(report, json);

@@ -491,6 +491,35 @@ test('maps package-release apply setup failures to a controlled tool response', 
     assert.equal(result.stderr, 'prism-tool: package-release operation failed\n');
 });
 
+test('renders package-release setup failures as generic JSON reports', (t) => {
+    const root = makeTempDir();
+    const projectRoot = path.join(root, 'missing-project');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+
+    for (const args of [
+        ['package-release', 'inspect', '--json'],
+        [
+            'package-release',
+            'apply',
+            `--plan=${path.join(projectRoot, '.pi', 'prism-tool', 'package-release', 'plan.json')}`,
+            '--json',
+            '--approval=yes',
+        ],
+    ]) {
+        const result = captureWrites(() => main(args, {projectRoot, coreRoot: root}));
+        const report = JSON.parse(result.stdout);
+        assert.equal(result.status, EXIT.TOOL);
+        assert.equal(result.stderr, '');
+        assert.equal(report.status, 'NO-GO');
+        assert.deepEqual(report.checks, [{
+            id: 'package-release-operation',
+            status: 'FAIL',
+            message: 'package-release operation failed',
+        }]);
+        assert.deepEqual(report.data, {reason: 'operation failure'});
+    }
+});
+
 test('applies a CREATE plan and installs both canonical owned files', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);
