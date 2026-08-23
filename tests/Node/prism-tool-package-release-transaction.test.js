@@ -90,6 +90,26 @@ function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW) {
     fs.writeFileSync(workflowPath, workflow);
 }
 
+function isFileIdentityHeld(filePath) {
+    const identity = fs.lstatSync(filePath);
+    for (const descriptorRoot of ['/proc/self/fd', '/dev/fd']) {
+        try {
+            for (const descriptor of fs.readdirSync(descriptorRoot)) {
+                if (!/^[0-9]+$/.test(descriptor)) continue;
+                try {
+                    const held = fs.statSync(path.join(descriptorRoot, descriptor));
+                    if (held.dev === identity.dev && held.ino === identity.ino) return true;
+                } catch {
+                    continue;
+                }
+            }
+        } catch {
+            continue;
+        }
+    }
+    return false;
+}
+
 test('rejects file reads when no-follow filesystem support is unavailable', (t) => {
     const fixture = makeFixture(t);
     const constants = {...fs.constants, O_NOFOLLOW: undefined};
@@ -600,11 +620,13 @@ test('preserves an identical replacement introduced after publication', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);
     const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    let publicationIdentityHeld = false;
 
     const result = applyReleaseCapability({
         ...fixture,
         planPath: plan.planPath,
         rename(source, destination) {
+            publicationIdentityHeld = publicationIdentityHeld || isFileIdentityHeld(source);
             fs.renameSync(source, destination);
             const content = fs.readFileSync(destination);
             fs.rmSync(destination);
@@ -612,6 +634,7 @@ test('preserves an identical replacement introduced after publication', (t) => {
         },
     });
 
+    assert.equal(publicationIdentityHeld, true);
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.recovery, 'manual recovery required');
     assert.equal(fs.readFileSync(workflowPath, 'utf8'), CANONICAL_WORKFLOW);

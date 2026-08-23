@@ -1087,10 +1087,8 @@ function writeAtomic(
         descriptor = fs.openSync(tempPath, 'wx', mode);
         fs.writeFileSync(descriptor, content);
         fs.fsyncSync(descriptor);
-        fs.closeSync(descriptor);
-        descriptor = undefined;
-        fs.chmodSync(tempPath, mode);
-        tempIdentity = fs.lstatSync(tempPath);
+        fs.fchmodSync(descriptor, mode);
+        tempIdentity = fs.fstatSync(descriptor);
         parent.assertCurrent();
         if (replacedState.content !== null) {
             fs.renameSync(targetPath, guardPath);
@@ -1109,6 +1107,8 @@ function writeAtomic(
         if (tempIdentity === undefined || !sameFile(publishedEntry, tempIdentity)) {
             throw new Error('managed release target changed after publication');
         }
+        fs.closeSync(descriptor);
+        descriptor = undefined;
         parent.sync();
         parent.assertCurrent();
         if (guardMoved) {
