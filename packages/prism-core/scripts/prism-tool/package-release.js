@@ -162,15 +162,23 @@ function normalizePackageDirectory(projectRoot, value) {
     if (!isInside(projectRoot, canonical) || canonical !== lexical) {
         throw new Error('package path is symlinked or escaping');
     }
-    return value;
+    return {directory: lexical, identity: fs.lstatSync(lexical), normalized};
 }
 
 function packageRecord(projectRoot, relativeDirectory, rejectPrivate = false) {
-    const normalized = normalizePackageDirectory(projectRoot, relativeDirectory);
-    const directory = normalized === '.'
-        ? projectRoot
-        : path.join(projectRoot, normalized);
-    const manifest = readJsonObject(path.join(directory, 'package.json'), `package ${normalized}`);
+    const {directory, identity, normalized} = normalizePackageDirectory(projectRoot, relativeDirectory);
+    const held = holdAnchoredDirectory(projectRoot, directory, directory, identity);
+    let manifest;
+    try {
+        held.assertCurrent();
+        manifest = parseJsonObject(
+            readRegularFile(path.join(held.anchor, 'package.json'), `package ${normalized}`),
+            `package ${normalized}`
+        );
+        held.assertCurrent();
+    } finally {
+        held.close();
+    }
     if (manifest.private === true) {
         if (rejectPrivate) throw new Error(`private package ${normalized} cannot be release-managed`);
         return null;
@@ -272,6 +280,31 @@ function workflowOwnership(content, canonicalContent, legacyWorkflowSha256) {
     return sha256(content) === legacyWorkflowSha256 ? 'LEGACY' : 'UNOWNED';
 }
 
+function readCanonicalWorkflow(coreRoot) {
+    const canonicalCore = fs.realpathSync(coreRoot);
+    const root = holdDirectory(canonicalCore, canonicalCore);
+    let config;
+    try {
+        root.assertCurrent();
+        const configPath = path.join(canonicalCore, 'config');
+        const anchoredConfig = path.join(root.anchor, 'config');
+        const identity = fs.lstatSync(anchoredConfig);
+        config = holdAnchoredDirectory(canonicalCore, configPath, anchoredConfig, identity);
+        root.assertCurrent();
+        config.assertCurrent();
+        const workflow = readRegularFile(
+            path.join(config.anchor, 'release.yml'),
+            'canonical release workflow'
+        );
+        config.assertCurrent();
+        root.assertCurrent();
+        return workflow;
+    } finally {
+        if (config !== undefined) config.close();
+        root.close();
+    }
+}
+
 function conflictResult(candidates, configuredPackages = []) {
     return {
         status: 'NO-GO',
@@ -290,11 +323,7 @@ function inspectReleaseCapability({
     legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256,
 }) {
     const canonicalProject = fs.realpathSync(projectRoot);
-    const canonicalCore = fs.realpathSync(coreRoot);
-    const canonicalWorkflow = readRegularFile(
-        path.join(canonicalCore, 'config', 'release.yml'),
-        'canonical release workflow'
-    );
+    const canonicalWorkflow = readCanonicalWorkflow(coreRoot);
     const candidates = discoverReleasePackages({projectRoot: canonicalProject});
     let configExists;
     let workflowExists;
@@ -389,11 +418,30 @@ function acquirePackageReleaseLock(projectRoot) {
     }
     return {
         release() {
+            const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const guardPath = `${anchoredLock}.prism-release-${nonce}`;
+            let moved = false;
             try {
-                fs.closeSync(descriptor);
-                fs.rmSync(anchoredLock, {force: true});
+                parent.assertCurrent();
+                fs.renameSync(anchoredLock, guardPath);
+                moved = true;
+                const current = fs.lstatSync(guardPath);
+                const held = fs.fstatSync(descriptor);
+                if (!current.isFile() || current.isSymbolicLink() || !sameFile(current, held)) {
+                    publishNoReplace(guardPath, anchoredLock);
+                    moved = false;
+                    throw new Error('package-release lock changed during cleanup');
+                }
+                fs.rmSync(guardPath, {force: false});
+                moved = false;
+                parent.assertCurrent();
             } finally {
-                parent.close();
+                fs.closeSync(descriptor);
+                try {
+                    if (moved) publishNoReplace(guardPath, anchoredLock);
+                } finally {
+                    parent.close();
+                }
             }
         },
     };
@@ -473,7 +521,6 @@ function readOwnedOperation(projectRoot) {
         }
         rootHandle = holdAnchoredDirectory(projectRoot, root, anchoredRoot, stat);
         parentHandle.assertCurrent();
-        const markerPath = path.join(root, OPERATION_MARKER);
         const marker = parseJsonObject(
             readRegularFile(
                 path.join(rootHandle.anchor, OPERATION_MARKER),
@@ -492,7 +539,6 @@ function readOwnedOperation(projectRoot) {
         }
         return {
             anchoredRoot,
-            markerPath,
             parentHandle,
             projectRoot,
             root,
@@ -777,10 +823,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         operation = createOperation(canonicalProject);
         const desired = new Map([
             [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
-            [WORKFLOW_PATH, readRegularFile(
-                path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
-                'canonical release workflow'
-            )],
+            [WORKFLOW_PATH, readCanonicalWorkflow(coreRoot)],
         ]);
         const files = {};
         let diff = '';
@@ -1140,10 +1183,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
         if (!operation) throw new Error('package-release operation is missing');
         const plan = readPlan(operation, planPath, canonicalProject);
         const currentCandidates = discoverReleasePackages({projectRoot: canonicalProject});
-        const canonicalWorkflow = readRegularFile(
-            path.join(fs.realpathSync(coreRoot), 'config', 'release.yml'),
-            'canonical release workflow'
-        );
+        const canonicalWorkflow = readCanonicalWorkflow(coreRoot);
         if (
             sha256(JSON.stringify(currentCandidates)) !== plan.inputs.candidates ||
             sha256(canonicalWorkflow) !== plan.inputs.workflow

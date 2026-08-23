@@ -370,6 +370,33 @@ test('refuses to replace a plan while the package-release lock is held', (t) => 
     assert.equal(fs.readFileSync(lockPath, 'utf8'), 'concurrent\n');
 });
 
+test('does not remove a replacement package-release lock during cleanup', (t) => {
+    const fixture = makeFixture(t);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
+    const renameSync = fs.renameSync;
+    const rmSync = fs.rmSync;
+    let replaced = false;
+    t.mock.method(fs, 'renameSync', (source, destination) => {
+        if (!replaced && path.basename(destination).includes('.prism-release-')) {
+            replaced = true;
+            fs.rmSync(lockPath, {force: false});
+            fs.writeFileSync(lockPath, 'replacement lock\n');
+        }
+        return renameSync(source, destination);
+    });
+    t.mock.method(fs, 'rmSync', (target, options) => {
+        if (!replaced && path.basename(String(target)) === 'package-release.lock') {
+            replaced = true;
+            rmSync(target, options);
+            fs.writeFileSync(lockPath, 'replacement lock\n');
+        }
+        return rmSync(target, options);
+    });
+
+    assert.throws(() => planReleaseCapability(fixture));
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'replacement lock\n');
+});
+
 test('rejects non-literal package-release mutation approval before changing files', (t) => {
     const fixture = makeFixture(t);
     const plan = planReleaseCapability(fixture);
