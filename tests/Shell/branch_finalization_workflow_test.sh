@@ -175,6 +175,9 @@ fi
 if grep -qF 'Invoke `/check`' <<< "$check_section" \
 	&& grep -qiF 'complete successful result' <<< "$check_section" \
 	&& grep -qF 'unlimited local `/check` executions' <<< "$check_section" \
+	&& grep -qF 'a failure is within the' <<< "$check_section" \
+	&& grep -qF 'approved spec and plan' <<< "$check_section" \
+	&& grep -qF 'hard halts stop' <<< "$check_section" \
 	&& grep -qF 'rerun `/check` without asking' <<< "$check_section"; then
 	pass 'check stage requires a complete green gate and permits unlimited local reruns'
 else
@@ -230,6 +233,8 @@ else
 	fail 'invalid review-chain retry semantics are incomplete'
 fi
 if grep -qF 'changed attestation or dirty tree after a successful review stops before' <<< "$stop_conditions" \
+	&& grep -qF 'rerun `/check`' <<< "$stop_conditions" \
+	&& grep -qF 'obtain fresh approval' <<< "$stop_conditions" \
 	&& grep -qF 'reviewed identity is stale' <<< "$stop_conditions"; then
 	pass 'changed attestation stops PR preparation and requires a newly approved review'
 else
