@@ -454,12 +454,10 @@ function create(args, context) {
                 throw new CommitError(EXIT.TOOL, failureMessage);
             }
         }
-        if (!committed) {
-            preserveEvidence = true;
-            locked.publish();
-            preserveEvidence = false;
-            committed = true;
-        }
+        preserveEvidence = true;
+        locked.publish();
+        preserveEvidence = false;
+        committed = true;
         newHead = shaValue(
             requireSuccess(
                 invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']),
