@@ -120,11 +120,19 @@ Run the `code-review` skill after `/check` and require all four axes for the
 attested state: tooling/style, Fowler structural smells, requirement coverage,
 and static security analysis.
 
-Continue only when there is no Blocking finding, every axis is complete or is
-covered by an eligible waiver that existed before this accepted attempt, and
-no Suggested finding remains unresolved. Fixing a finding, granting a new
-waiver, or recovering an incomplete axis changes the evidence and consumes the
-attempt; after re-verification, return to the acceptance pause.
+When no valid review chain exists, run one complete initial branch review and
+record it. When a valid chain ends at an ancestor of current HEAD, preserve its
+completed initial evidence and review only the continuous repair delta from
+validated `record.headSha` through current HEAD, closure evidence for prior
+Blocking findings, and directly affected tests.
+
+Continue only when every axis is complete across the chain and no unresolved
+Blocking finding remains. Blocking requires ADR-0080 diff causality, relevance,
+concrete failure evidence, and changed-workflow impact. Advisory findings remain
+visible for `/pr` disclosure but require no waiver and do not stop finalization.
+A repair or incomplete axis consumes the attempt; the valid chain remains for a
+fresh accepted delta-review attempt unless base, branch, ancestry, continuity,
+or state validation fails.
 
 <!-- finalization-sha-revalidation -->
 ## Revalidate clean tree and SHAs
@@ -153,14 +161,14 @@ Each condition consumes the current attempt:
 
 - A synchronization conflict must stop before `/pr` and requires fresh finalization acceptance after repair.
 - A `/check` failure must stop before `/pr` and requires fresh finalization acceptance after repair.
-- An incomplete review axis must stop before `/pr` and requires fresh finalization acceptance after repair or an eligible waiver.
-- A Blocking finding must stop before `/pr` and requires fresh finalization acceptance after repair.
-- An unresolved Suggested finding must stop before `/pr` and requires fresh finalization acceptance after repair or an eligible waiver.
+- An incomplete review axis must stop before `/pr` and requires fresh finalization acceptance after repair.
+- An unresolved diff-causal Blocking finding must stop before `/pr` and requires fresh finalization acceptance after repair.
+- An invalid, stale, discontinuous, or wrong-base review chain must stop before `/pr` and requires fresh finalization acceptance followed by a new complete initial review.
 - A changed attestation or dirty tree must stop before `/pr` and requires fresh finalization acceptance after repair.
 
-Never continue directly from repair or waiver to `/pr`. Re-enter at the single
-acceptance pause and rerun synchronization, attestation, `/check`, all four
-review axes, and revalidation.
+Never continue directly from repair to `/pr`. Re-enter at the single acceptance
+pause and rerun synchronization, attestation, `/check`, the chain-selected
+initial or repair-delta review, and revalidation.
 
 ## Post-merge local cleanup
 
@@ -203,8 +211,8 @@ squashing; branch history is the development and evaluation log.
 ## Gotchas
 
 - *Asking after every gate* — acceptance authorizes one automatic attempt.
-- *Continuing after a repair or waiver* — the attempt is consumed; return to
-  fresh finalization acceptance.
+- *Continuing after a repair* — the attempt is consumed; return to fresh
+  finalization acceptance, preserve a valid chain, and review only the repair delta.
 - *Invoking `/pr` with stale SHAs* — revalidation must match all four attested
   values exactly.
 - *Treating `/pr` as publication* — it prepares artifacts only; humans publish

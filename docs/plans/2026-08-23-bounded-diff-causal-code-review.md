@@ -326,7 +326,7 @@ prism-tool commit create --type feat --scope review --subject "classify findings
 - Extends `prism-tool pr preflight` with validated review-chain status and advisory count.
 - Produces preparation-only PR evidence with complete axes and no open Blocking findings.
 
-- [ ] **Step 1: Write failing preflight and workflow tests**
+- [x] **Step 1: Write failing preflight and workflow tests**
 
 ```javascript
 const verified = {
@@ -354,7 +354,7 @@ axes, base movement, and current HEAD beyond the final segment. Update shell
 contracts to require preserved initial evidence, repair-delta review, Advisory
 disclosure, and no blanket bypass or automatic waiver.
 
-- [ ] **Step 2: Run focused tests and confirm Red**
+- [x] **Step 2: Run focused tests and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js`
 
@@ -364,7 +364,7 @@ Run: `bash tests/Shell/pr_command_test.sh`
 
 Expected: FAIL because preflight does not verify a chain and the prose restarts complete review after repairs.
 
-- [ ] **Step 3: Verify chain identity in preflight and update finalization flow**
+- [x] **Step 3: Verify chain identity in preflight and update finalization flow**
 
 ```javascript
 const verify = context.verifyReviewChain ?? verifyReviewChain;
@@ -386,7 +386,7 @@ findings; Advisory findings do not require waivers. `/pr` must validate the
 chain twice around artifact generation and include observed Advisory summaries
 and inert issue recommendations.
 
-- [ ] **Step 4: Run focused tests and safety-boundary contracts**
+- [x] **Step 4: Run focused tests and safety-boundary contracts**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js tests/Node/prism-tool-review-chain.test.js`
 
@@ -398,7 +398,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: PASS; no command pushes or mutates GitHub.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/skills/finishing-a-development-branch/SKILL.md packages/prism-core/prompts/pr.md packages/prism-core/scripts/prism-tool/pr.js tests/Node/prism-tool-pr.test.js tests/Shell/branch_finalization_workflow_test.sh tests/Shell/pr_command_test.sh

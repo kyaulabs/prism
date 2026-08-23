@@ -1,10 +1,11 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 const {runBounded} = require('./process');
+const {verifyReviewChain} = require('./review-chain');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -202,6 +203,14 @@ function preflight(context) {
     if (diff.error || (diff.status !== 0 && diff.status !== 1)) return failure('cannot inspect branch net diff');
     if (diff.status === 0) return failure('branch has no net diff against its merge-base');
 
+    const verify = context.verifyReviewChain ?? verifyReviewChain;
+    let review;
+    try {
+        review = verify({branch, baseRef, baseSha, headSha}, {...context, projectRoot: cwd});
+    } catch {
+        return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
+    }
+
     const fields = [
         ['BRANCH', branch],
         ['TARGET_BRANCH', targetBranch],
@@ -211,6 +220,8 @@ function preflight(context) {
         ['MERGE_BASE', mergeBase],
         ['COMMIT_COUNT', commitCount],
         ['NON_MERGE_COUNT', nonMergeCount],
+        ['REVIEW_CHAIN', 'VALID'],
+        ['ADVISORY_COUNT', String(review.advisoryFindings.length)],
     ];
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
