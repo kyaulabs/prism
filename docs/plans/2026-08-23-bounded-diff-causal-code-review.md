@@ -37,7 +37,7 @@
 - Produces schema-v1 records with `branch`, `baseRef`, `baseSha`, `headSha`, and continuous `segments`.
 - Each segment contains `kind`, `from`, `to`, four axis statuses, findings, and closure records.
 
-- [ ] **Step 1: Write failing schema and filesystem-boundary tests**
+- [x] **Step 1: Write failing schema and filesystem-boundary tests**
 
 ```javascript
 const initial = {
@@ -81,13 +81,13 @@ non-contiguous append ranges, base movement, rewritten ancestry, symlinked
 parents/files, permissive modes, and a current Git HEAD that differs from
 `input.to`.
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run: `node --test tests/Node/prism-tool-review-chain.test.js`
 
 Expected: FAIL because `review-chain.js` and its exports do not exist.
 
-- [ ] **Step 3: Implement the bounded schema and atomic local record**
+- [x] **Step 3: Implement the bounded schema and atomic local record**
 
 ```javascript
 const STATE = Object.freeze({ABSENT: 'ABSENT', VALID: 'VALID', UNSAFE: 'UNSAFE'});
@@ -132,13 +132,13 @@ exclusive temporary file, file and directory `fsync`, atomic rename, and
 post-publication reinspection. Validate Git branch, base, HEAD, and ancestry
 through fixed argument arrays supplied by `context.run ?? runBounded`.
 
-- [ ] **Step 4: Run focused and packaging tests**
+- [x] **Step 4: Run focused and packaging tests**
 
 Run: `node --test tests/Node/prism-tool-review-chain.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS; the packed Core archive includes `scripts/prism-tool/review-chain.js`.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/review-chain.js tests/Node/prism-tool-review-chain.test.js tests/Node/toolchain-packaging.test.js
