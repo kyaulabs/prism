@@ -581,8 +581,8 @@ fi
 
 # ── 15. accepted-finalization evidence contract ─────────────────────────────
 
-assert_contains "$COMMAND_FILE" 'latest finalization acceptance' \
-	'command requires evidence from the latest accepted finalization attempt'
+assert_contains "$COMMAND_FILE" 'active finalization authorization' \
+	'command requires evidence from the active authorized finalization path'
 assert_contains "$COMMAND_FILE" 'valid review chain ending at the attested HEAD' \
 	'command requires review-chain evidence at exact HEAD'
 assert_contains "$COMMAND_FILE" 'no unresolved diff-causal Blocking finding' \

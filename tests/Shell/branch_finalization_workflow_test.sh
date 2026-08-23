@@ -36,7 +36,7 @@ marker_line() {
 markers=(
 	artifact-cleanup
 	clean-tree
-	acceptance
+	authorization
 	target-sync
 	attestation
 	check
@@ -64,7 +64,7 @@ if [ "$ordered" = true ]; then
 		if [ "$index" -lt "$((${#markers[@]} - 1))" ]; then
 			end="<!-- finalization-${markers[$((index + 1))]} -->"
 		else
-			end='## Stop conditions'
+			end='## Stop and retry conditions'
 		fi
 		if ! section_between "$start" "$end" >/dev/null; then
 			fail "finalization section is missing or empty: ${markers[$index]}"
@@ -84,11 +84,11 @@ if ! artifact_cleanup=$(section_between \
 	fail 'artifact-cleanup section is missing or empty'
 	artifact_cleanup=''
 fi
-if ! acceptance=$(section_between \
-	'<!-- finalization-acceptance -->' \
+if ! authorization=$(section_between \
+	'<!-- finalization-authorization -->' \
 	'<!-- finalization-target-sync -->'); then
-	fail 'acceptance section is missing or empty'
-	acceptance=''
+	fail 'authorization section is missing or empty'
+	authorization=''
 fi
 if ! target_sync=$(section_between \
 	'<!-- finalization-target-sync -->' \
@@ -120,11 +120,11 @@ if ! revalidation=$(section_between \
 	fail 'SHA-revalidation section is missing or empty'
 	revalidation=''
 fi
-if ! stop_conditions=$(section_between '## Stop conditions' '## Post-merge local cleanup'); then
-	fail 'stop-conditions section is missing or empty'
+if ! stop_conditions=$(section_between '## Stop and retry conditions' '## Post-merge local cleanup'); then
+	fail 'stop-and-retry section is missing or empty'
 	stop_conditions=''
 fi
-if ! pr_section=$(section_between '<!-- finalization-pr -->' '## Stop conditions'); then
+if ! pr_section=$(section_between '<!-- finalization-pr -->' '## Stop and retry conditions'); then
 	fail 'PR section is missing or empty'
 	pr_section=''
 fi
@@ -138,14 +138,16 @@ else
 	fail 'artifact cleanup does not use atomic commit creation'
 fi
 
-if grep -qF 'git fetch origin' <<< "$acceptance" \
-	&& grep -qiF 'merge commit' <<< "$acceptance" \
-	&& grep -qiF 'one attempt' <<< "$acceptance" \
-	&& grep -qF 'automatically invoke `/pr`' <<< "$acceptance" \
-	&& grep -qF 'Standing OCR consent' <<< "$acceptance"; then
-	pass 'the single acceptance discloses fetch, merge mutation, automatic PR preparation, and OCR boundary'
+if grep -qF 'approved plan authorizes' <<< "$authorization" \
+	&& grep -qF '`git fetch origin`' <<< "$authorization" \
+	&& grep -qF 'required target merge' <<< "$authorization" \
+	&& grep -qF 'unlimited local `/check` runs' <<< "$authorization" \
+	&& grep -qF 'one four-axis review' <<< "$authorization" \
+	&& grep -qF 'automatic preparation-only `/pr`' <<< "$authorization" \
+	&& grep -qF 'Standing OCR consent' <<< "$authorization"; then
+	pass 'plan approval discloses synchronization, unlimited checks, one review, automatic PR preparation, and OCR boundary'
 else
-	fail 'finalization acceptance disclosure is incomplete'
+	fail 'plan-approved finalization disclosure is incomplete'
 fi
 
 if grep -qF 'git fetch origin' <<< "$target_sync" \
@@ -172,8 +174,12 @@ fi
 
 if grep -qF 'Invoke `/check`' <<< "$check_section" \
 	&& grep -qiF 'complete successful result' <<< "$check_section" \
-	&& grep -qiF 'consumes the attempt' <<< "$check_section"; then
-	pass 'check stage requires one complete green gate'
+	&& grep -qF 'unlimited local `/check` executions' <<< "$check_section" \
+	&& grep -qF 'a failure is within the' <<< "$check_section" \
+	&& grep -qF 'approved spec and plan' <<< "$check_section" \
+	&& grep -qF 'hard halts stop' <<< "$check_section" \
+	&& grep -qF 'rerun `/check` without asking' <<< "$check_section"; then
+	pass 'check stage requires a complete green gate and permits unlimited local reruns'
 else
 	fail 'check-stage gate contract is incomplete'
 fi
@@ -186,8 +192,10 @@ if grep -qF '`code-review` skill' <<< "$review_section" \
 	&& grep -qF 'review chain' <<< "$review_section" \
 	&& grep -qF 'record.headSha' <<< "$review_section" \
 	&& grep -qF 'no unresolved' <<< "$review_section" \
-	&& grep -qF 'Advisory findings remain' <<< "$review_section"; then
-	pass 'review stage requires all four axes, continuous chain evidence, and no open Blocking findings'
+	&& grep -qF 'Advisory findings remain' <<< "$review_section" \
+	&& grep -qF "plan's one initial review authorization" <<< "$review_section" \
+	&& grep -qF 'Each fresh approval authorizes one chain-selected review attempt only' <<< "$review_section"; then
+	pass 'review stage requires all four axes, one initial authorization, continuous chain evidence, and fresh approval for reruns'
 else
 	fail 'four-axis review contract is incomplete'
 fi
@@ -201,21 +209,37 @@ else
 	fail 'SHA-revalidation contract is incomplete'
 fi
 
-failure_cases=(
-	'synchronization conflict'
-	'`/check` failure'
-	'incomplete review axis'
-	'unresolved diff-causal Blocking finding'
-	'An invalid, stale, discontinuous, or wrong-base review chain'
-	'changed attestation or dirty tree'
-)
-for failure_case in "${failure_cases[@]}"; do
-	if grep -qF "$failure_case must stop before \`/pr\` and requires fresh finalization acceptance" <<< "$stop_conditions"; then
-		pass "$failure_case stops the attempt and requires fresh acceptance"
-	else
-		fail "$failure_case lacks stop-before-PR and fresh-acceptance semantics"
-	fi
-done
+if grep -qF 'synchronization conflict stops before attestation' <<< "$stop_conditions" \
+	&& grep -qF '`resolve-merge-conflicts`' <<< "$stop_conditions"; then
+	pass 'synchronization conflicts halt before attestation and route to conflict resolution'
+else
+	fail 'synchronization conflict handling is incomplete'
+fi
+if grep -qF '`/check` failure stays inside the unlimited local check loop' <<< "$stop_conditions"; then
+	pass '/check failures remain inside the unlimited local loop when plan-scoped'
+else
+	fail '/check retry semantics are incomplete'
+fi
+if grep -qF 'incomplete review axis or unresolved diff-causal Blocking finding consumes' <<< "$stop_conditions" \
+	&& grep -qF 'obtain fresh approval' <<< "$stop_conditions"; then
+	pass 'incomplete or Blocking reviews require fresh approval before rerun'
+else
+	fail 'review rerun authorization semantics are incomplete'
+fi
+if grep -qF 'invalid, stale, discontinuous, or wrong-base review chain requires' <<< "$stop_conditions" \
+	&& grep -qF 'new complete initial review' <<< "$stop_conditions"; then
+	pass 'invalid review chains require a newly approved complete initial review'
+else
+	fail 'invalid review-chain retry semantics are incomplete'
+fi
+if grep -qF 'changed attestation or dirty tree after a successful review stops before' <<< "$stop_conditions" \
+	&& grep -qF 'rerun `/check`' <<< "$stop_conditions" \
+	&& grep -qF 'obtain fresh approval' <<< "$stop_conditions" \
+	&& grep -qF 'reviewed identity is stale' <<< "$stop_conditions"; then
+	pass 'changed attestation stops PR preparation and requires a newly approved review'
+else
+	fail 'changed-attestation retry semantics are incomplete'
+fi
 
 if ! grep -qF 'What would you like to do?' "$SKILL" \
 	&& ! grep -qF '## Option responses' "$SKILL" \
