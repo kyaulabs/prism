@@ -1185,6 +1185,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
     const appliedDigests = new Map();
     const mutated = [];
     let durable = false;
+    let result;
     try {
         lock = acquirePackageReleaseLock(canonicalProject);
         operation = readOwnedOperation(canonicalProject);
@@ -1241,7 +1242,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
         }
         recoverOwnedOperation(canonicalProject, operation);
         operation = null;
-        return {
+        result = {
             status: 'GO',
             checks: [
                 {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
@@ -1291,7 +1292,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
                 recoveryFailed = true;
             }
         }
-        return {
+        result = {
             status: 'NO-GO',
             checks: [
                 {id: 'package-release-application', status: 'FAIL', message: 'managed release files were not applied'},
@@ -1304,9 +1305,28 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             },
         };
     } finally {
-        if (operation) closeOwnedOperation(operation);
-        if (lock !== undefined) lock.release();
+        let cleanupFailed = false;
+        try {
+            if (operation) closeOwnedOperation(operation);
+        } catch {
+            cleanupFailed = true;
+        }
+        try {
+            if (lock !== undefined) lock.release();
+        } catch {
+            cleanupFailed = true;
+        }
+        if (cleanupFailed) {
+            result = {
+                status: 'NO-GO',
+                checks: [
+                    {id: 'package-release-application', status: 'FAIL', message: 'managed release cleanup failed'},
+                ],
+                data: {reason: 'cleanup failure', recovery: 'manual recovery required'},
+            };
+        }
     }
+    return result;
 }
 
 function verifyReleaseCapability({projectRoot, coreRoot}) {

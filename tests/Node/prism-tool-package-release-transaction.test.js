@@ -370,6 +370,30 @@ test('refuses to replace a plan while the package-release lock is held', (t) => 
     assert.equal(fs.readFileSync(lockPath, 'utf8'), 'concurrent\n');
 });
 
+test('reports lock cleanup failure as structured recovery state', (t) => {
+    const fixture = makeFixture(t);
+    const plan = planReleaseCapability(fixture);
+    const toolRoot = path.join(fixture.projectRoot, '.pi', 'prism-tool');
+    const movedToolRoot = path.join(fixture.projectRoot, '.pi', 'prism-tool-moved');
+    let replaced = false;
+
+    const result = applyReleaseCapability({
+        ...fixture,
+        planPath: plan.planPath,
+        rename(source, destination) {
+            fs.renameSync(source, destination);
+            if (!replaced) {
+                replaced = true;
+                fs.renameSync(toolRoot, movedToolRoot);
+                fs.mkdirSync(toolRoot, {recursive: true});
+            }
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.recovery, 'manual recovery required');
+});
+
 test('does not remove a replacement package-release lock during cleanup', (t) => {
     const fixture = makeFixture(t);
     const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'package-release.lock');
