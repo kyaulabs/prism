@@ -264,7 +264,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `prototype` | Answering a technical viability question with throwaway code before committing to a plan |
 | `to-spec` | Turning the current conversation into a spec WITHOUT interviewing — synthesis only. Sketches test seams, uses CONTEXT.md + ADRs, writes docs/specs/ |
 | `writing-plans` | After brainstorming approval — produces a bite-sized TDD implementation plan |
-| `executing-plans` | After writing-plans — implements tasks inline using the `tdd` skill, with per-task review gates and halt/re-plan policy |
+| `executing-plans` | After writing-plans — implements every approved task inline using the `tdd` skill, continuing automatically through internal per-task review gates unless a halt/re-plan condition applies |
 | `tdd` | Language-agnostic Red → Green → Refactor discipline for any new feature or bug fix requiring tests (load the adapter's `tdd-<lang>` for the test framework/coverage/lint) |
 | `ticketing` | Creating a GitHub issue/ticket or decomposing a plan or spec into an epic with vertical-slice task sub-issues |
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
