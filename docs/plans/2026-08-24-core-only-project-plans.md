@@ -171,7 +171,7 @@ prism-tool commit create --type feat --scope setup --subject "broker minimal boo
 - Produces: `renderCoreBaseline({coreRoot, projectRoot, candidateRoot, request})`.
 - Produces provider ID `core-baseline`, package `@kyaulabs/prism-core`, provider version equal to the exact Core package version, protocol version `1`.
 
-- [ ] **Step 1: Write failing Core provider tests**
+- [x] **Step 1: Write failing Core provider tests**
 
 Add a public plan test seam by injecting `context.bootstrapPlanStage = 'provider'`; the CLI calls the real metadata broker and provider but stops before composition. Assert the report contains exactly these future project paths:
 
@@ -223,13 +223,13 @@ Assert `README.md` is deterministic and contains only the approved display name,
 
 Add malicious provider-registry/package fixture cases for unknown keys, wrong package name/version, unsupported protocol, duplicate provider ID, symlinked resources, missing resource, modified mode, and candidate-root escape.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because the provider module and packaged hook resources do not exist.
 
-- [ ] **Step 3: Implement the registry, provider, and bundled baseline resources**
+- [x] **Step 3: Implement the registry, provider, and bundled baseline resources**
 
 Implement a closed in-code registry derived from the Core package manifest:
 
@@ -288,13 +288,13 @@ During execution, load `rcs-header`; use the same literal identity/date format f
 
 Update package tests to require the four resources, exact executable modes, and `bootstrap-providers.js` in `npm pack` output.
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-providers.js packages/prism-core/config/bootstrap/hooks tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js

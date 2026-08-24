@@ -9,6 +9,7 @@ const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('.
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {renderCoreBaseline} = require('./bootstrap-providers');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
@@ -321,14 +322,49 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project planning requires strict-empty setup\n');
             return EXIT.TRANSACTION;
         }
+        let metadata;
         try {
-            normalizeProjectMetadata({
+            metadata = normalizeProjectMetadata({
                 projectRoot: route.projectRoot,
                 input: readBoundedStdin({...context, inputLimit: 16384}),
             });
         } catch {
             process.stderr.write('prism-tool: project metadata is invalid\n');
             return EXIT.TRANSACTION;
+        }
+        if (context.bootstrapPlanStage === 'provider') {
+            let provider;
+            try {
+                provider = renderCoreBaseline({
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    projectRoot: route.projectRoot,
+                    candidateRoot: context.bootstrapCandidateRoot,
+                    request: {
+                        schemaVersion: 1,
+                        source: {mode: 'BLANK', evidence: null},
+                        capabilities: [],
+                        metadata,
+                        adapter: null,
+                    },
+                });
+            } catch {
+                process.stderr.write('prism-tool: Core baseline provider failed\n');
+                return EXIT.TRANSACTION;
+            }
+            const report = {
+                schemaVersion: 1,
+                command: 'setup project plan',
+                status: 'GO',
+                disposition: 'PROVIDER_READY',
+                projectRoot: route.projectRoot,
+                source: 'BLANK',
+                adapter: null,
+                checks: provider.checks,
+                data: provider,
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.OK;
         }
         process.stderr.write('prism-tool: project planning is not implemented\n');
         return EXIT.TRANSACTION;

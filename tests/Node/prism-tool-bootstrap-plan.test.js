@@ -9,6 +9,8 @@ const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
+const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+
 function captureWrites(action) {
     let stdout = '';
     let stderr = '';
@@ -30,14 +32,14 @@ function captureWrites(action) {
     }
 }
 
-function planInput(projectRoot, input) {
+function planInput(projectRoot, input, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
-    ], {projectRoot, input}));
+    ], {projectRoot, input, ...context}));
 }
 
-function planProject(projectRoot, input) {
-    return planInput(projectRoot, JSON.stringify(input));
+function planProject(projectRoot, input, context = {}) {
+    return planInput(projectRoot, JSON.stringify(input), context);
 }
 
 test('reports minimal metadata fields without changing a strict-empty root', (t) => {
@@ -124,6 +126,81 @@ test('rejects metadata outside the closed minimal schema', (t) => {
         assert.match(result.stderr, /project metadata is invalid/, input);
         assert.deepEqual(fs.readdirSync(projectRoot), [], input);
     }
+});
+
+test('renders the trusted Core baseline into a launcher-designated candidate root', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    const result = planInput(projectRoot, JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Editable Project Name',
+        summary: 'A deterministic Core-only project.',
+    }), {
+        coreRoot: CORE_ROOT,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PROVIDER_READY');
+    assert.deepEqual(report.data.outputs.map(({path: outputPath}) => outputPath), [
+        '.github/hooks/commit-msg',
+        '.github/hooks/pre-commit',
+        '.github/hooks/pre-push',
+        '.github/hooks/prepare-commit-msg',
+        '.prism/project.json',
+        'README.md',
+        'commitlint.config.cjs',
+    ]);
+    for (const output of report.data.outputs) {
+        assert.match(output.sha256, /^[0-9a-f]{64}$/);
+        assert.equal(path.isAbsolute(output.candidatePath), true);
+        assert.equal(path.relative(candidateRoot, output.candidatePath).startsWith('..'), false);
+    }
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects a packaged Core hook with a non-canonical mode', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(coreRoot, 'package.json'), JSON.stringify({
+        name: '@kyaulabs/prism-core',
+        version: '0.3.1',
+    }));
+    fs.mkdirSync(path.join(coreRoot, 'config', 'bootstrap'), {recursive: true});
+    fs.cpSync(path.join(CORE_ROOT, 'config', 'bootstrap', 'hooks'), path.join(
+        coreRoot, 'config', 'bootstrap', 'hooks'
+    ), {recursive: true});
+    fs.copyFileSync(
+        path.join(CORE_ROOT, 'config', 'commitlint.config.cjs'),
+        path.join(coreRoot, 'config', 'commitlint.config.cjs')
+    );
+    fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', 'pre-commit'), 0o644);
+
+    const result = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Core baseline provider failed/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
