@@ -71,14 +71,16 @@ function streamResponse(body, {redirected = false, status = 200} = {}) {
     };
 }
 
-function createTemplateFixture({mutate, transport = {}} = {}) {
+function createTemplateFixture({mutate, mutateManifest, transformManifestBytes, transport = {}} = {}) {
     const manifest = {
         schemaVersion: 1,
         templateId: 'kyaulabs/template',
         bootstrapProtocol: 1,
         entries: deepClone(SOURCE_ENTRIES),
     };
-    const manifestBytes = Buffer.from(`${JSON.stringify(manifest)}\n`, 'utf8');
+    if (mutateManifest) mutateManifest(manifest);
+    let manifestBytes = Buffer.from(`${JSON.stringify(manifest)}\n`, 'utf8');
+    if (transformManifestBytes) manifestBytes = Buffer.from(transformManifestBytes(manifestBytes));
     const manifestSha = gitBlobSha(manifestBytes);
     const tree = {
         sha: TREE_SHA,

@@ -106,6 +106,7 @@ test('packs the core package with every owned resource and executable modes', ()
     for (const module of [
         'cli', 'code-review', 'commit', 'consent', 'contract', 'discovery',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'template-source', 'template-source-http', 'template-source-validation',
     ]) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }

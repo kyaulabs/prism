@@ -415,4 +415,137 @@ test('rejects substituted and malformed manifest blob responses', async (t) => {
     }
 });
 
+test('rejects unknown manifest policy fields', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({
+        mutateManifest(manifest) {
+            manifest.default = 'licensing';
+        },
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await source(
+        projectRoot,
+        fixture.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+
+    assert.equal(result.status, 5);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.reason, 'MANIFEST_INVALID');
+    assert.equal(report.data, null);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects malformed, incomplete, and policy-bearing capability manifests', async (t) => {
+    const prohibitedFields = [
+        'copy', 'script', 'command', 'package', 'url', 'renderer',
+        'outputPath', 'metadata', 'default', 'mode',
+    ];
+    const cases = [
+        ['malformed JSON', {transformManifestBytes() { return Buffer.from('{'); }}, 'MANIFEST_INVALID'],
+        ['invalid UTF-8', {transformManifestBytes() { return Buffer.from([0xc3, 0x28]); }}, 'MANIFEST_INVALID'],
+        ['array root', {transformManifestBytes() { return Buffer.from('[]'); }}, 'MANIFEST_INVALID'],
+        ['null root', {transformManifestBytes() { return Buffer.from('null'); }}, 'MANIFEST_INVALID'],
+        ['missing top-level field', {mutateManifest(manifest) { delete manifest.templateId; }}, 'MANIFEST_INVALID'],
+        ['unsupported schema', {mutateManifest(manifest) { manifest.schemaVersion = 2; }}, 'MANIFEST_SCHEMA_UNSUPPORTED'],
+        ['unsupported protocol', {mutateManifest(manifest) { manifest.bootstrapProtocol = 2; }}, 'MANIFEST_SCHEMA_UNSUPPORTED'],
+        ['wrong template identity', {mutateManifest(manifest) { manifest.templateId = 'other/template'; }}, 'MANIFEST_INVALID'],
+        ['non-array entries', {mutateManifest(manifest) { manifest.entries = {}; }}, 'MANIFEST_INVALID'],
+        ['missing tree classification', {mutateManifest(manifest) { manifest.entries.pop(); }}, 'MANIFEST_TREE_MISMATCH'],
+        ['duplicate classification', {mutateManifest(manifest) { manifest.entries.push({...manifest.entries[0]}); }}, 'MANIFEST_TREE_MISMATCH'],
+        ['extra classification', {mutateManifest(manifest) { manifest.entries.push({...manifest.entries[0], path: 'extra'}); }}, 'MANIFEST_TREE_MISMATCH'],
+        ['path mismatch', {mutateManifest(manifest) { manifest.entries[0].path = 'OTHER.md'; }}, 'MANIFEST_TREE_MISMATCH'],
+        ['SHA mismatch', {mutateManifest(manifest) { manifest.entries[0].blobSha = '9999999999999999999999999999999999999999'; }}, 'MANIFEST_TREE_MISMATCH'],
+        ['size mismatch', {mutateManifest(manifest) { manifest.entries[0].size += 1; }}, 'MANIFEST_TREE_MISMATCH'],
+        ['unknown entry field', {mutateManifest(manifest) { manifest.entries[0].extra = true; }}, 'MANIFEST_INVALID'],
+        ['unknown class', {mutateManifest(manifest) { manifest.entries[0].class = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['unknown capability', {mutateManifest(manifest) { manifest.entries[0].capability = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['unknown provider scope', {mutateManifest(manifest) { manifest.entries[0].provider.scope = 'remote'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['unknown provider ID', {mutateManifest(manifest) { manifest.entries[0].provider.id = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['unknown disposition', {mutateManifest(manifest) { manifest.entries[0].disposition = 'copy'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['Core capability with adapter provider', {mutateManifest(manifest) { manifest.entries[0].provider.scope = 'adapter'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['adapter capability with Core provider', {mutateManifest(manifest) { manifest.entries[1].provider.scope = 'core'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['optional capability with adapter provider', {mutateManifest(manifest) { manifest.entries[2].provider.scope = 'adapter'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['maintenance provider', {mutateManifest(manifest) { manifest.entries[3].provider = {scope: 'core', id: 'template-maintenance'}; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['maintenance render', {mutateManifest(manifest) { manifest.entries[3].disposition = 'render'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['render without provider', {mutateManifest(manifest) { manifest.entries[0].provider = null; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['render excluded', {mutateManifest(manifest) { manifest.entries[0].disposition = 'exclude'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ...prohibitedFields.map((field) => [
+            `prohibited ${field}`,
+            {mutateManifest(manifest) { manifest.entries[0][field] = 'attacker-controlled'; }},
+            'MANIFEST_INVALID',
+        ]),
+    ];
+
+    for (const [name, fixtureOptions, expectedReason] of cases) {
+        await t.test(name, async (t) => {
+            const projectRoot = makeTempDir();
+            const fixture = createTemplateFixture(fixtureOptions);
+            t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+            const result = await source(
+                projectRoot,
+                fixture.fetch,
+                '--source=template',
+                '--network-approved=yes'
+            );
+
+            assert.equal(result.status, 5);
+            const report = JSON.parse(result.stdout);
+            assert.equal(report.reason, expectedReason);
+            assert.equal(report.data, null);
+            assert.equal(fixture.calls.length, 4);
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        });
+    }
+});
+
+test('normalizes catalogue ordering without exposing remote response content', async (t) => {
+    const firstRoot = makeTempDir();
+    const secondRoot = makeTempDir();
+    const canary = 'REMOTE-CANARY-DO-NOT-MATERIALIZE';
+    const first = createTemplateFixture({
+        mutate(responses) {
+            responses.repository.remote_content = canary;
+            responses.tree.tree[0].remote_content = canary;
+        },
+    });
+    const second = createTemplateFixture({
+        mutateManifest(manifest) {
+            manifest.entries.reverse();
+        },
+    });
+    t.after(() => fs.rmSync(firstRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(secondRoot, {recursive: true, force: true}));
+
+    const firstResult = await source(
+        firstRoot,
+        first.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+    const secondResult = await source(
+        secondRoot,
+        second.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+
+    assert.equal(firstResult.status, 0);
+    assert.equal(secondResult.status, 0);
+    const firstReport = JSON.parse(firstResult.stdout);
+    const secondReport = JSON.parse(secondResult.stdout);
+    assert.equal(
+        firstReport.data.attestation.classificationSha256,
+        secondReport.data.attestation.classificationSha256
+    );
+    assert.deepEqual(firstReport.data.catalogue, secondReport.data.catalogue);
+    assert.equal(firstResult.stdout.includes(canary), false);
+    assert.deepEqual(fs.readdirSync(firstRoot), []);
+    assert.deepEqual(fs.readdirSync(secondRoot), []);
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

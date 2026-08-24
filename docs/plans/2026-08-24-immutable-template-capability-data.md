@@ -646,7 +646,7 @@ prism-tool commit create --type feat --scope setup --subject "validate immutable
 - Adds closed reasons `MANIFEST_INVALID`, `MANIFEST_SCHEMA_UNSUPPORTED`, `MANIFEST_TREE_MISMATCH`, and `CAPABILITY_UNSUPPORTED`.
 - Final Template `data` contains only normalized catalogue records and immutable attestation digests; it contains no raw response, remote project blob, API URL, command, script, output path, package coordinate, or default selection.
 
-- [ ] **Step 1: Add failing closed-schema and non-materialization tests**
+- [x] **Step 1: Add failing closed-schema and non-materialization tests**
 
 Add manifest variants for:
 
@@ -669,7 +669,7 @@ Add manifest variants for:
 
 Assert the valid report catalogue is path-sorted, contains exact normalized fields, and contains no manifest blob body. Assert `JSON.stringify(report)` does not include fixture-only canary project content.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -679,7 +679,7 @@ node --test tests/Node/prism-tool-template-source.test.js tests/Node/toolchain-p
 
 Expected: FAIL because the manifest validator and package inventory are incomplete.
 
-- [ ] **Step 3: Implement the closed manifest contract**
+- [x] **Step 3: Implement the closed manifest contract**
 
 Define the exact Core allowlist:
 
@@ -756,7 +756,7 @@ Update `tests/Node/toolchain-packaging.test.js` so the packaged launcher-module 
         'template-source', 'template-source-http', 'template-source-validation',
 ```
 
-- [ ] **Step 4: Run focused and full Node verification**
+- [x] **Step 4: Run focused and full Node verification**
 
 Run:
 
@@ -782,7 +782,7 @@ npm exec eslint -- packages/prism-core/scripts/prism-tool/cli.js packages/prism-
 
 Expected: PASS.
 
-- [ ] **Step 5: Self-review the issue acceptance criteria**
+- [x] **Step 5: Self-review the issue acceptance criteria**
 
 Confirm mechanically:
 
@@ -796,7 +796,7 @@ Confirm mechanically:
 - all existing Node tests remain green;
 - no dependency or lockfile changed.
 
-- [ ] **Step 6: Create the final issue-closing commit**
+- [x] **Step 6: Create the final issue-closing commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/template-source-validation.js packages/prism-core/scripts/prism-tool/template-source.js tests/Node/fixtures/template-source.js tests/Node/prism-tool-template-source.test.js tests/Node/toolchain-packaging.test.js

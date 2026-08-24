@@ -17,6 +17,21 @@ const LIMITS = Object.freeze({
 const MANIFEST_PATH = '.prism/template-manifest.json';
 const BRANCH_PATTERN = /^(?!\.)(?!.*\.\.)(?!.*\.lock$)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const CAPABILITIES = Object.freeze({
+    'project-readme': Object.freeze(['core-baseline', 'core', 'project-readme']),
+    'core-hooks': Object.freeze(['core-baseline', 'core', 'core-hooks']),
+    'commit-policy': Object.freeze(['core-baseline', 'core', 'commit-policy']),
+    'adapter-scaffold': Object.freeze(['adapter-owned', 'adapter', 'adapter-scaffold']),
+    licensing: Object.freeze(['optional-profile', 'core', 'licensing']),
+    'community-governance': Object.freeze(['optional-profile', 'core', 'community-governance']),
+    'github-collaboration': Object.freeze(['optional-profile', 'core', 'github-collaboration']),
+    'security-disclosure': Object.freeze(['optional-profile', 'core', 'security-disclosure']),
+    'repository-ownership': Object.freeze(['optional-profile', 'core', 'repository-ownership']),
+    'support-routing': Object.freeze(['optional-profile', 'core', 'support-routing']),
+    funding: Object.freeze(['optional-profile', 'core', 'funding']),
+    'release-management': Object.freeze(['optional-profile', 'core', 'release-management']),
+    'template-maintenance': Object.freeze(['template-maintenance-only', null, null]),
+});
 
 function fail(code) {
     throw new TemplateSourceError(code);
@@ -24,6 +39,12 @@ function fail(code) {
 
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasExactKeys(value, expected) {
+    const actual = Object.keys(value).sort();
+    const keys = [...expected].sort();
+    return actual.length === keys.length && actual.every((key, index) => key === keys[index]);
 }
 
 function digestJson(value) {
@@ -158,6 +179,25 @@ function validateManifestBlob(value, manifestTreeEntry) {
     };
 }
 
+function validateManifestProvider(entry, expected) {
+    const [expectedClass, expectedScope, expectedId] = expected;
+    if (entry.class !== expectedClass) fail('CAPABILITY_UNSUPPORTED');
+    if (expectedScope === null) {
+        if (entry.provider !== null || entry.disposition !== 'exclude') {
+            fail('CAPABILITY_UNSUPPORTED');
+        }
+        return null;
+    }
+    if (entry.disposition !== 'render' || !isRecord(entry.provider)) {
+        fail('CAPABILITY_UNSUPPORTED');
+    }
+    if (!hasExactKeys(entry.provider, ['scope', 'id'])) fail('MANIFEST_INVALID');
+    if (entry.provider.scope !== expectedScope || entry.provider.id !== expectedId) {
+        fail('CAPABILITY_UNSUPPORTED');
+    }
+    return {scope: expectedScope, id: expectedId};
+}
+
 function validateManifest(bytes, tree) {
     let value;
     try {
@@ -165,40 +205,60 @@ function validateManifest(bytes, tree) {
     } catch {
         fail('MANIFEST_INVALID');
     }
-    if (!isRecord(value) || value.schemaVersion !== 1) fail('MANIFEST_INVALID');
-    if (value.templateId !== 'kyaulabs/template' || value.bootstrapProtocol !== 1) {
+    if (!isRecord(value)) fail('MANIFEST_INVALID');
+    if (!hasExactKeys(value, ['schemaVersion', 'templateId', 'bootstrapProtocol', 'entries'])) {
         fail('MANIFEST_INVALID');
     }
+    if (value.schemaVersion !== 1 || value.bootstrapProtocol !== 1) {
+        fail('MANIFEST_SCHEMA_UNSUPPORTED');
+    }
+    if (value.templateId !== 'kyaulabs/template') fail('MANIFEST_INVALID');
     if (!Array.isArray(value.entries)) fail('MANIFEST_INVALID');
+
     const treeBlobs = new Map(tree.blobs
         .filter(({path}) => path !== MANIFEST_PATH)
         .map((entry) => [entry.path, entry]));
+    if (value.entries.length !== treeBlobs.size) fail('MANIFEST_TREE_MISMATCH');
+
+    const seen = new Set();
     const entries = value.entries.map((entry) => {
+        if (!isRecord(entry)) fail('MANIFEST_INVALID');
+        if (!hasExactKeys(entry, [
+            'path', 'blobSha', 'size', 'class', 'capability', 'provider', 'disposition',
+        ])) {
+            fail('MANIFEST_INVALID');
+        }
+        if (seen.has(entry.path)) fail('MANIFEST_TREE_MISMATCH');
+        seen.add(entry.path);
         const source = treeBlobs.get(entry.path);
         if (!source || source.sha !== entry.blobSha || source.size !== entry.size) {
             fail('MANIFEST_TREE_MISMATCH');
         }
+        const expected = CAPABILITIES[entry.capability];
+        if (!expected) fail('CAPABILITY_UNSUPPORTED');
+        const provider = validateManifestProvider(entry, expected);
         return {
             path: entry.path,
             blobSha: entry.blobSha,
             size: entry.size,
             class: entry.class,
             capability: entry.capability,
-            provider: entry.provider,
+            provider,
             disposition: entry.disposition,
         };
     }).sort((left, right) => left.path.localeCompare(right.path));
+    if ([...treeBlobs.keys()].some((entryPath) => !seen.has(entryPath))) {
+        fail('MANIFEST_TREE_MISMATCH');
+    }
+
+    const catalogue = {
+        schemaVersion: 1,
+        bootstrapProtocol: 1,
+        entries,
+    };
     return {
-        catalogue: {
-            schemaVersion: 1,
-            bootstrapProtocol: 1,
-            entries,
-        },
-        classificationSha256: digestJson({
-            schemaVersion: 1,
-            bootstrapProtocol: 1,
-            entries,
-        }),
+        catalogue,
+        classificationSha256: digestJson(catalogue),
     };
 }
 
