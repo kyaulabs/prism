@@ -3,6 +3,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const path = require('node:path');
 const {TextDecoder} = require('node:util');
 const {TemplateSourceError} = require('./template-source-http');
 
@@ -50,21 +51,80 @@ function validateCommit(value) {
     return {commitSha: value.sha, treeSha};
 }
 
+function hasControlCharacter(value) {
+    return [...value].some((character) => {
+        const codePoint = character.codePointAt(0);
+        return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+    });
+}
+
+function validatePath(value) {
+    if (typeof value !== 'string' || value.length === 0) fail('PATH_INVALID');
+    if (!value.isWellFormed() || value.normalize('NFC') !== value) fail('PATH_INVALID');
+    if (Buffer.byteLength(value) > LIMITS.pathBytes) fail('PATH_INVALID');
+    if (value.startsWith('/') || value.includes('\\')) fail('PATH_INVALID');
+    if (/(?:^|\/)(?:\.|\.\.)(?:\/|$)/.test(value)) fail('PATH_INVALID');
+    if (hasControlCharacter(value)) fail('PATH_INVALID');
+    if (value === '.git' || value.startsWith('.git/')) fail('PATH_INVALID');
+    if (value === '.pi/prism-tool' || value.startsWith('.pi/prism-tool/')) fail('PATH_INVALID');
+    if (path.posix.normalize(value) !== value) fail('PATH_INVALID');
+    return value;
+}
+
 function validateTree(value, expectedTreeSha) {
-    if (!isRecord(value) || value.sha !== expectedTreeSha || value.truncated !== false) {
-        fail('TREE_INVALID');
-    }
+    if (!isRecord(value) || value.sha !== expectedTreeSha) fail('TREE_INVALID');
+    if (value.truncated !== false) fail('TREE_TRUNCATED');
     if (!Array.isArray(value.tree)) fail('TREE_INVALID');
-    const entries = value.tree.map((entry) => ({
-        path: entry.path,
-        mode: entry.mode,
-        type: entry.type,
-        sha: entry.sha,
-        size: entry.size,
-    }));
-    const manifest = entries.find((entry) => entry.path === MANIFEST_PATH);
+    if (value.tree.length > LIMITS.treeEntries) fail('TREE_TOO_LARGE');
+
+    const seen = new Set();
+    const entries = [];
+    const trees = new Set();
+    const blobs = [];
+    let aggregateSize = 0;
+    for (const source of value.tree) {
+        if (!isRecord(source)) fail('TREE_INVALID');
+        const entryPath = validatePath(source.path);
+        if (seen.has(entryPath)) fail('PATH_INVALID');
+        seen.add(entryPath);
+        if (!SHA_PATTERN.test(source.sha)) fail('TREE_INVALID');
+
+        if (source.mode === '040000' && source.type === 'tree') {
+            const entry = {path: entryPath, mode: source.mode, type: source.type, sha: source.sha};
+            entries.push(entry);
+            trees.add(entryPath);
+            continue;
+        }
+        if (source.mode !== '100644' || source.type !== 'blob') fail('MODE_INVALID');
+        if (!Number.isSafeInteger(source.size) || source.size < 0) fail('TREE_INVALID');
+        if (entryPath === MANIFEST_PATH && source.size > LIMITS.manifestBytes) {
+            fail('MANIFEST_BLOB_TOO_LARGE');
+        }
+        if (entryPath !== MANIFEST_PATH && source.size > LIMITS.blobBytes) fail('TREE_TOO_LARGE');
+        aggregateSize += source.size;
+        if (aggregateSize > LIMITS.aggregateBlobBytes) fail('TREE_TOO_LARGE');
+        const entry = {
+            path: entryPath,
+            mode: source.mode,
+            type: source.type,
+            sha: source.sha,
+            size: source.size,
+        };
+        entries.push(entry);
+        blobs.push(entry);
+    }
+
+    for (const entry of entries) {
+        const segments = entry.path.split('/');
+        for (let index = 1; index < segments.length; index += 1) {
+            if (!trees.has(segments.slice(0, index).join('/'))) fail('PATH_INVALID');
+        }
+    }
+    for (const blob of blobs) {
+        if (entries.some((entry) => entry.path.startsWith(`${blob.path}/`))) fail('PATH_INVALID');
+    }
+    const manifest = blobs.find((entry) => entry.path === MANIFEST_PATH);
     if (!manifest) fail('TREE_INVALID');
-    const blobs = entries.filter((entry) => entry.type === 'blob');
     return {blobs, entries, manifest};
 }
 
@@ -81,8 +141,15 @@ function validateManifestBlob(value, manifestTreeEntry) {
         fail('MANIFEST_BLOB_INVALID');
     }
     if (typeof value.content !== 'string') fail('MANIFEST_BLOB_INVALID');
-    const bytes = Buffer.from(value.content.replace(/\n/g, ''), 'base64');
-    if (bytes.length !== value.size || gitBlobSha(bytes) !== value.sha) {
+    const compact = value.content.replace(/\n/g, '');
+    const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+    if (!base64Pattern.test(compact)) fail('MANIFEST_BLOB_INVALID');
+    const bytes = Buffer.from(compact, 'base64');
+    if (
+        bytes.toString('base64') !== compact ||
+        bytes.length !== value.size ||
+        gitBlobSha(bytes) !== value.sha
+    ) {
         fail('MANIFEST_BLOB_INVALID');
     }
     return {

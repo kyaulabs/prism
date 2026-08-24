@@ -522,7 +522,7 @@ prism-tool commit create --type feat --scope setup --subject "bound template sou
 - `validateManifestBlob(value, manifestTreeEntry) -> {bytes, sha256}`.
 - Adds closed reasons `TREE_INVALID`, `TREE_TRUNCATED`, `TREE_TOO_LARGE`, `PATH_INVALID`, `MODE_INVALID`, `MANIFEST_BLOB_INVALID`, and `MANIFEST_BLOB_TOO_LARGE`.
 
-- [ ] **Step 1: Add failing table-driven tree and blob tests**
+- [x] **Step 1: Add failing table-driven tree and blob tests**
 
 Add one mutation helper to the fixture module that deep-clones canonical response data before applying a test mutation. Add public CLI cases for:
 
@@ -543,7 +543,7 @@ Add one mutation helper to the fixture module that deep-clones canonical respons
 
 Each case asserts exact NO-GO reason, exact root emptiness, and that no later fetch occurs after the failing phase.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -553,7 +553,7 @@ node --test tests/Node/prism-tool-template-source.test.js
 
 Expected: FAIL because Task 2 does not yet enforce every tree/path/mode/blob invariant.
 
-- [ ] **Step 3: Implement complete tree and blob validation**
+- [x] **Step 3: Implement complete tree and blob validation**
 
 In `template-source-validation.js`, define:
 
@@ -612,7 +612,7 @@ function gitBlobSha(bytes) {
 
 Return the decoded bytes and SHA-256 digest only. Do not write the bytes anywhere.
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run:
 
@@ -622,7 +622,7 @@ node --test tests/Node/prism-tool-template-source.test.js
 
 Expected: PASS for every hostile tree/path/mode/blob case and the immutable valid fixture.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/template-source-validation.js packages/prism-core/scripts/prism-tool/template-source.js tests/Node/fixtures/template-source.js tests/Node/prism-tool-template-source.test.js

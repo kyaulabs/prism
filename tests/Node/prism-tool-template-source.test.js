@@ -255,4 +255,164 @@ test('stops before network access when the root is established', async (t) => {
     assert.equal(fs.readFileSync(readme, 'utf8'), '# existing\n');
 });
 
+test('rejects a truncated recursive tree with a closed reason', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({
+        mutate(responses) {
+            responses.tree.truncated = true;
+        },
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await source(
+        projectRoot,
+        fixture.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+
+    assert.equal(result.status, 5);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.reason, 'TREE_TRUNCATED');
+    assert.equal(report.data, null);
+    assert.equal(fixture.calls.length, 3);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects hostile tree paths, modes, sizes, and topology', async (t) => {
+    const cases = [
+        ['tree SHA mismatch', (tree) => { tree.sha = '9999999999999999999999999999999999999999'; }, 'TREE_INVALID'],
+        ['entry count', (tree) => {
+            for (let index = 0; index < 1025; index += 1) {
+                tree.tree.push({
+                    path: `extra-${index}`,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: '8888888888888888888888888888888888888888',
+                    size: 1,
+                });
+            }
+        }, 'TREE_TOO_LARGE'],
+        ['individual blob size', (tree) => { tree.tree.find(({path}) => path === 'README.md').size = 4194305; }, 'TREE_TOO_LARGE'],
+        ['aggregate blob size', (tree) => {
+            for (let index = 0; index < 17; index += 1) {
+                tree.tree.push({
+                    path: `large-${index}`,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: '8888888888888888888888888888888888888888',
+                    size: 4194304,
+                });
+            }
+        }, 'TREE_TOO_LARGE'],
+        ['long path', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'a'.repeat(4097); }, 'PATH_INVALID'],
+        ['absolute path', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = '/README.md'; }, 'PATH_INVALID'],
+        ['empty segment', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'a//b'; }, 'PATH_INVALID'],
+        ['dot segment', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'a/./b'; }, 'PATH_INVALID'],
+        ['traversal', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = '../README.md'; }, 'PATH_INVALID'],
+        ['backslash', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'a\\b'; }, 'PATH_INVALID'],
+        ['control character', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'bad\nname'; }, 'PATH_INVALID'],
+        ['non-NFC path', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'e\u0301.txt'; }, 'PATH_INVALID'],
+        ['ill-formed Unicode', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = '\ud800.txt'; }, 'PATH_INVALID'],
+        ['duplicate path', (tree) => { tree.tree.push({...tree.tree.find(({path}) => path === 'README.md')}); }, 'PATH_INVALID'],
+        ['missing parent', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = 'missing/README.md'; }, 'PATH_INVALID'],
+        ['blob prefix', (tree) => { tree.tree.push({path: 'README.md/child', mode: '100644', type: 'blob', sha: '8888888888888888888888888888888888888888', size: 1}); }, 'PATH_INVALID'],
+        ['Git collision', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = '.git/config'; }, 'PATH_INVALID'],
+        ['operational collision', (tree) => { tree.tree.find(({path}) => path === 'README.md').path = '.pi/prism-tool/work'; }, 'PATH_INVALID'],
+        ['symlink', (tree) => { Object.assign(tree.tree.find(({path}) => path === 'README.md'), {mode: '120000', type: 'blob'}); }, 'MODE_INVALID'],
+        ['submodule', (tree) => { Object.assign(tree.tree.find(({path}) => path === 'README.md'), {mode: '160000', type: 'commit'}); }, 'MODE_INVALID'],
+        ['executable blob', (tree) => { tree.tree.find(({path}) => path === 'README.md').mode = '100755'; }, 'MODE_INVALID'],
+        ['unknown mode', (tree) => { tree.tree.find(({path}) => path === 'README.md').mode = '100600'; }, 'MODE_INVALID'],
+        ['tree type mismatch', (tree) => { tree.tree.find(({path}) => path === '.github').type = 'blob'; }, 'MODE_INVALID'],
+        ['blob type mismatch', (tree) => { tree.tree.find(({path}) => path === 'README.md').type = 'tree'; }, 'MODE_INVALID'],
+        ['missing manifest', (tree) => { tree.tree = tree.tree.filter(({path}) => path !== '.prism/template-manifest.json'); }, 'TREE_INVALID'],
+        ['duplicate manifest', (tree) => { tree.tree.push({...tree.tree.find(({path}) => path === '.prism/template-manifest.json')}); }, 'PATH_INVALID'],
+        ['oversized manifest', (tree) => { tree.tree.find(({path}) => path === '.prism/template-manifest.json').size = 262145; }, 'MANIFEST_BLOB_TOO_LARGE'],
+    ];
+
+    for (const [name, mutateTree, expectedReason] of cases) {
+        await t.test(name, async (t) => {
+            const projectRoot = makeTempDir();
+            const fixture = createTemplateFixture({
+                mutate(responses) {
+                    mutateTree(responses.tree);
+                },
+            });
+            t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+            const result = await source(
+                projectRoot,
+                fixture.fetch,
+                '--source=template',
+                '--network-approved=yes'
+            );
+
+            assert.equal(result.status, 5);
+            const report = JSON.parse(result.stdout);
+            assert.equal(report.reason, expectedReason);
+            assert.equal(report.data, null);
+            assert.equal(fixture.calls.length, 3);
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        });
+    }
+});
+
+test('rejects non-canonical manifest blob base64', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({
+        mutate(responses) {
+            responses.manifestBlob.content += '!';
+        },
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await source(
+        projectRoot,
+        fixture.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+
+    assert.equal(result.status, 5);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.reason, 'MANIFEST_BLOB_INVALID');
+    assert.equal(report.data, null);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects substituted and malformed manifest blob responses', async (t) => {
+    const cases = [
+        ['SHA mismatch', {mutate(responses) { responses.manifestBlob.sha = '9999999999999999999999999999999999999999'; }}, 'MANIFEST_BLOB_INVALID'],
+        ['size mismatch', {mutate(responses) { responses.manifestBlob.size += 1; }}, 'MANIFEST_BLOB_INVALID'],
+        ['encoding mismatch', {mutate(responses) { responses.manifestBlob.encoding = 'utf-8'; }}, 'MANIFEST_BLOB_INVALID'],
+        ['malformed base64', {mutate(responses) { responses.manifestBlob.content = '@@@@'; }}, 'MANIFEST_BLOB_INVALID'],
+        ['decoded size mismatch', {mutate(responses) { responses.manifestBlob.content = Buffer.from('x').toString('base64'); }}, 'MANIFEST_BLOB_INVALID'],
+        ['Git blob mismatch', {mutate(responses) { responses.manifestBlob.content = Buffer.alloc(responses.manifestBlob.size, 0x78).toString('base64'); }}, 'MANIFEST_BLOB_INVALID'],
+        ['oversized response', {transport: {responseIndex: 3, rawBody: Buffer.alloc(524289, 0x20)}}, 'RESPONSE_TOO_LARGE'],
+    ];
+
+    for (const [name, fixtureOptions, expectedReason] of cases) {
+        await t.test(name, async (t) => {
+            const projectRoot = makeTempDir();
+            const fixture = createTemplateFixture(fixtureOptions);
+            t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+            const result = await source(
+                projectRoot,
+                fixture.fetch,
+                '--source=template',
+                '--network-approved=yes'
+            );
+
+            assert.equal(result.status, 5);
+            const report = JSON.parse(result.stdout);
+            assert.equal(report.reason, expectedReason);
+            assert.equal(report.data, null);
+            assert.equal(fixture.calls.length, 4);
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        });
+    }
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
