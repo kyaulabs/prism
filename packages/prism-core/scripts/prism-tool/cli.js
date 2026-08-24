@@ -297,6 +297,14 @@ function renderSetupSourceReport(report, json) {
     return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
 }
 
+function reportProjectRoot(projectRoot) {
+    try {
+        return fs.realpathSync(projectRoot);
+    } catch {
+        return path.resolve(projectRoot);
+    }
+}
+
 function setup(args, context) {
     if (args[0] === 'project' && args[1] === 'apply') {
         const controls = args.slice(2);
@@ -342,7 +350,7 @@ function setup(args, context) {
                 command: 'setup project apply',
                 status: 'NO-GO',
                 disposition: 'RECOVERY_REQUIRED',
-                projectRoot: fs.realpathSync(projectRoot),
+                projectRoot: reportProjectRoot(projectRoot),
                 checks: [{
                     id: 'bootstrap-project-application',
                     status: 'FAIL',
@@ -406,7 +414,7 @@ function setup(args, context) {
                 command: 'setup project recover',
                 status: 'NO-GO',
                 disposition: 'RECOVERY_REQUIRED',
-                projectRoot: fs.realpathSync(projectRoot),
+                projectRoot: reportProjectRoot(projectRoot),
                 checks: [{
                     id: 'bootstrap-project-recovery',
                     status: 'FAIL',

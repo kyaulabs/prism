@@ -19,67 +19,87 @@ function sameFile(left, right) {
     return left.dev === right.dev && left.ino === right.ino;
 }
 
-function holdDirectory(root, directoryPath, openPath = directoryPath) {
+function holdDirectory(root, directoryPath) {
     if (
         typeof fs.constants.O_DIRECTORY !== 'number' ||
-        typeof fs.constants.O_NOFOLLOW !== 'number'
+        typeof fs.constants.O_NOFOLLOW !== 'number' ||
+        fs.realpathSync(root) !== root
     ) {
         throw new Error('safe filesystem flags are unavailable');
     }
-    const initial = fs.lstatSync(openPath);
-    if (initial.isSymbolicLink() || !initial.isDirectory()) {
+    const relation = path.relative(root, directoryPath);
+    if (relation.startsWith('..') || path.isAbsolute(relation)) {
         throw new Error('bootstrap directory is invalid');
     }
-    const descriptor = fs.openSync(
-        openPath,
-        fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
-    );
+    const heldDirectories = [];
+    let currentPath = root;
+    let openPath = root;
     try {
-        const held = fs.fstatSync(descriptor);
-        const current = fs.lstatSync(directoryPath);
-        const relation = path.relative(root, fs.realpathSync(directoryPath));
-        if (
-            !sameFile(initial, held) ||
-            !sameFile(current, held) ||
-            relation.startsWith('..') ||
-            path.isAbsolute(relation)
-        ) {
-            throw new Error('bootstrap directory changed');
-        }
-        let anchor;
-        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
-            try {
-                if (sameFile(fs.statSync(candidate), held)) {
-                    anchor = candidate;
-                    break;
-                }
-            } catch {
-                continue;
+        for (const segment of ['', ...relation.split(path.sep).filter(Boolean)]) {
+            if (segment !== '') {
+                currentPath = path.join(currentPath, segment);
+                openPath = path.join(heldDirectories.at(-1).anchor, segment);
             }
+            const initial = fs.lstatSync(openPath);
+            if (initial.isSymbolicLink() || !initial.isDirectory()) {
+                throw new Error('bootstrap directory is invalid');
+            }
+            const descriptor = fs.openSync(
+                openPath,
+                fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
+            );
+            const held = fs.fstatSync(descriptor);
+            const current = fs.lstatSync(currentPath);
+            if (!sameFile(initial, held) || !sameFile(current, held)) {
+                fs.closeSync(descriptor);
+                throw new Error('bootstrap directory changed');
+            }
+            let anchor;
+            for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+                try {
+                    if (sameFile(fs.statSync(candidate), held)) {
+                        anchor = candidate;
+                        break;
+                    }
+                } catch {
+                    continue;
+                }
+            }
+            if (anchor === undefined) {
+                fs.closeSync(descriptor);
+                throw new Error('bootstrap directory cannot be held safely');
+            }
+            heldDirectories.push({path: currentPath, descriptor, held, anchor});
         }
-        if (anchor === undefined) throw new Error('bootstrap directory cannot be held safely');
+        const target = heldDirectories.at(-1);
         return {
-            anchor,
+            anchor: target.anchor,
             assertCurrent() {
-                const latest = fs.lstatSync(directoryPath);
-                if (
-                    latest.isSymbolicLink() ||
-                    !latest.isDirectory() ||
-                    !sameFile(latest, held) ||
-                    !sameFile(fs.statSync(anchor), held)
-                ) {
-                    throw new Error('bootstrap directory changed');
+                for (const directory of heldDirectories) {
+                    const latest = fs.lstatSync(directory.path);
+                    if (
+                        latest.isSymbolicLink() ||
+                        !latest.isDirectory() ||
+                        !sameFile(latest, directory.held) ||
+                        !sameFile(fs.statSync(directory.anchor), directory.held)
+                    ) {
+                        throw new Error('bootstrap directory changed');
+                    }
                 }
             },
             sync() {
-                fs.fsyncSync(descriptor);
+                fs.fsyncSync(target.descriptor);
             },
             close() {
-                fs.closeSync(descriptor);
+                for (const directory of [...heldDirectories].reverse()) {
+                    fs.closeSync(directory.descriptor);
+                }
             },
         };
     } catch (error) {
-        fs.closeSync(descriptor);
+        for (const directory of [...heldDirectories].reverse()) {
+            fs.closeSync(directory.descriptor);
+        }
         throw error;
     }
 }
@@ -146,6 +166,21 @@ function acquireApplyLock(attemptRoot, attemptId) {
     return {path: lockPath, dev: stat.dev, ino: stat.ino, contents};
 }
 
+function readApplyLock(attemptRoot, attemptId) {
+    const lockPath = path.join(attemptRoot, 'apply.lock');
+    const contents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`, 'utf8');
+    const stat = fs.lstatSync(lockPath);
+    if (
+        stat.isSymbolicLink() ||
+        !stat.isFile() ||
+        (stat.mode & 0o777) !== 0o600 ||
+        !fs.readFileSync(lockPath).equals(contents)
+    ) {
+        throw new Error('bootstrap apply lock changed');
+    }
+    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents};
+}
+
 function releaseApplyLock(lock) {
     const stat = fs.lstatSync(lock.path);
     if (
@@ -158,6 +193,15 @@ function releaseApplyLock(lock) {
         throw new Error('bootstrap apply lock changed');
     }
     fs.unlinkSync(lock.path);
+}
+
+function releaseDurableApplyLock(lock) {
+    try {
+        releaseApplyLock(lock);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 function ensureTargetParent(projectRoot, project, relativePath, createdDirectories) {
@@ -291,6 +335,45 @@ function appliedInventoryDigest(applied) {
     }))), 'utf8'));
 }
 
+function expectedProjectInventory(outputs) {
+    const entries = new Map();
+    for (const output of outputs) {
+        const segments = output.path.split('/');
+        for (let index = 1; index < segments.length; index += 1) {
+            entries.set(segments.slice(0, index).join('/'), 'directory');
+        }
+        entries.set(output.path, output.kind);
+    }
+    return [...entries]
+        .map(([entryPath, kind]) => ({path: entryPath, kind}))
+        .sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function actualProjectInventory(project) {
+    const entries = [];
+    const visit = (relativeRoot) => {
+        const directoryPath = relativeRoot === ''
+            ? project.anchor
+            : path.join(project.anchor, ...relativeRoot.split('/'));
+        for (const name of fs.readdirSync(directoryPath).sort()) {
+            if (relativeRoot === '' && name === '.pi') continue;
+            const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
+            const stat = fs.lstatSync(path.join(directoryPath, name));
+            if (stat.isSymbolicLink()) throw new Error('durable bootstrap project contains a symlink');
+            if (stat.isDirectory()) {
+                entries.push({path: relativePath, kind: 'directory'});
+                visit(relativePath);
+            } else if (stat.isFile()) {
+                entries.push({path: relativePath, kind: 'file'});
+            } else {
+                throw new Error('durable bootstrap project contains an unsupported entry');
+            }
+        }
+    };
+    visit('');
+    return entries.sort((left, right) => left.path.localeCompare(right.path));
+}
+
 function validateAppliedOutput(projectRoot, project, entry) {
     const parent = existingTargetParent(projectRoot, project, entry.path);
     try {
@@ -350,14 +433,10 @@ function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, j
     }
     const project = holdDirectory(projectRoot, projectRoot);
     try {
-        const expectedRootEntries = new Set(['.pi']);
-        for (const output of plan.outputs) expectedRootEntries.add(output.path.split('/')[0]);
-        const rootEntries = fs.readdirSync(project.anchor).sort();
-        if (JSON.stringify(rootEntries) !== JSON.stringify([...expectedRootEntries].sort())) {
-            throw new Error('durable bootstrap root changed');
-        }
-        if (fs.lstatSync(path.join(project.anchor, '.git'), {throwIfNoEntry: false}) !== undefined) {
-            throw new Error('durable bootstrap repository state is unexpected');
+        const expectedInventory = expectedProjectInventory(plan.outputs);
+        const actualInventory = actualProjectInventory(project);
+        if (JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
+            throw new Error('durable bootstrap project inventory changed');
         }
         for (const entry of journal.applied) validateAppliedOutput(projectRoot, project, entry);
         project.assertCurrent();
@@ -575,7 +654,11 @@ function applyBootstrapProject({
                 projectRoot,
                 attemptId,
                 expectedPhase: 'APPLYING',
-                next: {...current, applied: [...applied]},
+                next: {
+                    ...current,
+                    applied: [...applied],
+                    createdDirectories: [...createdDirectories],
+                },
             });
             fault({name: 'after-output', index, output: output.path});
         }
@@ -595,7 +678,7 @@ function applyBootstrapProject({
                 appliedInventoryDigest: inventoryDigest,
             },
         });
-        releaseApplyLock(lock);
+        releaseDurableApplyLock(lock);
         return Object.freeze({
             status: 'GO',
             disposition: 'PROJECT_DURABLE',
@@ -653,12 +736,81 @@ function applyBootstrapProject({
     }
 }
 
+function recoverApplyingBootstrapProject({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    planDigest,
+    journal,
+}) {
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
+    let project;
+    try {
+        const plan = validateBootstrapProjectPlan({
+            projectRoot,
+            coreRoot,
+            attemptId,
+            planDigest,
+            allowAppliedProject: true,
+        });
+        const expectedApplied = plan.outputs.slice(0, journal.applied.length)
+            .map(({path: outputPath, kind, mode, sha256: digest}) => ({
+                path: outputPath,
+                kind,
+                mode,
+                sha256: digest,
+            }));
+        const actualApplied = journal.applied
+            .map(({path: outputPath, kind, mode, sha256: digest}) => ({
+                path: outputPath,
+                kind,
+                mode,
+                sha256: digest,
+            }));
+        if (JSON.stringify(actualApplied) !== JSON.stringify(expectedApplied)) {
+            throw new Error('applying bootstrap inventory is stale');
+        }
+        const expectedDirectories = expectedProjectInventory(plan.outputs.slice(0, journal.applied.length))
+            .filter(({kind}) => kind === 'directory')
+            .map(({path: directoryPath}) => directoryPath);
+        const actualDirectories = journal.createdDirectories.map(({path: directoryPath}) => directoryPath)
+            .sort((left, right) => left.localeCompare(right));
+        if (JSON.stringify(actualDirectories) !== JSON.stringify(expectedDirectories)) {
+            throw new Error('applying bootstrap directory inventory is stale');
+        }
+        const lock = readApplyLock(attemptRoot, attemptId);
+        project = holdDirectory(projectRoot, projectRoot);
+        rollbackAppliedOutputs(projectRoot, project, journal.applied);
+        rollbackCreatedDirectories(projectRoot, project, journal.createdDirectories);
+        project.assertCurrent();
+        project.sync();
+        project.close();
+        project = undefined;
+        releaseApplyLock(lock);
+        removePreparedAttempt(projectRoot, attemptId);
+        return rootRestoredReport(attemptId);
+    } catch (error) {
+        if (project !== undefined) project.close();
+        markRecoveryRequired(projectRoot, attemptId, journal);
+        throw error;
+    }
+}
+
 function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptId, planDigest}) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (journal.planDigest !== planDigest) throw new Error('bootstrap journal is stale');
     if (journal.status === 'RECOVERY_REQUIRED') {
         throw new Error('bootstrap project recovery requires manual action');
+    }
+    if (journal.phase === 'APPLYING') {
+        return recoverApplyingBootstrapProject({
+            projectRoot,
+            coreRoot,
+            attemptId,
+            planDigest,
+            journal,
+        });
     }
     if (journal.phase === 'DURABLE') {
         try {

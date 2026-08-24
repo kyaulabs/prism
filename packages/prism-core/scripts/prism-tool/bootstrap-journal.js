@@ -24,6 +24,21 @@ function journalPath(projectRoot, attemptId) {
     return path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId, 'journal.json');
 }
 
+function readBoundedDescriptor(descriptor, size) {
+    if (!Number.isSafeInteger(size) || size < 0 || size > MAX_JOURNAL_BYTES) {
+        throw new Error('bootstrap journal is invalid');
+    }
+    const contents = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+        const count = fs.readSync(descriptor, contents, offset, size - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    if (offset !== size) throw new Error('bootstrap journal changed');
+    return contents;
+}
+
 function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
     if (
         typeof projectRoot !== 'string' ||
@@ -52,15 +67,23 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         reason: null,
         resumePhase: 'PROJECT_APPLICATION',
         applied: [],
+        createdDirectories: [],
         appliedInventoryDigest: null,
     };
+}
+
+function validJournalPath(value) {
+    return typeof value === 'string' &&
+        value !== '' &&
+        !path.posix.isAbsolute(value) &&
+        path.posix.normalize(value) === value &&
+        value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
 }
 
 function validAppliedEntry(value) {
     return isRecord(value) &&
         hasExactKeys(value, ['path', 'kind', 'mode', 'sha256', 'dev', 'ino']) &&
-        typeof value.path === 'string' &&
-        value.path !== '' &&
+        validJournalPath(value.path) &&
         value.kind === 'file' &&
         Number.isSafeInteger(value.mode) &&
         value.mode >= 0 &&
@@ -72,10 +95,21 @@ function validAppliedEntry(value) {
         value.ino > 0;
 }
 
+function validCreatedDirectory(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, ['path', 'dev', 'ino']) &&
+        validJournalPath(value.path) &&
+        Number.isSafeInteger(value.dev) &&
+        value.dev >= 0 &&
+        Number.isSafeInteger(value.ino) &&
+        value.ino > 0;
+}
+
 function validJournalState(value) {
     if (
         value.phase === 'PREPARED' &&
         value.applied.length === 0 &&
+        value.createdDirectories.length === 0 &&
         value.appliedInventoryDigest === null
     ) {
         return (
@@ -122,7 +156,7 @@ function validateJournal(value, projectRoot, attemptId) {
         !hasExactKeys(value, [
             'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
             'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
-            'appliedInventoryDigest',
+            'createdDirectories', 'appliedInventoryDigest',
         ]) ||
         value.schemaVersion !== 1 ||
         value.attemptId !== attemptId ||
@@ -137,6 +171,9 @@ function validateJournal(value, projectRoot, attemptId) {
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||
         value.applied.some((entry) => !validAppliedEntry(entry)) ||
+        !Array.isArray(value.createdDirectories) ||
+        value.createdDirectories.length > 1024 ||
+        value.createdDirectories.some((entry) => !validCreatedDirectory(entry)) ||
         !validJournalState(value)
     ) {
         throw new Error('bootstrap journal is invalid');
@@ -168,7 +205,7 @@ function readBootstrapJournal({projectRoot: requestedRoot, attemptId}) {
         ) {
             throw new Error('bootstrap journal changed');
         }
-        const contents = fs.readFileSync(descriptor);
+        const contents = readBoundedDescriptor(descriptor, held.size);
         const final = fs.fstatSync(descriptor);
         if (final.dev !== held.dev || final.ino !== held.ino || final.size !== held.size) {
             throw new Error('bootstrap journal changed');
@@ -248,7 +285,7 @@ function createPreparedBootstrapJournal({projectRoot: requestedRoot, attemptId, 
         if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.size !== contents.length) {
             throw new Error('bootstrap journal is invalid');
         }
-        const actual = fs.readFileSync(descriptor);
+        const actual = readBoundedDescriptor(descriptor, contents.length);
         if (!actual.equals(contents)) throw new Error('bootstrap journal changed');
         fs.fsyncSync(descriptor);
     } finally {
