@@ -85,6 +85,11 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('config/commitlint.config.cjs'), true);
     assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
+    for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
+        const hookPath = `config/bootstrap/hooks/${hook}`;
+        assert.equal(packed.files.has(hookPath), true, `${hook} bootstrap hook packaged`);
+        assert.notEqual(packed.files.get(hookPath) & 0o111, 0, `${hook} bootstrap hook is executable`);
+    }
     assert.equal(
         packed.files.has('scripts/prism-tool/package-release.js'),
         true,
@@ -104,8 +109,9 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
-        'bootstrap-adapter', 'cli', 'code-review', 'commit', 'consent', 'contract',
-        'discovery',
+        'bootstrap-adapter', 'bootstrap-composer', 'bootstrap-metadata',
+        'bootstrap-plan', 'bootstrap-providers', 'cli', 'code-review', 'commit',
+        'consent', 'contract', 'discovery',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',

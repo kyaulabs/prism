@@ -1,0 +1,587 @@
+// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+
+'use strict';
+
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const {normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {composeProviderReports, validateProviderReport} = require('./bootstrap-composer');
+const {loadTrustedProviderRegistry, renderCoreBaseline} = require('./bootstrap-providers');
+const {inspectSetupRoute} = require('./setup-route');
+
+const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const MAX_OPERATION_BYTES = 1048576;
+
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasExactKeys(value, expected) {
+    const actual = Object.keys(value).sort();
+    const sorted = [...expected].sort();
+    return actual.length === sorted.length && actual.every((key, index) => key === sorted[index]);
+}
+
+function sha256(value) {
+    return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function jsonBuffer(value) {
+    return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function writeExclusive(filePath, value) {
+    const contents = Buffer.isBuffer(value) ? value : jsonBuffer(value);
+    if (contents.length > MAX_OPERATION_BYTES) throw new Error('bootstrap operation file is too large');
+    fs.writeFileSync(filePath, contents, {flag: 'wx', mode: 0o600});
+    fs.chmodSync(filePath, 0o600);
+    return contents;
+}
+
+function createAttempt(projectRoot, randomUUID) {
+    const attemptId = randomUUID();
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const piRoot = path.join(projectRoot, '.pi');
+    const prismRoot = path.join(piRoot, 'prism-tool');
+    const bootstrapRoot = path.join(prismRoot, 'bootstrap');
+    const attemptRoot = path.join(bootstrapRoot, attemptId);
+    fs.mkdirSync(piRoot, {mode: 0o700});
+    fs.mkdirSync(prismRoot, {mode: 0o700});
+    fs.mkdirSync(bootstrapRoot, {mode: 0o700});
+    fs.mkdirSync(attemptRoot, {mode: 0o700});
+    const candidateRoot = path.join(attemptRoot, 'candidate');
+    const reportsRoot = path.join(attemptRoot, 'reports');
+    const planRoot = path.join(attemptRoot, 'plan');
+    fs.mkdirSync(candidateRoot, {mode: 0o700});
+    fs.mkdirSync(reportsRoot, {mode: 0o700});
+    fs.mkdirSync(planRoot, {mode: 0o700});
+    return {
+        attemptId,
+        piRoot,
+        prismRoot,
+        bootstrapRoot,
+        attemptRoot,
+        candidateRoot,
+        reportsRoot,
+        planRoot,
+        planPath: path.join(planRoot, 'project.json'),
+    };
+}
+
+function readInventoryFile(filePath, initial) {
+    if (typeof fs.constants.O_NOFOLLOW !== 'number') {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (!held.isFile() || !sameFile(initial, held) || held.size !== initial.size) {
+            throw new Error('bootstrap attempt file changed');
+        }
+        const contents = fs.readFileSync(descriptor);
+        const final = fs.fstatSync(descriptor);
+        if (!sameFile(held, final) || final.size !== held.size) {
+            throw new Error('bootstrap attempt file changed');
+        }
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function inventoryAttempt(attemptRoot) {
+    const entries = [];
+    function walk(relativeRoot, openRoot) {
+        const absoluteRoot = relativeRoot === '' ? attemptRoot : path.join(attemptRoot, relativeRoot);
+        const directory = holdAttemptDirectory(attemptRoot, absoluteRoot, openRoot);
+        try {
+            for (const name of fs.readdirSync(directory.anchor).sort()) {
+                const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
+                if (relativePath === 'plan/project.json') continue;
+                const anchoredPath = path.join(directory.anchor, name);
+                const stat = fs.lstatSync(anchoredPath);
+                if (stat.isSymbolicLink()) throw new Error('bootstrap attempt contains a symlink');
+                if (stat.isDirectory()) {
+                    entries.push({path: relativePath, kind: 'directory', mode: stat.mode & 0o777, bytes: 0, sha256: null});
+                    walk(relativePath, anchoredPath);
+                } else if (stat.isFile() && stat.size <= MAX_OPERATION_BYTES) {
+                    const contents = readInventoryFile(anchoredPath, stat);
+                    entries.push({
+                        path: relativePath,
+                        kind: 'file',
+                        mode: stat.mode & 0o777,
+                        bytes: contents.length,
+                        sha256: sha256(contents),
+                    });
+                } else {
+                    throw new Error('bootstrap attempt contains an invalid entry');
+                }
+            }
+            directory.assertCurrent();
+        } finally {
+            directory.close();
+        }
+    }
+    walk('', attemptRoot);
+    return sha256(Buffer.from(JSON.stringify(entries), 'utf8'));
+}
+
+function semanticOutput(output) {
+    return Object.freeze({
+        path: output.path,
+        kind: output.kind,
+        mode: output.mode,
+        sha256: output.sha256,
+        provider: output.provider,
+    });
+}
+
+function persistedProviderReport(report, candidateRoot) {
+    return {
+        ...report,
+        outputs: report.outputs.map((output) => ({
+            ...output,
+            candidatePath: path.posix.join(
+                'candidate',
+                path.relative(candidateRoot, output.candidatePath).split(path.sep).join('/')
+            ),
+        })),
+    };
+}
+
+function cleanupAttempt(projectRoot, attempt) {
+    try {
+        if (fs.readdirSync(projectRoot).join(',') !== '.pi') return false;
+        if (fs.readdirSync(attempt.piRoot).join(',') !== 'prism-tool') return false;
+        if (fs.readdirSync(attempt.prismRoot).join(',') !== 'bootstrap') return false;
+        if (fs.readdirSync(attempt.bootstrapRoot).join(',') !== attempt.attemptId) return false;
+        fs.rmSync(attempt.attemptRoot, {recursive: true});
+        fs.rmdirSync(attempt.bootstrapRoot);
+        fs.rmdirSync(attempt.prismRoot);
+        fs.rmdirSync(attempt.piRoot);
+        return fs.readdirSync(projectRoot).length === 0;
+    } catch {
+        return false;
+    }
+}
+
+function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, randomUUID}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const route = inspectSetupRoute({projectRoot, source: 'BLANK'});
+    if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
+        throw new Error('project planning requires strict-empty setup');
+    }
+    const normalized = normalizeProjectMetadata({projectRoot, input});
+    const metadata = Object.freeze({
+        schemaVersion: normalized.schemaVersion,
+        displayName: normalized.displayName,
+        summary: normalized.summary,
+    });
+    let attempt;
+    try {
+        attempt = createAttempt(projectRoot, randomUUID);
+        const providerReport = renderCoreBaseline({
+            coreRoot,
+            projectRoot,
+            candidateRoot: attempt.candidateRoot,
+            request: {
+                schemaVersion: 1,
+                source: {mode: 'BLANK', evidence: null},
+                capabilities: [],
+                metadata: normalized,
+                adapter: null,
+            },
+        });
+        const registry = loadTrustedProviderRegistry({coreRoot});
+        const validated = validateProviderReport({
+            projectRoot,
+            candidateRoot: attempt.candidateRoot,
+            registry,
+            report: providerReport,
+        });
+        const outputs = composeProviderReports({reports: [{
+            provider: providerReport.provider,
+            outputs: validated,
+        }]}).map(semanticOutput);
+        const metadataContents = writeExclusive(path.join(attempt.reportsRoot, 'metadata.json'), metadata);
+        const persistedProvider = persistedProviderReport(providerReport, attempt.candidateRoot);
+        writeExclusive(path.join(attempt.reportsRoot, 'core-baseline.json'), persistedProvider);
+        const attemptInventoryDigest = inventoryAttempt(attempt.attemptRoot);
+        const plan = Object.freeze({
+            schemaVersion: 1,
+            source: Object.freeze({mode: 'BLANK', evidence: null}),
+            adapter: null,
+            capabilities: Object.freeze([]),
+            metadata,
+            metadataDigest: sha256(metadataContents),
+            providers: Object.freeze([providerReport.provider]),
+            outputs: Object.freeze(outputs),
+            effects: Object.freeze([]),
+            checks: providerReport.checks,
+            verification: providerReport.verification,
+            recovery: Object.freeze({
+                beforeDurable: 'REMOVE_OWNED_ATTEMPT_AND_PROVE_STRICT_EMPTY',
+                afterDurable: 'RETAIN_PROJECT_AND_RESUME',
+            }),
+            filesystem: Object.freeze({
+                original: 'STRICT_EMPTY',
+                allowedRootEntries: Object.freeze(['.pi']),
+                attemptInventoryDigest,
+            }),
+        });
+        const planDigest = sha256(Buffer.from(JSON.stringify(plan), 'utf8'));
+        writeExclusive(attempt.planPath, {schemaVersion: 1, planDigest, plan});
+        return Object.freeze({
+            ...plan,
+            planDigest,
+            data: Object.freeze({
+                attempt: Object.freeze({id: attempt.attemptId}),
+                planPath: fs.realpathSync(attempt.planPath),
+            }),
+        });
+    } catch (error) {
+        if (attempt && !cleanupAttempt(projectRoot, attempt)) {
+            error.recoveryRequired = true;
+            error.recoveryPath = attempt.attemptRoot;
+        }
+        throw error;
+    }
+}
+
+function readJsonFile(filePath, expectedMode = 0o600) {
+    const initial = fs.lstatSync(filePath);
+    if (initial.isSymbolicLink() || !initial.isFile() || initial.size > MAX_OPERATION_BYTES) {
+        throw new Error('bootstrap operation file is invalid');
+    }
+    if (typeof fs.constants.O_NOFOLLOW !== 'number') {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (
+            !held.isFile() ||
+            held.dev !== initial.dev ||
+            held.ino !== initial.ino ||
+            held.size !== initial.size ||
+            (held.mode & 0o777) !== expectedMode
+        ) {
+            throw new Error('bootstrap operation file changed');
+        }
+        const contents = fs.readFileSync(descriptor);
+        const value = JSON.parse(contents.toString('utf8'));
+        if (!isRecord(value)) throw new Error('bootstrap operation JSON is invalid');
+        return {contents, value};
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function holdAttemptDirectory(attemptRoot, directoryPath, openPath = directoryPath) {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const initial = fs.lstatSync(openPath);
+    if (
+        initial.isSymbolicLink() ||
+        !initial.isDirectory() ||
+        (initial.mode & 0o777) !== 0o700
+    ) {
+        throw new Error('bootstrap attempt directory is invalid');
+    }
+    const descriptor = fs.openSync(
+        openPath,
+        fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
+    );
+    try {
+        const held = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(directoryPath);
+        const relation = path.relative(attemptRoot, fs.realpathSync(directoryPath));
+        if (
+            !sameFile(initial, held) ||
+            !sameFile(current, held) ||
+            relation.startsWith('..') ||
+            path.isAbsolute(relation)
+        ) {
+            throw new Error('bootstrap attempt directory changed');
+        }
+        let anchor;
+        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+            try {
+                if (sameFile(fs.statSync(candidate), held)) {
+                    anchor = candidate;
+                    break;
+                }
+            } catch {
+                continue;
+            }
+        }
+        if (anchor === undefined) throw new Error('bootstrap attempt directory cannot be held safely');
+        return {
+            anchor,
+            assertCurrent() {
+                const latest = fs.lstatSync(directoryPath);
+                if (
+                    latest.isSymbolicLink() ||
+                    !latest.isDirectory() ||
+                    !sameFile(latest, held) ||
+                    !sameFile(fs.statSync(anchor), held)
+                ) {
+                    throw new Error('bootstrap attempt directory changed');
+                }
+            },
+            close() {
+                fs.closeSync(descriptor);
+            },
+        };
+    } catch (error) {
+        fs.closeSync(descriptor);
+        throw error;
+    }
+}
+
+function assertAttemptDirectories(projectRoot, attemptId) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    if (fs.readdirSync(projectRoot).join(',') !== '.pi') throw new Error('project root state is stale');
+    const piRoot = path.join(projectRoot, '.pi');
+    const prismRoot = path.join(piRoot, 'prism-tool');
+    const bootstrapRoot = path.join(prismRoot, 'bootstrap');
+    const attemptRoot = path.join(bootstrapRoot, attemptId);
+    for (const directory of [piRoot, prismRoot, bootstrapRoot, attemptRoot]) {
+        const stat = fs.lstatSync(directory);
+        if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700) {
+            throw new Error('bootstrap attempt directory is invalid');
+        }
+    }
+    if (
+        fs.readdirSync(piRoot).join(',') !== 'prism-tool' ||
+        fs.readdirSync(prismRoot).join(',') !== 'bootstrap' ||
+        fs.readdirSync(bootstrapRoot).join(',') !== attemptId
+    ) {
+        throw new Error('bootstrap attempt state is stale');
+    }
+    const candidateRoot = path.join(attemptRoot, 'candidate');
+    const reportsRoot = path.join(attemptRoot, 'reports');
+    const planRoot = path.join(attemptRoot, 'plan');
+    const held = [];
+    try {
+        const candidate = holdAttemptDirectory(attemptRoot, candidateRoot);
+        held.push(candidate);
+        const reports = holdAttemptDirectory(attemptRoot, reportsRoot);
+        held.push(reports);
+        const plan = holdAttemptDirectory(attemptRoot, planRoot);
+        held.push(plan);
+        return {
+            attemptRoot,
+            candidateRoot,
+            candidateAnchor: candidate.anchor,
+            reportsRoot,
+            reportsAnchor: reports.anchor,
+            planPath: path.join(planRoot, 'project.json'),
+            planAnchor: path.join(plan.anchor, 'project.json'),
+            assertCurrent() {
+                for (const directory of held) directory.assertCurrent();
+            },
+            close() {
+                for (const directory of [...held].reverse()) directory.close();
+            },
+        };
+    } catch (error) {
+        for (const directory of held.reverse()) directory.close();
+        throw error;
+    }
+}
+
+function validatePlanShape(plan) {
+    if (!isRecord(plan) || !hasExactKeys(plan, [
+        'schemaVersion', 'source', 'adapter', 'capabilities', 'metadata', 'metadataDigest',
+        'providers', 'outputs', 'effects', 'checks', 'verification', 'recovery', 'filesystem',
+    ])) {
+        throw new Error('bootstrap project plan is invalid');
+    }
+    if (
+        plan.schemaVersion !== 1 ||
+        !isRecord(plan.source) ||
+        !hasExactKeys(plan.source, ['mode', 'evidence']) ||
+        plan.source.mode !== 'BLANK' ||
+        plan.source.evidence !== null ||
+        plan.adapter !== null ||
+        !Array.isArray(plan.capabilities) ||
+        plan.capabilities.length !== 0 ||
+        !isRecord(plan.metadata) ||
+        !hasExactKeys(plan.metadata, ['schemaVersion', 'displayName', 'summary']) ||
+        typeof plan.metadataDigest !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(plan.metadataDigest) ||
+        !Array.isArray(plan.providers) ||
+        plan.providers.length !== 1 ||
+        !isRecord(plan.providers[0]) ||
+        !hasExactKeys(plan.providers[0], [
+            'id', 'packageName', 'packageVersion', 'protocolVersion',
+        ]) ||
+        !Array.isArray(plan.outputs) ||
+        plan.outputs.length !== 7 ||
+        plan.outputs.some((output) =>
+            !isRecord(output) ||
+            !hasExactKeys(output, ['path', 'kind', 'mode', 'sha256', 'provider'])
+        ) ||
+        !Array.isArray(plan.effects) ||
+        plan.effects.length !== 0 ||
+        !Array.isArray(plan.checks) ||
+        plan.checks.length !== 1 ||
+        !isRecord(plan.checks[0]) ||
+        !hasExactKeys(plan.checks[0], ['id', 'status', 'message']) ||
+        plan.checks[0].id !== 'core-baseline-render' ||
+        plan.checks[0].status !== 'PASS' ||
+        typeof plan.checks[0].message !== 'string' ||
+        !Array.isArray(plan.verification) ||
+        plan.verification.length !== 1 ||
+        !isRecord(plan.verification[0]) ||
+        !hasExactKeys(plan.verification[0], ['id', 'command']) ||
+        plan.verification[0].id !== 'core-baseline-inventory' ||
+        plan.verification[0].command !== 'setup project validate' ||
+        !isRecord(plan.recovery) ||
+        !hasExactKeys(plan.recovery, ['beforeDurable', 'afterDurable']) ||
+        plan.recovery.beforeDurable !== 'REMOVE_OWNED_ATTEMPT_AND_PROVE_STRICT_EMPTY' ||
+        plan.recovery.afterDurable !== 'RETAIN_PROJECT_AND_RESUME' ||
+        !isRecord(plan.filesystem) ||
+        !hasExactKeys(plan.filesystem, ['original', 'allowedRootEntries', 'attemptInventoryDigest']) ||
+        plan.filesystem.original !== 'STRICT_EMPTY' ||
+        !Array.isArray(plan.filesystem.allowedRootEntries) ||
+        plan.filesystem.allowedRootEntries.length !== 1 ||
+        plan.filesystem.allowedRootEntries[0] !== '.pi' ||
+        typeof plan.filesystem.attemptInventoryDigest !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(plan.filesystem.attemptInventoryDigest)
+    ) {
+        throw new Error('bootstrap project plan is invalid');
+    }
+}
+
+function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, paths}) {
+    paths.assertCurrent();
+    const envelope = readJsonFile(paths.planAnchor).value;
+    if (!hasExactKeys(envelope, ['schemaVersion', 'planDigest', 'plan']) || envelope.schemaVersion !== 1) {
+        throw new Error('bootstrap project plan is invalid');
+    }
+    validatePlanShape(envelope.plan);
+    const actualPlanDigest = sha256(Buffer.from(JSON.stringify(envelope.plan), 'utf8'));
+    if (envelope.planDigest !== planDigest || actualPlanDigest !== planDigest) {
+        throw new Error('bootstrap project plan is stale');
+    }
+    const metadataFile = readJsonFile(path.join(paths.reportsAnchor, 'metadata.json'));
+    if (
+        sha256(metadataFile.contents) !== envelope.plan.metadataDigest ||
+        JSON.stringify(metadataFile.value) !== JSON.stringify(envelope.plan.metadata)
+    ) {
+        throw new Error('bootstrap project metadata is stale');
+    }
+    const persistedProvider = readJsonFile(
+        path.join(paths.reportsAnchor, 'core-baseline.json')
+    ).value;
+    if (!Array.isArray(persistedProvider.outputs)) {
+        throw new Error('bootstrap provider report is invalid');
+    }
+    const providerReport = {
+        ...persistedProvider,
+        outputs: persistedProvider.outputs.map((output) => {
+            if (
+                !isRecord(output) ||
+                typeof output.candidatePath !== 'string' ||
+                !output.candidatePath.startsWith('candidate/')
+            ) {
+                throw new Error('bootstrap provider report is invalid');
+            }
+            return {
+                ...output,
+                candidatePath: path.join(
+                    paths.attemptRoot,
+                    ...output.candidatePath.split('/')
+                ),
+            };
+        }),
+    };
+    const validated = validateProviderReport({
+        projectRoot,
+        candidateRoot: paths.candidateRoot,
+        registry: loadTrustedProviderRegistry({coreRoot}),
+        report: providerReport,
+    });
+    const outputs = composeProviderReports({reports: [{
+        provider: providerReport.provider,
+        outputs: validated,
+    }]}).map(semanticOutput);
+    paths.assertCurrent();
+    const manifestRoot = path.join(paths.candidateRoot, '.prism');
+    const manifestParent = holdAttemptDirectory(
+        paths.attemptRoot,
+        manifestRoot,
+        path.join(paths.candidateAnchor, '.prism')
+    );
+    let projectManifest;
+    try {
+        projectManifest = readJsonFile(
+            path.join(manifestParent.anchor, 'project.json'),
+            0o644
+        ).value;
+        manifestParent.assertCurrent();
+    } finally {
+        manifestParent.close();
+    }
+    if (
+        !hasExactKeys(projectManifest, [
+            'schemaVersion', 'source', 'capabilities', 'project', 'adapter', 'compatibility',
+        ]) ||
+        projectManifest.schemaVersion !== 1 ||
+        JSON.stringify(projectManifest.source) !== JSON.stringify(envelope.plan.source) ||
+        JSON.stringify(projectManifest.capabilities) !== JSON.stringify(envelope.plan.capabilities) ||
+        JSON.stringify(projectManifest.project) !== JSON.stringify({
+            displayName: envelope.plan.metadata.displayName,
+            summary: envelope.plan.metadata.summary,
+        }) ||
+        projectManifest.adapter !== null
+    ) {
+        throw new Error('bootstrap project metadata manifest is stale');
+    }
+    if (
+        JSON.stringify(outputs) !== JSON.stringify(envelope.plan.outputs) ||
+        JSON.stringify([providerReport.provider]) !== JSON.stringify(envelope.plan.providers) ||
+        JSON.stringify(providerReport.checks) !== JSON.stringify(envelope.plan.checks) ||
+        JSON.stringify(providerReport.verification) !== JSON.stringify(envelope.plan.verification) ||
+        inventoryAttempt(paths.attemptRoot) !== envelope.plan.filesystem.attemptInventoryDigest
+    ) {
+        throw new Error('bootstrap project state is stale');
+    }
+    paths.assertCurrent();
+    return Object.freeze({
+        ...envelope.plan,
+        planDigest,
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planPath: fs.realpathSync(paths.planPath),
+        }),
+    });
+}
+
+function validateBootstrapProjectPlan({projectRoot: requestedRoot, coreRoot, attemptId, planDigest}) {
+    if (typeof planDigest !== 'string' || !/^[0-9a-f]{64}$/.test(planDigest)) {
+        throw new Error('bootstrap project plan digest is invalid');
+    }
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const paths = assertAttemptDirectories(projectRoot, attemptId);
+    try {
+        return validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, paths});
+    } finally {
+        paths.close();
+    }
+}
+
+module.exports = {planCoreOnlyProject, validateBootstrapProjectPlan};
+
+// vim: ft=javascript sts=4 sw=4 ts=4 et :
