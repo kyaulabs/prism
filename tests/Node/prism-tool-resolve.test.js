@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -146,6 +146,81 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
     }
 });
 
+test('resolves a candidate when all consumer manifests and locks are absent', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    configureSourceAdapter(projectRoot);
+    const externalBin = path.join(projectRoot, 'bin');
+    writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
+    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
+    const consumerFiles = ['composer.json', 'composer.lock', 'package.json', 'package-lock.json'];
+    const run = (command, args, options) => {
+        const executable = path.basename(command);
+        if (executable === 'semgrep') {
+            return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
+        }
+        if (executable === 'ocr') {
+            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
+        }
+        if (command === 'composer' && args[0] === 'require') {
+            assert.equal(fs.existsSync(path.join(options.cwd, 'composer.json')), true);
+            assert.equal(fs.existsSync(path.join(options.cwd, 'package.json')), true);
+            writeJson(path.join(options.cwd, 'composer.json'), {'require-dev': {fixture: '1.0.0'}});
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'composer' && args[0] === 'update') {
+            assert.deepEqual(args, [
+                'update',
+                '--with-all-dependencies',
+                '--no-install',
+                '--no-scripts',
+                '--no-interaction',
+            ]);
+            writeJson(path.join(options.cwd, 'composer.lock'), {packages: [], 'packages-dev': []});
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'install') {
+            assert.equal(fs.existsSync(path.join(options.cwd, 'package.json')), true);
+            writeJson(path.join(options.cwd, 'package.json'), {devDependencies: {fixture: '1.0.0'}});
+            writeJson(path.join(options.cwd, 'package-lock.json'), {lockfileVersion: 3, packages: {}});
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {
+                status: 0,
+                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                stderr: '',
+                error: undefined,
+            };
+        }
+        if (command === 'git') {
+            return {status: 1, stdout: 'diff fixture\n', stderr: '', error: undefined};
+        }
+        throw new Error(`unexpected command ${command}`);
+    };
+
+    const result = captureWrites(() => main([
+        'setup',
+        'resolve',
+        '--adapter=@kyaulabs/prism-php-web',
+        '--json',
+        '--network-approved=yes',
+    ], {projectRoot, env: {PATH: externalBin}, run}));
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, 'GO');
+    const plan = JSON.parse(fs.readFileSync(report.data.planPath, 'utf8'));
+    for (const name of consumerFiles) {
+        assert.equal(plan.original[name], 'absent');
+        assert.equal(fs.existsSync(path.join(projectRoot, name)), false);
+    }
+});
+
 test('blocks every advisory severity and cleans the owned workspace', (t) => {
     const roots = [];
     t.after(() => {
@@ -260,6 +335,9 @@ test('cleans failed candidates and preserves consumer files byte-for-byte', (t) 
 
         assert.equal(result.status, 'NO-GO');
         assert.equal(result.data.reason, 'tool failure');
+        assert.equal(result.data.stage, failure === 'conflict'
+            ? 'composer-lock-resolution'
+            : 'dependency-audit');
         assert.doesNotMatch(JSON.stringify(result), /CANARY-/);
         assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'prism-tool', 'work')), false);
         for (const [name, content] of Object.entries(sourceFiles)) {
@@ -294,6 +372,8 @@ test('rejects symlinked consumer manifests before creating a workspace', (t) => 
     });
 
     assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'tool failure');
+    assert.equal(result.data.stage, 'consumer-validation');
     assert.equal(runCount, 0);
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'prism-tool')), false);
     assert.equal(fs.readFileSync(target, 'utf8'), '{}\n');
@@ -322,6 +402,8 @@ test('rejects a workspace root outside the exact project-owned path', (t) => {
     });
 
     assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'tool failure');
+    assert.equal(result.data.stage, 'workspace-validation');
     assert.equal(runCount, 0);
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'prism-tool')), false);
 });
