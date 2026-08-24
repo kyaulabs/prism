@@ -346,6 +346,7 @@ prism-tool commit create --type feat --scope setup --subject "apply blank core-o
 
 **Files:**
 - Modify: `packages/prism-core/scripts/prism-tool/bootstrap-journal.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-plan.js`
 - Modify: `packages/prism-core/scripts/prism-tool/bootstrap-transaction.js`
 - Modify: `packages/prism-core/scripts/prism-tool/cli.js`
 - Modify: `tests/Node/prism-tool-bootstrap-plan.test.js`
@@ -356,7 +357,7 @@ prism-tool commit create --type feat --scope setup --subject "apply blank core-o
 - Extends: `recoverBootstrapProject()` for `APPLYING`, `RECOVERY_REQUIRED`, and `DURABLE` attempts.
 - Produces dispositions `ROOT_RESTORED`, `RECOVERY_REQUIRED`, and `PROJECT_DURABLE` with one deterministic next action.
 
-- [ ] **Step 1: Write failing failure-injection, ambiguity, and rerun tests**
+- [x] **Step 1: Write failing failure-injection, ambiguity, and rerun tests**
 
 Add table-driven failure injection after every publication boundary:
 
@@ -410,13 +411,13 @@ assert.equal(report.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
 
 Assert a second apply of the same durable attempt is idempotent, performs no writes, preserves file mtimes and inodes, and returns the same applied-inventory digest. Assert changed, missing, replaced, symlinked, mode-drifted, or extra plan-owned outputs return `RECOVERY_REQUIRED`; unrelated post-durable files are retained but reported as unexpected state for Task #6 rather than deleted.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because application failures do not yet perform exact rollback and durable attempts cannot yet resume.
 
-- [ ] **Step 3: Implement exact rollback and durable recovery**
+- [x] **Step 3: Implement exact rollback and durable recovery**
 
 For every published file, retain `{path, kind, mode, sha256, dev, ino}` in memory and persist the current list in the `APPLYING` journal after each successful publication. The journal transition must occur before the next output begins so an interrupted process has a bounded recovery prefix.
 
@@ -455,16 +456,16 @@ A repeated `applyBootstrapProject()` call on a valid `DURABLE` journal delegates
 
 Always remove a lock created by the current call in `finally` only after validating that its inode and contents still match the current attempt. Lock cleanup failure changes the final disposition to `RECOVERY_REQUIRED`.
 
-- [ ] **Step 4: Run focused and adjacent regression tests**
+- [x] **Step 4: Run focused and adjacent regression tests**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-setup-route.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: PASS. Every injected pre-durable failure restores emptiness unless the test deliberately introduces ambiguous third state; every durable rerun preserves exact project bytes.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js
+git add packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js
 prism-tool commit create --type feat --scope setup --subject "recover blank bootstrap transactions" --fixes 385
 ```
 

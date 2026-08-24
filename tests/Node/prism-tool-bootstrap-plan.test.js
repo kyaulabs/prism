@@ -265,6 +265,221 @@ test('applies an approved Blank Core-only plan and marks the project durable', (
     }
 });
 
+test('restores strict emptiness when application fails before durability', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                throw new Error('injected application failure');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.equal(report.data.resumePhase, null);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('restores strict emptiness at every pre-durable application boundary', () => {
+    const scenarios = [
+        {attemptId: '10000000-0000-4000-8000-000000000000', event: 'after-output', index: 0},
+        {attemptId: '20000000-0000-4000-8000-000000000000', event: 'after-output', index: 1},
+        {attemptId: '30000000-0000-4000-8000-000000000000', event: 'after-output', index: 2},
+        {attemptId: '40000000-0000-4000-8000-000000000000', event: 'after-output', index: 3},
+        {attemptId: '50000000-0000-4000-8000-000000000000', event: 'after-output', index: 4},
+        {attemptId: '60000000-0000-4000-8000-000000000000', event: 'after-output', index: 5},
+        {attemptId: '70000000-0000-4000-8000-000000000000', event: 'after-output', index: 6},
+        {attemptId: '80000000-0000-4000-8000-000000000000', event: 'before-durable'},
+    ];
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        try {
+            const planned = planProject(projectRoot, {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+            }, {
+                coreRoot: CORE_ROOT,
+                randomUUID: () => scenario.attemptId,
+            });
+            const plan = JSON.parse(planned.stdout);
+            const result = applyProject(projectRoot, scenario.attemptId, plan.planDigest, {
+                coreRoot: CORE_ROOT,
+                bootstrapApplyFault(event) {
+                    if (
+                        event.name === scenario.event &&
+                        (scenario.index === undefined || event.index === scenario.index)
+                    ) {
+                        throw new Error('injected application failure');
+                    }
+                },
+            });
+            const report = JSON.parse(result.stdout);
+            assert.equal(report.disposition, 'ROOT_RESTORED');
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('preserves concurrent third-state content during failed application recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const humanPath = path.join(projectRoot, 'human-note.txt');
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                fs.writeFileSync(humanPath, 'preserve me\n');
+                throw new Error('injected concurrent state');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.data.resumePhase, 'MANUAL_RECOVERY');
+    assert.equal(fs.readFileSync(humanPath, 'utf8'), 'preserve me\n');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.github', 'hooks', 'commit-msg')), false);
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'AMBIGUOUS_PROJECT_STATE');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
+test('preserves an applied output that changes before rollback', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const changedPath = path.join(projectRoot, '.github', 'hooks', 'commit-msg');
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                fs.writeFileSync(changedPath, 'human replacement\n');
+                throw new Error('injected changed output');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(changedPath, 'utf8'), 'human replacement\n');
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.applied.length, 1);
+});
+
+test('revalidates and idempotently resumes a durable project', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const first = JSON.parse(applied.stdout);
+    const readmePath = path.join(projectRoot, 'README.md');
+    const before = fs.statSync(readmePath);
+
+    const recovered = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const recovery = JSON.parse(recovered.stdout);
+    const repeated = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const second = JSON.parse(repeated.stdout);
+    const after = fs.statSync(readmePath);
+
+    assert.equal(recovered.status, 0);
+    assert.equal(recovery.disposition, 'PROJECT_DURABLE');
+    assert.equal(recovery.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(repeated.status, 0);
+    assert.equal(second.disposition, 'PROJECT_DURABLE');
+    assert.equal(second.data.appliedInventoryDigest, first.data.appliedInventoryDigest);
+    assert.equal(after.ino, before.ino);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+});
+
+test('retains a durable project when an applied output drifts', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const readmePath = path.join(projectRoot, 'README.md');
+    fs.writeFileSync(readmePath, 'changed after durability\n');
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(readmePath, 'utf8'), 'changed after durability\n');
+    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'AMBIGUOUS_PROJECT_STATE');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
 test('requires literal approval before applying a project plan', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

@@ -334,6 +334,7 @@ function setup(args, context) {
                 attemptId: attempts[0].slice('--attempt='.length),
                 planDigest: digests[0].slice('--digest='.length),
                 approval: 'yes',
+                fault: context.bootstrapApplyFault,
             });
         } catch {
             const report = {

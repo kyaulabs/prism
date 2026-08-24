@@ -291,21 +291,253 @@ function appliedInventoryDigest(applied) {
     }))), 'utf8'));
 }
 
+function validateAppliedOutput(projectRoot, project, entry) {
+    const parent = existingTargetParent(projectRoot, project, entry.path);
+    try {
+        const targetPath = path.join(parent.anchor, path.posix.basename(entry.path));
+        const descriptor = fs.openSync(targetPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+        try {
+            const stat = fs.fstatSync(descriptor);
+            const contents = fs.readFileSync(descriptor);
+            if (
+                !stat.isFile() ||
+                stat.dev !== entry.dev ||
+                stat.ino !== entry.ino ||
+                (stat.mode & 0o777) !== entry.mode ||
+                sha256(contents) !== entry.sha256
+            ) {
+                throw new Error('durable bootstrap output changed');
+            }
+        } finally {
+            fs.closeSync(descriptor);
+        }
+        parent.assertCurrent();
+    } finally {
+        parent.close();
+    }
+}
+
+function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, journal}) {
+    const plan = validateBootstrapProjectPlan({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        planDigest,
+        allowAppliedProject: true,
+    });
+    if (
+        journal.phase !== 'DURABLE' ||
+        journal.status !== 'ACTIVE' ||
+        journal.applied.length !== plan.outputs.length ||
+        journal.appliedInventoryDigest !== appliedInventoryDigest(journal.applied)
+    ) {
+        throw new Error('durable bootstrap journal is invalid');
+    }
+    const expected = plan.outputs.map(({path: outputPath, kind, mode, sha256: digest}) => ({
+        path: outputPath,
+        kind,
+        mode,
+        sha256: digest,
+    }));
+    const actual = journal.applied.map(({path: outputPath, kind, mode, sha256: digest}) => ({
+        path: outputPath,
+        kind,
+        mode,
+        sha256: digest,
+    }));
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error('durable bootstrap inventory is stale');
+    }
+    const project = holdDirectory(projectRoot, projectRoot);
+    try {
+        const expectedRootEntries = new Set(['.pi']);
+        for (const output of plan.outputs) expectedRootEntries.add(output.path.split('/')[0]);
+        const rootEntries = fs.readdirSync(project.anchor).sort();
+        if (JSON.stringify(rootEntries) !== JSON.stringify([...expectedRootEntries].sort())) {
+            throw new Error('durable bootstrap root changed');
+        }
+        if (fs.lstatSync(path.join(project.anchor, '.git'), {throwIfNoEntry: false}) !== undefined) {
+            throw new Error('durable bootstrap repository state is unexpected');
+        }
+        for (const entry of journal.applied) validateAppliedOutput(projectRoot, project, entry);
+        project.assertCurrent();
+    } finally {
+        project.close();
+    }
+    return Object.freeze({plan, appliedInventoryDigest: journal.appliedInventoryDigest});
+}
+
+function markRecoveryRequired(projectRoot, attemptId, journal) {
+    return transitionBootstrapJournal({
+        projectRoot,
+        attemptId,
+        expectedPhase: journal.phase,
+        next: {
+            ...journal,
+            status: 'RECOVERY_REQUIRED',
+            reason: 'AMBIGUOUS_PROJECT_STATE',
+            resumePhase: 'MANUAL_RECOVERY',
+        },
+    });
+}
+
+function durableProjectReport(attemptId, planDigest, inventoryDigest) {
+    return Object.freeze({
+        status: 'GO',
+        disposition: 'PROJECT_DURABLE',
+        checks: Object.freeze([Object.freeze({
+            id: 'bootstrap-project-recovery',
+            status: 'PASS',
+            message: 'durable bootstrap project state was revalidated',
+        })]),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planDigest,
+            appliedInventoryDigest: inventoryDigest,
+            resumePhase: 'REPOSITORY_BOOTSTRAP',
+        }),
+    });
+}
+
+function existingTargetParent(projectRoot, project, relativePath) {
+    const parent = path.posix.dirname(relativePath);
+    if (parent === '.') {
+        return {
+            anchor: project.anchor,
+            assertCurrent: project.assertCurrent,
+            sync: project.sync,
+            close() {},
+        };
+    }
+    const directoryPath = path.join(projectRoot, ...parent.split('/'));
+    const openPath = path.join(project.anchor, ...parent.split('/'));
+    return holdDirectory(projectRoot, directoryPath, openPath);
+}
+
+function rollbackAppliedOutputs(projectRoot, project, applied) {
+    for (const entry of [...applied].reverse()) {
+        const parent = existingTargetParent(projectRoot, project, entry.path);
+        try {
+            const targetPath = path.join(parent.anchor, path.posix.basename(entry.path));
+            const descriptor = fs.openSync(
+                targetPath,
+                fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+            );
+            try {
+                const stat = fs.fstatSync(descriptor);
+                const contents = fs.readFileSync(descriptor);
+                if (
+                    !stat.isFile() ||
+                    stat.dev !== entry.dev ||
+                    stat.ino !== entry.ino ||
+                    (stat.mode & 0o777) !== entry.mode ||
+                    sha256(contents) !== entry.sha256
+                ) {
+                    throw new Error('bootstrap target changed during recovery');
+                }
+            } finally {
+                fs.closeSync(descriptor);
+            }
+            parent.assertCurrent();
+            fs.unlinkSync(targetPath);
+            parent.sync();
+        } finally {
+            parent.close();
+        }
+    }
+}
+
+function rollbackCreatedDirectories(projectRoot, project, createdDirectories) {
+    for (const created of [...createdDirectories].reverse()) {
+        const parentPath = path.posix.dirname(created.path);
+        const parent = parentPath === '.'
+            ? {
+                anchor: project.anchor,
+                assertCurrent: project.assertCurrent,
+                sync: project.sync,
+                close() {},
+            }
+            : holdDirectory(
+                projectRoot,
+                path.join(projectRoot, ...parentPath.split('/')),
+                path.join(project.anchor, ...parentPath.split('/'))
+            );
+        try {
+            const directoryPath = path.join(parent.anchor, path.posix.basename(created.path));
+            const stat = fs.lstatSync(directoryPath);
+            if (
+                stat.isSymbolicLink() ||
+                !stat.isDirectory() ||
+                stat.dev !== created.dev ||
+                stat.ino !== created.ino ||
+                fs.readdirSync(directoryPath).length !== 0
+            ) {
+                throw new Error('bootstrap directory changed during recovery');
+            }
+            parent.assertCurrent();
+            fs.rmdirSync(directoryPath);
+            parent.sync();
+        } finally {
+            parent.close();
+        }
+    }
+}
+
+function rootRestoredReport(attemptId) {
+    return Object.freeze({
+        status: 'NO-GO',
+        disposition: 'ROOT_RESTORED',
+        checks: Object.freeze([Object.freeze({
+            id: 'bootstrap-project-application',
+            status: 'FAIL',
+            message: 'bootstrap project application failed and owned state was removed',
+        })]),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            resumePhase: null,
+        }),
+    });
+}
+
 function applyBootstrapProject({
     projectRoot: requestedRoot,
     coreRoot,
     attemptId,
     planDigest,
     approval,
+    fault = () => {},
 }) {
     if (approval !== 'yes') throw new Error('bootstrap project approval is required');
     const projectRoot = fs.realpathSync(requestedRoot);
     const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (journal.planDigest !== planDigest) throw new Error('bootstrap journal is stale');
+    if (journal.status === 'RECOVERY_REQUIRED') {
+        throw new Error('bootstrap project recovery requires manual action');
+    }
+    if (journal.phase === 'DURABLE') {
+        try {
+            const durable = validateDurableProject({
+                projectRoot,
+                coreRoot,
+                attemptId,
+                planDigest,
+                journal,
+            });
+            return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
+        } catch (error) {
+            markRecoveryRequired(projectRoot, attemptId, journal);
+            throw error;
+        }
+    }
     const lock = acquireApplyLock(attemptRoot, attemptId);
+    const createdDirectories = [];
+    const applied = [];
     let project;
     let candidate;
+    let applying = false;
+    let current = journal;
+    let failure;
     try {
         const plan = validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
         project = holdDirectory(projectRoot, projectRoot);
@@ -316,7 +548,7 @@ function applyBootstrapProject({
         ) {
             throw new Error('bootstrap project root changed');
         }
-        let current = transitionBootstrapJournal({
+        current = transitionBootstrapJournal({
             projectRoot,
             attemptId,
             expectedPhase: 'PREPARED',
@@ -326,8 +558,7 @@ function applyBootstrapProject({
                 resumePhase: 'PROJECT_APPLICATION',
             },
         });
-        const createdDirectories = [];
-        const applied = [];
+        applying = true;
         for (const [index, output] of plan.outputs.entries()) {
             const contents = readCandidateOutput(attemptRoot, candidate, output);
             const entry = publishOutput({
@@ -346,9 +577,11 @@ function applyBootstrapProject({
                 expectedPhase: 'APPLYING',
                 next: {...current, applied: [...applied]},
             });
+            fault({name: 'after-output', index, output: output.path});
         }
         project.assertCurrent();
         project.sync();
+        fault({name: 'before-durable'});
         const inventoryDigest = appliedInventoryDigest(applied);
         transitionBootstrapJournal({
             projectRoot,
@@ -378,9 +611,45 @@ function applyBootstrapProject({
                 resumePhase: 'REPOSITORY_BOOTSTRAP',
             }),
         });
+    } catch (error) {
+        failure = error;
     } finally {
         if (candidate !== undefined) candidate.close();
+    }
+    if (!applying) {
         if (project !== undefined) project.close();
+        releaseApplyLock(lock);
+        throw failure;
+    }
+    let rollbackComplete = false;
+    try {
+        rollbackAppliedOutputs(projectRoot, project, applied);
+        rollbackCreatedDirectories(projectRoot, project, createdDirectories);
+        project.assertCurrent();
+        project.sync();
+        rollbackComplete = true;
+        project.close();
+        project = undefined;
+        releaseApplyLock(lock);
+        removePreparedAttempt(projectRoot, attemptId);
+        return rootRestoredReport(attemptId);
+    } catch (recoveryError) {
+        if (project !== undefined) project.close();
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'APPLYING',
+            next: {
+                ...current,
+                status: 'RECOVERY_REQUIRED',
+                reason: 'AMBIGUOUS_PROJECT_STATE',
+                resumePhase: 'MANUAL_RECOVERY',
+                applied: rollbackComplete ? [] : current.applied,
+            },
+        });
+        throw new Error('bootstrap project recovery requires manual action', {
+            cause: recoveryError,
+        });
     }
 }
 
@@ -388,6 +657,24 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     const projectRoot = fs.realpathSync(requestedRoot);
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (journal.planDigest !== planDigest) throw new Error('bootstrap journal is stale');
+    if (journal.status === 'RECOVERY_REQUIRED') {
+        throw new Error('bootstrap project recovery requires manual action');
+    }
+    if (journal.phase === 'DURABLE') {
+        try {
+            const durable = validateDurableProject({
+                projectRoot,
+                coreRoot,
+                attemptId,
+                planDigest,
+                journal,
+            });
+            return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
+        } catch (error) {
+            markRecoveryRequired(projectRoot, attemptId, journal);
+            throw error;
+        }
+    }
     try {
         validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
         removePreparedAttempt(projectRoot, attemptId);

@@ -365,9 +365,13 @@ function holdAttemptDirectory(attemptRoot, directoryPath, openPath = directoryPa
     }
 }
 
-function assertAttemptDirectories(projectRoot, attemptId) {
+function assertAttemptDirectories(projectRoot, attemptId, allowAppliedProject = false) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
-    if (fs.readdirSync(projectRoot).join(',') !== '.pi') throw new Error('project root state is stale');
+    const rootEntries = fs.readdirSync(projectRoot);
+    if (
+        (!allowAppliedProject && rootEntries.join(',') !== '.pi') ||
+        (allowAppliedProject && !rootEntries.includes('.pi'))
+    ) throw new Error('project root state is stale');
     const piRoot = path.join(projectRoot, '.pi');
     const prismRoot = path.join(piRoot, 'prism-tool');
     const bootstrapRoot = path.join(prismRoot, 'bootstrap');
@@ -586,12 +590,18 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
     });
 }
 
-function validateBootstrapProjectPlan({projectRoot: requestedRoot, coreRoot, attemptId, planDigest}) {
+function validateBootstrapProjectPlan({
+    projectRoot: requestedRoot,
+    coreRoot,
+    attemptId,
+    planDigest,
+    allowAppliedProject = false,
+}) {
     if (typeof planDigest !== 'string' || !/^[0-9a-f]{64}$/.test(planDigest)) {
         throw new Error('bootstrap project plan digest is invalid');
     }
     const projectRoot = fs.realpathSync(requestedRoot);
-    const paths = assertAttemptDirectories(projectRoot, attemptId);
+    const paths = assertAttemptDirectories(projectRoot, attemptId, allowAppliedProject);
     try {
         return validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, paths});
     } finally {

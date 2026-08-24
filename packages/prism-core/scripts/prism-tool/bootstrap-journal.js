@@ -88,19 +88,32 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    if (
-        value.phase === 'APPLYING' &&
-        value.status === 'ACTIVE' &&
-        value.reason === null &&
-        value.resumePhase === 'PROJECT_APPLICATION' &&
-        value.appliedInventoryDigest === null
-    ) return true;
+    if (value.phase === 'APPLYING' && value.appliedInventoryDigest === null) {
+        return (
+            value.status === 'ACTIVE' &&
+            value.reason === null &&
+            value.resumePhase === 'PROJECT_APPLICATION'
+        ) || (
+            value.status === 'RECOVERY_REQUIRED' &&
+            value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
+            value.resumePhase === 'MANUAL_RECOVERY'
+        );
+    }
     return value.phase === 'DURABLE' &&
-        value.status === 'ACTIVE' &&
-        value.reason === null &&
-        value.resumePhase === 'REPOSITORY_BOOTSTRAP' &&
         value.applied.length > 0 &&
-        SHA256.test(value.appliedInventoryDigest);
+        SHA256.test(value.appliedInventoryDigest) &&
+        (
+            (
+                value.status === 'ACTIVE' &&
+                value.reason === null &&
+                value.resumePhase === 'REPOSITORY_BOOTSTRAP'
+            ) ||
+            (
+                value.status === 'RECOVERY_REQUIRED' &&
+                value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
+                value.resumePhase === 'MANUAL_RECOVERY'
+            )
+        );
 }
 
 function validateJournal(value, projectRoot, attemptId) {
