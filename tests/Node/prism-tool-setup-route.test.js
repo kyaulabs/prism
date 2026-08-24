@@ -122,6 +122,52 @@ test('fails closed for unsafe and indeterminate setup roots', (t) => {
     assert.equal(JSON.parse(indeterminate.stdout).reason, 'INDETERMINATE');
 });
 
+test('fails closed for a malformed Gitfile marker', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(projectRoot, '.git'), 'not a gitdir\n');
+
+    const result = route(projectRoot);
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'CONFLICT');
+    assert.equal(report.route, 'STOP');
+    assert.equal(report.reason, 'UNSAFE_GIT_STATE');
+});
+
+test('fails closed for a Gitfile whose target is unavailable', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(projectRoot, '.git'), 'gitdir: missing-git-dir\n');
+
+    const result = route(projectRoot);
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'CONFLICT');
+    assert.equal(report.reason, 'UNSAFE_GIT_STATE');
+});
+
+test('routes a valid Gitfile marker to established setup', (t) => {
+    const parent = makeTempDir();
+    const projectRoot = path.join(parent, 'project');
+    const gitDir = path.join(parent, 'git-dir');
+    t.after(() => fs.rmSync(parent, {recursive: true, force: true}));
+    fs.mkdirSync(projectRoot);
+    fs.mkdirSync(gitDir);
+    fs.writeFileSync(path.join(projectRoot, '.git'), 'gitdir: ../git-dir\n');
+
+    const result = route(projectRoot);
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(report.disposition, 'ESTABLISHED');
+    assert.equal(report.route, 'ESTABLISHED_SETUP');
+    assert.equal(report.reason, 'EXISTING_REPOSITORY');
+});
+
 test('rejects unsupported setup route controls', () => {
     const result = captureWrites(() => main(['setup', 'route', '--unknown'], {projectRoot: process.cwd()}));
 

@@ -64,12 +64,37 @@ function inspectGitBoundary(projectRoot) {
         if (identity.isSymbolicLink() || (!identity.isDirectory() && !identity.isFile())) {
             return {kind: 'UNSAFE'};
         }
+        let gitFile = null;
+        let gitDirPath = null;
+        let gitDirIdentity = null;
+        if (identity.isFile()) {
+            try {
+                gitFile = fs.readFileSync(gitPath, 'utf8');
+            } catch {
+                return {kind: 'INDETERMINATE'};
+            }
+            const match = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(gitFile);
+            if (match === null) return {kind: 'UNSAFE'};
+            gitDirPath = path.resolve(path.dirname(gitPath), match[1]);
+            try {
+                gitDirIdentity = fs.lstatSync(gitDirPath);
+            } catch (error) {
+                if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return {kind: 'UNSAFE'};
+                return {kind: 'INDETERMINATE'};
+            }
+            if (gitDirIdentity.isSymbolicLink() || !gitDirIdentity.isDirectory()) return {kind: 'UNSAFE'};
+        }
         return {
             kind: current === projectRoot ? 'EXISTING' : 'CONTAINING',
             path: gitPath,
             dev: identity.dev,
             ino: identity.ino,
             mode: identity.mode,
+            gitFile,
+            gitDirPath,
+            gitDirDev: gitDirIdentity?.dev,
+            gitDirIno: gitDirIdentity?.ino,
+            gitDirMode: gitDirIdentity?.mode,
         };
     }
 }
@@ -79,7 +104,12 @@ function sameGitBoundary(left, right) {
         left.path === right.path &&
         left.dev === right.dev &&
         left.ino === right.ino &&
-        left.mode === right.mode;
+        left.mode === right.mode &&
+        left.gitFile === right.gitFile &&
+        left.gitDirPath === right.gitDirPath &&
+        left.gitDirDev === right.gitDirDev &&
+        left.gitDirIno === right.gitDirIno &&
+        left.gitDirMode === right.gitDirMode;
 }
 
 function conflict(projectRoot, reason) {
