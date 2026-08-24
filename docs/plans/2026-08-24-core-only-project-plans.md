@@ -426,7 +426,7 @@ prism-tool commit create --type feat --scope setup --subject "compose bootstrap 
 - Produces CLI: `prism-tool setup project plan --source=blank --adapter=core-only [--json]`.
 - Produces CLI: `prism-tool setup project validate --attempt=UUID --digest=SHA256 [--json]`.
 
-- [ ] **Step 1: Write failing end-to-end planning and stale-state tests**
+- [x] **Step 1: Write failing end-to-end planning and stale-state tests**
 
 Replace the temporary unimplemented assertion with a successful public CLI test. Assert:
 
@@ -457,13 +457,13 @@ Add `setup project validate` tests proving GO for unchanged state and `NO-GO` wi
 
 Add a closed-schema plan test that inserts an unknown field and expects `INVALID_PLAN`, plus a test that a non-empty or established root cannot start planning.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because the plan coordinator and final CLI operations do not exist.
 
-- [ ] **Step 3: Implement attempt creation, semantic digesting, and revalidation**
+- [x] **Step 3: Implement attempt creation, semantic digesting, and revalidation**
 
 `planCoreOnlyProject()` must:
 
@@ -483,7 +483,7 @@ Wire both final CLI commands with exact controls. `plan` reads at most 16 KiB fr
 
 Update `toolchain-packaging.test.js` to require `bootstrap-metadata`, `bootstrap-providers`, `bootstrap-composer`, and `bootstrap-plan`. Update `packages/prism-core/README.md` with a short strict-empty planning section documenting that Blank Core-only planning uses only name/summary, creates private provisional state, and does not apply files, initialize Git, configure a remote, or invoke a network/subprocess.
 
-- [ ] **Step 4: Run focused and regression tests to verify Green**
+- [x] **Step 4: Run focused and regression tests to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
@@ -497,7 +497,7 @@ Run: `npm run test:node`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/cli.js packages/prism-core/README.md tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js

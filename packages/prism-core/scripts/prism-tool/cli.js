@@ -10,6 +10,7 @@ const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {renderCoreBaseline} = require('./bootstrap-providers');
+const {planCoreOnlyProject, validateBootstrapProjectPlan} = require('./bootstrap-plan');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
@@ -293,6 +294,70 @@ function renderSetupSourceReport(report, json) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'project' && args[1] === 'validate') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const digests = controls.filter((argument) => argument.startsWith('--digest='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            digests.length !== 1 ||
+            !/^[0-9a-f]{64}$/.test(digests[0].slice('--digest='.length)) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--digest=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup project validate --attempt=UUID ' +
+                '--digest=SHA256 [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let validated;
+        try {
+            validated = validateBootstrapProjectPlan({
+                projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                attemptId: attempts[0].slice('--attempt='.length),
+                planDigest: digests[0].slice('--digest='.length),
+            });
+        } catch (error) {
+            const reason = /plan is invalid/u.test(error.message) ? 'INVALID_PLAN' : 'STALE_PROJECT_STATE';
+            const report = {
+                schemaVersion: 1,
+                command: 'setup project validate',
+                status: 'NO-GO',
+                disposition: reason,
+                reason,
+                projectRoot: fs.realpathSync(projectRoot),
+                checks: [{
+                    id: 'bootstrap-project-plan',
+                    status: 'FAIL',
+                    message: 'bootstrap project plan validation failed',
+                }],
+                data: {attempt: {id: attempts[0].slice('--attempt='.length)}},
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: 'setup project validate',
+            status: 'GO',
+            disposition: 'PLAN_VALID',
+            projectRoot: fs.realpathSync(projectRoot),
+            ...validated,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return EXIT.OK;
+    }
     if (args[0] === 'project' && args[1] === 'plan') {
         const controls = args.slice(2);
         const sources = controls.filter((argument) => argument.startsWith('--source='));
@@ -366,8 +431,58 @@ function setup(args, context) {
             else process.stdout.write(`${report.status}\n`);
             return EXIT.OK;
         }
-        process.stderr.write('prism-tool: project planning is not implemented\n');
-        return EXIT.TRANSACTION;
+        let planned;
+        try {
+            planned = planCoreOnlyProject({
+                projectRoot: route.projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                input: JSON.stringify({
+                    schemaVersion: metadata.schemaVersion,
+                    displayName: metadata.displayName,
+                    summary: metadata.summary,
+                }),
+                randomUUID: context.randomUUID ?? crypto.randomUUID,
+            });
+        } catch (error) {
+            if (error.recoveryRequired) {
+                const report = {
+                    schemaVersion: 1,
+                    command: 'setup project plan',
+                    status: 'NO-GO',
+                    disposition: 'RECOVERY_REQUIRED',
+                    reason: 'AMBIGUOUS_ATTEMPT_STATE',
+                    projectRoot: route.projectRoot,
+                    source: {mode: 'BLANK', evidence: null},
+                    adapter: null,
+                    capabilities: [],
+                    checks: [{
+                        id: 'bootstrap-project-plan',
+                        status: 'FAIL',
+                        message: 'bootstrap attempt state changed unexpectedly and was preserved',
+                    }],
+                    data: {
+                        recoveryPath: error.recoveryPath,
+                        nextAction: 'Inspect the retained attempt state manually before retrying setup.',
+                    },
+                };
+                if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+                else process.stdout.write(`${report.status}\n`);
+                return EXIT.TRANSACTION;
+            }
+            process.stderr.write('prism-tool: project planning failed\n');
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: 'setup project plan',
+            status: 'GO',
+            disposition: 'PLAN_READY',
+            projectRoot: route.projectRoot,
+            ...planned,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return EXIT.OK;
     }
     if (args[0] === 'project' && args[1] === 'metadata') {
         const controls = args.slice(2);

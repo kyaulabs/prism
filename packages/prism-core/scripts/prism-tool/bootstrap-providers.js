@@ -83,18 +83,32 @@ function ensureCandidateRoot(candidateRoot) {
     return canonicalRoot;
 }
 
+function ensureCandidateParents(candidateRoot, relativePath) {
+    let current = candidateRoot;
+    const segments = relativePath.split('/').slice(0, -1);
+    for (const segment of segments) {
+        current = path.join(current, segment);
+        const existing = fs.lstatSync(current, {throwIfNoEntry: false});
+        if (existing === undefined) fs.mkdirSync(current, {mode: 0o700});
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) {
+            throw new Error('candidate parent is invalid');
+        }
+        const canonical = fs.realpathSync(current);
+        const relation = path.relative(candidateRoot, canonical);
+        if (relation.startsWith('..') || path.isAbsolute(relation)) {
+            throw new Error('candidate parent escapes its root');
+        }
+    }
+}
+
 function writeCandidate(candidateRoot, relativePath, contents, mode) {
     const target = path.join(candidateRoot, ...relativePath.split('/'));
     const relation = path.relative(candidateRoot, target);
     if (relation.startsWith('..') || path.isAbsolute(relation)) {
         throw new Error('candidate path escapes its root');
     }
-    fs.mkdirSync(path.dirname(target), {recursive: true, mode: 0o700});
-    const parent = fs.realpathSync(path.dirname(target));
-    const parentRelation = path.relative(candidateRoot, parent);
-    if (parentRelation.startsWith('..') || path.isAbsolute(parentRelation)) {
-        throw new Error('candidate parent escapes its root');
-    }
+    ensureCandidateParents(candidateRoot, relativePath);
     fs.writeFileSync(target, contents, {flag: 'wx', mode});
     fs.chmodSync(target, mode);
     return Object.freeze({

@@ -109,8 +109,9 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
-        'bootstrap-adapter', 'bootstrap-metadata', 'bootstrap-providers', 'cli',
-        'code-review', 'commit', 'consent', 'contract', 'discovery',
+        'bootstrap-adapter', 'bootstrap-composer', 'bootstrap-metadata',
+        'bootstrap-plan', 'bootstrap-providers', 'cli', 'code-review', 'commit',
+        'consent', 'contract', 'discovery',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',

@@ -9,6 +9,7 @@ const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
+const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 
 function captureWrites(action) {
@@ -40,6 +41,12 @@ function planInput(projectRoot, input, context = {}) {
 
 function planProject(projectRoot, input, context = {}) {
     return planInput(projectRoot, JSON.stringify(input), context);
+}
+
+function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'project', 'validate', `--attempt=${attemptId}`, `--digest=${planDigest}`, '--json',
+    ], {projectRoot, ...context}));
 }
 
 test('reports minimal metadata fields without changing a strict-empty root', (t) => {
@@ -79,7 +86,7 @@ test('reports minimal metadata fields without changing a strict-empty root', (t)
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
-test('accepts an edited display name before project planning', (t) => {
+test('creates a digest-bound Blank Core-only project plan from edited metadata', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
 
@@ -87,11 +94,236 @@ test('accepts an edited display name before project planning', (t) => {
         schemaVersion: 1,
         displayName: 'Editable Project Name',
         summary: 'A deterministic Core-only project.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.command, 'setup project plan');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PLAN_READY');
+    assert.deepEqual(report.source, {mode: 'BLANK', evidence: null});
+    assert.equal(report.adapter, null);
+    assert.deepEqual(report.capabilities, []);
+    assert.equal(report.metadata.displayName, 'Editable Project Name');
+    assert.match(report.metadataDigest, /^[0-9a-f]{64}$/);
+    assert.match(report.planDigest, /^[0-9a-f]{64}$/);
+    assert.equal(report.providers.length, 1);
+    assert.equal(report.outputs.length, 7);
+    assert.deepEqual(report.effects, []);
+    assert.deepEqual(report.recovery, {
+        beforeDurable: 'REMOVE_OWNED_ATTEMPT_AND_PROVE_STRICT_EMPTY',
+        afterDurable: 'RETAIN_PROJECT_AND_RESUME',
+    });
+    assert.equal(report.data.attempt.id, ATTEMPT_ID);
+    assert.equal(path.isAbsolute(report.data.planPath), true);
+    assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'project.json')), false);
+});
+
+test('keeps semantic plan digests stable across roots and attempt IDs', () => {
+    const roots = [makeTempDir(), makeTempDir()];
+    try {
+        const reports = roots.map((projectRoot, index) => {
+            const result = planProject(projectRoot, {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+            }, {
+                coreRoot: CORE_ROOT,
+                randomUUID: () => index === 0
+                    ? ATTEMPT_ID
+                    : 'abcdefab-cdef-4abc-8def-abcdefabcdef',
+            });
+            return JSON.parse(result.stdout);
+        });
+
+        assert.equal(reports[0].planDigest, reports[1].planDigest);
+        assert.equal(reports[0].metadataDigest, reports[1].metadataDigest);
+        assert.equal(
+            reports[0].filesystem.attemptInventoryDigest,
+            reports[1].filesystem.attemptInventoryDigest
+        );
+        assert.deepEqual(reports[0].outputs, reports[1].outputs);
+        assert.notEqual(reports[0].data.attempt.id, reports[1].data.attempt.id);
+        assert.notEqual(reports[0].data.planPath, reports[1].data.planPath);
+    } finally {
+        for (const projectRoot of roots) fs.rmSync(projectRoot, {recursive: true, force: true});
+    }
+});
+
+test('revalidates an unchanged active project plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PLAN_VALID');
+    assert.equal(report.planDigest, plan.planDigest);
+    assert.equal(report.data.attempt.id, ATTEMPT_ID);
+});
+
+test('fails closed when any active project-plan state changes', () => {
+    const cases = [
+        {
+            name: 'root entry',
+            mutate: ({projectRoot}) => fs.writeFileSync(path.join(projectRoot, 'human.txt'), 'human'),
+        },
+        {
+            name: 'candidate bytes',
+            mutate: ({candidateRoot}) => fs.appendFileSync(path.join(candidateRoot, 'README.md'), 'changed'),
+        },
+        {
+            name: 'candidate mode',
+            mutate: ({candidateRoot}) => fs.chmodSync(path.join(candidateRoot, 'README.md'), 0o600),
+        },
+        {
+            name: 'candidate symlink',
+            mutate: ({candidateRoot}) => {
+                fs.unlinkSync(path.join(candidateRoot, 'README.md'));
+                fs.symlinkSync('commitlint.config.cjs', path.join(candidateRoot, 'README.md'));
+            },
+        },
+        {
+            name: 'metadata report',
+            mutate: ({reportsRoot}) => {
+                const filePath = path.join(reportsRoot, 'metadata.json');
+                const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                value.unknown = true;
+                fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'provider report',
+            mutate: ({reportsRoot}) => {
+                const filePath = path.join(reportsRoot, 'core-baseline.json');
+                const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                value.unknown = true;
+                fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'plan schema',
+            disposition: 'INVALID_PLAN',
+            mutate: ({planPath}) => {
+                const value = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+                value.plan.unknown = true;
+                fs.writeFileSync(planPath, `${JSON.stringify(value, null, 2)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'another attempt',
+            mutate: ({bootstrapRoot}) => fs.mkdirSync(
+                path.join(bootstrapRoot, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+                {mode: 0o700}
+            ),
+        },
+    ];
+
+    for (const scenario of cases) {
+        const projectRoot = makeTempDir();
+        try {
+            const planned = planProject(projectRoot, {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+            }, {
+                coreRoot: CORE_ROOT,
+                randomUUID: () => ATTEMPT_ID,
+            });
+            const plan = JSON.parse(planned.stdout);
+            const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+            scenario.mutate({
+                projectRoot,
+                attemptRoot,
+                candidateRoot: path.join(attemptRoot, 'candidate'),
+                reportsRoot: path.join(attemptRoot, 'reports'),
+                bootstrapRoot: path.dirname(attemptRoot),
+                planPath: plan.data.planPath,
+            });
+
+            const result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {
+                coreRoot: CORE_ROOT,
+            });
+            const report = JSON.parse(result.stdout);
+
+            assert.equal(result.status, 5, scenario.name);
+            assert.equal(result.stderr, '', scenario.name);
+            assert.equal(
+                report.disposition,
+                scenario.disposition ?? 'STALE_PROJECT_STATE',
+                scenario.name
+            );
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+
+    const projectRoot = makeTempDir();
+    try {
+        const planned = planProject(projectRoot, {
+            schemaVersion: 1,
+            displayName: 'Project',
+            summary: 'One sentence.',
+        }, {
+            coreRoot: CORE_ROOT,
+            randomUUID: () => ATTEMPT_ID,
+        });
+        const plan = JSON.parse(planned.stdout);
+        for (const [attemptId, digest] of [
+            ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', plan.planDigest],
+            [ATTEMPT_ID, '0'.repeat(64)],
+        ]) {
+            const result = validatePlan(projectRoot, attemptId, digest, {coreRoot: CORE_ROOT});
+            const report = JSON.parse(result.stdout);
+            assert.equal(result.status, 5);
+            assert.equal(report.disposition, 'STALE_PROJECT_STATE');
+        }
+    } finally {
+        fs.rmSync(projectRoot, {recursive: true, force: true});
+    }
+});
+
+test('restores strict emptiness when planning fails before readiness', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(coreRoot, 'package.json'), JSON.stringify({
+        name: '@kyaulabs/not-prism-core',
+        version: '0.3.1',
+    }));
+
+    const result = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot,
+        randomUUID: () => ATTEMPT_ID,
     });
 
     assert.equal(result.status, 5);
     assert.equal(result.stdout, '');
-    assert.match(result.stderr, /project planning is not implemented/);
+    assert.match(result.stderr, /project planning failed/);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -163,6 +395,32 @@ test('renders the trusted Core baseline into a launcher-designated candidate roo
         assert.equal(path.isAbsolute(output.candidatePath), true);
         assert.equal(path.relative(candidateRoot, output.candidatePath).startsWith('..'), false);
     }
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects a symlinked candidate parent without writing through it', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    fs.symlinkSync(outside, path.join(candidateRoot, '.github'));
+
+    const result = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Core baseline provider failed/);
+    assert.deepEqual(fs.readdirSync(outside), []);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
