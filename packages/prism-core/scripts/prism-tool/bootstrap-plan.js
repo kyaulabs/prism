@@ -69,34 +69,61 @@ function createAttempt(projectRoot, randomUUID) {
     };
 }
 
+function readInventoryFile(filePath, initial) {
+    if (typeof fs.constants.O_NOFOLLOW !== 'number') {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (!held.isFile() || !sameFile(initial, held) || held.size !== initial.size) {
+            throw new Error('bootstrap attempt file changed');
+        }
+        const contents = fs.readFileSync(descriptor);
+        const final = fs.fstatSync(descriptor);
+        if (!sameFile(held, final) || final.size !== held.size) {
+            throw new Error('bootstrap attempt file changed');
+        }
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
 function inventoryAttempt(attemptRoot) {
     const entries = [];
-    function walk(relativeRoot) {
+    function walk(relativeRoot, openRoot) {
         const absoluteRoot = relativeRoot === '' ? attemptRoot : path.join(attemptRoot, relativeRoot);
-        for (const name of fs.readdirSync(absoluteRoot).sort()) {
-            const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
-            if (relativePath === 'plan/project.json') continue;
-            const absolutePath = path.join(attemptRoot, ...relativePath.split('/'));
-            const stat = fs.lstatSync(absolutePath);
-            if (stat.isSymbolicLink()) throw new Error('bootstrap attempt contains a symlink');
-            if (stat.isDirectory()) {
-                entries.push({path: relativePath, kind: 'directory', mode: stat.mode & 0o777, bytes: 0, sha256: null});
-                walk(relativePath);
-            } else if (stat.isFile() && stat.size <= MAX_OPERATION_BYTES) {
-                const contents = fs.readFileSync(absolutePath);
-                entries.push({
-                    path: relativePath,
-                    kind: 'file',
-                    mode: stat.mode & 0o777,
-                    bytes: contents.length,
-                    sha256: sha256(contents),
-                });
-            } else {
-                throw new Error('bootstrap attempt contains an invalid entry');
+        const directory = holdAttemptDirectory(attemptRoot, absoluteRoot, openRoot);
+        try {
+            for (const name of fs.readdirSync(directory.anchor).sort()) {
+                const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
+                if (relativePath === 'plan/project.json') continue;
+                const anchoredPath = path.join(directory.anchor, name);
+                const stat = fs.lstatSync(anchoredPath);
+                if (stat.isSymbolicLink()) throw new Error('bootstrap attempt contains a symlink');
+                if (stat.isDirectory()) {
+                    entries.push({path: relativePath, kind: 'directory', mode: stat.mode & 0o777, bytes: 0, sha256: null});
+                    walk(relativePath, anchoredPath);
+                } else if (stat.isFile() && stat.size <= MAX_OPERATION_BYTES) {
+                    const contents = readInventoryFile(anchoredPath, stat);
+                    entries.push({
+                        path: relativePath,
+                        kind: 'file',
+                        mode: stat.mode & 0o777,
+                        bytes: contents.length,
+                        sha256: sha256(contents),
+                    });
+                } else {
+                    throw new Error('bootstrap attempt contains an invalid entry');
+                }
             }
+            directory.assertCurrent();
+        } finally {
+            directory.close();
         }
     }
-    walk('');
+    walk('', attemptRoot);
     return sha256(Buffer.from(JSON.stringify(entries), 'utf8'));
 }
 
@@ -255,14 +282,14 @@ function sameFile(left, right) {
     return left.dev === right.dev && left.ino === right.ino;
 }
 
-function holdAttemptDirectory(attemptRoot, directoryPath) {
+function holdAttemptDirectory(attemptRoot, directoryPath, openPath = directoryPath) {
     if (
         typeof fs.constants.O_DIRECTORY !== 'number' ||
         typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error('safe filesystem flags are unavailable');
     }
-    const initial = fs.lstatSync(directoryPath);
+    const initial = fs.lstatSync(openPath);
     if (
         initial.isSymbolicLink() ||
         !initial.isDirectory() ||
@@ -271,7 +298,7 @@ function holdAttemptDirectory(attemptRoot, directoryPath) {
         throw new Error('bootstrap attempt directory is invalid');
     }
     const descriptor = fs.openSync(
-        directoryPath,
+        openPath,
         fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
     );
     try {
@@ -490,10 +517,23 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
         provider: providerReport.provider,
         outputs: validated,
     }]}).map(semanticOutput);
-    const projectManifest = readJsonFile(
-        path.join(paths.candidateAnchor, '.prism', 'project.json'),
-        0o644
-    ).value;
+    paths.assertCurrent();
+    const manifestRoot = path.join(paths.candidateRoot, '.prism');
+    const manifestParent = holdAttemptDirectory(
+        paths.attemptRoot,
+        manifestRoot,
+        path.join(paths.candidateAnchor, '.prism')
+    );
+    let projectManifest;
+    try {
+        projectManifest = readJsonFile(
+            path.join(manifestParent.anchor, 'project.json'),
+            0o644
+        ).value;
+        manifestParent.assertCurrent();
+    } finally {
+        manifestParent.close();
+    }
     if (
         !hasExactKeys(projectManifest, [
             'schemaVersion', 'source', 'capabilities', 'project', 'adapter', 'compatibility',

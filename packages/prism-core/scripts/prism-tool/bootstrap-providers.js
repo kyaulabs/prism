@@ -209,7 +209,7 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
             kind: 'file',
             mode,
             sha256: sha256(contents),
-            candidatePath: fs.realpathSync(target),
+            candidatePath: target,
         });
     } finally {
         if (descriptor !== undefined) fs.closeSync(descriptor);

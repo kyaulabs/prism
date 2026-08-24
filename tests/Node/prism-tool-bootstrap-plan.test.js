@@ -181,6 +181,51 @@ test('revalidates an unchanged active project plan', (t) => {
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
 });
 
+test('does not traverse the project manifest through an unheld intermediate directory', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const prismRoot = path.join(attemptRoot, 'candidate', '.prism');
+    const displaced = path.join(attemptRoot, 'candidate', '.prism-held');
+    const externalPrism = path.join(outside, '.prism');
+    fs.cpSync(prismRoot, externalPrism, {recursive: true});
+    const originalOpen = fs.openSync;
+    let replaced = false;
+    fs.openSync = function replaceManifestParent(filePath, ...args) {
+        if (
+            !replaced &&
+            typeof filePath === 'string' &&
+            filePath.endsWith(`${path.sep}.prism${path.sep}project.json`)
+        ) {
+            replaced = true;
+            fs.renameSync(prismRoot, displaced);
+            fs.symlinkSync(externalPrism, prismRoot, 'dir');
+        }
+        return originalOpen.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.openSync = originalOpen;
+    }
+
+    assert.equal(result.status, 0);
+    assert.equal(replaced, false);
+});
+
 test('rejects a substituted attempt child before opening external state', (t) => {
     const projectRoot = makeTempDir();
     const outside = makeTempDir();
@@ -530,6 +575,49 @@ test('does not follow a candidate parent replaced at the file-creation boundary'
     assert.match(result.stderr, /Core baseline provider failed/);
     assert.deepEqual(fs.readdirSync(path.join(outside, 'hooks')), []);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('does not re-resolve a candidate pathname after file identity validation', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const target = path.join(candidateRoot, '.github', 'hooks', 'commit-msg');
+    const displaced = path.join(candidateRoot, 'commit-msg-held');
+    const external = path.join(outside, 'commit-msg');
+    fs.writeFileSync(external, 'external');
+    const originalRealpath = fs.realpathSync;
+    let replaced = false;
+    fs.realpathSync = function replaceAtFinalResolution(filePath, ...args) {
+        if (!replaced && filePath === target) {
+            replaced = true;
+            fs.renameSync(target, displaced);
+            fs.symlinkSync(external, target);
+        }
+        return originalRealpath.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = planProject(projectRoot, {
+            schemaVersion: 1,
+            displayName: 'Project',
+            summary: 'One sentence.',
+        }, {
+            coreRoot: CORE_ROOT,
+            bootstrapPlanStage: 'provider',
+            bootstrapCandidateRoot: candidateRoot,
+        });
+    } finally {
+        fs.realpathSync = originalRealpath;
+    }
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(replaced, false);
+    assert.equal(report.data.outputs[0].candidatePath, target);
 });
 
 test('rejects a packaged Core hook with a non-canonical mode', (t) => {
