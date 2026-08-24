@@ -7,7 +7,7 @@ const path = require('node:path');
 const {loadContract} = require('./contract');
 
 const MAX_JSON_BYTES = 1048576;
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 function readJson(filePath, label) {
     const stat = fs.lstatSync(filePath);
@@ -61,7 +61,9 @@ function registrationFor(packageRoot, expectedName) {
     ].includes(key))) {
         throw new Error('adapter package metadata is unsupported');
     }
-    if (!EXACT_VERSION.test(manifest.version)) throw new Error('adapter package version is invalid');
+    if (!EXACT_VERSION.test(manifest.version) || /[\r\n]/.test(manifest.version)) {
+        throw new Error('adapter package version is invalid');
+    }
     if (
         prism.bootstrapProtocol !== undefined &&
         (!Number.isSafeInteger(prism.bootstrapProtocol) || prism.bootstrapProtocol < 1)

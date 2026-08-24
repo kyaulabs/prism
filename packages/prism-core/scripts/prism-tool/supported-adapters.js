@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {inspectSetupRoute} = require('./setup-route');
 
-const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/;
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const ADAPTER_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const PACKAGE_NAME = /^@kyaulabs\/[a-z0-9][a-z0-9._-]*$/;
 const MAX_JSON_BYTES = 1048576;
@@ -59,6 +59,7 @@ function defaultCatalogue(coreRoot) {
 }
 
 function loadSupportedAdapterCatalogue({coreRoot, catalogue}) {
+    const coreVersion = readCoreManifest(coreRoot).version;
     const value = catalogue ?? defaultCatalogue(coreRoot);
     if (!isRecord(value) || !hasExactKeys(value, ['schemaVersion', 'coreOnly', 'adapters'])) {
         throw new Error('supported adapter catalogue is invalid');
@@ -73,7 +74,7 @@ function loadSupportedAdapterCatalogue({coreRoot, catalogue}) {
     ) {
         throw new Error('Core-only catalogue entry is invalid');
     }
-    if (!Array.isArray(value.adapters) || value.adapters.length === 0 || value.adapters.length > 16) {
+    if (!Array.isArray(value.adapters) || value.adapters.length !== 1) {
         throw new Error('supported adapters are invalid');
     }
     const ids = new Set();
@@ -84,21 +85,25 @@ function loadSupportedAdapterCatalogue({coreRoot, catalogue}) {
         ])) {
             throw new Error('supported adapter entry is invalid');
         }
-        if (!ADAPTER_ID.test(entry.id) || entry.id === 'core-only' || ids.has(entry.id)) {
+        if (entry.id !== 'php-web' || !ADAPTER_ID.test(entry.id) || ids.has(entry.id)) {
             throw new Error('supported adapter ID is invalid');
         }
         if (
+            entry.displayName !== 'PHP/web' ||
             typeof entry.displayName !== 'string' ||
-            entry.displayName.length === 0 ||
             entry.displayName.length > 80 ||
             /[\0\r\n]/.test(entry.displayName)
         ) {
             throw new Error('supported adapter display name is invalid');
         }
-        if (!PACKAGE_NAME.test(entry.packageName) || packages.has(entry.packageName)) {
+        if (
+            entry.packageName !== '@kyaulabs/prism-php-web' ||
+            !PACKAGE_NAME.test(entry.packageName) ||
+            packages.has(entry.packageName)
+        ) {
             throw new Error('supported adapter package is invalid');
         }
-        if (!EXACT_VERSION.test(entry.packageVersion)) {
+        if (entry.packageVersion !== coreVersion || !EXACT_VERSION.test(entry.packageVersion)) {
             throw new Error('supported adapter version is invalid');
         }
         if (entry.bootstrapProtocol !== 1) {

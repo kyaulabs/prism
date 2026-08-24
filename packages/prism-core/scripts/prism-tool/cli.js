@@ -28,6 +28,7 @@ const {
 } = require('./package-release');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
+const BOOTSTRAP_ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
 
 function packageRootFor(packageName, coreRoot) {
@@ -306,7 +307,7 @@ function setup(args, context) {
             });
         } catch {
             process.stderr.write('prism-tool: supported adapter catalogue is invalid\n');
-            return EXIT.USAGE;
+            return EXIT.TRANSACTION;
         }
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
         else {
@@ -324,7 +325,7 @@ function setup(args, context) {
         const jsonCount = controls.filter((argument) => argument === '--json').length;
         if (
             attempts.length !== 1 ||
-            attempts[0].length === '--attempt='.length ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
             jsonCount > 1 ||
             controls.some((argument) =>
                 argument !== '--json' && !argument.startsWith('--attempt=')
@@ -342,8 +343,8 @@ function setup(args, context) {
                 attemptId: attempts[0].slice('--attempt='.length),
             });
         } catch {
-            process.stderr.write('prism-tool: bootstrap adapter cleanup controls are invalid\n');
-            return EXIT.USAGE;
+            process.stderr.write('prism-tool: bootstrap adapter cleanup failed\n');
+            return EXIT.TRANSACTION;
         }
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
         else {
@@ -383,11 +384,21 @@ function setup(args, context) {
             return EXIT.USAGE;
         }
         const adapterId = adapters[0].slice('--adapter='.length);
+        if (
+            !['core-only', 'php-web'].includes(adapterId) ||
+            (adapterId === 'core-only' && networks.length !== 0) ||
+            (adapterId === 'php-web' && networks.length !== 1)
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                '[--network-approved=yes] [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
         const source = sources[0] === '--source=template' ? 'TEMPLATE' : 'BLANK';
         let report;
         try {
             if (adapterId === 'core-only') {
-                if (networks.length !== 0) throw new Error('Core-only does not accept network approval');
                 report = selectCoreOnlyAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
@@ -395,7 +406,6 @@ function setup(args, context) {
                     source,
                 });
             } else {
-                if (networks.length !== 1) throw new Error('adapter selection requires approval');
                 report = provisionBootstrapAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
@@ -413,7 +423,7 @@ function setup(args, context) {
             }
         } catch {
             process.stderr.write('prism-tool: bootstrap adapter selection failed\n');
-            return EXIT.USAGE;
+            return EXIT.TRANSACTION;
         }
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
         else {

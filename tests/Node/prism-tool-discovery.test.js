@@ -414,6 +414,34 @@ test('rejects unsafe or unsupported adapter package metadata', (t) => {
     assert.throws(() => discoverAdapter({projectRoot, piDir}), /metadata is unsupported/);
 });
 
+test('accepts strict SemVer and rejects malformed adapter package versions', (t) => {
+    const roots = [];
+    t.after(() => {
+        for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
+    });
+    for (const version of ['01.2.3', '1.2.3-', '1.2.3-alpha..1', '1.2.3\n']) {
+        const projectRoot = makeTempDir();
+        roots.push(projectRoot);
+        const piDir = path.join(projectRoot, '.pi');
+        const packageRoot = path.join(piDir, 'npm', 'node_modules', '@fixture', 'adapter');
+        writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {version});
+        writeJson(path.join(piDir, 'npm', 'package.json'), {
+            dependencies: {'@fixture/adapter': version},
+        });
+        assert.throws(() => discoverAdapter({projectRoot, piDir}), /version is invalid/);
+    }
+
+    const projectRoot = makeTempDir();
+    roots.push(projectRoot);
+    const piDir = path.join(projectRoot, '.pi');
+    const packageRoot = path.join(piDir, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {version: '1.2.3+build.7'});
+    writeJson(path.join(piDir, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.2.3+build.7'},
+    });
+    assert.equal(discoverAdapter({projectRoot, piDir}).packageVersion, '1.2.3+build.7');
+});
+
 test('discovers one canonical local adapter through Pi resource paths', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

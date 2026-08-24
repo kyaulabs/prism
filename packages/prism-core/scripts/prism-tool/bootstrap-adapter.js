@@ -68,6 +68,9 @@ function inventoryDirectory(directory) {
             if (stat.isDirectory()) {
                 entry = {path: relativePath, type: 'directory', bytes: 0, sha256: null};
             } else if (stat.isFile()) {
+                if (stat.size > MAX_INVENTORY_BYTES || bytes + stat.size > MAX_INVENTORY_BYTES) {
+                    throw new Error('bootstrap inventory exceeds its bounds');
+                }
                 const contents = fs.readFileSync(absolutePath);
                 bytes += contents.length;
                 entry = {
@@ -178,6 +181,21 @@ function hasOnlyEntries(actual, allowed) {
     return actual.every((value) => allowed.includes(value));
 }
 
+function pathIdentity(filePath) {
+    const stat = fs.lstatSync(filePath);
+    const type = stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : 'other';
+    return {device: stat.dev, inode: stat.ino, mode: stat.mode, type};
+}
+
+function sameIdentity(left, right) {
+    return (
+        left.device === right.device &&
+        left.inode === right.inode &&
+        left.mode === right.mode &&
+        left.type === right.type
+    );
+}
+
 function removeEmpty(directory) {
     try {
         fs.rmdirSync(directory);
@@ -212,20 +230,33 @@ function cleanupFailedProvision(projectRoot, attemptId, acquisition) {
     if (!equalsEntries(roots, ['.pi']) || !hasOnlyEntries(pi, allowedPi)) {
         return false;
     }
+    const paths = attemptPaths(projectRoot, attemptId);
+    const cleanupRoot = path.join(paths.attemptRoot, 'cleanup-failed');
     const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
     const npmRoot = path.join(projectRoot, '.pi', 'npm');
-    if (fs.existsSync(settingsPath)) {
-        const stat = fs.lstatSync(settingsPath);
-        if (stat.isSymbolicLink() || !stat.isFile()) return false;
-        fs.unlinkSync(settingsPath);
+    try {
+        fs.mkdirSync(cleanupRoot, {mode: 0o700});
+        if (fs.existsSync(settingsPath)) {
+            const identity = pathIdentity(settingsPath);
+            if (identity.type !== 'file') return false;
+            const quarantinedSettings = path.join(cleanupRoot, 'settings.json');
+            fs.renameSync(settingsPath, quarantinedSettings);
+            if (!sameIdentity(identity, pathIdentity(quarantinedSettings))) return false;
+        }
+        if (fs.existsSync(npmRoot)) {
+            const identity = pathIdentity(npmRoot);
+            if (identity.type !== 'directory') return false;
+            const quarantinedNpm = path.join(cleanupRoot, 'npm');
+            fs.renameSync(npmRoot, quarantinedNpm);
+            if (!sameIdentity(identity, pathIdentity(quarantinedNpm))) return false;
+        }
+        if (!equalsEntries(piEntries(projectRoot), ['prism-tool'])) return false;
+        fs.rmSync(cleanupRoot, {recursive: true, force: true});
+        removeAttemptWorkspace(projectRoot, attemptId);
+        return rootEntries(projectRoot).length === 0;
+    } catch {
+        return false;
     }
-    if (fs.existsSync(npmRoot)) {
-        const stat = fs.lstatSync(npmRoot);
-        if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
-        fs.rmSync(npmRoot, {recursive: true, force: true});
-    }
-    removeAttemptWorkspace(projectRoot, attemptId);
-    return rootEntries(projectRoot).length === 0;
 }
 
 function attemptPaths(projectRoot, attemptId) {
@@ -269,8 +300,7 @@ function createAttempt(projectRoot, randomUUID, adapter, acquisition, source) {
     return {...paths, id, receipt};
 }
 
-function settingsEvidence(projectRoot, acquisition) {
-    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+function settingsFileEvidence(settingsPath, acquisition) {
     const contents = readRegular(settingsPath);
     const settings = JSON.parse(contents.toString('utf8'));
     if (
@@ -282,6 +312,10 @@ function settingsEvidence(projectRoot, acquisition) {
         throw new Error('Pi settings do not contain the exact adapter package');
     }
     return {sha256: sha256(contents), packageSource: acquisition.installSource};
+}
+
+function settingsEvidence(projectRoot, acquisition) {
+    return settingsFileEvidence(path.join(projectRoot, '.pi', 'settings.json'), acquisition);
 }
 
 function assertNpmState(projectRoot, adapter) {
@@ -345,6 +379,8 @@ function reportFailure(projectRoot, source, attempt, reason, cleaned) {
                 id: attempt.id,
                 receiptPath: attempt.receiptPath,
             },
+            recoveryPath: attempt.attemptRoot,
+            nextAction: 'Inspect the retained attempt state manually before retrying setup.',
         },
     };
 }
@@ -386,20 +422,31 @@ function provisionBootstrapAdapter(options) {
     if (!equalsEntries(rootEntries(projectRoot), ['.pi']) || !equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
         return reportFailure(projectRoot, options.source, attempt, 'PREINSTALL_STATE_CHANGED', false);
     }
-    const result = options.run(
-        options.piExecutable,
-        ['install', acquisition.installSource, '-l', '--approve'],
-        {
-            cwd: projectRoot,
-            env: {
-                ...options.env,
-                npm_config_ignore_scripts: 'true',
-                NPM_CONFIG_IGNORE_SCRIPTS: 'true',
-            },
-            maxBuffer: 1048576,
-            timeout: INSTALL_TIMEOUT_MS,
-        }
-    );
+    let result;
+    try {
+        result = options.run(
+            options.piExecutable,
+            ['install', acquisition.installSource, '-l', '--approve'],
+            {
+                cwd: projectRoot,
+                env: {
+                    ...options.env,
+                    npm_config_ignore_scripts: 'true',
+                    NPM_CONFIG_IGNORE_SCRIPTS: 'true',
+                },
+                maxBuffer: 1048576,
+                timeout: INSTALL_TIMEOUT_MS,
+            }
+        );
+    } catch {
+        return reportFailure(
+            projectRoot,
+            options.source,
+            attempt,
+            'PI_INSTALL_FAILED',
+            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+        );
+    }
     if (result.error || result.status !== 0) {
         return reportFailure(
             projectRoot,
@@ -558,11 +605,17 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
     } catch {
         return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'STATE_UNSAFE');
     }
+    let settingsIdentity;
+    let npmIdentity = null;
     try {
+        const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+        settingsIdentity = pathIdentity(settingsPath);
         const settings = settingsEvidence(projectRoot, receipt.acquisition);
         if (settings.sha256 !== receipt.settings.sha256) throw new Error('settings changed');
         if (receipt.acquisition.kind === 'NPM') {
-            const inventory = inventoryDirectory(path.join(projectRoot, '.pi', 'npm'));
+            const npmRoot = path.join(projectRoot, '.pi', 'npm');
+            npmIdentity = pathIdentity(npmRoot);
+            const inventory = inventoryDirectory(npmRoot);
             if (
                 !isRecord(receipt.npmInventory) ||
                 inventory.sha256 !== receipt.npmInventory.sha256 ||
@@ -581,9 +634,38 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
     const npmRoot = path.join(projectRoot, '.pi', 'npm');
     try {
         fs.mkdirSync(cleanupRoot, {mode: 0o700});
-        fs.renameSync(settingsPath, path.join(cleanupRoot, 'settings.json'));
+        const quarantinedSettings = path.join(cleanupRoot, 'settings.json');
+        fs.renameSync(settingsPath, quarantinedSettings);
+        if (
+            !sameIdentity(settingsIdentity, pathIdentity(quarantinedSettings)) ||
+            settingsFileEvidence(quarantinedSettings, receipt.acquisition).sha256 !==
+                receipt.settings.sha256
+        ) {
+            return recoveryReport(
+                projectRoot,
+                attemptId,
+                paths.receiptPath,
+                'STATE_CHANGED_AFTER_QUARANTINE',
+                cleanupRoot
+            );
+        }
         if (receipt.acquisition.kind === 'NPM') {
-            fs.renameSync(npmRoot, path.join(cleanupRoot, 'npm'));
+            const quarantinedNpm = path.join(cleanupRoot, 'npm');
+            fs.renameSync(npmRoot, quarantinedNpm);
+            const inventory = inventoryDirectory(quarantinedNpm);
+            if (
+                !sameIdentity(npmIdentity, pathIdentity(quarantinedNpm)) ||
+                inventory.sha256 !== receipt.npmInventory.sha256 ||
+                inventory.bytes !== receipt.npmInventory.bytes
+            ) {
+                return recoveryReport(
+                    projectRoot,
+                    attemptId,
+                    paths.receiptPath,
+                    'STATE_CHANGED_AFTER_QUARANTINE',
+                    cleanupRoot
+                );
+            }
         }
         if (!equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
             return recoveryReport(

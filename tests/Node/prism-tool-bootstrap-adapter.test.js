@@ -176,6 +176,7 @@ test('rejects unsupported or ambiguous adapter catalogues', (t) => {
         {...valid, adapters: []},
         {...valid, adapters: [valid.adapters[0], {...valid.adapters[0]}]},
         {...valid, adapters: [{...valid.adapters[0], packageName: '@other/adapter'}]},
+        {...valid, adapters: [{...valid.adapters[0], packageName: '@kyaulabs/prism-other'}]},
         {...valid, adapters: [{...valid.adapters[0], packageVersion: '^0.3.1'}]},
         {...valid, adapters: [{...valid.adapters[0], bootstrapProtocol: 2}]},
         {...valid, adapters: [{...valid.adapters[0], displayName: ''}]},
@@ -194,7 +195,7 @@ test('rejects unsupported or ambiguous adapter catalogues', (t) => {
             }
         ));
 
-        assert.equal(result.status, 2);
+        assert.equal(result.status, 5);
         assert.equal(result.stdout, '');
         assert.match(result.stderr, /supported adapter catalogue is invalid/);
         assert.equal(invocations, 0);
@@ -740,7 +741,9 @@ test('rejects traversal-shaped attempt identifiers before creating state', (t) =
         run: () => { invocations += 1; },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /bootstrap adapter selection failed/);
     assert.equal(invocations, 0);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
@@ -1142,6 +1145,230 @@ test('rejects registration metadata before loading adapter handler code', (t) =>
     assert.equal(result.status, 5);
     assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.equal(fs.existsSync(loadMarker), false);
+});
+
+test('rejects oversized inventory files before reading their bytes', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const largePath = path.join(
+        projectRoot,
+        '.pi',
+        'npm',
+        'node_modules',
+        '@kyaulabs',
+        'prism-php-web',
+        'large.bin'
+    );
+    let readLarge = false;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const install = installFixture({
+        projectRoot,
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '0.3.1',
+    });
+    const readFileSync = fs.readFileSync;
+    fs.readFileSync = (...args) => {
+        if (args[0] === largePath) {
+            readLarge = true;
+            throw new Error('oversized file bytes must not be read');
+        }
+        return readFileSync(...args);
+    };
+    t.after(() => { fs.readFileSync = readFileSync; });
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '12121212-1212-4212-8212-121212121212',
+        run: (...args) => {
+            const completed = install(...args);
+            const descriptor = fs.openSync(largePath, 'w');
+            fs.ftruncateSync(descriptor, 268435457);
+            fs.closeSync(descriptor);
+            return completed;
+        },
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
+    assert.equal(readLarge, false);
+});
+
+test('maps a thrown Pi runner failure to bounded transaction cleanup', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '13131313-1313-4313-8313-131313131313',
+        run: () => { throw new Error('runner canary'); },
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stderr, '');
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('maps cleanup filesystem failures to transaction failure', (t) => {
+    const parentRoot = makeTempDir();
+    const missingRoot = path.join(parentRoot, 'missing');
+    t.after(() => fs.rmSync(parentRoot, {recursive: true, force: true}));
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'cleanup',
+        '--attempt=14141414-1414-4414-8414-141414141414',
+        '--json',
+    ], {projectRoot: missingRoot}));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /bootstrap adapter cleanup failed/);
+});
+
+test('maps selection filesystem failures to transaction failure', (t) => {
+    const parentRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const missingRoot = path.join(parentRoot, 'missing');
+    t.after(() => fs.rmSync(parentRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot: missingRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /bootstrap adapter selection failed/);
+});
+
+test('preserves a settings replacement introduced at the quarantine boundary', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const attemptId = '15151515-1515-4515-8515-151515151515';
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const provisioned = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => attemptId,
+        run: installFixture({
+            projectRoot,
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+        }),
+    }));
+    assert.equal(provisioned.status, 0);
+    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+    const renameSync = fs.renameSync;
+    let replaced = false;
+    fs.renameSync = (source, destination) => {
+        if (!replaced && source === settingsPath) {
+            replaced = true;
+            fs.unlinkSync(settingsPath);
+            fs.writeFileSync(settingsPath, 'user-owned\n');
+        }
+        return renameSync(source, destination);
+    };
+    t.after(() => { fs.renameSync = renameSync; });
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'cleanup', `--attempt=${attemptId}`, '--json',
+    ], {projectRoot}));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(
+        fs.readFileSync(path.join(report.data.recoveryPath, 'settings.json'), 'utf8'),
+        'user-owned\n'
+    );
+});
+
+test('preserves an npm replacement introduced at failed-cleanup boundary', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const npmRoot = path.join(projectRoot, '.pi', 'npm');
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const install = installFixture({
+        projectRoot,
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '0.3.1',
+    });
+    const renameSync = fs.renameSync;
+    let replaced = false;
+    fs.renameSync = (source, destination) => {
+        if (!replaced && source === npmRoot) {
+            replaced = true;
+            renameSync(npmRoot, path.join(projectRoot, '.pi', 'npm-owned'));
+            fs.mkdirSync(npmRoot);
+            fs.writeFileSync(path.join(npmRoot, 'user.txt'), 'user-owned\n');
+        }
+        return renameSync(source, destination);
+    };
+    t.after(() => { fs.renameSync = renameSync; });
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '16161616-1616-4616-8616-161616161616',
+        run: (...args) => {
+            install(...args);
+            return {status: 1, stdout: '', stderr: '', error: undefined};
+        },
+    }));
+
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(
+        fs.readFileSync(path.join(report.data.recoveryPath, 'cleanup-failed', 'npm', 'user.txt'), 'utf8'),
+        'user-owned\n'
+    );
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
