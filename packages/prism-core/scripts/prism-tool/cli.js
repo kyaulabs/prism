@@ -2,6 +2,7 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
@@ -9,6 +10,7 @@ const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
+const {provisionBootstrapAdapter} = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -317,32 +319,57 @@ function setup(args, context) {
         const controls = args.slice(2);
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
         const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
         if (
             adapters.length !== 1 ||
-            adapters[0] !== '--adapter=core-only' ||
+            adapters[0].length === '--adapter='.length ||
             sources.length !== 1 ||
             !['--source=template', '--source=blank'].includes(sources[0]) ||
+            networks.length > 1 ||
+            (networks.length === 1 && networks[0] !== '--network-approved=yes') ||
             jsonCount > 1 ||
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--adapter=') &&
-                !argument.startsWith('--source=')
+                !argument.startsWith('--source=') &&
+                !argument.startsWith('--network-approved=')
             )
         ) {
             process.stderr.write(
-                'usage: prism-tool setup adapter select --adapter=core-only --source=template|blank [--json]\n'
+                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
         }
+        const adapterId = adapters[0].slice('--adapter='.length);
+        const source = sources[0] === '--source=template' ? 'TEMPLATE' : 'BLANK';
         let report;
         try {
-            report = selectCoreOnlyAdapter({
-                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
-                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                catalogue: context.adapterCatalogue,
-                source: sources[0] === '--source=template' ? 'TEMPLATE' : 'BLANK',
-            });
+            if (adapterId === 'core-only') {
+                if (networks.length !== 0) throw new Error('Core-only does not accept network approval');
+                report = selectCoreOnlyAdapter({
+                    projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    catalogue: context.adapterCatalogue,
+                    source,
+                });
+            } else {
+                report = provisionBootstrapAdapter({
+                    projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    catalogue: context.adapterCatalogue,
+                    adapterId,
+                    source,
+                    networkApproved: networks[0] === '--network-approved=yes',
+                    piExecutable: context.piExecutable ?? resolveExecutable(
+                        'pi',
+                        context.env ?? process.env
+                    ),
+                    randomUUID: context.randomUUID ?? crypto.randomUUID,
+                    run: context.run ?? runBounded,
+                });
+            }
         } catch {
             process.stderr.write('prism-tool: bootstrap adapter selection failed\n');
             return EXIT.USAGE;

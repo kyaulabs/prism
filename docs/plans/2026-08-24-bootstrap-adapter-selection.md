@@ -553,7 +553,7 @@ prism-tool commit create --type feat --scope setup --subject "validate bootstrap
 - Produces: `cleanupBootstrapAdapter({projectRoot, attemptId}) -> BootstrapAdapterReport`.
 - Receipt schema: `{schemaVersion, attemptId, projectRoot, phase, source, adapter, acquisition, settings, npmInventory, registration}`.
 
-- [ ] **Step 1: Add failing public provisional-install and cleanup tests**
+- [x] **Step 1: Add failing public provisional-install and cleanup tests**
 
 Add a fixture helper that simulates Pi's documented project-local npm result only when the exact fixed invocation is received:
 
@@ -606,7 +606,7 @@ Add public tests for:
 9. established or containing-worktree roots invoke no Pi subprocess;
 10. no lifecycle script marker executes.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -616,7 +616,7 @@ node --test tests/Node/prism-tool-bootstrap-adapter.test.js
 
 Expected: FAIL because selection does not provision, receipt, validate, or clean project-local package state.
 
-- [ ] **Step 3: Implement bounded receipts, inventory, installation, and cleanup**
+- [x] **Step 3: Implement bounded receipts, inventory, installation, and cleanup**
 
 Implement these constants and positive validators in `bootstrap-adapter.js`:
 
@@ -686,7 +686,7 @@ If any ownership or continuity check fails before quarantine, delete nothing. If
 
 In `cli.js`, parse only the documented controls. `php-web` requires exactly one `--network-approved=yes`; Core-only forbids network controls. `cleanup` accepts exactly one valid attempt ID. Render closed reports and map GO to exit `0`, operational NO-GO to exit `5`, and malformed controls to exit `2`.
 
-- [ ] **Step 4: Run focused and neighboring regressions**
+- [x] **Step 4: Run focused and neighboring regressions**
 
 Run:
 
@@ -696,7 +696,7 @@ node --test tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-too
 
 Expected: PASS; exact install state is validated, failure cleanup restores emptiness, ambiguous state is preserved, and established setup behavior remains green.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-adapter.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-adapter.test.js
