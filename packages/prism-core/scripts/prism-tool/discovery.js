@@ -61,7 +61,11 @@ function registrationFor(packageRoot, expectedName) {
     ].includes(key))) {
         throw new Error('adapter package metadata is unsupported');
     }
-    if (!EXACT_VERSION.test(manifest.version) || /[\r\n]/.test(manifest.version)) {
+    if (
+        typeof manifest.version !== 'string' ||
+        !EXACT_VERSION.test(manifest.version) ||
+        /[\r\n]/.test(manifest.version)
+    ) {
         throw new Error('adapter package version is invalid');
     }
     if (

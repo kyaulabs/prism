@@ -419,7 +419,7 @@ test('accepts strict SemVer and rejects malformed adapter package versions', (t)
     t.after(() => {
         for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
     });
-    for (const version of ['01.2.3', '1.2.3-', '1.2.3-alpha..1', '1.2.3\n']) {
+    for (const version of ['01.2.3', '1.2.3-', '1.2.3-alpha..1', '1.2.3\n', ['1.2.3']]) {
         const projectRoot = makeTempDir();
         roots.push(projectRoot);
         const piDir = path.join(projectRoot, '.pi');

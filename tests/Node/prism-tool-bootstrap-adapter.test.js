@@ -860,6 +860,55 @@ test('explicit cleanup removes unchanged provisioned adapter state', (t) => {
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
+test('cleanup returns structured recovery when the final root inspection fails', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const attemptId = '01010101-0101-4101-8101-010101010101';
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const provisioned = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => attemptId,
+        run: installFixture({
+            projectRoot,
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+        }),
+    }));
+    assert.equal(provisioned.status, 0);
+
+    const readdirSync = fs.readdirSync;
+    fs.readdirSync = (target, ...args) => {
+        const entries = readdirSync(target, ...args);
+        if (path.resolve(target) === projectRoot && entries.length === 0) {
+            throw new Error('final root inspection failed');
+        }
+        return entries;
+    };
+    let result;
+    try {
+        result = captureWrites(() => main([
+            'setup', 'adapter', 'cleanup', `--attempt=${attemptId}`, '--json',
+        ], {projectRoot}));
+    } finally {
+        fs.readdirSync = readdirSync;
+    }
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.reason, 'ROOT_STATE_UNSAFE');
+});
+
 test('cleanup preserves changed or ambiguous provisioned state for recovery', async (t) => {
     const cases = [
         {
@@ -1097,6 +1146,49 @@ test('disables package lifecycle scripts during provisional installation', (t) =
 
     assert.equal(result.status, 0);
     assert.equal(fs.existsSync(lifecycleMarker), false);
+});
+
+test('inherits the process environment while suppressing lifecycle scripts', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const canaryName = 'PRISM_BOOTSTRAP_ENV_CANARY';
+    const originalCanary = process.env[canaryName];
+    let childEnvironment;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    t.after(() => {
+        if (originalCanary === undefined) delete process.env[canaryName];
+        else process.env[canaryName] = originalCanary;
+    });
+    process.env[canaryName] = 'inherited';
+    writeCorePackage(coreRoot);
+    const install = installFixture({
+        projectRoot,
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '0.3.1',
+    });
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '91919191-9191-4191-8191-919191919191',
+        run: (...args) => {
+            childEnvironment = args[2].env;
+            return install(...args);
+        },
+    }));
+
+    assert.equal(result.status, 0);
+    assert.equal(childEnvironment[canaryName], 'inherited');
+    assert.equal(childEnvironment.npm_config_ignore_scripts, 'true');
+    assert.equal(childEnvironment.NPM_CONFIG_IGNORE_SCRIPTS, 'true');
 });
 
 test('rejects registration metadata before loading adapter handler code', (t) => {

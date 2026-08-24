@@ -62,7 +62,7 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=c
 assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*schema|unknown.*disposition|fail closed' 'setup fails closed on unknown route reports'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel.*no template access|Cancel.*template access.*package acquisition.*project mutation' 'Cancel forbids bootstrap effects'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter catalogue --json' 'strict-empty setup reads the Core adapter catalogue'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'Core-only' 'strict-empty setup offers Core-only'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose the bootstrap adapter: Core only, PHP/web, or Cancel[?]' 'strict-empty setup offers Core-only'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'PHP/web' 'strict-empty setup offers the PHP/web adapter'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=core-only --source=' 'strict-empty setup records Core-only without acquisition'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=php-web --source=.*--network-approved=yes' 'strict-empty setup obtains explicit registry approval for adapter acquisition'

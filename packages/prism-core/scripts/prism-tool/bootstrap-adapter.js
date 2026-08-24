@@ -430,6 +430,7 @@ function provisionBootstrapAdapter(options) {
             {
                 cwd: projectRoot,
                 env: {
+                    ...process.env,
                     ...options.env,
                     npm_config_ignore_scripts: 'true',
                     NPM_CONFIG_IGNORE_SCRIPTS: 'true',
@@ -691,8 +692,12 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
             fs.existsSync(cleanupRoot) ? cleanupRoot : null
         );
     }
-    if (rootEntries(projectRoot).length !== 0) {
-        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'ROOT_NOT_EMPTY');
+    try {
+        if (rootEntries(projectRoot).length !== 0) {
+            return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'ROOT_NOT_EMPTY');
+        }
+    } catch {
+        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'ROOT_STATE_UNSAFE');
     }
     return {
         schemaVersion: 1,
