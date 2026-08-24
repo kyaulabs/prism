@@ -87,7 +87,7 @@
 - `SupportedAdapterCatalogue` is `{schemaVersion: 1, coreOnly: {id, displayName, adapter}, adapters: AdapterRecord[]}`.
 - `AdapterRecord` is `{id, displayName, packageName, packageVersion, bootstrapProtocol}`.
 
-- [ ] **Step 1: Write the failing public catalogue and Core-only tests**
+- [x] **Step 1: Write the failing public catalogue and Core-only tests**
 
 Create `tests/Node/prism-tool-bootstrap-adapter.test.js` with the standard synchronous `captureWrites()` helper used by neighboring launcher tests, then add these tests:
 
@@ -199,7 +199,7 @@ test('selects Core-only without package, handler, or filesystem effects', (t) =>
 
 Add table-driven invalid-catalogue tests by injecting `context.adapterCatalogue`. Cover unknown top-level keys, unsupported schema, missing `coreOnly`, non-null Core-only adapter, empty/duplicate adapter IDs, duplicate package identities, package ranges, unscoped or non-KYAULabs packages, unknown adapter fields, empty display names, and protocol values other than `1`. Every case returns exit `2`, emits no catalogue data, invokes no subprocess, and leaves the root empty.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -209,7 +209,7 @@ node --test tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/toolchain
 
 Expected: FAIL because the adapter catalogue operation and packaged module do not exist.
 
-- [ ] **Step 3: Implement the closed catalogue and read-only report**
+- [x] **Step 3: Implement the closed catalogue and read-only report**
 
 Create `packages/prism-core/scripts/prism-tool/supported-adapters.js`:
 
@@ -367,7 +367,7 @@ Add a `setup adapter catalogue` branch near `setup source` and `setup route` in 
 
 Add `supported-adapters` to the packaged launcher-module assertion in `tests/Node/toolchain-packaging.test.js`.
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run:
 
@@ -377,7 +377,7 @@ node --test tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-too
 
 Expected: PASS; catalogue inspection is read-only and Core-only selection invokes no subprocess or adapter code.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/supported-adapters.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/toolchain-packaging.test.js

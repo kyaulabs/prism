@@ -8,6 +8,7 @@ const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('.
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectTemplateSource} = require('./template-source');
+const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -284,6 +285,78 @@ function renderSetupSourceReport(report, json) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'adapter' && args[1] === 'catalogue') {
+        const controls = args.slice(2);
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (jsonCount > 1 || controls.some((argument) => argument !== '--json')) {
+            process.stderr.write('usage: prism-tool setup adapter catalogue [--json]\n');
+            return EXIT.USAGE;
+        }
+        let report;
+        try {
+            report = inspectSupportedAdapters({
+                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                catalogue: context.adapterCatalogue,
+            });
+        } catch {
+            process.stderr.write('prism-tool: supported adapter catalogue is invalid\n');
+            return EXIT.USAGE;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    if (args[0] === 'adapter' && args[1] === 'select') {
+        const controls = args.slice(2);
+        const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            adapters.length !== 1 ||
+            adapters[0] !== '--adapter=core-only' ||
+            sources.length !== 1 ||
+            !['--source=template', '--source=blank'].includes(sources[0]) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--source=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter select --adapter=core-only --source=template|blank [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        let report;
+        try {
+            report = selectCoreOnlyAdapter({
+                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                catalogue: context.adapterCatalogue,
+                source: sources[0] === '--source=template' ? 'TEMPLATE' : 'BLANK',
+            });
+        } catch {
+            process.stderr.write('prism-tool: bootstrap adapter selection failed\n');
+            return EXIT.USAGE;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
     if (args[0] === 'source') {
         const controls = args.slice(1);
         const sources = controls.filter((argument) => argument.startsWith('--source='));
