@@ -33,22 +33,28 @@ documentation, and conversation.
 | Pi package | A distributable collection of Pi skills, prompt templates, extensions, themes, and supporting package files. Prism ships a global core package and project-local stack adapters. |
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, and the sole safety extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
-| active adapter | The project-local stack adapter selected by project evidence and made available to the current Pi session. Core workflows delegate stack-specific operations to it. |
+| active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
 | external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep and OCR are the initial prerequisites. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed dependency-network effects for one attempt; consumer mutation remains separately approved. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
-| setup attempt | One invocation-scoped `/setup` orchestration with bounded dependency-network authorization, independently approved mutation stages, and no standing consent after it stops. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
+| setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
+| empty-project bootstrap transaction | The Core-owned outer transaction that composes strict-empty source evidence, provisional package state, trusted provider reports, approved metadata, one combined plan, durable application, rollback, and recovery. It is distinct from an adapter candidate transaction. |
+| bootstrap workspace | The Core-owned ephemeral operational area for one empty-project bootstrap transaction. An adapter may receive a bounded attempt subdirectory without gaining ownership of the outer transaction. |
+| project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
+| trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
+| supported-adapter catalogue | The Core-shipped schema-versioned closed list of adapters eligible for strict-empty setup, including exact project-local package identities, versions, and bootstrap protocol compatibility. |
+| template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
 | testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
-| repository seed | The sole signed root commit created on unborn `develop`, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Publication remains human-owned. |
+| repository seed | The sole signed root commit created on unborn `develop` after durable project application, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Its evidence may contain a nullable adapter and binds source, capabilities, providers, metadata, plan, hooks, and staged state. Publication remains human-owned. |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
@@ -83,8 +89,12 @@ The globally installed, language-agnostic harness package.
 - Deploys merge-safe global instructions without replacing user-owned content.
 - Exposes generic tooling through stable interfaces rather than consumer
   working-directory assumptions.
-- Owns deterministic Git initialization, canonical hook distribution, bounded
-  repository-seed attestation, and signed root-commit orchestration.
+- Owns strict-empty routing, fixed public-template acquisition, the supported-
+  adapter and trusted-provider catalogues, provider composition, the empty-
+  project bootstrap transaction, and durable-application recovery.
+- Owns deterministic post-application Git initialization, canonical hook
+  distribution, bounded repository-seed attestation, and signed root-commit
+  orchestration.
 - Owns privacy-minimal global standing-consent state through narrow,
   explicitly approved launcher operations.
 - Owns the opt-in package-release capability, canonical release workflow,
@@ -98,10 +108,15 @@ A project-local specialization of the Prism core.
 
 - Owns all conventions and tools tied to its language or framework.
 - Is opt-in and must not change language-agnostic core semantics.
+- Is selected from project evidence for established projects or explicitly
+  from Core's supported-adapter catalogue for strict-empty projects.
 - Contributes data to the core safety boundary rather than loading another
   extension.
 - Provisions ecosystem dependencies and complete testing-ready scaffolds only
   through an approved adapter-owned desired-state transaction.
+- May prepare a closed bounded report inside a delegated bootstrap attempt but
+  never owns Template acquisition, Core/profile rendering, combined-plan
+  approval, strict-empty rollback, or repository creation.
 - Owns stack-specific local/CI quality behavior, generated CI, dependency
   population, and browser acquisition behind Core orchestration.
 - A change that requires stack-specific logic in core is an architecture
@@ -133,14 +148,15 @@ The measured state required before a toolchain entry point proceeds.
 - Standing OCR consent authorizes only OCR connectivity and reviewed-code
   egress; it never transfers to registry, mutation, Git, GitHub, or other
   external effects.
-- `/setup` invocation separately authorizes only the bounded registry, audit,
-  locked-population, and declared browser-download effects of that attempt.
+- `/setup` invocation separately authorizes only the bounded fixed public-
+  template reads, exact selected adapter acquisition, registry, audit, locked-
+  population, and declared browser-download effects disclosed for that attempt.
 - A known dependency advisory at any severity prevents GO status.
 - Required tools are never silently skipped.
 
 ### Candidate Transaction
 
-The journaled desired-state operation owned by an active adapter.
+The journaled established-project desired-state operation owned by an active adapter.
 
 - Registry, audit, locked-population, and declared browser-download access is
   bounded to the active setup attempt's network authorization.
@@ -156,18 +172,42 @@ The journaled desired-state operation owned by an active adapter.
 - Recovery and cleanup are limited to the ownership-marked candidate workspace
   and its validated journal.
 
+### Empty-Project Bootstrap Transaction
+
+The Core-owned outer project-composition lifecycle for a strictly empty root.
+
+- Strict-empty classification selects Template, Blank, or Cancel; established
+  projects remain on their evidence-driven adapter route.
+- Template data is an untrusted immutable capability catalogue and never a
+  source of project bytes, executable renderers, packages, defaults, metadata,
+  scripts, or automatic capability selection.
+- Core-only is an explicit disposition with nullable adapter identity, not a
+  synthetic adapter.
+- Trusted Core, optional-profile, and selected-adapter reports use closed
+  schemas and non-overlapping bounded ownership before one digest-bound plan is
+  displayed.
+- Pre-durable decline or failure restores only proven transaction-owned state
+  and proves strict emptiness; ambiguous concurrent state is preserved.
+- Durable application establishes the complete approved project tree before
+  Git exists; later failures retain the tree and resume from the journaled
+  phase.
+
 ### Repository Bootstrap
 
 The Core-owned local Git and root-seed lifecycle selected through `/setup`.
 
-- Git initialization is create-only and deterministic; existing or containing
-  repositories are preserved without normalization.
+- Git initialization runs only after durable project application and remains
+  create-only and deterministic; existing or containing repositories are
+  preserved without normalization.
 - Only a `CREATE` disposition from the active setup attempt yields a one-use
   root-seed attestation.
-- The attestation binds the canonical root, adapter identity, setup inventory,
-  file digests, hook inventory, and final staged-index digest.
-- The seed stages no unrelated paths and passes the shared local/CI quality
-  implementation before commit creation.
+- The attestation binds the canonical root, source evidence, capabilities,
+  provider identities and versions, approved metadata, nullable adapter,
+  combined plan, applied inventory, durable journal, hook inventory, and final
+  staged-index digest.
+- The seed stages no unrelated or operational paths and passes the applicable
+  shared Core and adapter local/CI quality implementation before commit
+  creation.
 - The exclusive signed commit launcher creates the sole root commit with the
   reserved initial-seed type and retains fatal failure recovery.
 - Setup never configures a remote, pushes, opens a pull request, or applies a
@@ -276,6 +316,9 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   extension.
 - Toolchain declarations, generic launcher behavior, adapter handoff, and
   consent/readiness semantics.
+- Strict-empty classification, fixed template-source validation, supported-
+  adapter and trusted-provider catalogues, project metadata, provider
+  composition, durable application, rollback, and recovery.
 - Git hooks, local quality gates, CI-equivalent validation, and release/PR
   preparation procedures.
 - The PHP/web adapter's conventions, dependency contract, and changed-file
@@ -294,8 +337,9 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   invokes them but does not own installation, authentication, or heuristics.
 - **Aurora Framework** — the no-MVC PHP framework remains an external
   submodule; Prism's adapter documents and tests integration patterns.
-- **GitHub** — issue tracking, pull requests, Actions, rulesets, and release
-  publication.
+- **GitHub** — issue tracking, pull requests, Actions, rulesets, release
+  publication, and the fixed unauthenticated public template object boundary.
+  Prism treats every template response and manifest as untrusted data.
 - **LLM providers** — providers authenticate and run inference. Prism neither
   stores provider credentials nor hosts or proxies models.
 
@@ -306,10 +350,15 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - Argument-array subprocess calls with bounded, sanitized output and stable
   exit statuses.
 - Composer/npm manifests and lockfiles as ecosystem transaction boundaries.
+- Closed trusted-provider reports, bounded path ownership, and digest-bound
+  combined project plans.
+- Fixed unauthenticated public-template object responses and immutable template
+  source attestations.
 - Adapter safe-directory data consumed by the core safety extension.
 - Human authorization at each network, mutation, connectivity, and code-egress
-  boundary: invocation-scoped setup networking under ADR-0076, separately
-  approved mutations, or narrowly scoped standing OCR consent under ADR-0074.
+  boundary: invocation-scoped setup acquisition under ADR-0083, separately
+  approved project and hook mutations, or narrowly scoped standing OCR consent
+  under ADR-0074.
 
 ## Non-Goals
 
@@ -381,12 +430,15 @@ Pi-era decisions:
 - `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
 - `adr/0074-approval-free-harness-operations.md` — use standing OCR consent, atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
 - `adr/0075-exclusive-global-core-package-source.md` — keep exactly one selected Prism Core source active in Pi global settings through atomic installer reconciliation.
-- `adr/0076-bounded-setup-network-authorization.md` — treat `/setup` invocation as one bounded dependency-network authorization while retaining separate mutation and external-effect boundaries.
-- `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — let Core create only an absent deterministic repository and one attested signed root seed without publication.
+- `adr/0076-bounded-setup-network-authorization.md` — superseded setup-network baseline retained as historical context through ADR-0083.
+- `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — superseded Git-first repository-bootstrap baseline retained as historical context through ADR-0084.
 - `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
 - `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
 - `adr/0080-bounded-diff-causal-review-chains.md` — preserve one complete initial review and append repair-delta evidence while blocking finalization only on concrete diff-caused defects.
 - `adr/0081-plan-approved-automatic-finalization.md` — let approved plans continue automatically through cleanup, synchronization, unlimited local checks, one four-axis review, and preparation-only `/pr`; require fresh approval only for additional review attempts.
+- `adr/0082-provider-composed-empty-project-bootstrap.md` — compose strict-empty Template, Blank, Core-only, adapter, metadata, and optional-capability outputs through one Core-owned durable project transaction.
+- `adr/0083-strict-empty-setup-acquisition-authorization.md` — bound setup acquisition to fixed public-template object reads, exact selected adapter installation, and previously accepted dependency effects without broadening external authority.
+- `adr/0084-post-application-repository-bootstrap-and-root-seed.md` — initialize Git only after durable project application and bind the signed root seed to source, provider, metadata, nullable-adapter, plan, and journal evidence.
 
 ## When to update this file
 
