@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,8 @@ const {
     verifyInstalledProject,
 } = require('./toolchain/transaction');
 const {recoverWorkspace} = require('./toolchain/workspace');
+
+const bootstrapProtocol = 1;
 
 function apply(options) {
     if (options.approved !== true) {
@@ -30,6 +32,6 @@ function verify(options) {
     return verifyInstalledProject(options);
 }
 
-module.exports = {apply, inspect, resolve, resolveTool, verify};
+module.exports = {apply, bootstrapProtocol, inspect, resolve, resolveTool, verify};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

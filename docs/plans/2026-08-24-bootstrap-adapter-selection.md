@@ -405,7 +405,7 @@ prism-tool commit create --type feat --scope setup --subject "publish supported 
 - Produces: `selectBootstrapAdapter({projectRoot, coreRoot, source, adapterId, ...}) -> BootstrapAdapterReport`.
 - `expected` is the exact catalogue record; no caller package data is accepted.
 
-- [ ] **Step 1: Add failing protocol, identity, and containment tests**
+- [x] **Step 1: Add failing protocol, identity, and containment tests**
 
 Update the discovery fixture helper so `writeAdapter()` may write `version`, `bootstrapProtocol`, and a handler export. Add tests proving:
 
@@ -437,7 +437,7 @@ Cover:
 
 Use a handler canary file in the fixture that writes a marker when loaded; assert the marker remains absent for every pre-load rejection.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -447,7 +447,7 @@ node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootst
 
 Expected: FAIL because bootstrap protocol metadata, exact-version registration, and acquisition resolution do not exist.
 
-- [ ] **Step 3: Extend package registration and bootstrap acquisition**
+- [x] **Step 3: Extend package registration and bootstrap acquisition**
 
 In `packages/prism-php-web/package.json`, extend the existing Prism metadata without changing Pi resources:
 
@@ -517,7 +517,7 @@ A mismatched co-shipped adapter fails closed; only an absent non-checkout siblin
 
 Add `bootstrap-adapter` to the package inventory assertion.
 
-- [ ] **Step 4: Run focused discovery and package tests**
+- [x] **Step 4: Run focused discovery and package tests**
 
 Run:
 
@@ -527,7 +527,7 @@ node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootst
 
 Expected: PASS; established discovery fixtures without a bootstrap protocol remain valid for established setup, while strict-empty bootstrap requires protocol `1`.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/discovery.js packages/prism-core/scripts/prism-tool/bootstrap-adapter.js packages/prism-core/scripts/prism-tool/cli.js packages/prism-php-web/package.json packages/prism-php-web/scripts/prism-tool-adapter.js tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/toolchain-packaging.test.js

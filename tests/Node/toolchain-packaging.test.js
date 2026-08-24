@@ -104,7 +104,8 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
-        'cli', 'code-review', 'commit', 'consent', 'contract', 'discovery',
+        'bootstrap-adapter', 'cli', 'code-review', 'commit', 'consent', 'contract',
+        'discovery',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',
@@ -146,6 +147,14 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
+});
+
+test('declares one compatible empty-project bootstrap protocol in the adapter package', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(ADAPTER_PKG, 'package.json'), 'utf8'));
+    const handler = require(path.join(ADAPTER_PKG, 'scripts', 'prism-tool-adapter.js'));
+
+    assert.equal(manifest.prism.bootstrapProtocol, 1);
+    assert.equal(handler.bootstrapProtocol, manifest.prism.bootstrapProtocol);
 });
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {
