@@ -7,6 +7,7 @@ const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
+const {inspectTemplateSource} = require('./template-source');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -269,7 +270,52 @@ function resolveKindDir(args, context) {
     return EXIT.OK;
 }
 
+function renderSetupSourceReport(report, json) {
+    if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
+    else {
+        for (const check of report.checks) {
+            process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+        }
+        process.stdout.write(`disposition\t${report.disposition}\n`);
+        process.stdout.write(`source\t${report.source}\n`);
+        process.stdout.write(`${report.status}\n`);
+    }
+    return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+}
+
 function setup(args, context) {
+    if (args[0] === 'source') {
+        const controls = args.slice(1);
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        const sourceName = sources.length === 1 ? sources[0].slice('--source='.length) : null;
+        const validSource = sourceName === 'template' || sourceName === 'blank';
+        const validNetwork = sourceName === 'template'
+            ? networks.length === 1 && networks[0] === '--network-approved=yes'
+            : networks.length === 0;
+        if (
+            sources.length !== 1 ||
+            !validSource ||
+            !validNetwork ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--source=') &&
+                !argument.startsWith('--network-approved=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup source --source=template|blank [--json] [--network-approved=yes]\n'
+            );
+            return EXIT.USAGE;
+        }
+        return inspectTemplateSource({
+            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+            source: sourceName.toUpperCase(),
+            fetchImpl: context.fetch,
+        }).then((report) => renderSetupSourceReport(report, jsonCount === 1));
+    }
     if (args[0] === 'route') {
         const controls = args.slice(1);
         const jsonCount = controls.filter((argument) => argument === '--json').length;
