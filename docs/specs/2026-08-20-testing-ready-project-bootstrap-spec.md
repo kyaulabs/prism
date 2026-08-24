@@ -1,7 +1,7 @@
 # Spec: Testing-Ready Project Bootstrap
 
 **Date:** 2026-08-20
-**Status:** Approved
+**Status:** Superseded by [Empty-Directory Project Bootstrap](2026-08-23-empty-directory-project-bootstrap-spec.md)
 
 ## Problem Statement
 
