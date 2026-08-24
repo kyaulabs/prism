@@ -463,6 +463,7 @@ test('rejects malformed, incomplete, and policy-bearing capability manifests', a
         ['unknown entry field', {mutateManifest(manifest) { manifest.entries[0].extra = true; }}, 'MANIFEST_INVALID'],
         ['unknown class', {mutateManifest(manifest) { manifest.entries[0].class = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
         ['unknown capability', {mutateManifest(manifest) { manifest.entries[0].capability = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
+        ['inherited capability name', {mutateManifest(manifest) { manifest.entries[0].capability = 'toString'; }}, 'CAPABILITY_UNSUPPORTED'],
         ['unknown provider scope', {mutateManifest(manifest) { manifest.entries[0].provider.scope = 'remote'; }}, 'CAPABILITY_UNSUPPORTED'],
         ['unknown provider ID', {mutateManifest(manifest) { manifest.entries[0].provider.id = 'unknown'; }}, 'CAPABILITY_UNSUPPORTED'],
         ['unknown disposition', {mutateManifest(manifest) { manifest.entries[0].disposition = 'copy'; }}, 'CAPABILITY_UNSUPPORTED'],
@@ -546,6 +547,47 @@ test('normalizes catalogue ordering without exposing remote response content', a
     assert.equal(firstResult.stdout.includes(canary), false);
     assert.deepEqual(fs.readdirSync(firstRoot), []);
     assert.deepEqual(fs.readdirSync(secondRoot), []);
+});
+
+test('canonicalizes catalogue ordering independently of locale collation', async (t) => {
+    const firstRoot = makeTempDir();
+    const secondRoot = makeTempDir();
+    const first = createTemplateFixture();
+    const second = createTemplateFixture();
+    const localeCompare = String.prototype.localeCompare;
+    t.after(() => fs.rmSync(firstRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(secondRoot, {recursive: true, force: true}));
+
+    const firstResult = await source(
+        firstRoot,
+        first.fetch,
+        '--source=template',
+        '--network-approved=yes'
+    );
+    let secondResult;
+    String.prototype.localeCompare = function reverseLocaleCompare(other) {
+        return localeCompare.call(other, this);
+    };
+    try {
+        secondResult = await source(
+            secondRoot,
+            second.fetch,
+            '--source=template',
+            '--network-approved=yes'
+        );
+    } finally {
+        String.prototype.localeCompare = localeCompare;
+    }
+
+    assert.equal(firstResult.status, 0);
+    assert.equal(secondResult.status, 0);
+    const firstReport = JSON.parse(firstResult.stdout);
+    const secondReport = JSON.parse(secondResult.stdout);
+    assert.equal(
+        firstReport.data.attestation.classificationSha256,
+        secondReport.data.attestation.classificationSha256
+    );
+    assert.deepEqual(firstReport.data.catalogue, secondReport.data.catalogue);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

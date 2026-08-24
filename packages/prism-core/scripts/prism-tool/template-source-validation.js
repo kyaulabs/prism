@@ -234,8 +234,8 @@ function validateManifest(bytes, tree) {
         if (!source || source.sha !== entry.blobSha || source.size !== entry.size) {
             fail('MANIFEST_TREE_MISMATCH');
         }
+        if (!Object.hasOwn(CAPABILITIES, entry.capability)) fail('CAPABILITY_UNSUPPORTED');
         const expected = CAPABILITIES[entry.capability];
-        if (!expected) fail('CAPABILITY_UNSUPPORTED');
         const provider = validateManifestProvider(entry, expected);
         return {
             path: entry.path,
@@ -246,7 +246,7 @@ function validateManifest(bytes, tree) {
             provider,
             disposition: entry.disposition,
         };
-    }).sort((left, right) => left.path.localeCompare(right.path));
+    }).sort((left, right) => Buffer.compare(Buffer.from(left.path), Buffer.from(right.path)));
     if ([...treeBlobs.keys()].some((entryPath) => !seen.has(entryPath))) {
         fail('MANIFEST_TREE_MISMATCH');
     }
