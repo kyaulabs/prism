@@ -204,6 +204,7 @@ prism-tool commit create --type feat --scope setup --subject "journal prepared b
 ### Task 2: Apply approved candidate files and mark the project durable
 
 **Files:**
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-journal.js`
 - Modify: `packages/prism-core/scripts/prism-tool/bootstrap-transaction.js`
 - Modify: `packages/prism-core/scripts/prism-tool/cli.js`
 - Modify: `tests/Node/prism-tool-bootstrap-plan.test.js`
@@ -214,7 +215,7 @@ prism-tool commit create --type feat --scope setup --subject "journal prepared b
 - Produces CLI: `prism-tool setup project apply --attempt=UUID --digest=SHA256 --approval=yes [--json]`.
 - Produces durable report disposition `PROJECT_DURABLE` with resume phase `REPOSITORY_BOOTSTRAP`.
 
-- [ ] **Step 1: Write the failing durable-application tests**
+- [x] **Step 1: Write the failing durable-application tests**
 
 Add this helper:
 
@@ -266,13 +267,13 @@ assert.notEqual(main([
 
 Also reject `--approval=no`, duplicate controls, caller `--plan=...`, existing `.git`, pre-existing target files, target symlinks, unsafe target parents, changed candidate bytes, changed plan bytes, and changed provider or metadata reports. Every rejection before publication must leave only the retained active attempt.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because `setup project apply` and durable publication do not exist.
 
-- [ ] **Step 3: Implement no-replace publication and durable journaling**
+- [x] **Step 3: Implement no-replace publication and durable journaling**
 
 Implement an exclusive attempt lock at `<attemptRoot>/apply.lock` with `flag: 'wx'`, mode `0600`, bounded JSON containing only schema version and attempt ID. Never break or replace an existing lock automatically; report `RECOVERY_REQUIRED`.
 
@@ -326,16 +327,16 @@ Return a closed `PROJECT_DURABLE` report containing the attempt ID, plan digest,
 
 Wire the exact apply grammar into `cli.js`; only literal `--approval=yes` proceeds. Pass `context.bootstrapApplyFault` only to the internal function for deterministic test injection and never expose it as a CLI control.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS with the seven exact Core outputs durable, no `.git`, and a `DURABLE` journal.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js
+git add packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js
 prism-tool commit create --type feat --scope setup --subject "apply blank core-only projects" --refs 385
 ```
 

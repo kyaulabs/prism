@@ -3,6 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -53,6 +54,13 @@ function recoverProject(projectRoot, attemptId, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'recover', `--attempt=${attemptId}`,
         `--digest=${planDigest}`, '--json',
+    ], {projectRoot, ...context}));
+}
+
+function applyProject(projectRoot, attemptId, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${attemptId}`,
+        `--digest=${planDigest}`, '--approval=yes', '--json',
     ], {projectRoot, ...context}));
 }
 
@@ -210,6 +218,75 @@ test('preserves unowned root state when prepared recovery cannot prove emptiness
     assert.equal(journal.status, 'RECOVERY_REQUIRED');
     assert.equal(journal.reason, 'ROOT_STATE_CHANGED');
     assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
+test('applies an approved Blank Core-only plan and marks the project durable', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), false);
+    assert.deepEqual(
+        plan.outputs.map(({path: outputPath}) => outputPath).sort(),
+        journal.applied.map(({path: outputPath}) => outputPath).sort()
+    );
+    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.status, 'ACTIVE');
+    assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.match(journal.appliedInventoryDigest, /^[0-9a-f]{64}$/);
+    for (const output of plan.outputs) {
+        const targetPath = path.join(projectRoot, output.path);
+        const stat = fs.lstatSync(targetPath);
+        const contents = fs.readFileSync(targetPath);
+        assert.equal(stat.isSymbolicLink(), false);
+        assert.equal(stat.isFile(), true);
+        assert.equal(stat.mode & 0o777, output.mode);
+        assert.equal(crypto.createHash('sha256').update(contents).digest('hex'), output.sha256);
+    }
+});
+
+test('requires literal approval before applying a project plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${plan.planDigest}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /--approval=yes/);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), false);
 });
 
 test('keeps semantic plan digests stable across roots and attempt IDs', () => {

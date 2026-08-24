@@ -56,6 +56,53 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
     };
 }
 
+function validAppliedEntry(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, ['path', 'kind', 'mode', 'sha256', 'dev', 'ino']) &&
+        typeof value.path === 'string' &&
+        value.path !== '' &&
+        value.kind === 'file' &&
+        Number.isSafeInteger(value.mode) &&
+        value.mode >= 0 &&
+        value.mode <= 0o777 &&
+        SHA256.test(value.sha256) &&
+        Number.isSafeInteger(value.dev) &&
+        value.dev >= 0 &&
+        Number.isSafeInteger(value.ino) &&
+        value.ino > 0;
+}
+
+function validJournalState(value) {
+    if (
+        value.phase === 'PREPARED' &&
+        value.applied.length === 0 &&
+        value.appliedInventoryDigest === null
+    ) {
+        return (
+            value.status === 'ACTIVE' &&
+            value.reason === null &&
+            value.resumePhase === 'PROJECT_APPLICATION'
+        ) || (
+            value.status === 'RECOVERY_REQUIRED' &&
+            value.reason === 'ROOT_STATE_CHANGED' &&
+            value.resumePhase === 'MANUAL_RECOVERY'
+        );
+    }
+    if (
+        value.phase === 'APPLYING' &&
+        value.status === 'ACTIVE' &&
+        value.reason === null &&
+        value.resumePhase === 'PROJECT_APPLICATION' &&
+        value.appliedInventoryDigest === null
+    ) return true;
+    return value.phase === 'DURABLE' &&
+        value.status === 'ACTIVE' &&
+        value.reason === null &&
+        value.resumePhase === 'REPOSITORY_BOOTSTRAP' &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest);
+}
+
 function validateJournal(value, projectRoot, attemptId) {
     if (
         !isRecord(value) ||
@@ -74,22 +121,10 @@ function validateJournal(value, projectRoot, attemptId) {
         value.source.mode !== 'BLANK' ||
         value.source.evidence !== null ||
         value.adapter !== null ||
-        value.phase !== 'PREPARED' ||
-        !(
-            (
-                value.status === 'ACTIVE' &&
-                value.reason === null &&
-                value.resumePhase === 'PROJECT_APPLICATION'
-            ) ||
-            (
-                value.status === 'RECOVERY_REQUIRED' &&
-                value.reason === 'ROOT_STATE_CHANGED' &&
-                value.resumePhase === 'MANUAL_RECOVERY'
-            )
-        ) ||
         !Array.isArray(value.applied) ||
-        value.applied.length !== 0 ||
-        value.appliedInventoryDigest !== null
+        value.applied.length > 1024 ||
+        value.applied.some((entry) => !validAppliedEntry(entry)) ||
+        !validJournalState(value)
     ) {
         throw new Error('bootstrap journal is invalid');
     }
