@@ -1,4 +1,4 @@
-// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
 
 'use strict';
 
@@ -80,11 +80,13 @@ function digestFile(filePath) {
 function assertConsumerFiles(projectRoot) {
     for (const name of CONSUMER_FILES) {
         const filePath = path.join(projectRoot, name);
-        if (!fs.existsSync(filePath)) {
-            if (name.endsWith('.lock') || name === 'package-lock.json') continue;
-            throw new Error('required consumer manifest is missing');
+        let stat;
+        try {
+            stat = fs.lstatSync(filePath);
+        } catch (error) {
+            if (error.code === 'ENOENT') continue;
+            throw error;
         }
-        const stat = fs.lstatSync(filePath);
         if (stat.isSymbolicLink() || !stat.isFile()) {
             throw new Error('consumer manifest or lock is invalid');
         }
@@ -338,14 +340,18 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
         return {
             status: 'NO-GO',
             checks: [{id: 'candidate-resolution', status: 'FAIL', message: 'candidate resolution failed'}],
-            data: {reason: 'tool failure'},
+            data: {reason: 'tool failure', stage: 'workspace-validation'},
         };
     }
+    let stage = 'consumer-validation';
     let workspace;
     try {
         assertConsumerFiles(canonicalProject);
+        stage = 'workspace-recovery';
         recoverWorkspace({projectRoot: canonicalProject, adapter: contract.package});
+        stage = 'workspace-creation';
         workspace = createWorkspace({projectRoot: canonicalProject, adapter: contract.package});
+        stage = 'candidate-preparation';
         const originalRoot = path.join(workspace.root, 'original');
         const candidateRoot = path.join(workspace.root, 'candidate');
         fs.mkdirSync(originalRoot, {mode: 0o700});
@@ -362,8 +368,16 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             fs.copyFileSync(sourcePath, path.join(candidateRoot, name));
         }
 
+        if (original['composer.json'] === 'absent') {
+            fs.writeFileSync(path.join(candidateRoot, 'composer.json'), '{}\n', {flag: 'wx', mode: 0o600});
+        }
+        if (original['package.json'] === 'absent') {
+            fs.writeFileSync(path.join(candidateRoot, 'package.json'), '{}\n', {flag: 'wx', mode: 0o600});
+        }
+
         const composerPairs = exactPairs(contract, 'composer', ':');
         const npmPairs = exactPairs(contract, 'npm', '@');
+        stage = 'composer-manifest-resolution';
         runRequired(run, 'composer', [
             'require',
             '--dev',
@@ -372,14 +386,20 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             '--no-interaction',
             ...composerPairs,
         ], candidateRoot);
+        const composerUpdatePairs = original['composer.json'] === 'absent' ||
+            original['composer.lock'] === 'absent'
+            ? []
+            : composerPairs;
+        stage = 'composer-lock-resolution';
         runRequired(run, 'composer', [
             'update',
-            ...composerPairs,
+            ...composerUpdatePairs,
             '--with-all-dependencies',
             '--no-install',
             '--no-scripts',
             '--no-interaction',
         ], candidateRoot);
+        stage = 'npm-lock-resolution';
         runRequired(run, 'npm', [
             'install',
             '--package-lock-only',
@@ -389,6 +409,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             ...npmPairs,
         ], candidateRoot);
 
+        stage = 'dependency-audit';
         const composerAudit = normalizeComposerAudit(run(
             'composer',
             ['audit', '--locked', '--format=json'],
@@ -412,6 +433,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
 
         const candidate = {};
         let diff = '';
+        stage = 'candidate-validation';
         for (const name of CONSUMER_FILES) {
             const candidatePath = path.join(candidateRoot, name);
             if (!fs.existsSync(candidatePath) || fs.lstatSync(candidatePath).isSymbolicLink()) {
@@ -421,6 +443,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             const originalPath = original[name] === 'absent'
                 ? '/dev/null'
                 : path.join(originalRoot, name);
+            stage = 'candidate-diff';
             const diffResult = run('git', ['diff', '--no-index', '--', originalPath, candidatePath], {
                 ...COMMAND_OPTIONS,
                 cwd: workspace.root,
@@ -429,6 +452,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
                 throw new Error('candidate diff failed');
             }
             diff += diffResult.stdout;
+            stage = 'candidate-validation';
         }
         const plan = {
             schemaVersion: 1,
@@ -440,6 +464,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             browserTargets: [...contract.browserTargets],
         };
         const planPath = path.join(workspace.root, 'candidate-plan.json');
+        stage = 'plan-write';
         fs.writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`, {flag: 'wx', mode: 0o600});
         fs.chmodSync(planPath, 0o600);
         return {
@@ -454,7 +479,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
         return {
             status: 'NO-GO',
             checks: [{id: 'candidate-resolution', status: 'FAIL', message: 'candidate resolution failed'}],
-            data: {reason: 'tool failure'},
+            data: {reason: 'tool failure', stage},
         };
     }
 }
