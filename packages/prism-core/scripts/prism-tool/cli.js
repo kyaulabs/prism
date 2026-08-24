@@ -2,12 +2,18 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectTemplateSource} = require('./template-source');
+const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
+const {
+    cleanupBootstrapAdapter,
+    provisionBootstrapAdapter,
+} = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -22,6 +28,7 @@ const {
 } = require('./package-release');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
+const BOOTSTRAP_ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
 
 function packageRootFor(packageName, coreRoot) {
@@ -284,6 +291,150 @@ function renderSetupSourceReport(report, json) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'adapter' && args[1] === 'catalogue') {
+        const controls = args.slice(2);
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (jsonCount > 1 || controls.some((argument) => argument !== '--json')) {
+            process.stderr.write('usage: prism-tool setup adapter catalogue [--json]\n');
+            return EXIT.USAGE;
+        }
+        let report;
+        try {
+            report = inspectSupportedAdapters({
+                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                catalogue: context.adapterCatalogue,
+            });
+        } catch {
+            process.stderr.write('prism-tool: supported adapter catalogue is invalid\n');
+            return EXIT.TRANSACTION;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    if (args[0] === 'adapter' && args[1] === 'cleanup') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' && !argument.startsWith('--attempt=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter cleanup --attempt=UUID [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        let report;
+        try {
+            report = cleanupBootstrapAdapter({
+                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                attemptId: attempts[0].slice('--attempt='.length),
+            });
+        } catch {
+            process.stderr.write('prism-tool: bootstrap adapter cleanup failed\n');
+            return EXIT.TRANSACTION;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    if (args[0] === 'adapter' && args[1] === 'select') {
+        const controls = args.slice(2);
+        const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            adapters.length !== 1 ||
+            adapters[0].length === '--adapter='.length ||
+            sources.length !== 1 ||
+            !['--source=template', '--source=blank'].includes(sources[0]) ||
+            networks.length > 1 ||
+            (networks.length === 1 && networks[0] !== '--network-approved=yes') ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--source=') &&
+                !argument.startsWith('--network-approved=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                '[--network-approved=yes] [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const adapterId = adapters[0].slice('--adapter='.length);
+        if (
+            !['core-only', 'php-web'].includes(adapterId) ||
+            (adapterId === 'core-only' && networks.length !== 0) ||
+            (adapterId === 'php-web' && networks.length !== 1)
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                '[--network-approved=yes] [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const source = sources[0] === '--source=template' ? 'TEMPLATE' : 'BLANK';
+        let report;
+        try {
+            if (adapterId === 'core-only') {
+                report = selectCoreOnlyAdapter({
+                    projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    catalogue: context.adapterCatalogue,
+                    source,
+                });
+            } else {
+                report = provisionBootstrapAdapter({
+                    projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    catalogue: context.adapterCatalogue,
+                    adapterId,
+                    source,
+                    networkApproved: networks[0] === '--network-approved=yes',
+                    piExecutable: context.piExecutable ?? resolveExecutable(
+                        'pi',
+                        context.env ?? process.env
+                    ),
+                    randomUUID: context.randomUUID ?? crypto.randomUUID,
+                    run: context.run ?? runBounded,
+                });
+            }
+        } catch {
+            process.stderr.write('prism-tool: bootstrap adapter selection failed\n');
+            return EXIT.TRANSACTION;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
     if (args[0] === 'source') {
         const controls = args.slice(1);
         const sources = controls.filter((argument) => argument.startsWith('--source='));

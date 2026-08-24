@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -11,6 +11,7 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     discoverAdapter,
     loadAdapterHandler,
+    validateBootstrapRegistration,
 } = require('../../packages/prism-core/scripts/prism-tool/discovery');
 const {
     inspect,
@@ -58,21 +59,37 @@ function adapterContract(packageName = '@fixture/adapter', componentId = 'fixtur
     };
 }
 
-function writeAdapter(packageRoot, packageName = '@fixture/adapter', componentId = 'fixture-tool') {
+function writeAdapter(
+    packageRoot,
+    packageName = '@fixture/adapter',
+    componentId = 'fixture-tool',
+    options = {}
+) {
+    const prism = {
+        adapter: true,
+        toolchain: './toolchain.json',
+        handler: './scripts/prism-tool-adapter.js',
+    };
+    if (options.bootstrapProtocol !== undefined) {
+        prism.bootstrapProtocol = options.bootstrapProtocol;
+    }
     writeJson(path.join(packageRoot, 'package.json'), {
         name: packageName,
-        version: '1.0.0',
-        prism: {
-            adapter: true,
-            toolchain: './toolchain.json',
-            handler: './scripts/prism-tool-adapter.js',
-        },
+        version: options.version ?? '1.0.0',
+        prism,
     });
     writeJson(path.join(packageRoot, 'toolchain.json'), adapterContract(packageName, componentId));
     fs.mkdirSync(path.join(packageRoot, 'scripts'), {recursive: true});
+    const handlerProtocol = options.handlerBootstrapProtocol;
+    const marker = options.loadMarker
+        ? `require('node:fs').writeFileSync(${JSON.stringify(options.loadMarker)}, 'loaded\\n');\n`
+        : '';
+    const protocolEntry = handlerProtocol === undefined
+        ? ''
+        : `bootstrapProtocol: ${JSON.stringify(handlerProtocol)}, `;
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        "'use strict';\nmodule.exports = {inspect() {}, resolveTool() {}};\n"
+        `'use strict';\n${marker}module.exports = {${protocolEntry}inspect() {}, resolveTool() {}};\n`
     );
 }
 
@@ -397,6 +414,34 @@ test('rejects unsafe or unsupported adapter package metadata', (t) => {
     assert.throws(() => discoverAdapter({projectRoot, piDir}), /metadata is unsupported/);
 });
 
+test('accepts strict SemVer and rejects malformed adapter package versions', (t) => {
+    const roots = [];
+    t.after(() => {
+        for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
+    });
+    for (const version of ['01.2.3', '1.2.3-', '1.2.3-alpha..1', '1.2.3\n', ['1.2.3']]) {
+        const projectRoot = makeTempDir();
+        roots.push(projectRoot);
+        const piDir = path.join(projectRoot, '.pi');
+        const packageRoot = path.join(piDir, 'npm', 'node_modules', '@fixture', 'adapter');
+        writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {version});
+        writeJson(path.join(piDir, 'npm', 'package.json'), {
+            dependencies: {'@fixture/adapter': version},
+        });
+        assert.throws(() => discoverAdapter({projectRoot, piDir}), /version is invalid/);
+    }
+
+    const projectRoot = makeTempDir();
+    roots.push(projectRoot);
+    const piDir = path.join(projectRoot, '.pi');
+    const packageRoot = path.join(piDir, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {version: '1.2.3+build.7'});
+    writeJson(path.join(piDir, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.2.3+build.7'},
+    });
+    assert.equal(discoverAdapter({projectRoot, piDir}).packageVersion, '1.2.3+build.7');
+});
+
 test('discovers one canonical local adapter through Pi resource paths', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -486,6 +531,77 @@ test('rejects an adapter component ID that collides with the core contract', (t)
         () => discoverAdapter({projectRoot, piDir}),
         /adapter component collides with core component commitlint/
     );
+});
+
+test('validates exact package version and bootstrap protocol before adapter use', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const piDir = path.join(projectRoot, '.pi');
+    const packageRoot = path.join(piDir, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {
+        version: '1.2.3',
+        bootstrapProtocol: 1,
+    });
+    writeJson(path.join(piDir, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.2.3'},
+    });
+    const registration = discoverAdapter({projectRoot, piDir});
+    const expected = {
+        id: 'fixture',
+        packageName: '@fixture/adapter',
+        packageVersion: '1.2.3',
+        bootstrapProtocol: 1,
+    };
+
+    assert.equal(
+        validateBootstrapRegistration(registration, expected, path.resolve(__dirname, '../../packages/prism-core')),
+        registration
+    );
+    assert.throws(
+        () => validateBootstrapRegistration(
+            registration,
+            {...expected, packageVersion: '1.2.4'},
+            path.resolve(__dirname, '../../packages/prism-core')
+        ),
+        /version/
+    );
+});
+
+test('loads a bootstrap handler only when its protocol matches validated metadata', (t) => {
+    const roots = [];
+    t.after(() => {
+        for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
+    });
+
+    const matchingRoot = makeTempDir();
+    roots.push(matchingRoot);
+    const matchingPi = path.join(matchingRoot, '.pi');
+    const matchingPackage = path.join(matchingPi, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(matchingPackage, '@fixture/adapter', 'fixture-tool', {
+        bootstrapProtocol: 1,
+        handlerBootstrapProtocol: 1,
+    });
+    writeJson(path.join(matchingPi, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.0.0'},
+    });
+    const matchingRegistration = discoverAdapter({projectRoot: matchingRoot, piDir: matchingPi});
+
+    assert.equal(loadAdapterHandler(matchingRegistration, 1).bootstrapProtocol, 1);
+
+    const mismatchRoot = makeTempDir();
+    roots.push(mismatchRoot);
+    const mismatchPi = path.join(mismatchRoot, '.pi');
+    const mismatchPackage = path.join(mismatchPi, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(mismatchPackage, '@fixture/adapter', 'fixture-tool', {
+        bootstrapProtocol: 1,
+        handlerBootstrapProtocol: 2,
+    });
+    writeJson(path.join(mismatchPi, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.0.0'},
+    });
+    const mismatchRegistration = discoverAdapter({projectRoot: mismatchRoot, piDir: mismatchPi});
+
+    assert.throws(() => loadAdapterHandler(mismatchRegistration, 1), /handler bootstrap protocol/);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -61,6 +61,29 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=b
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=cancel --json' 'setup validates Cancel routing through the launcher'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*schema|unknown.*disposition|fail closed' 'setup fails closed on unknown route reports'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel.*no template access|Cancel.*template access.*package acquisition.*project mutation' 'Cancel forbids bootstrap effects'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter catalogue --json' 'strict-empty setup reads the Core adapter catalogue'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose the bootstrap adapter: Core only, PHP/web, or Cancel[?]' 'strict-empty setup offers Core-only'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'PHP/web' 'strict-empty setup offers the PHP/web adapter'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=core-only --source=' 'strict-empty setup records Core-only without acquisition'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=php-web --source=.*--network-approved=yes' 'strict-empty setup obtains explicit registry approval for adapter acquisition'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*adapter.*schema|unknown.*adapter.*disposition|adapter.*fail closed' 'strict-empty setup fails closed on unknown adapter reports'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'exact displayed package.*version|displayed.*exact package.*version' 'strict-empty setup displays the exact package and version'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'No second adapter-installation question|no redundant.*install' 'strict-empty adapter selection is the installation authorization'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter cleanup --attempt=' 'strict-empty setup cleans provisional adapter state on stop'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--package=|setup adapter select.*--version=|setup adapter select.*--url=' 'strict-empty setup accepts no caller package authority'
+
+setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_source_choice_line" ] && [ -n "$setup_adapter_catalogue_line" ] \
+    && [ -n "$setup_adapter_question_line" ] \
+    && [ "$setup_source_choice_line" -lt "$setup_adapter_catalogue_line" ] \
+    && [ "$setup_adapter_catalogue_line" -lt "$setup_adapter_question_line" ]; then
+    pass '/setup selects the source route before the adapter catalogue and question'
+else
+    fail '/setup does not sequence source routing before adapter selection'
+    failures=$((failures + 1))
+fi
 
 setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_release_line=$({ grep -niF 'prism-tool package-release inspect --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
