@@ -8,6 +8,7 @@ const path = require('node:path');
 const {normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {composeProviderReports, validateProviderReport} = require('./bootstrap-composer');
 const {loadTrustedProviderRegistry, renderCoreBaseline} = require('./bootstrap-providers');
+const {createPreparedBootstrapJournal} = require('./bootstrap-journal');
 const {inspectSetupRoute} = require('./setup-route');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -98,7 +99,11 @@ function inventoryAttempt(attemptRoot) {
         try {
             for (const name of fs.readdirSync(directory.anchor).sort()) {
                 const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
-                if (relativePath === 'plan/project.json') continue;
+                if (
+                    relativePath === 'plan/project.json' ||
+                    relativePath === 'journal.json' ||
+                    relativePath === 'apply.lock'
+                ) continue;
                 const anchoredPath = path.join(directory.anchor, name);
                 const stat = fs.lstatSync(anchoredPath);
                 if (stat.isSymbolicLink()) throw new Error('bootstrap attempt contains a symlink');
@@ -232,6 +237,18 @@ function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, rando
         });
         const planDigest = sha256(Buffer.from(JSON.stringify(plan), 'utf8'));
         writeExclusive(attempt.planPath, {schemaVersion: 1, planDigest, plan});
+        createPreparedBootstrapJournal({
+            projectRoot,
+            attemptId: attempt.attemptId,
+            planDigest,
+            plan,
+        });
+        validateBootstrapProjectPlan({
+            projectRoot,
+            coreRoot,
+            attemptId: attempt.attemptId,
+            planDigest,
+        });
         return Object.freeze({
             ...plan,
             planDigest,

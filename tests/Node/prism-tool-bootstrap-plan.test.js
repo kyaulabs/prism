@@ -49,6 +49,13 @@ function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
     ], {projectRoot, ...context}));
 }
 
+function recoverProject(projectRoot, attemptId, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'project', 'recover', `--attempt=${attemptId}`,
+        `--digest=${planDigest}`, '--json',
+    ], {projectRoot, ...context}));
+}
+
 test('reports minimal metadata fields without changing a strict-empty root', (t) => {
     const parent = makeTempDir();
     const projectRoot = path.join(parent, 'example-project');
@@ -124,6 +131,85 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
     assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
     assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'project.json')), false);
+
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    assert.equal(fs.statSync(journalPath).mode & 0o777, 0o600);
+    assert.deepEqual(journal, {
+        schemaVersion: 1,
+        attemptId: ATTEMPT_ID,
+        projectRoot: fs.realpathSync(projectRoot),
+        planDigest: report.planDigest,
+        metadataDigest: report.metadataDigest,
+        source: {mode: 'BLANK', evidence: null},
+        adapter: null,
+        phase: 'PREPARED',
+        status: 'ACTIVE',
+        reason: null,
+        resumePhase: 'PROJECT_APPLICATION',
+        applied: [],
+        appliedInventoryDigest: null,
+    });
+});
+
+test('restores strict emptiness when a prepared project plan is declined', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.equal(report.data.resumePhase, null);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves unowned root state when prepared recovery cannot prove emptiness', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const humanPath = path.join(projectRoot, 'human-note.txt');
+    fs.writeFileSync(humanPath, 'preserve me\n');
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.data.resumePhase, 'MANUAL_RECOVERY');
+    assert.equal(fs.readFileSync(humanPath, 'utf8'), 'preserve me\n');
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    assert.equal(fs.existsSync(attemptRoot), true);
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'ROOT_STATE_CHANGED');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
 });
 
 test('keeps semantic plan digests stable across roots and attempt IDs', () => {

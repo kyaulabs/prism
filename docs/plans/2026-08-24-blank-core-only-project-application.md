@@ -52,7 +52,7 @@
 - Produces: `recoverBootstrapProject({projectRoot, coreRoot, attemptId, planDigest})` for a `PREPARED` attempt.
 - Produces CLI: `prism-tool setup project recover --attempt=UUID --digest=SHA256 [--json]`.
 
-- [ ] **Step 1: Write the failing prepared-journal and decline-recovery tests**
+- [x] **Step 1: Write the failing prepared-journal and decline-recovery tests**
 
 Add this helper beside `validatePlan()`:
 
@@ -108,13 +108,13 @@ assert.deepEqual(fs.readdirSync(projectRoot), []);
 
 Add rejection cases for malformed attempt IDs, malformed digests, a substituted `journal.json`, mode other than `0600`, unknown journal fields, wrong project root, wrong plan digest, wrong source, non-null adapter, unsupported phase/status, and a root containing an unowned entry. The unowned-entry case must retain `.pi` and the human entry and return `RECOVERY_REQUIRED` rather than delete either.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because prepared journals and `setup project recover` do not exist.
 
-- [ ] **Step 3: Implement the closed journal and prepared-attempt recovery**
+- [x] **Step 3: Implement the closed journal and prepared-attempt recovery**
 
 In `bootstrap-journal.js`, define the exact schema constants and exports:
 
@@ -186,13 +186,13 @@ In `bootstrap-transaction.js`, implement prepared recovery by validating the pla
 
 Wire the exact `setup project recover` grammar into `cli.js`. Return `ROOT_RESTORED` on clean prepared recovery and `RECOVERY_REQUIRED` with one next action on ambiguity. Diagnostics remain generic and must not include candidate contents.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS, including unchanged plan validation and byte-for-byte root restoration after recovery.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js
