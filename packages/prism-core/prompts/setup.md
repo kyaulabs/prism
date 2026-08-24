@@ -10,6 +10,63 @@ Legacy manifest, environment-composition, plugin-toggle, substitution, and
 scaffold layers are intentionally gone (ADR-0057, ADR-0059). This setup
 configures pi packages and project tooling only.
 
+## Setup entry routing
+
+Classify the canonical current project root through Core before package-release
+inspection, adapter evidence discovery, Template access, or any setup mutation:
+
+```bash
+prism-tool setup route --json
+```
+
+Treat the result as untrusted structured data. Require exactly schema version
+`1`, command `setup route`, status `GO` or `NO-GO`, one disposition from
+`STRICT_EMPTY`, `ESTABLISHED`, or `CONFLICT`, source `null`, one known route,
+one known reason, one canonical absolute project root, and the closed checks
+shape. Any unknown schema, field, disposition, source, route, reason, status,
+or additional key fails closed and stops setup.
+
+- `ESTABLISHED` with route `ESTABLISHED_SETUP`: continue at **1. Pre-flight**
+  and preserve the existing evidence-driven setup route below verbatim. Do not
+  offer Template, Blank, capability, metadata, or bootstrap-transaction
+  behavior.
+- `CONFLICT` or any `NO-GO` result: stop and report the returned inert reason.
+  Do not infer or repair project state.
+- `STRICT_EMPTY` with route `SELECT_SOURCE`: ask exactly one question:
+
+  ```text
+  Choose the strict-empty setup source: Template (recommended default), Blank, or Cancel? [Template]
+  ```
+
+  An empty answer selects Template. Accept only `Template`, `Blank`, or
+  `Cancel`, case-insensitively, and validate the selected route with exactly
+  one corresponding command:
+
+  ```bash
+  prism-tool setup route --source=template --json
+  ```
+
+  ```bash
+  prism-tool setup route --source=blank --json
+  ```
+
+  ```bash
+  prism-tool setup route --source=cancel --json
+  ```
+
+  Require the same closed schema. Template must return source `TEMPLATE` and
+  route `BOOTSTRAP_TEMPLATE`; Blank must return source `BLANK` and route
+  `BOOTSTRAP_BLANK`; Cancel must return source `CANCEL` and route `STOP`.
+  A mismatched or unknown result fails closed.
+
+  Cancel is terminal: perform no template access, package acquisition, adapter
+  discovery, project mutation, persistent operational write, Git operation,
+  or established-project setup stage. Template and Blank remain on their
+  strict-empty routes and must never fall through to the established-project
+  sections below. Continue only when the selected route's public launcher
+  operation exists; otherwise report that the selected bootstrap route is not
+  yet available and stop without mutation.
+
 ## 1. Pre-flight
 
 Run local, read-only checks:

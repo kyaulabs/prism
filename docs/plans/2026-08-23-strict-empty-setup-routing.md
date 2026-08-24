@@ -747,7 +747,7 @@ prism-tool commit create --type feat --scope setup --subject "route strict-empty
 - Produces: Template as the recommended default, Blank, and Cancel only after a `STRICT_EMPTY`/`SELECT_SOURCE` report.
 - Preserves: the existing `## 1. Pre-flight` through `## 11. Validate and report` established-project text and command order.
 
-- [ ] **Step 1: Add failing prompt-contract assertions**
+- [x] **Step 1: Add failing prompt-contract assertions**
 
 Insert these assertions after the existing `/setup standing consent and apply/verify sequence` assertions in `tests/Shell/toolchain_entrypoints_test.sh`:
 
@@ -777,7 +777,7 @@ fi
 
 Do not alter or remove any existing assertion.
 
-- [ ] **Step 2: Run the shell contract to verify Red**
+- [x] **Step 2: Run the shell contract to verify Red**
 
 Run:
 
@@ -787,7 +787,7 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL on the new setup route, Template/Blank/Cancel, and ordering assertions while all pre-existing assertions retain their current results.
 
-- [ ] **Step 3: Add the strict-empty entry section without rewriting established setup**
+- [x] **Step 3: Add the strict-empty entry section without rewriting established setup**
 
 Insert this section in `packages/prism-core/prompts/setup.md` immediately before the existing `## 1. Pre-flight` heading:
 
@@ -852,7 +852,7 @@ or additional key fails closed and stops setup.
 
 Keep the existing `## 1. Pre-flight` through `## 11. Validate and report` content unchanged below the inserted section.
 
-- [ ] **Step 4: Run prompt, Node, and established-route regression tests**
+- [x] **Step 4: Run prompt, Node, and established-route regression tests**
 
 Run:
 
@@ -870,7 +870,7 @@ node --test tests/Node/prism-tool-setup-route.test.js tests/Node/prism-tool-disc
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit and close the issue slice**
+- [x] **Step 5: Commit and close the issue slice**
 
 Stage only:
 

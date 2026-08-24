@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -52,6 +52,27 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-ocr --ap
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 'setup documents standing consent revocation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --json' 'setup classifies the canonical root before established setup'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Template.*recommended default|recommended default.*Template' 'strict-empty setup recommends Template by default'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Blank' 'strict-empty setup offers Blank'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel' 'strict-empty setup offers Cancel'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=template --json' 'setup validates Template routing through the launcher'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=blank --json' 'setup validates Blank routing through the launcher'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=cancel --json' 'setup validates Cancel routing through the launcher'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*schema|unknown.*disposition|fail closed' 'setup fails closed on unknown route reports'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel.*no template access|Cancel.*template access.*package acquisition.*project mutation' 'Cancel forbids bootstrap effects'
+
+setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_release_line=$({ grep -niF 'prism-tool package-release inspect --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_adapter_line=$({ grep -niF 'Inspect project-local evidence only' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_route_line" ] && [ -n "$setup_release_line" ] && [ -n "$setup_adapter_line" ] \
+    && [ "$setup_route_line" -lt "$setup_release_line" ] \
+    && [ "$setup_route_line" -lt "$setup_adapter_line" ]; then
+    pass '/setup routes before package-release inspection and adapter discovery'
+else
+    fail '/setup does not route before established-project discovery stages'
+    failures=$((failures + 1))
+fi
 
 CONSENT_SCAN_PATHS=(
 	"$CORE_PROMPTS"
