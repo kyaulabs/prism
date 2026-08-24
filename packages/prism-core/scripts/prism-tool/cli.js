@@ -8,6 +8,7 @@ const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
+const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
@@ -291,6 +292,102 @@ function renderSetupSourceReport(report, json) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'project' && args[1] === 'plan') {
+        const controls = args.slice(2);
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            sources.length !== 1 ||
+            sources[0] !== '--source=blank' ||
+            adapters.length !== 1 ||
+            adapters[0] !== '--adapter=core-only' ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--source=') &&
+                !argument.startsWith('--adapter=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup project plan --source=blank ' +
+                '--adapter=core-only [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        const route = inspectSetupRoute({projectRoot, source: 'BLANK'});
+        if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
+            process.stderr.write('prism-tool: project planning requires strict-empty setup\n');
+            return EXIT.TRANSACTION;
+        }
+        try {
+            normalizeProjectMetadata({
+                projectRoot: route.projectRoot,
+                input: readBoundedStdin({...context, inputLimit: 16384}),
+            });
+        } catch {
+            process.stderr.write('prism-tool: project metadata is invalid\n');
+            return EXIT.TRANSACTION;
+        }
+        process.stderr.write('prism-tool: project planning is not implemented\n');
+        return EXIT.TRANSACTION;
+    }
+    if (args[0] === 'project' && args[1] === 'metadata') {
+        const controls = args.slice(2);
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            sources.length !== 1 ||
+            sources[0] !== '--source=blank' ||
+            adapters.length !== 1 ||
+            adapters[0] !== '--adapter=core-only' ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--source=') &&
+                !argument.startsWith('--adapter=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup project metadata --source=blank ' +
+                '--adapter=core-only [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        const route = inspectSetupRoute({projectRoot, source: 'BLANK'});
+        if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
+            process.stderr.write('prism-tool: project metadata requires strict-empty setup\n');
+            return EXIT.TRANSACTION;
+        }
+        const metadata = inspectMinimalMetadata({projectRoot: route.projectRoot});
+        const report = {
+            schemaVersion: 1,
+            command: 'setup project metadata',
+            status: 'GO',
+            disposition: 'METADATA_REQUIRED',
+            projectRoot: route.projectRoot,
+            source: 'BLANK',
+            adapter: null,
+            checks: [{
+                id: 'bootstrap-project-metadata',
+                status: 'PASS',
+                message: 'minimal project metadata fields are available',
+            }],
+            data: metadata,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const field of report.data.fields) {
+                const suggestion = field.suggestedValue ?? '';
+                process.stdout.write(`${field.id}\t${suggestion}\n`);
+            }
+            process.stdout.write(`${report.status}\n`);
+        }
+        return EXIT.OK;
+    }
     if (args[0] === 'adapter' && args[1] === 'catalogue') {
         const controls = args.slice(2);
         const jsonCount = controls.filter((argument) => argument === '--json').length;
