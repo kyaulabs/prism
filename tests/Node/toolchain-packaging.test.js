@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -105,7 +105,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
         'cli', 'code-review', 'commit', 'consent', 'contract', 'discovery',
-        'preflight', 'process', 'review-chain',
+        'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
     ]) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }
