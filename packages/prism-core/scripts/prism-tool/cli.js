@@ -273,12 +273,28 @@ function setup(args, context) {
     if (args[0] === 'route') {
         const controls = args.slice(1);
         const jsonCount = controls.filter((argument) => argument === '--json').length;
-        if (jsonCount > 1 || controls.some((argument) => argument !== '--json')) {
-            process.stderr.write('usage: prism-tool setup route [--json]\n');
+        const sources = controls.filter((argument) => argument.startsWith('--source='));
+        const sourceValues = Object.freeze({
+            template: 'TEMPLATE',
+            blank: 'BLANK',
+            cancel: 'CANCEL',
+        });
+        if (
+            jsonCount > 1 ||
+            sources.length > 1 ||
+            controls.some((argument) => argument !== '--json' && !argument.startsWith('--source='))
+        ) {
+            process.stderr.write('usage: prism-tool setup route [--source=template|blank|cancel] [--json]\n');
+            return EXIT.USAGE;
+        }
+        const sourceName = sources.length === 1 ? sources[0].slice('--source='.length) : null;
+        if (sourceName !== null && !Object.prototype.hasOwnProperty.call(sourceValues, sourceName)) {
+            process.stderr.write('usage: prism-tool setup route [--source=template|blank|cancel] [--json]\n');
             return EXIT.USAGE;
         }
         const report = inspectSetupRoute({
             projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+            source: sourceName === null ? null : sourceValues[sourceName],
         });
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
         else {
@@ -286,6 +302,7 @@ function setup(args, context) {
                 process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
             }
             process.stdout.write(`disposition\t${report.disposition}\n`);
+            if (report.source !== null) process.stdout.write(`source\t${report.source}\n`);
             process.stdout.write(`route\t${report.route}\n`);
             process.stdout.write(`${report.status}\n`);
         }

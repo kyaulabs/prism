@@ -501,7 +501,7 @@ prism-tool commit create --type feat --scope setup --subject "classify setup ent
 - Produces: public `prism-tool setup route --source=template|blank|cancel [--json]`.
 - Preserves: the same schema keys for classification-only and source-selected reports.
 
-- [ ] **Step 1: Add failing route-selection and Cancel tests**
+- [x] **Step 1: Add failing route-selection and Cancel tests**
 
 Append before the modeline in `tests/Node/prism-tool-setup-route.test.js`:
 
@@ -573,7 +573,7 @@ test('rejects unknown or duplicate source controls', (t) => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -583,7 +583,7 @@ node --test tests/Node/prism-tool-setup-route.test.js
 
 Expected: FAIL because source controls are rejected and the bootstrap routes do not exist.
 
-- [ ] **Step 3: Implement closed source routing**
+- [x] **Step 3: Implement closed source routing**
 
 Replace `packages/prism-core/scripts/prism-tool/setup-route.js` with:
 
@@ -710,7 +710,7 @@ Replace the Task 1 `if (args[0] === 'route')` block in `packages/prism-core/scri
     }
 ```
 
-- [ ] **Step 4: Run the complete route regression set**
+- [x] **Step 4: Run the complete route regression set**
 
 Run:
 
@@ -720,7 +720,7 @@ node --test tests/Node/prism-tool-setup-route.test.js tests/Node/prism-tool-disc
 
 Expected: PASS; Cancel causes zero injected process calls and zero filesystem changes.
 
-- [ ] **Step 5: Commit source-selection routing**
+- [x] **Step 5: Commit source-selection routing**
 
 Stage only:
 

@@ -130,4 +130,70 @@ test('rejects unsupported setup route controls', () => {
     assert.match(result.stderr, /usage: prism-tool setup route/);
 });
 
+test('returns closed Template and Blank bootstrap routes only for strict-empty roots', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const template = route(projectRoot, '--source=template');
+    const blank = route(projectRoot, '--source=blank');
+
+    assert.equal(template.status, 0);
+    assert.equal(JSON.parse(template.stdout).disposition, 'STRICT_EMPTY');
+    assert.equal(JSON.parse(template.stdout).source, 'TEMPLATE');
+    assert.equal(JSON.parse(template.stdout).route, 'BOOTSTRAP_TEMPLATE');
+    assert.equal(blank.status, 0);
+    assert.equal(JSON.parse(blank.stdout).source, 'BLANK');
+    assert.equal(JSON.parse(blank.stdout).route, 'BOOTSTRAP_BLANK');
+});
+
+test('Cancel is terminal and leaves the strict-empty root untouched', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    let externalEffects = 0;
+
+    const result = captureWrites(() => main(
+        ['setup', 'route', '--source=cancel', '--json'],
+        {projectRoot, run: () => { externalEffects += 1; }}
+    ));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(report.disposition, 'STRICT_EMPTY');
+    assert.equal(report.source, 'CANCEL');
+    assert.equal(report.route, 'STOP');
+    assert.equal(externalEffects, 0);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('fails closed when a source is supplied for an established root', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(projectRoot, 'README.md'), '# project\n');
+
+    const result = route(projectRoot, '--source=template');
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'CONFLICT');
+    assert.equal(report.source, null);
+    assert.equal(report.route, 'STOP');
+    assert.equal(report.reason, 'SOURCE_REQUIRES_STRICT_EMPTY');
+});
+
+test('rejects unknown or duplicate source controls', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    for (const controls of [
+        ['--source=unknown'],
+        ['--source=template', '--source=blank'],
+    ]) {
+        const result = route(projectRoot, ...controls);
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+        assert.match(result.stderr, /--source=template\|blank\|cancel/);
+    }
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
