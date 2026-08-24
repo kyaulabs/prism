@@ -483,7 +483,7 @@ prism-tool commit create --type feat --scope setup --subject "recover blank boot
 - Produces: package inventory assertions for `bootstrap-journal.js` and `bootstrap-transaction.js`.
 - Produces: bounded Core documentation for plan, apply, rollback, durable recovery, and the Task #6 handoff.
 
-- [ ] **Step 1: Write failing package and public-contract assertions**
+- [x] **Step 1: Write failing package and public-contract assertions**
 
 Extend the package module list:
 
@@ -506,13 +506,13 @@ Add a no-effects test that spies on `node:child_process` entry points and verifi
 
 Add an established-project regression that creates a non-empty project, invokes the new operations, and asserts the existing file is unchanged and no `.pi/prism-tool/bootstrap` state is created.
 
-- [ ] **Step 2: Run focused packaging tests to verify Red**
+- [x] **Step 2: Run focused packaging tests to verify Red**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL until the new modules and public contract are present in the packed package and documentation.
 
-- [ ] **Step 3: Complete packaging assertions and bounded documentation**
+- [x] **Step 3: Complete packaging assertions and bounded documentation**
 
 Update `packages/prism-core/README.md` with one concise strict-empty transaction section documenting only these public states:
 
@@ -525,7 +525,7 @@ post-durable recover -> PROJECT_DURABLE / REPOSITORY_BOOTSTRAP
 
 State explicitly that project application creates no Git repository, runs no dependency or quality command, activates no hooks, makes no network request, and performs no publication; the next Epic slice owns repository bootstrap and the signed root seed.
 
-- [ ] **Step 4: Run the complete verification set**
+- [x] **Step 4: Run the complete verification set**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-setup-route.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -543,7 +543,7 @@ Run: `git diff --check`
 
 Expected: no output.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/README.md tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/toolchain-packaging.test.js
