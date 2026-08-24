@@ -412,7 +412,7 @@ prism-tool commit create --type feat --scope setup --subject "resolve immutable 
 - Adds only closed reason enums: `NETWORK_FAILED`, `RESPONSE_REJECTED`, `RESPONSE_TOO_LARGE`, `RESPONSE_INVALID`, `SOURCE_IDENTITY_INVALID`, `DEFAULT_BRANCH_INVALID`, and `COMMIT_INVALID`.
 - Every failure returns exit `5`, status `NO-GO`, disposition `SOURCE_UNAVAILABLE` or `STOP`, source `TEMPLATE`, `data: null`, and one sanitized failed check.
 
-- [ ] **Step 1: Add failing hostile transport and authority tests**
+- [x] **Step 1: Add failing hostile transport and authority tests**
 
 Append table-driven public CLI tests covering:
 
@@ -446,7 +446,7 @@ Add a root-gate test that creates an established file before invoking Template a
 
 Add a branch-race test that returns `develop` from repository metadata, records the immutable commit/tree responses, and proves no later call references `develop`; calls three and four must contain only tree/blob object IDs.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -456,7 +456,7 @@ node --test tests/Node/prism-tool-template-source.test.js
 
 Expected: FAIL on one or more hostile cases that Task 1 does not yet reject precisely.
 
-- [ ] **Step 3: Harden transport and authority validation**
+- [x] **Step 3: Harden transport and authority validation**
 
 Set per-response bounds in `template-source.js`:
 
@@ -490,7 +490,7 @@ Implement commit validation with exact lowercase 40-hex SHA checks and require `
 
 Map route rejection separately from network/source rejection so established roots return `STOP` without creating a source attempt. Do not include raw status text, response bodies, URLs, branch values, exceptions, or attacker-controlled fields in diagnostics.
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run:
 
@@ -500,7 +500,7 @@ node --test tests/Node/prism-tool-template-source.test.js tests/Node/prism-tool-
 
 Expected: PASS with no retries, no fallback, no writes, and zero fetches outside the strict-empty Template route.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/template-source-http.js packages/prism-core/scripts/prism-tool/template-source-validation.js packages/prism-core/scripts/prism-tool/template-source.js tests/Node/fixtures/template-source.js tests/Node/prism-tool-template-source.test.js

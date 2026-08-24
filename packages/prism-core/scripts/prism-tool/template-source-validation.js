@@ -14,6 +14,7 @@ const LIMITS = Object.freeze({
     manifestBytes: 262144,
 });
 const MANIFEST_PATH = '.prism/template-manifest.json';
+const BRANCH_PATTERN = /^(?!\.)(?!.*\.\.)(?!.*\.lock$)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 
 function fail(code) {
@@ -31,7 +32,12 @@ function digestJson(value) {
 function validateRepository(value) {
     if (!isRecord(value) || value.full_name !== 'kyaulabs/template') fail('SOURCE_IDENTITY_INVALID');
     if (value.private !== false || value.visibility !== 'public') fail('SOURCE_IDENTITY_INVALID');
-    if (typeof value.default_branch !== 'string' || value.default_branch.length === 0) {
+    if (
+        typeof value.default_branch !== 'string' ||
+        !value.default_branch.isWellFormed() ||
+        Buffer.byteLength(value.default_branch) > 128 ||
+        !BRANCH_PATTERN.test(value.default_branch)
+    ) {
         fail('DEFAULT_BRANCH_INVALID');
     }
     return {defaultBranch: value.default_branch};

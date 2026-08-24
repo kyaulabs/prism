@@ -71,7 +71,7 @@ function streamResponse(body, {redirected = false, status = 200} = {}) {
     };
 }
 
-function createTemplateFixture({mutate} = {}) {
+function createTemplateFixture({mutate, transport = {}} = {}) {
     const manifest = {
         schemaVersion: 1,
         templateId: 'kyaulabs/template',
@@ -136,6 +136,16 @@ function createTemplateFixture({mutate} = {}) {
         calls.push({url, options});
         const index = calls.length - 1;
         if (index >= queue.length) throw new Error('unexpected template request');
+        if (transport.rejectIndex === index) throw new Error('fixture network failure');
+        if (transport.responseIndex === index) {
+            const body = Object.prototype.hasOwnProperty.call(transport, 'rawBody')
+                ? transport.rawBody
+                : JSON.stringify(queue[index]);
+            return streamResponse(body, {
+                redirected: transport.redirected,
+                status: transport.status,
+            });
+        }
         return streamResponse(JSON.stringify(queue[index]));
     };
 
