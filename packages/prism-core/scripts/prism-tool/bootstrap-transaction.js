@@ -48,28 +48,31 @@ function holdDirectory(root, directoryPath) {
                 openPath,
                 fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
             );
-            const held = fs.fstatSync(descriptor);
-            const current = fs.lstatSync(currentPath);
-            if (!sameFile(initial, held) || !sameFile(current, held)) {
-                fs.closeSync(descriptor);
-                throw new Error('bootstrap directory changed');
-            }
-            let anchor;
-            for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
-                try {
-                    if (sameFile(fs.statSync(candidate), held)) {
-                        anchor = candidate;
-                        break;
-                    }
-                } catch {
-                    continue;
+            try {
+                const held = fs.fstatSync(descriptor);
+                const current = fs.lstatSync(currentPath);
+                if (!sameFile(initial, held) || !sameFile(current, held)) {
+                    throw new Error('bootstrap directory changed');
                 }
-            }
-            if (anchor === undefined) {
+                let anchor;
+                for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+                    try {
+                        if (sameFile(fs.statSync(candidate), held)) {
+                            anchor = candidate;
+                            break;
+                        }
+                    } catch {
+                        continue;
+                    }
+                }
+                if (anchor === undefined) {
+                    throw new Error('bootstrap directory cannot be held safely');
+                }
+                heldDirectories.push({path: currentPath, descriptor, held, anchor});
+            } catch (error) {
                 fs.closeSync(descriptor);
-                throw new Error('bootstrap directory cannot be held safely');
+                throw error;
             }
-            heldDirectories.push({path: currentPath, descriptor, held, anchor});
         }
         const target = heldDirectories.at(-1);
         return {
@@ -349,20 +352,26 @@ function expectedProjectInventory(outputs) {
         .sort((left, right) => left.path.localeCompare(right.path));
 }
 
-function actualProjectInventory(project) {
+function actualProjectInventory(projectRoot, project) {
     const entries = [];
-    const visit = (relativeRoot) => {
-        const directoryPath = relativeRoot === ''
-            ? project.anchor
-            : path.join(project.anchor, ...relativeRoot.split('/'));
-        for (const name of fs.readdirSync(directoryPath).sort()) {
+    const visit = (relativeRoot, directory) => {
+        for (const name of fs.readdirSync(directory.anchor).sort()) {
             if (relativeRoot === '' && name === '.pi') continue;
             const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
-            const stat = fs.lstatSync(path.join(directoryPath, name));
+            const stat = fs.lstatSync(path.join(directory.anchor, name));
             if (stat.isSymbolicLink()) throw new Error('durable bootstrap project contains a symlink');
             if (stat.isDirectory()) {
                 entries.push({path: relativePath, kind: 'directory'});
-                visit(relativePath);
+                const child = holdDirectory(
+                    projectRoot,
+                    path.join(projectRoot, ...relativePath.split('/'))
+                );
+                try {
+                    visit(relativePath, child);
+                    child.assertCurrent();
+                } finally {
+                    child.close();
+                }
             } else if (stat.isFile()) {
                 entries.push({path: relativePath, kind: 'file'});
             } else {
@@ -370,7 +379,7 @@ function actualProjectInventory(project) {
             }
         }
     };
-    visit('');
+    visit('', project);
     return entries.sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -434,7 +443,7 @@ function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, j
     const project = holdDirectory(projectRoot, projectRoot);
     try {
         const expectedInventory = expectedProjectInventory(plan.outputs);
-        const actualInventory = actualProjectInventory(project);
+        const actualInventory = actualProjectInventory(projectRoot, project);
         if (JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
             throw new Error('durable bootstrap project inventory changed');
         }

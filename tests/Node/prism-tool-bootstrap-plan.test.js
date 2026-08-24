@@ -338,6 +338,54 @@ test('applies an approved Blank Core-only plan and marks the project durable', (
     }
 });
 
+test('closes a directory descriptor when holding validation throws', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const originalFstat = fs.fstatSync;
+    let rejectedDescriptor;
+    fs.fstatSync = function rejectHeldDirectory(descriptor, ...args) {
+        if (
+            rejectedDescriptor === undefined &&
+            new Error().stack.includes('at holdDirectory')
+        ) {
+            rejectedDescriptor = descriptor;
+            throw new Error('injected held-directory validation failure');
+        }
+        return originalFstat.call(this, descriptor, ...args);
+    };
+    t.after(() => {
+        if (rejectedDescriptor === undefined) return;
+        try {
+            fs.closeSync(rejectedDescriptor);
+        } catch {
+            return;
+        }
+    });
+
+    let result;
+    try {
+        result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.fstatSync = originalFstat;
+    }
+
+    assert.equal(result.status, 5);
+    assert.notEqual(rejectedDescriptor, undefined);
+    assert.throws(
+        () => fs.fstatSync(rejectedDescriptor),
+        (error) => error.code === 'EBADF'
+    );
+});
+
 test('does not follow a candidate intermediate directory substituted after plan validation', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -671,6 +719,70 @@ test('revalidates and idempotently resumes a durable project', (t) => {
     assert.equal(second.data.appliedInventoryDigest, first.data.appliedInventoryDigest);
     assert.equal(after.ino, before.ino);
     assert.equal(after.mtimeMs, before.mtimeMs);
+});
+
+test('does not traverse a durable directory replaced after inventory inspection', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const githubPath = path.join(projectRoot, '.github');
+    const displacedPath = path.join(projectRoot, '.github-held');
+    const originalLstat = fs.lstatSync;
+    const originalReaddir = fs.readdirSync;
+    let replaced = false;
+    let traversedOutside = false;
+    fs.lstatSync = function replaceInspectedDirectory(filePath, ...args) {
+        const stat = originalLstat.call(this, filePath, ...args);
+        if (
+            !replaced &&
+            typeof filePath === 'string' &&
+            path.basename(filePath) === '.github' &&
+            filePath.includes('/proc/self/fd/') &&
+            fs.realpathSync(filePath) === githubPath
+        ) {
+            fs.renameSync(githubPath, displacedPath);
+            fs.symlinkSync(outside, githubPath, 'dir');
+            replaced = true;
+        }
+        return stat;
+    };
+    fs.readdirSync = function detectOutsideTraversal(directoryPath, ...args) {
+        if (
+            replaced &&
+            typeof directoryPath === 'string' &&
+            fs.realpathSync(directoryPath) === outside
+        ) {
+            traversedOutside = true;
+        }
+        return originalReaddir.call(this, directoryPath, ...args);
+    };
+
+    let result;
+    try {
+        result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+            coreRoot: CORE_ROOT,
+        });
+    } finally {
+        fs.lstatSync = originalLstat;
+        fs.readdirSync = originalReaddir;
+    }
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(replaced, true);
+    assert.equal(traversedOutside, false);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
 });
 
 test('retains a durable project when unexpected nested state appears', (t) => {
