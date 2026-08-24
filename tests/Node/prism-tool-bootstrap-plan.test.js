@@ -181,6 +181,46 @@ test('revalidates an unchanged active project plan', (t) => {
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
 });
 
+test('rejects a substituted attempt child before opening external state', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const reportsRoot = path.join(attemptRoot, 'reports');
+    const externalReports = path.join(outside, 'reports');
+    fs.cpSync(reportsRoot, externalReports, {recursive: true});
+    fs.rmSync(reportsRoot, {recursive: true});
+    fs.symlinkSync(externalReports, reportsRoot, 'dir');
+    const originalOpen = fs.openSync;
+    let externalOpens = 0;
+    fs.openSync = function countExternalOpen(filePath, ...args) {
+        if (typeof filePath === 'string' && filePath.startsWith(`${reportsRoot}${path.sep}`)) {
+            externalOpens += 1;
+        }
+        return originalOpen.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.openSync = originalOpen;
+    }
+
+    assert.equal(result.status, 5);
+    assert.equal(externalOpens, 0);
+});
+
 test('fails closed when any active project-plan state changes', () => {
     const cases = [
         {
@@ -360,6 +400,23 @@ test('rejects metadata outside the closed minimal schema', (t) => {
     }
 });
 
+test('rejects malformed UTF-8 metadata bytes without changing the project root', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const input = Buffer.concat([
+        Buffer.from('{"schemaVersion":1,"displayName":"Project'),
+        Buffer.from([0xff]),
+        Buffer.from('","summary":"One sentence."}'),
+    ]);
+
+    const result = planInput(projectRoot, input);
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /project metadata is invalid/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
 test('renders the trusted Core baseline into a launcher-designated candidate root', (t) => {
     const projectRoot = makeTempDir();
     const candidateRoot = makeTempDir();
@@ -421,6 +478,57 @@ test('rejects a symlinked candidate parent without writing through it', (t) => {
     assert.equal(result.stdout, '');
     assert.match(result.stderr, /Core baseline provider failed/);
     assert.deepEqual(fs.readdirSync(outside), []);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('does not follow a candidate parent replaced at the file-creation boundary', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    const outside = makeTempDir();
+    const displaced = path.join(candidateRoot, '.github-held');
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(outside, 'hooks'));
+    const originalOpen = fs.openSync;
+    const originalWrite = fs.writeFileSync;
+    let replaced = false;
+    const replaceParent = (filePath) => {
+        if (!replaced && typeof filePath === 'string' && path.basename(filePath) === 'commit-msg') {
+            replaced = true;
+            fs.renameSync(path.join(candidateRoot, '.github'), displaced);
+            fs.symlinkSync(outside, path.join(candidateRoot, '.github'), 'dir');
+        }
+    };
+    fs.openSync = function openWithReplacement(filePath, ...args) {
+        replaceParent(filePath);
+        return originalOpen.call(this, filePath, ...args);
+    };
+    fs.writeFileSync = function writeWithReplacement(filePath, ...args) {
+        replaceParent(filePath);
+        return originalWrite.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = planProject(projectRoot, {
+            schemaVersion: 1,
+            displayName: 'Project',
+            summary: 'One sentence.',
+        }, {
+            coreRoot: CORE_ROOT,
+            bootstrapPlanStage: 'provider',
+            bootstrapCandidateRoot: candidateRoot,
+        });
+    } finally {
+        fs.openSync = originalOpen;
+        fs.writeFileSync = originalWrite;
+    }
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Core baseline provider failed/);
+    assert.deepEqual(fs.readdirSync(path.join(outside, 'hooks')), []);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -498,6 +606,41 @@ test('validates provider identity and candidate bytes before composition', (t) =
         protocolVersion: 1,
     });
     assert.equal(outputs.every(({kind}) => kind === 'file'), true);
+});
+
+test('rejects candidate bytes reached through a substituted intermediate parent', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const rendered = planInput(projectRoot, JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }), {
+        coreRoot: CORE_ROOT,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+    const provider = JSON.parse(rendered.stdout).data;
+    fs.cpSync(path.join(candidateRoot, '.github'), outside, {recursive: true});
+    fs.rmSync(path.join(candidateRoot, '.github'), {recursive: true});
+    fs.symlinkSync(outside, path.join(candidateRoot, '.github'), 'dir');
+    const {loadTrustedProviderRegistry} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+    );
+    const {validateProviderReport} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-composer'
+    );
+
+    assert.throws(() => validateProviderReport({
+        projectRoot,
+        candidateRoot,
+        registry: loadTrustedProviderRegistry({coreRoot: CORE_ROOT}),
+        report: provider,
+    }), /candidate/);
 });
 
 test('rejects malformed, untrusted, and stale provider reports', (t) => {

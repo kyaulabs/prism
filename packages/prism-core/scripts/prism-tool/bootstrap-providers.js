@@ -83,22 +83,95 @@ function ensureCandidateRoot(candidateRoot) {
     return canonicalRoot;
 }
 
-function ensureCandidateParents(candidateRoot, relativePath) {
-    let current = candidateRoot;
-    const segments = relativePath.split('/').slice(0, -1);
-    for (const segment of segments) {
-        current = path.join(current, segment);
-        const existing = fs.lstatSync(current, {throwIfNoEntry: false});
-        if (existing === undefined) fs.mkdirSync(current, {mode: 0o700});
-        const stat = fs.lstatSync(current);
-        if (stat.isSymbolicLink() || !stat.isDirectory()) {
-            throw new Error('candidate parent is invalid');
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function directoryFlags() {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    return fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
+}
+
+function createHeldDirectory(candidateRoot, directoryPath, openPath) {
+    const initial = fs.lstatSync(openPath);
+    if (initial.isSymbolicLink() || !initial.isDirectory()) {
+        throw new Error('candidate parent is invalid');
+    }
+    const descriptor = fs.openSync(openPath, directoryFlags());
+    try {
+        const held = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(directoryPath);
+        const relation = path.relative(candidateRoot, fs.realpathSync(directoryPath));
+        if (
+            current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            !sameFile(initial, held) ||
+            !sameFile(current, held) ||
+            relation.startsWith('..') ||
+            path.isAbsolute(relation)
+        ) {
+            throw new Error('candidate parent changed');
         }
-        const canonical = fs.realpathSync(current);
-        const relation = path.relative(candidateRoot, canonical);
-        if (relation.startsWith('..') || path.isAbsolute(relation)) {
-            throw new Error('candidate parent escapes its root');
+        let anchor;
+        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+            try {
+                if (sameFile(fs.statSync(candidate), held)) {
+                    anchor = candidate;
+                    break;
+                }
+            } catch {
+                continue;
+            }
         }
+        if (anchor === undefined) throw new Error('candidate parent cannot be held safely');
+        return {
+            anchor,
+            assertCurrent() {
+                const latest = fs.lstatSync(directoryPath);
+                if (
+                    latest.isSymbolicLink() ||
+                    !latest.isDirectory() ||
+                    !sameFile(latest, held) ||
+                    !sameFile(fs.statSync(anchor), held)
+                ) {
+                    throw new Error('candidate parent changed');
+                }
+            },
+            close() {
+                fs.closeSync(descriptor);
+            },
+        };
+    } catch (error) {
+        fs.closeSync(descriptor);
+        throw error;
+    }
+}
+
+function holdCandidateParent(candidateRoot, relativePath) {
+    let directoryPath = candidateRoot;
+    let parent = createHeldDirectory(candidateRoot, candidateRoot, candidateRoot);
+    try {
+        for (const segment of relativePath.split('/').slice(0, -1)) {
+            const childPath = path.join(directoryPath, segment);
+            const anchoredChild = path.join(parent.anchor, segment);
+            parent.assertCurrent();
+            if (fs.lstatSync(anchoredChild, {throwIfNoEntry: false}) === undefined) {
+                fs.mkdirSync(anchoredChild, {mode: 0o700});
+            }
+            const child = createHeldDirectory(candidateRoot, childPath, anchoredChild);
+            parent.close();
+            parent = child;
+            directoryPath = childPath;
+        }
+        return parent;
+    } catch (error) {
+        parent.close();
+        throw error;
     }
 }
 
@@ -108,16 +181,40 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     if (relation.startsWith('..') || path.isAbsolute(relation)) {
         throw new Error('candidate path escapes its root');
     }
-    ensureCandidateParents(candidateRoot, relativePath);
-    fs.writeFileSync(target, contents, {flag: 'wx', mode});
-    fs.chmodSync(target, mode);
-    return Object.freeze({
-        path: relativePath,
-        kind: 'file',
-        mode,
-        sha256: sha256(contents),
-        candidatePath: fs.realpathSync(target),
-    });
+    const parent = holdCandidateParent(candidateRoot, relativePath);
+    const anchoredTarget = path.join(parent.anchor, path.basename(relativePath));
+    let descriptor;
+    try {
+        parent.assertCurrent();
+        descriptor = fs.openSync(
+            anchoredTarget,
+            fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW,
+            mode
+        );
+        fs.writeFileSync(descriptor, contents);
+        fs.fchmodSync(descriptor, mode);
+        const held = fs.fstatSync(descriptor);
+        parent.assertCurrent();
+        const current = fs.lstatSync(target);
+        if (
+            current.isSymbolicLink() ||
+            !current.isFile() ||
+            !sameFile(current, held) ||
+            (held.mode & 0o777) !== mode
+        ) {
+            throw new Error('candidate file changed');
+        }
+        return Object.freeze({
+            path: relativePath,
+            kind: 'file',
+            mode,
+            sha256: sha256(contents),
+            candidatePath: fs.realpathSync(target),
+        });
+    } finally {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        parent.close();
+    }
 }
 
 function projectManifest(metadata, coreVersion) {

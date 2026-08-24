@@ -24,6 +24,13 @@ function inside(root, candidate) {
     return relation === '' || (!relation.startsWith('..') && !path.isAbsolute(relation));
 }
 
+function containsControl(value) {
+    return [...value].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 0x1f || code >= 0x7f && code <= 0x9f;
+    });
+}
+
 function validateTargetPath(value) {
     if (
         typeof value !== 'string' ||
@@ -33,17 +40,106 @@ function validateTargetPath(value) {
         path.posix.isAbsolute(value) ||
         path.posix.normalize(value) !== value ||
         value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..') ||
-        /[\u0000-\u001f\u007f-\u009f]/u.test(value) ||
         value === '.git' ||
         value.startsWith('.git/') ||
         value === '.pi/prism-tool' ||
         value.startsWith('.pi/prism-tool/') ||
         path.posix.basename(value) === '.env' ||
-        (path.posix.basename(value).startsWith('.env.') && path.posix.basename(value) !== '.env.example')
+        (path.posix.basename(value).startsWith('.env.') && path.posix.basename(value) !== '.env.example') ||
+        containsControl(value)
     ) {
         throw new Error('provider output path is invalid');
     }
     return value;
+}
+
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function directoryFlags() {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    return fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
+}
+
+function createHeldDirectory(candidateRoot, directoryPath, openPath) {
+    const initial = fs.lstatSync(openPath);
+    if (initial.isSymbolicLink() || !initial.isDirectory()) {
+        throw new Error('provider candidate parent is invalid');
+    }
+    const descriptor = fs.openSync(openPath, directoryFlags());
+    try {
+        const held = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(directoryPath);
+        if (
+            current.isSymbolicLink() ||
+            !current.isDirectory() ||
+            !sameFile(initial, held) ||
+            !sameFile(current, held) ||
+            !inside(candidateRoot, fs.realpathSync(directoryPath))
+        ) {
+            throw new Error('provider candidate parent changed');
+        }
+        let anchor;
+        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+            try {
+                if (sameFile(fs.statSync(candidate), held)) {
+                    anchor = candidate;
+                    break;
+                }
+            } catch {
+                continue;
+            }
+        }
+        if (anchor === undefined) throw new Error('provider candidate parent cannot be held safely');
+        return {
+            anchor,
+            assertCurrent() {
+                const latest = fs.lstatSync(directoryPath);
+                if (
+                    latest.isSymbolicLink() ||
+                    !latest.isDirectory() ||
+                    !sameFile(latest, held) ||
+                    !sameFile(fs.statSync(anchor), held)
+                ) {
+                    throw new Error('provider candidate parent changed');
+                }
+            },
+            close() {
+                fs.closeSync(descriptor);
+            },
+        };
+    } catch (error) {
+        fs.closeSync(descriptor);
+        throw error;
+    }
+}
+
+function holdCandidateParent(candidateRoot, outputPath) {
+    let directoryPath = candidateRoot;
+    let parent = createHeldDirectory(candidateRoot, candidateRoot, candidateRoot);
+    try {
+        for (const segment of outputPath.split('/').slice(0, -1)) {
+            const childPath = path.join(directoryPath, segment);
+            const child = createHeldDirectory(
+                candidateRoot,
+                childPath,
+                path.join(parent.anchor, segment)
+            );
+            parent.close();
+            parent = child;
+            directoryPath = childPath;
+        }
+        return parent;
+    } catch (error) {
+        parent.close();
+        throw error;
+    }
 }
 
 function heldCandidate(candidateRoot, output) {
@@ -54,31 +150,33 @@ function heldCandidate(candidateRoot, output) {
     if (output.candidatePath !== expected || !inside(candidateRoot, expected)) {
         throw new Error('provider candidate path is invalid');
     }
-    const initial = fs.lstatSync(expected);
-    if (initial.isSymbolicLink() || !initial.isFile() || initial.size > MAX_FILE_BYTES) {
-        throw new Error('provider candidate file is invalid');
-    }
-    if (typeof fs.constants.O_NOFOLLOW !== 'number') {
-        throw new Error('safe filesystem flags are unavailable');
-    }
-    const descriptor = fs.openSync(expected, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const parent = holdCandidateParent(candidateRoot, output.path);
+    const anchored = path.join(parent.anchor, path.basename(output.path));
+    let descriptor;
     try {
+        parent.assertCurrent();
+        const initial = fs.lstatSync(anchored);
+        if (initial.isSymbolicLink() || !initial.isFile() || initial.size > MAX_FILE_BYTES) {
+            throw new Error('provider candidate file is invalid');
+        }
+        descriptor = fs.openSync(anchored, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         const held = fs.fstatSync(descriptor);
         if (
             !held.isFile() ||
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
+            !sameFile(held, initial) ||
             held.size !== initial.size ||
             (held.mode & 0o777) !== output.mode
         ) {
             throw new Error('provider candidate file changed');
         }
         const contents = fs.readFileSync(descriptor);
+        parent.assertCurrent();
         if (crypto.createHash('sha256').update(contents).digest('hex') !== output.sha256) {
             throw new Error('provider candidate digest is invalid');
         }
     } finally {
-        fs.closeSync(descriptor);
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        parent.close();
     }
 }
 

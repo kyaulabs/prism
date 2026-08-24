@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {TextDecoder} = require('node:util');
 
 const DISPLAY_NAME_MAXIMUM = 100;
 const INPUT_MAXIMUM = 16384;
@@ -19,6 +20,13 @@ function hasExactKeys(value, expected) {
     return actual.length === sorted.length && actual.every((key, index) => key === sorted[index]);
 }
 
+function containsLineControl(value) {
+    return [...value].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 0x1f || code >= 0x7f && code <= 0x9f || [0x2028, 0x2029].includes(code);
+    });
+}
+
 function normalizeSingleLine(value, maximum, label) {
     if (
         typeof value !== 'string' ||
@@ -26,7 +34,7 @@ function normalizeSingleLine(value, maximum, label) {
         Buffer.byteLength(value) > maximum ||
         value !== value.trim() ||
         value !== value.normalize('NFC') ||
-        /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
+        containsLineControl(value)
     ) {
         throw new Error(`${label} is invalid`);
     }
@@ -88,7 +96,12 @@ function parseMetadataInput(input) {
     if (contents.length === 0 || contents.length > INPUT_MAXIMUM || contents[0] === 0xef) {
         throw new Error('project metadata input is invalid');
     }
-    const text = contents.toString('utf8');
+    let text;
+    try {
+        text = new TextDecoder('utf-8', {fatal: true}).decode(contents);
+    } catch {
+        throw new Error('project metadata input is invalid');
+    }
     if (!text.startsWith('{') || !text.endsWith('}')) {
         throw new Error('project metadata input is invalid');
     }
