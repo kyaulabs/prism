@@ -3,6 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -45,7 +46,7 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
     const packageName = options.packageName ?? '@kyaulabs/prism-php-web';
     const packageVersion = options.packageVersion ?? '0.3.1';
     const bootstrapProtocol = options.bootstrapProtocol ?? 1;
-    writeJson(path.join(packageRoot, 'package.json'), {
+    const manifest = {
         name: packageName,
         version: packageVersion,
         prism: {
@@ -54,7 +55,13 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
             handler: './scripts/prism-tool-adapter.js',
             toolchain: './toolchain.json',
         },
-    });
+    };
+    if (options.lifecycleMarker) {
+        manifest.scripts = {
+            postinstall: `node -e "require('node:fs').writeFileSync('${options.lifecycleMarker}', 'ran')"`,
+        };
+    }
+    writeJson(path.join(packageRoot, 'package.json'), manifest);
     writeJson(path.join(packageRoot, 'toolchain.json'), {
         schemaVersion: 1,
         package: packageName,
@@ -73,9 +80,12 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
         }],
     });
     fs.mkdirSync(path.join(packageRoot, 'scripts'), {recursive: true});
+    const loadMarker = options.loadMarker
+        ? `require('node:fs').writeFileSync(${JSON.stringify(options.loadMarker)}, 'loaded\\n');\n`
+        : '';
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        `'use strict';\nmodule.exports = {bootstrapProtocol: ${bootstrapProtocol}, inspect() {}, resolveTool() {}};\n`
+        `'use strict';\n${loadMarker}module.exports = {bootstrapProtocol: ${bootstrapProtocol}, inspect() {}, resolveTool() {}};\n`
     );
 }
 
@@ -246,6 +256,8 @@ function installFixture({
     packageVersion,
     bootstrapProtocol = 1,
     installSource = `npm:${packageName}@${packageVersion}`,
+    lifecycleMarker,
+    loadMarker,
 }) {
     return (command, args, options) => {
         assert.equal(command, '/fixture/bin/pi');
@@ -278,7 +290,13 @@ function installFixture({
             fs.writeFileSync(path.join(projectRoot, '.pi', 'npm', '.gitignore'), '*\n!.gitignore\n');
             writeBootstrapAdapterPackage(
                 path.join(projectRoot, '.pi', 'npm', 'node_modules', ...packageName.split('/')),
-                {packageName, packageVersion, bootstrapProtocol}
+                {
+                    packageName,
+                    packageVersion,
+                    bootstrapProtocol,
+                    lifecycleMarker,
+                    loadMarker,
+                }
             );
         }
         return {status: 0, stdout: '', stderr: '', error: undefined};
@@ -333,8 +351,17 @@ test('provisions the exact pinned npm adapter through Pi and records the attempt
     });
     assert.equal(report.data.attempt.id, attemptId);
     assert.equal(report.data.attempt.receiptPath, fs.realpathSync(receiptPath));
+    assert.equal(fs.statSync(path.dirname(receiptPath)).mode & 0o777, 0o700);
     assert.equal(fs.statSync(receiptPath).mode & 0o777, 0o600);
-    assert.equal(JSON.parse(fs.readFileSync(receiptPath, 'utf8')).phase, 'PROVISIONED');
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+    assert.equal(receipt.phase, 'PROVISIONED');
+    assert.equal(receipt.projectRoot, fs.realpathSync(projectRoot));
+    assert.match(receipt.settings.sha256, /^[0-9a-f]{64}$/);
+    assert.match(receipt.npmInventory.sha256, /^[0-9a-f]{64}$/);
+    assert.ok(receipt.npmInventory.entries.length > 0);
+    assert.equal(receipt.registration.packageName, '@kyaulabs/prism-php-web');
+    assert.equal(receipt.registration.packageVersion, '0.3.1');
+    assert.equal(receipt.registration.bootstrapProtocol, 1);
 });
 
 test('provisions a validated co-shipped adapter by exact local path', (t) => {
@@ -352,6 +379,7 @@ test('provisions a validated co-shipped adapter by exact local path', (t) => {
         'setup', 'adapter', 'select',
         '--adapter=php-web',
         '--source=template',
+        '--network-approved=yes',
         '--json',
     ], {
         projectRoot,
@@ -401,9 +429,10 @@ test('cleans only attempt-created paths when Pi adapter installation fails', (t)
         run: () => ({status: 1, stdout: '', stderr: 'failed', error: undefined}),
     }));
 
-    assert.equal(result.status, 2);
-    assert.equal(result.stdout, '');
-    assert.match(result.stderr, /bootstrap adapter selection failed/);
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 5);
+    assert.equal(result.stderr, '');
+    assert.equal(report.disposition, 'INSTALL_FAILED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -439,7 +468,8 @@ test('removes created Pi state when settings verification fails', (t) => {
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -473,7 +503,8 @@ test('fails closed and cleans the attempt when Pi lock state is corrupt', (t) =>
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -501,9 +532,10 @@ test('preserves an unrelated file discovered during failed-attempt cleanup', (t)
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
     assert.equal(fs.readFileSync(path.join(projectRoot, 'KEEP.txt'), 'utf8'), 'user-owned\n');
-    assert.deepEqual(fs.readdirSync(projectRoot), ['KEEP.txt']);
+    assert.deepEqual(fs.readdirSync(projectRoot).sort(), ['.pi', 'KEEP.txt']);
 });
 
 test('rejects a lockfile that does not pin the selected adapter version', (t) => {
@@ -539,7 +571,8 @@ test('rejects a lockfile that does not pin the selected adapter version', (t) =>
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -636,7 +669,8 @@ test('cleans post-install identity, protocol, collision, and containment failure
                 },
             }));
 
-            assert.equal(result.status, 2);
+            assert.equal(result.status, 5);
+            assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
             assert.deepEqual(fs.readdirSync(projectRoot), []);
         });
     }
@@ -678,7 +712,8 @@ test('a symlinked receipt cannot redirect cleanup outside the attempt directory'
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'preserve\n');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
@@ -734,12 +769,16 @@ test('preserves an unexpected user file inside .pi during cleanup', (t) => {
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
     assert.equal(
         fs.readFileSync(path.join(projectRoot, '.pi', 'KEEP.txt'), 'utf8'),
         'user-owned\n'
     );
-    assert.deepEqual(fs.readdirSync(path.join(projectRoot, '.pi')), ['KEEP.txt']);
+    assert.deepEqual(
+        fs.readdirSync(path.join(projectRoot, '.pi')).sort(),
+        ['KEEP.txt', 'prism-tool']
+    );
 });
 
 test('rejects unexpected package-manager dependencies in a fresh bootstrap', (t) => {
@@ -775,8 +814,334 @@ test('rejects unexpected package-manager dependencies in a fresh bootstrap', (t)
         },
     }));
 
-    assert.equal(result.status, 2);
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('explicit cleanup removes unchanged provisioned adapter state', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const attemptId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const provisioned = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => attemptId,
+        run: installFixture({
+            projectRoot,
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+        }),
+    }));
+    assert.equal(provisioned.status, 0);
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'cleanup', `--attempt=${attemptId}`, '--json',
+    ], {projectRoot}));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'CLEANED');
+    assert.equal(report.data.attempt.id, attemptId);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('cleanup preserves changed or ambiguous provisioned state for recovery', async (t) => {
+    const cases = [
+        {
+            name: 'changed settings',
+            mutate({projectRoot}) {
+                fs.appendFileSync(path.join(projectRoot, '.pi', 'settings.json'), ' ');
+            },
+        },
+        {
+            name: 'changed npm inventory',
+            mutate({projectRoot}) {
+                fs.appendFileSync(path.join(projectRoot, '.pi', 'npm', 'package-lock.json'), ' ');
+            },
+        },
+        {
+            name: 'unexpected root entry',
+            mutate({projectRoot}) {
+                fs.writeFileSync(path.join(projectRoot, 'KEEP.txt'), 'preserve\n');
+            },
+        },
+        {
+            name: 'unexpected .pi child',
+            mutate({projectRoot}) {
+                fs.writeFileSync(path.join(projectRoot, '.pi', 'KEEP.txt'), 'preserve\n');
+            },
+        },
+        {
+            name: 'invalid receipt',
+            mutate({receiptPath}) {
+                fs.writeFileSync(receiptPath, '{');
+            },
+        },
+    ];
+    const attemptIds = [
+        '10101010-1010-4010-8010-101010101010',
+        '20202020-2020-4020-8020-202020202020',
+        '30303030-3030-4030-8030-303030303030',
+        '40404040-4040-4040-8040-404040404040',
+        '50505050-5050-4050-8050-505050505050',
+    ];
+
+    for (let index = 0; index < cases.length; index += 1) {
+        await t.test(cases[index].name, () => {
+            const projectRoot = makeTempDir();
+            const coreRoot = makeTempDir();
+            const attemptId = attemptIds[index];
+            t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+            t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+            writeCorePackage(coreRoot);
+            const provisioned = captureWrites(() => main([
+                'setup', 'adapter', 'select',
+                '--adapter=php-web',
+                '--source=blank',
+                '--network-approved=yes',
+                '--json',
+            ], {
+                projectRoot,
+                coreRoot,
+                piExecutable: '/fixture/bin/pi',
+                randomUUID: () => attemptId,
+                run: installFixture({
+                    projectRoot,
+                    packageName: '@kyaulabs/prism-php-web',
+                    packageVersion: '0.3.1',
+                }),
+            }));
+            assert.equal(provisioned.status, 0);
+            const receiptPath = path.join(
+                projectRoot,
+                '.pi',
+                'prism-tool',
+                'bootstrap',
+                attemptId,
+                'adapter.json'
+            );
+            cases[index].mutate({projectRoot, receiptPath});
+
+            const result = captureWrites(() => main([
+                'setup', 'adapter', 'cleanup', `--attempt=${attemptId}`, '--json',
+            ], {projectRoot}));
+            const report = JSON.parse(result.stdout);
+
+            assert.equal(result.status, 5);
+            assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+            assert.equal(fs.existsSync(path.join(projectRoot, '.pi')), true);
+        });
+    }
+});
+
+test('rejects unsupported selection and cleanup controls before mutation', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    let invocations = 0;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const cases = [
+        ['setup', 'adapter', 'select', '--adapter=php-web', '--source=blank', '--json'],
+        [
+            'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+            '--network-approved=yes', '--network-approved=yes', '--json',
+        ],
+        [
+            'setup', 'adapter', 'select', '--adapter=unknown', '--source=blank',
+            '--network-approved=yes', '--json',
+        ],
+        [
+            'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+            '--network-approved=yes', '--package=other', '--json',
+        ],
+        [
+            'setup', 'adapter', 'select', '--adapter=php-web', '--source=other',
+            '--network-approved=yes', '--json',
+        ],
+        ['setup', 'adapter', 'cleanup', '--attempt=../../outside', '--json'],
+        [
+            'setup', 'adapter', 'cleanup',
+            '--attempt=11111111-1111-4111-8111-111111111111',
+            '--attempt=22222222-2222-4222-8222-222222222222',
+            '--json',
+        ],
+    ];
+
+    for (const args of cases) {
+        const result = captureWrites(() => main(args, {
+            projectRoot,
+            coreRoot,
+            piExecutable: '/fixture/bin/pi',
+            randomUUID: () => '60606060-6060-4060-8060-606060606060',
+            run: () => { invocations += 1; },
+        }));
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+    assert.equal(invocations, 0);
+});
+
+test('cleans bounded partial Pi state after a failed install subprocess', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '70707070-7070-4070-8070-707070707070',
+        run: () => {
+            writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+                packages: ['npm:@kyaulabs/prism-php-web@0.3.1'],
+            });
+            writeJson(path.join(projectRoot, '.pi', 'npm', 'package.json'), {
+                dependencies: {'@kyaulabs/prism-php-web': '0.3.1'},
+            });
+            return {status: 1, stdout: 'ignored', stderr: 'ignored', error: undefined};
+        },
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('does not invoke Pi for established or containing-worktree roots', (t) => {
+    const establishedRoot = makeTempDir();
+    const worktreeRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const nestedRoot = path.join(worktreeRoot, 'empty-project');
+    let invocations = 0;
+    t.after(() => fs.rmSync(establishedRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(worktreeRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    fs.writeFileSync(path.join(establishedRoot, 'README.md'), 'existing\n');
+    fs.mkdirSync(nestedRoot);
+    assert.equal(spawnSync('git', ['init', '-q'], {cwd: worktreeRoot}).status, 0);
+
+    for (const projectRoot of [establishedRoot, nestedRoot]) {
+        const result = captureWrites(() => main([
+            'setup', 'adapter', 'select',
+            '--adapter=php-web',
+            '--source=blank',
+            '--network-approved=yes',
+            '--json',
+        ], {
+            projectRoot,
+            coreRoot,
+            piExecutable: '/fixture/bin/pi',
+            randomUUID: () => '80808080-8080-4080-8080-808080808080',
+            run: () => { invocations += 1; },
+        }));
+        assert.equal(result.status, 5);
+        assert.equal(JSON.parse(result.stdout).disposition, 'STOP');
+    }
+    assert.equal(invocations, 0);
+    assert.equal(fs.readFileSync(path.join(establishedRoot, 'README.md'), 'utf8'), 'existing\n');
+    assert.deepEqual(fs.readdirSync(nestedRoot), []);
+});
+
+test('disables package lifecycle scripts during provisional installation', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const lifecycleMarker = path.join(projectRoot, 'lifecycle-ran');
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => '90909090-9090-4090-8090-909090909090',
+        run: installFixture({
+            projectRoot,
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+            lifecycleMarker,
+        }),
+    }));
+
+    assert.equal(result.status, 0);
+    assert.equal(fs.existsSync(lifecycleMarker), false);
+});
+
+test('rejects registration metadata before loading adapter handler code', (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const loadMarker = path.join(coreRoot, 'handler-loaded');
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot);
+    const install = installFixture({
+        projectRoot,
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '0.3.1',
+        loadMarker,
+    });
+
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => 'abababab-abab-4bab-8bab-abababababab',
+        run: (...args) => {
+            const completed = install(...args);
+            const manifestPath = path.join(
+                projectRoot,
+                '.pi',
+                'npm',
+                'node_modules',
+                '@kyaulabs',
+                'prism-php-web',
+                'package.json'
+            );
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            manifest.version = '0.3.2';
+            writeJson(manifestPath, manifest);
+            return completed;
+        },
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'INSTALL_FAILED');
+    assert.equal(fs.existsSync(loadMarker), false);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -63,9 +63,74 @@ or additional key fails closed and stops setup.
   discovery, project mutation, persistent operational write, Git operation,
   or established-project setup stage. Template and Blank remain on their
   strict-empty routes and must never fall through to the established-project
-  sections below. Continue only when the selected route's public launcher
-  operation exists; otherwise report that the selected bootstrap route is not
-  yet available and stop without mutation.
+  sections below.
+
+  For Template or Blank, inspect Core's closed bootstrap-adapter catalogue
+  before any Template access, scaffold planning, package acquisition, or
+  adapter code loading:
+
+  ```bash
+  prism-tool setup adapter catalogue --json
+  ```
+
+  Require exactly schema version `1`, command `setup adapter catalogue`, status
+  `GO`, disposition `ADAPTER_SELECTION_REQUIRED`, reason `CATALOGUE_VALID`, the
+  same canonical project root, one passing known check, the exact Core-only
+  entry, and one PHP/web entry for `@kyaulabs/prism-php-web` at the exact Core
+  version with bootstrap protocol `1`. Any unknown adapter schema, field,
+  disposition, reason, status, package, version, protocol, choice, or
+  additional key must fail closed and stop setup.
+
+  Display Core only and the PHP/web adapter's exact displayed package and version,
+  plus its bootstrap protocol. Ask exactly one question:
+
+  ```text
+  Choose the bootstrap adapter: Core only, PHP/web, or Cancel? [PHP/web]
+  ```
+
+  An empty answer selects PHP/web. Accept only `Core only`, `PHP/web`, or
+  `Cancel`, case-insensitively. Cancel is terminal and performs no package
+  operation or persistent write.
+
+  - Core-only is a real no-adapter result. Run the matching command for the
+    already validated source (`template` or `blank`):
+
+    ```bash
+    prism-tool setup adapter select --adapter=core-only --source=<source> --json
+    ```
+
+    Require disposition `CORE_ONLY`, with adapter, acquisition, and attempt all
+    `null`. Do not acquire a package, load a handler, or ask for registry
+    approval.
+  - PHP/web selection authorizes provisional project-local installation of the
+    exact displayed package and version through the bounded setup attempt. No
+    second adapter-installation question and no redundant install approval are
+    permitted on the strict-empty route. Run:
+
+    ```bash
+    prism-tool setup adapter select --adapter=php-web --source=<source> --network-approved=yes --json
+    ```
+
+    Require disposition `ADAPTER_PROVISIONED`, the exact selected adapter,
+    acquisition kind `LOCAL` with the validated sibling path or `NPM` with the
+    exact pinned npm source, and one private attempt receipt beneath
+    `.pi/prism-tool/bootstrap/`. Any mismatch or unknown adapter report must
+    fail closed.
+
+  Adapter selection is complete before Template access or scaffold planning.
+  Until the selected source route's next public launcher operation exists,
+  immediately clean provisioned adapter state by retaining the validated
+  attempt UUID as inert data and rendering it literally:
+
+  ```bash
+  prism-tool setup adapter cleanup --attempt=<validated-literal-uuid> --json
+  ```
+
+  Require disposition `CLEANED` and a strict-empty root. If cleanup returns
+  `RECOVERY_REQUIRED`, stop and report only its bounded retained path and one
+  manual next action. Core only has no provisional attempt to clean. Stop
+  without further mutation and never fall through to the established-project
+  sections below.
 
 ## 1. Pre-flight
 

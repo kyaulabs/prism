@@ -2,10 +2,10 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
-    discoverAdapter,
     loadAdapterHandler,
     registrationFor,
     validateBootstrapRegistration,
@@ -13,9 +13,114 @@ const {
 const {inspectSetupRoute} = require('./setup-route');
 const {loadSupportedAdapterCatalogue} = require('./supported-adapters');
 
-const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const MAX_INVENTORY_ENTRIES = 4096;
-const MAX_JSON_BYTES = 1048576;
+const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const INSTALL_TIMEOUT_MS = 300000;
+const MAX_INVENTORY_BYTES = 268435456;
+const MAX_INVENTORY_ENTRIES = 20000;
+const MAX_RECEIPT_BYTES = 1048576;
+const RECEIPT_SCHEMA_VERSION = 1;
+
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sha256(value) {
+    return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function readRegular(filePath, maximum = MAX_RECEIPT_BYTES) {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > maximum) {
+        throw new Error('bootstrap state file is invalid');
+    }
+    return fs.readFileSync(filePath);
+}
+
+function readJson(filePath, maximum = MAX_RECEIPT_BYTES) {
+    const value = JSON.parse(readRegular(filePath, maximum).toString('utf8'));
+    if (!isRecord(value)) throw new Error('bootstrap JSON state is invalid');
+    return value;
+}
+
+function ensureContained(root, candidate) {
+    const relative = path.relative(root, candidate);
+    if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+        return;
+    }
+    throw new Error('bootstrap inventory path escapes its root');
+}
+
+function inventoryDirectory(directory) {
+    const canonicalRoot = fs.realpathSync(directory);
+    const rootStat = fs.lstatSync(directory);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+        throw new Error('bootstrap inventory root is invalid');
+    }
+    const entries = [];
+    let bytes = 0;
+    function walk(relativeRoot) {
+        const absoluteRoot = relativeRoot === '' ? canonicalRoot : path.join(canonicalRoot, relativeRoot);
+        for (const name of fs.readdirSync(absoluteRoot).sort()) {
+            const relativePath = relativeRoot === '' ? name : path.join(relativeRoot, name);
+            const absolutePath = path.join(canonicalRoot, relativePath);
+            const stat = fs.lstatSync(absolutePath);
+            let entry;
+            if (stat.isDirectory()) {
+                entry = {path: relativePath, type: 'directory', bytes: 0, sha256: null};
+            } else if (stat.isFile()) {
+                const contents = fs.readFileSync(absolutePath);
+                bytes += contents.length;
+                entry = {
+                    path: relativePath,
+                    type: 'file',
+                    bytes: contents.length,
+                    sha256: sha256(contents),
+                };
+            } else if (stat.isSymbolicLink()) {
+                const target = fs.readlinkSync(absolutePath);
+                const lexicalTarget = path.resolve(path.dirname(absolutePath), target);
+                ensureContained(canonicalRoot, lexicalTarget);
+                if (fs.existsSync(lexicalTarget)) ensureContained(canonicalRoot, fs.realpathSync(lexicalTarget));
+                const targetBytes = Buffer.from(target, 'utf8');
+                bytes += targetBytes.length;
+                entry = {
+                    path: relativePath,
+                    type: 'symlink',
+                    bytes: targetBytes.length,
+                    sha256: sha256(targetBytes),
+                };
+            } else {
+                throw new Error('bootstrap inventory contains an unsupported file type');
+            }
+            entries.push(entry);
+            if (entries.length > MAX_INVENTORY_ENTRIES || bytes > MAX_INVENTORY_BYTES) {
+                throw new Error('bootstrap inventory exceeds its bounds');
+            }
+            if (entry.type === 'directory') walk(relativePath);
+        }
+    }
+    walk('');
+    return {
+        entries,
+        bytes,
+        sha256: sha256(Buffer.from(JSON.stringify(entries), 'utf8')),
+    };
+}
+
+function writeReceipt(receiptPath, receipt, exclusive = false) {
+    const contents = `${JSON.stringify(receipt, null, 2)}\n`;
+    if (Buffer.byteLength(contents) > MAX_RECEIPT_BYTES) {
+        throw new Error('bootstrap receipt exceeds its bound');
+    }
+    if (exclusive) {
+        fs.writeFileSync(receiptPath, contents, {encoding: 'utf8', flag: 'wx', mode: 0o600});
+        return;
+    }
+    const temporaryPath = `${receiptPath}.tmp`;
+    fs.writeFileSync(temporaryPath, contents, {encoding: 'utf8', flag: 'wx', mode: 0o600});
+    fs.renameSync(temporaryPath, receiptPath);
+    fs.chmodSync(receiptPath, 0o600);
+}
 
 function checkoutAdapterRoot(coreRoot) {
     const canonicalCore = fs.realpathSync(coreRoot);
@@ -53,171 +158,144 @@ function resolveBootstrapAcquisition({coreRoot, adapter}) {
     };
 }
 
-function inventoryTree(root) {
-    const entries = [];
-    function walk(relativeRoot) {
-        const absoluteRoot = relativeRoot === '' ? root : path.join(root, relativeRoot);
-        for (const name of fs.readdirSync(absoluteRoot).sort()) {
-            const relativePath = relativeRoot === '' ? name : path.join(relativeRoot, name);
-            const absolutePath = path.join(root, relativePath);
-            const stat = fs.lstatSync(absolutePath);
-            let type;
-            if (stat.isDirectory()) type = 'directory';
-            else if (stat.isFile()) type = 'file';
-            else if (stat.isSymbolicLink()) type = 'symlink';
-            else throw new Error('bootstrap inventory contains an unsupported file type');
-            entries.push({path: relativePath, type});
-            if (entries.length > MAX_INVENTORY_ENTRIES) {
-                throw new Error('bootstrap inventory is too large');
-            }
-            if (type === 'directory') walk(relativePath);
-        }
-    }
-    walk('');
-    return entries;
+function rootEntries(projectRoot) {
+    return fs.readdirSync(projectRoot).sort();
 }
 
-function createdInventory(projectRoot, baseline) {
-    const baselinePaths = new Set(baseline.map((entry) => entry.path));
-    return inventoryTree(projectRoot).filter((entry) => !baselinePaths.has(entry.path));
+function piEntries(projectRoot) {
+    const piRoot = path.join(projectRoot, '.pi');
+    if (!fs.existsSync(piRoot)) return [];
+    const stat = fs.lstatSync(piRoot);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('Pi state root is unsafe');
+    return fs.readdirSync(piRoot).sort();
 }
 
-function isAttemptOwned(entry, adapter, acquisition) {
-    const metadataRoot = path.join('.pi', 'prism-tool');
-    const settingsPath = path.join('.pi', 'settings.json');
-    if (entry.path === '.pi' || entry.path === settingsPath) return true;
-    if (entry.path === metadataRoot || entry.path.startsWith(`${metadataRoot}${path.sep}`)) {
-        return true;
-    }
-    if (acquisition.kind !== 'NPM') return false;
-    const npmRoot = path.join('.pi', 'npm');
-    const nodeModulesRoot = path.join(npmRoot, 'node_modules');
-    const packageRoot = path.join(nodeModulesRoot, ...adapter.packageName.split('/'));
-    const exact = new Set([
-        npmRoot,
-        path.join(npmRoot, '.gitignore'),
-        path.join(npmRoot, 'package.json'),
-        path.join(npmRoot, 'package-lock.json'),
-        nodeModulesRoot,
-        path.join(nodeModulesRoot, '.package-lock.json'),
-        path.dirname(packageRoot),
-        packageRoot,
-    ]);
-    return exact.has(entry.path) || entry.path.startsWith(`${packageRoot}${path.sep}`);
+function equalsEntries(actual, expected) {
+    return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
-function attemptInventory(projectRoot, baseline, adapter, acquisition) {
-    return createdInventory(projectRoot, baseline).filter((entry) =>
-        isAttemptOwned(entry, adapter, acquisition)
-    );
+function hasOnlyEntries(actual, allowed) {
+    return actual.every((value) => allowed.includes(value));
 }
 
-function cleanupCreatedInventory(projectRoot, baseline, adapter, acquisition) {
-    const entries = attemptInventory(projectRoot, baseline, adapter, acquisition).sort((left, right) => {
-        const depth = (value) => value.path.split(path.sep).length;
-        return depth(right) - depth(left) || right.path.localeCompare(left.path);
-    });
-    for (const entry of entries) {
-        const absolutePath = path.join(projectRoot, entry.path);
-        if (entry.type === 'directory') {
-            try {
-                fs.rmdirSync(absolutePath);
-            } catch (error) {
-                if (error.code !== 'ENOTEMPTY') throw error;
-            }
-        } else fs.unlinkSync(absolutePath);
+function removeEmpty(directory) {
+    try {
+        fs.rmdirSync(directory);
+    } catch (error) {
+        if (!['ENOENT', 'ENOTEMPTY'].includes(error.code)) throw error;
     }
 }
 
-function writeReceipt(receiptPath, receipt) {
-    const temporaryPath = `${receiptPath}.tmp`;
-    fs.writeFileSync(temporaryPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-        encoding: 'utf8',
-        flag: 'wx',
-        mode: 0o600,
-    });
-    fs.renameSync(temporaryPath, receiptPath);
-    fs.chmodSync(receiptPath, 0o600);
+function removeAttemptWorkspace(projectRoot, attemptId) {
+    const piRoot = path.join(projectRoot, '.pi');
+    const prismRoot = path.join(piRoot, 'prism-tool');
+    const bootstrapRoot = path.join(prismRoot, 'bootstrap');
+    const attemptRoot = path.join(bootstrapRoot, attemptId);
+    fs.rmSync(attemptRoot, {recursive: true, force: true});
+    removeEmpty(bootstrapRoot);
+    removeEmpty(prismRoot);
+    removeEmpty(piRoot);
+}
+
+function cleanupFailedProvision(projectRoot, attemptId, acquisition) {
+    let roots;
+    let pi;
+    try {
+        roots = rootEntries(projectRoot);
+        pi = piEntries(projectRoot);
+    } catch {
+        return false;
+    }
+    const allowedPi = acquisition.kind === 'NPM'
+        ? ['npm', 'prism-tool', 'settings.json']
+        : ['prism-tool', 'settings.json'];
+    if (!equalsEntries(roots, ['.pi']) || !hasOnlyEntries(pi, allowedPi)) {
+        return false;
+    }
+    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+    const npmRoot = path.join(projectRoot, '.pi', 'npm');
+    if (fs.existsSync(settingsPath)) {
+        const stat = fs.lstatSync(settingsPath);
+        if (stat.isSymbolicLink() || !stat.isFile()) return false;
+        fs.unlinkSync(settingsPath);
+    }
+    if (fs.existsSync(npmRoot)) {
+        const stat = fs.lstatSync(npmRoot);
+        if (stat.isSymbolicLink() || !stat.isDirectory()) return false;
+        fs.rmSync(npmRoot, {recursive: true, force: true});
+    }
+    removeAttemptWorkspace(projectRoot, attemptId);
+    return rootEntries(projectRoot).length === 0;
+}
+
+function attemptPaths(projectRoot, attemptId) {
+    const piRoot = path.join(projectRoot, '.pi');
+    const prismRoot = path.join(piRoot, 'prism-tool');
+    const bootstrapRoot = path.join(prismRoot, 'bootstrap');
+    const attemptRoot = path.join(bootstrapRoot, attemptId);
+    return {
+        piRoot,
+        prismRoot,
+        bootstrapRoot,
+        attemptRoot,
+        receiptPath: path.join(attemptRoot, 'adapter.json'),
+    };
 }
 
 function createAttempt(projectRoot, randomUUID, adapter, acquisition, source) {
     const id = randomUUID();
     if (!ATTEMPT_ID.test(id)) throw new Error('bootstrap attempt ID is invalid');
-    const stateRoot = path.join(projectRoot, '.pi', 'prism-tool');
-    const bootstrapRoot = path.join(stateRoot, 'bootstrap');
-    const attemptRoot = path.join(bootstrapRoot, id);
-    fs.mkdirSync(bootstrapRoot, {recursive: true, mode: 0o700});
-    fs.chmodSync(stateRoot, 0o700);
-    fs.chmodSync(bootstrapRoot, 0o700);
-    fs.mkdirSync(attemptRoot, {mode: 0o700});
-    const receiptPath = path.join(attemptRoot, 'adapter.json');
+    const paths = attemptPaths(projectRoot, id);
+    fs.mkdirSync(paths.bootstrapRoot, {recursive: true, mode: 0o700});
+    fs.chmodSync(paths.prismRoot, 0o700);
+    fs.chmodSync(paths.bootstrapRoot, 0o700);
+    fs.mkdirSync(paths.attemptRoot, {mode: 0o700});
     const receipt = {
-        schemaVersion: 1,
+        schemaVersion: RECEIPT_SCHEMA_VERSION,
         attemptId: id,
-        phase: 'STARTED',
+        projectRoot,
+        phase: 'INSTALLING',
         source,
         adapter,
         acquisition: {
             kind: acquisition.kind,
             installSource: acquisition.installSource,
         },
-        inventory: [],
+        settings: null,
+        npmInventory: null,
+        registration: null,
     };
-    fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-        encoding: 'utf8',
-        flag: 'wx',
-        mode: 0o600,
-    });
-    return {
-        id,
-        receiptPath,
-        receipt,
-        cleanupPaths: [attemptRoot, bootstrapRoot, stateRoot, path.join(projectRoot, '.pi')],
-    };
+    writeReceipt(paths.receiptPath, receipt, true);
+    return {...paths, id, receipt};
 }
 
-function removeEmptyDirectories(paths) {
-    for (const directory of paths) {
-        try {
-            fs.rmdirSync(directory);
-        } catch (error) {
-            if (!['ENOENT', 'ENOTEMPTY'].includes(error.code)) throw error;
-        }
-    }
-}
-
-function cleanupAttempt(attempt) {
-    try {
-        fs.unlinkSync(attempt.receiptPath);
-    } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-    }
-    removeEmptyDirectories(attempt.cleanupPaths);
-}
-
-function readStrictJson(filePath) {
-    const stat = fs.lstatSync(filePath);
-    if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_JSON_BYTES) {
-        throw new Error('Pi state file is invalid');
-    }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function assertPiState(projectRoot, adapter, acquisition) {
-    const settings = readStrictJson(path.join(projectRoot, '.pi', 'settings.json'));
+function settingsEvidence(projectRoot, acquisition) {
+    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+    const contents = readRegular(settingsPath);
+    const settings = JSON.parse(contents.toString('utf8'));
     if (
+        !isRecord(settings) ||
         !Array.isArray(settings.packages) ||
         settings.packages.length !== 1 ||
         settings.packages[0] !== acquisition.installSource
     ) {
         throw new Error('Pi settings do not contain the exact adapter package');
     }
-    if (acquisition.kind === 'LOCAL') return;
-    const npmManifest = readStrictJson(path.join(projectRoot, '.pi', 'npm', 'package.json'));
-    if (npmManifest.dependencies?.[adapter.packageName] !== adapter.packageVersion) {
-        throw new Error('Pi npm manifest does not pin the exact adapter version');
+    return {sha256: sha256(contents), packageSource: acquisition.installSource};
+}
+
+function assertNpmState(projectRoot, adapter) {
+    const npmRoot = path.join(projectRoot, '.pi', 'npm');
+    const manifest = readJson(path.join(npmRoot, 'package.json'));
+    const dependencies = manifest.dependencies;
+    if (
+        !isRecord(dependencies) ||
+        Object.keys(dependencies).length !== 1 ||
+        dependencies[adapter.packageName] !== adapter.packageVersion
+    ) {
+        throw new Error('Pi npm manifest does not pin only the exact adapter version');
     }
-    const lock = readStrictJson(path.join(projectRoot, '.pi', 'npm', 'package-lock.json'));
+    const lock = readJson(path.join(npmRoot, 'package-lock.json'));
     if (
         !Number.isSafeInteger(lock.lockfileVersion) ||
         lock.lockfileVersion < 1 ||
@@ -226,15 +304,70 @@ function assertPiState(projectRoot, adapter, acquisition) {
     ) {
         throw new Error('Pi npm lockfile is invalid');
     }
-    const ignore = fs.readFileSync(path.join(projectRoot, '.pi', 'npm', '.gitignore'), 'utf8');
+    const ignore = readRegular(path.join(npmRoot, '.gitignore')).toString('utf8');
     if (ignore !== '*\n!.gitignore\n') throw new Error('Pi npm ignore file is invalid');
+    return inventoryDirectory(npmRoot);
+}
+
+function reportFailure(projectRoot, source, attempt, reason, cleaned) {
+    if (cleaned) {
+        return {
+            schemaVersion: 1,
+            command: 'setup adapter select',
+            status: 'NO-GO',
+            disposition: 'INSTALL_FAILED',
+            reason,
+            projectRoot,
+            source,
+            checks: [{
+                id: 'bootstrap-adapter-provisioning',
+                status: 'FAIL',
+                message: 'bootstrap adapter provisioning failed and owned state was cleaned',
+            }],
+            data: {attempt: {id: attempt.id, receiptPath: null}},
+        };
+    }
+    return {
+        schemaVersion: 1,
+        command: 'setup adapter select',
+        status: 'NO-GO',
+        disposition: 'RECOVERY_REQUIRED',
+        reason: 'AMBIGUOUS_ATTEMPT_STATE',
+        projectRoot,
+        source,
+        checks: [{
+            id: 'bootstrap-adapter-provisioning',
+            status: 'FAIL',
+            message: 'bootstrap state changed unexpectedly and was preserved',
+        }],
+        data: {
+            attempt: {
+                id: attempt.id,
+                receiptPath: attempt.receiptPath,
+            },
+        },
+    };
 }
 
 function provisionBootstrapAdapter(options) {
     const projectRoot = fs.realpathSync(options.projectRoot);
     const route = inspectSetupRoute({projectRoot, source: options.source});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
-        throw new Error('bootstrap adapter provisioning requires a strict-empty root');
+        return {
+            schemaVersion: 1,
+            command: 'setup adapter select',
+            status: 'NO-GO',
+            disposition: 'STOP',
+            reason: route.reason,
+            projectRoot: route.projectRoot,
+            source: options.source,
+            checks: [{
+                id: 'bootstrap-adapter-precondition',
+                status: 'FAIL',
+                message: 'bootstrap adapter selection requires a strict-empty root',
+            }],
+            data: null,
+        };
     }
     const supported = loadSupportedAdapterCatalogue({
         coreRoot: options.coreRoot,
@@ -249,47 +382,86 @@ function provisionBootstrapAdapter(options) {
     if (acquisition.kind === 'NPM' && options.networkApproved !== true) {
         throw new Error('network approval is required for npm adapter acquisition');
     }
-    const baseline = inventoryTree(projectRoot);
-    const attempt = createAttempt(
-        projectRoot,
-        options.randomUUID,
-        adapter,
-        acquisition,
-        options.source
-    );
-    try {
-        const installArgs = ['install', acquisition.installSource, '-l', '--approve'];
-        const result = options.run(options.piExecutable, installArgs, {
+    const attempt = createAttempt(projectRoot, options.randomUUID, adapter, acquisition, options.source);
+    if (!equalsEntries(rootEntries(projectRoot), ['.pi']) || !equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
+        return reportFailure(projectRoot, options.source, attempt, 'PREINSTALL_STATE_CHANGED', false);
+    }
+    const result = options.run(
+        options.piExecutable,
+        ['install', acquisition.installSource, '-l', '--approve'],
+        {
             cwd: projectRoot,
             env: {
-                ...process.env,
+                ...options.env,
                 npm_config_ignore_scripts: 'true',
                 NPM_CONFIG_IGNORE_SCRIPTS: 'true',
             },
-            shell: false,
-        });
-        if (result.error || result.status !== 0) {
-            throw new Error('Pi adapter installation failed');
+            maxBuffer: 1048576,
+            timeout: INSTALL_TIMEOUT_MS,
         }
-        attempt.receipt.phase = 'INSTALLED';
-        attempt.receipt.inventory = attemptInventory(projectRoot, baseline, adapter, acquisition);
-        writeReceipt(attempt.receiptPath, attempt.receipt);
-        assertPiState(projectRoot, adapter, acquisition);
-        const registration = discoverAdapter({
+    );
+    if (result.error || result.status !== 0) {
+        return reportFailure(
             projectRoot,
-            piDir: path.join(projectRoot, '.pi'),
-        });
+            options.source,
+            attempt,
+            'PI_INSTALL_FAILED',
+            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+        );
+    }
+    const expectedPi = acquisition.kind === 'NPM'
+        ? ['npm', 'prism-tool', 'settings.json']
+        : ['prism-tool', 'settings.json'];
+    try {
+        if (
+            !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
+            !hasOnlyEntries(piEntries(projectRoot), expectedPi)
+        ) {
+            return reportFailure(projectRoot, options.source, attempt, 'POSTINSTALL_STATE_CHANGED', false);
+        }
+    } catch {
+        return reportFailure(projectRoot, options.source, attempt, 'POSTINSTALL_STATE_UNSAFE', false);
+    }
+    try {
+        const settings = settingsEvidence(projectRoot, acquisition);
+        const npmInventory = acquisition.kind === 'NPM'
+            ? assertNpmState(projectRoot, adapter)
+            : null;
+        if (acquisition.kind === 'LOCAL' && fs.existsSync(path.join(projectRoot, '.pi', 'npm'))) {
+            throw new Error('local adapter acquisition created unexpected npm state');
+        }
+        const packageRoot = acquisition.kind === 'LOCAL'
+            ? acquisition.packageRoot
+            : path.join(
+                projectRoot,
+                '.pi',
+                'npm',
+                'node_modules',
+                ...adapter.packageName.split('/')
+            );
+        const registration = registrationFor(packageRoot, adapter.packageName);
         validateBootstrapRegistration(registration, adapter, options.coreRoot);
         loadAdapterHandler(registration, adapter.bootstrapProtocol);
         attempt.receipt.phase = 'PROVISIONED';
+        attempt.receipt.settings = settings;
+        attempt.receipt.npmInventory = npmInventory;
+        attempt.receipt.registration = {
+            packageName: registration.packageName,
+            packageVersion: registration.packageVersion,
+            bootstrapProtocol: registration.bootstrapProtocol,
+            packageRoot: registration.packageRoot,
+            contractPath: registration.contractPath,
+            handlerPath: registration.handlerPath,
+        };
         writeReceipt(attempt.receiptPath, attempt.receipt);
-    } catch (error) {
-        try {
-            cleanupCreatedInventory(projectRoot, baseline, adapter, acquisition);
-        } catch {
-            cleanupAttempt(attempt);
-        }
-        throw error;
+    } catch {
+        return reportFailure(
+            projectRoot,
+            options.source,
+            attempt,
+            'POSTINSTALL_VALIDATION_FAILED',
+            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+        );
     }
     return {
         schemaVersion: 1,
@@ -318,6 +490,149 @@ function provisionBootstrapAdapter(options) {
     };
 }
 
-module.exports = {provisionBootstrapAdapter, resolveBootstrapAcquisition};
+function recoveryReport(projectRoot, attemptId, receiptPath, reason, recoveryPath = null) {
+    return {
+        schemaVersion: 1,
+        command: 'setup adapter cleanup',
+        status: 'NO-GO',
+        disposition: 'RECOVERY_REQUIRED',
+        reason,
+        projectRoot,
+        source: null,
+        checks: [{
+            id: 'bootstrap-adapter-cleanup',
+            status: 'FAIL',
+            message: 'bootstrap adapter state could not be proven safe to remove',
+        }],
+        data: {
+            attempt: {id: attemptId, receiptPath},
+            recoveryPath,
+            nextAction: 'Inspect the retained attempt state manually before retrying setup.',
+        },
+    };
+}
+
+function validateReceipt(receipt, projectRoot, attemptId) {
+    const expectedKeys = [
+        'schemaVersion', 'attemptId', 'projectRoot', 'phase', 'source', 'adapter',
+        'acquisition', 'settings', 'npmInventory', 'registration',
+    ].sort();
+    const actualKeys = Object.keys(receipt).sort();
+    if (
+        actualKeys.length !== expectedKeys.length ||
+        !actualKeys.every((key, index) => key === expectedKeys[index]) ||
+        receipt.schemaVersion !== RECEIPT_SCHEMA_VERSION ||
+        receipt.attemptId !== attemptId ||
+        receipt.projectRoot !== projectRoot ||
+        receipt.phase !== 'PROVISIONED' ||
+        !isRecord(receipt.adapter) ||
+        !isRecord(receipt.acquisition) ||
+        !isRecord(receipt.settings) ||
+        !isRecord(receipt.registration)
+    ) {
+        throw new Error('bootstrap receipt is invalid');
+    }
+}
+
+function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const paths = attemptPaths(projectRoot, attemptId);
+    let receipt;
+    try {
+        receipt = readJson(paths.receiptPath);
+        validateReceipt(receipt, projectRoot, attemptId);
+    } catch {
+        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'INVALID_RECEIPT');
+    }
+    const expectedPi = receipt.acquisition.kind === 'NPM'
+        ? ['npm', 'prism-tool', 'settings.json']
+        : ['prism-tool', 'settings.json'];
+    try {
+        if (
+            !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
+            !hasOnlyEntries(piEntries(projectRoot), expectedPi)
+        ) {
+            return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'STATE_CHANGED');
+        }
+    } catch {
+        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'STATE_UNSAFE');
+    }
+    try {
+        const settings = settingsEvidence(projectRoot, receipt.acquisition);
+        if (settings.sha256 !== receipt.settings.sha256) throw new Error('settings changed');
+        if (receipt.acquisition.kind === 'NPM') {
+            const inventory = inventoryDirectory(path.join(projectRoot, '.pi', 'npm'));
+            if (
+                !isRecord(receipt.npmInventory) ||
+                inventory.sha256 !== receipt.npmInventory.sha256 ||
+                inventory.bytes !== receipt.npmInventory.bytes
+            ) {
+                throw new Error('npm inventory changed');
+            }
+        } else if (receipt.npmInventory !== null || fs.existsSync(path.join(projectRoot, '.pi', 'npm'))) {
+            throw new Error('local acquisition state changed');
+        }
+    } catch {
+        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'STATE_CHANGED');
+    }
+    const cleanupRoot = path.join(paths.attemptRoot, 'cleanup');
+    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+    const npmRoot = path.join(projectRoot, '.pi', 'npm');
+    try {
+        fs.mkdirSync(cleanupRoot, {mode: 0o700});
+        fs.renameSync(settingsPath, path.join(cleanupRoot, 'settings.json'));
+        if (receipt.acquisition.kind === 'NPM') {
+            fs.renameSync(npmRoot, path.join(cleanupRoot, 'npm'));
+        }
+        if (!equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
+            return recoveryReport(
+                projectRoot,
+                attemptId,
+                paths.receiptPath,
+                'STATE_CHANGED_AFTER_QUARANTINE',
+                cleanupRoot
+            );
+        }
+        fs.rmSync(cleanupRoot, {recursive: true, force: true});
+        fs.unlinkSync(paths.receiptPath);
+        removeEmpty(paths.attemptRoot);
+        removeEmpty(paths.bootstrapRoot);
+        removeEmpty(paths.prismRoot);
+        removeEmpty(paths.piRoot);
+    } catch {
+        return recoveryReport(
+            projectRoot,
+            attemptId,
+            paths.receiptPath,
+            'CLEANUP_INTERRUPTED',
+            fs.existsSync(cleanupRoot) ? cleanupRoot : null
+        );
+    }
+    if (rootEntries(projectRoot).length !== 0) {
+        return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'ROOT_NOT_EMPTY');
+    }
+    return {
+        schemaVersion: 1,
+        command: 'setup adapter cleanup',
+        status: 'GO',
+        disposition: 'CLEANED',
+        reason: 'ATTEMPT_CLEANED',
+        projectRoot,
+        source: null,
+        checks: [{
+            id: 'bootstrap-adapter-cleanup',
+            status: 'PASS',
+            message: 'provisional bootstrap adapter state was removed',
+        }],
+        data: {attempt: {id: attemptId, receiptPath: null}},
+    };
+}
+
+module.exports = {
+    cleanupBootstrapAdapter,
+    provisionBootstrapAdapter,
+    resolveBootstrapAcquisition,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

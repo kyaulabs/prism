@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -355,6 +355,7 @@ test('declares the exact PHP web adapter components and registration', () => {
     assert.deepEqual(contract.browserTargets, ['chromium']);
     assert.deepEqual(packageJson.prism, {
         adapter: true,
+        bootstrapProtocol: 1,
         toolchain: './toolchain.json',
         handler: './scripts/prism-tool-adapter.js',
     });

@@ -718,7 +718,7 @@ prism-tool commit create --type feat --scope setup --subject "provision exact bo
 - Produces: exact cleanup on decline or unavailable next-stage orchestration.
 - Preserves: established-project section 6's existing evidence-driven install question verbatim.
 
-- [ ] **Step 1: Add failing prompt-contract assertions**
+- [x] **Step 1: Add failing prompt-contract assertions**
 
 Add assertions after the existing strict-empty source assertions:
 
@@ -735,7 +735,7 @@ assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--packa
 
 Add ordering checks proving the source operation precedes adapter catalogue inspection and the strict-empty adapter branch does not fall through to established-project evidence detection.
 
-- [ ] **Step 2: Run the shell contract to verify Red**
+- [x] **Step 2: Run the shell contract to verify Red**
 
 Run:
 
@@ -745,7 +745,7 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL only on the new strict-empty adapter assertions.
 
-- [ ] **Step 3: Extend the strict-empty prompt branch**
+- [x] **Step 3: Extend the strict-empty prompt branch**
 
 After a validated Template or Blank source report, add this launcher-owned sequence before the current stop guard:
 
@@ -795,7 +795,7 @@ Require `CLEANED` and a strict-empty root. If cleanup returns recovery-required 
 
 Do not alter established-project sections 1–11 except for heading renumbering if required by Markdown structure.
 
-- [ ] **Step 4: Run prompt and Node regression tests**
+- [x] **Step 4: Run prompt and Node regression tests**
 
 Run:
 
@@ -829,7 +829,7 @@ npm exec eslint -- packages/prism-core/scripts/prism-tool/cli.js packages/prism-
 
 Expected: PASS.
 
-- [ ] **Step 5: Self-review the issue acceptance criteria**
+- [x] **Step 5: Self-review the issue acceptance criteria**
 
 Confirm mechanically:
 
@@ -845,7 +845,7 @@ Confirm mechanically:
 - established-project discovery/install semantics remain unchanged;
 - no dependency or lockfile changed.
 
-- [ ] **Step 6: Create the final issue-closing commit**
+- [x] **Step 6: Create the final issue-closing commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md tests/Shell/toolchain_entrypoints_test.sh

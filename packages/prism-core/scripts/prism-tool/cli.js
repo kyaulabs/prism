@@ -10,7 +10,10 @@ const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
-const {provisionBootstrapAdapter} = require('./bootstrap-adapter');
+const {
+    cleanupBootstrapAdapter,
+    provisionBootstrapAdapter,
+} = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -315,6 +318,43 @@ function setup(args, context) {
         }
         return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
     }
+    if (args[0] === 'adapter' && args[1] === 'cleanup') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            attempts[0].length === '--attempt='.length ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' && !argument.startsWith('--attempt=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter cleanup --attempt=UUID [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        let report;
+        try {
+            report = cleanupBootstrapAdapter({
+                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                attemptId: attempts[0].slice('--attempt='.length),
+            });
+        } catch {
+            process.stderr.write('prism-tool: bootstrap adapter cleanup controls are invalid\n');
+            return EXIT.USAGE;
+        }
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
     if (args[0] === 'adapter' && args[1] === 'select') {
         const controls = args.slice(2);
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
@@ -355,6 +395,7 @@ function setup(args, context) {
                     source,
                 });
             } else {
+                if (networks.length !== 1) throw new Error('adapter selection requires approval');
                 report = provisionBootstrapAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
