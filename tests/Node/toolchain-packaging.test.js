@@ -109,8 +109,9 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
-        'bootstrap-adapter', 'bootstrap-composer', 'bootstrap-metadata',
-        'bootstrap-plan', 'bootstrap-providers', 'cli', 'code-review', 'commit',
+        'bootstrap-adapter', 'bootstrap-composer', 'bootstrap-journal',
+        'bootstrap-metadata', 'bootstrap-plan', 'bootstrap-providers',
+        'bootstrap-transaction', 'cli', 'code-review', 'commit',
         'consent', 'contract', 'discovery',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'supported-adapters', 'template-source', 'template-source-http',
@@ -126,6 +127,17 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+});
+
+test('documents Blank Core-only application and recovery boundaries', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /PLAN_READY.*PREPARED/s);
+    assert.match(coreReadme, /APPLYING.*PROJECT_DURABLE/s);
+    assert.match(coreReadme, /ROOT_RESTORED|RECOVERY_REQUIRED/);
+    assert.match(coreReadme, /REPOSITORY_BOOTSTRAP/);
+    assert.match(coreReadme, /does not initialize Git/i);
+    assert.match(coreReadme, /does not.*network/is);
 });
 
 test('documents human npm publication for managed lockstep package releases', () => {

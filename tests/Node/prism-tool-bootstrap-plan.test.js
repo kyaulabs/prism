@@ -3,11 +3,15 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {
+    readBootstrapJournal,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-journal');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -48,6 +52,37 @@ function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
         'setup', 'project', 'validate', `--attempt=${attemptId}`, `--digest=${planDigest}`, '--json',
     ], {projectRoot, ...context}));
 }
+
+function recoverProject(projectRoot, attemptId, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'project', 'recover', `--attempt=${attemptId}`,
+        `--digest=${planDigest}`, '--json',
+    ], {projectRoot, ...context}));
+}
+
+function applyProject(projectRoot, attemptId, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${attemptId}`,
+        `--digest=${planDigest}`, '--approval=yes', '--json',
+    ], {projectRoot, ...context}));
+}
+
+test('reports structured transaction failures when the project root is unavailable', (t) => {
+    const parent = makeTempDir();
+    const projectRoot = path.join(parent, 'missing-project');
+    t.after(() => fs.rmSync(parent, {recursive: true, force: true}));
+    for (const operation of ['apply', 'recover']) {
+        const result = operation === 'apply'
+            ? applyProject(projectRoot, ATTEMPT_ID, '0'.repeat(64), {coreRoot: CORE_ROOT})
+            : recoverProject(projectRoot, ATTEMPT_ID, '0'.repeat(64), {coreRoot: CORE_ROOT});
+        const report = JSON.parse(result.stdout);
+
+        assert.equal(result.status, 5);
+        assert.equal(report.status, 'NO-GO');
+        assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+        assert.equal(report.projectRoot, path.resolve(projectRoot));
+    }
+});
 
 test('reports minimal metadata fields without changing a strict-empty root', (t) => {
     const parent = makeTempDir();
@@ -124,6 +159,712 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
     assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
     assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'project.json')), false);
+
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    assert.equal(fs.statSync(journalPath).mode & 0o777, 0o600);
+    assert.deepEqual(journal, {
+        schemaVersion: 1,
+        attemptId: ATTEMPT_ID,
+        projectRoot: fs.realpathSync(projectRoot),
+        planDigest: report.planDigest,
+        metadataDigest: report.metadataDigest,
+        source: {mode: 'BLANK', evidence: null},
+        adapter: null,
+        phase: 'PREPARED',
+        status: 'ACTIVE',
+        reason: null,
+        resumePhase: 'PROJECT_APPLICATION',
+        applied: [],
+        createdDirectories: [],
+        appliedInventoryDigest: null,
+    });
+});
+
+test('rejects non-canonical applied paths in retained journals', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.applied[0].path = '../outside';
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal)}\n`, {mode: 0o600});
+
+    assert.throws(
+        () => readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID}),
+        /bootstrap journal is invalid/
+    );
+});
+
+test('reads retained journals through a bounded descriptor loop', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const originalReadFile = fs.readFileSync;
+    fs.readFileSync = function rejectUnboundedDescriptorRead(file, ...args) {
+        if (typeof file === 'number') throw new Error('unbounded descriptor read');
+        return originalReadFile.call(this, file, ...args);
+    };
+
+    let journal;
+    try {
+        journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    } finally {
+        fs.readFileSync = originalReadFile;
+    }
+
+    assert.equal(journal.phase, 'PREPARED');
+});
+
+test('restores strict emptiness when a prepared project plan is declined', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.equal(report.data.resumePhase, null);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves unowned root state when prepared recovery cannot prove emptiness', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const humanPath = path.join(projectRoot, 'human-note.txt');
+    fs.writeFileSync(humanPath, 'preserve me\n');
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.data.resumePhase, 'MANUAL_RECOVERY');
+    assert.equal(fs.readFileSync(humanPath, 'utf8'), 'preserve me\n');
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    assert.equal(fs.existsSync(attemptRoot), true);
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'ROOT_STATE_CHANGED');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
+test('applies an approved Blank Core-only plan and marks the project durable', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), false);
+    assert.deepEqual(
+        plan.outputs.map(({path: outputPath}) => outputPath).sort(),
+        journal.applied.map(({path: outputPath}) => outputPath).sort()
+    );
+    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.status, 'ACTIVE');
+    assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.match(journal.appliedInventoryDigest, /^[0-9a-f]{64}$/);
+    for (const output of plan.outputs) {
+        const targetPath = path.join(projectRoot, output.path);
+        const stat = fs.lstatSync(targetPath);
+        const contents = fs.readFileSync(targetPath);
+        assert.equal(stat.isSymbolicLink(), false);
+        assert.equal(stat.isFile(), true);
+        assert.equal(stat.mode & 0o777, output.mode);
+        assert.equal(crypto.createHash('sha256').update(contents).digest('hex'), output.sha256);
+    }
+});
+
+test('closes a directory descriptor when holding validation throws', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const originalFstat = fs.fstatSync;
+    let rejectedDescriptor;
+    fs.fstatSync = function rejectHeldDirectory(descriptor, ...args) {
+        if (
+            rejectedDescriptor === undefined &&
+            new Error().stack.includes('at holdDirectory')
+        ) {
+            rejectedDescriptor = descriptor;
+            throw new Error('injected held-directory validation failure');
+        }
+        return originalFstat.call(this, descriptor, ...args);
+    };
+    t.after(() => {
+        if (rejectedDescriptor === undefined) return;
+        try {
+            fs.closeSync(rejectedDescriptor);
+        } catch {
+            return;
+        }
+    });
+
+    let result;
+    try {
+        result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.fstatSync = originalFstat;
+    }
+
+    assert.equal(result.status, 5);
+    assert.notEqual(rejectedDescriptor, undefined);
+    assert.throws(
+        () => fs.fstatSync(rejectedDescriptor),
+        (error) => error.code === 'EBADF'
+    );
+});
+
+test('does not follow a candidate intermediate directory substituted after plan validation', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const candidateRoot = path.join(attemptRoot, 'candidate');
+    const originalGithub = path.join(candidateRoot, '.github');
+    const displacedGithub = path.join(candidateRoot, '.github-held');
+    const originalOpen = fs.openSync;
+    let candidateOpens = 0;
+    let replaced = false;
+    let openedSubstitutedOutput = false;
+    fs.openSync = function replaceCandidateIntermediate(filePath, ...args) {
+        if (
+            replaced &&
+            typeof filePath === 'string' &&
+            path.basename(filePath) === 'commit-msg' &&
+            fs.realpathSync(filePath).includes('/.github-held/')
+        ) {
+            openedSubstitutedOutput = true;
+        }
+        const descriptor = originalOpen.call(this, filePath, ...args);
+        if (typeof filePath === 'string' && path.basename(filePath) === 'candidate') {
+            candidateOpens += 1;
+            if (candidateOpens === 10) {
+                fs.renameSync(originalGithub, displacedGithub);
+                fs.symlinkSync('.github-held', originalGithub, 'dir');
+                replaced = true;
+            }
+        }
+        return descriptor;
+    };
+
+    let result;
+    try {
+        result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.openSync = originalOpen;
+    }
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(replaced, true);
+    assert.equal(openedSubstitutedOutput, false);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('does not roll back durable outputs when apply-lock cleanup fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const originalUnlink = fs.unlinkSync;
+    let rejected = false;
+    fs.unlinkSync = function rejectFirstApplyLock(filePath, ...args) {
+        if (!rejected && path.basename(filePath) === 'apply.lock') {
+            rejected = true;
+            throw new Error('injected lock cleanup failure');
+        }
+        return originalUnlink.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.unlinkSync = originalUnlink;
+    }
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 0);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(journal.phase, 'DURABLE');
+    for (const output of plan.outputs) assert.equal(fs.existsSync(path.join(projectRoot, output.path)), true);
+});
+
+test('restores strict emptiness when application fails before durability', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                throw new Error('injected application failure');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.equal(report.data.resumePhase, null);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('restores strict emptiness at every pre-durable application boundary', () => {
+    const scenarios = [
+        {attemptId: '10000000-0000-4000-8000-000000000000', event: 'after-output', index: 0},
+        {attemptId: '20000000-0000-4000-8000-000000000000', event: 'after-output', index: 1},
+        {attemptId: '30000000-0000-4000-8000-000000000000', event: 'after-output', index: 2},
+        {attemptId: '40000000-0000-4000-8000-000000000000', event: 'after-output', index: 3},
+        {attemptId: '50000000-0000-4000-8000-000000000000', event: 'after-output', index: 4},
+        {attemptId: '60000000-0000-4000-8000-000000000000', event: 'after-output', index: 5},
+        {attemptId: '70000000-0000-4000-8000-000000000000', event: 'after-output', index: 6},
+        {attemptId: '80000000-0000-4000-8000-000000000000', event: 'before-durable'},
+    ];
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        try {
+            const planned = planProject(projectRoot, {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+            }, {
+                coreRoot: CORE_ROOT,
+                randomUUID: () => scenario.attemptId,
+            });
+            const plan = JSON.parse(planned.stdout);
+            const result = applyProject(projectRoot, scenario.attemptId, plan.planDigest, {
+                coreRoot: CORE_ROOT,
+                bootstrapApplyFault(event) {
+                    if (
+                        event.name === scenario.event &&
+                        (scenario.index === undefined || event.index === scenario.index)
+                    ) {
+                        throw new Error('injected application failure');
+                    }
+                },
+            });
+            const report = JSON.parse(result.stdout);
+            assert.equal(report.disposition, 'ROOT_RESTORED');
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('recovers exact recorded outputs from a crash-retained applying journal', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const output = plan.outputs[0];
+    const candidatePath = path.join(attemptRoot, 'candidate', ...output.path.split('/'));
+    const targetPath = path.join(projectRoot, ...output.path.split('/'));
+    const createdDirectories = [];
+    let parent = projectRoot;
+    let relative = '';
+    for (const segment of output.path.split('/').slice(0, -1)) {
+        relative = relative === '' ? segment : `${relative}/${segment}`;
+        parent = path.join(parent, segment);
+        fs.mkdirSync(parent, {mode: 0o755});
+        const stat = fs.lstatSync(parent);
+        createdDirectories.push({path: relative, dev: stat.dev, ino: stat.ino});
+    }
+    fs.copyFileSync(candidatePath, targetPath);
+    fs.chmodSync(targetPath, output.mode);
+    const target = fs.lstatSync(targetPath);
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.phase = 'APPLYING';
+    journal.applied = [{
+        path: output.path,
+        kind: output.kind,
+        mode: output.mode,
+        sha256: output.sha256,
+        dev: target.dev,
+        ino: target.ino,
+    }];
+    journal.createdDirectories = createdDirectories;
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal)}\n`, {mode: 0o600});
+    fs.writeFileSync(
+        path.join(attemptRoot, 'apply.lock'),
+        `${JSON.stringify({schemaVersion: 1, attemptId: ATTEMPT_ID})}\n`,
+        {mode: 0o600}
+    );
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves concurrent third-state content during failed application recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const humanPath = path.join(projectRoot, 'human-note.txt');
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                fs.writeFileSync(humanPath, 'preserve me\n');
+                throw new Error('injected concurrent state');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.data.resumePhase, 'MANUAL_RECOVERY');
+    assert.equal(fs.readFileSync(humanPath, 'utf8'), 'preserve me\n');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.github', 'hooks', 'commit-msg')), false);
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'AMBIGUOUS_PROJECT_STATE');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
+test('preserves an applied output that changes before rollback', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const changedPath = path.join(projectRoot, '.github', 'hooks', 'commit-msg');
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault(event) {
+            if (event.name === 'after-output' && event.index === 0) {
+                fs.writeFileSync(changedPath, 'human replacement\n');
+                throw new Error('injected changed output');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(changedPath, 'utf8'), 'human replacement\n');
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.applied.length, 1);
+});
+
+test('revalidates and idempotently resumes a durable project', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const first = JSON.parse(applied.stdout);
+    const readmePath = path.join(projectRoot, 'README.md');
+    const before = fs.statSync(readmePath);
+
+    const recovered = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const recovery = JSON.parse(recovered.stdout);
+    const repeated = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const second = JSON.parse(repeated.stdout);
+    const after = fs.statSync(readmePath);
+
+    assert.equal(recovered.status, 0);
+    assert.equal(recovery.disposition, 'PROJECT_DURABLE');
+    assert.equal(recovery.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(repeated.status, 0);
+    assert.equal(second.disposition, 'PROJECT_DURABLE');
+    assert.equal(second.data.appliedInventoryDigest, first.data.appliedInventoryDigest);
+    assert.equal(after.ino, before.ino);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+});
+
+test('does not traverse a durable directory replaced after inventory inspection', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const githubPath = path.join(projectRoot, '.github');
+    const displacedPath = path.join(projectRoot, '.github-held');
+    const originalLstat = fs.lstatSync;
+    const originalReaddir = fs.readdirSync;
+    let replaced = false;
+    let traversedOutside = false;
+    fs.lstatSync = function replaceInspectedDirectory(filePath, ...args) {
+        const stat = originalLstat.call(this, filePath, ...args);
+        if (
+            !replaced &&
+            typeof filePath === 'string' &&
+            path.basename(filePath) === '.github' &&
+            filePath.includes('/proc/self/fd/') &&
+            fs.realpathSync(filePath) === githubPath
+        ) {
+            fs.renameSync(githubPath, displacedPath);
+            fs.symlinkSync(outside, githubPath, 'dir');
+            replaced = true;
+        }
+        return stat;
+    };
+    fs.readdirSync = function detectOutsideTraversal(directoryPath, ...args) {
+        if (
+            replaced &&
+            typeof directoryPath === 'string' &&
+            fs.realpathSync(directoryPath) === outside
+        ) {
+            traversedOutside = true;
+        }
+        return originalReaddir.call(this, directoryPath, ...args);
+    };
+
+    let result;
+    try {
+        result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+            coreRoot: CORE_ROOT,
+        });
+    } finally {
+        fs.lstatSync = originalLstat;
+        fs.readdirSync = originalReaddir;
+    }
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(replaced, true);
+    assert.equal(traversedOutside, false);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+});
+
+test('retains a durable project when unexpected nested state appears', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const unexpectedPath = path.join(projectRoot, '.github', 'hooks', 'unexpected');
+    fs.writeFileSync(unexpectedPath, 'preserve me\n');
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(unexpectedPath, 'utf8'), 'preserve me\n');
+});
+
+test('retains a durable project when an applied output drifts', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const readmePath = path.join(projectRoot, 'README.md');
+    fs.writeFileSync(readmePath, 'changed after durability\n');
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(readmePath, 'utf8'), 'changed after durability\n');
+    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.status, 'RECOVERY_REQUIRED');
+    assert.equal(journal.reason, 'AMBIGUOUS_PROJECT_STATE');
+    assert.equal(journal.resumePhase, 'MANUAL_RECOVERY');
+});
+
+test('requires literal approval before applying a project plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${plan.planDigest}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /--approval=yes/);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), false);
 });
 
 test('keeps semantic plan digests stable across roots and attempt IDs', () => {

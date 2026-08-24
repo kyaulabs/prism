@@ -11,6 +11,10 @@ const {inspectSetupRoute} = require('./setup-route');
 const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {renderCoreBaseline} = require('./bootstrap-providers');
 const {planCoreOnlyProject, validateBootstrapProjectPlan} = require('./bootstrap-plan');
+const {
+    applyBootstrapProject,
+    recoverBootstrapProject,
+} = require('./bootstrap-transaction');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
@@ -293,7 +297,149 @@ function renderSetupSourceReport(report, json) {
     return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
 }
 
+function reportProjectRoot(projectRoot) {
+    try {
+        return fs.realpathSync(projectRoot);
+    } catch {
+        return path.resolve(projectRoot);
+    }
+}
+
 function setup(args, context) {
+    if (args[0] === 'project' && args[1] === 'apply') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const digests = controls.filter((argument) => argument.startsWith('--digest='));
+        const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            digests.length !== 1 ||
+            !/^[0-9a-f]{64}$/.test(digests[0].slice('--digest='.length)) ||
+            approvals.length !== 1 ||
+            approvals[0] !== '--approval=yes' ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--digest=') &&
+                !argument.startsWith('--approval=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup project apply --attempt=UUID ' +
+                '--digest=SHA256 --approval=yes [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let applied;
+        try {
+            applied = applyBootstrapProject({
+                projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                attemptId: attempts[0].slice('--attempt='.length),
+                planDigest: digests[0].slice('--digest='.length),
+                approval: 'yes',
+                fault: context.bootstrapApplyFault,
+            });
+        } catch {
+            const report = {
+                schemaVersion: 1,
+                command: 'setup project apply',
+                status: 'NO-GO',
+                disposition: 'RECOVERY_REQUIRED',
+                projectRoot: reportProjectRoot(projectRoot),
+                checks: [{
+                    id: 'bootstrap-project-application',
+                    status: 'FAIL',
+                    message: 'bootstrap project application failed',
+                }],
+                data: {
+                    attempt: {id: attempts[0].slice('--attempt='.length)},
+                    resumePhase: 'MANUAL_RECOVERY',
+                    nextAction: 'Inspect the retained project and attempt state before retrying setup.',
+                },
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: 'setup project apply',
+            projectRoot: fs.realpathSync(projectRoot),
+            ...applied,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
+    if (args[0] === 'project' && args[1] === 'recover') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const digests = controls.filter((argument) => argument.startsWith('--digest='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            digests.length !== 1 ||
+            !/^[0-9a-f]{64}$/.test(digests[0].slice('--digest='.length)) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--digest=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup project recover --attempt=UUID ' +
+                '--digest=SHA256 [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let recovered;
+        try {
+            recovered = recoverBootstrapProject({
+                projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                attemptId: attempts[0].slice('--attempt='.length),
+                planDigest: digests[0].slice('--digest='.length),
+            });
+        } catch {
+            const report = {
+                schemaVersion: 1,
+                command: 'setup project recover',
+                status: 'NO-GO',
+                disposition: 'RECOVERY_REQUIRED',
+                projectRoot: reportProjectRoot(projectRoot),
+                checks: [{
+                    id: 'bootstrap-project-recovery',
+                    status: 'FAIL',
+                    message: 'bootstrap project state could not be restored safely',
+                }],
+                data: {
+                    attempt: {id: attempts[0].slice('--attempt='.length)},
+                    resumePhase: 'MANUAL_RECOVERY',
+                    nextAction: 'Inspect the retained project and attempt state before retrying setup.',
+                },
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: 'setup project recover',
+            projectRoot: fs.realpathSync(projectRoot),
+            ...recovered,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return EXIT.OK;
+    }
     if (args[0] === 'project' && args[1] === 'validate') {
         const controls = args.slice(2);
         const attempts = controls.filter((argument) => argument.startsWith('--attempt='));

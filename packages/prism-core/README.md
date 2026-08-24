@@ -26,11 +26,15 @@ language-neutral half; install it **globally** so it runs in every project.
   by `install-global.sh` so the core is "always running".
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
-- **Strict-empty Core-only planning** — Blank setup collects only an editable
-  project name and one-sentence summary, renders a private candidate beneath
-  `.pi/prism-tool/bootstrap/`, and returns a digest-bound plan. Planning does
-  not apply project files, initialize Git, configure a remote, use the network,
-  or invoke a subprocess.
+- **Strict-empty Core-only project transactions** — Blank setup collects only
+  an editable project name and one-sentence summary, renders a private candidate
+  beneath `.pi/prism-tool/bootstrap/`, and returns a digest-bound plan. The
+  transaction progresses from `PLAN_READY` / `PREPARED` through `APPLYING` to
+  `PROJECT_DURABLE`. Pre-durable failure returns `ROOT_RESTORED` when owned
+  state is safely removed or `RECOVERY_REQUIRED` when ambiguous state must be
+  preserved. Durable recovery returns `REPOSITORY_BOOTSTRAP` for the next setup
+  slice. Application does not initialize Git, invoke dependency or quality
+  commands, activate hooks, access the network, or invoke a subprocess.
 - **Managed lockstep npm releases** — `/setup` discovers publishable root and
   declared-workspace packages, displays the exact package list, and installs
   the Core-owned release configuration plus canonical workflow only after
