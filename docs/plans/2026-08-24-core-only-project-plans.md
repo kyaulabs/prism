@@ -315,7 +315,7 @@ prism-tool commit create --type feat --scope setup --subject "render the core bo
 - Produces: `composeProviderReports({projectRoot, candidateRoot, reports})`.
 - Produces: stable sorted ownership entries for the candidate plan.
 
-- [ ] **Step 1: Write failing report-validation and ownership tests**
+- [x] **Step 1: Write failing report-validation and ownership tests**
 
 Add table-driven malicious report cases covering:
 
@@ -357,13 +357,13 @@ assert.throws(
 
 Add the inverse prefix case and a sibling-path success case. Assert successful composition sorts by POSIX path and retains one owner per path without copying report fields the plan does not need.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because `bootstrap-composer.js` does not exist.
 
-- [ ] **Step 3: Implement closed report validation and ownership composition**
+- [x] **Step 3: Implement closed report validation and ownership composition**
 
 Implement exact-key helpers locally; do not create a generic validation framework. Validate every output against its held candidate file using `lstat`, `O_NOFOLLOW`, `fstat`, maximum file size 1 MiB, exact mode, and SHA-256. Normalize target paths with POSIX rules and reject `.git`, `.pi/prism-tool`, environment-file names, absolute paths, backslashes, empty segments, `.`/`..`, NUL/control characters, and paths exceeding 240 bytes.
 
@@ -395,13 +395,13 @@ Return frozen entries with exact keys:
 
 Only allow check ID `core-baseline-render` and verification `{id: 'core-baseline-inventory', command: 'setup project validate'}` in this slice. Unknown effects are rejected; the only accepted effects array is empty.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-composer.js tests/Node/prism-tool-bootstrap-plan.test.js

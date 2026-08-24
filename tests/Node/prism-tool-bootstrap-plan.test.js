@@ -203,4 +203,148 @@ test('rejects a packaged Core hook with a non-canonical mode', (t) => {
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
+test('validates provider identity and candidate bytes before composition', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const rendered = planInput(projectRoot, JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }), {
+        coreRoot: CORE_ROOT,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+    const provider = JSON.parse(rendered.stdout).data;
+    const {loadTrustedProviderRegistry} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+    );
+    const {validateProviderReport} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-composer'
+    );
+
+    const outputs = validateProviderReport({
+        projectRoot,
+        candidateRoot,
+        registry: loadTrustedProviderRegistry({coreRoot: CORE_ROOT}),
+        report: provider,
+    });
+
+    assert.equal(outputs.length, 7);
+    assert.deepEqual(outputs[0].provider, {
+        id: 'core-baseline',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: '0.3.1',
+        protocolVersion: 1,
+    });
+    assert.equal(outputs.every(({kind}) => kind === 'file'), true);
+});
+
+test('rejects malformed, untrusted, and stale provider reports', (t) => {
+    const projectRoot = makeTempDir();
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const rendered = planInput(projectRoot, JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }), {
+        coreRoot: CORE_ROOT,
+        bootstrapPlanStage: 'provider',
+        bootstrapCandidateRoot: candidateRoot,
+    });
+    const provider = JSON.parse(rendered.stdout).data;
+    const {loadTrustedProviderRegistry} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+    );
+    const {validateProviderReport} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-composer'
+    );
+    const registry = loadTrustedProviderRegistry({coreRoot: CORE_ROOT});
+    const copy = () => JSON.parse(JSON.stringify(provider));
+    const cases = [
+        (report) => { report.unknown = true; },
+        (report) => { report.schemaVersion = 2; },
+        (report) => { report.provider.id = 'unknown'; },
+        (report) => { report.provider.packageName = '@kyaulabs/prism-other'; },
+        (report) => { report.provider.packageVersion = '9.9.9'; },
+        (report) => { report.provider.protocolVersion = 2; },
+        (report) => { report.status = 'UNKNOWN'; },
+        (report) => { report.outputs[0].unknown = true; },
+        (report) => { report.outputs[0].path = '/absolute'; },
+        (report) => { report.outputs[0].mode = 0o600; },
+        (report) => { report.outputs[0].sha256 = '0'.repeat(64); },
+        (report) => { report.effects = ['network']; },
+        (report) => { report.checks[0].id = 'unknown'; },
+        (report) => { report.verification[0].command = 'unknown'; },
+    ];
+
+    for (const mutate of cases) {
+        const report = copy();
+        mutate(report);
+        assert.throws(
+            () => validateProviderReport({projectRoot, candidateRoot, registry, report})
+        );
+    }
+
+    fs.appendFileSync(provider.outputs.find(({path: outputPath}) => outputPath === 'README.md').candidatePath, 'changed');
+    assert.throws(
+        () => validateProviderReport({projectRoot, candidateRoot, registry, report: provider}),
+        /candidate|digest/
+    );
+});
+
+test('rejects exact and prefix provider ownership overlap', () => {
+    const {composeProviderReports} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-composer'
+    );
+    const reportFor = (outputPath) => ({
+        schemaVersion: 1,
+        provider: {
+            id: 'core-baseline',
+            packageName: '@kyaulabs/prism-core',
+            packageVersion: '0.3.1',
+            protocolVersion: 1,
+        },
+        status: 'GO',
+        outputs: [{
+            path: outputPath,
+            kind: 'file',
+            mode: 0o644,
+            sha256: 'a'.repeat(64),
+            candidatePath: `/candidate/${outputPath}`,
+        }],
+        effects: [],
+        checks: [{
+            id: 'core-baseline-render',
+            status: 'PASS',
+            message: 'Core baseline candidate files were rendered',
+        }],
+        verification: [{
+            id: 'core-baseline-inventory',
+            command: 'setup project validate',
+        }],
+    });
+
+    assert.throws(
+        () => composeProviderReports({reports: [reportFor('README.md'), reportFor('README.md')]}),
+        /provider ownership overlaps/
+    );
+    assert.throws(
+        () => composeProviderReports({
+            reports: [reportFor('.github'), reportFor('.github/hooks/pre-commit')],
+        }),
+        /provider ownership overlaps/
+    );
+    assert.throws(
+        () => composeProviderReports({
+            reports: [reportFor('.github/hooks/pre-commit'), reportFor('.github')],
+        }),
+        /provider ownership overlaps/
+    );
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
