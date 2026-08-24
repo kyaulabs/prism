@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
+const {inspectSetupRoute} = require('./setup-route');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
@@ -269,6 +270,27 @@ function resolveKindDir(args, context) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'route') {
+        const controls = args.slice(1);
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (jsonCount > 1 || controls.some((argument) => argument !== '--json')) {
+            process.stderr.write('usage: prism-tool setup route [--json]\n');
+            return EXIT.USAGE;
+        }
+        const report = inspectSetupRoute({
+            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+        });
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else {
+            for (const check of report.checks) {
+                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
+            }
+            process.stdout.write(`disposition\t${report.disposition}\n`);
+            process.stdout.write(`route\t${report.route}\n`);
+            process.stdout.write(`${report.status}\n`);
+        }
+        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+    }
     if (args[0] === 'verify') {
         const controls = args.slice(1);
         const networkApprovals = controls.filter((argument) => argument.startsWith('--network-approved='));
