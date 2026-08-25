@@ -148,6 +148,7 @@ function createBootstrapRepository({
     runGit = runBounded,
     env = process.env,
     fault = () => {},
+    allowUntracked = false,
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const projectIdentity = fs.lstatSync(projectRoot);
@@ -155,7 +156,9 @@ function createBootstrapRepository({
     if (
         journal.phase === 'POST_APPLICATION' &&
         journal.status === 'ACTIVE' &&
-        ['HOOK_ACTIVATION', 'ROOT_SEED_PREPARATION'].includes(journal.resumePhase)
+        ['HOOK_ACTIVATION', 'ROOT_SEED_PREPARATION', 'ROOT_SEED_COMMIT'].includes(
+            journal.resumePhase
+        )
     ) {
         validateDurableBootstrapProject({
             projectRoot,
@@ -163,6 +166,7 @@ function createBootstrapRepository({
             attemptId,
             planDigest,
             allowRepository: true,
+            allowUntracked,
         });
         const repository = validateCreatedRepository(
             projectRoot,

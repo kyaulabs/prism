@@ -280,8 +280,13 @@ prism-tool commit create --type feat --scope hooks --subject "dispatch core-only
 
 **Files:**
 - Create: `packages/prism-core/scripts/prism-tool/bootstrap-seed.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-hooks.js`
 - Modify: `packages/prism-core/scripts/prism-tool/bootstrap-journal.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-plan.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-repository.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-transaction.js`
 - Modify: `packages/prism-core/scripts/prism-tool/cli.js`
+- Modify: `packages/prism-core/scripts/prism-tool/hook.js`
 - Modify: `tests/Node/prism-tool-bootstrap-seed.test.js`
 
 **Interfaces:**
@@ -291,7 +296,7 @@ prism-tool commit create --type feat --scope hooks --subject "dispatch core-only
 - Produces one mode-`0600` fixed-path `seed-attestation.json` under the active attempt.
 - Produces seed evidence `{status: 'READY', attestationDigest: SHA256, stagedIndexDigest: SHA256}` and resume phase `ROOT_SEED_COMMIT`.
 
-- [ ] **Step 1: Write failing exact-staging and attestation tests**
+- [x] **Step 1: Write failing exact-staging and attestation tests**
 
 The happy path must assert:
 
@@ -313,13 +318,13 @@ Assert the attestation binds canonical root, attempt ID, Blank source, provider 
 
 Add failures for pre-staged entries, extra/missing/replaced/mode-drifted plan output, changed project manifest, changed repository config, inactive hooks, changed hook bytes, index lock, intent-to-add entry, submodule/symlink/special staged kind, index mutation during preparation, readiness failure, whitespace/conflict-marker failure, and attestation substitution. Unrelated untracked files remain untouched and unstaged but are reported in bounded counts, not contents.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because exact seed preparation and attestation do not exist.
 
-- [ ] **Step 3: Implement semantic index staging and Core quality**
+- [x] **Step 3: Implement semantic index staging and Core quality**
 
 In `bootstrap-seed.js`:
 
@@ -339,16 +344,16 @@ In `bootstrap-seed.js`:
 
 `validateActiveBootstrapSeed()` must be read-only, discover exactly one active eligible attempt beneath the fixed bootstrap root, revalidate every attestation binding and current staged digest, and reject caller-selected attestation paths.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: PASS with exact staged equality, Core-only quality, and no adapter/network/remote operation.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-seed.test.js
+git add packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/bootstrap-hooks.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-repository.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/cli.js packages/prism-core/scripts/prism-tool/hook.js tests/Node/prism-tool-bootstrap-seed.test.js
 prism-tool commit create --type feat --scope setup --subject "attest the core-only root seed" --refs 386
 ```
 

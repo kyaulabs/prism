@@ -102,7 +102,8 @@ function inventoryAttempt(attemptRoot) {
                 if (
                     relativePath === 'plan/project.json' ||
                     relativePath === 'journal.json' ||
-                    relativePath === 'apply.lock'
+                    relativePath === 'apply.lock' ||
+                    relativePath === 'seed-attestation.json'
                 ) continue;
                 const anchoredPath = path.join(directory.anchor, name);
                 const stat = fs.lstatSync(anchoredPath);

@@ -9,6 +9,9 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {validateActiveBootstrapSeed} = require(
+    '../../packages/prism-core/scripts/prism-tool/bootstrap-seed'
+);
 const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
@@ -95,6 +98,30 @@ function readyHooks(t) {
     const ready = readyRepository(t);
     assert.equal(applyHooks(ready.projectRoot, ready.plan.planDigest).status, 0);
     return ready;
+}
+
+function prepareSeed(projectRoot, planDigest, context = {}) {
+    const runTool = context.bootstrapSeedToolRun ?? ((command, args, options) => {
+        if (command === process.execPath && args.includes('doctor')) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    });
+    return captureWrites(() => main([
+        'setup', 'seed', 'prepare', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${planDigest}`, '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        ...context,
+        bootstrapSeedToolRun: runTool,
+    }));
+}
+
+function stagedNames(projectRoot) {
+    return execFileSync('git', [
+        '-C', projectRoot, 'diff', '--cached', '--name-only', '-z',
+    ]).toString('utf8').split('\0').filter(Boolean).sort();
 }
 
 function runHook(projectRoot, event, args = [], context = {}) {
@@ -390,6 +417,131 @@ test('rolls back only its hook value after concurrent configuration change', (t)
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
     assert.equal(journal.resumePhase, 'HOOK_ACTIVATION');
     assert.equal(journal.hooks, null);
+});
+
+test('stages and attests the exact Core-only seed', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    fs.writeFileSync(path.join(projectRoot, 'human-note.txt'), 'leave unstaged\n');
+
+    const result = prepareSeed(projectRoot, plan.planDigest);
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'SEED_READY');
+    assert.deepEqual(report.data.commit, {
+        type: 'ignore',
+        scope: null,
+        subject: 'bootstrap prism project',
+    });
+    assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
+    assert.equal(fs.existsSync(path.join(projectRoot, 'human-note.txt')), true);
+    assert.equal(stagedNames(projectRoot).includes('human-note.txt'), false);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+    assert.equal(fs.statSync(attestationPath).mode & 0o777, 0o600);
+    const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+    assert.equal(attestation.projectRoot, projectRoot);
+    assert.equal(attestation.attemptId, ATTEMPT_ID);
+    assert.equal(attestation.source.mode, 'BLANK');
+    assert.equal(attestation.adapter, null);
+    assert.equal(attestation.planDigest, plan.planDigest);
+    assert.equal(attestation.repository.branch, 'develop');
+    assert.equal(typeof attestation.hookInventoryDigest, 'string');
+    assert.equal(typeof attestation.stagedIndexDigest, 'string');
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.resumePhase, 'ROOT_SEED_COMMIT');
+    assert.equal(journal.seed.status, 'READY');
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }));
+    const hookRun = hookRunWithReadiness();
+    assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 0);
+    fs.appendFileSync(path.join(projectRoot, 'README.md'), 'index drift\n');
+    execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
+    assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 1);
+});
+
+test('rejects pre-staged entries and rolls back owned staging on readiness failure', async (t) => {
+    await t.test('pre-staged entry', (nested) => {
+        const {projectRoot, plan} = readyHooks(nested);
+        fs.writeFileSync(path.join(projectRoot, 'human-note.txt'), 'human staged entry\n');
+        execFileSync('git', ['-C', projectRoot, 'add', 'human-note.txt']);
+
+        const result = prepareSeed(projectRoot, plan.planDigest);
+
+        assert.equal(result.status, 5);
+        assert.deepEqual(stagedNames(projectRoot), ['human-note.txt']);
+    });
+    await t.test('partial staging failure', (nested) => {
+        const {projectRoot, plan} = readyHooks(nested);
+        let additions = 0;
+        const runGit = (command, args, options) => {
+            if (args[0] === 'add' && ++additions === 2) {
+                return {status: 1, stdout: '', stderr: '', error: undefined};
+            }
+            return runBounded(command, args, options);
+        };
+
+        const result = prepareSeed(projectRoot, plan.planDigest, {bootstrapGitRun: runGit});
+
+        assert.equal(result.status, 5);
+        assert.deepEqual(stagedNames(projectRoot), []);
+    });
+    await t.test('readiness failure', (nested) => {
+        const {projectRoot, plan} = readyHooks(nested);
+
+        const result = prepareSeed(projectRoot, plan.planDigest, {
+            bootstrapSeedToolRun() {
+                return {status: 1, stdout: '', stderr: '', error: undefined};
+            },
+        });
+
+        assert.equal(result.status, 5);
+        assert.deepEqual(stagedNames(projectRoot), []);
+        const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+        assert.equal(fs.existsSync(path.join(attemptRoot, 'seed-attestation.json')), false);
+    });
+});
+
+test('preserves an ambiguously changed index during seed preparation', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedFault(event) {
+            if (event.name === 'after-staging') {
+                fs.writeFileSync(path.join(projectRoot, 'human-note.txt'), 'human staged entry\n');
+                execFileSync('git', ['-C', projectRoot, 'add', 'human-note.txt']);
+            }
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(stagedNames(projectRoot).includes('human-note.txt'), true);
+    assert.equal(stagedNames(projectRoot).length, plan.outputs.length + 1);
+});
+
+test('preserves substituted seed attestation as recovery evidence', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedFault(event) {
+            if (event.name === 'after-attestation') {
+                fs.unlinkSync(attestationPath);
+                fs.writeFileSync(attestationPath, '{}\n', {mode: 0o600});
+            }
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(fs.readFileSync(attestationPath, 'utf8'), '{}\n');
+    assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.resumePhase, 'ROOT_SEED_PREPARATION');
+    assert.equal(journal.seed, null);
 });
 
 test('dispatches Core-only pre-commit readiness without adapter execution', (t) => {

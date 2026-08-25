@@ -419,6 +419,7 @@ function validateDurableProject({
     planDigest,
     journal,
     allowRepository = false,
+    allowUntracked = false,
 }) {
     const plan = validateBootstrapProjectPlan({
         projectRoot,
@@ -457,7 +458,7 @@ function validateDurableProject({
     try {
         const expectedInventory = expectedProjectInventory(plan.outputs);
         const actualInventory = actualProjectInventory(projectRoot, project, allowRepository);
-        if (JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
+        if (!allowUntracked && JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
             throw new Error('durable bootstrap project inventory changed');
         }
         for (const entry of journal.applied) validateAppliedOutput(projectRoot, project, entry);
@@ -887,6 +888,7 @@ function validateDurableBootstrapProject({
     attemptId,
     planDigest,
     allowRepository = false,
+    allowUntracked = false,
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const journal = readBootstrapJournal({projectRoot, attemptId});
@@ -897,6 +899,7 @@ function validateDurableBootstrapProject({
         planDigest,
         journal,
         allowRepository,
+        allowUntracked,
     });
 }
 

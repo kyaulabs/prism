@@ -17,6 +17,7 @@ const {
 } = require('./bootstrap-transaction');
 const {applyBootstrapHooks, inspectBootstrapHooks} = require('./bootstrap-hooks');
 const {createBootstrapRepository} = require('./bootstrap-repository');
+const {prepareBootstrapSeed} = require('./bootstrap-seed');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
@@ -309,6 +310,73 @@ function reportProjectRoot(projectRoot) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'seed' && args[1] === 'prepare') {
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const digests = controls.filter((argument) => argument.startsWith('--digest='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            digests.length !== 1 ||
+            !/^[0-9a-f]{64}$/.test(digests[0].slice('--digest='.length)) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--digest=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool setup seed prepare --attempt=UUID --digest=SHA256 [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let result;
+        try {
+            result = prepareBootstrapSeed({
+                projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                attemptId: attempts[0].slice('--attempt='.length),
+                planDigest: digests[0].slice('--digest='.length),
+                runGit: context.bootstrapGitRun ?? runBounded,
+                runTool: context.bootstrapSeedToolRun ?? runBounded,
+                env: context.env ?? process.env,
+                fault: context.bootstrapSeedFault,
+            });
+        } catch {
+            const report = {
+                schemaVersion: 1,
+                command: 'setup seed prepare',
+                status: 'NO-GO',
+                disposition: 'SEED_CONFLICT',
+                projectRoot: reportProjectRoot(projectRoot),
+                checks: [{
+                    id: 'bootstrap-seed',
+                    status: 'FAIL',
+                    message: 'the Core-only root seed could not be attested safely',
+                }],
+                data: {
+                    attempt: {id: attempts[0].slice('--attempt='.length)},
+                    resumePhase: 'MANUAL_RECOVERY',
+                    nextAction: 'Inspect the retained index and bootstrap attempt evidence.',
+                },
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: 'setup seed prepare',
+            projectRoot: fs.realpathSync(projectRoot),
+            ...result,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return EXIT.OK;
+    }
     if (args[0] === 'hooks' && ['inspect', 'apply'].includes(args[1])) {
         const operation = args[1];
         const controls = args.slice(2);

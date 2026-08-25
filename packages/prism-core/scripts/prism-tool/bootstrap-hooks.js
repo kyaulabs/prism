@@ -112,13 +112,16 @@ function inspectBootstrapHooks({
     planDigest,
     runGit = runBounded,
     env = process.env,
+    allowUntracked = false,
 }) {
     const root = fs.realpathSync(projectRoot);
     const journal = readBootstrapJournal({projectRoot: root, attemptId});
     if (
         journal.phase !== 'POST_APPLICATION' ||
         journal.status !== 'ACTIVE' ||
-        !['HOOK_ACTIVATION', 'ROOT_SEED_PREPARATION'].includes(journal.resumePhase)
+        !['HOOK_ACTIVATION', 'ROOT_SEED_PREPARATION', 'ROOT_SEED_COMMIT'].includes(
+            journal.resumePhase
+        )
     ) {
         throw new Error('bootstrap hooks require an eligible repository');
     }
@@ -129,6 +132,7 @@ function inspectBootstrapHooks({
         planDigest,
         runGit,
         env,
+        allowUntracked,
     }).data.repository;
     const planPathSet = new Set(journal.applied.map((entry) => entry.path));
     const hookInventory = [];

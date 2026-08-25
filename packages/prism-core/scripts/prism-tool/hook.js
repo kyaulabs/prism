@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
 const {runBounded} = require('./process');
 
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -108,6 +109,15 @@ function preCommit(projectRoot, coreRoot, run, env) {
         invoke(run, 'git', ['diff', '--cached', '--check'], projectRoot, {env}),
         'staged diff validation failed'
     );
+    const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
+    if (fs.existsSync(bootstrapRoot) && fs.readdirSync(bootstrapRoot).some((attemptId) =>
+        fs.lstatSync(
+            path.join(bootstrapRoot, attemptId, 'seed-attestation.json'),
+            {throwIfNoEntry: false}
+        ) !== undefined
+    )) {
+        validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
+    }
 }
 
 function gitDirectory(projectRoot, run, env) {

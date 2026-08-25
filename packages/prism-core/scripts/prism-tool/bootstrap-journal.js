@@ -135,6 +135,14 @@ function validHookEvidence(value) {
         SHA256.test(value.inventoryDigest);
 }
 
+function validSeedEvidence(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, ['status', 'attestationDigest', 'stagedIndexDigest']) &&
+        value.status === 'READY' &&
+        SHA256.test(value.attestationDigest) &&
+        SHA256.test(value.stagedIndexDigest);
+}
+
 function validJournalState(value) {
     const noPostApplicationEvidence = value.repository === null &&
         value.hooks === null && value.seed === null;
@@ -192,17 +200,22 @@ function validJournalState(value) {
         value.reason !== null ||
         value.applied.length === 0 ||
         !SHA256.test(value.appliedInventoryDigest) ||
-        !validRepositoryEvidence(value.repository) ||
-        value.seed !== null
+        !validRepositoryEvidence(value.repository)
     ) {
         return false;
     }
     return (
         value.resumePhase === 'HOOK_ACTIVATION' &&
-        value.hooks === null
+        value.hooks === null &&
+        value.seed === null
     ) || (
         value.resumePhase === 'ROOT_SEED_PREPARATION' &&
-        validHookEvidence(value.hooks)
+        validHookEvidence(value.hooks) &&
+        value.seed === null
+    ) || (
+        value.resumePhase === 'ROOT_SEED_COMMIT' &&
+        validHookEvidence(value.hooks) &&
+        validSeedEvidence(value.seed)
     );
 }
 
