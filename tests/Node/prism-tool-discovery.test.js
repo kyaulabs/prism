@@ -87,9 +87,12 @@ function writeAdapter(
     const protocolEntry = handlerProtocol === undefined
         ? ''
         : `bootstrapProtocol: ${JSON.stringify(handlerProtocol)}, `;
+    const prepareEntry = options.prepareBootstrapProject
+        ? 'prepareBootstrapProject() {}, verifyBootstrapProject() {}, '
+        : '';
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        `'use strict';\n${marker}module.exports = {${protocolEntry}inspect() {}, resolveTool() {}};\n`
+        `'use strict';\n${marker}module.exports = {${protocolEntry}${prepareEntry}inspect() {}, resolveTool() {}};\n`
     );
 }
 
@@ -580,6 +583,7 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
     writeAdapter(matchingPackage, '@fixture/adapter', 'fixture-tool', {
         bootstrapProtocol: 1,
         handlerBootstrapProtocol: 1,
+        prepareBootstrapProject: true,
     });
     writeJson(path.join(matchingPi, 'npm', 'package.json'), {
         dependencies: {'@fixture/adapter': '1.0.0'},
@@ -602,6 +606,21 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
     const mismatchRegistration = discoverAdapter({projectRoot: mismatchRoot, piDir: mismatchPi});
 
     assert.throws(() => loadAdapterHandler(mismatchRegistration, 1), /handler bootstrap protocol/);
+
+    const incompleteRoot = makeTempDir();
+    roots.push(incompleteRoot);
+    const incompletePi = path.join(incompleteRoot, '.pi');
+    const incompletePackage = path.join(incompletePi, 'npm', 'node_modules', '@fixture', 'adapter');
+    writeAdapter(incompletePackage, '@fixture/adapter', 'fixture-tool', {
+        bootstrapProtocol: 1,
+        handlerBootstrapProtocol: 1,
+    });
+    writeJson(path.join(incompletePi, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.0.0'},
+    });
+    const incompleteRegistration = discoverAdapter({projectRoot: incompleteRoot, piDir: incompletePi});
+
+    assert.throws(() => loadAdapterHandler(incompleteRegistration, 1), /bootstrap interface/);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -189,17 +189,17 @@ prism-tool commit create --type feat --scope setup --subject "render blank php-w
 - Consumes: validated selected-adapter registration and protocol 1.
 - Produces: handler method `prepareBootstrapProject(options)` while retaining `inspect`, `resolveTool`, `resolve`, `apply`, and `verify`.
 
-- [ ] **Step 1: Write the failing discovery test**
+- [x] **Step 1: Write the failing discovery test**
 
 Assert that bootstrap-capable handler loading requires `prepareBootstrapProject` when protocol 1 is requested, rejects non-functions and protocol mismatches, and leaves established-project loading compatible with all existing operations.
 
-- [ ] **Step 2: Run discovery tests and verify Red**
+- [x] **Step 2: Run discovery tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: FAIL because the handler contract does not expose or validate preparation.
 
-- [ ] **Step 3: Add the handler operation**
+- [x] **Step 3: Add the handler operation**
 
 In `prism-tool-adapter.js`, export:
 
@@ -219,13 +219,13 @@ Use `path.resolve(__dirname, '..')`, not string concatenation, in production. Ke
 
 Update discovery/bootstrap adapter validation so protocol-1 bootstrap loading proves this method is callable after package identity, handler containment, toolchain containment, and protocol validation. Do not require it for established-project inspection paths that do not request bootstrap support.
 
-- [ ] **Step 4: Run the focused tests and verify Green**
+- [x] **Step 4: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: PASS; existing inspect/resolve/apply/verify assertions remain unchanged.
 
-- [ ] **Step 5: Commit the protocol slice**
+- [x] **Step 5: Commit the protocol slice**
 
 ```bash
 git add packages/prism-php-web/scripts/prism-tool-adapter.js packages/prism-core/scripts/prism-tool/discovery.js packages/prism-core/scripts/prism-tool/bootstrap-adapter.js tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-php-web-bootstrap.test.js
