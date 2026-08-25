@@ -10,7 +10,10 @@ const test = require('node:test');
 const yaml = require('js-yaml');
 const {makeTempDir} = require('./helpers');
 const {validateProviderReport} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-composer');
-const {loadTrustedProviderRegistry} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-providers');
+const {
+    loadTrustedAdapterProviderDescriptor,
+    loadTrustedProviderRegistry,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-providers');
 const handler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 const {renderBootstrapScaffold} = require(
     '../../packages/prism-php-web/scripts/toolchain/bootstrap-scaffold'
@@ -340,6 +343,11 @@ test('renders syntactically valid PHP readiness files', (t) => {
     for (const output of report.outputs.filter(({path: outputPath}) => outputPath.endsWith('.sh'))) {
         execFileSync('bash', ['-n', output.candidatePath]);
     }
+    execFileSync(path.resolve(__dirname, '../../vendor/bin/php-cs-fixer'), [
+        'fix', '--dry-run', '--diff',
+        `--config=${path.join(candidateRoot, '.php-cs-fixer.dist.php')}`,
+        '--path-mode=intersection', candidateRoot,
+    ], {stdio: 'pipe'});
 });
 
 test('resolves candidate locks with lifecycle scripts disabled', (t) => {
@@ -444,14 +452,14 @@ test('validates the PHP web report through the generic Core provider contract', 
     const core = loadTrustedProviderRegistry({coreRoot: path.resolve(__dirname, '../../packages/prism-core')});
     const registry = {
         schemaVersion: 1,
-        providers: [...core.providers, {
-            ...report.provider,
-            displayName: 'PHP/web scaffold',
-            outputs: report.outputs.map(({path: outputPath}) => outputPath),
-            effects: report.effects,
-            checks: report.checks,
-            verification: report.verification,
-        }],
+        providers: [...core.providers, loadTrustedAdapterProviderDescriptor({
+            registration: {
+                packageRoot: ADAPTER_ROOT,
+                packageName: CONTRACT.package,
+                packageVersion: '0.3.1',
+                bootstrapProtocol: 1,
+            },
+        })],
     };
 
     assert.equal(validateProviderReport({projectRoot, candidateRoot, registry, report}).length, OUTPUTS.length);
@@ -487,12 +495,63 @@ test('verifies the applied scaffold inventory and rejects changed bytes', (t) =>
         (copy) => { copy.provider.packageVersion = '9.9.9'; },
         (copy) => { copy.effects[4].command = 'playwright install firefox'; },
         (copy) => { copy.checks[0].id = 'unknown'; },
+        (copy) => { copy.outputs.pop(); },
     ]) {
         const copy = JSON.parse(JSON.stringify(report));
         mutate(copy);
         assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report: copy, contract: CONTRACT}).status, 'NO-GO');
     }
     fs.appendFileSync(path.join(candidateRoot, 'package.json'), 'changed');
+    assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report, contract: CONTRACT}).status, 'NO-GO');
+});
+
+test('renders every scaffold source with one RCS header and final modeline', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const sources = report.outputs.filter(({path: outputPath}) =>
+        /\.(?:php|js|mjs|scss|sh|ts)$/.test(outputPath)
+    );
+
+    for (const source of sources) {
+        const contents = fs.readFileSync(source.candidatePath, 'utf8');
+        assert.equal((contents.match(/\$KYAULabs:/g) ?? []).length, 1, source.path);
+        assert.equal((contents.match(/vim: ft=/g) ?? []).length, 1, source.path);
+        assert.match(contents.trimEnd(), /(?:\/\/|#) vim: ft=[^\n]+ :$/, source.path);
+    }
+});
+
+test('rejects an applied scaffold reached through a substituted parent', (t) => {
+    const candidateRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const github = path.join(candidateRoot, '.github');
+    const moved = path.join(outside, '.github');
+    fs.renameSync(github, moved);
+    fs.symlinkSync(moved, github, 'dir');
+
     assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report, contract: CONTRACT}).status, 'NO-GO');
 });
 

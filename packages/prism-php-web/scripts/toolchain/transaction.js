@@ -225,9 +225,7 @@ function installBootstrapDependencies({contract, projectRoot, run, resumePhase})
         return {status: 'GO', checks: [], data: {resumePhase}};
     }
     try {
-        if (resumePhase !== 'PROVIDER_VERIFICATION:installed-graph') {
-            installLockedGraph({contract, projectRoot, run, resumePhase});
-        }
+        installLockedGraph({contract, projectRoot, run, resumePhase});
     } catch (error) {
         const resumePhase = new Map([
             ['composer install --no-scripts --no-interaction', 'PROVIDER_EFFECT:composer-install'],
@@ -247,7 +245,7 @@ function installBootstrapDependencies({contract, projectRoot, run, resumePhase})
             data: {
                 ...verified.data,
                 retry: 'installed dependency verification',
-                resumePhase: 'PROVIDER_VERIFICATION:installed-graph',
+                resumePhase: 'PROVIDER_EFFECT:composer-install',
             },
         };
     }

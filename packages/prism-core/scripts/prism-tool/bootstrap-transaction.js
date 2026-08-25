@@ -779,6 +779,7 @@ function applyBootstrapProject({
         throw new Error('bootstrap project recovery requires manual action');
     }
     if (journal.phase === 'DURABLE') {
+        const lock = acquireApplyLock(attemptRoot, attemptId);
         try {
             const durable = validateDurableProject({
                 projectRoot,
@@ -806,6 +807,8 @@ function applyBootstrapProject({
         } catch (error) {
             markRecoveryRequired(projectRoot, attemptId, journal);
             throw error;
+        } finally {
+            releaseDurableApplyLock(lock);
         }
     }
     const lock = acquireApplyLock(attemptRoot, attemptId);
@@ -893,10 +896,10 @@ function applyBootstrapProject({
         });
         project.close();
         project = undefined;
-        releaseDurableApplyLock(lock);
         try {
             fault({name: 'after-durable'});
         } catch {
+            releaseDurableApplyLock(lock);
             return postDurableFailureReport(
                 attemptId,
                 planDigest,
@@ -910,16 +913,21 @@ function applyBootstrapProject({
             );
         }
         if (plan.data.adapter !== null) {
-            return runPostDurableAdapterEffects({
-                projectRoot,
-                attemptId,
-                planDigest,
-                inventoryDigest,
-                journal: current,
-                adapter: plan.data.adapter,
-                run,
-            });
+            try {
+                return runPostDurableAdapterEffects({
+                    projectRoot,
+                    attemptId,
+                    planDigest,
+                    inventoryDigest,
+                    journal: current,
+                    adapter: plan.data.adapter,
+                    run,
+                });
+            } finally {
+                releaseDurableApplyLock(lock);
+            }
         }
+        releaseDurableApplyLock(lock);
         return Object.freeze({
             status: 'GO',
             disposition: 'PROJECT_DURABLE',

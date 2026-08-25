@@ -58,6 +58,115 @@ function readCoreManifest(coreRoot) {
     return value;
 }
 
+function validateProviderOutputPath(value) {
+    if (
+        typeof value !== 'string' ||
+        value.length === 0 ||
+        value.includes('\\') ||
+        path.posix.isAbsolute(value) ||
+        path.posix.normalize(value) !== value ||
+        value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+    ) {
+        throw new Error('adapter provider output path is invalid');
+    }
+    return value;
+}
+
+function validateDeclarations(values, keys, label, validate) {
+    if (
+        !Array.isArray(values) ||
+        values.some((value) => !isRecord(value) || !hasExactKeys(value, keys) || !validate(value))
+    ) {
+        throw new Error(`adapter provider ${label} are invalid`);
+    }
+    return Object.freeze(values.map((value) => Object.freeze({...value})));
+}
+
+function loadTrustedAdapterProviderDescriptor({registration}) {
+    if (
+        !isRecord(registration) ||
+        typeof registration.packageRoot !== 'string' ||
+        typeof registration.packageName !== 'string' ||
+        typeof registration.packageVersion !== 'string' ||
+        !EXACT_VERSION.test(registration.packageVersion) ||
+        !Number.isSafeInteger(registration.bootstrapProtocol) ||
+        registration.bootstrapProtocol < 1
+    ) {
+        throw new Error('adapter registration is invalid');
+    }
+    const packageRoot = fs.realpathSync(registration.packageRoot);
+    if (packageRoot !== registration.packageRoot) {
+        throw new Error('adapter registration root is invalid');
+    }
+    const packageManifest = JSON.parse(readRegular(
+        path.join(packageRoot, 'package.json'),
+        'adapter package manifest'
+    ));
+    if (
+        packageManifest.name !== registration.packageName ||
+        packageManifest.version !== registration.packageVersion
+    ) {
+        throw new Error('adapter registration identity is invalid');
+    }
+    const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
+    if (fs.realpathSync(manifestPath) !== manifestPath) {
+        throw new Error('adapter provider manifest is invalid');
+    }
+    const manifest = JSON.parse(readRegular(manifestPath, 'adapter provider manifest'));
+    if (
+        !isRecord(manifest) ||
+        !hasExactKeys(manifest, [
+            'schemaVersion', 'providerId', 'displayName', 'outputs',
+            'effects', 'checks', 'verification',
+        ]) ||
+        manifest.schemaVersion !== 1 ||
+        typeof manifest.providerId !== 'string' ||
+        manifest.providerId.length === 0 ||
+        typeof manifest.displayName !== 'string' ||
+        manifest.displayName.length === 0 ||
+        !Array.isArray(manifest.outputs) ||
+        new Set(manifest.outputs).size !== manifest.outputs.length
+    ) {
+        throw new Error('adapter provider manifest is invalid');
+    }
+    const outputs = Object.freeze(manifest.outputs.map(validateProviderOutputPath).sort());
+    const effects = validateDeclarations(
+        manifest.effects,
+        ['id', 'kind', 'command'],
+        'effects',
+        (effect) => ['id', 'kind', 'command'].every((key) =>
+            typeof effect[key] === 'string' && effect[key].length > 0
+        )
+    );
+    const checks = validateDeclarations(
+        manifest.checks,
+        ['id', 'status', 'message'],
+        'checks',
+        (check) => check.status === 'PASS' && ['id', 'message'].every((key) =>
+            typeof check[key] === 'string' && check[key].length > 0
+        )
+    );
+    const verification = validateDeclarations(
+        manifest.verification,
+        ['id', 'command'],
+        'verification',
+        (item) => ['id', 'command'].every((key) =>
+            typeof item[key] === 'string' && item[key].length > 0
+        )
+    );
+    return Object.freeze({
+        id: manifest.providerId,
+        displayName: manifest.displayName,
+        packageName: registration.packageName,
+        packageVersion: registration.packageVersion,
+        protocolVersion: registration.bootstrapProtocol,
+        outputs,
+        effects,
+        checks,
+        verification,
+    });
+}
+
 function loadTrustedProviderRegistry({coreRoot}) {
     const canonicalCore = fs.realpathSync(coreRoot);
     const manifest = readCoreManifest(canonicalCore);
@@ -351,6 +460,10 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     });
 }
 
-module.exports = {loadTrustedProviderRegistry, renderCoreBaseline};
+module.exports = {
+    loadTrustedAdapterProviderDescriptor,
+    loadTrustedProviderRegistry,
+    renderCoreBaseline,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

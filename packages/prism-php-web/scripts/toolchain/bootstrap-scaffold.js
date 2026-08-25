@@ -7,23 +7,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 
-const EFFECTS = Object.freeze([
-    Object.freeze({id: 'composer-lock-resolution', kind: 'network', command: 'composer update --no-install --no-scripts --no-interaction'}),
-    Object.freeze({id: 'npm-lock-resolution', kind: 'network', command: 'npm install --package-lock-only --ignore-scripts'}),
-    Object.freeze({id: 'composer-install', kind: 'network', command: 'composer install --no-scripts --no-interaction'}),
-    Object.freeze({id: 'npm-install', kind: 'network', command: 'npm ci --ignore-scripts'}),
-    Object.freeze({id: 'playwright-chromium', kind: 'browser', command: 'playwright install chromium'}),
-]);
-const CHECKS = Object.freeze([Object.freeze({
-    id: 'php-web-scaffold-render',
-    status: 'PASS',
-    message: 'PHP/web scaffold candidate files were rendered',
-})]);
-const VERIFICATION = Object.freeze([Object.freeze({
-    id: 'php-web-scaffold-inventory',
-    command: 'setup verify --adapter=@kyaulabs/prism-php-web --network-approved=yes',
-})]);
-
 function packageVersion(packageRoot) {
     const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
     if (manifest?.name !== '@kyaulabs/prism-php-web' || typeof manifest.version !== 'string') {
@@ -76,6 +59,90 @@ function overlaps(left, right) {
     return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
 }
 
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function holdOutputParent(projectRoot, outputPath) {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const segments = outputPath.split('/').slice(0, -1);
+    const heldDirectories = [];
+    let currentPath = projectRoot;
+    let openPath = projectRoot;
+    try {
+        for (const segment of ['', ...segments]) {
+            if (segment !== '') {
+                currentPath = path.join(currentPath, segment);
+                openPath = path.join(heldDirectories.at(-1).anchor, segment);
+            }
+            const initial = fs.lstatSync(openPath);
+            if (initial.isSymbolicLink() || !initial.isDirectory()) {
+                throw new Error('PHP/web bootstrap output parent is invalid');
+            }
+            const descriptor = fs.openSync(
+                openPath,
+                fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
+            );
+            try {
+                const held = fs.fstatSync(descriptor);
+                const current = fs.lstatSync(currentPath);
+                if (!sameFile(initial, held) || !sameFile(current, held)) {
+                    throw new Error('PHP/web bootstrap output parent changed');
+                }
+                let anchor;
+                for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+                    try {
+                        if (sameFile(fs.statSync(candidate), held)) {
+                            anchor = candidate;
+                            break;
+                        }
+                    } catch {
+                        continue;
+                    }
+                }
+                if (anchor === undefined) {
+                    throw new Error('PHP/web bootstrap output parent cannot be held safely');
+                }
+                heldDirectories.push({path: currentPath, descriptor, held, anchor});
+            } catch (error) {
+                fs.closeSync(descriptor);
+                throw error;
+            }
+        }
+        return {
+            anchor: heldDirectories.at(-1).anchor,
+            assertCurrent() {
+                for (const directory of heldDirectories) {
+                    const latest = fs.lstatSync(directory.path);
+                    if (
+                        latest.isSymbolicLink() ||
+                        !latest.isDirectory() ||
+                        !sameFile(latest, directory.held) ||
+                        !sameFile(fs.statSync(directory.anchor), directory.held)
+                    ) {
+                        throw new Error('PHP/web bootstrap output parent changed');
+                    }
+                }
+            },
+            close() {
+                for (const directory of [...heldDirectories].reverse()) {
+                    fs.closeSync(directory.descriptor);
+                }
+            },
+        };
+    } catch (error) {
+        for (const directory of [...heldDirectories].reverse()) {
+            fs.closeSync(directory.descriptor);
+        }
+        throw error;
+    }
+}
+
 function loadManifest(packageRoot) {
     const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -83,11 +150,32 @@ function loadManifest(packageRoot) {
         manifest === null ||
         typeof manifest !== 'object' ||
         Array.isArray(manifest) ||
-        Object.keys(manifest).sort().join(',') !== 'outputs,providerId,schemaVersion' ||
+        Object.keys(manifest).sort().join(',') !==
+            'checks,displayName,effects,outputs,providerId,schemaVersion,verification' ||
         manifest.schemaVersion !== 1 ||
         manifest.providerId !== 'php-web-scaffold' ||
+        typeof manifest.displayName !== 'string' ||
+        manifest.displayName.length === 0 ||
         !Array.isArray(manifest.outputs) ||
-        new Set(manifest.outputs).size !== manifest.outputs.length
+        new Set(manifest.outputs).size !== manifest.outputs.length ||
+        !Array.isArray(manifest.effects) ||
+        manifest.effects.some((effect) =>
+            !hasExactKeys(effect, ['id', 'kind', 'command']) ||
+            !['id', 'kind', 'command'].every((key) => typeof effect[key] === 'string' && effect[key].length > 0)
+        ) ||
+        !Array.isArray(manifest.checks) ||
+        manifest.checks.some((check) =>
+            !hasExactKeys(check, ['id', 'status', 'message']) ||
+            check.status !== 'PASS' ||
+            !['id', 'message'].every((key) => typeof check[key] === 'string' && check[key].length > 0)
+        ) ||
+        !Array.isArray(manifest.verification) ||
+        manifest.verification.some((verification) =>
+            !hasExactKeys(verification, ['id', 'command']) ||
+            !['id', 'command'].every((key) =>
+                typeof verification[key] === 'string' && verification[key].length > 0
+            )
+        )
     ) {
         throw new Error('PHP/web bootstrap scaffold manifest is invalid');
     }
@@ -117,6 +205,40 @@ function ensureCandidateParent(candidateRoot, outputPath) {
             throw new Error('PHP/web bootstrap candidate parent is invalid');
         }
     }
+}
+
+function applySourceConventions(outputPath, contents) {
+    const extension = path.posix.extname(outputPath);
+    const language = new Map([
+        ['.php', 'php'],
+        ['.js', 'javascript'],
+        ['.mjs', 'javascript'],
+        ['.scss', 'scss'],
+        ['.sh', 'sh'],
+        ['.ts', 'typescript'],
+    ]).get(extension);
+    if (language === undefined) return contents;
+    const prefix = extension === '.php' ? '#' : extension === '.sh' ? '#' : '//';
+    let value = contents.trimEnd();
+    if (!value.includes('$KYAULabs:')) {
+        const header = `${prefix} $KYAULabs: ${path.posix.basename(outputPath)} setup@prism 2026/08/24 +0000 Exp $`;
+        if (extension === '.sh' && value.startsWith('#!')) {
+            const newline = value.indexOf('\n');
+            value = `${value.slice(0, newline + 1)}${header}\n${value.slice(newline + 1)}`;
+        } else if (extension === '.php' && value.startsWith('<?php')) {
+            const remainder = value.slice('<?php'.length).trimStart();
+            const declaration = remainder.match(/^declare\(strict_types=1\);/);
+            value = declaration === null
+                ? `<?php\n\n${header}\n${remainder}`
+                : `<?php\n\n${declaration[0]}\n${header}\n${remainder.slice(declaration[0].length).trimStart()}`;
+        } else {
+            value = `${header}\n${value}`;
+        }
+    }
+    if (!/(?:\/\/|#) vim: ft=[^\n]+ :$/.test(value)) {
+        value = `${value}\n${prefix} vim: ft=${language} sts=${language === 'scss' ? 2 : 4} sw=${language === 'scss' ? 2 : 4} ts=${language === 'scss' ? 2 : 4} et :`;
+    }
+    return `${value}\n`;
 }
 
 function npmProjectName(request) {
@@ -274,6 +396,7 @@ ini_set('display_errors', '0');
     if (outputPath === 'tests/Pest.php') return `<?php
 declare(strict_types=1);
 use PHPUnit\\Framework\\TestCase;
+
 pest()->extend(TestCase::class)->in('Unit', 'Feature', 'Integration', 'Browser', 'Plugin');
 function browser_base_url(): string
 {
@@ -297,11 +420,15 @@ it('exercises both readiness outcomes', function (): void {
 `;
     if (outputPath === 'tests/Feature/RuntimeSmokeTest.php') return `<?php
 declare(strict_types=1);
-it('runs on PHP 8.5 or newer', function (): void { expect(PHP_VERSION_ID)->toBeGreaterThanOrEqual(80500); });
+it('runs on PHP 8.5 or newer', function (): void {
+    expect(PHP_VERSION_ID)->toBeGreaterThanOrEqual(80500);
+});
 `;
     if (outputPath === 'tests/Browser/SmokeTest.php') return `<?php
 declare(strict_types=1);
-it('loads the application-free browser fixture', function (): void { visit(browser_base_url() . '/smoke.html')->assertSee('Prism ready')->assertNoJavascriptErrors()->assertNoConsoleLogs(); });
+it('loads the application-free browser fixture', function (): void {
+    visit(browser_base_url() . '/smoke.html')->assertSee('Prism ready')->assertNoJavascriptErrors()->assertNoConsoleLogs();
+});
 `;
     if (outputPath === 'tests/Unit/Harness/ArchTest.php') return `<?php
 declare(strict_types=1);
@@ -319,12 +446,18 @@ function architecture_php_files(): array
     }
     return $files;
 }
-it('finds PHP source files', function (): void { expect(architecture_php_files())->not->toBeEmpty(); });
+it('finds PHP source files', function (): void {
+    expect(architecture_php_files())->not->toBeEmpty();
+});
 it('contains no debug function calls', function (): void {
-    foreach (architecture_php_files() as $file) expect(file_get_contents($file))->not->toMatch('/\\b(?:var_dump|print_r|dd|dump)\\s*\\(/');
+    foreach (architecture_php_files() as $file) {
+        expect(file_get_contents($file))->not->toMatch('/\\b(?:var_dump|print_r|dd|dump)\\s*\\(/');
+    }
 });
 it('declares strict types near the start', function (): void {
-    foreach (architecture_php_files() as $file) expect(implode('', array_slice(file($file), 0, 10)))->toContain('declare(strict_types=1);');
+    foreach (architecture_php_files() as $file) {
+        expect(implode('', array_slice(file($file), 0, 10)))->toContain('declare(strict_types=1);');
+    }
 });
 `;
     if (outputPath === 'tests/Unit/Harness/RcsHeaderConventionTest.php') return `<?php
@@ -336,20 +469,25 @@ function convention_source_files(): array
     $files = [];
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
     foreach ($iterator as $file) {
-        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'scss', 'sh', 'ts'], true)) $files[] = $file->getPathname();
+        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'scss', 'sh', 'ts'], true)) {
+            $files[] = $file->getPathname();
+        }
     }
     return $files;
 }
 it('uses one non-placeholder RCS header', function (): void {
     foreach (convention_source_files() as $file) {
         $contents = file_get_contents($file);
-        expect(substr_count($contents, '$KYAULabs:'))->toBe(1)->and($contents)->not->toContain('creator@host')->not->toContain('YYYY/MM/DD');
+        $marker = '$KYA' . 'ULabs:';
+        expect(substr_count($contents, $marker))->toBe(1)->and($contents)->not->toContain('creator@host')->not->toContain('YYYY/MM/DD');
     }
 });
 it('uses one final vim modeline', function (): void {
     foreach (convention_source_files() as $file) {
         $contents = rtrim(file_get_contents($file));
-        expect(substr_count($contents, 'vim: ft='))->toBe(1)->and($contents)->toMatch('/(?:\\/\\/|#) vim: ft=[^\\n]+ :$/');
+        $marker = 'vim:' . ' ft=';
+        $pattern = '/(?:\\/\\/|#) vim:' . ' ft=[^\\n]+ :$/';
+        expect(substr_count($contents, $marker))->toBe(1)->and($contents)->toMatch($pattern);
     }
 });
 `;
@@ -410,6 +548,7 @@ function runBootstrapQuality({projectRoot, contract, run}) {
 function verifyBootstrapScaffold({packageRoot, projectRoot, report, contract}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     try {
+        const manifest = loadManifest(packageRoot);
         if (
             !hasExactKeys(report, ['schemaVersion', 'provider', 'status', 'outputs', 'effects', 'checks', 'verification']) ||
             report.schemaVersion !== 1 ||
@@ -420,21 +559,40 @@ function verifyBootstrapScaffold({packageRoot, projectRoot, report, contract}) {
             report.provider.packageVersion !== packageVersion(packageRoot) ||
             report.provider.protocolVersion !== 1 ||
             !Array.isArray(report.outputs) ||
-            JSON.stringify(report.effects) !== JSON.stringify(EFFECTS) ||
-            JSON.stringify(report.checks) !== JSON.stringify(CHECKS) ||
-            JSON.stringify(report.verification) !== JSON.stringify(VERIFICATION)
+            report.outputs.length !== manifest.outputs.length ||
+            JSON.stringify(report.outputs.map(({path: outputPath}) => outputPath).sort()) !==
+                JSON.stringify(manifest.outputs) ||
+            JSON.stringify(report.effects) !== JSON.stringify(manifest.effects) ||
+            JSON.stringify(report.checks) !== JSON.stringify(manifest.checks) ||
+            JSON.stringify(report.verification) !== JSON.stringify(manifest.verification)
         ) {
             throw new Error('PHP/web bootstrap provider report is invalid');
         }
         for (const output of report.outputs) {
             const outputPath = validateOutputPath(output.path);
-            const filePath = path.join(canonicalProject, ...outputPath.split('/'));
-            const stat = fs.lstatSync(filePath);
-            if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== output.mode) {
-                throw new Error('PHP/web bootstrap output is invalid');
+            const parent = holdOutputParent(canonicalProject, outputPath);
+            let descriptor;
+            try {
+                const filePath = path.join(parent.anchor, path.posix.basename(outputPath));
+                const initial = fs.lstatSync(filePath);
+                if (initial.isSymbolicLink() || !initial.isFile() || (initial.mode & 0o777) !== output.mode) {
+                    throw new Error('PHP/web bootstrap output is invalid');
+                }
+                descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+                const held = fs.fstatSync(descriptor);
+                if (!sameFile(initial, held) || !held.isFile() || (held.mode & 0o777) !== output.mode) {
+                    throw new Error('PHP/web bootstrap output changed');
+                }
+                const digest = crypto.createHash('sha256').update(fs.readFileSync(descriptor)).digest('hex');
+                parent.assertCurrent();
+                const current = fs.lstatSync(path.join(canonicalProject, ...outputPath.split('/')));
+                if (!sameFile(current, held) || digest !== output.sha256) {
+                    throw new Error('PHP/web bootstrap output changed');
+                }
+            } finally {
+                if (descriptor !== undefined) fs.closeSync(descriptor);
+                parent.close();
             }
-            const digest = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
-            if (digest !== output.sha256) throw new Error('PHP/web bootstrap output changed');
         }
         return {
             status: 'GO',
@@ -460,7 +618,10 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
     const outputs = manifest.outputs.map((outputPath) => {
         const candidatePath = path.join(canonicalCandidate, ...outputPath.split('/'));
         ensureCandidateParent(canonicalCandidate, outputPath);
-        const value = Buffer.from(contents(outputPath, request, contract, packageRoot), 'utf8');
+        const value = Buffer.from(applySourceConventions(
+            outputPath,
+            contents(outputPath, request, contract, packageRoot)
+        ), 'utf8');
         const mode = outputPath.endsWith('.sh') ? 0o755 : 0o644;
         fs.writeFileSync(candidatePath, value, {flag: 'wx', mode});
         fs.chmodSync(candidatePath, mode);
@@ -500,9 +661,9 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
         provider: Object.freeze({id: manifest.providerId, packageName: contract.package, packageVersion: request.adapter.packageVersion, protocolVersion: 1}),
         status: 'GO',
         outputs: Object.freeze(finalOutputs),
-        effects: EFFECTS,
-        checks: CHECKS,
-        verification: VERIFICATION,
+        effects: manifest.effects,
+        checks: manifest.checks,
+        verification: manifest.verification,
     });
 }
 

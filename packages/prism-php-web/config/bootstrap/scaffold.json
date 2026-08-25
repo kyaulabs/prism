@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "providerId": "php-web-scaffold",
+  "displayName": "PHP/web scaffold",
   "outputs": [
     ".github/scripts/check-php.sh",
     ".github/scripts/coverage-gate.php",
@@ -32,5 +33,45 @@
     "tests/Unit/Harness/ArchTest.php",
     "tests/Unit/Harness/RcsHeaderConventionTest.php",
     "tests/bootstrap.php"
+  ],
+  "effects": [
+    {
+      "id": "composer-lock-resolution",
+      "kind": "network",
+      "command": "composer update --no-install --no-scripts --no-interaction"
+    },
+    {
+      "id": "npm-lock-resolution",
+      "kind": "network",
+      "command": "npm install --package-lock-only --ignore-scripts"
+    },
+    {
+      "id": "composer-install",
+      "kind": "network",
+      "command": "composer install --no-scripts --no-interaction"
+    },
+    {
+      "id": "npm-install",
+      "kind": "network",
+      "command": "npm ci --ignore-scripts"
+    },
+    {
+      "id": "playwright-chromium",
+      "kind": "browser",
+      "command": "playwright install chromium"
+    }
+  ],
+  "checks": [
+    {
+      "id": "php-web-scaffold-render",
+      "status": "PASS",
+      "message": "PHP/web scaffold candidate files were rendered"
+    }
+  ],
+  "verification": [
+    {
+      "id": "php-web-scaffold-inventory",
+      "command": "setup verify --adapter=@kyaulabs/prism-php-web --network-approved=yes"
+    }
   ]
 }

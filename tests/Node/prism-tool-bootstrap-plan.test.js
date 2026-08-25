@@ -12,6 +12,10 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     readBootstrapJournal,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-journal');
+const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
+const {
+    applyBootstrapProject,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-transaction');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -360,6 +364,25 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
 });
 
+test('rejects adapter report declarations that differ from the package-owned manifest', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = (options) => {
+        const report = JSON.parse(JSON.stringify(prepare(options)));
+        report.effects[4].command = 'playwright install firefox';
+        return report;
+    };
+
+    const result = planPhpWebProject(projectRoot);
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
 test('persists and validates the selected-adapter project plan', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -649,6 +672,43 @@ test('runs selected-adapter effects only after the scaffold is durable', (t) => 
     assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
 });
 
+test('serializes post-durable adapter effects for one bootstrap attempt', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+    let nestedError;
+    let nested = false;
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => {
+            if (!nested && command === 'composer' && args[0] === 'install') {
+                nested = true;
+                try {
+                    applyBootstrapProject({
+                        projectRoot,
+                        coreRoot: CORE_ROOT,
+                        attemptId: ATTEMPT_ID,
+                        planDigest: plan.planDigest,
+                        approval: 'yes',
+                        run: installedGraphRunner(projectRoot, []),
+                    });
+                } catch (error) {
+                    nestedError = error;
+                }
+            }
+            return run(command, args, options);
+        },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(nestedError?.message ?? '', /exist|lock/i);
+});
+
 test('retains the durable scaffold when Composer installation fails', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -768,12 +828,12 @@ test('retains the durable scaffold when installed graph verification fails', (t)
 
     assert.equal(result.status, 5);
     assert.equal(report.disposition, 'PROJECT_DURABLE');
-    assert.equal(report.data.resumePhase, 'PROVIDER_VERIFICATION:installed-graph');
+    assert.equal(report.data.resumePhase, 'PROVIDER_EFFECT:composer-install');
     for (const output of plan.outputs) {
         assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
     }
     const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
-    assert.equal(journal.resumePhase, 'PROVIDER_VERIFICATION:installed-graph');
+    assert.equal(journal.resumePhase, 'PROVIDER_EFFECT:composer-install');
 });
 
 test('retains the durable scaffold when provider byte verification fails', (t) => {
@@ -883,7 +943,7 @@ test('resumes after dependency-created state without weakening scaffold validati
     }
 });
 
-test('resumes installed graph verification without reinstalling dependencies', (t) => {
+test('repairs dependencies before retrying installed graph verification', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
@@ -906,15 +966,11 @@ test('resumes installed graph verification without reinstalling dependencies', (
     });
 
     assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
-    assert.equal(operations[0], 'composer audit --locked --format=json');
-    assert.equal(
-        operations.some((operation) => operation.startsWith('composer install ')),
-        false
-    );
-    assert.equal(operations.includes('npm ci --ignore-scripts'), false);
+    assert.equal(operations[0], 'composer install --no-scripts --no-interaction');
+    assert.equal(operations.includes('npm ci --ignore-scripts'), true);
     assert.equal(
         operations.some((operation) => operation.endsWith('install chromium')),
-        false
+        true
     );
 });
 
