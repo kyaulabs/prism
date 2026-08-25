@@ -57,20 +57,32 @@ language-neutral half; install it **globally** so it runs in every project.
   and the root-seed attestation also bind the adapter identity, activation file,
   and provider-report digest. Setup creates no remote and performs no publication
   or push; those operations remain human-owned.
-- **Optional governance and collaboration capabilities** — `licensing`,
-  `community-governance`, and `github-collaboration` are independent and
-  disabled by default. Core exclusively owns their outputs: `LICENSE`;
-  `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md`; and the two issue forms plus
-  `.github/pull_request_template.md`, respectively. Licensing supports exactly
-  `AGPL-3.0-only` and `MIT`, requires a safe copyright holder, and persists the
-  explicitly supplied year or the normalized current UTC year. Community
-  governance requires one normalized email address or credential-free HTTPS
-  conduct contact. GitHub collaboration requires no project metadata and emits
-  neutral templates. Template manifests may advertise these capabilities but
-  never select them; Blank performs no Template lookup. Metadata inspection
-  reports required fields and publication targets without mutating the project.
-  Interactive one-question-at-a-time selection and preview confirmation are a
-  separate setup-orchestration capability.
+- **Optional project identity capabilities** — Core owns seven independently
+  selectable profiles. The seven profiles are independent and disabled by default:
+  `licensing` emits `LICENSE`; `community-governance` emits
+  `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md`; `github-collaboration` emits
+  `.github/ISSUE_TEMPLATE/bug_report.yml`,
+  `.github/ISSUE_TEMPLATE/feature_request.yml`, and
+  `.github/pull_request_template.md`; `security-disclosure` emits `SECURITY.md`;
+  `repository-ownership` emits `.github/CODEOWNERS`; `support-routing` emits
+  `.github/ISSUE_TEMPLATE/config.yml`; and `funding` emits
+  `.github/FUNDING.yml`. Licensing supports exactly `AGPL-3.0-only` and `MIT`.
+  Conduct and security reporting contacts accept normalized email addresses or
+  credential-free HTTPS destinations. Security version policy is exactly one of
+  `current-development`, `latest-release`, `latest-major-line`, or `custom`; custom
+  policy supplies explicit rows, and the optional acknowledgement target is 1–8760
+  hours. `CODEOWNERS` always starts with the default `*` owners and may add normalized
+  repository-rooted rules. Support routing uses a credential-free HTTPS destination,
+  default label `Support`, and default description `Get help with this project.`;
+  `blank_issues_enabled` is `false` with `github-collaboration` and `true` otherwise.
+  Funding accepts at most 15 records from its closed provider vocabulary: `github`
+  and `custom` permit four each, every other provider permits one, and custom entries
+  require credential-free HTTPS destinations. GitHub collaboration requires no
+  project metadata and emits neutral templates. Template manifests may advertise
+  these capabilities but never select them; Blank performs no Template lookup. The
+  identity preview reports required fields and publication targets without mutating
+  the project. Interactive prompt orchestration and preview confirmation remain
+  deferred to task 12.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →

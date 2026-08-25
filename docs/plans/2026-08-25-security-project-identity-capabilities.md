@@ -500,25 +500,25 @@ During execution, omit `bootstrap-seed.js` from staging if the generic implement
 **Interfaces:**
 - Produces complete task-10 evidence through the public launcher. Interactive prompt orchestration remains task 12.
 
-- [ ] **Step 1: Add public Core-only end-to-end regressions**
+- [x] **Step 1: Add public Core-only end-to-end regressions**
 
 Exercise metadata inspection, Blank and Template planning, plan validation, durable application, recovery, repository creation, hook activation, and seed preparation with each task-10 capability independently and all seven together. Assert zero default selection, capability independence, deterministic rerendering, identity publication previews, exact output inventory, no Template preselection, and no external lookup beyond already authorized Template acquisition.
 
-- [ ] **Step 2: Add selected-adapter parity regressions**
+- [x] **Step 2: Add selected-adapter parity regressions**
 
 Prove PHP/web receives normalized decisions but owns none of the task-10 paths, its report/effects/checks remain source- and capability-independent, and profile selection composes without overlap.
 
-- [ ] **Step 3: Add the failure matrix**
+- [x] **Step 3: Add the failure matrix**
 
 Cover malformed security routes/policies/timing, invalid owners and patterns, unsafe support fields, unsupported or excessive funding records, missing Template advertisements, profile overlap, stale metadata, pre-durable renderer failure, and post-durable output drift. Assert strict-empty restoration or exact retained recovery state as appropriate.
 
-- [ ] **Step 4: Document the public task-10 contract**
+- [x] **Step 4: Document the public task-10 contract**
 
 Extend the Core README with the four new disabled-by-default capabilities, exact output ownership, security policies and optional timing, CODEOWNERS rules, support defaults/blank-issue interaction, funding provider limits, identity-preview behavior, Template advertisement-only semantics, and the task-12 prompt-orchestration deferral.
 
 Do not modify `packages/prism-core/prompts/setup.md` in task 10.
 
-- [ ] **Step 5: Run focused and full Node verification**
+- [x] **Step 5: Run focused and full Node verification**
 
 Run:
 
@@ -529,7 +529,7 @@ npm run test:node
 
 Expected: PASS with task-9 regressions unchanged and task-10 behavior green.
 
-- [ ] **Step 6: Mark the plan complete and create the closing commit**
+- [x] **Step 6: Mark the plan complete and create the closing commit**
 
 Mark every completed checkbox in this plan, then load `verification-before-completion`.
 
