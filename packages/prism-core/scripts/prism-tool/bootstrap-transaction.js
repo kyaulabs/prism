@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-transaction.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-transaction.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,7 @@ const {
     transitionBootstrapJournal,
 } = require('./bootstrap-journal');
 const {validateBootstrapProjectPlan} = require('./bootstrap-plan');
+const {cleanupBootstrapAdapter} = require('./bootstrap-adapter');
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
@@ -120,11 +121,42 @@ function assertOwnedDirectory(directoryPath, expectedMode = 0o700) {
     return {dev: stat.dev, ino: stat.ino};
 }
 
-function removePreparedAttempt(projectRoot, attemptId) {
+function removePreparedAttempt(projectRoot, attemptId, adapter = null) {
     const piRoot = path.join(projectRoot, '.pi');
     const prismRoot = path.join(piRoot, 'prism-tool');
     const bootstrapRoot = path.join(prismRoot, 'bootstrap');
     const attemptRoot = path.join(bootstrapRoot, attemptId);
+    if (adapter !== null) {
+        const allowedAttemptEntries = new Set([
+            'adapter.json', 'candidate', 'reports', 'plan', 'journal.json',
+        ]);
+        if (
+            fs.readdirSync(projectRoot).join(',') !== '.pi' ||
+            fs.readdirSync(piRoot).some((entry) =>
+                !['npm', 'prism-tool', 'settings.json'].includes(entry)
+            ) ||
+            fs.readdirSync(prismRoot).join(',') !== 'bootstrap' ||
+            fs.readdirSync(bootstrapRoot).join(',') !== attemptId ||
+            fs.readdirSync(attemptRoot).some((entry) => !allowedAttemptEntries.has(entry))
+        ) {
+            throw new Error('bootstrap project root changed');
+        }
+        for (const entry of fs.readdirSync(attemptRoot)) {
+            if (entry === 'adapter.json') continue;
+            const entryPath = path.join(attemptRoot, entry);
+            const stat = fs.lstatSync(entryPath);
+            if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+                throw new Error('bootstrap attempt state is unsafe');
+            }
+            if (stat.isDirectory()) fs.rmSync(entryPath, {recursive: true});
+            else fs.unlinkSync(entryPath);
+        }
+        const cleanup = cleanupBootstrapAdapter({projectRoot, attemptId});
+        if (cleanup.status !== 'GO' || fs.readdirSync(projectRoot).length !== 0) {
+            throw new Error('bootstrap adapter cleanup failed');
+        }
+        return;
+    }
     if (
         fs.readdirSync(projectRoot).join(',') !== '.pi' ||
         fs.readdirSync(piRoot).join(',') !== 'prism-tool' ||
@@ -154,9 +186,12 @@ function removePreparedAttempt(projectRoot, attemptId) {
     }
 }
 
-function acquireApplyLock(attemptRoot, attemptId) {
-    const lockPath = path.join(attemptRoot, 'apply.lock');
-    const contents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`, 'utf8');
+function applyLockContents(attemptId, pid = process.pid) {
+    return Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId, pid})}\n`, 'utf8');
+}
+
+function writeApplyLock(lockPath, attemptId) {
+    const contents = applyLockContents(attemptId);
     fs.writeFileSync(lockPath, contents, {flag: 'wx', mode: 0o600});
     fs.chmodSync(lockPath, 0o600);
     const descriptor = fs.openSync(lockPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
@@ -166,22 +201,168 @@ function acquireApplyLock(attemptRoot, attemptId) {
         fs.closeSync(descriptor);
     }
     const stat = fs.lstatSync(lockPath);
-    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents};
+    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents, pid: process.pid};
 }
 
-function readApplyLock(attemptRoot, attemptId) {
-    const lockPath = path.join(attemptRoot, 'apply.lock');
-    const contents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`, 'utf8');
-    const stat = fs.lstatSync(lockPath);
+function assertApplyLockStat(stat) {
     if (
         stat.isSymbolicLink() ||
         !stat.isFile() ||
         (stat.mode & 0o777) !== 0o600 ||
-        !fs.readFileSync(lockPath).equals(contents)
+        stat.size > 1024 ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error('bootstrap apply lock changed');
     }
-    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents};
+}
+
+function readStableApplyLock(lockPath, stat) {
+    const descriptor = fs.openSync(lockPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (held.dev !== stat.dev || held.ino !== stat.ino || held.size !== stat.size) {
+            throw new Error('bootstrap apply lock changed');
+        }
+        const contents = fs.readFileSync(descriptor);
+        const final = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(lockPath);
+        if (
+            final.dev !== held.dev ||
+            final.ino !== held.ino ||
+            final.size !== held.size ||
+            contents.length !== held.size ||
+            current.isSymbolicLink() ||
+            !current.isFile() ||
+            current.dev !== held.dev ||
+            current.ino !== held.ino
+        ) {
+            throw new Error('bootstrap apply lock changed');
+        }
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function parseApplyLock(contents, attemptId) {
+    let value;
+    try {
+        value = JSON.parse(contents);
+    } catch {
+        throw new Error('bootstrap apply lock changed');
+    }
+    const keys = Object.keys(value ?? {}).sort().join(',');
+    if (
+        value === null ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        !['attemptId,schemaVersion', 'attemptId,pid,schemaVersion'].includes(keys) ||
+        value.schemaVersion !== 1 ||
+        value.attemptId !== attemptId ||
+        (
+            value.pid !== undefined &&
+            (!Number.isSafeInteger(value.pid) || value.pid < 1)
+        )
+    ) {
+        throw new Error('bootstrap apply lock changed');
+    }
+    return value;
+}
+
+function readApplyLockPath(lockPath, attemptId) {
+    const stat = fs.lstatSync(lockPath);
+    assertApplyLockStat(stat);
+    const contents = readStableApplyLock(lockPath, stat);
+    const value = parseApplyLock(contents, attemptId);
+    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents, pid: value.pid ?? null};
+}
+
+function readApplyLock(attemptRoot, attemptId) {
+    return readApplyLockPath(path.join(attemptRoot, 'apply.lock'), attemptId);
+}
+
+function processIsRunning(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        if (error?.code === 'ESRCH') return false;
+        throw error;
+    }
+}
+
+function retainedApplyRecoveryError() {
+    return new Error('bootstrap apply lock recovery requires manual action', {
+        cause: Object.freeze({bootstrapApplyRecovery: true}),
+    });
+}
+
+function assertApplyRecovery(attemptRoot, allowedRecovery = null) {
+    if (fs.readdirSync(attemptRoot).some((name) => name.startsWith('apply.claim-'))) {
+        throw new Error('bootstrap apply lock changed');
+    }
+    const recoveryPath = path.join(attemptRoot, 'apply.recovery.lock');
+    const stat = fs.lstatSync(recoveryPath, {throwIfNoEntry: false});
+    if (allowedRecovery === null) {
+        if (stat !== undefined) throw retainedApplyRecoveryError();
+        return;
+    }
+    if (
+        stat === undefined ||
+        stat.isSymbolicLink() ||
+        !stat.isFile() ||
+        stat.dev !== allowedRecovery.dev ||
+        stat.ino !== allowedRecovery.ino
+    ) {
+        throw new Error('bootstrap apply lock recovery changed');
+    }
+}
+
+function acquireApplyLock(attemptRoot, attemptId, allowedRecovery = null) {
+    assertApplyRecovery(attemptRoot, allowedRecovery);
+    const lock = writeApplyLock(path.join(attemptRoot, 'apply.lock'), attemptId);
+    try {
+        assertApplyRecovery(attemptRoot, allowedRecovery);
+        return lock;
+    } catch (error) {
+        releaseApplyLock(lock);
+        throw error;
+    }
+}
+
+function acquireDurableApplyLock(attemptRoot, attemptId) {
+    try {
+        return acquireApplyLock(attemptRoot, attemptId);
+    } catch (error) {
+        if (error?.code !== 'EEXIST') throw error;
+    }
+    const retained = readApplyLock(attemptRoot, attemptId);
+    if (retained.pid === null || processIsRunning(retained.pid)) {
+        throw new Error('bootstrap apply lock is active');
+    }
+    const recovery = writeApplyLock(
+        path.join(attemptRoot, 'apply.recovery.lock'),
+        attemptId
+    );
+    let lock = null;
+    try {
+        const current = readApplyLock(attemptRoot, attemptId);
+        if (
+            current.dev !== retained.dev ||
+            current.ino !== retained.ino ||
+            !current.contents.equals(retained.contents)
+        ) {
+            throw new Error('bootstrap apply lock changed');
+        }
+        releaseApplyLock(current);
+        lock = acquireApplyLock(attemptRoot, attemptId, recovery);
+        releaseApplyLock(recovery);
+        return lock;
+    } catch (error) {
+        if (lock !== null) releaseDurableApplyLock(lock);
+        releaseDurableApplyLock(recovery);
+        throw error;
+    }
 }
 
 function releaseApplyLock(lock) {
@@ -236,8 +417,16 @@ function ensureTargetParent(projectRoot, project, relativePath, createdDirectori
     return holdDirectory(projectRoot, directoryPath, openPath);
 }
 
-function readCandidateOutput(attemptRoot, candidate, output) {
-    const parent = path.posix.dirname(output.path);
+function readCandidateOutput(attemptRoot, candidate, output, candidatePath) {
+    if (
+        typeof candidatePath !== 'string' ||
+        !candidatePath.startsWith('candidate/') ||
+        path.posix.normalize(candidatePath) !== candidatePath
+    ) {
+        throw new Error('bootstrap candidate path is invalid');
+    }
+    const candidateRelative = candidatePath.slice('candidate/'.length);
+    const parent = path.posix.dirname(candidateRelative);
     const parentPath = parent === '.'
         ? path.join(attemptRoot, 'candidate')
         : path.join(attemptRoot, 'candidate', ...parent.split('/'));
@@ -253,7 +442,7 @@ function readCandidateOutput(attemptRoot, candidate, output) {
         : holdDirectory(attemptRoot, parentPath, openPath);
     try {
         directory.assertCurrent();
-        const filePath = path.join(directory.anchor, path.posix.basename(output.path));
+        const filePath = path.join(directory.anchor, path.posix.basename(candidateRelative));
         const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
             const stat = fs.fstatSync(descriptor);
@@ -483,7 +672,127 @@ function markRecoveryRequired(projectRoot, attemptId, journal) {
     });
 }
 
-function durableProjectReport(attemptId, planDigest, inventoryDigest) {
+function validProviderResumePhase(value) {
+    return typeof value === 'string' &&
+        /^PROVIDER_(?:EFFECT|VERIFICATION):[a-z0-9][a-z0-9-]*$/.test(value);
+}
+
+function postDurableFailureReport(attemptId, planDigest, inventoryDigest, resumePhase, checks) {
+    return Object.freeze({
+        status: 'NO-GO',
+        disposition: 'PROJECT_DURABLE',
+        checks: Object.freeze(checks.map((check) => Object.freeze({...check}))),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planDigest,
+            appliedInventoryDigest: inventoryDigest,
+            resumePhase,
+        }),
+    });
+}
+
+function runPostDurableAdapterEffects({
+    projectRoot,
+    attemptId,
+    planDigest,
+    inventoryDigest,
+    journal,
+    adapter,
+    run,
+}) {
+    let current = journal;
+    const installed = adapter.handler.installBootstrapDependencies({
+        contract: adapter.contract,
+        projectRoot,
+        run,
+        resumePhase: current.resumePhase,
+    });
+    if (installed?.status !== 'GO' || !Array.isArray(installed.checks)) {
+        const resumePhase = validProviderResumePhase(installed?.data?.resumePhase)
+            ? installed.data.resumePhase
+            : 'BOOTSTRAP_DEPENDENCIES';
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'DURABLE',
+            next: {...current, resumePhase},
+        });
+        return postDurableFailureReport(
+            attemptId,
+            planDigest,
+            inventoryDigest,
+            resumePhase,
+            installed?.checks ?? [{
+                id: 'bootstrap-dependencies',
+                status: 'FAIL',
+                message: 'bootstrap dependency installation failed',
+            }]
+        );
+    }
+    current = transitionBootstrapJournal({
+        projectRoot,
+        attemptId,
+        expectedPhase: 'DURABLE',
+        next: {...current, resumePhase: 'BOOTSTRAP_VERIFICATION'},
+    });
+    const verified = adapter.handler.verifyBootstrapProject({
+        contract: adapter.contract,
+        projectRoot,
+        report: adapter.report,
+        run,
+    });
+    if (verified?.status !== 'GO' || !Array.isArray(verified.checks)) {
+        const failedCheck = verified?.checks?.find(({status}) => status === 'FAIL');
+        const candidateResumePhase = `PROVIDER_VERIFICATION:${failedCheck?.id ?? ''}`;
+        const resumePhase = validProviderResumePhase(candidateResumePhase)
+            ? candidateResumePhase
+            : 'BOOTSTRAP_VERIFICATION';
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'DURABLE',
+            next: {...current, resumePhase},
+        });
+        return postDurableFailureReport(
+            attemptId,
+            planDigest,
+            inventoryDigest,
+            resumePhase,
+            verified?.checks ?? [{
+                id: 'bootstrap-provider-verification',
+                status: 'FAIL',
+                message: 'bootstrap provider verification failed',
+            }]
+        );
+    }
+    transitionBootstrapJournal({
+        projectRoot,
+        attemptId,
+        expectedPhase: 'DURABLE',
+        next: {...current, resumePhase: 'REPOSITORY_BOOTSTRAP'},
+    });
+    return Object.freeze({
+        status: 'GO',
+        disposition: 'PROJECT_DURABLE',
+        checks: Object.freeze([
+            ...installed.checks.map((check) => Object.freeze({...check})),
+            ...verified.checks.map((check) => Object.freeze({...check})),
+        ]),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planDigest,
+            appliedInventoryDigest: inventoryDigest,
+            resumePhase: 'REPOSITORY_BOOTSTRAP',
+        }),
+    });
+}
+
+function durableProjectReport(
+    attemptId,
+    planDigest,
+    inventoryDigest,
+    resumePhase = 'REPOSITORY_BOOTSTRAP'
+) {
     return Object.freeze({
         status: 'GO',
         disposition: 'PROJECT_DURABLE',
@@ -496,7 +805,7 @@ function durableProjectReport(attemptId, planDigest, inventoryDigest) {
             attempt: Object.freeze({id: attemptId}),
             planDigest,
             appliedInventoryDigest: inventoryDigest,
-            resumePhase: 'REPOSITORY_BOOTSTRAP',
+            resumePhase,
         }),
     });
 }
@@ -608,6 +917,7 @@ function applyBootstrapProject({
     planDigest,
     approval,
     fault = () => {},
+    run,
 }) {
     if (approval !== 'yes') throw new Error('bootstrap project approval is required');
     const projectRoot = fs.realpathSync(requestedRoot);
@@ -618,6 +928,7 @@ function applyBootstrapProject({
         throw new Error('bootstrap project recovery requires manual action');
     }
     if (journal.phase === 'DURABLE') {
+        const lock = acquireDurableApplyLock(attemptRoot, attemptId);
         try {
             const durable = validateDurableProject({
                 projectRoot,
@@ -625,11 +936,28 @@ function applyBootstrapProject({
                 attemptId,
                 planDigest,
                 journal,
+                allowUntracked: journal.adapter !== null,
             });
+            if (
+                journal.adapter !== null &&
+                journal.resumePhase !== 'REPOSITORY_BOOTSTRAP'
+            ) {
+                return runPostDurableAdapterEffects({
+                    projectRoot,
+                    attemptId,
+                    planDigest,
+                    inventoryDigest: durable.appliedInventoryDigest,
+                    journal,
+                    adapter: durable.plan.data.adapter,
+                    run,
+                });
+            }
             return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
         } catch (error) {
             markRecoveryRequired(projectRoot, attemptId, journal);
             throw error;
+        } finally {
+            releaseDurableApplyLock(lock);
         }
     }
     const lock = acquireApplyLock(attemptRoot, attemptId);
@@ -662,7 +990,19 @@ function applyBootstrapProject({
         });
         applying = true;
         for (const [index, output] of plan.outputs.entries()) {
-            const contents = readCandidateOutput(attemptRoot, candidate, output);
+            const candidateOutput = plan.data.candidates[index];
+            if (
+                candidateOutput?.path !== output.path ||
+                JSON.stringify(candidateOutput.provider) !== JSON.stringify(output.provider)
+            ) {
+                throw new Error('bootstrap candidate inventory is stale');
+            }
+            const contents = readCandidateOutput(
+                attemptRoot,
+                candidate,
+                output,
+                candidateOutput.candidatePath
+            );
             const entry = publishOutput({
                 projectRoot,
                 project,
@@ -689,18 +1029,53 @@ function applyBootstrapProject({
         project.sync();
         fault({name: 'before-durable'});
         const inventoryDigest = appliedInventoryDigest(applied);
-        transitionBootstrapJournal({
+        current = transitionBootstrapJournal({
             projectRoot,
             attemptId,
             expectedPhase: 'APPLYING',
             next: {
                 ...current,
                 phase: 'DURABLE',
-                resumePhase: 'REPOSITORY_BOOTSTRAP',
+                resumePhase: plan.adapter === null
+                    ? 'REPOSITORY_BOOTSTRAP'
+                    : 'BOOTSTRAP_DEPENDENCIES',
                 applied: [...applied],
                 appliedInventoryDigest: inventoryDigest,
             },
         });
+        project.close();
+        project = undefined;
+        try {
+            fault({name: 'after-durable'});
+        } catch {
+            releaseDurableApplyLock(lock);
+            return postDurableFailureReport(
+                attemptId,
+                planDigest,
+                inventoryDigest,
+                current.resumePhase,
+                [{
+                    id: 'bootstrap-post-application',
+                    status: 'FAIL',
+                    message: 'bootstrap post-application operation failed',
+                }]
+            );
+        }
+        if (plan.data.adapter !== null) {
+            try {
+                return runPostDurableAdapterEffects({
+                    projectRoot,
+                    attemptId,
+                    planDigest,
+                    inventoryDigest,
+                    journal: current,
+                    adapter: plan.data.adapter,
+                    run,
+                });
+            } finally {
+                releaseDurableApplyLock(lock);
+            }
+        }
         releaseDurableApplyLock(lock);
         return Object.freeze({
             status: 'GO',
@@ -737,7 +1112,7 @@ function applyBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (recoveryError) {
         if (project !== undefined) project.close();
@@ -810,7 +1185,7 @@ function recoverApplyingBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (error) {
         if (project !== undefined) project.close();
@@ -823,6 +1198,8 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     const projectRoot = fs.realpathSync(requestedRoot);
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (journal.planDigest !== planDigest) throw new Error('bootstrap journal is stale');
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
+    assertApplyRecovery(attemptRoot);
     if (journal.status === 'RECOVERY_REQUIRED') {
         throw new Error('bootstrap project recovery requires manual action');
     }
@@ -843,8 +1220,14 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
                 attemptId,
                 planDigest,
                 journal,
+                allowUntracked: journal.adapter !== null,
             });
-            return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
+            return durableProjectReport(
+                attemptId,
+                planDigest,
+                durable.appliedInventoryDigest,
+                journal.resumePhase
+            );
         } catch (error) {
             markRecoveryRequired(projectRoot, attemptId, journal);
             throw error;
@@ -852,7 +1235,7 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     }
     try {
         validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
     } catch (error) {
         transitionBootstrapJournal({
             projectRoot,

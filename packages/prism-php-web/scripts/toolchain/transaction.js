@@ -1,4 +1,4 @@
-// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -136,16 +136,25 @@ function readJsonFile(filePath) {
     return value;
 }
 
-function installLockedGraph({contract, projectRoot, run}) {
-    const composer = run('composer', ['install', '--no-scripts', '--no-interaction'], {
-        ...COMMAND_OPTIONS,
-        cwd: projectRoot,
-    });
-    if (composer.error || composer.status !== 0) {
-        throw new PostApplyError('composer install --no-scripts --no-interaction');
+function installLockedGraph({contract, projectRoot, run, resumePhase = null}) {
+    const skipComposer = [
+        'PROVIDER_EFFECT:npm-install',
+        'PROVIDER_EFFECT:playwright-chromium',
+    ].includes(resumePhase);
+    const skipNpm = resumePhase === 'PROVIDER_EFFECT:playwright-chromium';
+    if (!skipComposer) {
+        const composer = run('composer', ['install', '--no-scripts', '--no-interaction'], {
+            ...COMMAND_OPTIONS,
+            cwd: projectRoot,
+        });
+        if (composer.error || composer.status !== 0) {
+            throw new PostApplyError('composer install --no-scripts --no-interaction');
+        }
     }
-    const npm = run('npm', ['ci', '--ignore-scripts'], {...COMMAND_OPTIONS, cwd: projectRoot});
-    if (npm.error || npm.status !== 0) throw new PostApplyError('npm ci --ignore-scripts');
+    if (!skipNpm) {
+        const npm = run('npm', ['ci', '--ignore-scripts'], {...COMMAND_OPTIONS, cwd: projectRoot});
+        if (npm.error || npm.status !== 0) throw new PostApplyError('npm ci --ignore-scripts');
+    }
     const playwright = contract.components.find(({id}) => id === 'playwright');
     let executable;
     try {
@@ -205,6 +214,42 @@ function auditInstalledGraph({projectRoot, run}) {
         throw new Error('installed graph has advisories');
     }
     return totals;
+}
+
+function installBootstrapDependencies({contract, projectRoot, run, resumePhase}) {
+    if (
+        typeof resumePhase === 'string' &&
+        resumePhase.startsWith('PROVIDER_VERIFICATION:') &&
+        resumePhase !== 'PROVIDER_VERIFICATION:installed-graph'
+    ) {
+        return {status: 'GO', checks: [], data: {resumePhase}};
+    }
+    try {
+        installLockedGraph({contract, projectRoot, run, resumePhase});
+    } catch (error) {
+        const resumePhase = new Map([
+            ['composer install --no-scripts --no-interaction', 'PROVIDER_EFFECT:composer-install'],
+            ['npm ci --ignore-scripts', 'PROVIDER_EFFECT:npm-install'],
+            ['playwright install chromium', 'PROVIDER_EFFECT:playwright-chromium'],
+        ]).get(error.retry) ?? 'PROVIDER_EFFECT:dependency-installation';
+        return {
+            status: 'NO-GO',
+            checks: [{id: 'bootstrap-dependencies', status: 'FAIL', message: 'bootstrap dependency installation failed'}],
+            data: {retry: error.retry ?? 'dependency installation', resumePhase},
+        };
+    }
+    const verified = verifyInstalledProject({contract, projectRoot, run});
+    if (verified.status !== 'GO') {
+        return {
+            ...verified,
+            data: {
+                ...verified.data,
+                retry: 'installed dependency verification',
+                resumePhase: 'PROVIDER_EFFECT:composer-install',
+            },
+        };
+    }
+    return verified;
 }
 
 function verifyInstalledProject({contract, projectRoot, run}) {
@@ -486,6 +531,7 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
 
 module.exports = {
     applyCandidate,
+    installBootstrapDependencies,
     installLockedGraph,
     resolveCandidate,
     verifyInstalledGraph,

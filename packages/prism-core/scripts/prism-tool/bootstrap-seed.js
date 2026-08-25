@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
 const {inspectBootstrapHooks} = require('./bootstrap-hooks');
 const {readBootstrapJournal, transitionBootstrapJournal} = require('./bootstrap-journal');
 const {runBounded} = require('./process');
@@ -36,13 +37,20 @@ function requireSuccess(result, message) {
     return output(result);
 }
 
+function seedEntries(plan) {
+    return plan.activation === null
+        ? plan.outputs
+        : [...plan.outputs, plan.activation];
+}
+
 function stagedInventory(projectRoot, plan, runGit, env) {
     const listing = requireSuccess(
         invoke(runGit, projectRoot, env, ['ls-files', '--stage', '-z']),
         'staged index inspection failed'
     ).toString('utf8').split('\0').filter(Boolean);
-    if (listing.length !== plan.outputs.length) throw new Error('staged index inventory is invalid');
-    const expected = new Map(plan.outputs.map((entry) => [entry.path, entry]));
+    const entries = seedEntries(plan);
+    if (listing.length !== entries.length) throw new Error('staged index inventory is invalid');
+    const expected = new Map(entries.map((entry) => [entry.path, entry]));
     const records = [];
     for (const line of listing) {
         const match = /^(100644|100755) ([0-9a-f]{40}|[0-9a-f]{64}) 0\t(.+)$/.exec(line);
@@ -74,6 +82,22 @@ function emptyIndex(projectRoot, runGit, env) {
     }
     const lock = fs.lstatSync(path.join(projectRoot, '.git', 'index.lock'), {throwIfNoEntry: false});
     if (lock !== undefined) throw new Error('Git index is locked');
+}
+
+function adapterQuality(projectRoot, coreRoot, plan, runTool) {
+    if (plan.adapter === null) return null;
+    const active = loadActiveBootstrapAdapter({
+        projectRoot,
+        coreRoot,
+        identity: plan.adapter,
+    });
+    const result = active.handler.runBootstrapQuality({
+        projectRoot,
+        contract: active.registration.contract,
+        run: runTool,
+    });
+    if (result?.status !== 'GO') throw new Error('adapter shared quality failed');
+    return result;
 }
 
 function doctor(projectRoot, coreRoot, runTool, env) {
@@ -117,7 +141,7 @@ function writeAttestation(attestationPath, value) {
 }
 
 function removeOwnedStaging(projectRoot, plan, runGit, env) {
-    const expected = new Map(plan.outputs.map((entry) => [entry.path, entry]));
+    const expected = new Map(seedEntries(plan).map((entry) => [entry.path, entry]));
     const listing = requireSuccess(
         invoke(runGit, projectRoot, env, ['ls-files', '--stage', '-z']),
         'seed index rollback inspection failed'
@@ -184,7 +208,7 @@ function prepareBootstrapSeed({
     let staged;
     let published = false;
     try {
-        for (const entry of durable.plan.outputs) {
+        for (const entry of seedEntries(durable.plan)) {
             requireSuccess(
                 invoke(runGit, projectRoot, env, ['add', '--', entry.path]),
                 'bootstrap seed staging failed'
@@ -193,6 +217,7 @@ function prepareBootstrapSeed({
         staged = stagedInventory(projectRoot, durable.plan, runGit, env);
         fault({name: 'after-staging', projectRoot});
         doctor(projectRoot, coreRoot, runTool, env);
+        const adapterChecks = adapterQuality(projectRoot, coreRoot, durable.plan, runTool);
         validateDurableBootstrapProject({
             projectRoot,
             coreRoot,
@@ -230,7 +255,10 @@ function prepareBootstrapSeed({
                 }))),
             })),
             metadataDigest: journal.metadataDigest,
-            adapter: null,
+            adapter: durable.plan.adapter === null ? null : Object.freeze({
+                ...durable.plan.adapter,
+                reportDigest: durable.plan.adapterReportDigest,
+            }),
             planDigest,
             appliedInventoryDigest: journal.appliedInventoryDigest,
             durableJournalDigest: journalDigest(journal),
@@ -280,6 +308,9 @@ function prepareBootstrapSeed({
                 Object.freeze({id: 'core-readiness', status: 'PASS', message: 'Core local readiness passed'}),
                 Object.freeze({id: 'seed-index', status: 'PASS', message: 'exact seed index was attested'}),
                 Object.freeze({id: 'bootstrap-hooks', status: 'PASS', message: 'canonical hooks are active'}),
+                ...(adapterChecks === null ? [] : adapterChecks.checks.map((check) =>
+                    Object.freeze({...check})
+                )),
             ]),
             data: Object.freeze({
                 attempt: Object.freeze({id: attemptId}),
@@ -403,7 +434,12 @@ function validateActiveBootstrapSeed({
         JSON.stringify(value.source) !== JSON.stringify(journal.source) ||
         JSON.stringify(value.providers) !== JSON.stringify(expectedProviders) ||
         value.metadataDigest !== journal.metadataDigest ||
-        value.adapter !== null ||
+        JSON.stringify(value.adapter) !== JSON.stringify(
+            durable.plan.adapter === null ? null : {
+                ...durable.plan.adapter,
+                reportDigest: durable.plan.adapterReportDigest,
+            }
+        ) ||
         value.planDigest !== journal.planDigest ||
         value.appliedInventoryDigest !== journal.appliedInventoryDigest ||
         value.durableJournalDigest !== expectedJournalDigest ||

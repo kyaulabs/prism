@@ -36,6 +36,25 @@ pi install -l npm:@kyaulabs/prism-php-web
 On first run pi asks to **trust** the project (or save the decision with
 `/trust`) so project-local resources load.
 
+## Blank project bootstrap
+
+Strict-empty Blank setup can select this exact PHP/web adapter through Core's
+generic provider protocol. The adapter renders and verifies an application-free,
+testing-ready scaffold: dependency manifests and locks, Pest/PHPUnit readiness,
+first-source lint configuration, shared local/CI quality gates, canonical hosted
+CI, and empty source/test directories without an application webroot, Aurora
+checkout, database schema, nginx configuration, or deployment assets.
+
+Locked Composer and npm resolution and installation run with lifecycle scripts
+disabled. Every advisory blocks, and browser acquisition installs only the
+declared Playwright Chromium build. Failure before Core's durable marker
+restores strict emptiness when owned state can be removed safely; failure after
+durability retains the complete scaffold and exact phase evidence for a
+deterministic resume. Canonical hooks run the adapter-owned shared quality gate,
+and root-seed readiness binds the adapter activation and provider report digest
+while excluding dependency and operational state. Setup performs no remote,
+publication, or push operation.
+
 ## Consumer toolchain
 
 The adapter declares its exact consumer-development tools in
@@ -47,6 +66,10 @@ them from the audited locks with lifecycle scripts disabled. The candidate
 workspace (`.pi/prism-tool/work/`) is ownership-marked and safely recovered
 or cleaned after interruption; Playwright installs only the matching Chromium
 build.
+
+Established projects retain the existing public `setup inspect`, `setup
+resolve`, `setup apply`, and `setup verify` workflow; Blank bootstrap adds no
+behavior to those operations.
 
 ## License
 

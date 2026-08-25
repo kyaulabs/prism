@@ -216,11 +216,18 @@ function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
     ) {
         throw new Error('adapter handler interface is invalid');
     }
-    if (
-        expectedBootstrapProtocol !== null &&
-        handler.bootstrapProtocol !== expectedBootstrapProtocol
-    ) {
-        throw new Error('adapter handler bootstrap protocol mismatch');
+    if (expectedBootstrapProtocol !== null) {
+        if (handler.bootstrapProtocol !== expectedBootstrapProtocol) {
+            throw new Error('adapter handler bootstrap protocol mismatch');
+        }
+        if (
+            typeof handler.prepareBootstrapProject !== 'function' ||
+            typeof handler.installBootstrapDependencies !== 'function' ||
+            typeof handler.runBootstrapQuality !== 'function' ||
+            typeof handler.verifyBootstrapProject !== 'function'
+        ) {
+            throw new Error('adapter handler bootstrap interface is invalid');
+        }
     }
     return handler;
 }

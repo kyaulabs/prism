@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -32,17 +32,74 @@ function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function readRegular(filePath, label, expectedMode = null) {
-    const stat = fs.lstatSync(filePath);
+function readBounded(descriptor, label) {
+    const chunks = [];
+    let total = 0;
+    while (total <= MAX_RESOURCE_BYTES) {
+        const chunk = Buffer.allocUnsafe(Math.min(65536, MAX_RESOURCE_BYTES + 1 - total));
+        const count = fs.readSync(descriptor, chunk, 0, chunk.length, null);
+        if (count === 0) break;
+        chunks.push(chunk.subarray(0, count));
+        total += count;
+    }
+    if (total > MAX_RESOURCE_BYTES) throw new Error(`${label} is invalid`);
+    return Buffer.concat(chunks, total);
+}
+
+function resourceMode(stat) {
+    return Number(stat.mode & 0o777n);
+}
+
+function sameResourceVersion(left, right) {
+    return left.dev === right.dev &&
+        left.ino === right.ino &&
+        left.size === right.size &&
+        left.mode === right.mode &&
+        left.ctimeNs === right.ctimeNs &&
+        left.mtimeNs === right.mtimeNs;
+}
+
+function readHeldRegular(filePath, openPath, label, expectedMode = null) {
+    const initial = fs.lstatSync(openPath, {bigint: true});
     if (
-        stat.isSymbolicLink() ||
-        !stat.isFile() ||
-        stat.size > MAX_RESOURCE_BYTES ||
-        (expectedMode !== null && (stat.mode & 0o777) !== expectedMode)
+        initial.isSymbolicLink() ||
+        !initial.isFile() ||
+        initial.size > BigInt(MAX_RESOURCE_BYTES) ||
+        (expectedMode !== null && resourceMode(initial) !== expectedMode) ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error(`${label} is invalid`);
     }
-    return fs.readFileSync(filePath);
+    const descriptor = fs.openSync(openPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor, {bigint: true});
+        if (
+            !held.isFile() ||
+            !sameResourceVersion(initial, held) ||
+            (expectedMode !== null && resourceMode(held) !== expectedMode)
+        ) {
+            throw new Error(`${label} changed`);
+        }
+        const contents = readBounded(descriptor, label);
+        const final = fs.fstatSync(descriptor, {bigint: true});
+        const current = fs.lstatSync(filePath, {bigint: true});
+        if (
+            !sameResourceVersion(held, final) ||
+            contents.length !== Number(held.size) ||
+            current.isSymbolicLink() ||
+            !current.isFile() ||
+            !sameResourceVersion(held, current)
+        ) {
+            throw new Error(`${label} changed`);
+        }
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function readRegular(filePath, label, expectedMode = null) {
+    return readHeldRegular(filePath, filePath, label, expectedMode);
 }
 
 function readCoreManifest(coreRoot) {
@@ -58,6 +115,116 @@ function readCoreManifest(coreRoot) {
     return value;
 }
 
+function validateProviderOutputPath(value) {
+    if (
+        typeof value !== 'string' ||
+        value.length === 0 ||
+        value.includes('\\') ||
+        path.posix.isAbsolute(value) ||
+        path.posix.normalize(value) !== value ||
+        value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+    ) {
+        throw new Error('adapter provider output path is invalid');
+    }
+    return value;
+}
+
+function validateDeclarations(values, keys, label, validate) {
+    if (
+        !Array.isArray(values) ||
+        values.some((value) => !isRecord(value) || !hasExactKeys(value, keys) || !validate(value))
+    ) {
+        throw new Error(`adapter provider ${label} are invalid`);
+    }
+    return Object.freeze(values.map((value) => Object.freeze({...value})));
+}
+
+function loadTrustedAdapterProviderDescriptor({registration}) {
+    if (
+        !isRecord(registration) ||
+        typeof registration.packageRoot !== 'string' ||
+        typeof registration.packageName !== 'string' ||
+        typeof registration.packageVersion !== 'string' ||
+        !EXACT_VERSION.test(registration.packageVersion) ||
+        !Number.isSafeInteger(registration.bootstrapProtocol) ||
+        registration.bootstrapProtocol < 1
+    ) {
+        throw new Error('adapter registration is invalid');
+    }
+    const packageRoot = fs.realpathSync(registration.packageRoot);
+    if (packageRoot !== registration.packageRoot) {
+        throw new Error('adapter registration root is invalid');
+    }
+    const packageManifest = JSON.parse(readCanonicalRegular(
+        packageRoot,
+        'package.json',
+        'adapter package manifest'
+    ));
+    if (
+        packageManifest.name !== registration.packageName ||
+        packageManifest.version !== registration.packageVersion
+    ) {
+        throw new Error('adapter registration identity is invalid');
+    }
+    const manifest = JSON.parse(readCanonicalRegular(
+        packageRoot,
+        'config/bootstrap/scaffold.json',
+        'adapter provider manifest'
+    ));
+    if (
+        !isRecord(manifest) ||
+        !hasExactKeys(manifest, [
+            'schemaVersion', 'providerId', 'displayName', 'outputs',
+            'effects', 'checks', 'verification',
+        ]) ||
+        manifest.schemaVersion !== 1 ||
+        typeof manifest.providerId !== 'string' ||
+        manifest.providerId.length === 0 ||
+        typeof manifest.displayName !== 'string' ||
+        manifest.displayName.length === 0 ||
+        !Array.isArray(manifest.outputs) ||
+        new Set(manifest.outputs).size !== manifest.outputs.length
+    ) {
+        throw new Error('adapter provider manifest is invalid');
+    }
+    const outputs = Object.freeze(manifest.outputs.map(validateProviderOutputPath).sort());
+    const effects = validateDeclarations(
+        manifest.effects,
+        ['id', 'kind', 'command'],
+        'effects',
+        (effect) => ['id', 'kind', 'command'].every((key) =>
+            typeof effect[key] === 'string' && effect[key].length > 0
+        )
+    );
+    const checks = validateDeclarations(
+        manifest.checks,
+        ['id', 'status', 'message'],
+        'checks',
+        (check) => check.status === 'PASS' && ['id', 'message'].every((key) =>
+            typeof check[key] === 'string' && check[key].length > 0
+        )
+    );
+    const verification = validateDeclarations(
+        manifest.verification,
+        ['id', 'command'],
+        'verification',
+        (item) => ['id', 'command'].every((key) =>
+            typeof item[key] === 'string' && item[key].length > 0
+        )
+    );
+    return Object.freeze({
+        id: manifest.providerId,
+        displayName: manifest.displayName,
+        packageName: registration.packageName,
+        packageVersion: registration.packageVersion,
+        protocolVersion: registration.bootstrapProtocol,
+        outputs,
+        effects,
+        checks,
+        verification,
+    });
+}
+
 function loadTrustedProviderRegistry({coreRoot}) {
     const canonicalCore = fs.realpathSync(coreRoot);
     const manifest = readCoreManifest(canonicalCore);
@@ -70,6 +237,16 @@ function loadTrustedProviderRegistry({coreRoot}) {
             packageVersion: manifest.version,
             protocolVersion: 1,
             outputs: OUTPUTS,
+            effects: Object.freeze([]),
+            checks: Object.freeze([Object.freeze({
+                id: 'core-baseline-render',
+                status: 'PASS',
+                message: 'Core baseline candidate files were rendered',
+            })]),
+            verification: Object.freeze([Object.freeze({
+                id: 'core-baseline-inventory',
+                command: 'setup project validate',
+            })]),
         })]),
     });
 }
@@ -175,6 +352,45 @@ function holdCandidateParent(candidateRoot, relativePath) {
     }
 }
 
+function holdExistingParent(root, relativePath) {
+    let directoryPath = root;
+    let parent = createHeldDirectory(root, root, root);
+    try {
+        for (const segment of relativePath.split('/').slice(0, -1)) {
+            const childPath = path.join(directoryPath, segment);
+            const child = createHeldDirectory(root, childPath, path.join(parent.anchor, segment));
+            parent.close();
+            parent = child;
+            directoryPath = childPath;
+        }
+        return parent;
+    } catch (error) {
+        parent.close();
+        throw error;
+    }
+}
+
+function readCanonicalRegular(root, relativePath, label, expectedMode = null) {
+    const lexical = path.join(root, ...relativePath.split('/'));
+    const relation = path.relative(root, lexical);
+    if (relation.startsWith('..') || path.isAbsolute(relation)) {
+        throw new Error(`${label} is invalid`);
+    }
+    const parent = holdExistingParent(root, relativePath);
+    try {
+        const contents = readHeldRegular(
+            lexical,
+            path.join(parent.anchor, path.posix.basename(relativePath)),
+            label,
+            expectedMode
+        );
+        parent.assertCurrent();
+        return contents;
+    } finally {
+        parent.close();
+    }
+}
+
 function writeCandidate(candidateRoot, relativePath, contents, mode) {
     const target = path.join(candidateRoot, ...relativePath.split('/'));
     const relation = path.relative(candidateRoot, target);
@@ -217,7 +433,7 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     }
 }
 
-function projectManifest(metadata, coreVersion) {
+function projectManifest(metadata, coreVersion, adapter) {
     return Buffer.from(`${JSON.stringify({
         schemaVersion: 1,
         source: {mode: 'BLANK', evidence: null},
@@ -226,7 +442,7 @@ function projectManifest(metadata, coreVersion) {
             displayName: metadata.displayName,
             summary: metadata.summary,
         },
-        adapter: null,
+        adapter,
         compatibility: {
             corePackage: '@kyaulabs/prism-core',
             coreVersion,
@@ -259,7 +475,21 @@ function validateRequest(request) {
         request.source.evidence !== null ||
         !Array.isArray(request.capabilities) ||
         request.capabilities.length !== 0 ||
-        request.adapter !== null ||
+        (
+            request.adapter !== null &&
+            (
+                !isRecord(request.adapter) ||
+                !hasExactKeys(request.adapter, [
+                    'id', 'packageName', 'packageVersion', 'bootstrapProtocol',
+                ]) ||
+                typeof request.adapter.id !== 'string' ||
+                typeof request.adapter.packageName !== 'string' ||
+                typeof request.adapter.packageVersion !== 'string' ||
+                !EXACT_VERSION.test(request.adapter.packageVersion) ||
+                !Number.isSafeInteger(request.adapter.bootstrapProtocol) ||
+                request.adapter.bootstrapProtocol < 1
+            )
+        ) ||
         !isRecord(request.metadata) ||
         !hasExactKeys(request.metadata, [
             'schemaVersion', 'displayName', 'summary', 'suggestedDisplayName',
@@ -277,7 +507,11 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     const registry = loadTrustedProviderRegistry({coreRoot: canonicalCore});
     const provider = registry.providers[0];
     const contents = new Map([
-        ['.prism/project.json', projectManifest(request.metadata, provider.packageVersion)],
+        ['.prism/project.json', projectManifest(
+            request.metadata,
+            provider.packageVersion,
+            request.adapter
+        )],
         ['README.md', projectReadme(request.metadata)],
         ['commitlint.config.cjs', readRegular(
             path.join(canonicalCore, 'config', 'commitlint.config.cjs'),
@@ -323,6 +557,10 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     });
 }
 
-module.exports = {loadTrustedProviderRegistry, renderCoreBaseline};
+module.exports = {
+    loadTrustedAdapterProviderDescriptor,
+    loadTrustedProviderRegistry,
+    renderCoreBaseline,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

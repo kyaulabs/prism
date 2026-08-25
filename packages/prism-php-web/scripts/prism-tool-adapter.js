@@ -2,9 +2,16 @@
 
 'use strict';
 
+const path = require('node:path');
+const {
+    renderBootstrapScaffold,
+    runBootstrapQuality,
+    verifyBootstrapScaffold,
+} = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
 const {
     applyCandidate,
+    installBootstrapDependencies,
     resolveCandidate,
     verifyInstalledProject,
 } = require('./toolchain/transaction');
@@ -24,6 +31,16 @@ function apply(options) {
     return applyCandidate(options);
 }
 
+function prepareBootstrapProject(options) {
+    return renderBootstrapScaffold({
+        packageRoot: path.resolve(__dirname, '..'),
+        candidateRoot: options.candidateRoot,
+        request: options.request,
+        contract: options.contract,
+        run: options.run,
+    });
+}
+
 function resolve(options) {
     return resolveCandidate(options);
 }
@@ -32,6 +49,24 @@ function verify(options) {
     return verifyInstalledProject(options);
 }
 
-module.exports = {apply, bootstrapProtocol, inspect, resolve, resolveTool, verify};
+function verifyBootstrapProject(options) {
+    return verifyBootstrapScaffold({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
+}
+
+module.exports = {
+    apply,
+    bootstrapProtocol,
+    inspect,
+    installBootstrapDependencies,
+    prepareBootstrapProject,
+    resolve,
+    resolveTool,
+    runBootstrapQuality,
+    verify,
+    verifyBootstrapProject,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

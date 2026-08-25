@@ -190,6 +190,7 @@ function createBootstrapRepository({
     const projectRoot = fs.realpathSync(requestedRoot);
     const projectIdentity = fs.lstatSync(projectRoot);
     let journal = readBootstrapJournal({projectRoot, attemptId});
+    const permitUntracked = allowUntracked || journal.adapter !== null;
     const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
     const gitPath = path.join(projectRoot, '.git');
     if (
@@ -205,7 +206,7 @@ function createBootstrapRepository({
             attemptId,
             planDigest,
             allowRepository: true,
-            allowUntracked,
+            allowUntracked: permitUntracked,
         });
         const repository = validateCreatedRepository(
             projectRoot,
@@ -241,13 +242,13 @@ function createBootstrapRepository({
         journal.repository === null
     ) {
         cleanupInterruptedOperation(attemptRoot, attemptId);
-        durable = validateDurableBootstrapProject({
+        validateDurableBootstrapProject({
             projectRoot,
             coreRoot,
             attemptId,
             planDigest,
             allowRepository: true,
-            allowUntracked,
+            allowUntracked: permitUntracked,
         });
     } else {
         durable = validateDurableBootstrapProject({
@@ -255,7 +256,7 @@ function createBootstrapRepository({
             coreRoot,
             attemptId,
             planDigest,
-            allowUntracked,
+            allowUntracked: permitUntracked,
         });
         if (
             journal.phase !== 'DURABLE' ||
