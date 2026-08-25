@@ -390,33 +390,33 @@ prism-tool commit create --type feat --scope setup --subject "bind governance me
 - Seed attestation adds an exact `capabilities` array beside `providers` and `metadataDigest`.
 - Exact seed entries remain `plan.outputs` plus adapter activation when present; no operational report or resource path is staged.
 
-- [ ] **Step 1: Write failing seed tests**
+- [x] **Step 1: Write failing seed tests**
 
 Prepare Blank and Template Core-only seeds and one selected-adapter seed with all three capabilities. Assert the attestation binds capabilities, all Core provider identities, metadata digest, adapter evidence, plan digest, applied inventory, journal digest, hook inventory, and staged-index digest.
 
 Assert the staged inventory contains the selected generated outputs and excludes `reports/`, packaged resource paths, `.pi/prism-tool/`, Template blobs, source catalogues, and any remote state.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because the active seed attestation does not yet declare or validate selected capabilities.
 
-- [ ] **Step 3: Bind capabilities into seed evidence**
+- [x] **Step 3: Bind capabilities into seed evidence**
 
 Add `capabilities` to attestation creation and closed validation. Require exact equality with the durable plan and project manifest. Keep the existing provider digest, metadata digest, source, adapter, journal, hook, index, and one-use checks unchanged.
 
-- [ ] **Step 4: Add substitution and exclusion regressions**
+- [x] **Step 4: Add substitution and exclusion regressions**
 
 Mutate one capability ID/order, provider identity, metadata digest, rendered output, and staged entry at a time. Assert readiness or completion fails without silently changing the index or consuming the attestation.
 
-- [ ] **Step 5: Run the focused tests and verify Green**
+- [x] **Step 5: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS for Blank and Template, Core-only and selected-adapter roots.
 
-- [ ] **Step 6: Commit the seed-attestation slice**
+- [x] **Step 6: Commit the seed-attestation slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-seed.js tests/Node/prism-tool-bootstrap-seed.test.js

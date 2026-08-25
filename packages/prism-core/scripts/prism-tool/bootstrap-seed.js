@@ -247,6 +247,7 @@ function prepareBootstrapSeed({
             projectRoot,
             attemptId,
             source: durable.plan.source,
+            capabilities: durable.plan.capabilities,
             providers: durable.plan.providers.map((provider) => Object.freeze({
                 ...provider,
                 reportDigest: sha256(Buffer.from(JSON.stringify({
@@ -429,7 +430,7 @@ function validateActiveBootstrapSeed({
     }
     if (
         !exactKeys(value, [
-            'schemaVersion', 'projectRoot', 'attemptId', 'source', 'providers',
+            'schemaVersion', 'projectRoot', 'attemptId', 'source', 'capabilities', 'providers',
             'metadataDigest', 'adapter', 'planDigest', 'appliedInventoryDigest',
             'durableJournalDigest', 'repository', 'hookInventoryDigest',
             'stagedIndexDigest', 'commit',
@@ -440,6 +441,7 @@ function validateActiveBootstrapSeed({
         value.attemptId !== attemptId ||
         JSON.stringify(retainedSource) !== JSON.stringify(journal.source) ||
         JSON.stringify(retainedSource) !== JSON.stringify(durable.plan.source) ||
+        JSON.stringify(value.capabilities) !== JSON.stringify(durable.plan.capabilities) ||
         JSON.stringify(value.providers) !== JSON.stringify(expectedProviders) ||
         value.metadataDigest !== journal.metadataDigest ||
         JSON.stringify(value.adapter) !== JSON.stringify(
