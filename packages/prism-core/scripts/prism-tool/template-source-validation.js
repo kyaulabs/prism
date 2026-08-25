@@ -1,4 +1,4 @@
-// $KYAULabs: template-source-validation.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: template-source-validation.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -263,6 +263,8 @@ function validateManifest(bytes, tree) {
 }
 
 module.exports = {
+    BRANCH_PATTERN,
+    CAPABILITIES,
     LIMITS,
     MANIFEST_PATH,
     digestJson,
