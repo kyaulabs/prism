@@ -91,6 +91,48 @@ function readyRepository(t) {
     return {projectRoot, plan};
 }
 
+function readyHooks(t) {
+    const ready = readyRepository(t);
+    assert.equal(applyHooks(ready.projectRoot, ready.plan.planDigest).status, 0);
+    return ready;
+}
+
+function runHook(projectRoot, event, args = [], context = {}) {
+    return captureWrites(() => main(['hook', event, ...args], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        ...context,
+    }));
+}
+
+function hookRunWithReadiness(invocations = []) {
+    return (command, args, options) => {
+        invocations.push({command, args, cwd: options.cwd});
+        if (command === process.execPath && args.includes('doctor')) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+}
+
+function createCommit(projectRoot, parents = [], message = 'test commit') {
+    const tree = git(projectRoot, ['mktree']);
+    return execFileSync('git', [
+        '-C', projectRoot, 'commit-tree', tree,
+        ...parents.flatMap((parent) => ['-p', parent]),
+    ], {
+        encoding: 'utf8',
+        input: `${message}\n`,
+        env: {
+            ...process.env,
+            GIT_AUTHOR_NAME: 'Test Author',
+            GIT_AUTHOR_EMAIL: 'test@example.invalid',
+            GIT_COMMITTER_NAME: 'Test Committer',
+            GIT_COMMITTER_EMAIL: 'test@example.invalid',
+        },
+    }).trim();
+}
+
 test('creates an eligible unborn develop repository only after durable application', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -348,6 +390,152 @@ test('rolls back only its hook value after concurrent configuration change', (t)
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
     assert.equal(journal.resumePhase, 'HOOK_ACTIVATION');
     assert.equal(journal.hooks, null);
+});
+
+test('dispatches Core-only pre-commit readiness without adapter execution', (t) => {
+    const {projectRoot} = readyHooks(t);
+    execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
+    const invocations = [];
+    const hookRun = (command, args, options) => {
+        invocations.push({command, args, cwd: options.cwd});
+        if (command === process.execPath && args.includes('doctor')) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+
+    const result = runHook(projectRoot, 'pre-commit', [], {
+        hookRun,
+        loadHookAdapter() {
+            throw new Error('Core-only hooks must not load an adapter');
+        },
+    });
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, '');
+    assert.equal(invocations.some(({args}) => args.includes('doctor')), true);
+    assert.equal(invocations.some(({args}) => args.join(' ') === 'diff --cached --check'), true);
+    assert.equal(runHook(projectRoot, 'unknown').status, 2);
+});
+
+test('fails closed for non-Core project metadata without adapter execution', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.adapter = {package: '@example/adapter'};
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    const invocations = [];
+
+    const result = runHook(projectRoot, 'pre-commit', [], {
+        hookRun: hookRunWithReadiness(invocations),
+        loadHookAdapter() {
+            throw new Error('adapter must not load');
+        },
+    });
+
+    assert.equal(result.status, 1);
+    assert.deepEqual(invocations.map(({command}) => command), ['git']);
+});
+
+test('validates contained commit messages after local readiness', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const messagePath = path.join(projectRoot, '.git', 'COMMIT_EDITMSG');
+    fs.writeFileSync(messagePath, 'ignore: bootstrap prism project\n');
+    const invocations = [];
+    const hookRun = (command, args, options) => {
+        invocations.push({command, args, cwd: options.cwd});
+        if (command === process.execPath && (args.includes('doctor') || args.includes('commitlint'))) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+
+    const result = runHook(projectRoot, 'commit-msg', [messagePath], {hookRun});
+
+    assert.equal(result.status, 0);
+    const readiness = invocations.findIndex(({args}) => args.includes('doctor'));
+    const commitlint = invocations.findIndex(({args}) => args.includes('commitlint'));
+    assert.equal(readiness >= 0, true);
+    assert.equal(commitlint > readiness, true);
+    assert.equal(invocations[commitlint].args.at(-1), messagePath);
+
+    const outside = path.join(projectRoot, 'outside-message');
+    fs.writeFileSync(outside, 'ignore: bootstrap prism project\n');
+    assert.equal(runHook(projectRoot, 'commit-msg', [outside], {hookRun}).status, 1);
+    const symlink = path.join(projectRoot, '.git', 'MESSAGE_LINK');
+    fs.symlinkSync(messagePath, symlink);
+    assert.equal(runHook(projectRoot, 'commit-msg', [symlink], {hookRun}).status, 1);
+});
+
+test('permits only the unborn protected develop root exception', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const messagePath = path.join(projectRoot, '.git', 'COMMIT_EDITMSG');
+    fs.writeFileSync(messagePath, 'ignore: bootstrap prism project\n');
+
+    assert.equal(runHook(projectRoot, 'prepare-commit-msg', [messagePath]).status, 0);
+
+    const rootCommit = createCommit(projectRoot);
+    execFileSync('git', ['-C', projectRoot, 'update-ref', 'refs/heads/develop', rootCommit]);
+    assert.equal(runHook(projectRoot, 'prepare-commit-msg', [messagePath]).status, 1);
+
+    execFileSync('git', ['-C', projectRoot, 'symbolic-ref', 'HEAD', 'refs/heads/feat/test-abcd-seed']);
+    execFileSync('git', ['-C', projectRoot, 'update-ref', 'HEAD', rootCommit]);
+    assert.equal(runHook(projectRoot, 'prepare-commit-msg', [messagePath]).status, 0);
+    execFileSync('git', [
+        '-C', projectRoot, 'update-ref', 'refs/remotes/origin/feat/test-abcd-seed', rootCommit,
+    ]);
+    assert.equal(
+        runHook(projectRoot, 'prepare-commit-msg', [messagePath, 'commit', 'HEAD']).status,
+        1
+    );
+    assert.equal(runHook(projectRoot, 'prepare-commit-msg', [messagePath, 'commit']).status, 2);
+});
+
+test('allows only an exact protected root push and rejects rewritten history', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const rootCommit = createCommit(projectRoot);
+    const childCommit = createCommit(projectRoot, [rootCommit]);
+    const otherCommit = createCommit(projectRoot, [], 'other commit');
+    const zeros = '0'.repeat(40);
+    const hookRun = hookRunWithReadiness();
+
+    const initial = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/develop ${rootCommit} refs/heads/develop ${zeros}\n`,
+        hookRun,
+    });
+    assert.equal(initial.status, 0);
+
+    const laterProtected = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/develop ${childCommit} refs/heads/develop ${zeros}\n`,
+        hookRun,
+    });
+    assert.equal(laterProtected.status, 1);
+    const mainRoot = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/main ${rootCommit} refs/heads/main ${zeros}\n`,
+        hookRun,
+    });
+    assert.equal(mainRoot.status, 1);
+
+    const fastForward = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/feat/test-abcd-seed ${childCommit} refs/heads/feat/test-abcd-seed ${rootCommit}\n`,
+        hookRun,
+    });
+    assert.equal(fastForward.status, 0);
+
+    const rewritten = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/feat/test-abcd-seed ${otherCommit} refs/heads/feat/test-abcd-seed ${rootCommit}\n`,
+        hookRun,
+    });
+    assert.equal(rewritten.status, 1);
+    assert.equal(runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: 'malformed\n',
+        hookRun,
+    }).status, 1);
+    assert.equal(runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/a..b ${zeros} refs/heads/a..b ${zeros}\n`,
+        hookRun,
+    }).status, 1);
 });
 
 test('preserves concurrently changed repository state without granting seed eligibility', (t) => {

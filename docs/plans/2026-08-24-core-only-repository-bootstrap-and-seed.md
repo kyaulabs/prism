@@ -231,13 +231,13 @@ prism-tool commit create --type feat --scope setup --subject "activate canonical
 - Consumes `.prism/project.json` and treats `adapter: null` as explicit Core-only state.
 - Produces no adapter subprocess invocation for Core-only projects.
 
-- [ ] **Step 1: Write failing launcher and wrapper tests**
+- [x] **Step 1: Write failing launcher and wrapper tests**
 
 In the Node test, cover exact event grammar, bounded stdin, message-file containment beneath the active Git directory, local readiness before commit-message validation, protected-branch root exception, later protected-branch rejection, non-fast-forward rejection, and explicit Core-only adapter absence.
 
 In `tests/Shell/bootstrap_hook_dispatch_test.sh`, create a disposable Core-only repository, place a fake `prism-tool` first on `PATH`, invoke each packaged wrapper, and assert event name, argument boundaries, exit status, and pre-push stdin are propagated exactly once. Also assert a missing launcher fails closed.
 
-- [ ] **Step 2: Run tests to verify Red**
+- [x] **Step 2: Run tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
@@ -245,7 +245,7 @@ Run: `bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: FAIL because the public `hook` command is not dispatched.
 
-- [ ] **Step 3: Implement the closed Core hook dispatcher**
+- [x] **Step 3: Implement the closed Core hook dispatcher**
 
 In `hook.js`:
 
@@ -259,7 +259,7 @@ In `hook.js`:
 
 Wire `hookCommand` into `main()` without changing `run` or `commit` dispatch.
 
-- [ ] **Step 4: Run hook tests to verify Green**
+- [x] **Step 4: Run hook tests to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
@@ -267,7 +267,7 @@ Run: `bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: PASS, including proof that Core-only dispatch invokes no adapter handler or consumer-development command.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/hook.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-seed.test.js tests/Shell/bootstrap_hook_dispatch_test.sh

@@ -27,6 +27,7 @@ const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
+const {hookCommand} = require('./hook');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {codeReviewCommand} = require('./code-review');
 const {
@@ -1548,6 +1549,7 @@ function main(argv, context = {}) {
     if (command === 'resolve') return resolveKindDir(args, context);
     if (command === 'pr') return prCommand(args, context);
     if (command === 'commit') return commitCommand(args, context);
+    if (command === 'hook') return hookCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
     if (command === 'code-review') return codeReviewCommand(args, context);
     if (command === 'package-release') return packageReleaseCommand(args, context);
