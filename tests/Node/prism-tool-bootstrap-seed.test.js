@@ -233,6 +233,36 @@ test('resumes an exact agent-started repository after interruption', (t) => {
     assert.equal(JSON.parse(resumed.stdout).data.resumePhase, 'HOOK_ACTIVATION');
 });
 
+test('resumes exact operation evidence retained before repository initialization', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    const interrupted = createRepository(projectRoot, plan.planDigest, {
+        bootstrapRepositoryFault(event) {
+            if (event.name === 'before-init') throw new Error('simulated interruption');
+        },
+    });
+    assert.equal(interrupted.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), false);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    fs.writeFileSync(
+        path.join(attemptRoot, 'repository.lock'),
+        `${JSON.stringify({schemaVersion: 1, attemptId: ATTEMPT_ID})}\n`,
+        {mode: 0o600}
+    );
+    fs.mkdirSync(path.join(attemptRoot, 'git-template'), {mode: 0o700});
+    fs.writeFileSync(path.join(attemptRoot, 'git-global.config'), '', {mode: 0o600});
+
+    const resumed = createRepository(projectRoot, plan.planDigest);
+
+    assert.equal(resumed.status, 0, resumed.stderr);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.git')), true);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'repository.lock')), false);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'git-template')), false);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'git-global.config')), false);
+});
+
 test('removes inherited Git configuration injection during repository creation', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

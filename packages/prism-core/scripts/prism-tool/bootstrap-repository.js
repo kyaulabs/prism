@@ -240,9 +240,7 @@ function createBootstrapRepository({
         journal.resumePhase === 'REPOSITORY_CREATION' &&
         journal.repository === null
     ) {
-        if (fs.lstatSync(gitPath, {throwIfNoEntry: false}) !== undefined) {
-            cleanupInterruptedOperation(attemptRoot, attemptId);
-        }
+        cleanupInterruptedOperation(attemptRoot, attemptId);
         durable = validateDurableBootstrapProject({
             projectRoot,
             coreRoot,
