@@ -727,6 +727,138 @@ test('renders neutral GitHub collaboration templates without project metadata', 
     assert.doesNotMatch(contents, /assignees:|labels:|windows|kyaulabs\/|github\.com\//i);
 });
 
+test('renders a security policy without an implicit acknowledgement promise', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['security-disclosure'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Secure Project',
+                summary: 'A project with a vulnerability reporting policy.',
+                suggestedDisplayName: 'secure-project',
+                capabilityMetadata: {
+                    'security-disclosure': {
+                        reportingContact: {
+                            kind: 'https',
+                            value: 'https://security.example.test/report',
+                        },
+                        supportedVersions: {
+                            policy: 'latest-release',
+                            rows: [],
+                        },
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: 'SECURITY.md', mode: 0o644}]);
+    const contents = fs.readFileSync(path.join(candidateRoot, 'SECURITY.md'), 'utf8');
+    assert.match(contents, /Security fixes are provided for the latest released version\./);
+    assert.match(contents, /https:\/\/security\.example\.test\/report/);
+    assert.doesNotMatch(contents, /acknowledge|within \d+ hours/i);
+    assert.deepEqual(reports[0].effects, []);
+    assert.equal(reports[0].checks[0].status, 'PASS');
+});
+
+test('renders custom supported versions and an explicit acknowledgement target', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['security-disclosure'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Secure Project',
+                summary: 'A project with explicit supported versions.',
+                suggestedDisplayName: 'secure-project',
+                capabilityMetadata: {
+                    'security-disclosure': {
+                        reportingContact: {kind: 'email', value: 'security@example.test'},
+                        supportedVersions: {
+                            policy: 'custom',
+                            rows: [
+                                {version: '2.x', status: 'supported'},
+                                {version: '1.x', status: 'unsupported'},
+                            ],
+                        },
+                        acknowledgementHours: 72,
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(path.join(candidateRoot, 'SECURITY.md'), 'utf8');
+    assert.match(contents, /\| 2\.x \| Yes \|/);
+    assert.match(contents, /\| 1\.x \| No \|/);
+    assert.match(contents, /mailto:security@example\.test/);
+    assert.match(contents, /acknowledge complete vulnerability reports within 72 hours/);
+});
+
+test('renders repository ownership with a default and contained path rules', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['repository-ownership'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Owned Project',
+                summary: 'A project with explicit review ownership.',
+                suggestedDisplayName: 'owned-project',
+                capabilityMetadata: {
+                    'repository-ownership': {
+                        owners: ['@example', '@example/core'],
+                        rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/CODEOWNERS', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'CODEOWNERS'), 'utf8'),
+        '*\t@example @example/core\n/docs/**\t@example/docs\n'
+    );
+});
+
 test('declares exact trusted ownership for selected profile providers', () => {
     const {loadCoreProfileProviderDescriptors} = require(
         '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
@@ -736,6 +868,7 @@ test('declares exact trusted ownership for selected profile providers', () => {
         coreRoot: CORE_ROOT,
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
+            'security-disclosure', 'repository-ownership',
         ],
     });
 
@@ -753,6 +886,8 @@ test('declares exact trusted ownership for selected profile providers', () => {
                 '.github/pull_request_template.md',
             ],
         },
+        {id: 'security-disclosure', outputs: ['SECURITY.md']},
+        {id: 'repository-ownership', outputs: ['.github/CODEOWNERS']},
     ]);
     for (const descriptor of descriptors) {
         assert.equal(descriptor.packageName, '@kyaulabs/prism-core');

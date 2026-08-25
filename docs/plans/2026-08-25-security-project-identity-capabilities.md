@@ -249,13 +249,13 @@ We aim to acknowledge complete vulnerability reports within 72 hours.
 /docs/**\t@example/docs
 ```
 
-- [ ] **Step 1: Write failing renderer and ownership tests**
+- [x] **Step 1: Write failing renderer and ownership tests**
 
 Add provider tests for email and HTTPS security routes, every supported-version policy, custom rows, absent/present acknowledgement timing, default ownership, path-specific ownership, canonical provider identities, output modes `0644`, SHA-256 digests, empty effects, one PASS check, one verification declaration, and deterministic rerendering.
 
 Assert rendered security content contains no timing promise when `acknowledgementHours` is absent. Assert CODEOWNERS contains no path outside the normalized rules and no owner omitted or inferred.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -265,25 +265,25 @@ node --test tests/Node/prism-tool-bootstrap-capabilities.test.js
 
 Expected: FAIL because the profile registry has no security or ownership renderer.
 
-- [ ] **Step 3: Implement deterministic security rendering**
+- [x] **Step 3: Implement deterministic security rendering**
 
 Add `renderSecurityDisclosure()` using only normalized metadata. Escape Markdown link labels with the existing trusted helper, render fixed policy wording for the three non-custom policies, render custom rows from normalized labels/statuses, and omit acknowledgement wording unless the integer exists.
 
-- [ ] **Step 4: Implement deterministic CODEOWNERS rendering**
+- [x] **Step 4: Implement deterministic CODEOWNERS rendering**
 
 Add `renderRepositoryOwnership()` with `*` followed by normalized owners and each normalized path rule in user-approved order. Render one trailing newline, one tab between pattern and owner list, and no comments, repository coordinates, or inferred teams.
 
-- [ ] **Step 5: Register the two providers and README links**
+- [x] **Step 5: Register the two providers and README links**
 
 Extend `PROFILE_OUTPUTS`, provider check labels, renderer dispatch, and `projectReadme()` links. The trusted registry must expose only selected descriptors in canonical capability order.
 
-- [ ] **Step 6: Run focused tests and verify Green**
+- [x] **Step 6: Run focused tests and verify Green**
 
 Run the Step 2 command.
 
 Expected: PASS with deterministic, non-overlapping `SECURITY.md` and `.github/CODEOWNERS` reports.
 
-- [ ] **Step 7: Commit the security and ownership renderer slice**
+- [x] **Step 7: Commit the security and ownership renderer slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-profile-providers.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js tests/Node/prism-tool-bootstrap-capabilities.test.js

@@ -20,14 +20,18 @@ const PROFILE_OUTPUTS = Object.freeze({
         '.github/ISSUE_TEMPLATE/feature_request.yml',
         '.github/pull_request_template.md',
     ]),
+    'security-disclosure': Object.freeze(['SECURITY.md']),
+    'repository-ownership': Object.freeze(['.github/CODEOWNERS']),
 });
 
 function profileCheck(capability) {
-    const display = capability === 'licensing'
-        ? 'Licensing'
-        : capability === 'community-governance'
-            ? 'Community governance'
-            : 'GitHub collaboration';
+    const display = {
+        licensing: 'Licensing',
+        'community-governance': 'Community governance',
+        'github-collaboration': 'GitHub collaboration',
+        'security-disclosure': 'Security disclosure',
+        'repository-ownership': 'Repository ownership',
+    }[capability];
     return Object.freeze({
         id: `${capability}-render`,
         status: 'PASS',
@@ -256,6 +260,80 @@ function collaborationContents() {
     ]);
 }
 
+function securityContactLink(contact) {
+    const label = markdownLabel(contact.value);
+    return contact.kind === 'email'
+        ? `[${label}](mailto:${contact.value})`
+        : `[${label}](<${contact.value}>)`;
+}
+
+function supportedVersionsContents(supportedVersions) {
+    const wording = {
+        'current-development': 'Security fixes are provided for the current development branch.',
+        'latest-release': 'Security fixes are provided for the latest released version.',
+        'latest-major-line': 'Security fixes are provided for the latest major release line.',
+    };
+    if (supportedVersions.policy !== 'custom') return `${wording[supportedVersions.policy]}\n`;
+    const rows = supportedVersions.rows.map(({version, status}) =>
+        `| ${version.replace(/\|/gu, '\\|')} | ${status === 'supported' ? 'Yes' : 'No'} |`
+    );
+    return '| Version | Supported |\n| --- | --- |\n' + `${rows.join('\n')}\n`;
+}
+
+function renderSecurityDisclosure({candidateRoot, request, coreVersion}) {
+    const provider = providerIdentity(coreVersion, 'security-disclosure');
+    const security = request.metadata.capabilityMetadata['security-disclosure'];
+    const acknowledgement = Object.hasOwn(security, 'acknowledgementHours')
+        ? `\nWe aim to acknowledge complete vulnerability reports within ${security.acknowledgementHours} hours.\n`
+        : '';
+    const contents = Buffer.from(
+        '# Security Policy\n\n' +
+        '## Supported versions\n\n' +
+        supportedVersionsContents(security.supportedVersions) +
+        '\n## Reporting a vulnerability\n\n' +
+        `Report vulnerabilities privately through ${securityContactLink(security.reportingContact)}.\n` +
+        acknowledgement,
+        'utf8'
+    );
+    return Object.freeze({
+        schemaVersion: 1,
+        provider,
+        status: 'GO',
+        outputs: Object.freeze([writeCandidate(
+            candidateRoot,
+            'SECURITY.md',
+            contents,
+            0o644
+        )]),
+        effects: Object.freeze([]),
+        checks: Object.freeze([profileCheck('security-disclosure')]),
+        verification: Object.freeze([profileVerification('security-disclosure')]),
+    });
+}
+
+function renderRepositoryOwnership({candidateRoot, request, coreVersion}) {
+    const provider = providerIdentity(coreVersion, 'repository-ownership');
+    const ownership = request.metadata.capabilityMetadata['repository-ownership'];
+    const lines = [
+        `*\t${ownership.owners.join(' ')}`,
+        ...ownership.rules.map(({pattern, owners}) => `${pattern}\t${owners.join(' ')}`),
+    ];
+    return Object.freeze({
+        schemaVersion: 1,
+        provider,
+        status: 'GO',
+        outputs: Object.freeze([writeCandidate(
+            candidateRoot,
+            '.github/CODEOWNERS',
+            Buffer.from(`${lines.join('\n')}\n`, 'utf8'),
+            0o644
+        )]),
+        effects: Object.freeze([]),
+        checks: Object.freeze([profileCheck('repository-ownership')]),
+        verification: Object.freeze([profileVerification('repository-ownership')]),
+    });
+}
+
 function renderGithubCollaboration({candidateRoot, coreVersion}) {
     const provider = providerIdentity(coreVersion, 'github-collaboration');
     const contents = collaborationContents();
@@ -292,6 +370,12 @@ function renderCoreProfileProviders({coreRoot, candidateRoot, request}) {
         }
         if (capability === 'github-collaboration') {
             return renderGithubCollaboration({candidateRoot, coreVersion});
+        }
+        if (capability === 'security-disclosure') {
+            return renderSecurityDisclosure({candidateRoot, request, coreVersion});
+        }
+        if (capability === 'repository-ownership') {
+            return renderRepositoryOwnership({candidateRoot, request, coreVersion});
         }
         throw new Error('profile provider is unavailable');
     }));
