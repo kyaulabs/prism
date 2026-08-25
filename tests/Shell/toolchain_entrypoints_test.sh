@@ -108,6 +108,30 @@ else
     failures=$((failures + 1))
 fi
 
+setup_source_inspect_line=$({ grep -niF 'prism-tool setup source --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_capabilities_line=$({ grep -niF 'Choose optional project capabilities' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_identity_approval_line=$({ grep -niF 'Publish the displayed identity-bearing metadata?' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_plan_line=$({ grep -niF 'prism-tool setup project plan --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_plan_approval_line=$({ grep -niF 'Approve the complete displayed project plan?' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_recover_line=$({ grep -niF 'prism-tool setup project recover --attempt=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_source_inspect_line" ] && [ -n "$setup_capabilities_line" ] \
+    && [ -n "$setup_metadata_line" ] && [ -n "$setup_identity_approval_line" ] \
+    && [ -n "$setup_plan_line" ] && [ -n "$setup_plan_approval_line" ] \
+    && [ -n "$setup_recover_line" ] \
+    && [ "$setup_adapter_question_line" -lt "$setup_source_inspect_line" ] \
+    && [ "$setup_source_inspect_line" -lt "$setup_capabilities_line" ] \
+    && [ "$setup_capabilities_line" -lt "$setup_metadata_line" ] \
+    && [ "$setup_metadata_line" -lt "$setup_identity_approval_line" ] \
+    && [ "$setup_identity_approval_line" -lt "$setup_plan_line" ] \
+    && [ "$setup_plan_line" -lt "$setup_plan_approval_line" ] \
+    && [ "$setup_plan_approval_line" -lt "$setup_recover_line" ]; then
+    pass 'strict-empty setup preserves source, metadata, publication, and plan ordering'
+else
+    fail 'strict-empty setup reorders source, metadata, publication, or plan stages'
+    failures=$((failures + 1))
+fi
+
 setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_status_line=$({ grep -niF 'prism-tool setup project status --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_release_line=$({ grep -niF 'prism-tool package-release inspect --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)

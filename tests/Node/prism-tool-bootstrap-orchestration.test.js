@@ -141,6 +141,26 @@ test('active bootstrap status reports one provisioned adapter without mutation',
     );
 });
 
+test('active bootstrap status preserves a dangling bootstrap root for manual recovery', (t) => {
+    const projectRoot = makeTempDir();
+    fs.mkdirSync(path.join(projectRoot, '.pi', 'prism-tool'), {recursive: true});
+    fs.symlinkSync(
+        path.join(projectRoot, 'missing-bootstrap-state'),
+        path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap')
+    );
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.lstatSync(
+        path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap')
+    ).isSymbolicLink(), true);
+});
+
 test('active bootstrap status preserves ambiguous attempts for manual recovery', (t) => {
     const projectRoot = makeTempDir();
     const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
@@ -223,6 +243,65 @@ test('active bootstrap status reports a retained plan ready for approval', (t) =
         nextAction: 'Revalidate and display the retained plan before requesting approval.',
     });
     assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+});
+
+test('active bootstrap status preserves unexpected attempt artifacts for manual recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Unexpected State Project',
+            summary: 'A project preserving unexpected attempt state.',
+        }),
+    }));
+    assert.equal(planned.status, 0, planned.stderr);
+    const attemptRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID
+    );
+    fs.writeFileSync(path.join(attemptRoot, 'unexpected.txt'), 'preserve me\n');
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.readFileSync(path.join(attemptRoot, 'unexpected.txt'), 'utf8'), 'preserve me\n');
+});
+
+test('active bootstrap status rejects stable artifacts outside their journal phase', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Out Of Phase Project',
+            summary: 'A project preserving out-of-phase attempt state.',
+        }),
+    }));
+    assert.equal(planned.status, 0, planned.stderr);
+    const attemptRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID
+    );
+    fs.writeFileSync(path.join(attemptRoot, 'seed-attestation.json'), '{}\n');
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
 });
 
 test('active bootstrap status reports a durable project ready for repository creation', (t) => {

@@ -8,6 +8,12 @@ const {inspectProvisionedBootstrapAttempt} = require('./bootstrap-adapter');
 const {readBootstrapJournal} = require('./bootstrap-journal');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const BASE_ATTEMPT_ENTRIES = Object.freeze([
+    'candidate',
+    'journal.json',
+    'plan',
+    'reports',
+]);
 
 function noActiveBootstrap(projectRoot) {
     return {
@@ -88,7 +94,13 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
         return recoveryRequired(path.resolve(requestedRoot));
     }
     const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
-    if (!fs.existsSync(bootstrapRoot)) return noActiveBootstrap(projectRoot);
+    try {
+        if (fs.lstatSync(bootstrapRoot, {throwIfNoEntry: false}) === undefined) {
+            return noActiveBootstrap(projectRoot);
+        }
+    } catch {
+        return recoveryRequired(projectRoot);
+    }
     try {
         const attemptId = inspectAttemptRoot(bootstrapRoot);
         const attemptRoot = path.join(bootstrapRoot, attemptId);
@@ -120,6 +132,15 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
             throw new Error('bootstrap status attempt is unsupported');
         }
         const journal = readBootstrapJournal({projectRoot, attemptId});
+        const expectedEntries = [...BASE_ATTEMPT_ENTRIES];
+        if (journal.adapter !== null) expectedEntries.push('adapter.json');
+        if (journal.seed !== null) expectedEntries.push('seed-attestation.json');
+        if (
+            entries.length !== expectedEntries.length ||
+            entries.some((entry) => !expectedEntries.includes(entry))
+        ) {
+            throw new Error('bootstrap status attempt is unsupported');
+        }
         if (
             journal.status === 'RECOVERY_REQUIRED' &&
             journal.resumePhase === 'MANUAL_RECOVERY'

@@ -3,6 +3,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 const {URL} = require('node:url');
 const {inspectSetupRoute} = require('./setup-route');
 const {TemplateSourceError, requestTemplateJson} = require('./template-source-http');
@@ -126,11 +127,34 @@ async function acquireTemplateSource({fetchImpl, projectRoot}) {
 }
 
 function inspectProvisionedBlankSource({projectRoot}) {
-    return blankReport(fs.realpathSync(projectRoot));
+    try {
+        return blankReport(fs.realpathSync(projectRoot));
+    } catch {
+        return sourceReport({
+            projectRoot: path.resolve(projectRoot),
+            source: 'BLANK',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason: 'ROOT_UNAVAILABLE',
+            data: null,
+        });
+    }
 }
 
 async function inspectProvisionedTemplateSource({projectRoot, fetchImpl}) {
-    const canonicalRoot = fs.realpathSync(projectRoot);
+    let canonicalRoot;
+    try {
+        canonicalRoot = fs.realpathSync(projectRoot);
+    } catch {
+        return sourceReport({
+            projectRoot: path.resolve(projectRoot),
+            source: 'TEMPLATE',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason: 'ROOT_UNAVAILABLE',
+            data: null,
+        });
+    }
     try {
         return await acquireTemplateSource({
             fetchImpl: fetchImpl ?? globalThis.fetch,

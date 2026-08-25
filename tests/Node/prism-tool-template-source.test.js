@@ -10,7 +10,11 @@ const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
-const {inspectTemplateSource} = require('../../packages/prism-core/scripts/prism-tool/template-source');
+const {
+    inspectProvisionedBlankSource,
+    inspectProvisionedTemplateSource,
+    inspectTemplateSource,
+} = require('../../packages/prism-core/scripts/prism-tool/template-source');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -83,6 +87,37 @@ test('resolves Template to immutable source evidence through fixed public URLs',
         true
     );
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('reports a missing provisioned Blank root as unavailable', (t) => {
+    const projectRoot = makeTempDir();
+    fs.rmSync(projectRoot, {recursive: true, force: true});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const report = inspectProvisionedBlankSource({projectRoot});
+
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'SOURCE_UNAVAILABLE');
+    assert.equal(report.reason, 'ROOT_UNAVAILABLE');
+    assert.equal(report.projectRoot, path.resolve(projectRoot));
+});
+
+test('reports a missing provisioned Template root as unavailable', async (t) => {
+    const projectRoot = makeTempDir();
+    fs.rmSync(projectRoot, {recursive: true, force: true});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const report = await inspectProvisionedTemplateSource({
+        projectRoot,
+        fetchImpl: async () => {
+            throw new Error('missing roots must not fetch');
+        },
+    });
+
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'SOURCE_UNAVAILABLE');
+    assert.equal(report.reason, 'ROOT_UNAVAILABLE');
+    assert.equal(report.projectRoot, path.resolve(projectRoot));
 });
 
 test('resolves Template catalogue after exact adapter provisioning', async (t) => {
