@@ -3,6 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -590,6 +591,151 @@ test('composes a selected licensing provider into a Blank Core-only plan', (t) =
     assert.equal(fs.statSync(
         path.join(attemptRoot, 'reports', 'profile-licensing.json')
     ).mode & 0o777, 0o600);
+});
+
+test('fails closed when retained capability evidence drifts', (t) => {
+    const cases = [
+        {
+            name: 'missing selected report',
+            mutate: ({attemptRoot}) => fs.unlinkSync(
+                path.join(attemptRoot, 'reports', 'profile-licensing.json')
+            ),
+        },
+        {
+            name: 'unknown report',
+            mutate: ({attemptRoot}) => fs.writeFileSync(
+                path.join(attemptRoot, 'reports', 'profile-unknown.json'),
+                '{}\n',
+                {mode: 0o600}
+            ),
+        },
+        {
+            name: 'changed metadata report',
+            mutate: ({attemptRoot}) => {
+                const metadataPath = path.join(attemptRoot, 'reports', 'metadata.json');
+                const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+                metadata.capabilityMetadata.licensing.year = 2025;
+                fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'changed project manifest',
+            mutate: ({attemptRoot}) => {
+                const manifestPath = path.join(attemptRoot, 'candidate', '.prism', 'project.json');
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                manifest.capabilityMetadata.licensing.spdxId = 'AGPL-3.0-only';
+                fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+            },
+        },
+    ];
+
+    for (const scenario of cases) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        const planned = captureWrites(() => main([
+            'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+            '--capabilities=licensing', '--json',
+        ], {
+            projectRoot,
+            coreRoot: CORE_ROOT,
+            randomUUID: () => ATTEMPT_ID,
+            currentYear: 2026,
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Continuity Project',
+                summary: 'A durable continuity project.',
+                capabilityMetadata: {
+                    licensing: {
+                        spdxId: 'MIT',
+                        copyrightHolder: 'Example Organization',
+                    },
+                },
+            }),
+        }));
+        assert.equal(planned.status, 0, scenario.name);
+        const plan = JSON.parse(planned.stdout);
+        const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+        scenario.mutate({attemptRoot});
+        const validated = captureWrites(() => main([
+            'setup', 'project', 'validate', `--attempt=${ATTEMPT_ID}`,
+            `--digest=${plan.planDigest}`, '--json',
+        ], {projectRoot, coreRoot: CORE_ROOT}));
+        assert.equal(validated.status, 5, scenario.name);
+        assert.equal(fs.existsSync(attemptRoot), true, scenario.name);
+    }
+});
+
+test('accepts selected capabilities in hooks and rejects malformed profile metadata', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const metadata = {
+        schemaVersion: 1,
+        displayName: 'Governed Project',
+        summary: 'A governed hook project.',
+        capabilityMetadata: {
+            licensing: {
+                spdxId: 'MIT',
+                copyrightHolder: 'Example Organization',
+            },
+        },
+    };
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=licensing', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        currentYear: 2026,
+        input: JSON.stringify(metadata),
+    }));
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+    const applied = captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${plan.planDigest}`, '--approval=yes', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(applied.status, 0, applied.stderr);
+    assert.equal(spawnSync('git', ['init', '-b', 'develop'], {cwd: projectRoot}).status, 0);
+    const hookRun = (command, args, options) => {
+        if (command === process.execPath && args.includes('doctor')) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        const result = spawnSync(command, args, {
+            cwd: options.cwd,
+            env: options.env,
+            encoding: 'utf8',
+            input: options.input,
+        });
+        return {
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            error: result.error,
+        };
+    };
+    const runHook = () => captureWrites(() => main(['hook', 'pre-commit'], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        hookRun,
+    }));
+
+    assert.equal(runHook().status, 0);
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    for (const mutate of [
+        (value) => { value.capabilities = ['unknown-capability']; },
+        (value) => { delete value.capabilityMetadata; },
+        (value) => { value.capabilityMetadata['community-governance'] = {}; },
+        (value) => { value.capabilityMetadata.licensing.year = 1969; },
+    ]) {
+        const changed = globalThis.structuredClone(manifest);
+        mutate(changed);
+        fs.writeFileSync(manifestPath, `${JSON.stringify(changed, null, 2)}\n`);
+        assert.equal(runHook().status, 1);
+    }
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    assert.equal(runHook().status, 0);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

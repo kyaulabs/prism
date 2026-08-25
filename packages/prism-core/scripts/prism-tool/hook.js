@@ -1,10 +1,12 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
+const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
+const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
 const {runBounded} = require('./process');
 
@@ -88,20 +90,36 @@ function readCoreProject(projectRoot, coreRoot) {
         fs.closeSync(descriptor);
     }
     const value = JSON.parse(contents.toString('utf8'));
+    const capabilities = Array.isArray(value?.capabilities) ? value.capabilities : [];
     const corePackage = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
+    let metadataValid;
+    let sourceValid = false;
+    try {
+        validateBootstrapSource(value.source);
+        sourceValid = true;
+        validateNormalizedProjectMetadata({
+            capabilities,
+            metadata: {
+                schemaVersion: value.schemaVersion,
+                ...value.project,
+                ...(capabilities.length === 0 ? {} : {
+                    capabilityMetadata: value.capabilityMetadata,
+                }),
+            },
+        });
+        metadataValid = true;
+    } catch {
+        metadataValid = false;
+    }
     if (
         !exactKeys(value, [
-            'schemaVersion', 'source', 'capabilities', 'project', 'adapter', 'compatibility',
+            'schemaVersion', 'source', 'capabilities', 'project',
+            ...(capabilities.length === 0 ? [] : ['capabilityMetadata']),
+            'adapter', 'compatibility',
         ]) ||
         value.schemaVersion !== 1 ||
-        !exactKeys(value.source, ['mode', 'evidence']) ||
-        value.source.mode !== 'BLANK' ||
-        value.source.evidence !== null ||
-        !Array.isArray(value.capabilities) ||
-        value.capabilities.length !== 0 ||
-        !exactKeys(value.project, ['displayName', 'summary']) ||
-        typeof value.project.displayName !== 'string' ||
-        typeof value.project.summary !== 'string' ||
+        !sourceValid ||
+        !metadataValid ||
         (value.adapter !== null && !validAdapterIdentity(value.adapter)) ||
         !exactKeys(value.compatibility, ['corePackage', 'coreVersion', 'providerProtocol']) ||
         value.compatibility.corePackage !== '@kyaulabs/prism-core' ||

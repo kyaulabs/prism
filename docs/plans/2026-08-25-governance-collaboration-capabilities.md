@@ -343,35 +343,35 @@ prism-tool commit create --type feat --scope setup --subject "compose governance
 - The journal continues to bind `metadataDigest`; plan validation proves the canonical metadata and selected capabilities before every phase transition.
 - Durable `.prism/project.json` is the canonical rerender input for selected Core profiles.
 
-- [ ] **Step 1: Write failing continuity and hook tests**
+- [x] **Step 1: Write failing continuity and hook tests**
 
 After planning, independently mutate the selected capability list, normalized holder, persisted licensing year, conduct-contact kind/value, profile report, profile output, metadata digest, candidate manifest, durable manifest, and journal metadata digest. Assert validation, apply, recovery, hook dispatch, and durable revalidation fail closed before further mutation.
 
 Add hook tests for Blank and Template manifests with all three selected capabilities and for invalid order, duplicates, unknown IDs, missing metadata, extra metadata, and malformed conduct contacts. Assert adapter quality still runs only when an adapter is present.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js && bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: FAIL because durable and hook validation still require an empty capability array and do not validate canonical capability metadata.
 
-- [ ] **Step 3: Enforce durable metadata continuity**
+- [x] **Step 3: Enforce durable metadata continuity**
 
 Use `validateNormalizedProjectMetadata()` in plan restoration and durable project validation. Compare manifest capabilities and `capabilityMetadata` byte-for-byte to the plan, require every selected output in the applied inventory, and retain the existing pre-/post-durable rollback boundary.
 
 Do not parse generated `LICENSE`, governance documents, or GitHub templates as metadata; `.prism/project.json` remains canonical.
 
-- [ ] **Step 4: Generalize hook project validation**
+- [x] **Step 4: Generalize hook project validation**
 
 Replace the hook's Blank-only, empty-capability checks with `validateBootstrapSource()` plus the task-9 capability and normalized-metadata validators. Preserve package-version, adapter-identity, local-readiness, Core-only, and adapter-quality behavior.
 
-- [ ] **Step 5: Run the focused tests and verify Green**
+- [x] **Step 5: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js && bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: PASS with no generated-document parsing and no source-dependent capability behavior.
 
-- [ ] **Step 6: Commit the durable continuity slice**
+- [x] **Step 6: Commit the durable continuity slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/hook.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Shell/bootstrap_hook_dispatch_test.sh
