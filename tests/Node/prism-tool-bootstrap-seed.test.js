@@ -43,6 +43,27 @@ function captureWrites(action) {
     }
 }
 
+async function captureAsyncWrites(action) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => {
+        stdout += chunk;
+        return true;
+    };
+    process.stderr.write = (chunk) => {
+        stderr += chunk;
+        return true;
+    };
+    try {
+        return {status: await action(), stdout, stderr};
+    } finally {
+        process.stdout.write = stdoutWrite;
+        process.stderr.write = stderrWrite;
+    }
+}
+
 function planProject(projectRoot) {
     return captureWrites(() => main([
         'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
@@ -144,8 +165,8 @@ function installedGraphRunner(projectRoot) {
     };
 }
 
-function planSelectedProject(projectRoot) {
-    const run = bootstrapRunner(projectRoot);
+function planSelectedProject(projectRoot, context = {}) {
+    const run = context.run ?? bootstrapRunner(projectRoot);
     const selected = captureWrites(() => main([
         'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
         '--network-approved=yes', '--json',
@@ -249,6 +270,20 @@ function prepareSeed(projectRoot, planDigest, context = {}) {
         ...context,
         bootstrapSeedToolRun: runTool,
     }));
+}
+
+function selectedSeedToolRunner({qualityStatus = 0, invocations = null, onQuality = null} = {}) {
+    return (command, args, options) => {
+        if (invocations !== null) invocations.push({command, args});
+        if (command === process.execPath && args.includes('doctor')) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command.endsWith('/.github/scripts/check-php.sh')) {
+            if (onQuality !== null) onQuality({command, args, cwd: options.cwd});
+            return {status: qualityStatus, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
 }
 
 function stagedNames(projectRoot) {
@@ -796,16 +831,9 @@ test('stages and attests selected-adapter evidence after shared quality passes',
     const {projectRoot, plan} = readySelectedHooks(t);
     const qualityInvocations = [];
     const result = prepareSeed(projectRoot, plan.planDigest, {
-        bootstrapSeedToolRun(command, args, options) {
-            if (command === process.execPath && args.includes('doctor')) {
-                return {status: 0, stdout: '', stderr: '', error: undefined};
-            }
-            if (command.endsWith('/.github/scripts/check-php.sh')) {
-                qualityInvocations.push({command, args, cwd: options.cwd});
-                return {status: 0, stdout: '', stderr: '', error: undefined};
-            }
-            return runBounded(command, args, options);
-        },
+        bootstrapSeedToolRun: selectedSeedToolRunner({
+            onQuality: (invocation) => qualityInvocations.push(invocation),
+        }),
     });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -831,6 +859,154 @@ test('stages and attests selected-adapter evidence after shared quality passes',
         projectRoot,
         coreRoot: CORE_ROOT,
     }));
+});
+
+test('blocks selected-adapter seed readiness when shared quality fails', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner({qualityStatus: 1}),
+    });
+
+    assert.equal(result.status, 5);
+    assert.deepEqual(stagedNames(projectRoot), []);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'seed-attestation.json')), false);
+});
+
+test('rejects selected-adapter activation mode drift without changing the staged index', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner(),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const expectedStaging = stagedNames(projectRoot);
+    fs.chmodSync(
+        path.join(projectRoot, '.pi', 'settings.json'),
+        plan.activation.mode === 0o600 ? 0o644 : 0o600
+    );
+
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /bootstrap adapter activation is stale/);
+    assert.deepEqual(stagedNames(projectRoot), expectedStaging);
+});
+
+test('rejects selected-adapter activation drift without changing the staged index', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner(),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const expectedStaging = stagedNames(projectRoot);
+    fs.appendFileSync(path.join(projectRoot, '.pi', 'settings.json'), ' ');
+
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /bootstrap adapter settings are stale/);
+    assert.deepEqual(stagedNames(projectRoot), expectedStaging);
+});
+
+test('rejects substituted selected-adapter seed evidence without changing the staged index', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner(),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const expectedStaging = stagedNames(projectRoot);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+    const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+    attestation.adapter.reportDigest = 'f'.repeat(64);
+    fs.writeFileSync(attestationPath, `${JSON.stringify(attestation)}\n`, {mode: 0o600});
+
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /bootstrap attempt state is (?:invalid|stale)|seed attestation/);
+    assert.deepEqual(stagedNames(projectRoot), expectedStaging);
+});
+
+test('runs the public Blank PHP web bootstrap through seed readiness without publication', async (t) => {
+    const projectRoot = makeTempDir();
+    const invocations = [];
+    let templateFetches = 0;
+    let adapterInstallations = 0;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--source=blank', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(routed.status, 0, routed.stderr || routed.stdout);
+    assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_BLANK');
+
+    const sourced = await captureAsyncWrites(() => main([
+        'setup', 'source', '--source=blank', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch() {
+            templateFetches += 1;
+            throw new Error('Blank source must not access the Template network boundary');
+        },
+    }));
+    assert.equal(sourced.status, 0, sourced.stderr || sourced.stdout);
+    assert.equal(JSON.parse(sourced.stdout).source, 'BLANK');
+
+    const prepareRun = bootstrapRunner(projectRoot);
+    const planned = planSelectedProject(projectRoot, {
+        run(command, args, options) {
+            invocations.push({command, args});
+            if (command === '/usr/bin/pi') adapterInstallations += 1;
+            return prepareRun(command, args, options);
+        },
+    });
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+
+    const effectRun = installedGraphRunner(projectRoot);
+    const applied = applyProject(projectRoot, plan.planDigest, {
+        run(command, args, options) {
+            invocations.push({command, args});
+            return effectRun(command, args, options);
+        },
+    });
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+
+    let qualityRuns = 0;
+    const seeded = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner({
+            invocations,
+            onQuality() {
+                qualityRuns += 1;
+            },
+        }),
+    });
+
+    assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+    assert.equal(JSON.parse(seeded.stdout).disposition, 'SEED_READY');
+    assert.equal(templateFetches, 0);
+    assert.equal(adapterInstallations, 1);
+    assert.equal(qualityRuns, 1);
+    assert.deepEqual(stagedNames(projectRoot), [
+        ...plan.outputs.map(({path: name}) => name),
+        '.pi/settings.json',
+    ].sort());
+    assert.equal(stagedNames(projectRoot).some((name) => /^(?:vendor|node_modules|\.pi\/prism-tool)\//.test(name)), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'aurora')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'cdn', 'sass', 'app.scss')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app.nginx.conf')), false);
+    assert.equal(git(projectRoot, ['remote']), '');
+    assert.equal(invocations.some(({command, args}) => {
+        const executable = path.basename(command);
+        return executable === 'gh' ||
+            (executable === 'git' && ['clone', 'fetch', 'pull', 'push', 'remote'].includes(args[0])) ||
+            (executable === 'npm' && ['publish', 'pack'].includes(args[0]));
+    }), false);
 });
 
 test('rejects pre-staged entries and rolls back owned staging on readiness failure', async (t) => {
@@ -1133,6 +1309,24 @@ test('dispatches selected-adapter quality through the pre-commit hook', (t) => {
 
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(qualityCalls, [projectRoot]);
+});
+
+test('blocks the pre-commit hook when selected-adapter quality fails', (t) => {
+    const {projectRoot} = readySelectedHooks(t);
+    execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
+
+    const result = runHook(projectRoot, 'pre-commit', [], {
+        hookRun: hookRunWithReadiness(),
+        loadHookAdapter() {
+            return {
+                runBootstrapQuality() {
+                    return {status: 'NO-GO', checks: []};
+                },
+            };
+        },
+    });
+
+    assert.equal(result.status, 1);
 });
 
 test('fails closed for non-Core project metadata without adapter execution', (t) => {

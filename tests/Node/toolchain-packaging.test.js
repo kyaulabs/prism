@@ -141,6 +141,24 @@ test('documents Blank Core-only application and recovery boundaries', () => {
     assert.match(coreReadme, /does not.*network/is);
 });
 
+test('documents provider-composed Blank PHP web bootstrap boundaries', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const adapterReadme = fs.readFileSync(path.join(ADAPTER_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /strict-empty Blank.*select.*PHP\/web/is);
+    assert.match(coreReadme, /generic provider reports/i);
+    assert.match(coreReadme, /stack-agnostic/i);
+    assert.match(coreReadme, /before.*durable.*strict\s+emptiness/is);
+    assert.match(coreReadme, /after.*durable.*resume\s+evidence/is);
+    assert.match(coreReadme, /no remote.*publication.*push/is);
+    assert.match(adapterReadme, /application-free.*testing-ready scaffold/is);
+    assert.match(adapterReadme, /lifecycle scripts.*disabled/is);
+    assert.match(adapterReadme, /every advisory blocks/i);
+    assert.match(adapterReadme, /only.*Chromium/is);
+    assert.match(adapterReadme, /adapter activation.*report digest/is);
+    assert.match(adapterReadme, /inspect.*resolve.*apply.*verify/is);
+});
+
 test('documents human npm publication for managed lockstep package releases', () => {
     const npmDocs = fs.readFileSync(path.join(root, 'NPM.md'), 'utf8');
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');

@@ -35,6 +35,16 @@ language-neutral half; install it **globally** so it runs in every project.
   preserved. Durable recovery returns `REPOSITORY_BOOTSTRAP` for the next setup
   slice. Application does not initialize Git, invoke dependency or quality
   commands, activate hooks, access the network, or invoke a subprocess.
+- **Provider-composed Blank projects** — strict-empty Blank setup can select
+  the exact PHP/web adapter as well as Core-only. Core remains stack-agnostic:
+  it validates and composes generic provider reports, owns the outer durable
+  transaction, and delegates stack outputs and effects to the validated
+  project-local adapter. Failure before the durable marker restores strict
+  emptiness when transaction ownership remains provable. Failure after the
+  durable marker retains the complete scaffold and deterministic resume evidence.
+  Canonical hooks and the root-seed attestation bind the adapter identity,
+  activation file, and provider-report digest. Setup creates no remote and
+  performs no publication or push; those operations remain human-owned.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →

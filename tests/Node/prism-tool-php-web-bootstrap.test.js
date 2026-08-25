@@ -295,7 +295,7 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
         },
     });
     fs.mkdirSync(fakeBin);
-    fs.writeFileSync(path.join(fakeBin, 'prism-tool'), '#!/usr/bin/env bash\n[[ "$*" != "run pest -- --coverage --min=80" ]]\n', {mode: 0o755});
+    fs.writeFileSync(path.join(fakeBin, 'prism-tool'), '#!/usr/bin/env bash\n[[ "$1" != run || "$2" != pest ]]\n', {mode: 0o755});
     fs.writeFileSync(path.join(fakeBin, 'git'), '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
     fs.writeFileSync(path.join(fakeBin, 'php'), '#!/usr/bin/env bash\nif [[ "$1" == -S ]]; then echo $$ > "$SERVER_PID_FILE"; while :; do sleep 1; done; fi\nexit 0\n', {mode: 0o755});
     const check = report.outputs.find(({path: outputPath}) => outputPath === '.github/scripts/check-php.sh').candidatePath;

@@ -470,15 +470,15 @@ prism-tool commit create --type feat --scope setup --subject "attest blank php-w
 - Consumes: completed public CLI and adapter seams.
 - Produces: regression evidence and public contract documentation.
 
-- [ ] **Step 1: Add the end-to-end Blank PHP/web test**
+- [x] **Step 1: Add the end-to-end Blank PHP/web test**
 
 Through public `prism-tool` commands in one disposable strict-empty root, test route → adapter selection → metadata plan → approval → durable application → dependency/browser verification stubs → hook activation → seed preparation. Assert the exact application-free scaffold, no Core stack literals, no Template network access, no remote/publication operation, and no second adapter installation approval.
 
-- [ ] **Step 2: Add hostile and regression matrices**
+- [x] **Step 2: Add hostile and regression matrices**
 
 Cover malformed manifest/report schemas, unsafe paths and modes, symlinked candidate parents, output overlap, stale adapter receipt/report/plan, changed candidate bytes, lifecycle-script attempts, advisory output, non-Chromium acquisition, pre/post-durable failures, rerun idempotence, and existing inspect/resolve/apply/verify behavior.
 
-- [ ] **Step 3: Run the complete applicable Node/Shell suites**
+- [x] **Step 3: Run the complete applicable Node/Shell suites**
 
 Run: `npm run test:node`
 
@@ -488,7 +488,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: PASS.
 
-- [ ] **Step 4: Update public documentation**
+- [x] **Step 4: Update public documentation**
 
 Document that strict-empty Blank setup can select exact PHP/web, that the adapter renders and verifies the application-free scaffold through the generic provider protocol, that lifecycle-script-free locked population and Chromium are disclosed effects, and that Core remains stack-agnostic. Preserve established-project documentation.
 
