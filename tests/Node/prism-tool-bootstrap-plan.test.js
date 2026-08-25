@@ -1531,15 +1531,18 @@ test('composes release management after a publishable adapter candidate is rende
     const planned = captureWrites(() => main([
         'setup', 'project', 'plan', '--source=blank',
         '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
-        '--capabilities=release-management', '--json',
+        '--capabilities=release-management,funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--json',
     ], {
         projectRoot,
         coreRoot: CORE_ROOT,
+        currentYear: 2026,
         input: JSON.stringify({
             schemaVersion: 1,
             displayName: 'Release Project',
-            summary: 'A project with managed releases.',
+            summary: 'A project with every optional capability.',
             capabilityMetadata: {
+                ...allCapabilityMetadata(),
                 'release-management': {repository: 'example/release-project'},
             },
         }),
@@ -1550,6 +1553,13 @@ test('composes release management after a publishable adapter candidate is rende
     const plan = JSON.parse(planned.stdout);
     assert.deepEqual(plan.providers.map(({id}) => id), [
         'core-baseline',
+        'licensing',
+        'community-governance',
+        'github-collaboration',
+        'security-disclosure',
+        'repository-ownership',
+        'support-routing',
+        'funding',
         'release-management',
         'php-web-scaffold',
     ]);

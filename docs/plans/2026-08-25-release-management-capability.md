@@ -476,23 +476,23 @@ During execution, stage only files that actually changed; do not touch generic j
 - The Core README documents the eighth disabled-by-default capability, intended-coordinate validation, exact four-file ownership, candidate eligibility, Template advertisement-only semantics, current Core-only/PHP-web unavailability, established-project parity, and human-owned remote/publication actions.
 - Interactive prompt orchestration remains task 12; do not modify `packages/prism-core/prompts/setup.md` in task 11.
 
-- [ ] **Step 1: Add complete launcher regressions**
+- [x] **Step 1: Add complete launcher regressions**
 
 Cover metadata inspection, Blank and Template selection, publishable-adapter planning, plan validation, durable application, recovery, repository creation, hook activation, seed preparation, all-eight-capability composition, deterministic rerendering, identity preview, no preselection, and no external lookup.
 
-- [ ] **Step 2: Add established-project parity regressions**
+- [x] **Step 2: Add established-project parity regressions**
 
 Prove `prism-tool package-release inspect|plan|apply|verify` schemas/dispositions remain unchanged, repositories without managed release configuration remain repository-only, existing owned/migration/conflict behavior remains fail closed, and bootstrap selection never mutates established projects.
 
-- [ ] **Step 3: Add the final failure matrix**
+- [x] **Step 3: Add the final failure matrix**
 
 Cover invalid coordinates, unavailable package candidates, malformed workspaces/manifests, private-only packages, duplicate package identities/tag prefixes, symlink and containment attacks, changed package discovery between reads, missing Template advertisement, provider overlap, stale resource/report/metadata/plan/journal evidence, pre-durable renderer failure, and post-durable output drift.
 
-- [ ] **Step 4: Document the public task-11 contract**
+- [x] **Step 4: Document the public task-11 contract**
 
 Explain that release management is opt-in, local-only during setup, package-candidate-gated, Core-owned, deterministic, and non-publishing. State explicitly that setup creates no GitHub repository or remote and that humans retain initial push, hosted configuration, releases, and npm publication.
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -504,7 +504,7 @@ npm run test:node
 
 Expected: PASS with tasks 1–10 and established-project release behavior unchanged.
 
-- [ ] **Step 6: Mark the plan complete and create the closing commit**
+- [x] **Step 6: Mark the plan complete and create the closing commit**
 
 Mark every completed checkbox in this plan, then load `verification-before-completion`.
 

@@ -177,13 +177,14 @@ test('documents provider-composed Blank and Template PHP web bootstrap boundarie
     assert.match(adapterReadme, /inspect.*resolve.*apply.*verify/is);
 });
 
-test('documents every optional project identity capability and its owned outputs', () => {
+test('documents every optional project capability and its owned outputs', () => {
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
 
-    assert.match(coreReadme, /Optional project identity capabilities/i);
+    assert.match(coreReadme, /Optional project capabilities/i);
     for (const capability of [
         'licensing', 'community-governance', 'github-collaboration',
         'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+        'release-management',
     ]) {
         assert.equal(coreReadme.includes(`\`${capability}\``), true, capability);
     }
@@ -194,6 +195,8 @@ test('documents every optional project identity capability and its owned outputs
         '.github/pull_request_template.md',
         'SECURITY.md', '.github/CODEOWNERS',
         '.github/ISSUE_TEMPLATE/config.yml', '.github/FUNDING.yml',
+        'CHANGELOG.md', 'cliff.toml', '.github/workflows/release.yml',
+        '.prism/release.json',
     ]) {
         assert.equal(coreReadme.includes(`\`${output}\``), true, output);
     }
@@ -207,6 +210,10 @@ test('documents every optional project identity capability and its owned outputs
     assert.match(coreReadme, /identity preview.*required fields.*publication targets/is);
     assert.match(coreReadme, /Template manifests may\s+advertise.*never select/is);
     assert.match(coreReadme, /Blank performs no Template\s+lookup/i);
+    assert.match(coreReadme, /owner\/repository.*live GitHub lookup.*no\s+initial version/is);
+    assert.match(coreReadme, /publishable root.*declared-workspace npm\s+package/is);
+    assert.match(coreReadme, /Core-only.*no npm package.*PHP\/web.*private-only/is);
+    assert.match(coreReadme, /creates no repository.*remote.*tag.*GitHub Release.*push.*npm\s+publication/is);
     assert.match(coreReadme, /prompt orchestration.*task 12/is);
 });
 
