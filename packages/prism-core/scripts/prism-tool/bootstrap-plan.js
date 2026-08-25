@@ -12,7 +12,10 @@ const {
     loadTrustedProviderRegistry,
     renderCoreBaseline,
 } = require('./bootstrap-providers');
-const {createPreparedBootstrapJournal} = require('./bootstrap-journal');
+const {
+    createPreparedBootstrapJournal,
+    readBootstrapJournal,
+} = require('./bootstrap-journal');
 const {
     cleanupBootstrapAdapter,
     inspectProvisionedBootstrapAdapter,
@@ -360,7 +363,7 @@ function buildAdapterProjectPlan({
     sourceState = blankBootstrapSource(),
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
-    const normalizedSource = validateBootstrapSourceState(sourceState);
+    const source = validateBootstrapSource(sourceState?.source);
     const normalized = normalizeProjectMetadata({projectRoot, input});
     const metadata = Object.freeze({
         schemaVersion: normalized.schemaVersion,
@@ -372,7 +375,11 @@ function buildAdapterProjectPlan({
         coreRoot,
         attemptId,
         packageName,
-        expectedSource: normalizedSource.source.mode,
+        expectedSource: source.mode,
+    });
+    const normalizedSource = validateBootstrapSourceState(sourceState, {
+        capabilities: [],
+        adapter: attempt.adapter,
     });
     const request = {
         schemaVersion: 1,
@@ -882,10 +889,17 @@ function validateHeldProjectPlan({
         throw new Error('bootstrap project plan is stale');
     }
     const sourceFile = readJsonFile(path.join(paths.reportsAnchor, 'source.json'));
-    const sourceState = validateBootstrapSourceState(sourceFile.value);
+    const sourceState = validateBootstrapSourceState(sourceFile.value, {
+        capabilities: envelope.plan.capabilities,
+        adapter: envelope.plan.adapter,
+    });
+    const journal = readBootstrapJournal({projectRoot, attemptId});
     if (
         sha256(sourceFile.contents) !== envelope.plan.sourceDigest ||
-        JSON.stringify(sourceState.source) !== JSON.stringify(envelope.plan.source)
+        JSON.stringify(sourceState.source) !== JSON.stringify(envelope.plan.source) ||
+        journal.planDigest !== planDigest ||
+        journal.sourceDigest !== envelope.plan.sourceDigest ||
+        JSON.stringify(journal.source) !== JSON.stringify(envelope.plan.source)
     ) {
         throw new Error('bootstrap project source is stale');
     }

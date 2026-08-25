@@ -577,12 +577,13 @@ function actualProjectInventory(projectRoot, project, allowRepository = false) {
 
 function validateAppliedOutput(projectRoot, project, entry) {
     const parent = existingTargetParent(projectRoot, project, entry.path);
+    let contents;
     try {
         const targetPath = path.join(parent.anchor, path.posix.basename(entry.path));
         const descriptor = fs.openSync(targetPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
             const stat = fs.fstatSync(descriptor);
-            const contents = fs.readFileSync(descriptor);
+            contents = fs.readFileSync(descriptor);
             if (
                 !stat.isFile() ||
                 stat.dev !== entry.dev ||
@@ -596,8 +597,18 @@ function validateAppliedOutput(projectRoot, project, entry) {
             fs.closeSync(descriptor);
         }
         parent.assertCurrent();
+        return contents;
     } finally {
         parent.close();
+    }
+}
+
+function validateSourceContinuity(journal, plan) {
+    if (
+        journal.sourceDigest !== plan.sourceDigest ||
+        JSON.stringify(journal.source) !== JSON.stringify(plan.source)
+    ) {
+        throw new Error('bootstrap project source evidence is stale');
     }
 }
 
@@ -617,6 +628,7 @@ function validateDurableProject({
         planDigest,
         allowAppliedProject: true,
     });
+    validateSourceContinuity(journal, plan);
     if (
         !(
             journal.phase === 'DURABLE' ||
@@ -650,7 +662,17 @@ function validateDurableProject({
         if (!allowUntracked && JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
             throw new Error('durable bootstrap project inventory changed');
         }
-        for (const entry of journal.applied) validateAppliedOutput(projectRoot, project, entry);
+        let projectManifestSeen = false;
+        for (const entry of journal.applied) {
+            const contents = validateAppliedOutput(projectRoot, project, entry);
+            if (entry.path !== '.prism/project.json') continue;
+            const manifest = JSON.parse(contents.toString('utf8'));
+            if (JSON.stringify(manifest.source) !== JSON.stringify(plan.source)) {
+                throw new Error('durable bootstrap source evidence changed');
+            }
+            projectManifestSeen = true;
+        }
+        if (!projectManifestSeen) throw new Error('durable bootstrap source evidence is missing');
         project.assertCurrent();
     } finally {
         project.close();
@@ -970,6 +992,7 @@ function applyBootstrapProject({
     let failure;
     try {
         const plan = validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
+        validateSourceContinuity(journal, plan);
         project = holdDirectory(projectRoot, projectRoot);
         candidate = holdDirectory(attemptRoot, path.join(attemptRoot, 'candidate'));
         if (
@@ -1151,6 +1174,7 @@ function recoverApplyingBootstrapProject({
             planDigest,
             allowAppliedProject: true,
         });
+        validateSourceContinuity(journal, plan);
         const expectedApplied = plan.outputs.slice(0, journal.applied.length)
             .map(({path: outputPath, kind, mode, sha256: digest}) => ({
                 path: outputPath,
@@ -1234,7 +1258,8 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
         }
     }
     try {
-        validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
+        const plan = validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
+        validateSourceContinuity(journal, plan);
         removePreparedAttempt(projectRoot, attemptId, journal.adapter);
     } catch (error) {
         transitionBootstrapJournal({

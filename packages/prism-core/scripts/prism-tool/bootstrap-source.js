@@ -229,14 +229,23 @@ function validateBootstrapSource(value) {
     return cloneFrozen(value);
 }
 
-function validateBootstrapSourceState(value) {
+function validateBootstrapSourceState(value, {capabilities = [], adapter = null} = {}) {
+    validateAdapterSelection(adapter);
+    if (!Array.isArray(capabilities) || new Set(capabilities).size !== capabilities.length ||
+        capabilities.some((capability) =>
+            !Object.hasOwn(CAPABILITIES, capability) ||
+            CAPABILITIES[capability][0] !== 'optional-profile'
+        )
+    ) {
+        throw new Error('bootstrap source state is invalid');
+    }
     if (!hasExactKeys(value, ['schemaVersion', 'source', 'catalogue']) || value.schemaVersion !== 1) {
         throw new Error('bootstrap source state is invalid');
     }
     const source = validateBootstrapSource(value.source);
     if (source.mode === 'BLANK' && value.catalogue === null) return blankBootstrapSource();
     if (source.mode !== 'TEMPLATE') throw new Error('bootstrap source state is invalid');
-    validateCatalogue(value.catalogue, [], null);
+    validateCatalogue(value.catalogue, capabilities, adapter);
     if (digestJson(value.catalogue) !== source.evidence.classificationSha256) {
         throw new Error('Template bootstrap source classification is stale');
     }

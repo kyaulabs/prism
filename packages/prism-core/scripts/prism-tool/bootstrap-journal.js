@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {validateBootstrapSource} = require('./bootstrap-source');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -55,6 +56,11 @@ function validAdapter(value) {
 }
 
 function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
+    try {
+        validateBootstrapSource(plan?.source);
+    } catch {
+        throw new Error('bootstrap journal input is invalid');
+    }
     if (
         typeof projectRoot !== 'string' ||
         !ATTEMPT_ID.test(attemptId) ||
@@ -62,10 +68,6 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         !isRecord(plan) ||
         !SHA256.test(plan.sourceDigest) ||
         !SHA256.test(plan.metadataDigest) ||
-        !isRecord(plan.source) ||
-        !hasExactKeys(plan.source, ['mode', 'evidence']) ||
-        !['BLANK', 'TEMPLATE'].includes(plan.source.mode) ||
-        (plan.source.mode === 'BLANK' ? plan.source.evidence !== null : !isRecord(plan.source.evidence)) ||
         !validAdapter(plan.adapter)
     ) {
         throw new Error('bootstrap journal input is invalid');
@@ -297,6 +299,11 @@ function normalizeLegacyJournal(value) {
 
 function validateJournal(input, projectRoot, attemptId) {
     const value = normalizeLegacyJournal(input);
+    try {
+        validateBootstrapSource(value?.source);
+    } catch {
+        throw new Error('bootstrap journal is invalid');
+    }
     if (
         !isRecord(value) ||
         !hasExactKeys(value, [
@@ -310,10 +317,6 @@ function validateJournal(input, projectRoot, attemptId) {
         !SHA256.test(value.planDigest) ||
         !SHA256.test(value.sourceDigest) ||
         !SHA256.test(value.metadataDigest) ||
-        !isRecord(value.source) ||
-        !hasExactKeys(value.source, ['mode', 'evidence']) ||
-        !['BLANK', 'TEMPLATE'].includes(value.source.mode) ||
-        (value.source.mode === 'BLANK' ? value.source.evidence !== null : !isRecord(value.source.evidence)) ||
         !validAdapter(value.adapter) ||
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||

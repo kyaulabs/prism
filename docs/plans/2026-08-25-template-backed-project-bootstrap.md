@@ -322,7 +322,7 @@ prism-tool commit create --type feat --scope setup --subject "plan template-back
 - Consumes: retained `reports/source.json`, `plan.source`, `plan.sourceDigest`, journal source evidence, plan digest, and applied project manifest.
 - Produces: unchanged `PROJECT_DURABLE`, `ROOT_RESTORED`, and `RECOVERY_REQUIRED` report schemas with Template evidence continuity enforced.
 
-- [ ] **Step 1: Write failing source-substitution tests**
+- [x] **Step 1: Write failing source-substitution tests**
 
 After planning but before validation/application/recovery, independently mutate:
 
@@ -335,29 +335,29 @@ After planning but before validation/application/recovery, independently mutate:
 
 Assert every changed state fails closed before additional project mutation.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: at least one substituted source state is not yet independently revalidated.
 
-- [ ] **Step 3: Enforce source continuity**
+- [x] **Step 3: Enforce source continuity**
 
 Centralize source-state restoration in `bootstrap-plan.js`: read `reports/source.json` through the existing bounded held-file seam, validate its closed schema, recompute its digest, compare its `source` to the plan and journal, and rerun catalogue selection checks against the retained adapter and selected capabilities.
 
 Require durable validation to compare `.prism/project.json.source` to the plan source. Keep recovery offline: it revalidates retained immutable evidence and does not contact the moving default branch again.
 
-- [ ] **Step 4: Verify rollback and recovery behavior**
+- [x] **Step 4: Verify rollback and recovery behavior**
 
 Prove a pre-durable source mismatch removes only exact owned state when safe, while a post-durable mismatch retains the complete project and reports manual recovery. Prove Template operational source state remains beneath `.pi/prism-tool/bootstrap/<attempt>/` and never moves into the durable inventory.
 
-- [ ] **Step 5: Run the focused tests and verify Green**
+- [x] **Step 5: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS for plan validation, application, durable validation, and recovery with source substitution blocked.
 
-- [ ] **Step 6: Commit the continuity slice**
+- [x] **Step 6: Commit the continuity slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js tests/Node/prism-tool-bootstrap-plan.test.js

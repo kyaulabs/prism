@@ -101,6 +101,24 @@ function planProject(projectRoot, input, context = {}) {
     return planInput(projectRoot, JSON.stringify(input), context);
 }
 
+function planTemplateCoreProject(projectRoot, fixture, context = {}) {
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+        ...context,
+    }));
+}
+
 function bootstrapRunner(projectRoot) {
     return (command, args) => {
         if (command === '/usr/bin/pi') {
@@ -479,6 +497,125 @@ test('rejects changed private Template source state before project mutation', as
     assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
     assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
     assert.equal(changed.source.mode, 'TEMPLATE');
+});
+
+test('rejects substituted Template journal evidence before application', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.source.evidence.commitSha = 'a'.repeat(40);
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal)}\n`, {mode: 0o600});
+
+    const validation = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(validation.status, 5);
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(result.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+});
+
+test('rejects substituted Template evidence at every retained pre-application boundary', async () => {
+    const cases = [
+        {
+            name: 'source evidence',
+            action: 'validate',
+            mutate: ({attemptRoot}) => {
+                const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+                const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+                source.source.evidence.commitSha = 'a'.repeat(40);
+                fs.writeFileSync(sourcePath, `${JSON.stringify(source)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'source catalogue',
+            action: 'validate',
+            mutate: ({attemptRoot}) => {
+                const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+                const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+                source.catalogue.entries[0].path = 'changed/path';
+                fs.writeFileSync(sourcePath, `${JSON.stringify(source)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'plan source digest',
+            action: 'validate',
+            mutate: ({planPath}) => {
+                const envelope = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+                envelope.plan.sourceDigest = '0'.repeat(64);
+                fs.writeFileSync(planPath, `${JSON.stringify(envelope)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'candidate project source',
+            action: 'apply',
+            mutate: ({attemptRoot}) => {
+                const manifestPath = path.join(attemptRoot, 'candidate', '.prism', 'project.json');
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                manifest.source.evidence.commitSha = 'a'.repeat(40);
+                fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+            },
+        },
+    ];
+
+    for (const boundary of cases) {
+        const projectRoot = makeTempDir();
+        try {
+            const fixture = createTemplateFixture();
+            const planned = await planTemplateCoreProject(projectRoot, fixture);
+            assert.equal(planned.status, 0, boundary.name);
+            const plan = JSON.parse(planned.stdout);
+            const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+            boundary.mutate({attemptRoot, planPath: plan.data.planPath});
+            const result = boundary.action === 'apply'
+                ? applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT})
+                : validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+            assert.equal(result.status, 5, boundary.name);
+            assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false, boundary.name);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('retains a durable Template project when its manifest source is substituted', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = await planTemplateCoreProject(projectRoot, fixture);
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(applied.status, 0);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'reports', 'source.json')), true);
+    const durableJournal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(durableJournal.applied.some(({path: outputPath}) => outputPath.startsWith('.pi/')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.source.evidence.commitSha = 'a'.repeat(40);
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(result.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), true);
+    assert.equal(readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID}).status, 'RECOVERY_REQUIRED');
 });
 
 test('restores strict emptiness when a Template provider fails after acquisition', async (t) => {
