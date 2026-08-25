@@ -9,6 +9,7 @@ const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
+const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 const {
     normalizeProjectMetadata,
@@ -541,6 +542,54 @@ test('renders all selected profiles deterministically without ownership overlap'
         const right = fs.readFileSync(path.join(roots[1], ...paths[index].split('/')));
         assert.equal(left.equals(right), true, paths[index]);
     }
+});
+
+test('composes a selected licensing provider into a Blank Core-only plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=licensing', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        currentYear: 2026,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Example Project',
+            summary: 'A deterministic project.',
+            capabilityMetadata: {
+                licensing: {
+                    spdxId: 'MIT',
+                    copyrightHolder: 'Example Organization',
+                },
+            },
+        }),
+    }));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['licensing']);
+    assert.deepEqual(report.providers.map(({id}) => id), ['core-baseline', 'licensing']);
+    assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
+    assert.equal(report.outputs.length, 8);
+    assert.deepEqual(report.metadata.capabilityMetadata.licensing, {
+        spdxId: 'MIT',
+        year: 2026,
+        copyrightHolder: 'Example Organization',
+    });
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const manifest = JSON.parse(fs.readFileSync(
+        path.join(attemptRoot, 'candidate', '.prism', 'project.json'),
+        'utf8'
+    ));
+    assert.deepEqual(manifest.capabilities, ['licensing']);
+    assert.deepEqual(manifest.capabilityMetadata, report.metadata.capabilityMetadata);
+    assert.equal(fs.statSync(
+        path.join(attemptRoot, 'reports', 'profile-licensing.json')
+    ).mode & 0o777, 0o600);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

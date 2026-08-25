@@ -275,7 +275,7 @@ reports/profile-community-governance.json
 reports/profile-github-collaboration.json
 ```
 
-- [ ] **Step 1: Write failing plan-composition tests**
+- [x] **Step 1: Write failing plan-composition tests**
 
 Through `prism-tool setup project plan`, cover Blank and Template, Core-only and PHP/web, for each individual capability and all three together. Assert:
 
@@ -288,13 +288,13 @@ Through `prism-tool setup project plan`, cover Blank and Template, Core-only and
 7. Blank performs no Template request; and
 8. adapter output bytes and effects are unchanged by Core profile selection.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-capabilities.test.js`
 
 Expected: FAIL because project planning still requires an empty capability list and one or two providers.
 
-- [ ] **Step 3: Generalize Core and adapter provider requests**
+- [x] **Step 3: Generalize Core and adapter provider requests**
 
 Replace every `capabilities: []` restriction with closed task-9 selection validation. Pass normalized selected IDs and metadata to Core baseline, profile providers, and the adapter provider. The Core baseline must render `.prism/project.json` with exact top-level keys:
 
@@ -307,21 +307,21 @@ Replace every `capabilities: []` restriction with closed task-9 selection valida
 
 Keep profile metadata out of README except for deterministic links to selected generated documents.
 
-- [ ] **Step 4: Compose and persist dynamic reports**
+- [x] **Step 4: Compose and persist dynamic reports**
 
 Render and validate Core baseline, each selected profile provider, and the optional adapter report against one closed registry. Run `composeProviderReports()` once across the complete set so exact-path and prefix overlap fail before plan display. Persist and restore each report through registry-derived filenames rather than caller-provided names.
 
-- [ ] **Step 5: Generalize plan validation**
+- [x] **Step 5: Generalize plan validation**
 
 Validate unique canonical capabilities, dynamic provider count, exact provider order, one check and verification declaration per provider, normalized metadata, source catalogue continuity, and exact report/output recomposition. Unknown profile report files or a missing selected report make the attempt stale.
 
-- [ ] **Step 6: Run the focused tests and verify Green**
+- [x] **Step 6: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-capabilities.test.js`
 
 Expected: PASS for all source/adapter combinations with unchanged minimal plans.
 
-- [ ] **Step 7: Commit the plan-composition slice**
+- [x] **Step 7: Commit the plan-composition slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js packages/prism-core/scripts/prism-tool/bootstrap-source.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-capabilities.test.js
