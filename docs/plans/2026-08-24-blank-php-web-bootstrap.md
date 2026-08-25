@@ -34,9 +34,9 @@
 
 ### Revised Task 1B: Composer/npm manifests and audited locks
 
-- [ ] Test and render canonical PHP `^8.5`, exact adapter dependencies, normalized npm project identity, and shared check scripts.
-- [ ] Test candidate-only Composer/npm lock generation with lifecycle scripts disabled and every advisory blocking.
-- [ ] Verify focused bootstrap plus existing resolve/apply regressions, then commit `feat(setup): prepare php-web bootstrap dependency graphs` with `Refs: #387`.
+- [x] Test and render canonical PHP `^8.5`, exact adapter dependencies, normalized npm project identity, and shared check scripts.
+- [x] Test candidate-only Composer/npm lock generation with lifecycle scripts disabled and every advisory blocking.
+- [x] Verify focused bootstrap plus existing resolve/apply regressions, then commit `feat(setup): prepare php-web bootstrap dependency graphs` with `Refs: #387`.
 
 ### Revised Task 1C: PHP/Pest readiness surface
 

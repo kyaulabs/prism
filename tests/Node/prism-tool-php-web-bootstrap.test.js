@@ -15,6 +15,21 @@ const {renderBootstrapScaffold} = require(
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const CONTRACT = JSON.parse(fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8'));
 
+function successfulResult(command, args) {
+    if (command === 'composer' && args[0] === 'audit') {
+        return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
+    }
+    if (command === 'npm' && args[0] === 'audit') {
+        return {
+            status: 0,
+            stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+            stderr: '',
+            error: undefined,
+        };
+    }
+    return {status: 0, stdout: '', stderr: '', error: undefined};
+}
+
 const OUTPUTS = [
     '.github/scripts/check-php.sh',
     '.github/scripts/coverage-gate.php',
@@ -74,9 +89,7 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
                 bootstrapProtocol: 1,
             },
         },
-        run() {
-            throw new Error('renderer must not populate dependencies');
-        },
+        run: successfulResult,
     });
 
     assert.equal(report.status, 'GO');
@@ -90,6 +103,115 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
         packageVersion: '0.3.1',
         protocolVersion: 1,
     });
+});
+
+test('renders canonical dependency manifests from the adapter contract', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'example-project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const output = (name) => report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath;
+    const composer = JSON.parse(fs.readFileSync(output('composer.json'), 'utf8'));
+    const npm = JSON.parse(fs.readFileSync(output('package.json'), 'utf8'));
+
+    assert.equal(composer.require.php, '^8.5');
+    assert.equal(composer['require-dev']['pestphp/pest'], '5.1.1');
+    assert.equal(composer.scripts.check, '.github/scripts/check-php.sh --local');
+    assert.equal(npm.name, 'example-project');
+    assert.equal(npm.private, true);
+    assert.equal(npm.devDependencies.playwright, '1.62.1');
+});
+
+test('resolves candidate locks with lifecycle scripts disabled', (t) => {
+    const candidateRoot = makeTempDir();
+    const invocations = [];
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+        run(command, args, options) {
+            invocations.push({command, args, cwd: options.cwd});
+            return successfulResult(command, args);
+        },
+    });
+
+    assert.deepEqual(invocations, [
+        {command: 'composer', args: ['update', '--no-install', '--no-scripts', '--no-interaction'], cwd: fs.realpathSync(candidateRoot)},
+        {command: 'npm', args: ['install', '--package-lock-only', '--ignore-scripts'], cwd: fs.realpathSync(candidateRoot)},
+        {command: 'composer', args: ['audit', '--locked', '--format=json'], cwd: fs.realpathSync(candidateRoot)},
+        {command: 'npm', args: ['audit', '--package-lock-only', '--json'], cwd: fs.realpathSync(candidateRoot)},
+    ]);
+});
+
+test('binds provider digests to package-manager lock output', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+        run(command, args, options) {
+            if (command === 'composer') fs.writeFileSync(path.join(options.cwd, 'composer.lock'), '{"packages":[],"packages-dev":[]}\n');
+            if (command === 'npm') fs.writeFileSync(path.join(options.cwd, 'package-lock.json'), '{"lockfileVersion":3,"packages":{"":{"name":"project"}}}\n');
+            return successfulResult(command, args);
+        },
+    });
+    for (const name of ['composer.lock', 'package-lock.json']) {
+        const output = report.outputs.find(({path: outputPath}) => outputPath === name);
+        const actual = require('node:crypto').createHash('sha256').update(fs.readFileSync(output.candidatePath)).digest('hex');
+        assert.equal(output.sha256, actual);
+    }
+});
+
+test('rejects a candidate dependency graph with any advisory', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    assert.throws(() => handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+        run(command, args) {
+            if (command === 'composer' && args[0] === 'audit') {
+                return {
+                    status: 1,
+                    stdout: '{"advisories":{"pestphp/pest":[{"advisoryId":"CVE-1","severity":"high"}]}}',
+                    stderr: '',
+                    error: undefined,
+                };
+            }
+            return successfulResult(command, args);
+        },
+    }), /advis/);
 });
 
 test('rejects scaffold manifest paths that escape the candidate root', (t) => {

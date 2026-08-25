@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 
 function validateOutputPath(outputPath) {
     if (
@@ -67,6 +68,17 @@ function ensureCandidateParent(candidateRoot, outputPath) {
     }
 }
 
+function npmProjectName(request) {
+    const normalized = request.metadata.suggestedDisplayName
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^[._-]+|[._-]+$/g, '');
+    if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(normalized)) {
+        throw new Error('PHP/web bootstrap npm project name is invalid');
+    }
+    return normalized;
+}
+
 function contents(outputPath, request, contract) {
     if (outputPath === 'composer.json') {
         const dependencies = Object.fromEntries(contract.components
@@ -84,7 +96,7 @@ function contents(outputPath, request, contract) {
         const dependencies = Object.fromEntries(contract.components
             .filter(({ecosystem}) => ecosystem === 'npm')
             .map(({package: packageName, version}) => [packageName, version]));
-        return `${JSON.stringify({name: 'prism-project', private: true, scripts: {check: '.github/scripts/check-php.sh --local'}, devDependencies: dependencies}, null, 2)}\n`;
+        return `${JSON.stringify({name: npmProjectName(request), private: true, scripts: {check: '.github/scripts/check-php.sh --local'}, devDependencies: dependencies}, null, 2)}\n`;
     }
     if (outputPath === 'composer.lock') return '{"packages":[],"packages-dev":[]}\n';
     if (outputPath === 'package-lock.json') return '{"lockfileVersion":3,"packages":{}}\n';
@@ -99,7 +111,7 @@ function contents(outputPath, request, contract) {
     return `${request.metadata.displayName}\n`;
 }
 
-function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract}) {
+function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract, run}) {
     const canonicalCandidate = fs.realpathSync(candidateRoot);
     const manifest = loadManifest(packageRoot);
     if (request?.schemaVersion !== 1 || request.source?.mode !== 'BLANK' ||
@@ -113,13 +125,42 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract}
         const mode = outputPath.endsWith('.sh') ? 0o755 : 0o644;
         fs.writeFileSync(candidatePath, value, {flag: 'wx', mode});
         fs.chmodSync(candidatePath, mode);
-        return Object.freeze({path: outputPath, kind: 'file', mode, sha256: crypto.createHash('sha256').update(value).digest('hex'), candidatePath});
+        return {path: outputPath, kind: 'file', mode, candidatePath};
+    });
+    if (typeof run === 'function') {
+        for (const [command, args] of [
+            ['composer', ['update', '--no-install', '--no-scripts', '--no-interaction']],
+            ['npm', ['install', '--package-lock-only', '--ignore-scripts']],
+        ]) {
+            const result = run(command, args, {cwd: canonicalCandidate, maxBuffer: 1048576, timeout: 300000});
+            if (result?.error || result?.status !== 0) {
+                throw new Error('PHP/web bootstrap dependency resolution failed');
+            }
+        }
+        const audits = [
+            normalizeComposerAudit(run('composer', ['audit', '--locked', '--format=json'], {
+                cwd: canonicalCandidate, maxBuffer: 1048576, timeout: 300000,
+            })),
+            normalizeNpmAudit(run('npm', ['audit', '--package-lock-only', '--json'], {
+                cwd: canonicalCandidate, maxBuffer: 1048576, timeout: 300000,
+            })),
+        ];
+        if (audits.some(({totals}) => Object.values(totals).some((total) => total !== 0))) {
+            throw new Error('PHP/web bootstrap dependency graph has advisories');
+        }
+    }
+    const finalOutputs = outputs.map((output) => {
+        const value = fs.readFileSync(output.candidatePath);
+        return Object.freeze({
+            ...output,
+            sha256: crypto.createHash('sha256').update(value).digest('hex'),
+        });
     });
     return Object.freeze({
         schemaVersion: 1,
         provider: Object.freeze({id: manifest.providerId, packageName: contract.package, packageVersion: request.adapter.packageVersion, protocolVersion: 1}),
         status: 'GO',
-        outputs: Object.freeze(outputs),
+        outputs: Object.freeze(finalOutputs),
         effects: Object.freeze([]),
         checks: Object.freeze([{id: 'php-web-scaffold-render', status: 'PASS', message: 'PHP/web scaffold candidate files were rendered'}]),
         verification: Object.freeze([{id: 'php-web-scaffold-inventory', command: `setup verify --adapter=${contract.package} --network-approved=yes`}]),
