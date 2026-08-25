@@ -73,7 +73,18 @@ function inspectCapabilityMetadata({projectRoot, capabilities}) {
         publications.push(Object.freeze({
             capability: 'community-governance',
             field: 'community-governance.conductContact',
-            outputs: Object.freeze(['CODE_OF_CONDUCT.md']),
+            outputs: Object.freeze(['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md']),
+        }));
+    }
+    if (capabilities.includes('github-collaboration')) {
+        publications.push(Object.freeze({
+            capability: 'github-collaboration',
+            field: null,
+            outputs: Object.freeze([
+                '.github/ISSUE_TEMPLATE/bug_report.yml',
+                '.github/ISSUE_TEMPLATE/feature_request.yml',
+                '.github/pull_request_template.md',
+            ]),
         }));
     }
     return Object.freeze({

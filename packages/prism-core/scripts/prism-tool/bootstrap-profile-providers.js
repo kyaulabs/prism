@@ -106,10 +106,15 @@ function licensingContents(coreRoot, metadata) {
     ), 'utf8');
 }
 
+function markdownLabel(value) {
+    return value.replace(/[\\[\]]/gu, '\\$&');
+}
+
 function conductContactLink(contact) {
+    const label = markdownLabel(contact.value);
     return contact.kind === 'email'
-        ? `[${contact.value}](mailto:${contact.value})`
-        : `[${contact.value}](${contact.value})`;
+        ? `[${label}](mailto:${contact.value})`
+        : `[${label}](<${contact.value}>)`;
 }
 
 function communityContents(coreRoot, metadata) {

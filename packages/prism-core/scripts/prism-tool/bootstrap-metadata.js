@@ -136,7 +136,7 @@ function parseMetadataInput(input, capabilities) {
 
 function normalizeConductContact(value) {
     const normalized = normalizeSingleLine(value, CONTACT_MAXIMUM, 'conduct contact');
-    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(normalized)) {
+    if (/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(normalized)) {
         return Object.freeze({kind: 'email', value: normalized});
     }
     let destination;

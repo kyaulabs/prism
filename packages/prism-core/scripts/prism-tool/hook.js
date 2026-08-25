@@ -118,6 +118,7 @@ function readCoreProject(projectRoot, coreRoot) {
             'adapter', 'compatibility',
         ]) ||
         value.schemaVersion !== 1 ||
+        !Array.isArray(value.capabilities) ||
         !sourceValid ||
         !metadataValid ||
         (value.adapter !== null && !validAdapterIdentity(value.adapter)) ||

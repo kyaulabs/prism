@@ -110,7 +110,16 @@ test('reports selected capability metadata in canonical order', (t) => {
         {
             capability: 'community-governance',
             field: 'community-governance.conductContact',
-            outputs: ['CODE_OF_CONDUCT.md'],
+            outputs: ['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md'],
+        },
+        {
+            capability: 'github-collaboration',
+            field: null,
+            outputs: [
+                '.github/ISSUE_TEMPLATE/bug_report.yml',
+                '.github/ISSUE_TEMPLATE/feature_request.yml',
+                '.github/pull_request_template.md',
+            ],
         },
     ]);
 });
@@ -323,6 +332,27 @@ test('renders a bundled AGPL licensing provider report', (t) => {
     assert.match(contents, /Version 3, 19 November 2007/);
 });
 
+test('rejects Markdown injection in conduct-contact metadata', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    assert.throws(() => normalizeProjectMetadata({
+        projectRoot,
+        capabilities: ['community-governance'],
+        currentYear: 2026,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Unsafe Contact Project',
+            summary: 'A project with unsafe conduct metadata.',
+            capabilityMetadata: {
+                'community-governance': {
+                    conductContact: 'attacker](https://example.test)@example.test',
+                },
+            },
+        }),
+    }), /conduct contact is invalid/);
+});
+
 test('renders community governance from the normalized conduct contact', (t) => {
     const candidateRoot = makeTempDir();
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
@@ -523,7 +553,9 @@ test('renders all selected profiles deterministically without ownership overlap'
                     copyrightHolder: 'Example Organization',
                 },
                 'community-governance': {
-                    conductContact: {kind: 'https', value: 'https://example.test/conduct'},
+                    conductContact: {
+                        kind: 'https', value: 'https://example.test/conduct_(team)',
+                    },
                 },
                 'github-collaboration': {},
             },
@@ -543,6 +575,11 @@ test('renders all selected profiles deterministically without ownership overlap'
         const right = fs.readFileSync(path.join(roots[1], ...paths[index].split('/')));
         assert.equal(left.equals(right), true, paths[index]);
     }
+    const conduct = fs.readFileSync(path.join(roots[0], 'CODE_OF_CONDUCT.md'), 'utf8');
+    assert.match(
+        conduct,
+        /\[https:\/\/example\.test\/conduct_\(team\)\]\(<https:\/\/example\.test\/conduct_\(team\)>\)/
+    );
 });
 
 test('plans each governance capability independently through the public launcher', (t) => {
@@ -790,6 +827,10 @@ test('accepts selected capabilities in hooks and rejects malformed profile metad
     const manifestPath = path.join(projectRoot, '.prism', 'project.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     for (const mutate of [
+        (value) => {
+            value.capabilities = null;
+            delete value.capabilityMetadata;
+        },
         (value) => { value.capabilities = ['unknown-capability']; },
         (value) => { delete value.capabilityMetadata; },
         (value) => { value.capabilityMetadata['community-governance'] = {}; },
