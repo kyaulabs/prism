@@ -163,6 +163,36 @@ test('reports repository ownership, support, and funding metadata independently'
     }
 });
 
+test('reports release management repository metadata and publication targets', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=release-management', '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['release-management']);
+    assert.deepEqual(report.data.fields.map(({id}) => id), [
+        'displayName',
+        'summary',
+        'release-management.repository',
+    ]);
+    assert.deepEqual(report.data.publications, [{
+        capability: 'release-management',
+        field: 'release-management.repository',
+        outputs: [
+            'CHANGELOG.md',
+            'cliff.toml',
+            '.github/workflows/release.yml',
+            '.prism/release.json',
+        ],
+    }]);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
 test('reports selected capability metadata in canonical order', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -213,7 +243,7 @@ test('normalizes all project capabilities into canonical order', (t) => {
 
     const result = captureWrites(() => main([
         'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
-        '--capabilities=funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--capabilities=release-management,funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
         '--json',
     ], {projectRoot}));
 
@@ -226,6 +256,7 @@ test('normalizes all project capabilities into canonical order', (t) => {
         'repository-ownership',
         'support-routing',
         'funding',
+        'release-management',
     ]);
 });
 
@@ -235,7 +266,6 @@ test('rejects non-canonical capability selections without changing the root', (t
         ' licensing',
         'licensing,',
         'unknown-capability',
-        'release-management',
     ];
     for (const selection of selections) {
         const projectRoot = makeTempDir();
@@ -396,6 +426,63 @@ test('normalizes repository ownership, support routing, and funding metadata', (
         },
     });
     assert.deepEqual(validateNormalizedProjectMetadata({metadata, capabilities}), metadata);
+});
+
+test('normalizes release management repository coordinates without external lookup', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities: ['release-management'],
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Release Project',
+            summary: 'A project with managed releases.',
+            capabilityMetadata: {
+                'release-management': {repository: 'Example-Org/Example-Project'},
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata['release-management'], {
+        repository: 'example-org/example-project',
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({
+        metadata,
+        capabilities: ['release-management'],
+    }), metadata);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects unsafe release management repository coordinates', (t) => {
+    const repositories = [
+        'https://github.com/example/project',
+        'example/project/extra',
+        'example/.project',
+        '-example/project',
+        'example/project.git',
+        'example /project',
+        'example/project\n',
+        'example/',
+    ];
+    for (const repository of repositories) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        assert.throws(() => normalizeProjectMetadata({
+            projectRoot,
+            capabilities: ['release-management'],
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Unsafe Release Project',
+                summary: 'A project with invalid release metadata.',
+                capabilityMetadata: {
+                    'release-management': {repository},
+                },
+            }),
+        }), /release/);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
 });
 
 test('rejects unsafe and non-closed capability metadata', (t) => {

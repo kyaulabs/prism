@@ -478,6 +478,7 @@ function projectReadme(metadata, capabilities) {
         'repository-ownership': ['- [Repository ownership](.github/CODEOWNERS)'],
         'support-routing': ['- [Support](.github/ISSUE_TEMPLATE/config.yml)'],
         funding: ['- [Funding](.github/FUNDING.yml)'],
+        'release-management': ['- [Changelog](CHANGELOG.md)'],
     };
     const projectLinks = capabilities.flatMap((capability) => links[capability] ?? []);
     return Buffer.from(

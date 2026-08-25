@@ -17,6 +17,7 @@ const OWNER_PATTERN_MAXIMUM = 256;
 const SUPPORT_LABEL_MAXIMUM = 80;
 const SUPPORT_DESCRIPTION_MAXIMUM = 160;
 const FUNDING_VALUE_MAXIMUM = 200;
+const REPOSITORY_COORDINATE_MAXIMUM = 140;
 const VERSION_LABEL_MAXIMUM = 64;
 const SPDX_IDS = Object.freeze(['AGPL-3.0-only', 'MIT']);
 const SECURITY_POLICIES = Object.freeze([
@@ -417,6 +418,24 @@ function normalizeFundingMetadata(value) {
     });
 }
 
+function normalizeReleaseManagementMetadata(value) {
+    if (!isRecord(value) || !hasExactKeys(value, ['repository'])) {
+        throw new Error('release management metadata is invalid');
+    }
+    const repository = normalizeSingleLine(
+        value.repository,
+        REPOSITORY_COORDINATE_MAXIMUM,
+        'release repository'
+    );
+    const match = repository.match(
+        /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\/([A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?)$/u
+    );
+    if (match === null || match[2].toLowerCase().endsWith('.git')) {
+        throw new Error('release management metadata is invalid');
+    }
+    return Object.freeze({repository: repository.toLowerCase()});
+}
+
 function normalizeCapabilityMetadata(value, capabilities, currentYear) {
     if (!isRecord(value) || !hasExactKeys(value, capabilities)) {
         throw new Error('capability metadata is invalid');
@@ -459,6 +478,8 @@ function normalizeCapabilityMetadata(value, capabilities, currentYear) {
             normalized[capability] = normalizeSupportRoutingMetadata(metadata);
         } else if (capability === 'funding') {
             normalized[capability] = normalizeFundingMetadata(metadata);
+        } else if (capability === 'release-management') {
+            normalized[capability] = normalizeReleaseManagementMetadata(metadata);
         } else if (!isRecord(metadata) || !hasExactKeys(metadata, [])) {
             throw new Error('GitHub collaboration metadata is invalid');
         } else {
@@ -511,6 +532,8 @@ function validateNormalizedProjectMetadata({metadata, capabilities}) {
                         ? {provider: record.provider, destination: record.value}
                         : {provider: record.provider, account: record.value}
                 ) : value.records,
+            } : id === 'release-management' ? {
+                repository: value.repository,
             } : value,
         ])),
         capabilities,
