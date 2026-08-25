@@ -211,7 +211,15 @@ function validJournalState(value) {
         return (
             value.status === 'ACTIVE' &&
             value.reason === null &&
-            value.resumePhase === 'REPOSITORY_BOOTSTRAP'
+            (
+                ['BOOTSTRAP_DEPENDENCIES', 'BOOTSTRAP_VERIFICATION', 'REPOSITORY_BOOTSTRAP']
+                    .includes(value.resumePhase) ||
+                (
+                    value.adapter !== null &&
+                    typeof value.resumePhase === 'string' &&
+                    /^PROVIDER_(?:EFFECT|VERIFICATION):[a-z0-9][a-z0-9-]*$/.test(value.resumePhase)
+                )
+            )
         ) || (
             value.status === 'RECOVERY_REQUIRED' &&
             value.reason === 'AMBIGUOUS_PROJECT_STATE' &&

@@ -268,8 +268,16 @@ function ensureTargetParent(projectRoot, project, relativePath, createdDirectori
     return holdDirectory(projectRoot, directoryPath, openPath);
 }
 
-function readCandidateOutput(attemptRoot, candidate, output) {
-    const parent = path.posix.dirname(output.path);
+function readCandidateOutput(attemptRoot, candidate, output, candidatePath) {
+    if (
+        typeof candidatePath !== 'string' ||
+        !candidatePath.startsWith('candidate/') ||
+        path.posix.normalize(candidatePath) !== candidatePath
+    ) {
+        throw new Error('bootstrap candidate path is invalid');
+    }
+    const candidateRelative = candidatePath.slice('candidate/'.length);
+    const parent = path.posix.dirname(candidateRelative);
     const parentPath = parent === '.'
         ? path.join(attemptRoot, 'candidate')
         : path.join(attemptRoot, 'candidate', ...parent.split('/'));
@@ -285,7 +293,7 @@ function readCandidateOutput(attemptRoot, candidate, output) {
         : holdDirectory(attemptRoot, parentPath, openPath);
     try {
         directory.assertCurrent();
-        const filePath = path.join(directory.anchor, path.posix.basename(output.path));
+        const filePath = path.join(directory.anchor, path.posix.basename(candidateRelative));
         const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
             const stat = fs.fstatSync(descriptor);
@@ -515,7 +523,127 @@ function markRecoveryRequired(projectRoot, attemptId, journal) {
     });
 }
 
-function durableProjectReport(attemptId, planDigest, inventoryDigest) {
+function validProviderResumePhase(value) {
+    return typeof value === 'string' &&
+        /^PROVIDER_(?:EFFECT|VERIFICATION):[a-z0-9][a-z0-9-]*$/.test(value);
+}
+
+function postDurableFailureReport(attemptId, planDigest, inventoryDigest, resumePhase, checks) {
+    return Object.freeze({
+        status: 'NO-GO',
+        disposition: 'PROJECT_DURABLE',
+        checks: Object.freeze(checks.map((check) => Object.freeze({...check}))),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planDigest,
+            appliedInventoryDigest: inventoryDigest,
+            resumePhase,
+        }),
+    });
+}
+
+function runPostDurableAdapterEffects({
+    projectRoot,
+    attemptId,
+    planDigest,
+    inventoryDigest,
+    journal,
+    adapter,
+    run,
+}) {
+    let current = journal;
+    const installed = adapter.handler.installBootstrapDependencies({
+        contract: adapter.contract,
+        projectRoot,
+        run,
+        resumePhase: current.resumePhase,
+    });
+    if (installed?.status !== 'GO' || !Array.isArray(installed.checks)) {
+        const resumePhase = validProviderResumePhase(installed?.data?.resumePhase)
+            ? installed.data.resumePhase
+            : 'BOOTSTRAP_DEPENDENCIES';
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'DURABLE',
+            next: {...current, resumePhase},
+        });
+        return postDurableFailureReport(
+            attemptId,
+            planDigest,
+            inventoryDigest,
+            resumePhase,
+            installed?.checks ?? [{
+                id: 'bootstrap-dependencies',
+                status: 'FAIL',
+                message: 'bootstrap dependency installation failed',
+            }]
+        );
+    }
+    current = transitionBootstrapJournal({
+        projectRoot,
+        attemptId,
+        expectedPhase: 'DURABLE',
+        next: {...current, resumePhase: 'BOOTSTRAP_VERIFICATION'},
+    });
+    const verified = adapter.handler.verifyBootstrapProject({
+        contract: adapter.contract,
+        projectRoot,
+        report: adapter.report,
+        run,
+    });
+    if (verified?.status !== 'GO' || !Array.isArray(verified.checks)) {
+        const failedCheck = verified?.checks?.find(({status}) => status === 'FAIL');
+        const candidateResumePhase = `PROVIDER_VERIFICATION:${failedCheck?.id ?? ''}`;
+        const resumePhase = validProviderResumePhase(candidateResumePhase)
+            ? candidateResumePhase
+            : 'BOOTSTRAP_VERIFICATION';
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'DURABLE',
+            next: {...current, resumePhase},
+        });
+        return postDurableFailureReport(
+            attemptId,
+            planDigest,
+            inventoryDigest,
+            resumePhase,
+            verified?.checks ?? [{
+                id: 'bootstrap-provider-verification',
+                status: 'FAIL',
+                message: 'bootstrap provider verification failed',
+            }]
+        );
+    }
+    transitionBootstrapJournal({
+        projectRoot,
+        attemptId,
+        expectedPhase: 'DURABLE',
+        next: {...current, resumePhase: 'REPOSITORY_BOOTSTRAP'},
+    });
+    return Object.freeze({
+        status: 'GO',
+        disposition: 'PROJECT_DURABLE',
+        checks: Object.freeze([
+            ...installed.checks.map((check) => Object.freeze({...check})),
+            ...verified.checks.map((check) => Object.freeze({...check})),
+        ]),
+        data: Object.freeze({
+            attempt: Object.freeze({id: attemptId}),
+            planDigest,
+            appliedInventoryDigest: inventoryDigest,
+            resumePhase: 'REPOSITORY_BOOTSTRAP',
+        }),
+    });
+}
+
+function durableProjectReport(
+    attemptId,
+    planDigest,
+    inventoryDigest,
+    resumePhase = 'REPOSITORY_BOOTSTRAP'
+) {
     return Object.freeze({
         status: 'GO',
         disposition: 'PROJECT_DURABLE',
@@ -528,7 +656,7 @@ function durableProjectReport(attemptId, planDigest, inventoryDigest) {
             attempt: Object.freeze({id: attemptId}),
             planDigest,
             appliedInventoryDigest: inventoryDigest,
-            resumePhase: 'REPOSITORY_BOOTSTRAP',
+            resumePhase,
         }),
     });
 }
@@ -640,6 +768,7 @@ function applyBootstrapProject({
     planDigest,
     approval,
     fault = () => {},
+    run,
 }) {
     if (approval !== 'yes') throw new Error('bootstrap project approval is required');
     const projectRoot = fs.realpathSync(requestedRoot);
@@ -657,7 +786,22 @@ function applyBootstrapProject({
                 attemptId,
                 planDigest,
                 journal,
+                allowUntracked: journal.adapter !== null,
             });
+            if (
+                journal.adapter !== null &&
+                journal.resumePhase !== 'REPOSITORY_BOOTSTRAP'
+            ) {
+                return runPostDurableAdapterEffects({
+                    projectRoot,
+                    attemptId,
+                    planDigest,
+                    inventoryDigest: durable.appliedInventoryDigest,
+                    journal,
+                    adapter: durable.plan.data.adapter,
+                    run,
+                });
+            }
             return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
         } catch (error) {
             markRecoveryRequired(projectRoot, attemptId, journal);
@@ -694,7 +838,19 @@ function applyBootstrapProject({
         });
         applying = true;
         for (const [index, output] of plan.outputs.entries()) {
-            const contents = readCandidateOutput(attemptRoot, candidate, output);
+            const candidateOutput = plan.data.candidates[index];
+            if (
+                candidateOutput?.path !== output.path ||
+                JSON.stringify(candidateOutput.provider) !== JSON.stringify(output.provider)
+            ) {
+                throw new Error('bootstrap candidate inventory is stale');
+            }
+            const contents = readCandidateOutput(
+                attemptRoot,
+                candidate,
+                output,
+                candidateOutput.candidatePath
+            );
             const entry = publishOutput({
                 projectRoot,
                 project,
@@ -721,19 +877,49 @@ function applyBootstrapProject({
         project.sync();
         fault({name: 'before-durable'});
         const inventoryDigest = appliedInventoryDigest(applied);
-        transitionBootstrapJournal({
+        current = transitionBootstrapJournal({
             projectRoot,
             attemptId,
             expectedPhase: 'APPLYING',
             next: {
                 ...current,
                 phase: 'DURABLE',
-                resumePhase: 'REPOSITORY_BOOTSTRAP',
+                resumePhase: plan.adapter === null
+                    ? 'REPOSITORY_BOOTSTRAP'
+                    : 'BOOTSTRAP_DEPENDENCIES',
                 applied: [...applied],
                 appliedInventoryDigest: inventoryDigest,
             },
         });
+        project.close();
+        project = undefined;
         releaseDurableApplyLock(lock);
+        try {
+            fault({name: 'after-durable'});
+        } catch {
+            return postDurableFailureReport(
+                attemptId,
+                planDigest,
+                inventoryDigest,
+                current.resumePhase,
+                [{
+                    id: 'bootstrap-post-application',
+                    status: 'FAIL',
+                    message: 'bootstrap post-application operation failed',
+                }]
+            );
+        }
+        if (plan.data.adapter !== null) {
+            return runPostDurableAdapterEffects({
+                projectRoot,
+                attemptId,
+                planDigest,
+                inventoryDigest,
+                journal: current,
+                adapter: plan.data.adapter,
+                run,
+            });
+        }
         return Object.freeze({
             status: 'GO',
             disposition: 'PROJECT_DURABLE',
@@ -875,8 +1061,14 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
                 attemptId,
                 planDigest,
                 journal,
+                allowUntracked: journal.adapter !== null,
             });
-            return durableProjectReport(attemptId, planDigest, durable.appliedInventoryDigest);
+            return durableProjectReport(
+                attemptId,
+                planDigest,
+                durable.appliedInventoryDigest,
+                journal.resumePhase
+            );
         } catch (error) {
             markRecoveryRequired(projectRoot, attemptId, journal);
             throw error;

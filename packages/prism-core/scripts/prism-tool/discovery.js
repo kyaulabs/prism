@@ -222,6 +222,7 @@ function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
         }
         if (
             typeof handler.prepareBootstrapProject !== 'function' ||
+            typeof handler.installBootstrapDependencies !== 'function' ||
             typeof handler.verifyBootstrapProject !== 'function'
         ) {
             throw new Error('adapter handler bootstrap interface is invalid');

@@ -561,6 +561,7 @@ function setup(args, context) {
                 planDigest: digests[0].slice('--digest='.length),
                 approval: 'yes',
                 fault: context.bootstrapApplyFault,
+                run: context.run ?? runBounded,
             });
         } catch {
             const report = {

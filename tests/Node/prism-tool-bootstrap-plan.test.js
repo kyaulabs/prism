@@ -16,6 +16,9 @@ const {
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_CONTRACT = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
+);
 
 function captureWrites(action) {
     let stdout = '';
@@ -69,6 +72,79 @@ function bootstrapRunner(projectRoot) {
             };
         }
         return {status: 0, stdout: '', stderr: '', error: undefined};
+    };
+}
+
+function bootstrapGraphRunner(projectRoot) {
+    const run = bootstrapRunner(projectRoot);
+    return (command, args, options) => {
+        if (command === 'composer' && args[0] === 'update') {
+            const packages = ADAPTER_CONTRACT.components
+                .filter(({ecosystem}) => ecosystem === 'composer')
+                .map(({package: packageName, version}) => ({name: packageName, version}));
+            fs.writeFileSync(
+                path.join(options.cwd, 'composer.lock'),
+                `${JSON.stringify({packages: [], 'packages-dev': packages})}\n`
+            );
+        }
+        if (command === 'npm' && args[0] === 'install') {
+            const packages = Object.fromEntries(ADAPTER_CONTRACT.components
+                .filter(({ecosystem}) => ecosystem === 'npm')
+                .map(({package: packageName, version}) => [
+                    `node_modules/${packageName}`,
+                    {version},
+                ]));
+            fs.writeFileSync(
+                path.join(options.cwd, 'package-lock.json'),
+                `${JSON.stringify({lockfileVersion: 3, packages: {'': {}, ...packages}})}\n`
+            );
+        }
+        return run(command, args, options);
+    };
+}
+
+function installedGraphRunner(projectRoot, operations) {
+    const commandVersions = new Map(ADAPTER_CONTRACT.components
+        .filter(({kind}) => kind === 'command')
+        .map(({executable, version}) => [executable, version]));
+    return (command, args) => {
+        const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+        assert.equal(journal.phase, 'DURABLE');
+        operations.push(`${command} ${args.join(' ')}`);
+        if (command === 'composer' && args[0] === 'install') {
+            const binRoot = path.join(projectRoot, 'vendor', 'bin');
+            fs.mkdirSync(binRoot, {recursive: true});
+            for (const {ecosystem, kind, executable} of ADAPTER_CONTRACT.components) {
+                if (ecosystem !== 'composer' || kind !== 'command') continue;
+                fs.writeFileSync(path.join(binRoot, executable), '#!/usr/bin/env php\n', {mode: 0o755});
+            }
+        }
+        if (command === 'npm' && args[0] === 'ci') {
+            const binRoot = path.join(projectRoot, 'node_modules', '.bin');
+            fs.mkdirSync(binRoot, {recursive: true});
+            for (const {ecosystem, kind, executable} of ADAPTER_CONTRACT.components) {
+                if (ecosystem !== 'npm' || kind !== 'command') continue;
+                fs.writeFileSync(path.join(binRoot, executable), '#!/usr/bin/env node\n', {mode: 0o755});
+            }
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {
+                status: 0,
+                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                stderr: '',
+                error: undefined,
+            };
+        }
+        const version = commandVersions.get(path.basename(command));
+        return {
+            status: 0,
+            stdout: version === undefined ? '' : `${version}\n`,
+            stderr: '',
+            error: undefined,
+        };
     };
 }
 
@@ -462,6 +538,456 @@ test('restores strict emptiness when a selected-adapter plan is declined', (t) =
     assert.equal(result.stderr, '');
     assert.equal(report.disposition, 'ROOT_RESTORED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('applies the combined selected-adapter scaffold durably', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, []),
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    for (const output of plan.outputs) {
+        const outputPath = path.join(projectRoot, ...output.path.split('/'));
+        assert.equal(fs.statSync(outputPath).mode & 0o777, output.mode);
+        assert.equal(crypto.createHash('sha256').update(fs.readFileSync(outputPath)).digest('hex'), output.sha256);
+    }
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'settings.json')), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'prism-tool')), true);
+});
+
+test('restores strict emptiness when selected-adapter application fails before durability', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault: ({name}) => {
+            if (name === 'before-durable') throw new Error('injected pre-durable failure');
+        },
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'ROOT_RESTORED');
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('retains the complete scaffold when failure is injected after durability', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    let injected = false;
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        bootstrapApplyFault: ({name}) => {
+            if (name === 'after-durable') {
+                injected = true;
+                throw new Error('injected post-durable failure');
+            }
+        },
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(injected, true);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'BOOTSTRAP_DEPENDENCIES');
+    for (const output of plan.outputs) {
+        assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
+    }
+});
+
+test('runs selected-adapter effects only after the scaffold is durable', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const operations = [];
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(operations, [
+        'composer install --no-scripts --no-interaction',
+        'npm ci --ignore-scripts',
+        `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} install chromium`,
+        'composer audit --locked --format=json',
+        'npm audit --package-lock-only --json',
+        `${path.join(projectRoot, 'vendor', 'bin', 'php-cs-fixer')} --version`,
+        `${path.join(projectRoot, 'vendor', 'bin', 'pest')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'sass')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'uglifyjs')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'eslint')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'stylelint')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} --version`,
+    ]);
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
+});
+
+test('retains the durable scaffold when Composer installation fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'composer' && args[0] === 'install'
+            ? {status: 1, stdout: '', stderr: 'install failed', error: undefined}
+            : run(command, args, options),
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'PROVIDER_EFFECT:composer-install');
+    for (const output of plan.outputs) {
+        assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
+    }
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.status, 'ACTIVE');
+    assert.equal(journal.resumePhase, 'PROVIDER_EFFECT:composer-install');
+});
+
+test('retains the durable scaffold when npm installation fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'npm' && args[0] === 'ci'
+            ? {status: 1, stdout: '', stderr: 'install failed', error: undefined}
+            : run(command, args, options),
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'PROVIDER_EFFECT:npm-install');
+    for (const output of plan.outputs) {
+        assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
+    }
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.resumePhase, 'PROVIDER_EFFECT:npm-install');
+});
+
+test('retains the durable scaffold when Chromium acquisition fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => path.basename(command) === 'playwright' && args[0] === 'install'
+            ? {status: 1, stdout: '', stderr: 'browser failed', error: undefined}
+            : run(command, args, options),
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'PROVIDER_EFFECT:playwright-chromium');
+    for (const output of plan.outputs) {
+        assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
+    }
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.resumePhase, 'PROVIDER_EFFECT:playwright-chromium');
+    const operations = [];
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(
+        operations[0],
+        `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} install chromium`
+    );
+    assert.equal(
+        operations.some((operation) => operation.startsWith('composer install ')),
+        false
+    );
+    assert.equal(operations.includes('npm ci --ignore-scripts'), false);
+});
+
+test('retains the durable scaffold when installed graph verification fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'composer' && args[0] === 'audit'
+            ? {status: 1, stdout: '', stderr: 'audit failed', error: undefined}
+            : run(command, args, options),
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'PROVIDER_VERIFICATION:installed-graph');
+    for (const output of plan.outputs) {
+        assert.equal(fs.existsSync(path.join(projectRoot, ...output.path.split('/'))), true);
+    }
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.resumePhase, 'PROVIDER_VERIFICATION:installed-graph');
+});
+
+test('retains the durable scaffold when provider byte verification fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => {
+            const outcome = run(command, args, options);
+            if (path.basename(command) === 'playwright' && args[0] === '--version') {
+                fs.appendFileSync(path.join(projectRoot, 'composer.json'), ' ');
+            }
+            return outcome;
+        },
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(
+        report.data.resumePhase,
+        'PROVIDER_VERIFICATION:php-web-scaffold-inventory'
+    );
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'composer.json')), true);
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(
+        journal.resumePhase,
+        'PROVIDER_VERIFICATION:php-web-scaffold-inventory'
+    );
+});
+
+test('resumes selected-adapter effects from a durable failure journal', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const firstRun = installedGraphRunner(projectRoot, []);
+    const failed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'composer' && args[0] === 'install'
+            ? {status: 1, stdout: '', stderr: 'install failed', error: undefined}
+            : firstRun(command, args, options),
+    });
+    assert.equal(failed.status, 5);
+    const operations = [];
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+    const report = JSON.parse(resumed.stdout);
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(report.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(operations[0], 'composer install --no-scripts --no-interaction');
+    assert.equal(operations.includes('npm ci --ignore-scripts'), true);
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
+});
+
+test('resumes after dependency-created state without weakening scaffold validation', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const firstRun = installedGraphRunner(projectRoot, []);
+    const failed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'npm' && args[0] === 'ci'
+            ? {status: 1, stdout: '', stderr: 'install failed', error: undefined}
+            : firstRun(command, args, options),
+    });
+    assert.equal(failed.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'vendor')), true);
+
+    const operations = [];
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+    const report = JSON.parse(resumed.stdout);
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(report.data.resumePhase, 'REPOSITORY_BOOTSTRAP');
+    assert.equal(operations[0], 'npm ci --ignore-scripts');
+    assert.equal(
+        operations.some((operation) => operation.startsWith('composer install ')),
+        false
+    );
+    for (const output of plan.outputs) {
+        const outputPath = path.join(projectRoot, ...output.path.split('/'));
+        assert.equal(
+            crypto.createHash('sha256').update(fs.readFileSync(outputPath)).digest('hex'),
+            output.sha256
+        );
+    }
+});
+
+test('resumes installed graph verification without reinstalling dependencies', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const firstRun = installedGraphRunner(projectRoot, []);
+    const failed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'composer' && args[0] === 'audit'
+            ? {status: 1, stdout: '', stderr: 'audit failed', error: undefined}
+            : firstRun(command, args, options),
+    });
+    assert.equal(failed.status, 5);
+    const operations = [];
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(operations[0], 'composer audit --locked --format=json');
+    assert.equal(
+        operations.some((operation) => operation.startsWith('composer install ')),
+        false
+    );
+    assert.equal(operations.includes('npm ci --ignore-scripts'), false);
+    assert.equal(
+        operations.some((operation) => operation.endsWith('install chromium')),
+        false
+    );
+});
+
+test('resumes provider inventory verification without rerunning dependency effects', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const composerPath = path.join(projectRoot, 'composer.json');
+    const firstRun = installedGraphRunner(projectRoot, []);
+    const failed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => {
+            const outcome = firstRun(command, args, options);
+            if (path.basename(command) === 'playwright' && args[0] === '--version') {
+                fs.appendFileSync(composerPath, ' ');
+            }
+            return outcome;
+        },
+    });
+    assert.equal(failed.status, 5);
+    const expectedComposer = plan.outputs.find(({path: outputPath}) => outputPath === 'composer.json');
+    const candidateComposer = path.join(
+        projectRoot,
+        '.pi',
+        'prism-tool',
+        'bootstrap',
+        ATTEMPT_ID,
+        'candidate',
+        'adapter',
+        'composer.json'
+    );
+    fs.writeFileSync(composerPath, fs.readFileSync(candidateComposer));
+    fs.chmodSync(composerPath, expectedComposer.mode);
+    const operations = [];
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: installedGraphRunner(projectRoot, operations),
+    });
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.deepEqual(operations, []);
+});
+
+test('reports the retained selected-adapter resume phase during recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot, bootstrapGraphRunner(projectRoot));
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const run = installedGraphRunner(projectRoot, []);
+    const failed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+        run: (command, args, options) => command === 'npm' && args[0] === 'ci'
+            ? {status: 1, stdout: '', stderr: 'install failed', error: undefined}
+            : run(command, args, options),
+    });
+    assert.equal(failed.status, 5);
+
+    const recovered = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(recovered.stdout);
+
+    assert.equal(recovered.status, 0, recovered.stderr || recovered.stdout);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'PROVIDER_EFFECT:npm-install');
+    assert.equal(fs.existsSync(path.join(projectRoot, 'vendor')), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), true);
 });
 
 test('preserves unowned root state when prepared recovery cannot prove emptiness', (t) => {

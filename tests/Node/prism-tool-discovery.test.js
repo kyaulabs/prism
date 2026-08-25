@@ -90,9 +90,12 @@ function writeAdapter(
     const prepareEntry = options.prepareBootstrapProject
         ? 'prepareBootstrapProject() {}, verifyBootstrapProject() {}, '
         : '';
+    const installEntry = options.installBootstrapDependencies
+        ? 'installBootstrapDependencies() {}, '
+        : '';
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        `'use strict';\n${marker}module.exports = {${protocolEntry}${prepareEntry}inspect() {}, resolveTool() {}};\n`
+        `'use strict';\n${marker}module.exports = {${protocolEntry}${prepareEntry}${installEntry}inspect() {}, resolveTool() {}};\n`
     );
 }
 
@@ -584,6 +587,7 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
         bootstrapProtocol: 1,
         handlerBootstrapProtocol: 1,
         prepareBootstrapProject: true,
+        installBootstrapDependencies: true,
     });
     writeJson(path.join(matchingPi, 'npm', 'package.json'), {
         dependencies: {'@fixture/adapter': '1.0.0'},
@@ -606,6 +610,31 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
     const mismatchRegistration = discoverAdapter({projectRoot: mismatchRoot, piDir: mismatchPi});
 
     assert.throws(() => loadAdapterHandler(mismatchRegistration, 1), /handler bootstrap protocol/);
+
+    const missingInstallRoot = makeTempDir();
+    roots.push(missingInstallRoot);
+    const missingInstallPi = path.join(missingInstallRoot, '.pi');
+    const missingInstallPackage = path.join(
+        missingInstallPi,
+        'npm',
+        'node_modules',
+        '@fixture',
+        'adapter'
+    );
+    writeAdapter(missingInstallPackage, '@fixture/adapter', 'fixture-tool', {
+        bootstrapProtocol: 1,
+        handlerBootstrapProtocol: 1,
+        prepareBootstrapProject: true,
+    });
+    writeJson(path.join(missingInstallPi, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.0.0'},
+    });
+    const missingInstallRegistration = discoverAdapter({
+        projectRoot: missingInstallRoot,
+        piDir: missingInstallPi,
+    });
+
+    assert.throws(() => loadAdapterHandler(missingInstallRegistration, 1), /bootstrap interface/);
 
     const incompleteRoot = makeTempDir();
     roots.push(incompleteRoot);

@@ -7,6 +7,7 @@ const {renderBootstrapScaffold, verifyBootstrapScaffold} = require('./toolchain/
 const {inspect, resolveTool} = require('./toolchain/project');
 const {
     applyCandidate,
+    installBootstrapDependencies,
     resolveCandidate,
     verifyInstalledProject,
 } = require('./toolchain/transaction');
@@ -55,6 +56,7 @@ module.exports = {
     apply,
     bootstrapProtocol,
     inspect,
+    installBootstrapDependencies,
     prepareBootstrapProject,
     resolve,
     resolveTool,

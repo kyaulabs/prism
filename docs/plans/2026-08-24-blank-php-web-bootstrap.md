@@ -369,19 +369,19 @@ prism-tool commit create --type feat --scope setup --subject "plan blank php-web
 - Consumes: validated combined plan and both provider candidate trees.
 - Produces: one durable applied project inventory; deterministic pre-durable rollback and post-durable resume phases.
 
-- [ ] **Step 1: Write the failing durable-application test**
+- [x] **Step 1: Write the failing durable-application test**
 
 Exercise the public `setup project apply` seam and assert all Core and adapter outputs appear only after approval, exact modes/digests match the plan, `.pi` package activation is retained as canonical project state, and no operational report/candidate/journal file enters the applied inventory.
 
 Add injected failures before and after the durable marker. Before durable, assert strict emptiness. After durable, assert the complete scaffold remains and the report names the exact dependency/audit/browser/verification retry phase.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: FAIL because plan validation/application assumes one Core report and seven outputs.
 
-- [ ] **Step 3: Apply generic combined outputs**
+- [x] **Step 3: Apply generic combined outputs**
 
 Update plan validation and transaction application to iterate the composed semantic output inventory rather than Core literals. Preserve the existing held-directory, digest, stale-state, lock, fsync, journal, rollback, and third-state safety rules.
 
@@ -394,13 +394,13 @@ verifyBootstrapScaffold({packageRoot, projectRoot, report, contract, run})
 
 Reuse existing script-disabled Composer/npm population, audits, exact graph verification, and Chromium installation logic. Do not run package managers before durable application. Do not roll back the scaffold after dependency, browser, audit, or verification failure.
 
-- [ ] **Step 4: Run focused recovery tests and verify Green**
+- [x] **Step 4: Run focused recovery tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/prism-tool-apply.test.js tests/Node/prism-tool-resolve.test.js`
 
 Expected: PASS; established-project candidate transaction tests remain unchanged.
 
-- [ ] **Step 5: Commit the durable transaction slice**
+- [x] **Step 5: Commit the durable transaction slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-transaction.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-php-web/scripts/toolchain/bootstrap-scaffold.js packages/prism-php-web/scripts/toolchain/transaction.js packages/prism-php-web/scripts/toolchain/workspace.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/prism-tool-apply.test.js tests/Node/prism-tool-resolve.test.js

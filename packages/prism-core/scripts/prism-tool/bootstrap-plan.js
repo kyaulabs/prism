@@ -281,7 +281,14 @@ function selectedAdapterIdentity(adapter) {
     });
 }
 
-function openSelectedAttempt({projectRoot, coreRoot, attemptId, packageName, prepare = true}) {
+function openSelectedAttempt({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    packageName,
+    prepare = true,
+    allowAppliedProject = false,
+}) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
     const inspection = inspectProvisionedBootstrapAdapter({
@@ -289,6 +296,7 @@ function openSelectedAttempt({projectRoot, coreRoot, attemptId, packageName, pre
         coreRoot,
         attemptId,
         packageName,
+        allowAppliedProject,
     });
     if (prepare && fs.readdirSync(attemptRoot).join(',') !== 'adapter.json') {
         throw new Error('bootstrap adapter attempt state is stale');
@@ -795,7 +803,14 @@ function restoreProviderReport(fileName, paths, expectedDigest = null) {
     };
 }
 
-function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, paths}) {
+function validateHeldProjectPlan({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    planDigest,
+    paths,
+    allowAppliedProject,
+}) {
     paths.assertCurrent();
     const envelope = readJsonFile(paths.planAnchor).value;
     if (!hasExactKeys(envelope, ['schemaVersion', 'planDigest', 'plan']) || envelope.schemaVersion !== 1) {
@@ -824,6 +839,7 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
     });
     reports.push({provider: coreReport.provider, outputs: coreOutputs});
     let adapterReport = null;
+    let adapterState = null;
     if (envelope.plan.adapter !== null) {
         const state = openSelectedAttempt({
             projectRoot,
@@ -831,10 +847,12 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
             attemptId,
             packageName: envelope.plan.adapter.packageName,
             prepare: false,
+            allowAppliedProject,
         });
         if (JSON.stringify(state.adapter) !== JSON.stringify(envelope.plan.adapter)) {
             throw new Error('bootstrap adapter selection is stale');
         }
+        adapterState = state;
         adapterReport = restoreProviderReport(
             'adapter-provider.json',
             paths,
@@ -911,6 +929,20 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
     ) {
         throw new Error('bootstrap project state is stale');
     }
+    const providerReports = [coreReport, ...(adapterReport === null ? [] : [adapterReport])];
+    const candidates = outputs.map((output) => {
+        const report = providerReports.find(({provider}) =>
+            JSON.stringify(provider) === JSON.stringify(output.provider)
+        );
+        const source = report?.outputs.find(({path: outputPath}) => outputPath === output.path);
+        if (source === undefined) throw new Error('bootstrap candidate inventory is stale');
+        const candidatePath = path.relative(paths.attemptRoot, source.candidatePath)
+            .split(path.sep).join('/');
+        if (!candidatePath.startsWith('candidate/') || path.posix.normalize(candidatePath) !== candidatePath) {
+            throw new Error('bootstrap candidate inventory is invalid');
+        }
+        return Object.freeze({path: output.path, provider: output.provider, candidatePath});
+    });
     paths.assertCurrent();
     return Object.freeze({
         ...envelope.plan,
@@ -918,6 +950,12 @@ function validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, 
         data: Object.freeze({
             attempt: Object.freeze({id: attemptId}),
             planPath: fs.realpathSync(paths.planPath),
+            candidates: Object.freeze(candidates),
+            adapter: adapterState === null ? null : Object.freeze({
+                contract: adapterState.registration.contract,
+                handler: adapterState.handler,
+                report: adapterReport,
+            }),
         }),
     });
 }
@@ -935,7 +973,14 @@ function validateBootstrapProjectPlan({
     const projectRoot = fs.realpathSync(requestedRoot);
     const paths = assertAttemptDirectories(projectRoot, attemptId, allowAppliedProject);
     try {
-        return validateHeldProjectPlan({projectRoot, coreRoot, attemptId, planDigest, paths});
+        return validateHeldProjectPlan({
+            projectRoot,
+            coreRoot,
+            attemptId,
+            planDigest,
+            paths,
+            allowAppliedProject,
+        });
     } finally {
         paths.close();
     }

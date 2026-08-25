@@ -587,6 +587,7 @@ function inspectProvisionedBootstrapAdapter({
     coreRoot,
     attemptId,
     packageName,
+    allowAppliedProject = false,
 }) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const projectRoot = fs.realpathSync(requestedRoot);
@@ -610,7 +611,11 @@ function inspectProvisionedBootstrapAdapter({
         ? ['npm', 'prism-tool', 'settings.json']
         : ['prism-tool', 'settings.json'];
     if (
-        !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
+        (
+            allowAppliedProject
+                ? !rootEntries(projectRoot).includes('.pi')
+                : !equalsEntries(rootEntries(projectRoot), ['.pi'])
+        ) ||
         !equalsEntries(piEntries(projectRoot), expectedPi)
     ) {
         throw new Error('bootstrap adapter state is stale');
