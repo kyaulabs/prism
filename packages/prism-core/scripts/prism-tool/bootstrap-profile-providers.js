@@ -3,7 +3,7 @@
 'use strict';
 
 const path = require('node:path');
-const {TASK_NINE_CAPABILITIES} = require('./bootstrap-capabilities');
+const {PROJECT_CAPABILITIES} = require('./bootstrap-capabilities');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {
     readCoreManifest,
@@ -47,7 +47,7 @@ function loadCoreProfileProviderDescriptors({coreRoot, capabilities}) {
         !Array.isArray(capabilities) ||
         new Set(capabilities).size !== capabilities.length ||
         JSON.stringify(capabilities) !== JSON.stringify(
-            TASK_NINE_CAPABILITIES.filter((capability) => capabilities.includes(capability))
+            PROJECT_CAPABILITIES.filter((capability) => capabilities.includes(capability))
         )
     ) {
         throw new Error('profile provider selection is invalid');

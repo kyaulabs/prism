@@ -80,6 +80,89 @@ test('reports only the metadata fields required by selected licensing', (t) => {
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
+test('reports only the metadata fields required by selected security disclosure', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=security-disclosure', '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['security-disclosure']);
+    assert.deepEqual(report.data.fields.map(({id, required}) => ({id, required})), [
+        {id: 'displayName', required: true},
+        {id: 'summary', required: true},
+        {id: 'security-disclosure.reportingContact', required: true},
+        {id: 'security-disclosure.supportedVersionPolicy', required: true},
+        {id: 'security-disclosure.supportedVersionRows', required: false},
+        {id: 'security-disclosure.acknowledgementHours', required: false},
+    ]);
+    assert.deepEqual(report.data.publications, [{
+        capability: 'security-disclosure',
+        field: 'security-disclosure.reportingContact',
+        outputs: ['SECURITY.md'],
+    }]);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('reports repository ownership, support, and funding metadata independently', (t) => {
+    const scenarios = [
+        {
+            capability: 'repository-ownership',
+            fields: [
+                'displayName', 'summary',
+                'repository-ownership.owners', 'repository-ownership.rules',
+            ],
+            publication: {
+                capability: 'repository-ownership',
+                field: 'repository-ownership.owners',
+                outputs: ['.github/CODEOWNERS'],
+            },
+        },
+        {
+            capability: 'support-routing',
+            fields: [
+                'displayName', 'summary',
+                'support-routing.destination', 'support-routing.displayLabel',
+                'support-routing.description',
+            ],
+            publication: {
+                capability: 'support-routing',
+                field: 'support-routing.destination',
+                outputs: ['.github/ISSUE_TEMPLATE/config.yml'],
+            },
+        },
+        {
+            capability: 'funding',
+            fields: ['displayName', 'summary', 'funding.records'],
+            publication: {
+                capability: 'funding',
+                field: 'funding.records',
+                outputs: ['.github/FUNDING.yml'],
+            },
+        },
+    ];
+
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        const result = captureWrites(() => main([
+            'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+            `--capabilities=${scenario.capability}`, '--json',
+        ], {projectRoot}));
+
+        assert.equal(result.status, 0, `${scenario.capability}: ${result.stderr}`);
+        const report = JSON.parse(result.stdout);
+        assert.deepEqual(report.capabilities, [scenario.capability]);
+        assert.deepEqual(report.data.fields.map(({id}) => id), scenario.fields);
+        assert.deepEqual(report.data.publications, [scenario.publication]);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
 test('reports selected capability metadata in canonical order', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -124,13 +207,35 @@ test('reports selected capability metadata in canonical order', (t) => {
     ]);
 });
 
+test('normalizes all project capabilities into canonical order', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout).capabilities, [
+        'licensing',
+        'community-governance',
+        'github-collaboration',
+        'security-disclosure',
+        'repository-ownership',
+        'support-routing',
+        'funding',
+    ]);
+});
+
 test('rejects non-canonical capability selections without changing the root', (t) => {
     const selections = [
         'licensing,licensing',
         ' licensing',
         'licensing,',
         'unknown-capability',
-        'security-disclosure',
+        'release-management',
     ];
     for (const selection of selections) {
         const projectRoot = makeTempDir();
@@ -201,6 +306,98 @@ test('normalizes selected capability metadata into canonical persisted values', 
     );
 });
 
+test('normalizes security disclosure metadata without inventing promises', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities: ['security-disclosure'],
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Secure Project',
+            summary: 'A project with a vulnerability reporting policy.',
+            capabilityMetadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'custom',
+                    supportedVersionRows: [
+                        {version: '2.x', status: 'supported'},
+                        {version: '1.x', status: 'unsupported'},
+                    ],
+                    acknowledgementHours: 72,
+                },
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata['security-disclosure'], {
+        reportingContact: {kind: 'email', value: 'security@example.test'},
+        supportedVersions: {
+            policy: 'custom',
+            rows: [
+                {version: '2.x', status: 'supported'},
+                {version: '1.x', status: 'unsupported'},
+            ],
+        },
+        acknowledgementHours: 72,
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({
+        metadata,
+        capabilities: ['security-disclosure'],
+    }), metadata);
+});
+
+test('normalizes repository ownership, support routing, and funding metadata', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const capabilities = ['repository-ownership', 'support-routing', 'funding'];
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Identity Project',
+            summary: 'A project with explicit ownership and public destinations.',
+            capabilityMetadata: {
+                'repository-ownership': {
+                    owners: ['@Example', '@Example/Core'],
+                    rules: [{pattern: '/docs/**', owners: ['@Example/Docs']}],
+                },
+                'support-routing': {
+                    destination: 'https://example.test/support',
+                },
+                funding: {
+                    records: [
+                        {provider: 'github', account: 'Example'},
+                        {provider: 'custom', destination: 'https://example.test/fund'},
+                    ],
+                },
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata, {
+        'repository-ownership': {
+            owners: ['@example', '@example/core'],
+            rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+        },
+        'support-routing': {
+            destination: 'https://example.test/support',
+            displayLabel: 'Support',
+            description: 'Get help with this project.',
+        },
+        funding: {
+            records: [
+                {provider: 'github', value: 'Example'},
+                {provider: 'custom', value: 'https://example.test/fund'},
+            ],
+        },
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({metadata, capabilities}), metadata);
+});
+
 test('rejects unsafe and non-closed capability metadata', (t) => {
     const cases = [
         {
@@ -240,6 +437,93 @@ test('rejects unsafe and non-closed capability metadata', (t) => {
                 displayName: 'Example Project',
                 summary: 'A deterministic project.',
                 capabilityMetadata: entry.capabilityMetadata,
+            }),
+        }));
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
+test('rejects unsafe and non-closed security identity metadata', (t) => {
+    const cases = [
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'http://example.test/report',
+                    supportedVersionPolicy: 'latest-release',
+                },
+            },
+        },
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'latest-release',
+                    supportedVersionRows: [{version: '1.x', status: 'supported'}],
+                },
+            },
+        },
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'custom',
+                    supportedVersionRows: [],
+                    acknowledgementHours: 0,
+                },
+            },
+        },
+        {
+            capabilities: ['repository-ownership'],
+            metadata: {'repository-ownership': {owners: ['owner']}},
+        },
+        {
+            capabilities: ['repository-ownership'],
+            metadata: {
+                'repository-ownership': {
+                    owners: ['@owner'],
+                    rules: [{pattern: '/../secret', owners: ['@owner']}],
+                },
+            },
+        },
+        {
+            capabilities: ['support-routing'],
+            metadata: {'support-routing': {destination: 'http://example.test/support'}},
+        },
+        {
+            capabilities: ['funding'],
+            metadata: {
+                funding: {
+                    records: [
+                        {provider: 'patreon', account: 'one'},
+                        {provider: 'patreon', account: 'two'},
+                    ],
+                },
+            },
+        },
+        {
+            capabilities: ['funding'],
+            metadata: {
+                funding: {
+                    records: [{provider: 'custom', destination: 'http://example.test/fund'}],
+                },
+            },
+        },
+    ];
+
+    for (const entry of cases) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        assert.throws(() => normalizeProjectMetadata({
+            projectRoot,
+            capabilities: entry.capabilities,
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Unsafe Project',
+                summary: 'A project with invalid public metadata.',
+                capabilityMetadata: entry.metadata,
             }),
         }));
         assert.deepEqual(fs.readdirSync(projectRoot), []);

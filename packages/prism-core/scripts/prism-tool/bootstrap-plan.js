@@ -5,7 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {TASK_NINE_CAPABILITIES} = require('./bootstrap-capabilities');
+const {PROJECT_CAPABILITIES} = require('./bootstrap-capabilities');
 const {
     normalizeProjectMetadata,
     validateNormalizedProjectMetadata,
@@ -820,7 +820,7 @@ function validatePlanShape(plan) {
         !Array.isArray(plan.capabilities) ||
         new Set(plan.capabilities).size !== plan.capabilities.length ||
         JSON.stringify(plan.capabilities) !== JSON.stringify(
-            TASK_NINE_CAPABILITIES.filter((capability) => plan.capabilities.includes(capability))
+            PROJECT_CAPABILITIES.filter((capability) => plan.capabilities.includes(capability))
         )
     ) {
         throw new Error('bootstrap project plan is invalid');

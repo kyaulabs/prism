@@ -5,10 +5,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const TASK_NINE_CAPABILITIES = Object.freeze([
+const PROJECT_CAPABILITIES = Object.freeze([
     'licensing',
     'community-governance',
     'github-collaboration',
+    'security-disclosure',
+    'repository-ownership',
+    'support-routing',
+    'funding',
 ]);
 
 function normalizeCapabilitySelection(value) {
@@ -18,12 +22,12 @@ function normalizeCapabilitySelection(value) {
     }
     const selected = value.split(',');
     if (
-        selected.some((capability) => !TASK_NINE_CAPABILITIES.includes(capability)) ||
+        selected.some((capability) => !PROJECT_CAPABILITIES.includes(capability)) ||
         new Set(selected).size !== selected.length
     ) {
         throw new Error('capability selection is invalid');
     }
-    return Object.freeze(TASK_NINE_CAPABILITIES.filter((capability) => selected.includes(capability)));
+    return Object.freeze(PROJECT_CAPABILITIES.filter((capability) => selected.includes(capability)));
 }
 
 function inspectCapabilityMetadata({projectRoot, capabilities}) {
@@ -87,6 +91,102 @@ function inspectCapabilityMetadata({projectRoot, capabilities}) {
             ]),
         }));
     }
+    if (capabilities.includes('security-disclosure')) {
+        fields.push(
+            Object.freeze({
+                id: 'security-disclosure.reportingContact',
+                required: true,
+                suggestedValue: null,
+                maximumLength: 2048,
+            }),
+            Object.freeze({
+                id: 'security-disclosure.supportedVersionPolicy',
+                required: true,
+                choices: Object.freeze([
+                    'current-development',
+                    'latest-release',
+                    'latest-major-line',
+                    'custom',
+                ]),
+            }),
+            Object.freeze({
+                id: 'security-disclosure.supportedVersionRows',
+                required: false,
+                maximumItems: 20,
+            }),
+            Object.freeze({
+                id: 'security-disclosure.acknowledgementHours',
+                required: false,
+                minimum: 1,
+                maximum: 8760,
+            })
+        );
+        publications.push(Object.freeze({
+            capability: 'security-disclosure',
+            field: 'security-disclosure.reportingContact',
+            outputs: Object.freeze(['SECURITY.md']),
+        }));
+    }
+    if (capabilities.includes('repository-ownership')) {
+        fields.push(
+            Object.freeze({
+                id: 'repository-ownership.owners',
+                required: true,
+                minimumItems: 1,
+                maximumItems: 20,
+            }),
+            Object.freeze({
+                id: 'repository-ownership.rules',
+                required: false,
+                maximumItems: 50,
+            })
+        );
+        publications.push(Object.freeze({
+            capability: 'repository-ownership',
+            field: 'repository-ownership.owners',
+            outputs: Object.freeze(['.github/CODEOWNERS']),
+        }));
+    }
+    if (capabilities.includes('support-routing')) {
+        fields.push(
+            Object.freeze({
+                id: 'support-routing.destination',
+                required: true,
+                suggestedValue: null,
+                maximumLength: 2048,
+            }),
+            Object.freeze({
+                id: 'support-routing.displayLabel',
+                required: false,
+                suggestedValue: 'Support',
+                maximumLength: 80,
+            }),
+            Object.freeze({
+                id: 'support-routing.description',
+                required: false,
+                suggestedValue: 'Get help with this project.',
+                maximumLength: 160,
+            })
+        );
+        publications.push(Object.freeze({
+            capability: 'support-routing',
+            field: 'support-routing.destination',
+            outputs: Object.freeze(['.github/ISSUE_TEMPLATE/config.yml']),
+        }));
+    }
+    if (capabilities.includes('funding')) {
+        fields.push(Object.freeze({
+            id: 'funding.records',
+            required: true,
+            minimumItems: 1,
+            maximumItems: 15,
+        }));
+        publications.push(Object.freeze({
+            capability: 'funding',
+            field: 'funding.records',
+            outputs: Object.freeze(['.github/FUNDING.yml']),
+        }));
+    }
     return Object.freeze({
         schemaVersion: 1,
         fields: Object.freeze(fields),
@@ -95,7 +195,7 @@ function inspectCapabilityMetadata({projectRoot, capabilities}) {
 }
 
 module.exports = {
-    TASK_NINE_CAPABILITIES,
+    PROJECT_CAPABILITIES,
     inspectCapabilityMetadata,
     normalizeCapabilitySelection,
 };
