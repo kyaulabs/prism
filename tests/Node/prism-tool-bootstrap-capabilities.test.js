@@ -8,6 +8,8 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+
+const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 const {
     normalizeProjectMetadata,
     validateNormalizedProjectMetadata,
@@ -230,6 +232,314 @@ test('rejects unsafe and non-closed capability metadata', (t) => {
             }),
         }));
         assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
+test('renders a trusted MIT licensing provider report', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['licensing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Example Project',
+                summary: 'A deterministic project.',
+                suggestedDisplayName: 'example-project',
+                capabilityMetadata: {
+                    licensing: {
+                        spdxId: 'MIT',
+                        year: 2026,
+                        copyrightHolder: 'Example Organization',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.equal(reports.length, 1);
+    assert.deepEqual(reports[0].provider, {
+        id: 'licensing',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: '0.3.1',
+        protocolVersion: 1,
+    });
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: 'LICENSE', mode: 0o644}]);
+    assert.match(
+        fs.readFileSync(path.join(candidateRoot, 'LICENSE'), 'utf8'),
+        /^MIT License\n\nCopyright \(c\) 2026 Example Organization\n\nPermission is hereby granted/m
+    );
+    assert.deepEqual(reports[0].effects, []);
+    assert.equal(reports[0].checks[0].status, 'PASS');
+});
+
+test('renders a bundled AGPL licensing provider report', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['licensing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Example Project',
+                summary: 'A deterministic project.',
+                suggestedDisplayName: 'example-project',
+                capabilityMetadata: {
+                    licensing: {
+                        spdxId: 'AGPL-3.0-only',
+                        year: 2026,
+                        copyrightHolder: 'Example Organization',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(path.join(candidateRoot, 'LICENSE'), 'utf8');
+    assert.match(contents, /^Copyright \(c\) 2026 Example Organization\n\n {20}GNU AFFERO GENERAL PUBLIC LICENSE/m);
+    assert.match(contents, /Version 3, 19 November 2007/);
+});
+
+test('renders community governance from the normalized conduct contact', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['community-governance'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Example Project',
+                summary: 'A deterministic project.',
+                suggestedDisplayName: 'example-project',
+                capabilityMetadata: {
+                    'community-governance': {
+                        conductContact: {
+                            kind: 'email',
+                            value: 'conduct@example.test',
+                        },
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath}) => outputPath), [
+        'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+    ]);
+    assert.match(
+        fs.readFileSync(path.join(candidateRoot, 'CODE_OF_CONDUCT.md'), 'utf8'),
+        /mailto:conduct@example\.test/
+    );
+    const contributing = fs.readFileSync(path.join(candidateRoot, 'CONTRIBUTING.md'), 'utf8');
+    assert.match(contributing, /Red → Green → Refactor/);
+    assert.match(contributing, /Humans push work branches/);
+    assert.doesNotMatch(contributing, /kyaulabs\/prism|discord/i);
+});
+
+test('renders neutral GitHub collaboration templates without project metadata', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['github-collaboration'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Example Project',
+                summary: 'A deterministic project.',
+                suggestedDisplayName: 'example-project',
+                capabilityMetadata: {'github-collaboration': {}},
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath}) => outputPath), [
+        '.github/ISSUE_TEMPLATE/bug_report.yml',
+        '.github/ISSUE_TEMPLATE/feature_request.yml',
+        '.github/pull_request_template.md',
+    ]);
+    const contents = reports[0].outputs.map(({path: outputPath}) =>
+        fs.readFileSync(path.join(candidateRoot, ...outputPath.split('/')), 'utf8')
+    ).join('\n');
+    assert.match(contents, /reproduction steps/i);
+    assert.match(contents, /acceptance criteria/i);
+    assert.match(contents, /verification/i);
+    assert.doesNotMatch(contents, /assignees:|labels:|windows|kyaulabs\/|github\.com\//i);
+});
+
+test('declares exact trusted ownership for selected profile providers', () => {
+    const {loadCoreProfileProviderDescriptors} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const descriptors = loadCoreProfileProviderDescriptors({
+        coreRoot: CORE_ROOT,
+        capabilities: [
+            'licensing', 'community-governance', 'github-collaboration',
+        ],
+    });
+
+    assert.deepEqual(descriptors.map(({id, outputs}) => ({id, outputs})), [
+        {id: 'licensing', outputs: ['LICENSE']},
+        {
+            id: 'community-governance',
+            outputs: ['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md'],
+        },
+        {
+            id: 'github-collaboration',
+            outputs: [
+                '.github/ISSUE_TEMPLATE/bug_report.yml',
+                '.github/ISSUE_TEMPLATE/feature_request.yml',
+                '.github/pull_request_template.md',
+            ],
+        },
+    ]);
+    for (const descriptor of descriptors) {
+        assert.equal(descriptor.packageName, '@kyaulabs/prism-core');
+        assert.equal(descriptor.packageVersion, '0.3.1');
+        assert.equal(descriptor.protocolVersion, 1);
+        assert.deepEqual(descriptor.effects, []);
+        assert.equal(descriptor.checks.length, 1);
+        assert.equal(descriptor.verification.length, 1);
+    }
+});
+
+test('loads selected profiles into the trusted Core provider registry', () => {
+    const {loadTrustedProviderRegistry} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+    );
+
+    const registry = loadTrustedProviderRegistry({
+        coreRoot: CORE_ROOT,
+        capabilities: ['licensing', 'github-collaboration'],
+    });
+
+    assert.deepEqual(registry.providers.map(({id}) => id), [
+        'core-baseline', 'licensing', 'github-collaboration',
+    ]);
+});
+
+test('fails closed when a packaged profile resource changes shape', (t) => {
+    const fixtureRoot = makeTempDir();
+    const coreRoot = path.join(fixtureRoot, 'core');
+    const candidateRoot = path.join(fixtureRoot, 'candidate');
+    fs.cpSync(CORE_ROOT, coreRoot, {recursive: true});
+    fs.mkdirSync(candidateRoot);
+    t.after(() => fs.rmSync(fixtureRoot, {recursive: true, force: true}));
+    fs.appendFileSync(
+        path.join(coreRoot, 'config', 'bootstrap', 'licenses', 'MIT.txt'),
+        '{{COPYRIGHT_NOTICE}}\n'
+    );
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    assert.throws(() => renderCoreProfileProviders({
+        coreRoot,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['licensing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Example Project',
+                summary: 'A deterministic project.',
+                suggestedDisplayName: 'example-project',
+                capabilityMetadata: {
+                    licensing: {
+                        spdxId: 'MIT',
+                        year: 2026,
+                        copyrightHolder: 'Example Organization',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    }), /license resource is invalid/);
+});
+
+test('renders all selected profiles deterministically without ownership overlap', (t) => {
+    const roots = [makeTempDir(), makeTempDir()];
+    for (const root of roots) t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+    const request = {
+        schemaVersion: 1,
+        source: {mode: 'BLANK', evidence: null},
+        capabilities: [
+            'licensing', 'community-governance', 'github-collaboration',
+        ],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Example Project',
+            summary: 'A deterministic project.',
+            suggestedDisplayName: 'example-project',
+            capabilityMetadata: {
+                licensing: {
+                    spdxId: 'MIT',
+                    year: 2026,
+                    copyrightHolder: 'Example Organization',
+                },
+                'community-governance': {
+                    conductContact: {kind: 'https', value: 'https://example.test/conduct'},
+                },
+                'github-collaboration': {},
+            },
+        },
+        adapter: null,
+    };
+
+    const reports = roots.map((candidateRoot) => renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request,
+    }));
+    const paths = reports[0].flatMap(({outputs}) => outputs.map(({path: outputPath}) => outputPath));
+    assert.equal(new Set(paths).size, paths.length);
+    for (let index = 0; index < paths.length; index += 1) {
+        const left = fs.readFileSync(path.join(roots[0], ...paths[index].split('/')));
+        const right = fs.readFileSync(path.join(roots[1], ...paths[index].split('/')));
+        assert.equal(left.equals(right), true, paths[index]);
     }
 });
 

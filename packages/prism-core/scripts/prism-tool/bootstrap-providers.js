@@ -226,29 +226,36 @@ function loadTrustedAdapterProviderDescriptor({registration}) {
     });
 }
 
-function loadTrustedProviderRegistry({coreRoot}) {
+function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
     const canonicalCore = fs.realpathSync(coreRoot);
     const manifest = readCoreManifest(canonicalCore);
+    const baseline = Object.freeze({
+        id: 'core-baseline',
+        displayName: 'Prism Core baseline',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: manifest.version,
+        protocolVersion: 1,
+        outputs: OUTPUTS,
+        effects: Object.freeze([]),
+        checks: Object.freeze([Object.freeze({
+            id: 'core-baseline-render',
+            status: 'PASS',
+            message: 'Core baseline candidate files were rendered',
+        })]),
+        verification: Object.freeze([Object.freeze({
+            id: 'core-baseline-inventory',
+            command: 'setup project validate',
+        })]),
+    });
+    const profiles = capabilities.length === 0
+        ? []
+        : require('./bootstrap-profile-providers').loadCoreProfileProviderDescriptors({
+            coreRoot: canonicalCore,
+            capabilities,
+        });
     return Object.freeze({
         schemaVersion: 1,
-        providers: Object.freeze([Object.freeze({
-            id: 'core-baseline',
-            displayName: 'Prism Core baseline',
-            packageName: '@kyaulabs/prism-core',
-            packageVersion: manifest.version,
-            protocolVersion: 1,
-            outputs: OUTPUTS,
-            effects: Object.freeze([]),
-            checks: Object.freeze([Object.freeze({
-                id: 'core-baseline-render',
-                status: 'PASS',
-                message: 'Core baseline candidate files were rendered',
-            })]),
-            verification: Object.freeze([Object.freeze({
-                id: 'core-baseline-inventory',
-                command: 'setup project validate',
-            })]),
-        })]),
+        providers: Object.freeze([baseline, ...profiles]),
     });
 }
 
@@ -563,7 +570,10 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
 module.exports = {
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
+    readCoreManifest,
+    readRegular,
     renderCoreBaseline,
+    writeCandidate,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

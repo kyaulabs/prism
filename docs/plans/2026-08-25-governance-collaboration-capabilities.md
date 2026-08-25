@@ -194,25 +194,25 @@ function renderCoreProfileProviders({coreRoot, candidateRoot, request}) {}
 }
 ```
 
-- [ ] **Step 1: Write failing provider-rendering tests**
+- [x] **Step 1: Write failing provider-rendering tests**
 
 Create candidate-root tests that call the trusted provider boundary with each capability independently and all three together. Assert exact provider identities, output paths, modes `0644`, SHA-256 digests, empty effects, one PASS check, one verification declaration, and byte-for-byte deterministic rerendering from the same normalized request.
 
 Assert overlap, an unselected metadata record, a selected capability missing metadata, changed package resources, unsupported SPDX IDs, and a request containing a later-epic capability fail before a valid report is returned.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because profile descriptors, resources, and renderers do not exist.
 
-- [ ] **Step 3: Add packaged reviewed resources**
+- [x] **Step 3: Add packaged reviewed resources**
 
 Copy the repository's current `LICENSE` bytes verbatim into `AGPL-3.0-only.txt`. Add the standard MIT license text to `MIT.txt` with the rendered copyright line supplied by code. Add the Contributor Covenant 2.1 body from the repository's current `CODE_OF_CONDUCT.md`, replacing only the repository-specific enforcement destination with one exact renderer token.
 
 The provider must read each resource through the existing bounded, no-follow regular-file seam and verify package identity before rendering.
 
-- [ ] **Step 4: Implement deterministic profile rendering**
+- [x] **Step 4: Implement deterministic profile rendering**
 
 Render:
 
@@ -224,17 +224,17 @@ Render:
 
 Use trusted code-owned string rendering only; do not accept remote or caller-provided templates, paths, labels, or fragments.
 
-- [ ] **Step 5: Register closed provider descriptors**
+- [x] **Step 5: Register closed provider descriptors**
 
 Extend `loadTrustedProviderRegistry()` to return `core-baseline` plus only the selected profile descriptors. Each descriptor uses package `@kyaulabs/prism-core`, the installed exact version, protocol 1, its exact output list, no effects, and one fixed check/verification declaration.
 
-- [ ] **Step 6: Run the focused tests and verify Green**
+- [x] **Step 6: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS with resources included in the packed Core package.
 
-- [ ] **Step 7: Commit the trusted renderer slice**
+- [x] **Step 7: Commit the trusted renderer slice**
 
 ```bash
 git add packages/prism-core/config/bootstrap/licenses/AGPL-3.0-only.txt packages/prism-core/config/bootstrap/licenses/MIT.txt packages/prism-core/config/bootstrap/community/contributor-covenant-2.1.md packages/prism-core/scripts/prism-tool/bootstrap-profile-providers.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/toolchain-packaging.test.js
