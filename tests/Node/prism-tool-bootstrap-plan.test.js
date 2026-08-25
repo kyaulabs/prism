@@ -245,6 +245,24 @@ function planPhpWebProject(projectRoot, run = bootstrapRunner(projectRoot)) {
     }));
 }
 
+function planTemplatePhpWebProject(projectRoot, fixture, run = bootstrapRunner(projectRoot)) {
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run,
+    }));
+}
+
 function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'validate', `--attempt=${attemptId}`, `--digest=${planDigest}`, '--json',
@@ -1153,6 +1171,54 @@ test('restores strict emptiness when a selected-adapter plan is declined', (t) =
     assert.equal(result.stderr, '');
     assert.equal(report.disposition, 'ROOT_RESTORED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves Template mode across pre-durable rollback and post-durable retention', async () => {
+    for (const adapter of ['core-only', 'php-web']) {
+        for (const boundary of ['before-durable', 'after-durable']) {
+            const projectRoot = makeTempDir();
+            try {
+                const fixture = createTemplateFixture();
+                let planned;
+                if (adapter === 'core-only') {
+                    planned = await planTemplateCoreProject(projectRoot, fixture);
+                } else {
+                    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+                    planned = await planTemplatePhpWebProject(projectRoot, fixture);
+                }
+                assert.equal(planned.status, 0, `${adapter}:${boundary}`);
+                const plan = JSON.parse(planned.stdout);
+                const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+                    coreRoot: CORE_ROOT,
+                    bootstrapApplyFault: ({name}) => {
+                        if (name === boundary) throw new Error(`injected ${boundary} failure`);
+                    },
+                });
+                const report = JSON.parse(result.stdout);
+
+                assert.equal(result.status, 5, `${adapter}:${boundary}`);
+                assert.equal(result.stdout.includes('BLANK'), false, `${adapter}:${boundary}`);
+                assert.equal(plan.source.mode, 'TEMPLATE');
+                assert.equal(fixture.calls.length, 4);
+                if (boundary === 'before-durable') {
+                    assert.equal(report.disposition, 'ROOT_RESTORED');
+                    assert.deepEqual(fs.readdirSync(projectRoot), []);
+                } else {
+                    assert.equal(report.disposition, 'PROJECT_DURABLE');
+                    assert.equal(report.data.resumePhase, adapter === 'core-only'
+                        ? 'REPOSITORY_BOOTSTRAP'
+                        : 'BOOTSTRAP_DEPENDENCIES');
+                    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+                    assert.equal(journal.source.mode, 'TEMPLATE');
+                    for (const output of plan.outputs) {
+                        assert.equal(fs.existsSync(path.join(projectRoot, output.path)), true);
+                    }
+                }
+            } finally {
+                fs.rmSync(projectRoot, {recursive: true, force: true});
+            }
+        }
+    }
 });
 
 test('applies the combined selected-adapter scaffold durably', (t) => {

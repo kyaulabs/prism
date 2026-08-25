@@ -437,19 +437,19 @@ prism-tool commit create --type feat --scope setup --subject "attest template-ba
 - Consumes: public route, adapter selection, project plan, project apply/recover, repository, hooks, and seed commands with injected true-system-boundary fixtures.
 - Produces: end-to-end regression evidence for task #388. Prompt orchestration remains task #392.
 
-- [ ] **Step 1: Add the Core-only public end-to-end test**
+- [x] **Step 1: Add the Core-only public end-to-end test**
 
 Exercise `route(template)` → `project plan(template, core-only)` → `project apply` → repository create → hook inspect/apply → seed prepare. Assert exactly one fixed Template request sequence, no adapter command, no dependency/browser effect, immutable evidence continuity, exact staging, no remote, no publication, and no Template-to-Blank fallback.
 
-- [ ] **Step 2: Add the PHP/web public end-to-end test**
+- [x] **Step 2: Add the PHP/web public end-to-end test**
 
 Exercise `route(template)` → adapter catalogue/select with source Template → `project plan(template, selected adapter)` → durable effects → repository → hooks → seed. Assert one adapter installation, one fixed Template request sequence, one adapter quality run, no Template project bytes, exact staging, and no clone/fetch/pull/push/remote/npm-publish operation.
 
-- [ ] **Step 3: Add failure-matrix regressions**
+- [x] **Step 3: Add failure-matrix regressions**
 
 Cover Core-only and selected-adapter Template failure before source readiness, before plan readiness, before durability, and after durability. Assert strict-empty restoration or exact retained resume state and prove every failure remains Template rather than silently becoming Blank.
 
-- [ ] **Step 4: Document the public contract**
+- [x] **Step 4: Document the public contract**
 
 Update Core README sections from Blank-only wording to Template-and-Blank provider composition. State that Template is immutable untrusted catalogue evidence, all project bytes come from trusted installed providers, source evidence is digest-bound through plan/recovery/seed, and setup performs no remote publication.
 
@@ -457,7 +457,7 @@ Update the PHP/web README to state that the same generic adapter preparation/rep
 
 Do not modify `packages/prism-core/prompts/setup.md`; complete interactive orchestration belongs to task #392.
 
-- [ ] **Step 5: Run focused and full Node verification**
+- [x] **Step 5: Run focused and full Node verification**
 
 Run:
 
@@ -468,7 +468,7 @@ npm run test:node
 
 Expected: PASS with no skipped Template cases and unchanged established-project adapter regressions.
 
-- [ ] **Step 6: Mark the plan complete and commit regressions/docs**
+- [x] **Step 6: Mark the plan complete and commit regressions/docs**
 
 Mark every completed checkbox in this plan, then run the `verification-before-completion` skill.
 

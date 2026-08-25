@@ -212,8 +212,8 @@ function planSelectedProject(projectRoot, context = {}) {
     }));
 }
 
-function planSelectedTemplateProject(projectRoot, fixture) {
-    const run = bootstrapRunner(projectRoot);
+function planSelectedTemplateProject(projectRoot, fixture, context = {}) {
+    const run = context.run ?? bootstrapRunner(projectRoot);
     const selected = captureWrites(() => main([
         'setup', 'adapter', 'select', '--adapter=php-web', '--source=template',
         '--network-approved=yes', '--json',
@@ -922,11 +922,21 @@ test('stages and attests immutable Template evidence for a Core-only seed', asyn
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--source=template', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(routed.status, 0, routed.stderr || routed.stdout);
+    assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_TEMPLATE');
     const planned = await planTemplateProject(projectRoot, fixture);
     assert.equal(planned.status, 0, planned.stderr || planned.stdout);
     const plan = JSON.parse(planned.stdout);
+    assert.equal(plan.source.mode, 'TEMPLATE');
+    assert.equal(plan.adapter, null);
+    assert.deepEqual(plan.effects, []);
+    assert.equal(fixture.calls.length, 4);
     assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
     assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
     assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
 
     const result = prepareSeed(projectRoot, plan.planDigest);
@@ -960,6 +970,9 @@ test('stages and attests immutable Template evidence for a Core-only seed', asyn
     assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
     assertNoRemoteManifestBytes(projectRoot, plan, fixture);
     assert.equal(git(projectRoot, ['remote']), '');
+    assert.throws(() => execFileSync('git', [
+        '-C', projectRoot, 'rev-parse', '--verify', 'HEAD',
+    ], {stdio: 'pipe'}), {status: 128});
     assert.doesNotThrow(() => validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT}));
 
     const expectedStaging = stagedNames(projectRoot);
@@ -975,20 +988,50 @@ test('stages and attests immutable Template evidence for a Core-only seed', asyn
 test('stages and attests immutable Template evidence for a selected-adapter seed', async (t) => {
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();
+    const operations = [];
+    let adapterInstallations = 0;
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    const planned = await planSelectedTemplateProject(projectRoot, fixture);
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--source=template', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(routed.status, 0, routed.stderr || routed.stdout);
+    assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_TEMPLATE');
+    const catalogue = captureWrites(() => main([
+        'setup', 'adapter', 'catalogue', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(catalogue.status, 0, catalogue.stderr || catalogue.stdout);
+    const prepareRun = bootstrapRunner(projectRoot);
+    const planned = await planSelectedTemplateProject(projectRoot, fixture, {
+        run(command, args, options) {
+            operations.push({command, args});
+            if (command === '/usr/bin/pi') adapterInstallations += 1;
+            return prepareRun(command, args, options);
+        },
+    });
     assert.equal(planned.status, 0, planned.stderr || planned.stdout);
     const plan = JSON.parse(planned.stdout);
+    assert.equal(plan.source.mode, 'TEMPLATE');
+    assert.equal(adapterInstallations, 1);
+    assert.equal(fixture.calls.length, 4);
+    const effectRun = installedGraphRunner(projectRoot);
     assert.equal(applyProject(projectRoot, plan.planDigest, {
-        run: installedGraphRunner(projectRoot),
+        run(command, args, options) {
+            operations.push({command, args});
+            return effectRun(command, args, options);
+        },
     }).status, 0);
     assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
     assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
 
+    const qualityInvocations = [];
     const result = prepareSeed(projectRoot, plan.planDigest, {
-        bootstrapSeedToolRun: selectedSeedToolRunner(),
+        bootstrapSeedToolRun: selectedSeedToolRunner({invocations: qualityInvocations}),
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(qualityInvocations.filter(({command}) =>
+        command.endsWith('/.github/scripts/check-php.sh')
+    ).length, 1);
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const attestation = JSON.parse(fs.readFileSync(
         path.join(attemptRoot, 'seed-attestation.json'),
@@ -1014,6 +1057,12 @@ test('stages and attests immutable Template evidence for a selected-adapter seed
     assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
     assertNoRemoteManifestBytes(projectRoot, plan, fixture);
     assert.equal(git(projectRoot, ['remote']), '');
+    assert.equal(operations.some(({args}) =>
+        ['clone', 'fetch', 'pull', 'push', 'remote', 'publish'].includes(args[0])
+    ), false);
+    assert.throws(() => execFileSync('git', [
+        '-C', projectRoot, 'rev-parse', '--verify', 'HEAD',
+    ], {stdio: 'pipe'}), {status: 128});
     assert.doesNotThrow(() => validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT}));
 });
 

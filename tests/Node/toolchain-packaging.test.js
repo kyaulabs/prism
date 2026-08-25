@@ -141,17 +141,24 @@ test('documents Blank Core-only application and recovery boundaries', () => {
     assert.match(coreReadme, /does not.*network/is);
 });
 
-test('documents provider-composed Blank PHP web bootstrap boundaries', () => {
+test('documents provider-composed Blank and Template PHP web bootstrap boundaries', () => {
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
     const adapterReadme = fs.readFileSync(path.join(ADAPTER_PKG, 'README.md'), 'utf8');
 
-    assert.match(coreReadme, /strict-empty Blank.*select.*PHP\/web/is);
-    assert.match(coreReadme, /generic provider reports/i);
+    assert.match(coreReadme, /Provider-composed Blank and Template projects/i);
+    assert.match(coreReadme, /strict-empty setup.*select.*PHP\/web/is);
+    assert.match(coreReadme, /immutable, untrusted catalogue evidence/i);
+    assert.match(coreReadme, /durable project\s+bytes.*trusted installed Core and adapter providers/is);
+    assert.match(coreReadme, /digest-bound.*plan.*journal.*project manifest.*root-seed attestation/is);
+    assert.match(coreReadme, /generic\s+provider reports/i);
     assert.match(coreReadme, /stack-agnostic/i);
     assert.match(coreReadme, /before.*durable.*strict\s+emptiness/is);
     assert.match(coreReadme, /after.*durable.*resume\s+evidence/is);
     assert.match(coreReadme, /apply\.recovery\.lock.*confirming no setup process.*remove only/is);
     assert.match(coreReadme, /no remote.*publication.*push/is);
+    assert.match(adapterReadme, /Blank and Template project bootstrap/i);
+    assert.match(adapterReadme, /same generic.*preparation.*provider report.*quality contracts/is);
+    assert.match(adapterReadme, /byte-identical trusted scaffold content/is);
     assert.match(adapterReadme, /application-free.*testing-ready scaffold/is);
     assert.match(adapterReadme, /lifecycle scripts.*disabled/is);
     assert.match(adapterReadme, /every advisory blocks/i);
