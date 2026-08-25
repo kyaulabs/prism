@@ -69,6 +69,9 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         applied: [],
         createdDirectories: [],
         appliedInventoryDigest: null,
+        repository: null,
+        hooks: null,
+        seed: null,
     };
 }
 
@@ -105,12 +108,59 @@ function validCreatedDirectory(value) {
         value.ino > 0;
 }
 
+function validRepositoryEvidence(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, [
+            'disposition', 'gitDirectory', 'branch', 'objectFormat', 'refFormat',
+            'configDigest',
+        ]) &&
+        value.disposition === 'CREATE' &&
+        isRecord(value.gitDirectory) &&
+        hasExactKeys(value.gitDirectory, ['dev', 'ino']) &&
+        Number.isSafeInteger(value.gitDirectory.dev) &&
+        value.gitDirectory.dev >= 0 &&
+        Number.isSafeInteger(value.gitDirectory.ino) &&
+        value.gitDirectory.ino > 0 &&
+        value.branch === 'develop' &&
+        value.objectFormat === 'sha1' &&
+        value.refFormat === 'files' &&
+        SHA256.test(value.configDigest);
+}
+
+function validHookEvidence(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, ['disposition', 'hooksPath', 'inventoryDigest']) &&
+        value.disposition === 'ACTIVE' &&
+        value.hooksPath === '.github/hooks' &&
+        SHA256.test(value.inventoryDigest);
+}
+
+function validSeedEvidence(value) {
+    if (!isRecord(value)) return false;
+    if (
+        hasExactKeys(value, ['status', 'attestationDigest', 'stagedIndexDigest']) &&
+        value.status === 'READY'
+    ) {
+        return SHA256.test(value.attestationDigest) && SHA256.test(value.stagedIndexDigest);
+    }
+    return hasExactKeys(value, [
+        'status', 'attestationDigest', 'stagedIndexDigest', 'rootCommit',
+    ]) &&
+        value.status === 'CONSUMED' &&
+        SHA256.test(value.attestationDigest) &&
+        SHA256.test(value.stagedIndexDigest) &&
+        /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value.rootCommit);
+}
+
 function validJournalState(value) {
+    const noPostApplicationEvidence = value.repository === null &&
+        value.hooks === null && value.seed === null;
     if (
         value.phase === 'PREPARED' &&
         value.applied.length === 0 &&
         value.createdDirectories.length === 0 &&
-        value.appliedInventoryDigest === null
+        value.appliedInventoryDigest === null &&
+        noPostApplicationEvidence
     ) {
         return (
             value.status === 'ACTIVE' &&
@@ -122,7 +172,11 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    if (value.phase === 'APPLYING' && value.appliedInventoryDigest === null) {
+    if (
+        value.phase === 'APPLYING' &&
+        value.appliedInventoryDigest === null &&
+        noPostApplicationEvidence
+    ) {
         return (
             value.status === 'ACTIVE' &&
             value.reason === null &&
@@ -133,30 +187,97 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    return value.phase === 'DURABLE' &&
+    if (
+        value.phase === 'DURABLE' &&
         value.applied.length > 0 &&
         SHA256.test(value.appliedInventoryDigest) &&
-        (
-            (
-                value.status === 'ACTIVE' &&
-                value.reason === null &&
-                value.resumePhase === 'REPOSITORY_BOOTSTRAP'
-            ) ||
-            (
-                value.status === 'RECOVERY_REQUIRED' &&
-                value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
-                value.resumePhase === 'MANUAL_RECOVERY'
-            )
+        noPostApplicationEvidence
+    ) {
+        return (
+            value.status === 'ACTIVE' &&
+            value.reason === null &&
+            value.resumePhase === 'REPOSITORY_BOOTSTRAP'
+        ) || (
+            value.status === 'RECOVERY_REQUIRED' &&
+            value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
+            value.resumePhase === 'MANUAL_RECOVERY'
         );
+    }
+    if (
+        value.phase === 'POST_APPLICATION' &&
+        value.status === 'ACTIVE' &&
+        value.reason === null &&
+        value.resumePhase === 'REPOSITORY_CREATION' &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest) &&
+        noPostApplicationEvidence
+    ) {
+        return true;
+    }
+    if (
+        value.phase === 'COMPLETE' &&
+        value.status === 'COMPLETE' &&
+        value.reason === null &&
+        value.resumePhase === null &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest) &&
+        validRepositoryEvidence(value.repository) &&
+        validHookEvidence(value.hooks) &&
+        validSeedEvidence(value.seed) &&
+        value.seed.status === 'CONSUMED'
+    ) {
+        return true;
+    }
+    if (
+        value.phase !== 'POST_APPLICATION' ||
+        value.status !== 'ACTIVE' ||
+        value.reason !== null ||
+        value.applied.length === 0 ||
+        !SHA256.test(value.appliedInventoryDigest) ||
+        !validRepositoryEvidence(value.repository)
+    ) {
+        return false;
+    }
+    return (
+        value.resumePhase === 'HOOK_ACTIVATION' &&
+        value.hooks === null &&
+        value.seed === null
+    ) || (
+        value.resumePhase === 'ROOT_SEED_PREPARATION' &&
+        validHookEvidence(value.hooks) &&
+        value.seed === null
+    ) || (
+        value.resumePhase === 'ROOT_SEED_COMMIT' &&
+        validHookEvidence(value.hooks) &&
+        validSeedEvidence(value.seed)
+    );
 }
 
-function validateJournal(value, projectRoot, attemptId) {
+function normalizeLegacyJournal(value) {
+    const legacyKeys = [
+        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
+        'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
+        'createdDirectories', 'appliedInventoryDigest',
+    ];
+    if (
+        isRecord(value) &&
+        value.schemaVersion === 1 &&
+        ['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) &&
+        hasExactKeys(value, legacyKeys)
+    ) {
+        return {...value, repository: null, hooks: null, seed: null};
+    }
+    return value;
+}
+
+function validateJournal(input, projectRoot, attemptId) {
+    const value = normalizeLegacyJournal(input);
     if (
         !isRecord(value) ||
         !hasExactKeys(value, [
             'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
             'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
-            'createdDirectories', 'appliedInventoryDigest',
+            'createdDirectories', 'appliedInventoryDigest', 'repository', 'hooks', 'seed',
         ]) ||
         value.schemaVersion !== 1 ||
         value.attemptId !== attemptId ||
