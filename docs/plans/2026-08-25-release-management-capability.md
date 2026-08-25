@@ -339,19 +339,19 @@ renderCoreProfileProviders({
 - Plan validation resolves the same package root and semantically revalidates release-management outputs from normalized metadata, current candidate manifests, and current Core resources.
 - Retained reports remain exactly `profile-release-management.json`; unknown or unselected reports fail closed.
 
-- [ ] **Step 1: Write a successful public adapter-plan regression**
+- [x] **Step 1: Write a successful public adapter-plan regression**
 
 Use an isolated trusted adapter fixture whose candidate report owns a valid publishable npm root package. Through `prism-tool setup project plan`, select `release-management` and assert provider order, exact four outputs, candidate package list, normalized coordinate, no package-release operation artifacts, and a valid digest-bound plan.
 
-- [ ] **Step 2: Write unavailable-candidate regressions**
+- [x] **Step 2: Write unavailable-candidate regressions**
 
 Prove current Blank Core-only and PHP/web private-only candidates reject selected release management before plan display, restore strict emptiness when ownership is proven, and do not fall back to an unconfigured repository-only profile.
 
-- [ ] **Step 3: Write Template and capability-independence regressions**
+- [x] **Step 3: Write Template and capability-independence regressions**
 
 Prove Template may advertise but never preselect release management; selecting it requires advertisement and valid package candidates; selecting another capability neither triggers package discovery nor emits release files.
 
-- [ ] **Step 4: Run plan tests to verify Red**
+- [x] **Step 4: Run plan tests to verify Red**
 
 Run:
 
@@ -361,11 +361,11 @@ node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-p
 
 Expected: FAIL because profiles are rendered before adapter candidates and release outputs are not semantically revalidated.
 
-- [ ] **Step 5: Reorder candidate preparation and add semantic validation**
+- [x] **Step 5: Reorder candidate preparation and add semantic validation**
 
 Render adapter candidate state before release management without changing adapter ownership, normalized request data, provider composition order, report inventory, plan schemas, or established capability behavior. During validation, recompute expected release bytes and compare exact output digests/contents so rebound private digests cannot substitute package lists, workflow bytes, cliff links, or changelog content.
 
-- [ ] **Step 6: Run plan tests to verify Green**
+- [x] **Step 6: Run plan tests to verify Green**
 
 Run:
 
@@ -375,7 +375,7 @@ node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-p
 
 Expected: PASS with strict-empty cleanup on unavailable candidates and successful planning for the publishable adapter fixture.
 
-- [ ] **Step 7: Create the commit**
+- [x] **Step 7: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js docs/plans/2026-08-25-release-management-capability.md

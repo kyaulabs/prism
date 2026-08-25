@@ -1167,7 +1167,7 @@ test('composes an explicitly selected advertised Template capability', async (t)
     assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
 });
 
-test('composes each advertised security identity profile into a Template Core-only plan', async (t) => {
+test('composes each advertised security identity profile into a Template Core-only plan', async () => {
     const scenarios = [
         {
             capability: 'security-disclosure',
@@ -1461,6 +1461,168 @@ test('rejects adapter report declarations that differ from the package-owned man
     assert.equal(result.status, 5);
     assert.match(result.stderr, /project planning failed/);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects release management when Core-only and PHP web candidates are not publishable', (t) => {
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    const corePlan = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=release-management', '--json',
+    ], {
+        projectRoot: coreRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Core Release Project',
+            summary: 'A Core project without publishable packages.',
+            capabilityMetadata: {
+                'release-management': {repository: 'example/core-project'},
+            },
+        }),
+    }));
+    assert.equal(corePlan.status, 5);
+    assert.deepEqual(fs.readdirSync(coreRoot), []);
+
+    const phpRoot = makeTempDir();
+    t.after(() => fs.rmSync(phpRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(phpRoot).status, 0);
+    const phpPlan = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=release-management', '--json',
+    ], {
+        projectRoot: phpRoot,
+        coreRoot: CORE_ROOT,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'PHP Release Project',
+            summary: 'A PHP project with a private npm package.',
+            capabilityMetadata: {
+                'release-management': {repository: 'example/php-project'},
+            },
+        }),
+        run: bootstrapRunner(phpRoot),
+    }));
+    assert.equal(phpPlan.status, 5);
+    assert.deepEqual(fs.readdirSync(phpRoot), []);
+});
+
+test('composes release management after a publishable adapter candidate is rendered', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = (options) => {
+        const report = JSON.parse(JSON.stringify(prepare(options)));
+        const packagePath = path.join(options.candidateRoot, 'package.json');
+        const contents = Buffer.from(`${JSON.stringify({
+            name: '@example/release-project',
+            version: '0.1.0',
+        }, null, 2)}\n`, 'utf8');
+        fs.writeFileSync(packagePath, contents);
+        report.outputs.find(({path: outputPath}) => outputPath === 'package.json').sha256 =
+            crypto.createHash('sha256').update(contents).digest('hex');
+        return report;
+    };
+
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=release-management', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Release Project',
+            summary: 'A project with managed releases.',
+            capabilityMetadata: {
+                'release-management': {repository: 'example/release-project'},
+            },
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+    assert.deepEqual(plan.providers.map(({id}) => id), [
+        'core-baseline',
+        'release-management',
+        'php-web-scaffold',
+    ]);
+    for (const outputPath of [
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]) {
+        assert.equal(plan.outputs.some(({path: candidatePath}) => candidatePath === outputPath), true);
+    }
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(
+        path.dirname(path.dirname(plan.data.planPath)),
+        'candidate',
+        '.prism',
+        'release.json'
+    ), 'utf8')).packages, ['.']);
+    assert.equal(validatePlan(
+        projectRoot,
+        ATTEMPT_ID,
+        plan.planDigest,
+        {coreRoot: CORE_ROOT}
+    ).status, 0);
+});
+
+test('composes explicitly advertised release management into a Template adapter plan', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    advertiseTemplateCapabilities(fixture, ['release-management']);
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = (options) => {
+        const report = JSON.parse(JSON.stringify(prepare(options)));
+        const packagePath = path.join(options.candidateRoot, 'package.json');
+        const contents = Buffer.from(`${JSON.stringify({
+            name: '@example/template-release',
+            version: '0.1.0',
+        }, null, 2)}\n`, 'utf8');
+        fs.writeFileSync(packagePath, contents);
+        report.outputs.find(({path: outputPath}) => outputPath === 'package.json').sha256 =
+            crypto.createHash('sha256').update(contents).digest('hex');
+        return report;
+    };
+
+    const planned = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=release-management', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Release Project',
+            summary: 'A Template project with managed releases.',
+            capabilityMetadata: {
+                'release-management': {repository: 'example/template-release'},
+            },
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+    assert.deepEqual(plan.capabilities, ['release-management']);
+    assert.equal(plan.source.mode, 'TEMPLATE');
+    assert.equal(fixture.calls.length, 4);
+    assert.equal(plan.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ), true);
 });
 
 test('persists and validates the selected-adapter project plan', (t) => {

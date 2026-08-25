@@ -435,11 +435,6 @@ function buildAdapterProjectPlan({
         candidateRoot: attempt.candidateRoot,
         request,
     });
-    const profileReports = renderCoreProfileProviders({
-        coreRoot,
-        candidateRoot: attempt.candidateRoot,
-        request,
-    });
     const adapterCandidateRoot = path.join(attempt.candidateRoot, 'adapter');
     fs.mkdirSync(adapterCandidateRoot, {mode: 0o700});
     const adapterReport = attempt.handler.prepareBootstrapProject({
@@ -447,6 +442,12 @@ function buildAdapterProjectPlan({
         contract: attempt.registration.contract,
         request,
         run,
+    });
+    const profileReports = renderCoreProfileProviders({
+        coreRoot,
+        candidateRoot: attempt.candidateRoot,
+        packageRoot: adapterCandidateRoot,
+        request,
     });
     const coreRegistry = loadTrustedProviderRegistry({coreRoot, capabilities});
     const adapterDescriptor = loadTrustedAdapterProviderDescriptor({
@@ -1058,6 +1059,22 @@ function validateHeldProjectPlan({
             report: adapterReport,
         });
         reports.push({provider: adapterReport.provider, outputs: adapterOutputs});
+    }
+    if (envelope.plan.capabilities.includes('release-management')) {
+        require('./bootstrap-release-provider').validateReleaseManagementProvider({
+            coreRoot,
+            packageRoot: envelope.plan.adapter === null
+                ? paths.candidateRoot
+                : path.join(paths.candidateRoot, 'adapter'),
+            request: {
+                schemaVersion: 1,
+                source: envelope.plan.source,
+                capabilities: envelope.plan.capabilities,
+                metadata: envelope.plan.metadata,
+                adapter: envelope.plan.adapter,
+            },
+            report: profileReports.find(({provider}) => provider.id === 'release-management'),
+        });
     }
     const outputs = composeProviderReports({reports}).map(semanticOutput);
     paths.assertCurrent();

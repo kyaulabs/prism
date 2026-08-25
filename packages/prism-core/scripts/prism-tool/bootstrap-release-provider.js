@@ -59,17 +59,21 @@ function cliffContents(coreRoot, repository) {
     return Buffer.from(template.replaceAll(REPOSITORY_TOKEN, repository), 'utf8');
 }
 
-function renderReleaseManagementProvider({coreRoot, candidateRoot, packageRoot, request}) {
+function releaseManagementContents({coreRoot, packageRoot, request}) {
     validateRequest(request);
-    const coreVersion = readCoreManifest(coreRoot).version;
     const repository = request.metadata.capabilityMetadata['release-management'].repository;
     const release = renderReleaseCapabilityFiles({projectRoot: packageRoot, coreRoot});
-    const contents = new Map([
+    return new Map([
         ['CHANGELOG.md', changelogContents()],
         ['cliff.toml', cliffContents(coreRoot, repository)],
         ['.github/workflows/release.yml', release.files['.github/workflows/release.yml']],
         ['.prism/release.json', release.files['.prism/release.json']],
     ]);
+}
+
+function renderReleaseManagementProvider({coreRoot, candidateRoot, packageRoot, request}) {
+    const contents = releaseManagementContents({coreRoot, packageRoot, request});
+    const coreVersion = readCoreManifest(coreRoot).version;
     const provider = Object.freeze({
         id: 'release-management',
         packageName: '@kyaulabs/prism-core',
@@ -96,9 +100,39 @@ function renderReleaseManagementProvider({coreRoot, candidateRoot, packageRoot, 
     });
 }
 
+function validateReleaseManagementProvider({coreRoot, packageRoot, request, report}) {
+    const contents = releaseManagementContents({coreRoot, packageRoot, request});
+    if (
+        report === null ||
+        typeof report !== 'object' ||
+        Array.isArray(report) ||
+        report.provider?.id !== 'release-management' ||
+        !Array.isArray(report.outputs) ||
+        report.outputs.length !== RELEASE_MANAGEMENT_OUTPUTS.length
+    ) {
+        throw new Error('release management provider report is invalid');
+    }
+    for (const outputPath of RELEASE_MANAGEMENT_OUTPUTS) {
+        const output = report.outputs.find(({path: candidatePath}) => candidatePath === outputPath);
+        if (
+            output === undefined ||
+            typeof output.candidatePath !== 'string' ||
+            !readRegular(
+                output.candidatePath,
+                'release management candidate output',
+                0o644
+            ).equals(contents.get(outputPath))
+        ) {
+            throw new Error('release management provider report is stale');
+        }
+    }
+    return report;
+}
+
 module.exports = {
     RELEASE_MANAGEMENT_OUTPUTS,
     renderReleaseManagementProvider,
+    validateReleaseManagementProvider,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
