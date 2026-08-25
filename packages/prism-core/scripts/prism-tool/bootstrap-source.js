@@ -219,19 +219,25 @@ function normalizeTemplateBootstrapSource({report, capabilities, adapter}) {
     });
 }
 
+function validateBootstrapSource(value) {
+    if (!hasExactKeys(value, ['mode', 'evidence'])) {
+        throw new Error('bootstrap source is invalid');
+    }
+    if (value.mode === 'BLANK' && value.evidence === null) return cloneFrozen(value);
+    if (value.mode !== 'TEMPLATE') throw new Error('bootstrap source is invalid');
+    validateEvidence(value.evidence);
+    return cloneFrozen(value);
+}
+
 function validateBootstrapSourceState(value) {
-    if (!hasExactKeys(value, ['schemaVersion', 'source', 'catalogue']) || value.schemaVersion !== 1 ||
-        !hasExactKeys(value.source, ['mode', 'evidence'])
-    ) {
+    if (!hasExactKeys(value, ['schemaVersion', 'source', 'catalogue']) || value.schemaVersion !== 1) {
         throw new Error('bootstrap source state is invalid');
     }
-    if (value.source.mode === 'BLANK' && value.source.evidence === null && value.catalogue === null) {
-        return blankBootstrapSource();
-    }
-    if (value.source.mode !== 'TEMPLATE') throw new Error('bootstrap source state is invalid');
-    validateEvidence(value.source.evidence);
+    const source = validateBootstrapSource(value.source);
+    if (source.mode === 'BLANK' && value.catalogue === null) return blankBootstrapSource();
+    if (source.mode !== 'TEMPLATE') throw new Error('bootstrap source state is invalid');
     validateCatalogue(value.catalogue, [], null);
-    if (digestJson(value.catalogue) !== value.source.evidence.classificationSha256) {
+    if (digestJson(value.catalogue) !== source.evidence.classificationSha256) {
         throw new Error('Template bootstrap source classification is stale');
     }
     return cloneFrozen(value);
@@ -240,6 +246,7 @@ function validateBootstrapSourceState(value) {
 module.exports = {
     blankBootstrapSource,
     normalizeTemplateBootstrapSource,
+    validateBootstrapSource,
     validateBootstrapSourceState,
 };
 

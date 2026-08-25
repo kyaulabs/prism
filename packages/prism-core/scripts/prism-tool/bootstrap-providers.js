@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {validateBootstrapSource} = require('./bootstrap-source');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const MAX_RESOURCE_BYTES = 1048576;
@@ -433,10 +434,10 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     }
 }
 
-function projectManifest(metadata, coreVersion, adapter) {
+function projectManifest(source, metadata, coreVersion, adapter) {
     return Buffer.from(`${JSON.stringify({
         schemaVersion: 1,
-        source: {mode: 'BLANK', evidence: null},
+        source,
         capabilities: [],
         project: {
             displayName: metadata.displayName,
@@ -467,12 +468,13 @@ function validateRequest(request) {
     ])) {
         throw new Error('provider request is invalid');
     }
+    try {
+        validateBootstrapSource(request.source);
+    } catch {
+        throw new Error('provider request is invalid');
+    }
     if (
         request.schemaVersion !== 1 ||
-        !isRecord(request.source) ||
-        !hasExactKeys(request.source, ['mode', 'evidence']) ||
-        request.source.mode !== 'BLANK' ||
-        request.source.evidence !== null ||
         !Array.isArray(request.capabilities) ||
         request.capabilities.length !== 0 ||
         (
@@ -508,6 +510,7 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     const provider = registry.providers[0];
     const contents = new Map([
         ['.prism/project.json', projectManifest(
+            request.source,
             request.metadata,
             provider.packageVersion,
             request.adapter

@@ -21,6 +21,24 @@ const {renderBootstrapScaffold} = require(
 
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const CONTRACT = JSON.parse(fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8'));
+const TEMPLATE_SOURCE = Object.freeze({
+    mode: 'TEMPLATE',
+    evidence: Object.freeze({
+        schemaVersion: 1,
+        source: 'TEMPLATE',
+        templateId: 'kyaulabs/template',
+        defaultBranch: 'develop',
+        commitSha: 'b'.repeat(40),
+        treeSha: 'a'.repeat(40),
+        manifest: Object.freeze({
+            path: '.prism/template-manifest.json',
+            blobSha: 'c'.repeat(40),
+            size: 1024,
+            sha256: 'd'.repeat(64),
+        }),
+        classificationSha256: 'e'.repeat(64),
+    }),
+});
 
 function successfulResult(command, args) {
     if (command === 'composer' && args[0] === 'audit') {
@@ -121,6 +139,54 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
         id: 'php-web-scaffold-inventory',
         command: 'setup verify --adapter=@kyaulabs/prism-php-web --network-approved=yes',
     }]);
+});
+
+test('renders identical PHP/web scaffold bytes for Blank and Template requests', (t) => {
+    const blankRoot = makeTempDir();
+    const templateRoot = makeTempDir();
+    t.after(() => fs.rmSync(blankRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(templateRoot, {recursive: true, force: true}));
+    const request = {
+        schemaVersion: 1,
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Provider Parity Project',
+            summary: 'A source-independent PHP web scaffold.',
+            suggestedDisplayName: 'provider-parity-project',
+        },
+        adapter: {
+            id: 'php-web',
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+            bootstrapProtocol: 1,
+        },
+    };
+    const blank = handler.prepareBootstrapProject({
+        candidateRoot: blankRoot,
+        contract: CONTRACT,
+        request: {...request, source: {mode: 'BLANK', evidence: null}},
+        run: successfulResult,
+    });
+
+    const template = handler.prepareBootstrapProject({
+        candidateRoot: templateRoot,
+        contract: CONTRACT,
+        request: {...request, source: TEMPLATE_SOURCE},
+        run: successfulResult,
+    });
+
+    assert.deepEqual(
+        template.outputs.map(({path: outputPath, kind, mode, sha256}) => ({
+            path: outputPath, kind, mode, sha256,
+        })),
+        blank.outputs.map(({path: outputPath, kind, mode, sha256}) => ({
+            path: outputPath, kind, mode, sha256,
+        }))
+    );
+    assert.deepEqual(template.effects, blank.effects);
+    assert.deepEqual(template.checks, blank.checks);
+    assert.deepEqual(template.verification, blank.verification);
 });
 
 test('renders canonical dependency manifests from the adapter contract', (t) => {
@@ -684,6 +750,42 @@ test('rejects scaffold manifest paths that escape the candidate root', (t) => {
         },
     }), /manifest|path/);
     assert.equal(fs.existsSync(escapedPath), false);
+});
+
+test('rejects non-string Template evidence without coercing untrusted values', (t) => {
+    const candidateRoot = makeTempDir();
+    let coerced = false;
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const source = globalThis.structuredClone(TEMPLATE_SOURCE);
+    source.evidence.defaultBranch = {
+        toString() {
+            coerced = true;
+            return 'develop';
+        },
+    };
+
+    assert.throws(() => handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source,
+            capabilities: [],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+                suggestedDisplayName: 'project',
+            },
+            adapter: {
+                id: 'php-web',
+                packageName: CONTRACT.package,
+                packageVersion: '0.3.1',
+                bootstrapProtocol: 1,
+            },
+        },
+    }), /request/);
+    assert.equal(coerced, false);
 });
 
 test('rejects unknown bootstrap provider request fields', (t) => {

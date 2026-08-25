@@ -16,6 +16,9 @@ const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-a
 const {
     applyBootstrapProject,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-transaction');
+const {renderCoreBaseline} = require(
+    '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+);
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -23,6 +26,24 @@ const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_CONTRACT = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
 );
+const TEMPLATE_SOURCE = Object.freeze({
+    mode: 'TEMPLATE',
+    evidence: Object.freeze({
+        schemaVersion: 1,
+        source: 'TEMPLATE',
+        templateId: 'kyaulabs/template',
+        defaultBranch: 'develop',
+        commitSha: 'b'.repeat(40),
+        treeSha: 'a'.repeat(40),
+        manifest: Object.freeze({
+            path: '.prism/template-manifest.json',
+            blobSha: 'c'.repeat(40),
+            size: 1024,
+            sha256: 'd'.repeat(64),
+        }),
+        classificationSha256: 'e'.repeat(64),
+    }),
+});
 
 function captureWrites(action) {
     let stdout = '';
@@ -2226,6 +2247,40 @@ test('renders the trusted Core baseline into a launcher-designated candidate roo
         assert.equal(path.relative(candidateRoot, output.candidatePath).startsWith('..'), false);
     }
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('renders immutable Template evidence through the trusted Core baseline', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    const report = renderCoreBaseline({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: TEMPLATE_SOURCE,
+            capabilities: [],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Template Project',
+                summary: 'A trusted-provider project.',
+                suggestedDisplayName: 'template-project',
+            },
+            adapter: null,
+        },
+    });
+    const manifestOutput = report.outputs.find(({path: outputPath}) =>
+        outputPath === '.prism/project.json'
+    );
+    const manifest = JSON.parse(fs.readFileSync(manifestOutput.candidatePath, 'utf8'));
+
+    assert.deepEqual(manifest.source, TEMPLATE_SOURCE);
+    assert.equal(
+        report.outputs.some(({candidatePath}) =>
+            fs.readFileSync(candidatePath).includes(Buffer.from('remote template bytes'))
+        ),
+        false
+    );
 });
 
 test('rejects a symlinked candidate parent without writing through it', (t) => {

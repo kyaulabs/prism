@@ -138,7 +138,7 @@ prism-tool commit create --type feat --scope setup --subject "normalize template
 - Consumes: normalized provider request `{schemaVersion: 1, source, capabilities: [], metadata, adapter}` where `source` is validated by `validateBootstrapSourceState()`.
 - Produces: the existing Core baseline and PHP/web provider report schemas without remote-controlled output changes.
 
-- [ ] **Step 1: Write failing provider parity tests**
+- [x] **Step 1: Write failing provider parity tests**
 
 Add a Core provider test and a PHP/web provider test using the same valid Template source evidence. Assert that:
 
@@ -148,13 +148,13 @@ Add a Core provider test and a PHP/web provider test using the same valid Templa
 4. no Template path, blob SHA, manifest bytes, or catalogue entry controls an output path or file body; and
 5. unknown source evidence fields fail closed.
 
-- [ ] **Step 2: Run the focused tests and verify Red**
+- [x] **Step 2: Run the focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: FAIL because both provider request validators require `BLANK` with null evidence.
 
-- [ ] **Step 3: Generalize the Core provider request**
+- [x] **Step 3: Generalize the Core provider request**
 
 Replace the hard-coded project manifest source with `request.source`. Validate only the two supported normalized source forms:
 
@@ -165,17 +165,17 @@ Replace the hard-coded project manifest source with `request.source`. Validate o
 
 Keep `capabilities: []` for this issue. Do not pass the catalogue to `renderCoreBaseline()` and do not add Template data to README or other generated files.
 
-- [ ] **Step 4: Generalize the adapter provider request**
+- [x] **Step 4: Generalize the adapter provider request**
 
 Allow the PHP/web adapter to accept the same two source forms while treating source evidence as opaque validated context. Do not branch scaffold rendering, dependency behavior, browser behavior, checks, or verification by source mode.
 
-- [ ] **Step 5: Run the focused tests and verify Green**
+- [x] **Step 5: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: PASS; Blank behavior remains unchanged and Template changes only the Core-owned project manifest evidence.
 
-- [ ] **Step 6: Commit the provider parity slice**
+- [x] **Step 6: Commit the provider parity slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-providers.js packages/prism-php-web/scripts/toolchain/bootstrap-scaffold.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js
