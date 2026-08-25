@@ -173,6 +173,35 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
         if (
             journal.phase === 'DURABLE' &&
             journal.status === 'ACTIVE' &&
+            (
+                ['BOOTSTRAP_DEPENDENCIES', 'BOOTSTRAP_VERIFICATION'].includes(
+                    journal.resumePhase
+                ) ||
+                /^PROVIDER_(?:EFFECT|VERIFICATION):[a-z0-9][a-z0-9-]*$/.test(
+                    journal.resumePhase
+                )
+            )
+        ) {
+            return activeReport({
+                projectRoot,
+                disposition: 'PROJECT_DURABLE',
+                message: 'one durable bootstrap project has a resumable post-application phase',
+                data: {
+                    attempt: {id: attemptId},
+                    source: journal.source.mode,
+                    adapter: journal.adapter,
+                    planDigest: journal.planDigest,
+                    phase: journal.phase,
+                    resumePhase: journal.resumePhase,
+                    retainedState: 'complete durable project with pending post-application effects',
+                    blockingCondition: null,
+                    nextAction: 'Resume the exact retained phase through bootstrap project application.',
+                },
+            });
+        }
+        if (
+            journal.phase === 'DURABLE' &&
+            journal.status === 'ACTIVE' &&
             journal.resumePhase === 'REPOSITORY_BOOTSTRAP'
         ) {
             return activeReport({

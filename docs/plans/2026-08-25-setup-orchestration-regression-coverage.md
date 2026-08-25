@@ -191,11 +191,11 @@ prism-tool commit create --type ignore --subject "bootstrap prism project"
 
 - Final success reports the root commit, no remote, and exactly these human-owned actions: create/configure the hosted repository, add the remote, push `develop`, then configure post-push rulesets. Setup executes none of them.
 
-- [ ] **Step 1: Add failing prompt-contract assertions for resume and post-durable ordering**
+- [x] **Step 1: Add failing prompt-contract assertions for resume and post-durable ordering**
 
 Cover status-before-established-discovery, validate-before-apply, repository-after-durable, separate hook approval, seed-after-hooks, exclusive commit wording, bounded recovery, and human-owned publication.
 
-- [ ] **Step 2: Run the shell contract to verify Red**
+- [x] **Step 2: Run the shell contract to verify Red**
 
 Run:
 
@@ -205,15 +205,15 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL because the strict-empty prompt has no post-durable or rerun flow.
 
-- [ ] **Step 3: Implement the closed resume and completion flow in `/setup`**
+- [x] **Step 3: Implement the closed resume and completion flow in `/setup`**
 
 Add phase dispatch and final-report tables without changing established setup behavior when status is `NO_ACTIVE_BOOTSTRAP`.
 
-- [ ] **Step 4: Add public end-to-end and failure-injection regressions**
+- [x] **Step 4: Add public end-to-end and failure-injection regressions**
 
 Exercise Blank/Template × Core-only/PHP-web through seed readiness, plus retained failures at project application, dependency population, verification, repository creation, hook activation, seed preparation, and root commit. Assert each status points to the exact next operation and no forbidden publication command runs.
 
-- [ ] **Step 5: Run the focused Task 3 suites**
+- [x] **Step 5: Run the focused Task 3 suites**
 
 Run:
 
@@ -224,7 +224,7 @@ node --test tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/pri
 
 Expected: PASS.
 
-- [ ] **Step 6: Verify, review, update checkboxes, and create the commit**
+- [x] **Step 6: Verify, review, update checkboxes, and create the commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md tests/Shell/toolchain_entrypoints_test.sh tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/prism-tool-bootstrap-seed.test.js docs/plans/2026-08-25-setup-orchestration-regression-coverage.md

@@ -81,6 +81,19 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project plan --s
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Approve the complete displayed project plan[?].*\(yes/no\)' 'strict-empty setup retains literal complete-plan approval'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project recover --attempt=' 'strict-empty plan decline restores transaction-owned state'
 assert_file_not_contains "$CORE_PROMPTS/setup.md" 'Until the selected source route.*immediately clean' 'strict-empty setup no longer stops after adapter selection'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project status --json' 'setup inspects retained bootstrap state before established discovery'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project validate --attempt=' 'strict-empty setup revalidates the approved project plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project apply --attempt=.*--approval=yes' 'strict-empty setup applies only the approved plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup repository create --attempt=' 'strict-empty setup creates Git only after durability'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup hooks inspect --attempt=' 'strict-empty setup inspects canonical hooks before approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Activate the displayed canonical Git hooks[?].*\(yes/no\)' 'strict-empty hook activation has a separate question'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup hooks apply --attempt=.*--approval=yes' 'strict-empty setup activates hooks only after approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup seed prepare --attempt=' 'strict-empty setup prepares the attested root seed after hooks'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool commit create --type ignore --subject "bootstrap prism project"' 'strict-empty setup uses the reserved exclusive root commit'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'only tool call in its assistant batch' 'strict-empty root commit preserves launcher exclusivity'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'ROOT_SEED_COMMIT|REPOSITORY_CREATION|HOOK_ACTIVATION|ROOT_SEED_PREPARATION' 'strict-empty setup dispatches only closed resume phases'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'create/configure the hosted repository.*add the remote.*push `develop`.*rulesets' 'strict-empty final reporting leaves publication to the human'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'git remote add|git push|gh repo create' 'strict-empty setup never executes publication commands'
 
 setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)

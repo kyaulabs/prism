@@ -386,4 +386,43 @@ test('active bootstrap status reports retained manual recovery evidence', (t) =>
     assert.equal(fs.readFileSync(path.join(projectRoot, 'human-note.txt'), 'utf8'), 'preserve me\n');
 });
 
+test('active bootstrap status reports retained post-durable verification phases', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Verification Project',
+            summary: 'A project retaining post-durable verification state.',
+        }),
+    }));
+    const plan = JSON.parse(planned.stdout);
+    assert.equal(captureWrites(() => main([
+        'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${plan.planDigest}`, '--approval=yes', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT})).status, 0);
+    const journalPath = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'journal.json'
+    );
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.resumePhase = 'BOOTSTRAP_VERIFICATION';
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal, null, 2)}\n`, {mode: 0o600});
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.disposition, 'PROJECT_DURABLE');
+    assert.equal(report.data.resumePhase, 'BOOTSTRAP_VERIFICATION');
+    assert.equal(report.data.retainedState, 'complete durable project with pending post-application effects');
+    assert.equal(report.data.nextAction, 'Resume the exact retained phase through bootstrap project application.');
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
