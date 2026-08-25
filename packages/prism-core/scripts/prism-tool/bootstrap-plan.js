@@ -961,6 +961,16 @@ function validateHeldProjectPlan({
     if (envelope.planDigest !== planDigest || actualPlanDigest !== planDigest) {
         throw new Error('bootstrap project plan is stale');
     }
+    const expectedReports = [
+        'core-baseline.json',
+        'metadata.json',
+        'source.json',
+        ...envelope.plan.capabilities.map((capability) => `profile-${capability}.json`),
+        ...(envelope.plan.adapter === null ? [] : ['adapter-provider.json']),
+    ].sort();
+    if (JSON.stringify(fs.readdirSync(paths.reportsAnchor).sort()) !== JSON.stringify(expectedReports)) {
+        throw new Error('bootstrap provider report inventory is stale');
+    }
     const sourceFile = readJsonFile(path.join(paths.reportsAnchor, 'source.json'));
     const sourceState = validateBootstrapSourceState(sourceFile.value, {
         capabilities: envelope.plan.capabilities,

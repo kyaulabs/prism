@@ -394,11 +394,11 @@ reports/profile-funding.json
 - Plan provider order remains Core baseline, selected profiles in `PROJECT_CAPABILITIES` order, then selected adapter.
 - `.prism/project.json` stores selected IDs and exact normalized task-10 metadata; generated files never become metadata inputs.
 
-- [ ] **Step 1: Write failing plan-composition tests**
+- [x] **Step 1: Write failing plan-composition tests**
 
 Through `prism-tool setup project plan`, cover Blank and Template, Core-only and PHP/web, each task-10 capability independently, support plus funding, collaboration plus support, and all seven capabilities. Assert canonical capability/provider order, exact output ownership, persisted report modes `0600`, metadata digest binding, Template advertisement requirements, no Template preselection, no Blank source request, unchanged adapter outputs/effects, and overlap rejection.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -408,21 +408,21 @@ node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-b
 
 Expected: FAIL until every plan/source/CLI validator accepts the expanded canonical catalogue and report set.
 
-- [ ] **Step 3: Generalize remaining task-9 assumptions**
+- [x] **Step 3: Generalize remaining task-9 assumptions**
 
 Replace remaining three-capability assumptions with `PROJECT_CAPABILITIES`. Keep dynamic report persistence and composition registry-derived; do not add caller-selected report paths or special-case Blank versus Template.
 
-- [ ] **Step 4: Bind expanded metadata and outputs into validation**
+- [x] **Step 4: Bind expanded metadata and outputs into validation**
 
 Require exact equality among input metadata, persisted metadata report, private plan, candidate `.prism/project.json`, provider reports, composed outputs, and Template catalogue advertisements. Unknown/missing profile report files and changed task-10 output bytes make the attempt stale.
 
-- [ ] **Step 5: Run focused tests and verify Green**
+- [x] **Step 5: Run focused tests and verify Green**
 
 Run the Step 2 command.
 
 Expected: PASS for all source/adapter combinations with unchanged minimal and task-9 behavior.
 
-- [ ] **Step 6: Commit the plan-composition slice**
+- [x] **Step 6: Commit the plan-composition slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js packages/prism-core/scripts/prism-tool/bootstrap-source.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-capabilities.test.js

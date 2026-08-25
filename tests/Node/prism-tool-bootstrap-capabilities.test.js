@@ -1157,7 +1157,7 @@ test('renders all selected profiles deterministically without ownership overlap'
     );
 });
 
-test('plans each governance capability independently through the public launcher', (t) => {
+test('plans each project capability independently through the public launcher', (t) => {
     const scenarios = [
         {
             capability: 'licensing',
@@ -1186,6 +1186,37 @@ test('plans each governance capability independently through the public launcher
                 '.github/ISSUE_TEMPLATE/feature_request.yml',
                 '.github/pull_request_template.md',
             ],
+        },
+        {
+            capability: 'security-disclosure',
+            capabilityMetadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'latest-release',
+                },
+            },
+            outputs: ['SECURITY.md'],
+        },
+        {
+            capability: 'repository-ownership',
+            capabilityMetadata: {
+                'repository-ownership': {owners: ['@example']},
+            },
+            outputs: ['.github/CODEOWNERS'],
+        },
+        {
+            capability: 'support-routing',
+            capabilityMetadata: {
+                'support-routing': {destination: 'https://example.test/support'},
+            },
+            outputs: ['.github/ISSUE_TEMPLATE/config.yml'],
+        },
+        {
+            capability: 'funding',
+            capabilityMetadata: {
+                funding: {records: [{provider: 'github', account: 'example'}]},
+            },
+            outputs: ['.github/FUNDING.yml'],
         },
     ];
 
