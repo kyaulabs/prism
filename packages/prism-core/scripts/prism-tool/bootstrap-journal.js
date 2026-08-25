@@ -69,6 +69,9 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         applied: [],
         createdDirectories: [],
         appliedInventoryDigest: null,
+        repository: null,
+        hooks: null,
+        seed: null,
     };
 }
 
@@ -105,12 +108,34 @@ function validCreatedDirectory(value) {
         value.ino > 0;
 }
 
+function validRepositoryEvidence(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, [
+            'disposition', 'gitDirectory', 'branch', 'objectFormat', 'refFormat',
+            'configDigest',
+        ]) &&
+        value.disposition === 'CREATE' &&
+        isRecord(value.gitDirectory) &&
+        hasExactKeys(value.gitDirectory, ['dev', 'ino']) &&
+        Number.isSafeInteger(value.gitDirectory.dev) &&
+        value.gitDirectory.dev >= 0 &&
+        Number.isSafeInteger(value.gitDirectory.ino) &&
+        value.gitDirectory.ino > 0 &&
+        value.branch === 'develop' &&
+        value.objectFormat === 'sha1' &&
+        value.refFormat === 'files' &&
+        SHA256.test(value.configDigest);
+}
+
 function validJournalState(value) {
+    const noPostApplicationEvidence = value.repository === null &&
+        value.hooks === null && value.seed === null;
     if (
         value.phase === 'PREPARED' &&
         value.applied.length === 0 &&
         value.createdDirectories.length === 0 &&
-        value.appliedInventoryDigest === null
+        value.appliedInventoryDigest === null &&
+        noPostApplicationEvidence
     ) {
         return (
             value.status === 'ACTIVE' &&
@@ -122,7 +147,11 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    if (value.phase === 'APPLYING' && value.appliedInventoryDigest === null) {
+    if (
+        value.phase === 'APPLYING' &&
+        value.appliedInventoryDigest === null &&
+        noPostApplicationEvidence
+    ) {
         return (
             value.status === 'ACTIVE' &&
             value.reason === null &&
@@ -133,21 +162,31 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    return value.phase === 'DURABLE' &&
+    if (
+        value.phase === 'DURABLE' &&
         value.applied.length > 0 &&
         SHA256.test(value.appliedInventoryDigest) &&
-        (
-            (
-                value.status === 'ACTIVE' &&
-                value.reason === null &&
-                value.resumePhase === 'REPOSITORY_BOOTSTRAP'
-            ) ||
-            (
-                value.status === 'RECOVERY_REQUIRED' &&
-                value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
-                value.resumePhase === 'MANUAL_RECOVERY'
-            )
+        noPostApplicationEvidence
+    ) {
+        return (
+            value.status === 'ACTIVE' &&
+            value.reason === null &&
+            value.resumePhase === 'REPOSITORY_BOOTSTRAP'
+        ) || (
+            value.status === 'RECOVERY_REQUIRED' &&
+            value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
+            value.resumePhase === 'MANUAL_RECOVERY'
         );
+    }
+    return value.phase === 'POST_APPLICATION' &&
+        value.status === 'ACTIVE' &&
+        value.reason === null &&
+        value.resumePhase === 'HOOK_ACTIVATION' &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest) &&
+        validRepositoryEvidence(value.repository) &&
+        value.hooks === null &&
+        value.seed === null;
 }
 
 function validateJournal(value, projectRoot, attemptId) {
@@ -156,7 +195,7 @@ function validateJournal(value, projectRoot, attemptId) {
         !hasExactKeys(value, [
             'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
             'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
-            'createdDirectories', 'appliedInventoryDigest',
+            'createdDirectories', 'appliedInventoryDigest', 'repository', 'hooks', 'seed',
         ]) ||
         value.schemaVersion !== 1 ||
         value.attemptId !== attemptId ||

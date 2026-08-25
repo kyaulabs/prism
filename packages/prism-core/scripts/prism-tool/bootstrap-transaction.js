@@ -352,11 +352,14 @@ function expectedProjectInventory(outputs) {
         .sort((left, right) => left.path.localeCompare(right.path));
 }
 
-function actualProjectInventory(projectRoot, project) {
+function actualProjectInventory(projectRoot, project, allowRepository = false) {
     const entries = [];
     const visit = (relativeRoot, directory) => {
         for (const name of fs.readdirSync(directory.anchor).sort()) {
-            if (relativeRoot === '' && name === '.pi') continue;
+            if (
+                relativeRoot === '' &&
+                (name === '.pi' || (allowRepository && name === '.git'))
+            ) continue;
             const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
             const stat = fs.lstatSync(path.join(directory.anchor, name));
             if (stat.isSymbolicLink()) throw new Error('durable bootstrap project contains a symlink');
@@ -409,7 +412,14 @@ function validateAppliedOutput(projectRoot, project, entry) {
     }
 }
 
-function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, journal}) {
+function validateDurableProject({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    planDigest,
+    journal,
+    allowRepository = false,
+}) {
     const plan = validateBootstrapProjectPlan({
         projectRoot,
         coreRoot,
@@ -418,7 +428,10 @@ function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, j
         allowAppliedProject: true,
     });
     if (
-        journal.phase !== 'DURABLE' ||
+        !(
+            journal.phase === 'DURABLE' ||
+            (allowRepository && journal.phase === 'POST_APPLICATION')
+        ) ||
         journal.status !== 'ACTIVE' ||
         journal.applied.length !== plan.outputs.length ||
         journal.appliedInventoryDigest !== appliedInventoryDigest(journal.applied)
@@ -443,7 +456,7 @@ function validateDurableProject({projectRoot, coreRoot, attemptId, planDigest, j
     const project = holdDirectory(projectRoot, projectRoot);
     try {
         const expectedInventory = expectedProjectInventory(plan.outputs);
-        const actualInventory = actualProjectInventory(projectRoot, project);
+        const actualInventory = actualProjectInventory(projectRoot, project, allowRepository);
         if (JSON.stringify(actualInventory) !== JSON.stringify(expectedInventory)) {
             throw new Error('durable bootstrap project inventory changed');
         }
@@ -868,6 +881,29 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     });
 }
 
-module.exports = {applyBootstrapProject, recoverBootstrapProject};
+function validateDurableBootstrapProject({
+    projectRoot: requestedRoot,
+    coreRoot,
+    attemptId,
+    planDigest,
+    allowRepository = false,
+}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const journal = readBootstrapJournal({projectRoot, attemptId});
+    return validateDurableProject({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        planDigest,
+        journal,
+        allowRepository,
+    });
+}
+
+module.exports = {
+    applyBootstrapProject,
+    recoverBootstrapProject,
+    validateDurableBootstrapProject,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

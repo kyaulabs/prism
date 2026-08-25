@@ -179,6 +179,9 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         applied: [],
         createdDirectories: [],
         appliedInventoryDigest: null,
+        repository: null,
+        hooks: null,
+        seed: null,
     });
 });
 
