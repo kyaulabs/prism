@@ -665,6 +665,27 @@ function inspectProvisionedBootstrapAdapter({
     });
 }
 
+function inspectProvisionedBootstrapAttempt({projectRoot, coreRoot, attemptId}) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const canonicalRoot = fs.realpathSync(projectRoot);
+    const receipt = readJson(attemptPaths(canonicalRoot, attemptId).receiptPath);
+    validateReceipt(receipt, canonicalRoot, attemptId);
+    const catalogue = loadSupportedAdapterCatalogue({coreRoot});
+    const adapter = catalogue.adapters.find((candidate) =>
+        JSON.stringify(candidate) === JSON.stringify(receipt.adapter)
+    );
+    if (adapter === undefined || !['BLANK', 'TEMPLATE'].includes(receipt.source)) {
+        throw new Error('bootstrap adapter receipt is stale');
+    }
+    return inspectProvisionedBootstrapAdapter({
+        projectRoot: canonicalRoot,
+        coreRoot,
+        attemptId,
+        packageName: adapter.packageName,
+        expectedSource: receipt.source,
+    });
+}
+
 function loadActiveBootstrapAdapter({projectRoot, coreRoot, identity}) {
     const supported = loadSupportedAdapterCatalogue({coreRoot});
     const adapter = supported.adapters.find(({packageName}) =>
@@ -828,6 +849,7 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
 module.exports = {
     cleanupBootstrapAdapter,
     inspectProvisionedBootstrapAdapter,
+    inspectProvisionedBootstrapAttempt,
     loadActiveBootstrapAdapter,
     provisionBootstrapAdapter,
     resolveBootstrapAcquisition,

@@ -12,6 +12,7 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const {
     normalizeProjectMetadata,
     validateNormalizedProjectMetadata,
@@ -51,6 +52,49 @@ test('keeps every optional capability disabled by default', (t) => {
     assert.deepEqual(report.capabilities, []);
     assert.deepEqual(report.data.fields.map(({id}) => id), ['displayName', 'summary']);
     assert.deepEqual(report.data.publications, []);
+});
+
+test('reports selected adapter metadata fields without changing provisional state', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run() {
+            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+            fs.writeFileSync(
+                path.join(projectRoot, '.pi', 'settings.json'),
+                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    }));
+    assert.equal(provisioned.status, 0, provisioned.stderr);
+    const adapterPath = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json'
+    );
+    const before = fs.readFileSync(adapterPath);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=licensing', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.source, 'BLANK');
+    assert.equal(report.adapter.packageName, '@kyaulabs/prism-php-web');
+    assert.deepEqual(report.capabilities, ['licensing']);
+    assert.deepEqual(report.data.fields.map(({id}) => id), [
+        'displayName', 'summary', 'licensing.spdxId', 'licensing.copyrightHolder',
+    ]);
+    assert.deepEqual(fs.readFileSync(adapterPath), before);
 });
 
 test('reports only the metadata fields required by selected licensing', (t) => {

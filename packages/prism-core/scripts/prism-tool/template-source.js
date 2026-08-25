@@ -2,6 +2,7 @@
 
 'use strict';
 
+const fs = require('node:fs');
 const {URL} = require('node:url');
 const {inspectSetupRoute} = require('./setup-route');
 const {TemplateSourceError, requestTemplateJson} = require('./template-source-http');
@@ -124,6 +125,30 @@ async function acquireTemplateSource({fetchImpl, projectRoot}) {
     });
 }
 
+function inspectProvisionedBlankSource({projectRoot}) {
+    return blankReport(fs.realpathSync(projectRoot));
+}
+
+async function inspectProvisionedTemplateSource({projectRoot, fetchImpl}) {
+    const canonicalRoot = fs.realpathSync(projectRoot);
+    try {
+        return await acquireTemplateSource({
+            fetchImpl: fetchImpl ?? globalThis.fetch,
+            projectRoot: canonicalRoot,
+        });
+    } catch (error) {
+        const reason = error instanceof TemplateSourceError ? error.code : 'NETWORK_FAILED';
+        return sourceReport({
+            projectRoot: canonicalRoot,
+            source: 'TEMPLATE',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason,
+            data: null,
+        });
+    }
+}
+
 async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     const route = inspectSetupRoute({projectRoot, source});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
@@ -148,6 +173,11 @@ async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     }
 }
 
-module.exports = {acquireTemplateSource, inspectTemplateSource};
+module.exports = {
+    acquireTemplateSource,
+    inspectProvisionedBlankSource,
+    inspectProvisionedTemplateSource,
+    inspectTemplateSource,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
