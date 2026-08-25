@@ -8,14 +8,21 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
+const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     readBootstrapJournal,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-journal');
 const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 const {
+    validateBootstrapProjectPlan,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-plan');
+const {
     applyBootstrapProject,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-transaction');
+const {renderCoreBaseline} = require(
+    '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+);
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -23,6 +30,24 @@ const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_CONTRACT = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
 );
+const TEMPLATE_SOURCE = Object.freeze({
+    mode: 'TEMPLATE',
+    evidence: Object.freeze({
+        schemaVersion: 1,
+        source: 'TEMPLATE',
+        templateId: 'kyaulabs/template',
+        defaultBranch: 'develop',
+        commitSha: 'b'.repeat(40),
+        treeSha: 'a'.repeat(40),
+        manifest: Object.freeze({
+            path: '.prism/template-manifest.json',
+            blobSha: 'c'.repeat(40),
+            size: 1024,
+            sha256: 'd'.repeat(64),
+        }),
+        classificationSha256: 'e'.repeat(64),
+    }),
+});
 
 function captureWrites(action) {
     let stdout = '';
@@ -45,6 +70,27 @@ function captureWrites(action) {
     }
 }
 
+async function captureAsyncWrites(action) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => {
+        stdout += chunk;
+        return true;
+    };
+    process.stderr.write = (chunk) => {
+        stderr += chunk;
+        return true;
+    };
+    try {
+        return {status: await action(), stdout, stderr};
+    } finally {
+        process.stdout.write = stdoutWrite;
+        process.stderr.write = stderrWrite;
+    }
+}
+
 function planInput(projectRoot, input, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
@@ -53,6 +99,24 @@ function planInput(projectRoot, input, context = {}) {
 
 function planProject(projectRoot, input, context = {}) {
     return planInput(projectRoot, JSON.stringify(input), context);
+}
+
+function planTemplateCoreProject(projectRoot, fixture, context = {}) {
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+        ...context,
+    }));
 }
 
 function bootstrapRunner(projectRoot) {
@@ -152,9 +216,9 @@ function installedGraphRunner(projectRoot, operations) {
     };
 }
 
-function provisionPhpWebAdapter(projectRoot) {
+function provisionPhpWebAdapter(projectRoot, source = 'blank') {
     return captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        'setup', 'adapter', 'select', '--adapter=php-web', `--source=${source}`,
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
@@ -176,6 +240,24 @@ function planPhpWebProject(projectRoot, run = bootstrapRunner(projectRoot)) {
             schemaVersion: 1,
             displayName: 'Blank PHP Project',
             summary: 'An application-free PHP web scaffold.',
+        }),
+        run,
+    }));
+}
+
+function planTemplatePhpWebProject(projectRoot, fixture, run = bootstrapRunner(projectRoot)) {
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
         }),
         run,
     }));
@@ -276,6 +358,7 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     assert.equal(report.status, 'GO');
     assert.equal(report.disposition, 'PLAN_READY');
     assert.deepEqual(report.source, {mode: 'BLANK', evidence: null});
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
     assert.equal(report.adapter, null);
     assert.deepEqual(report.capabilities, []);
     assert.equal(report.metadata.displayName, 'Editable Project Name');
@@ -303,6 +386,7 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         attemptId: ATTEMPT_ID,
         projectRoot: fs.realpathSync(projectRoot),
         planDigest: report.planDigest,
+        sourceDigest: report.sourceDigest,
         metadataDigest: report.metadataDigest,
         source: {mode: 'BLANK', evidence: null},
         adapter: null,
@@ -317,6 +401,292 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         hooks: null,
         seed: null,
     });
+});
+
+test('creates a digest-bound Template Core-only project plan from fixed source evidence', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PLAN_READY');
+    assert.equal(report.source.mode, 'TEMPLATE');
+    assert.equal(report.source.evidence.commitSha, fixture.commitSha);
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
+    assert.equal(report.adapter, null);
+    assert.deepEqual(report.capabilities, []);
+    assert.equal(report.providers.length, 1);
+    assert.equal(report.outputs.length, 7);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+    const sourceContents = fs.readFileSync(sourcePath);
+    assert.equal(fs.statSync(sourcePath).mode & 0o777, 0o600);
+    assert.deepEqual(Object.keys(JSON.parse(sourceContents)), [
+        'schemaVersion', 'source', 'catalogue',
+    ]);
+    assert.equal(crypto.createHash('sha256').update(sourceContents).digest('hex'), report.sourceDigest);
+    assert.equal(sourceContents.includes(Buffer.from('api.github.com')), false);
+    const validated = validateBootstrapProjectPlan({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        attemptId: ATTEMPT_ID,
+        planDigest: report.planDigest,
+    });
+    assert.deepEqual(validated.source, report.source);
+    assert.equal(validated.sourceDigest, report.sourceDigest);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+});
+
+test('keeps failed Template Core-only planning strict-empty without Blank fallback', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({transport: {rejectIndex: 0}});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Template source is unavailable/);
+    assert.equal(result.stderr.includes('Blank'), false);
+    assert.equal(fixture.calls.length, 1);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects changed private Template source state before project mutation', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const planned = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+    const plan = JSON.parse(planned.stdout);
+    const sourcePath = path.join(path.dirname(path.dirname(plan.data.planPath)), 'reports', 'source.json');
+    const changed = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+    changed.catalogue.entries[0].path = 'changed/path';
+    fs.writeFileSync(sourcePath, `${JSON.stringify(changed)}\n`, {mode: 0o600});
+
+    const result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'STALE_PROJECT_STATE');
+    assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+    assert.equal(changed.source.mode, 'TEMPLATE');
+});
+
+test('rejects substituted Template journal evidence before application', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.source.evidence.commitSha = 'a'.repeat(40);
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal)}\n`, {mode: 0o600});
+
+    const validation = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(validation.status, 5);
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(result.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+});
+
+test('rejects substituted Template evidence at every retained pre-application boundary', async () => {
+    const cases = [
+        {
+            name: 'source evidence',
+            action: 'validate',
+            mutate: ({attemptRoot}) => {
+                const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+                const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+                source.source.evidence.commitSha = 'a'.repeat(40);
+                fs.writeFileSync(sourcePath, `${JSON.stringify(source)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'source catalogue',
+            action: 'validate',
+            mutate: ({attemptRoot}) => {
+                const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+                const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+                source.catalogue.entries[0].path = 'changed/path';
+                fs.writeFileSync(sourcePath, `${JSON.stringify(source)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'plan source digest',
+            action: 'validate',
+            mutate: ({planPath}) => {
+                const envelope = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+                envelope.plan.sourceDigest = '0'.repeat(64);
+                fs.writeFileSync(planPath, `${JSON.stringify(envelope)}\n`, {mode: 0o600});
+            },
+        },
+        {
+            name: 'candidate project source',
+            action: 'apply',
+            mutate: ({attemptRoot}) => {
+                const manifestPath = path.join(attemptRoot, 'candidate', '.prism', 'project.json');
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                manifest.source.evidence.commitSha = 'a'.repeat(40);
+                fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+            },
+        },
+    ];
+
+    for (const boundary of cases) {
+        const projectRoot = makeTempDir();
+        try {
+            const fixture = createTemplateFixture();
+            const planned = await planTemplateCoreProject(projectRoot, fixture);
+            assert.equal(planned.status, 0, boundary.name);
+            const plan = JSON.parse(planned.stdout);
+            const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+            boundary.mutate({attemptRoot, planPath: plan.data.planPath});
+            const result = boundary.action === 'apply'
+                ? applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT})
+                : validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+            assert.equal(result.status, 5, boundary.name);
+            assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false, boundary.name);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('retains a durable Template project when its manifest source is substituted', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = await planTemplateCoreProject(projectRoot, fixture);
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(applied.status, 0);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'reports', 'source.json')), true);
+    const durableJournal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.equal(durableJournal.applied.some(({path: outputPath}) => outputPath.startsWith('.pi/')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.source.evidence.commitSha = 'a'.repeat(40);
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+
+    const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(result.status, 5);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), true);
+    assert.equal(readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID}).status, 'RECOVERY_REQUIRED');
+});
+
+test('restores strict emptiness when a Template provider fails after acquisition', async (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(coreRoot, 'package.json'), JSON.stringify({
+        name: '@kyaulabs/not-prism-core',
+        version: '0.3.1',
+    }));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects malformed project-plan source and network controls', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const cases = [
+        ['--source=template', '--adapter=core-only'],
+        ['--source=template', '--adapter=core-only', '--network-approved=no'],
+        ['--source=blank', '--adapter=core-only', '--network-approved=yes'],
+    ];
+
+    for (const controls of cases) {
+        const result = captureWrites(() => main(['setup', 'project', 'plan', ...controls], {
+            projectRoot,
+            coreRoot: CORE_ROOT,
+            input: '{}',
+        }));
+        assert.equal(result.status, 2);
+        assert.match(result.stderr, /^usage: prism-tool setup project plan/);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
 });
 
 test('plans a Blank project with the provisioned PHP web adapter', (t) => {
@@ -362,6 +732,210 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     ]);
     assert.deepEqual(report.filesystem.allowedRootEntries, ['.pi']);
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
+});
+
+test('plans a Template project with the provisioned PHP web adapter', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const selected = provisionPhpWebAdapter(projectRoot, 'template');
+    assert.equal(selected.status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.source.mode, 'TEMPLATE');
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline',
+        'php-web-scaffold',
+    ]);
+    assert.equal(report.outputs.length, 37);
+    assert.equal(report.effects.length, 5);
+    assert.equal(report.checks.length, 2);
+    assert.equal(report.verification.length, 2);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+});
+
+test('rejects Template planning against a Blank adapter receipt before acquisition', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /valid adapter state/);
+    assert.equal(fixture.calls.length, 0);
+    const receiptPath = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json'
+    );
+    assert.equal(JSON.parse(fs.readFileSync(receiptPath, 'utf8')).source, 'BLANK');
+});
+
+test('cleans Template adapter attempts at every fixed-source acquisition boundary', async () => {
+    for (const rejectIndex of [0, 1, 2, 3]) {
+        const projectRoot = makeTempDir();
+        const fixture = createTemplateFixture({transport: {rejectIndex}});
+        try {
+            assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+            const result = await captureAsyncWrites(() => main([
+                'setup', 'project', 'plan', '--source=template',
+                '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+                '--network-approved=yes', '--json',
+            ], {
+                projectRoot,
+                coreRoot: CORE_ROOT,
+                fetch: fixture.fetch,
+                input: JSON.stringify({
+                    schemaVersion: 1,
+                    displayName: 'Template PHP Project',
+                    summary: 'A trusted-provider PHP web scaffold.',
+                }),
+                run: bootstrapRunner(projectRoot),
+            }));
+
+            assert.equal(result.status, 5);
+            assert.match(result.stderr, /Template source is unavailable/);
+            assert.equal(fixture.calls.length, rejectIndex + 1);
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('cleans a Template adapter attempt when advertisements omit its provider', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({
+        mutateManifest: (manifest) => {
+            const entry = manifest.entries.find(({path: entryPath}) => entryPath === '.gitignore');
+            entry.class = 'optional-profile';
+            entry.capability = 'licensing';
+            entry.provider = {scope: 'core', id: 'licensing'};
+        },
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /Template source is invalid/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('retains ambiguous Template adapter state with one recovery action', async (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: async () => {
+            fs.writeFileSync(path.join(projectRoot, 'user-state.txt'), 'retain\n');
+            throw new Error('network failure');
+        },
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stderr, '');
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.source, 'TEMPLATE');
+    assert.equal(report.data.recoveryPath, path.join(
+        fs.realpathSync(projectRoot), '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID
+    ));
+    assert.equal(fs.readFileSync(path.join(projectRoot, 'user-state.txt'), 'utf8'), 'retain\n');
+});
+
+test('cleans Template adapter state when trusted provider composition fails', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = () => {
+        throw new Error('injected provider failure');
+    };
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
 test('rejects adapter report declarations that differ from the package-owned manifest', (t) => {
@@ -474,7 +1048,7 @@ test('preserves changed provisional adapter state for recovery', (t) => {
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'settings.json')), true);
 });
 
-test('normalizes the prior schema-1 journal shape for recovery', (t) => {
+test('normalizes the pre-sourceDigest schema-1 journal shape for recovery', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     const planned = planProject(projectRoot, {
@@ -489,6 +1063,7 @@ test('normalizes the prior schema-1 journal shape for recovery', (t) => {
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const journalPath = path.join(attemptRoot, 'journal.json');
     const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    delete journal.sourceDigest;
     delete journal.repository;
     delete journal.hooks;
     delete journal.seed;
@@ -496,6 +1071,7 @@ test('normalizes the prior schema-1 journal shape for recovery', (t) => {
 
     const normalized = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
 
+    assert.equal(normalized.sourceDigest, plan.sourceDigest);
     assert.equal(normalized.repository, null);
     assert.equal(normalized.hooks, null);
     assert.equal(normalized.seed, null);
@@ -597,6 +1173,54 @@ test('restores strict emptiness when a selected-adapter plan is declined', (t) =
     assert.equal(result.stderr, '');
     assert.equal(report.disposition, 'ROOT_RESTORED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves Template mode across pre-durable rollback and post-durable retention', async () => {
+    for (const adapter of ['core-only', 'php-web']) {
+        for (const boundary of ['before-durable', 'after-durable']) {
+            const projectRoot = makeTempDir();
+            try {
+                const fixture = createTemplateFixture();
+                let planned;
+                if (adapter === 'core-only') {
+                    planned = await planTemplateCoreProject(projectRoot, fixture);
+                } else {
+                    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+                    planned = await planTemplatePhpWebProject(projectRoot, fixture);
+                }
+                assert.equal(planned.status, 0, `${adapter}:${boundary}`);
+                const plan = JSON.parse(planned.stdout);
+                const result = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+                    coreRoot: CORE_ROOT,
+                    bootstrapApplyFault: ({name}) => {
+                        if (name === boundary) throw new Error(`injected ${boundary} failure`);
+                    },
+                });
+                const report = JSON.parse(result.stdout);
+
+                assert.equal(result.status, 5, `${adapter}:${boundary}`);
+                assert.equal(result.stdout.includes('BLANK'), false, `${adapter}:${boundary}`);
+                assert.equal(plan.source.mode, 'TEMPLATE');
+                assert.equal(fixture.calls.length, 4);
+                if (boundary === 'before-durable') {
+                    assert.equal(report.disposition, 'ROOT_RESTORED');
+                    assert.deepEqual(fs.readdirSync(projectRoot), []);
+                } else {
+                    assert.equal(report.disposition, 'PROJECT_DURABLE');
+                    assert.equal(report.data.resumePhase, adapter === 'core-only'
+                        ? 'REPOSITORY_BOOTSTRAP'
+                        : 'BOOTSTRAP_DEPENDENCIES');
+                    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+                    assert.equal(journal.source.mode, 'TEMPLATE');
+                    for (const output of plan.outputs) {
+                        assert.equal(fs.existsSync(path.join(projectRoot, output.path)), true);
+                    }
+                }
+            } finally {
+                fs.rmSync(projectRoot, {recursive: true, force: true});
+            }
+        }
+    }
 });
 
 test('applies the combined selected-adapter scaffold durably', (t) => {
@@ -2226,6 +2850,40 @@ test('renders the trusted Core baseline into a launcher-designated candidate roo
         assert.equal(path.relative(candidateRoot, output.candidatePath).startsWith('..'), false);
     }
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('renders immutable Template evidence through the trusted Core baseline', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    const report = renderCoreBaseline({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: TEMPLATE_SOURCE,
+            capabilities: [],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Template Project',
+                summary: 'A trusted-provider project.',
+                suggestedDisplayName: 'template-project',
+            },
+            adapter: null,
+        },
+    });
+    const manifestOutput = report.outputs.find(({path: outputPath}) =>
+        outputPath === '.prism/project.json'
+    );
+    const manifest = JSON.parse(fs.readFileSync(manifestOutput.candidatePath, 'utf8'));
+
+    assert.deepEqual(manifest.source, TEMPLATE_SOURCE);
+    assert.equal(
+        report.outputs.some(({candidatePath}) =>
+            fs.readFileSync(candidatePath).includes(Buffer.from('remote template bytes'))
+        ),
+        false
+    );
 });
 
 test('rejects a symlinked candidate parent without writing through it', (t) => {

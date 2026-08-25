@@ -1,4 +1,4 @@
-// $KYAULabs: template-source.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: template-source.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -74,7 +74,7 @@ function blankReport(projectRoot) {
     });
 }
 
-async function acquireTemplate({fetchImpl, projectRoot}) {
+async function acquireTemplateSource({fetchImpl, projectRoot}) {
     const repository = validateRepository(await requestTemplateJson({
         fetchImpl,
         url: apiUrl(),
@@ -131,7 +131,7 @@ async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     }
     if (source === 'BLANK') return blankReport(route.projectRoot);
     try {
-        return await acquireTemplate({
+        return await acquireTemplateSource({
             fetchImpl: fetchImpl ?? globalThis.fetch,
             projectRoot: route.projectRoot,
         });
@@ -148,6 +148,6 @@ async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     }
 }
 
-module.exports = {inspectTemplateSource};
+module.exports = {acquireTemplateSource, inspectTemplateSource};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

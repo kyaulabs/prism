@@ -1,9 +1,11 @@
-// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {blankBootstrapSource, validateBootstrapSource} = require('./bootstrap-source');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -55,16 +57,18 @@ function validAdapter(value) {
 }
 
 function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
+    try {
+        validateBootstrapSource(plan?.source);
+    } catch {
+        throw new Error('bootstrap journal input is invalid');
+    }
     if (
         typeof projectRoot !== 'string' ||
         !ATTEMPT_ID.test(attemptId) ||
         !SHA256.test(planDigest) ||
         !isRecord(plan) ||
+        !SHA256.test(plan.sourceDigest) ||
         !SHA256.test(plan.metadataDigest) ||
-        !isRecord(plan.source) ||
-        !hasExactKeys(plan.source, ['mode', 'evidence']) ||
-        plan.source.mode !== 'BLANK' ||
-        plan.source.evidence !== null ||
         !validAdapter(plan.adapter)
     ) {
         throw new Error('bootstrap journal input is invalid');
@@ -74,6 +78,7 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         attemptId,
         projectRoot,
         planDigest,
+        sourceDigest: plan.sourceDigest,
         metadataDigest: plan.metadataDigest,
         source: plan.source,
         adapter: plan.adapter,
@@ -282,23 +287,44 @@ function normalizeLegacyJournal(value) {
         'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
         'createdDirectories', 'appliedInventoryDigest',
     ];
+    const sourceBoundLegacyKeys = [...legacyKeys, 'sourceDigest'];
     if (
-        isRecord(value) &&
-        value.schemaVersion === 1 &&
-        ['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) &&
-        hasExactKeys(value, legacyKeys)
+        !isRecord(value) ||
+        value.schemaVersion !== 1 ||
+        !['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) ||
+        (!hasExactKeys(value, legacyKeys) && !hasExactKeys(value, sourceBoundLegacyKeys))
     ) {
-        return {...value, repository: null, hooks: null, seed: null};
+        return value;
     }
-    return value;
+    let sourceDigest = value.sourceDigest;
+    if (sourceDigest === undefined) {
+        if (
+            !isRecord(value.source) ||
+            !hasExactKeys(value.source, ['mode', 'evidence']) ||
+            value.source.mode !== 'BLANK' ||
+            value.source.evidence !== null
+        ) {
+            return value;
+        }
+        const sourceState = blankBootstrapSource();
+        sourceDigest = crypto.createHash('sha256').update(
+            `${JSON.stringify(sourceState, null, 2)}\n`
+        ).digest('hex');
+    }
+    return {...value, sourceDigest, repository: null, hooks: null, seed: null};
 }
 
 function validateJournal(input, projectRoot, attemptId) {
     const value = normalizeLegacyJournal(input);
+    try {
+        validateBootstrapSource(value?.source);
+    } catch {
+        throw new Error('bootstrap journal is invalid');
+    }
     if (
         !isRecord(value) ||
         !hasExactKeys(value, [
-            'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
+            'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'sourceDigest', 'metadataDigest',
             'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
             'createdDirectories', 'appliedInventoryDigest', 'repository', 'hooks', 'seed',
         ]) ||
@@ -306,11 +332,8 @@ function validateJournal(input, projectRoot, attemptId) {
         value.attemptId !== attemptId ||
         value.projectRoot !== projectRoot ||
         !SHA256.test(value.planDigest) ||
+        !SHA256.test(value.sourceDigest) ||
         !SHA256.test(value.metadataDigest) ||
-        !isRecord(value.source) ||
-        !hasExactKeys(value.source, ['mode', 'evidence']) ||
-        value.source.mode !== 'BLANK' ||
-        value.source.evidence !== null ||
         !validAdapter(value.adapter) ||
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||

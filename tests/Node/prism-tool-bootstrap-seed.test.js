@@ -1,13 +1,15 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
 const assert = require('node:assert/strict');
 const {execFileSync} = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
+const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     completeBootstrapSeed,
@@ -74,6 +76,23 @@ function planProject(projectRoot) {
             schemaVersion: 1,
             displayName: 'Seed Project',
             summary: 'A deterministic Core-only seed project.',
+        }),
+        randomUUID: () => ATTEMPT_ID,
+    }));
+}
+
+function planTemplateProject(projectRoot, fixture) {
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Seed Project',
+            summary: 'A deterministic Template Core-only seed project.',
         }),
         randomUUID: () => ATTEMPT_ID,
     }));
@@ -193,6 +212,36 @@ function planSelectedProject(projectRoot, context = {}) {
     }));
 }
 
+function planSelectedTemplateProject(projectRoot, fixture, context = {}) {
+    const run = context.run ?? bootstrapRunner(projectRoot);
+    const selected = captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=template',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run,
+    }));
+    assert.equal(selected.status, 0, selected.stderr || selected.stdout);
+    return captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Selected Seed Project',
+            summary: 'A deterministic Template PHP web seed project.',
+        }),
+        run,
+    }));
+}
+
 function applyProject(projectRoot, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
@@ -290,6 +339,14 @@ function stagedNames(projectRoot) {
     return execFileSync('git', [
         '-C', projectRoot, 'diff', '--cached', '--name-only', '-z',
     ]).toString('utf8').split('\0').filter(Boolean).sort();
+}
+
+function assertNoRemoteManifestBytes(projectRoot, plan, fixture) {
+    const manifest = Buffer.from(fixture.responses.manifestBlob.content, 'base64');
+    for (const entry of plan.outputs) {
+        if (entry.kind !== 'file') continue;
+        assert.equal(fs.readFileSync(path.join(projectRoot, entry.path)).includes(manifest), false);
+    }
 }
 
 function runHook(projectRoot, event, args = [], context = {}) {
@@ -859,6 +916,154 @@ test('stages and attests selected-adapter evidence after shared quality passes',
         projectRoot,
         coreRoot: CORE_ROOT,
     }));
+});
+
+test('stages and attests immutable Template evidence for a Core-only seed', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--source=template', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(routed.status, 0, routed.stderr || routed.stdout);
+    assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_TEMPLATE');
+    const planned = await planTemplateProject(projectRoot, fixture);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    assert.equal(plan.source.mode, 'TEMPLATE');
+    assert.equal(plan.adapter, null);
+    assert.deepEqual(plan.effects, []);
+    assert.equal(fixture.calls.length, 4);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+
+    const result = prepareSeed(projectRoot, plan.planDigest);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+    const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+    assert.deepEqual(attestation.source, plan.source);
+    assert.deepEqual(attestation.source.evidence, {
+        schemaVersion: 1,
+        source: 'TEMPLATE',
+        templateId: 'kyaulabs/template',
+        defaultBranch: 'develop',
+        commitSha: fixture.commitSha,
+        treeSha: fixture.treeSha,
+        manifest: {
+            path: '.prism/template-manifest.json',
+            blobSha: fixture.manifestSha,
+            size: fixture.responses.manifestBlob.size,
+            sha256: crypto.createHash('sha256')
+                .update(Buffer.from(fixture.responses.manifestBlob.content, 'base64'))
+                .digest('hex'),
+        },
+        classificationSha256: plan.source.evidence.classificationSha256,
+    });
+    assert.equal(attestation.providers.length, 1);
+    assert.match(attestation.providers[0].reportDigest, /^[0-9a-f]{64}$/);
+    assert.equal(attestation.adapter, null);
+    assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
+    assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+    assertNoRemoteManifestBytes(projectRoot, plan, fixture);
+    assert.equal(git(projectRoot, ['remote']), '');
+    assert.throws(() => execFileSync('git', [
+        '-C', projectRoot, 'rev-parse', '--verify', 'HEAD',
+    ], {stdio: 'pipe'}), {status: 128});
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT}));
+
+    const expectedStaging = stagedNames(projectRoot);
+    attestation.source.evidence.commitSha = 'a'.repeat(40);
+    fs.writeFileSync(attestationPath, `${JSON.stringify(attestation)}\n`, {mode: 0o600});
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /seed attestation/);
+    assert.deepEqual(stagedNames(projectRoot), expectedStaging);
+});
+
+test('stages and attests immutable Template evidence for a selected-adapter seed', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    const operations = [];
+    let adapterInstallations = 0;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--source=template', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(routed.status, 0, routed.stderr || routed.stdout);
+    assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_TEMPLATE');
+    const catalogue = captureWrites(() => main([
+        'setup', 'adapter', 'catalogue', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(catalogue.status, 0, catalogue.stderr || catalogue.stdout);
+    const prepareRun = bootstrapRunner(projectRoot);
+    const planned = await planSelectedTemplateProject(projectRoot, fixture, {
+        run(command, args, options) {
+            operations.push({command, args});
+            if (command === '/usr/bin/pi') adapterInstallations += 1;
+            return prepareRun(command, args, options);
+        },
+    });
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    assert.equal(plan.source.mode, 'TEMPLATE');
+    assert.equal(adapterInstallations, 1);
+    assert.equal(fixture.calls.length, 4);
+    const effectRun = installedGraphRunner(projectRoot);
+    assert.equal(applyProject(projectRoot, plan.planDigest, {
+        run(command, args, options) {
+            operations.push({command, args});
+            return effectRun(command, args, options);
+        },
+    }).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+
+    const qualityInvocations = [];
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner({invocations: qualityInvocations}),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(qualityInvocations.filter(({command}) =>
+        command.endsWith('/.github/scripts/check-php.sh')
+    ).length, 1);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestation = JSON.parse(fs.readFileSync(
+        path.join(attemptRoot, 'seed-attestation.json'),
+        'utf8'
+    ));
+    assert.deepEqual(attestation.source, plan.source);
+    assert.deepEqual(attestation.adapter, {
+        ...plan.adapter,
+        reportDigest: plan.adapterReportDigest,
+    });
+    assert.deepEqual(attestation.providers.map(({id}) => id), [
+        'core-baseline',
+        'php-web-scaffold',
+    ]);
+    assert.equal(attestation.providers.every(({reportDigest}) =>
+        /^[0-9a-f]{64}$/.test(reportDigest)
+    ), true);
+    assert.deepEqual(stagedNames(projectRoot), [
+        ...plan.outputs.map(({path: name}) => name),
+        '.pi/settings.json',
+    ].sort());
+    assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+    assertNoRemoteManifestBytes(projectRoot, plan, fixture);
+    assert.equal(git(projectRoot, ['remote']), '');
+    assert.equal(operations.some(({args}) =>
+        ['clone', 'fetch', 'pull', 'push', 'remote', 'publish'].includes(args[0])
+    ), false);
+    assert.throws(() => execFileSync('git', [
+        '-C', projectRoot, 'rev-parse', '--verify', 'HEAD',
+    ], {stdio: 'pipe'}), {status: 128});
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT}));
 });
 
 test('blocks selected-adapter seed readiness when shared quality fails', (t) => {

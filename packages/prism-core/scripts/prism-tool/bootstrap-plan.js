@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -12,12 +12,20 @@ const {
     loadTrustedProviderRegistry,
     renderCoreBaseline,
 } = require('./bootstrap-providers');
-const {createPreparedBootstrapJournal} = require('./bootstrap-journal');
+const {
+    createPreparedBootstrapJournal,
+    readBootstrapJournal,
+} = require('./bootstrap-journal');
 const {
     cleanupBootstrapAdapter,
     inspectProvisionedBootstrapAdapter,
 } = require('./bootstrap-adapter');
 const {inspectSetupRoute} = require('./setup-route');
+const {
+    blankBootstrapSource,
+    validateBootstrapSource,
+    validateBootstrapSourceState,
+} = require('./bootstrap-source');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_OPERATION_BYTES = 1048576;
@@ -180,9 +188,16 @@ function cleanupAttempt(projectRoot, attempt) {
     }
 }
 
-function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, randomUUID}) {
+function planCoreOnlyProject({
+    projectRoot: requestedRoot,
+    coreRoot,
+    input,
+    randomUUID,
+    sourceState = blankBootstrapSource(),
+}) {
     const projectRoot = fs.realpathSync(requestedRoot);
-    const route = inspectSetupRoute({projectRoot, source: 'BLANK'});
+    const normalizedSource = validateBootstrapSourceState(sourceState);
+    const route = inspectSetupRoute({projectRoot, source: normalizedSource.source.mode});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
         throw new Error('project planning requires strict-empty setup');
     }
@@ -201,7 +216,7 @@ function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, rando
             candidateRoot: attempt.candidateRoot,
             request: {
                 schemaVersion: 1,
-                source: {mode: 'BLANK', evidence: null},
+                source: normalizedSource.source,
                 capabilities: [],
                 metadata: normalized,
                 adapter: null,
@@ -218,13 +233,18 @@ function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, rando
             provider: providerReport.provider,
             outputs: validated,
         }]}).map(semanticOutput);
+        const sourceContents = writeExclusive(
+            path.join(attempt.reportsRoot, 'source.json'),
+            normalizedSource
+        );
         const metadataContents = writeExclusive(path.join(attempt.reportsRoot, 'metadata.json'), metadata);
         const persistedProvider = persistedProviderReport(providerReport, attempt.candidateRoot);
         writeExclusive(path.join(attempt.reportsRoot, 'core-baseline.json'), persistedProvider);
         const attemptInventoryDigest = inventoryAttempt(attempt.attemptRoot);
         const plan = Object.freeze({
             schemaVersion: 1,
-            source: Object.freeze({mode: 'BLANK', evidence: null}),
+            source: normalizedSource.source,
+            sourceDigest: sha256(sourceContents),
             adapter: null,
             adapterReportDigest: null,
             activation: null,
@@ -291,6 +311,7 @@ function openSelectedAttempt({
     coreRoot,
     attemptId,
     packageName,
+    expectedSource,
     prepare = true,
     allowAppliedProject = false,
 }) {
@@ -301,6 +322,7 @@ function openSelectedAttempt({
         coreRoot,
         attemptId,
         packageName,
+        expectedSource,
         allowAppliedProject,
     });
     if (prepare && fs.readdirSync(attemptRoot).join(',') !== 'adapter.json') {
@@ -338,18 +360,30 @@ function buildAdapterProjectPlan({
     attemptId,
     packageName,
     run,
+    sourceState = blankBootstrapSource(),
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
+    const source = validateBootstrapSource(sourceState?.source);
     const normalized = normalizeProjectMetadata({projectRoot, input});
     const metadata = Object.freeze({
         schemaVersion: normalized.schemaVersion,
         displayName: normalized.displayName,
         summary: normalized.summary,
     });
-    const attempt = openSelectedAttempt({projectRoot, coreRoot, attemptId, packageName});
+    const attempt = openSelectedAttempt({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        packageName,
+        expectedSource: source.mode,
+    });
+    const normalizedSource = validateBootstrapSourceState(sourceState, {
+        capabilities: [],
+        adapter: attempt.adapter,
+    });
     const request = {
         schemaVersion: 1,
-        source: {mode: 'BLANK', evidence: null},
+        source: normalizedSource.source,
         capabilities: [],
         metadata: normalized,
         adapter: attempt.adapter,
@@ -392,6 +426,10 @@ function buildAdapterProjectPlan({
         {provider: coreReport.provider, outputs: coreOutputs},
         {provider: adapterReport.provider, outputs: adapterOutputs},
     ]}).map(semanticOutput);
+    const sourceContents = writeExclusive(
+        path.join(attempt.reportsRoot, 'source.json'),
+        normalizedSource
+    );
     const metadataContents = writeExclusive(path.join(attempt.reportsRoot, 'metadata.json'), metadata);
     writeExclusive(
         path.join(attempt.reportsRoot, 'core-baseline.json'),
@@ -415,7 +453,8 @@ function buildAdapterProjectPlan({
     });
     const plan = Object.freeze({
         schemaVersion: 1,
-        source: Object.freeze({mode: 'BLANK', evidence: null}),
+        source: normalizedSource.source,
+        sourceDigest: sha256(sourceContents),
         adapter: attempt.adapter,
         adapterReportDigest: sha256(adapterReportContents),
         activation,
@@ -708,19 +747,22 @@ function validProviderIdentity(value) {
 
 function validatePlanShape(plan) {
     if (!isRecord(plan) || !hasExactKeys(plan, [
-        'schemaVersion', 'source', 'adapter', 'adapterReportDigest', 'activation', 'capabilities',
+        'schemaVersion', 'source', 'sourceDigest', 'adapter', 'adapterReportDigest', 'activation', 'capabilities',
         'metadata', 'metadataDigest',
         'providers', 'outputs', 'effects', 'checks', 'verification', 'recovery', 'filesystem',
     ])) {
         throw new Error('bootstrap project plan is invalid');
     }
     const providerCount = plan.adapter === null ? 1 : 2;
+    try {
+        validateBootstrapSource(plan.source);
+    } catch {
+        throw new Error('bootstrap project plan is invalid');
+    }
     if (
         plan.schemaVersion !== 1 ||
-        !isRecord(plan.source) ||
-        !hasExactKeys(plan.source, ['mode', 'evidence']) ||
-        plan.source.mode !== 'BLANK' ||
-        plan.source.evidence !== null ||
+        typeof plan.sourceDigest !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(plan.sourceDigest) ||
         !validAdapterIdentity(plan.adapter) ||
         (
             plan.adapter === null
@@ -846,6 +888,21 @@ function validateHeldProjectPlan({
     if (envelope.planDigest !== planDigest || actualPlanDigest !== planDigest) {
         throw new Error('bootstrap project plan is stale');
     }
+    const sourceFile = readJsonFile(path.join(paths.reportsAnchor, 'source.json'));
+    const sourceState = validateBootstrapSourceState(sourceFile.value, {
+        capabilities: envelope.plan.capabilities,
+        adapter: envelope.plan.adapter,
+    });
+    const journal = readBootstrapJournal({projectRoot, attemptId});
+    if (
+        sha256(sourceFile.contents) !== envelope.plan.sourceDigest ||
+        JSON.stringify(sourceState.source) !== JSON.stringify(envelope.plan.source) ||
+        journal.planDigest !== planDigest ||
+        journal.sourceDigest !== envelope.plan.sourceDigest ||
+        JSON.stringify(journal.source) !== JSON.stringify(envelope.plan.source)
+    ) {
+        throw new Error('bootstrap project source is stale');
+    }
     const metadataFile = readJsonFile(path.join(paths.reportsAnchor, 'metadata.json'));
     if (
         sha256(metadataFile.contents) !== envelope.plan.metadataDigest ||
@@ -871,6 +928,7 @@ function validateHeldProjectPlan({
             coreRoot,
             attemptId,
             packageName: envelope.plan.adapter.packageName,
+            expectedSource: envelope.plan.source.mode,
             prepare: false,
             allowAppliedProject,
         });

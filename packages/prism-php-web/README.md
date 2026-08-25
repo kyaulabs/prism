@@ -36,10 +36,14 @@ pi install -l npm:@kyaulabs/prism-php-web
 On first run pi asks to **trust** the project (or save the decision with
 `/trust`) so project-local resources load.
 
-## Blank project bootstrap
+## Blank and Template project bootstrap
 
-Strict-empty Blank setup can select this exact PHP/web adapter through Core's
-generic provider protocol. The adapter renders and verifies an application-free,
+Strict-empty Blank or Template setup can select this exact PHP/web adapter
+through Core's generic provider protocol. Both source modes use the same generic
+adapter preparation, provider report, installed-graph verification, and shared
+quality contracts. Template evidence cannot change stack outputs: the adapter
+renders byte-identical trusted scaffold content for equivalent metadata and
+verifies an application-free,
 testing-ready scaffold: dependency manifests and locks, Pest/PHPUnit readiness,
 first-source lint configuration, shared local/CI quality gates, canonical hosted
 CI, and empty source/test directories without an application webroot, Aurora
@@ -68,8 +72,8 @@ or cleaned after interruption; Playwright installs only the matching Chromium
 build.
 
 Established projects retain the existing public `setup inspect`, `setup
-resolve`, `setup apply`, and `setup verify` workflow; Blank bootstrap adds no
-behavior to those operations.
+resolve`, `setup apply`, and `setup verify` workflow; Blank and Template
+bootstrap add no behavior to those operations.
 
 ## License
 

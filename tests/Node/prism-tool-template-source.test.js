@@ -1,14 +1,16 @@
-// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {inspectTemplateSource} = require('../../packages/prism-core/scripts/prism-tool/template-source');
 
 async function captureWrites(action) {
     let stdout = '';
@@ -547,6 +549,130 @@ test('normalizes catalogue ordering without exposing remote response content', a
     assert.equal(firstResult.stdout.includes(canary), false);
     assert.deepEqual(fs.readdirSync(firstRoot), []);
     assert.deepEqual(fs.readdirSync(secondRoot), []);
+});
+
+test('normalizes immutable Template reports for trusted provider composition', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const report = await inspectTemplateSource({
+        projectRoot,
+        source: 'TEMPLATE',
+        fetchImpl: fixture.fetch,
+    });
+    const {normalizeTemplateBootstrapSource} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-source'
+    );
+
+    const normalized = normalizeTemplateBootstrapSource({
+        report,
+        capabilities: [],
+        adapter: {
+            id: 'php-web',
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+            bootstrapProtocol: 1,
+        },
+    });
+
+    assert.deepEqual(Object.keys(normalized), ['schemaVersion', 'source', 'catalogue']);
+    assert.equal(normalized.schemaVersion, 1);
+    assert.equal(normalized.source.mode, 'TEMPLATE');
+    assert.deepEqual(normalized.source.evidence, report.data.attestation);
+    assert.deepEqual(normalized.catalogue, report.data.catalogue);
+    assert.match(normalized.source.evidence.classificationSha256, /^[0-9a-f]{64}$/);
+    assert.equal(Object.isFrozen(normalized), true);
+    assert.equal(Object.isFrozen(normalized.source), true);
+    assert.equal(Object.isFrozen(normalized.source.evidence), true);
+    assert.equal(JSON.stringify(normalized).includes('api.github.com'), false);
+    assert.equal(JSON.stringify(normalized).includes('network-approved'), false);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects malformed local adapter selections before using Template advertisements', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const report = await inspectTemplateSource({
+        projectRoot,
+        source: 'TEMPLATE',
+        fetchImpl: fixture.fetch,
+    });
+    const {normalizeTemplateBootstrapSource} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-source'
+    );
+
+    assert.throws(() => normalizeTemplateBootstrapSource({
+        report,
+        capabilities: [],
+        adapter: {},
+    }), /adapter selection/);
+});
+
+test('rejects substituted Template source report checks', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const report = await inspectTemplateSource({
+        projectRoot,
+        source: 'TEMPLATE',
+        fetchImpl: fixture.fetch,
+    });
+    report.checks[0].status = 'UNKNOWN';
+    const {normalizeTemplateBootstrapSource} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-source'
+    );
+
+    assert.throws(() => normalizeTemplateBootstrapSource({
+        report,
+        capabilities: [],
+        adapter: null,
+    }), /source report/);
+});
+
+test('acquires fixed Template evidence for a launcher-validated bootstrap attempt', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    fs.mkdirSync(path.join(projectRoot, '.pi'));
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const {acquireTemplateSource} = require(
+        '../../packages/prism-core/scripts/prism-tool/template-source'
+    );
+
+    const report = await acquireTemplateSource({
+        projectRoot: fs.realpathSync(projectRoot),
+        fetchImpl: fixture.fetch,
+    });
+
+    assert.equal(report.status, 'GO');
+    assert.equal(report.source, 'TEMPLATE');
+    assert.equal(report.data.attestation.commitSha, fixture.commitSha);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+    assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
+});
+
+test('rejects reordered stored Template catalogues even with a matching digest', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const report = await inspectTemplateSource({
+        projectRoot,
+        source: 'TEMPLATE',
+        fetchImpl: fixture.fetch,
+    });
+    report.data.catalogue.entries.reverse();
+    report.data.attestation.classificationSha256 = crypto.createHash('sha256')
+        .update(JSON.stringify(report.data.catalogue))
+        .digest('hex');
+    const {normalizeTemplateBootstrapSource} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-source'
+    );
+
+    assert.throws(() => normalizeTemplateBootstrapSource({
+        report,
+        capabilities: [],
+        adapter: null,
+    }), /catalogue/);
 });
 
 test('canonicalizes catalogue ordering independently of locale collation', async (t) => {

@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-seed.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-seed.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,7 @@ const {inspectBootstrapHooks} = require('./bootstrap-hooks');
 const {readBootstrapJournal, transitionBootstrapJournal} = require('./bootstrap-journal');
 const {runBounded} = require('./process');
 const {validateDurableBootstrapProject} = require('./bootstrap-transaction');
+const {validateBootstrapSource} = require('./bootstrap-source');
 
 const MAX_ATTESTATION_BYTES = 1048576;
 
@@ -420,6 +421,12 @@ function validateActiveBootstrapSeed({
     };
     const expectedJournalDigest = sha256(Buffer.from(`${JSON.stringify(predecessor, null, 2)}\n`));
     const value = attestation.value;
+    let retainedSource;
+    try {
+        retainedSource = validateBootstrapSource(value?.source);
+    } catch {
+        throw new Error('active bootstrap seed changed');
+    }
     if (
         !exactKeys(value, [
             'schemaVersion', 'projectRoot', 'attemptId', 'source', 'providers',
@@ -431,7 +438,8 @@ function validateActiveBootstrapSeed({
         current.digest !== journal.seed.stagedIndexDigest ||
         value.projectRoot !== projectRoot ||
         value.attemptId !== attemptId ||
-        JSON.stringify(value.source) !== JSON.stringify(journal.source) ||
+        JSON.stringify(retainedSource) !== JSON.stringify(journal.source) ||
+        JSON.stringify(retainedSource) !== JSON.stringify(durable.plan.source) ||
         JSON.stringify(value.providers) !== JSON.stringify(expectedProviders) ||
         value.metadataDigest !== journal.metadataDigest ||
         JSON.stringify(value.adapter) !== JSON.stringify(

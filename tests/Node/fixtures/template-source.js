@@ -1,4 +1,4 @@
-// $KYAULabs: template-source.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: template-source.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -44,6 +44,24 @@ const SOURCE_ENTRIES = Object.freeze([
         provider: null,
         disposition: 'exclude',
     }),
+    Object.freeze({
+        path: '.github/hooks/pre-commit',
+        blobSha: '8888888888888888888888888888888888888888',
+        size: 96,
+        class: 'core-baseline',
+        capability: 'core-hooks',
+        provider: Object.freeze({scope: 'core', id: 'core-hooks'}),
+        disposition: 'render',
+    }),
+    Object.freeze({
+        path: 'commitlint.config.cjs',
+        blobSha: '9999999999999999999999999999999999999999',
+        size: 80,
+        class: 'core-baseline',
+        capability: 'commit-policy',
+        provider: Object.freeze({scope: 'core', id: 'commit-policy'}),
+        disposition: 'render',
+    }),
 ]);
 
 function gitBlobSha(bytes) {
@@ -87,6 +105,7 @@ function createTemplateFixture({mutate, mutateManifest, transformManifestBytes, 
         truncated: false,
         tree: [
             {path: '.github', mode: '040000', type: 'tree', sha: '5555555555555555555555555555555555555555'},
+            {path: '.github/hooks', mode: '040000', type: 'tree', sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'},
             {path: '.github/media', mode: '040000', type: 'tree', sha: '6666666666666666666666666666666666666666'},
             {path: '.prism', mode: '040000', type: 'tree', sha: '7777777777777777777777777777777777777777'},
             ...SOURCE_ENTRIES.map((entry) => ({

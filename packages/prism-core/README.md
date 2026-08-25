@@ -26,18 +26,24 @@ language-neutral half; install it **globally** so it runs in every project.
   by `install-global.sh` so the core is "always running".
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
-- **Strict-empty Core-only project transactions** — Blank setup collects only
-  an editable project name and one-sentence summary, renders a private candidate
-  beneath `.pi/prism-tool/bootstrap/`, and returns a digest-bound plan. The
+- **Strict-empty Core-only project transactions** — Blank and Template setup
+  collect only an editable project name and one-sentence summary, render a
+  private candidate beneath `.pi/prism-tool/bootstrap/`, and return a
+  digest-bound plan. Template acquisition reads a fixed public source only as
+  immutable, untrusted catalogue evidence; it never supplies project bytes,
+  policy, output paths, packages, defaults, or metadata. The
   transaction progresses from `PLAN_READY` / `PREPARED` through `APPLYING` to
   `PROJECT_DURABLE`. Pre-durable failure returns `ROOT_RESTORED` when owned
   state is safely removed or `RECOVERY_REQUIRED` when ambiguous state must be
   preserved. Durable recovery returns `REPOSITORY_BOOTSTRAP` for the next setup
   slice. Application does not initialize Git, invoke dependency or quality
   commands, activate hooks, access the network, or invoke a subprocess.
-- **Provider-composed Blank projects** — strict-empty Blank setup can select
-  the exact PHP/web adapter as well as Core-only. Core remains stack-agnostic:
-  it validates and composes generic provider reports, owns the outer durable
+- **Provider-composed Blank and Template projects** — strict-empty setup can
+  select the exact PHP/web adapter as well as Core-only. All durable project
+  bytes come from trusted installed Core and adapter providers; Template data
+  can only advertise locally recognized providers and disabled-by-default
+  capabilities. Core remains stack-agnostic: it validates and composes generic
+  provider reports, owns the outer durable
   transaction, and delegates stack outputs and effects to the validated
   project-local adapter. Failure before the durable marker restores strict
   emptiness when transaction ownership remains provable. Failure after the
@@ -46,9 +52,11 @@ language-neutral half; install it **globally** so it runs in every project.
   its exact project-relative path; after confirming no setup process is running,
   remove only that path and rerun `setup project apply` with the retained attempt
   and digest.
-  Canonical hooks and the root-seed attestation bind the adapter identity,
-  activation file, and provider-report digest. Setup creates no remote and
-  performs no publication or push; those operations remain human-owned.
+  Source evidence is digest-bound through the private plan, recovery journal,
+  durable project manifest, and root-seed attestation. Canonical hooks and the
+  root-seed attestation also bind the adapter identity, activation file, and
+  provider-report digest. Setup creates no remote and performs no publication
+  or push; those operations remain human-owned.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →

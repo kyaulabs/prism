@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -20,13 +20,41 @@ function hasExactKeys(value, keys) {
         Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 
+function validBootstrapSource(source) {
+    if (!hasExactKeys(source, ['mode', 'evidence'])) return false;
+    if (source.mode === 'BLANK') return source.evidence === null;
+    if (source.mode !== 'TEMPLATE' || !hasExactKeys(source.evidence, [
+        'schemaVersion', 'source', 'templateId', 'defaultBranch', 'commitSha', 'treeSha',
+        'manifest', 'classificationSha256',
+    ])) return false;
+    const evidence = source.evidence;
+    return evidence.schemaVersion === 1 &&
+        evidence.source === 'TEMPLATE' &&
+        evidence.templateId === 'kyaulabs/template' &&
+        typeof evidence.defaultBranch === 'string' &&
+        /^(?!\.)(?!.*\.\.)(?!.*\.lock$)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$/.test(evidence.defaultBranch) &&
+        typeof evidence.commitSha === 'string' &&
+        /^[0-9a-f]{40}$/.test(evidence.commitSha) &&
+        typeof evidence.treeSha === 'string' &&
+        /^[0-9a-f]{40}$/.test(evidence.treeSha) &&
+        hasExactKeys(evidence.manifest, ['path', 'blobSha', 'size', 'sha256']) &&
+        evidence.manifest.path === '.prism/template-manifest.json' &&
+        typeof evidence.manifest.blobSha === 'string' &&
+        /^[0-9a-f]{40}$/.test(evidence.manifest.blobSha) &&
+        Number.isSafeInteger(evidence.manifest.size) &&
+        evidence.manifest.size >= 0 &&
+        evidence.manifest.size <= 262144 &&
+        typeof evidence.manifest.sha256 === 'string' &&
+        /^[0-9a-f]{64}$/.test(evidence.manifest.sha256) &&
+        typeof evidence.classificationSha256 === 'string' &&
+        /^[0-9a-f]{64}$/.test(evidence.classificationSha256);
+}
+
 function validateRequest(request, contract) {
     if (
         !hasExactKeys(request, ['schemaVersion', 'source', 'capabilities', 'metadata', 'adapter']) ||
         request.schemaVersion !== 1 ||
-        !hasExactKeys(request.source, ['mode', 'evidence']) ||
-        request.source.mode !== 'BLANK' ||
-        request.source.evidence !== null ||
+        !validBootstrapSource(request.source) ||
         !Array.isArray(request.capabilities) ||
         request.capabilities.length !== 0 ||
         !hasExactKeys(request.metadata, ['schemaVersion', 'displayName', 'summary', 'suggestedDisplayName']) ||
