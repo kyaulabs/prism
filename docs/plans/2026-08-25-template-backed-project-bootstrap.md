@@ -376,7 +376,7 @@ prism-tool commit create --type feat --scope setup --subject "bind template sour
 - Consumes: a durable Template Core-only or selected-adapter plan, complete journal, repository evidence, active hooks, and exact staged inventory.
 - Produces: the existing seed attestation schema with `source` carrying immutable Template evidence and no operational catalogue or remote bytes.
 
-- [ ] **Step 1: Write failing Template seed tests**
+- [x] **Step 1: Write failing Template seed tests**
 
 Create one ready Core-only Template project and one ready PHP/web Template project through the public launcher seams. Assert the attestation binds:
 
@@ -391,29 +391,29 @@ Create one ready Core-only Template project and one ready PHP/web Template proje
 
 Assert staged names contain only `plan.outputs` plus `.pi/settings.json` for the selected adapter.
 
-- [ ] **Step 2: Run seed tests and verify Red**
+- [x] **Step 2: Run seed tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because no public Template plan reaches seed readiness yet or the active attestation validator does not reject substituted Template evidence.
 
-- [ ] **Step 3: Close Template attestation validation**
+- [x] **Step 3: Close Template attestation validation**
 
 Reuse the validated plan source in attestation creation. Validate the complete closed Template evidence shape when reading an active seed, compare it byte-for-byte to journal and durable plan source, and reject changed source, plan, journal, provider, adapter, hook, or staged evidence without changing the index.
 
 Do not add catalogue entries, source-report digests, manifest bytes, HTTP responses, URLs, or operational paths to the staged inventory or durable project.
 
-- [ ] **Step 4: Add exclusion and substitution tests**
+- [x] **Step 4: Add exclusion and substitution tests**
 
 Assert no staged or committed path begins with `.pi/prism-tool/`; no remote blob content appears in project files; no `.prism/template-manifest.json` is created; no Git remote exists; and changing any Template attestation field blocks readiness or completion.
 
-- [ ] **Step 5: Run focused tests and verify Green**
+- [x] **Step 5: Run focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS for Blank and Template, Core-only and selected-adapter seed readiness.
 
-- [ ] **Step 6: Commit the seed slice**
+- [x] **Step 6: Commit the seed slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-seed.js tests/Node/prism-tool-bootstrap-seed.test.js
