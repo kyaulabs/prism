@@ -411,19 +411,19 @@ prism-tool commit create --type feat --scope setup --subject "compose release ma
 - Operational package-release locks/plans, bootstrap reports/journals, credentials, remotes, tags, releases, and unrelated files remain excluded.
 - Hook/project validation accepts the exact normalized release metadata and rejects malformed coordinates, changed package lists, changed workflow/cliff/changelog bytes, missing outputs, unselected outputs, and unknown capability fields.
 
-- [ ] **Step 1: Add durable apply and rollback regressions**
+- [x] **Step 1: Add durable apply and rollback regressions**
 
 For the publishable adapter fixture, inject failures before durable application and assert strict emptiness. Apply successfully and inject post-durable drift/failure, asserting the complete four-file release surface and deterministic recovery phase remain.
 
-- [ ] **Step 2: Add rerun and hook validation regressions**
+- [x] **Step 2: Add rerun and hook validation regressions**
 
 Prove unchanged canonical release state validates without rewriting; changed metadata, candidate package manifests, provider report, project manifest, workflow, config, cliff, or changelog fails closed. Confirm no package-release apply transaction runs during bootstrap recovery.
 
-- [ ] **Step 3: Add seed attestation and exact-staging regressions**
+- [x] **Step 3: Add seed attestation and exact-staging regressions**
 
 Prepare repository/hook/seed state and assert the attestation binds `release-management`, normalized coordinate metadata, provider/report digests, package configuration, canonical workflow, cliff config, changelog, and exact staged inventory. Reject omission, substitution, extra operational files, unexpected index entries, or candidate drift.
 
-- [ ] **Step 4: Run recovery and seed tests to verify Red**
+- [x] **Step 4: Run recovery and seed tests to verify Red**
 
 Run:
 
@@ -433,11 +433,11 @@ node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-b
 
 Expected: FAIL at the missing release continuity assertions.
 
-- [ ] **Step 5: Implement only required closed-validation updates**
+- [x] **Step 5: Implement only required closed-validation updates**
 
 Prefer the existing generic plan-output and seed-inventory mechanics. Modify journal, hook, or seed source only where an explicit seven-capability or metadata-shape assumption blocks the new profile; do not add release-specific mutation behavior there.
 
-- [ ] **Step 6: Run recovery and seed tests to verify Green**
+- [x] **Step 6: Run recovery and seed tests to verify Green**
 
 Run:
 
@@ -447,7 +447,7 @@ node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-b
 
 Expected: PASS with release outputs included solely through the accepted generic provider/plan/seed contracts.
 
-- [ ] **Step 7: Create the commit**
+- [x] **Step 7: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/hook.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/prism-tool-bootstrap-seed.test.js docs/plans/2026-08-25-release-management-capability.md

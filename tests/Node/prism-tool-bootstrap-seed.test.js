@@ -16,6 +16,7 @@ const {
     validateActiveBootstrapSeed,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-seed');
 const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
+const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -97,6 +98,9 @@ function projectCapabilityMetadata() {
                 {provider: 'github', account: 'example'},
                 {provider: 'custom', destination: 'https://example.test/fund'},
             ],
+        },
+        'release-management': {
+            repository: 'example/release-project',
         },
     };
 }
@@ -237,6 +241,35 @@ function installedGraphRunner(projectRoot) {
             error: undefined,
         };
     };
+}
+
+function enablePublishableAdapter(t) {
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    const verify = phpWebHandler.verifyBootstrapProject;
+    t.after(() => {
+        phpWebHandler.prepareBootstrapProject = prepare;
+        phpWebHandler.verifyBootstrapProject = verify;
+    });
+    phpWebHandler.prepareBootstrapProject = (options) => {
+        const report = JSON.parse(JSON.stringify(prepare(options)));
+        const packagePath = path.join(options.candidateRoot, 'package.json');
+        const contents = Buffer.from(`${JSON.stringify({
+            name: '@example/release-project',
+            version: '0.1.0',
+        }, null, 2)}\n`, 'utf8');
+        fs.writeFileSync(packagePath, contents);
+        report.outputs.find(({path: outputPath}) => outputPath === 'package.json').sha256 =
+            crypto.createHash('sha256').update(contents).digest('hex');
+        return report;
+    };
+    phpWebHandler.verifyBootstrapProject = () => ({
+        status: 'GO',
+        checks: [{
+            id: 'php-web-scaffold-inventory',
+            status: 'PASS',
+            message: 'PHP web bootstrap scaffold is current',
+        }],
+    });
 }
 
 function planSelectedProject(projectRoot, context = {}, capabilities = []) {
@@ -1223,6 +1256,62 @@ test('stages and attests all seven profiles with selected-adapter evidence', (t)
         projectRoot,
         coreRoot: CORE_ROOT,
     }));
+});
+
+test('stages and attests release management outputs with selected-adapter evidence', (t) => {
+    enablePublishableAdapter(t);
+    const {projectRoot, plan} = readySelectedHooks(t, ['release-management']);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner(),
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    for (const outputPath of [
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]) {
+        assert.equal(stagedNames(projectRoot).includes(outputPath), true, outputPath);
+    }
+    assert.equal(stagedNames(projectRoot).some((name) =>
+        name.startsWith('.pi/prism-tool/package-release')
+    ), false);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestation = JSON.parse(fs.readFileSync(
+        path.join(attemptRoot, 'seed-attestation.json'),
+        'utf8'
+    ));
+    assert.deepEqual(attestation.capabilities, ['release-management']);
+    assert.deepEqual(attestation.providers.map(({id}) => id), [
+        'core-baseline',
+        'release-management',
+        'php-web-scaffold',
+    ]);
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }));
+});
+
+test('rejects release management output drift before seed staging', (t) => {
+    enablePublishableAdapter(t);
+    for (const outputPath of [
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]) {
+        const {projectRoot, plan} = readySelectedHooks(t, ['release-management']);
+        fs.appendFileSync(path.join(projectRoot, ...outputPath.split('/')), 'changed\n');
+
+        const result = prepareSeed(projectRoot, plan.planDigest, {
+            bootstrapSeedToolRun: selectedSeedToolRunner(),
+        });
+
+        assert.equal(result.status, 5, outputPath);
+        assert.deepEqual(stagedNames(projectRoot), [], outputPath);
+    }
 });
 
 test('stages and attests all seven Template capability outputs without remote bytes', async (t) => {
