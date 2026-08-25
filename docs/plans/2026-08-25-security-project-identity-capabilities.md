@@ -444,13 +444,13 @@ prism-tool commit create --type feat --scope setup --subject "compose security i
 - Durable validation continues to use `.prism/project.json` plus the digest-bound plan; generated policy files are never parsed as metadata.
 - Seed attestation retains the existing exact `capabilities`, `providers`, and `metadataDigest` fields and stages task-10 outputs only because they are declared plan outputs.
 
-- [ ] **Step 1: Write failing continuity, hook, and seed tests**
+- [x] **Step 1: Write failing continuity, hook, and seed tests**
 
 After planning, mutate one security contact, policy row, acknowledgement value, owner, ownership rule, support destination/default, funding record, profile report, generated output, metadata digest, candidate manifest, durable manifest, attestation capability order, provider identity, and staged entry at a time. Assert validation, apply, recovery, hook dispatch, seed readiness, or seed completion fails closed before further mutation.
 
 Add valid Blank and Template hook/seed scenarios with all seven capabilities and an adapter scenario proving adapter quality and activation behavior are unchanged.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -461,21 +461,21 @@ bash tests/Shell/bootstrap_hook_dispatch_test.sh
 
 Expected: FAIL where hook or seed validation still assumes only task-9 metadata; otherwise the new regression must initially expose the first missing continuity check before production changes.
 
-- [ ] **Step 3: Enforce generic expanded metadata validation**
+- [x] **Step 3: Enforce generic expanded metadata validation**
 
 Use `validateNormalizedProjectMetadata()` wherever persisted project metadata crosses plan restoration, durable validation, hook dispatch, or seed preparation. Remove only obsolete task-9 assumptions; retain all existing source, adapter, journal, hook, index, one-use, and recovery checks.
 
-- [ ] **Step 4: Prove exact staging and exclusion**
+- [x] **Step 4: Prove exact staging and exclusion**
 
 Assert task-10 outputs are staged and `.pi/prism-tool/`, provider reports, Template responses/blobs, journal/backup artifacts, package resources, remote state, and unrelated files remain excluded. Do not add task-10-specific staging logic when generic `plan.outputs` is sufficient.
 
-- [ ] **Step 5: Run focused tests and verify Green**
+- [x] **Step 5: Run focused tests and verify Green**
 
 Run the Step 2 commands.
 
 Expected: PASS for Blank/Template, Core-only/adapter, pre-/post-durable recovery, hooks, and exact root-seed evidence.
 
-- [ ] **Step 6: Commit the continuity and attestation slice**
+- [x] **Step 6: Commit the continuity and attestation slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/hook.js packages/prism-core/scripts/prism-tool/bootstrap-seed.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-seed.test.js tests/Shell/bootstrap_hook_dispatch_test.sh
