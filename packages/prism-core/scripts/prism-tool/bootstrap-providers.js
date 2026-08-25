@@ -32,17 +32,66 @@ function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function readRegular(filePath, label, expectedMode = null) {
-    const stat = fs.lstatSync(filePath);
+function readBounded(descriptor, label) {
+    const chunks = [];
+    let total = 0;
+    while (total <= MAX_RESOURCE_BYTES) {
+        const chunk = Buffer.allocUnsafe(Math.min(65536, MAX_RESOURCE_BYTES + 1 - total));
+        const count = fs.readSync(descriptor, chunk, 0, chunk.length, null);
+        if (count === 0) break;
+        chunks.push(chunk.subarray(0, count));
+        total += count;
+    }
+    if (total > MAX_RESOURCE_BYTES) throw new Error(`${label} is invalid`);
+    return Buffer.concat(chunks, total);
+}
+
+function readHeldRegular(filePath, openPath, label, expectedMode = null) {
+    const initial = fs.lstatSync(openPath);
     if (
-        stat.isSymbolicLink() ||
-        !stat.isFile() ||
-        stat.size > MAX_RESOURCE_BYTES ||
-        (expectedMode !== null && (stat.mode & 0o777) !== expectedMode)
+        initial.isSymbolicLink() ||
+        !initial.isFile() ||
+        initial.size > MAX_RESOURCE_BYTES ||
+        (expectedMode !== null && (initial.mode & 0o777) !== expectedMode) ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error(`${label} is invalid`);
     }
-    return fs.readFileSync(filePath);
+    const descriptor = fs.openSync(openPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (
+            held.dev !== initial.dev ||
+            held.ino !== initial.ino ||
+            !held.isFile() ||
+            held.size !== initial.size ||
+            (expectedMode !== null && (held.mode & 0o777) !== expectedMode)
+        ) {
+            throw new Error(`${label} changed`);
+        }
+        const contents = readBounded(descriptor, label);
+        const final = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(filePath);
+        if (
+            final.dev !== held.dev ||
+            final.ino !== held.ino ||
+            final.size !== held.size ||
+            contents.length !== held.size ||
+            current.isSymbolicLink() ||
+            !current.isFile() ||
+            current.dev !== held.dev ||
+            current.ino !== held.ino
+        ) {
+            throw new Error(`${label} changed`);
+        }
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function readRegular(filePath, label, expectedMode = null) {
+    return readHeldRegular(filePath, filePath, label, expectedMode);
 }
 
 function readCoreManifest(coreRoot) {
@@ -98,8 +147,9 @@ function loadTrustedAdapterProviderDescriptor({registration}) {
     if (packageRoot !== registration.packageRoot) {
         throw new Error('adapter registration root is invalid');
     }
-    const packageManifest = JSON.parse(readRegular(
-        path.join(packageRoot, 'package.json'),
+    const packageManifest = JSON.parse(readCanonicalRegular(
+        packageRoot,
+        'package.json',
         'adapter package manifest'
     ));
     if (
@@ -108,11 +158,11 @@ function loadTrustedAdapterProviderDescriptor({registration}) {
     ) {
         throw new Error('adapter registration identity is invalid');
     }
-    const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
-    if (fs.realpathSync(manifestPath) !== manifestPath) {
-        throw new Error('adapter provider manifest is invalid');
-    }
-    const manifest = JSON.parse(readRegular(manifestPath, 'adapter provider manifest'));
+    const manifest = JSON.parse(readCanonicalRegular(
+        packageRoot,
+        'config/bootstrap/scaffold.json',
+        'adapter provider manifest'
+    ));
     if (
         !isRecord(manifest) ||
         !hasExactKeys(manifest, [
@@ -291,6 +341,45 @@ function holdCandidateParent(candidateRoot, relativePath) {
     } catch (error) {
         parent.close();
         throw error;
+    }
+}
+
+function holdExistingParent(root, relativePath) {
+    let directoryPath = root;
+    let parent = createHeldDirectory(root, root, root);
+    try {
+        for (const segment of relativePath.split('/').slice(0, -1)) {
+            const childPath = path.join(directoryPath, segment);
+            const child = createHeldDirectory(root, childPath, path.join(parent.anchor, segment));
+            parent.close();
+            parent = child;
+            directoryPath = childPath;
+        }
+        return parent;
+    } catch (error) {
+        parent.close();
+        throw error;
+    }
+}
+
+function readCanonicalRegular(root, relativePath, label, expectedMode = null) {
+    const lexical = path.join(root, ...relativePath.split('/'));
+    const relation = path.relative(root, lexical);
+    if (relation.startsWith('..') || path.isAbsolute(relation)) {
+        throw new Error(`${label} is invalid`);
+    }
+    const parent = holdExistingParent(root, relativePath);
+    try {
+        const contents = readHeldRegular(
+            lexical,
+            path.join(parent.anchor, path.posix.basename(relativePath)),
+            label,
+            expectedMode
+        );
+        parent.assertCurrent();
+        return contents;
+    } finally {
+        parent.close();
     }
 }
 

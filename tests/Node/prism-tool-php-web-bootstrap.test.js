@@ -301,7 +301,7 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
     fs.mkdirSync(fakeBin);
     fs.writeFileSync(
         path.join(fakeBin, 'prism-tool'),
-        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PRISM_INVOCATION_FILE"\nif [[ "$1" == run && "$2" == pest ]]; then exit 1; fi\nexit 0\n',
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PRISM_INVOCATION_FILE"\ncase "$*" in *pest*) exit 97 ;; esac\nexit 0\n',
         {mode: 0o755}
     );
     fs.writeFileSync(path.join(fakeBin, 'git'), '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
@@ -472,6 +472,58 @@ test('validates the PHP web report through the generic Core provider contract', 
         mutate(copy);
         assert.throws(() => validateProviderReport({projectRoot, candidateRoot, registry, report: copy}));
     }
+});
+
+test('reads the trusted adapter manifest through one held file identity', (t) => {
+    const packageRoot = makeTempDir();
+    const external = makeTempDir();
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(external, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(packageRoot, 'config', 'bootstrap'), {recursive: true});
+    fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
+        name: CONTRACT.package,
+        version: '0.3.1',
+    }));
+    const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
+    const originalManifest = fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'scaffold.json'));
+    fs.writeFileSync(manifestPath, originalManifest);
+    const malicious = JSON.parse(originalManifest);
+    malicious.displayName = 'Substituted provider';
+    const externalManifest = path.join(external, 'scaffold.json');
+    fs.writeFileSync(externalManifest, JSON.stringify(malicious));
+    const heldManifest = path.join(packageRoot, 'config', 'bootstrap', 'scaffold-held.json');
+    const originalOpen = fs.openSync;
+    const originalRead = fs.readSync;
+    let manifestDescriptor = null;
+    let substituted = false;
+    fs.openSync = function holdManifest(file, ...args) {
+        const descriptor = originalOpen.call(this, file, ...args);
+        if (path.basename(file) === 'scaffold.json') manifestDescriptor = descriptor;
+        return descriptor;
+    };
+    fs.readSync = function substituteManifestAtRead(descriptor, ...args) {
+        if (!substituted && descriptor === manifestDescriptor) {
+            substituted = true;
+            fs.renameSync(manifestPath, heldManifest);
+            fs.symlinkSync(externalManifest, manifestPath);
+        }
+        return originalRead.call(this, descriptor, ...args);
+    };
+
+    try {
+        assert.throws(() => loadTrustedAdapterProviderDescriptor({
+            registration: {
+                packageRoot: fs.realpathSync(packageRoot),
+                packageName: CONTRACT.package,
+                packageVersion: '0.3.1',
+                bootstrapProtocol: 1,
+            },
+        }), /adapter provider manifest changed/);
+    } finally {
+        fs.openSync = originalOpen;
+        fs.readSync = originalRead;
+    }
+    assert.equal(substituted, true);
 });
 
 test('verifies the applied scaffold inventory and rejects changed bytes', (t) => {

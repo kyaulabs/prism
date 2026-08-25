@@ -186,9 +186,13 @@ function removePreparedAttempt(projectRoot, attemptId, adapter = null) {
     }
 }
 
+function applyLockContents(attemptId, pid = process.pid) {
+    return Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId, pid})}\n`, 'utf8');
+}
+
 function acquireApplyLock(attemptRoot, attemptId) {
     const lockPath = path.join(attemptRoot, 'apply.lock');
-    const contents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`, 'utf8');
+    const contents = applyLockContents(attemptId);
     fs.writeFileSync(lockPath, contents, {flag: 'wx', mode: 0o600});
     fs.chmodSync(lockPath, 0o600);
     const descriptor = fs.openSync(lockPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
@@ -203,17 +207,62 @@ function acquireApplyLock(attemptRoot, attemptId) {
 
 function readApplyLock(attemptRoot, attemptId) {
     const lockPath = path.join(attemptRoot, 'apply.lock');
-    const contents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`, 'utf8');
     const stat = fs.lstatSync(lockPath);
     if (
         stat.isSymbolicLink() ||
         !stat.isFile() ||
         (stat.mode & 0o777) !== 0o600 ||
-        !fs.readFileSync(lockPath).equals(contents)
+        stat.size > 1024
     ) {
         throw new Error('bootstrap apply lock changed');
     }
-    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents};
+    const contents = fs.readFileSync(lockPath);
+    let value;
+    try {
+        value = JSON.parse(contents);
+    } catch {
+        throw new Error('bootstrap apply lock changed');
+    }
+    if (
+        value === null ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        ![['attemptId', 'schemaVersion'], ['attemptId', 'pid', 'schemaVersion']]
+            .some((keys) => Object.keys(value).sort().join(',') === keys.sort().join(',')) ||
+        value.schemaVersion !== 1 ||
+        value.attemptId !== attemptId ||
+        (
+            value.pid !== undefined &&
+            (!Number.isSafeInteger(value.pid) || value.pid < 1)
+        )
+    ) {
+        throw new Error('bootstrap apply lock changed');
+    }
+    return {path: lockPath, dev: stat.dev, ino: stat.ino, contents, pid: value.pid ?? null};
+}
+
+function processIsRunning(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        if (error?.code === 'ESRCH') return false;
+        throw error;
+    }
+}
+
+function acquireDurableApplyLock(attemptRoot, attemptId) {
+    try {
+        return acquireApplyLock(attemptRoot, attemptId);
+    } catch (error) {
+        if (error?.code !== 'EEXIST') throw error;
+    }
+    const retained = readApplyLock(attemptRoot, attemptId);
+    if (retained.pid === null || processIsRunning(retained.pid)) {
+        throw new Error('bootstrap apply lock is active');
+    }
+    releaseApplyLock(retained);
+    return acquireApplyLock(attemptRoot, attemptId);
 }
 
 function releaseApplyLock(lock) {
@@ -779,7 +828,7 @@ function applyBootstrapProject({
         throw new Error('bootstrap project recovery requires manual action');
     }
     if (journal.phase === 'DURABLE') {
-        const lock = acquireApplyLock(attemptRoot, attemptId);
+        const lock = acquireDurableApplyLock(attemptRoot, attemptId);
         try {
             const durable = validateDurableProject({
                 projectRoot,

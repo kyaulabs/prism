@@ -895,13 +895,9 @@ function validateHeldProjectPlan({
             paths,
             envelope.plan.adapterReportDigest
         );
-        const adapterDescriptor = {
-            ...adapterReport.provider,
-            outputs: adapterReport.outputs.map(({path: outputPath}) => outputPath),
-            effects: adapterReport.effects,
-            checks: adapterReport.checks,
-            verification: adapterReport.verification,
-        };
+        const adapterDescriptor = loadTrustedAdapterProviderDescriptor({
+            registration: state.registration,
+        });
         const registry = {
             schemaVersion: 1,
             providers: [...coreRegistry.providers, adapterDescriptor],

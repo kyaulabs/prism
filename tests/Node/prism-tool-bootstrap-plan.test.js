@@ -403,6 +403,42 @@ test('persists and validates the selected-adapter project plan', (t) => {
     assert.equal(journal.phase, 'PREPARED');
 });
 
+test('revalidates retained provider declarations against the package-owned manifest', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const providersPath = require.resolve(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-providers'
+    );
+    const planPath = require.resolve('../../packages/prism-core/scripts/prism-tool/bootstrap-plan');
+    const providers = require(providersPath);
+    const loadDescriptor = providers.loadTrustedAdapterProviderDescriptor;
+    providers.loadTrustedAdapterProviderDescriptor = (options) => {
+        const descriptor = loadDescriptor(options);
+        return {
+            ...descriptor,
+            verification: [{id: 'php-web-scaffold-inventory', command: 'changed verification'}],
+        };
+    };
+    delete require.cache[planPath];
+
+    try {
+        const {validateBootstrapProjectPlan} = require(planPath);
+        assert.throws(() => validateBootstrapProjectPlan({
+            projectRoot,
+            coreRoot: CORE_ROOT,
+            attemptId: ATTEMPT_ID,
+            planDigest: plan.planDigest,
+        }), /provider report/);
+    } finally {
+        providers.loadTrustedAdapterProviderDescriptor = loadDescriptor;
+        delete require.cache[planPath];
+    }
+});
+
 test('removes provisional adapter state when provider planning fails', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -1264,6 +1300,33 @@ test('does not roll back durable outputs when apply-lock cleanup fails', (t) => 
     assert.equal(report.disposition, 'PROJECT_DURABLE');
     assert.equal(journal.phase, 'DURABLE');
     for (const output of plan.outputs) assert.equal(fs.existsSync(path.join(projectRoot, output.path)), true);
+});
+
+test('recovers a crash-retained apply lock for a durable attempt', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+    const lockPath = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'apply.lock');
+    fs.writeFileSync(lockPath, `${JSON.stringify({
+        schemaVersion: 1,
+        attemptId: ATTEMPT_ID,
+        pid: 2147483647,
+    })}\n`, {mode: 0o600});
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(fs.existsSync(lockPath), false);
 });
 
 test('restores strict emptiness when application fails before durability', (t) => {
