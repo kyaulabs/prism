@@ -3,6 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {execFileSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -129,6 +130,59 @@ test('renders canonical dependency manifests from the adapter contract', (t) => 
     assert.equal(npm.name, 'example-project');
     assert.equal(npm.private, true);
     assert.equal(npm.devDependencies.playwright, '1.62.1');
+});
+
+test('renders an application-free PHP and Pest readiness surface', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const read = (name) => fs.readFileSync(
+        report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath,
+        'utf8'
+    );
+
+    assert.match(read('.php-cs-fixer.dist.php'), /PhpCsFixer\\Config/);
+    assert.match(read('.php-cs-fixer.dist.php'), /declare_strict_types/);
+    assert.match(read('phpunit.xml'), /bootstrap="tests\/bootstrap\.php"/);
+    assert.match(read('phpunit.xml'), /<directory>backend<\/directory>/);
+    assert.match(read('phpunit.xml'), /tests\/Feature\/fixtures/);
+    assert.match(read('phpunit.xml'), /tests\/coverage\.xml/);
+    assert.match(read('tests/bootstrap.php'), /E_ALL/);
+    assert.match(read('tests/Feature/fixtures/coverage_probe.php'), /function coverage_probe\(bool \$ready\): string/);
+    assert.match(read('tests/Feature/CoverageProbeTest.php'), /toBe\('ready'\).*toBe\('not-ready'\)/s);
+    assert.match(read('tests/Feature/RuntimeSmokeTest.php'), /PHP_VERSION_ID.*80500/);
+    assert.match(read('tests/Browser/SmokeTest.php'), /Prism ready/);
+    assert.match(read('tests/Unit/Harness/ArchTest.php'), /RecursiveDirectoryIterator/);
+    assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /\$KYAULabs:/);
+});
+
+test('renders syntactically valid PHP readiness files', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    for (const output of report.outputs.filter(({path: outputPath}) => outputPath.endsWith('.php'))) {
+        assert.match(execFileSync('php', ['-l', output.candidatePath], {encoding: 'utf8'}), /No syntax errors detected/);
+    }
 });
 
 test('resolves candidate locks with lifecycle scripts disabled', (t) => {

@@ -100,6 +100,113 @@ function contents(outputPath, request, contract) {
     }
     if (outputPath === 'composer.lock') return '{"packages":[],"packages-dev":[]}\n';
     if (outputPath === 'package-lock.json') return '{"lockfileVersion":3,"packages":{}}\n';
+    if (outputPath === '.php-cs-fixer.dist.php') return `<?php
+declare(strict_types=1);
+use PhpCsFixer\\Config;
+use PhpCsFixer\\Finder;
+$finder = Finder::create()->in(__DIR__)->exclude(['vendor', 'node_modules', 'aurora', 'cdn/css', 'cdn/javascript']);
+return (new Config())->setRiskyAllowed(true)->setRules(['@PSR12' => true, 'declare_strict_types' => true])->setFinder($finder);
+`;
+    if (outputPath === 'phpunit.xml') return `<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="tests/bootstrap.php" cacheDirectory=".phpunit.cache">
+  <testsuites>
+    <testsuite name="Unit"><directory>tests/Unit</directory></testsuite>
+    <testsuite name="Feature"><directory>tests/Feature</directory></testsuite>
+    <testsuite name="Integration"><directory>tests/Integration</directory></testsuite>
+    <testsuite name="Browser"><directory>tests/Browser</directory></testsuite>
+    <testsuite name="Plugin"><directory>tests/Plugin</directory></testsuite>
+  </testsuites>
+  <source><include><directory>backend</directory><directory>tests/Feature/fixtures</directory></include></source>
+  <coverage><report><clover outputFile="tests/coverage.xml"/><text outputFile="tests/coverage.txt"/><html outputDirectory="tests/coverage"/></report></coverage>
+</phpunit>
+`;
+    if (outputPath === 'tests/bootstrap.php') return `<?php
+declare(strict_types=1);
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+`;
+    if (outputPath === 'tests/Pest.php') return `<?php
+declare(strict_types=1);
+use PHPUnit\\Framework\\TestCase;
+pest()->extend(TestCase::class)->in('Unit', 'Feature', 'Integration', 'Browser', 'Plugin');
+function browser_base_url(): string
+{
+    return getenv('PEST_BROWSER_BASE_URL') ?: 'http://localhost:8080';
+}
+`;
+    if (outputPath === 'tests/Feature/fixtures/coverage_probe.php') return `<?php
+declare(strict_types=1);
+/** @return string Readiness state. */
+function coverage_probe(bool $ready): string
+{
+    return $ready ? 'ready' : 'not-ready';
+}
+`;
+    if (outputPath === 'tests/Feature/CoverageProbeTest.php') return `<?php
+declare(strict_types=1);
+require_once __DIR__ . '/fixtures/coverage_probe.php';
+it('exercises both readiness outcomes', function (): void {
+    expect(coverage_probe(true))->toBe('ready')->and(coverage_probe(false))->toBe('not-ready');
+});
+`;
+    if (outputPath === 'tests/Feature/RuntimeSmokeTest.php') return `<?php
+declare(strict_types=1);
+it('runs on PHP 8.5 or newer', function (): void { expect(PHP_VERSION_ID)->toBeGreaterThanOrEqual(80500); });
+`;
+    if (outputPath === 'tests/Browser/SmokeTest.php') return `<?php
+declare(strict_types=1);
+it('loads the application-free browser fixture', function (): void { visit(browser_base_url() . '/smoke.html')->assertSee('Prism ready')->assertNoJavascriptErrors()->assertNoConsoleLogs(); });
+`;
+    if (outputPath === 'tests/Unit/Harness/ArchTest.php') return `<?php
+declare(strict_types=1);
+/** @return list<string> PHP source paths. */
+function architecture_php_files(): array
+{
+    $root = dirname(__DIR__, 3);
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($iterator as $file) {
+        $path = $file->getPathname();
+        if ($file->isFile() && $file->getExtension() === 'php' && !preg_match('~/(?:vendor|node_modules|aurora|cdn/css|cdn/javascript|tests/Semgrep)/~', $path)) {
+            $files[] = $path;
+        }
+    }
+    return $files;
+}
+it('finds PHP source files', function (): void { expect(architecture_php_files())->not->toBeEmpty(); });
+it('contains no debug function calls', function (): void {
+    foreach (architecture_php_files() as $file) expect(file_get_contents($file))->not->toMatch('/\\b(?:var_dump|print_r|dd|dump)\\s*\\(/');
+});
+it('declares strict types near the start', function (): void {
+    foreach (architecture_php_files() as $file) expect(implode('', array_slice(file($file), 0, 10)))->toContain('declare(strict_types=1);');
+});
+`;
+    if (outputPath === 'tests/Unit/Harness/RcsHeaderConventionTest.php') return `<?php
+declare(strict_types=1);
+/** @return list<string> Harness source paths. */
+function convention_source_files(): array
+{
+    $root = dirname(__DIR__, 3);
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($iterator as $file) {
+        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'scss', 'sh', 'ts'], true)) $files[] = $file->getPathname();
+    }
+    return $files;
+}
+it('uses one non-placeholder RCS header', function (): void {
+    foreach (convention_source_files() as $file) {
+        $contents = file_get_contents($file);
+        expect(substr_count($contents, '$KYAULabs:'))->toBe(1)->and($contents)->not->toContain('creator@host')->not->toContain('YYYY/MM/DD');
+    }
+});
+it('uses one final vim modeline', function (): void {
+    foreach (convention_source_files() as $file) {
+        $contents = rtrim(file_get_contents($file));
+        expect(substr_count($contents, 'vim: ft='))->toBe(1)->and($contents)->toMatch('/(?:\\/\\/|#) vim: ft=[^\\n]+ :$/');
+    }
+});
+`;
     if (outputPath === 'tests/Browser/fixtures/smoke.html') return '<!doctype html><title>Prism ready</title><h1>Prism ready</h1>\n';
     if (outputPath === '.gitignore') return "/vendor/\n/node_modules/\n/tests/coverage/\n/tests/coverage.xml\n.env\n.env.*\n!.env.example\n";
     if (outputPath.endsWith('.gitkeep')) return '';

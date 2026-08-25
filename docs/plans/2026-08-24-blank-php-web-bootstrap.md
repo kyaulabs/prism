@@ -40,8 +40,8 @@
 
 ### Revised Task 1C: PHP/Pest readiness surface
 
-- [ ] Test and add canonical PHP CS Fixer, PHPUnit/Pest, runtime, coverage-probe, browser-fixture, architecture, and RCS-convention assets.
-- [ ] Verify generated PHP syntax and focused bootstrap tests, then commit `feat(setup): render php-web bootstrap test surfaces` with `Refs: #387`.
+- [x] Test and add canonical PHP CS Fixer, PHPUnit/Pest, runtime, coverage-probe, browser-fixture, architecture, and RCS-convention assets.
+- [x] Verify generated PHP syntax and focused bootstrap tests, then commit `feat(setup): render php-web bootstrap test surfaces` with `Refs: #387`.
 
 ### Revised Task 1D: Lint and application-free directory surface
 
