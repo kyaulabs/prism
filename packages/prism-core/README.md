@@ -42,6 +42,10 @@ language-neutral half; install it **globally** so it runs in every project.
   project-local adapter. Failure before the durable marker restores strict
   emptiness when transaction ownership remains provable. Failure after the
   durable marker retains the complete scaffold and deterministic resume evidence.
+  If interruption retains `apply.recovery.lock`, `setup project recover` reports
+  its exact project-relative path; after confirming no setup process is running,
+  remove only that path and rerun `setup project apply` with the retained attempt
+  and digest.
   Canonical hooks and the root-seed attestation bind the adapter identity,
   activation file, and provider-report digest. Setup creates no remote and
   performs no publication or push; those operations remain human-owned.

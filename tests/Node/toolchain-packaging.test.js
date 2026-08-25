@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -150,6 +150,7 @@ test('documents provider-composed Blank PHP web bootstrap boundaries', () => {
     assert.match(coreReadme, /stack-agnostic/i);
     assert.match(coreReadme, /before.*durable.*strict\s+emptiness/is);
     assert.match(coreReadme, /after.*durable.*resume\s+evidence/is);
+    assert.match(coreReadme, /apply\.recovery\.lock.*confirming no setup process.*remove only/is);
     assert.match(coreReadme, /no remote.*publication.*push/is);
     assert.match(adapterReadme, /application-free.*testing-ready scaffold/is);
     assert.match(adapterReadme, /lifecycle scripts.*disabled/is);

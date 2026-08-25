@@ -1400,8 +1400,20 @@ test('preserves a crash-retained recovery mutex for manual action', (t) => {
     fs.writeFileSync(recoveryPath, stale, {mode: 0o600});
 
     const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const recovered = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const recovery = JSON.parse(recovered.stdout);
 
     assert.notEqual(resumed.status, 0, resumed.stdout);
+    assert.equal(recovered.status, 5);
+    assert.equal(recovery.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(
+        recovery.data.recoveryPath,
+        `.pi/prism-tool/bootstrap/${ATTEMPT_ID}/apply.recovery.lock`
+    );
+    assert.equal(
+        recovery.data.nextAction,
+        'After confirming no setup process is running, remove only the recovery path and rerun setup project apply.'
+    );
     assert.equal(fs.readFileSync(lockPath, 'utf8'), stale);
     assert.equal(fs.readFileSync(recoveryPath, 'utf8'), stale);
 });

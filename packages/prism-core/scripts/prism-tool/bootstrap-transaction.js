@@ -291,6 +291,12 @@ function processIsRunning(pid) {
     }
 }
 
+function retainedApplyRecoveryError() {
+    return new Error('bootstrap apply lock recovery requires manual action', {
+        cause: Object.freeze({bootstrapApplyRecovery: true}),
+    });
+}
+
 function assertApplyRecovery(attemptRoot, allowedRecovery = null) {
     if (fs.readdirSync(attemptRoot).some((name) => name.startsWith('apply.claim-'))) {
         throw new Error('bootstrap apply lock changed');
@@ -298,7 +304,7 @@ function assertApplyRecovery(attemptRoot, allowedRecovery = null) {
     const recoveryPath = path.join(attemptRoot, 'apply.recovery.lock');
     const stat = fs.lstatSync(recoveryPath, {throwIfNoEntry: false});
     if (allowedRecovery === null) {
-        if (stat !== undefined) throw new Error('bootstrap apply lock recovery requires manual action');
+        if (stat !== undefined) throw retainedApplyRecoveryError();
         return;
     }
     if (
@@ -1192,6 +1198,8 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     const projectRoot = fs.realpathSync(requestedRoot);
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (journal.planDigest !== planDigest) throw new Error('bootstrap journal is stale');
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
+    assertApplyRecovery(attemptRoot);
     if (journal.status === 'RECOVERY_REQUIRED') {
         throw new Error('bootstrap project recovery requires manual action');
     }

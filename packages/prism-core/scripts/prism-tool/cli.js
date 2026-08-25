@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -627,7 +627,9 @@ function setup(args, context) {
                 attemptId: attempts[0].slice('--attempt='.length),
                 planDigest: digests[0].slice('--digest='.length),
             });
-        } catch {
+        } catch (error) {
+            const attemptId = attempts[0].slice('--attempt='.length);
+            const retainedRecovery = error?.cause?.bootstrapApplyRecovery === true;
             const report = {
                 schemaVersion: 1,
                 command: 'setup project recover',
@@ -640,9 +642,17 @@ function setup(args, context) {
                     message: 'bootstrap project state could not be restored safely',
                 }],
                 data: {
-                    attempt: {id: attempts[0].slice('--attempt='.length)},
+                    attempt: {id: attemptId},
                     resumePhase: 'MANUAL_RECOVERY',
-                    nextAction: 'Inspect the retained project and attempt state before retrying setup.',
+                    ...(retainedRecovery ? {
+                        recoveryPath: path.posix.join(
+                            '.pi', 'prism-tool', 'bootstrap', attemptId,
+                            'apply.recovery.lock'
+                        ),
+                        nextAction: 'After confirming no setup process is running, remove only the recovery path and rerun setup project apply.',
+                    } : {
+                        nextAction: 'Inspect the retained project and attempt state before retrying setup.',
+                    }),
                 },
             };
             if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
