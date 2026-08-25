@@ -336,21 +336,27 @@ test('rejects Markdown injection in conduct-contact metadata', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
 
-    assert.throws(() => normalizeProjectMetadata({
-        projectRoot,
-        capabilities: ['community-governance'],
-        currentYear: 2026,
-        input: JSON.stringify({
-            schemaVersion: 1,
-            displayName: 'Unsafe Contact Project',
-            summary: 'A project with unsafe conduct metadata.',
-            capabilityMetadata: {
-                'community-governance': {
-                    conductContact: 'attacker](https://example.test)@example.test',
+    for (const conductContact of [
+        'attacker](https://example.test)@example.test',
+        '.user@example.test',
+        'user..name@example.test',
+        'user@-example.test',
+        'user@example-.test',
+    ]) {
+        assert.throws(() => normalizeProjectMetadata({
+            projectRoot,
+            capabilities: ['community-governance'],
+            currentYear: 2026,
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Unsafe Contact Project',
+                summary: 'A project with unsafe conduct metadata.',
+                capabilityMetadata: {
+                    'community-governance': {conductContact},
                 },
-            },
-        }),
-    }), /conduct contact is invalid/);
+            }),
+        }), /conduct contact is invalid/, conductContact);
+    }
 });
 
 test('renders community governance from the normalized conduct contact', (t) => {
