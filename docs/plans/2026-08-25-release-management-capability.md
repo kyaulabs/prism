@@ -181,11 +181,11 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning.
 ```
 
-- [ ] **Step 1: Write failing pure-renderer tests**
+- [x] **Step 1: Write failing pure-renderer tests**
 
 Prove valid root/workspace candidates return exact config/workflow bytes; private packages are excluded; no candidates, malformed workspaces, duplicates, escaping paths, symlinks, invalid names/versions, and changing double-read inputs fail closed.
 
-- [ ] **Step 2: Run package-release tests to verify Red**
+- [x] **Step 2: Run package-release tests to verify Red**
 
 Run:
 
@@ -195,15 +195,15 @@ node --test tests/Node/prism-tool-package-release-discovery.test.js tests/Node/p
 
 Expected: FAIL because the pure helper and packaged cliff resource do not exist.
 
-- [ ] **Step 3: Refactor package-release desired-state generation**
+- [x] **Step 3: Refactor package-release desired-state generation**
 
 Extract the pure helper without weakening the existing inspect/plan/apply/verify ownership checks, operation containment, locking, rollback, or verification. Keep established-project output schemas and dispositions byte-for-byte compatible.
 
-- [ ] **Step 4: Add and validate the packaged cliff template**
+- [x] **Step 4: Add and validate the packaged cliff template**
 
 Copy the canonical git-cliff behavior into the Core-owned template, replace only repository-coordinate literals with the exact token, reject missing/duplicate tokens during provider rendering, and add package inventory assertions.
 
-- [ ] **Step 5: Re-run package-release and workflow parity tests**
+- [x] **Step 5: Re-run package-release and workflow parity tests**
 
 Run:
 
@@ -214,7 +214,7 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: PASS with established-project package-release behavior and workflow safety invariants unchanged.
 
-- [ ] **Step 6: Create the commit**
+- [x] **Step 6: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/package-release.js packages/prism-core/config/bootstrap/release/cliff.toml tests/Node/prism-tool-package-release-discovery.test.js tests/Node/prism-tool-package-release-transaction.test.js tests/Shell/release_workflow_test.sh tests/Node/toolchain-packaging.test.js docs/plans/2026-08-25-release-management-capability.md

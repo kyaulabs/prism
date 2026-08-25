@@ -88,6 +88,11 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('config/bootstrap/licenses/AGPL-3.0-only.txt'), true);
     assert.equal(packed.files.has('config/bootstrap/licenses/MIT.txt'), true);
     assert.equal(packed.files.has('config/bootstrap/community/contributor-covenant-2.1.md'), true);
+    assert.equal(
+        packed.files.has('config/bootstrap/release/cliff.toml'),
+        true,
+        'release-management cliff template packaged'
+    );
     for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
         const hookPath = `config/bootstrap/hooks/${hook}`;
         assert.equal(packed.files.has(hookPath), true, `${hook} bootstrap hook packaged`);
