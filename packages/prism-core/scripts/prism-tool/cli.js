@@ -8,7 +8,11 @@ const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
-const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {
+    inspectCapabilityMetadata,
+    normalizeCapabilitySelection,
+} = require('./bootstrap-capabilities');
 const {renderCoreBaseline} = require('./bootstrap-providers');
 const {
     planAdapterProject,
@@ -997,22 +1001,34 @@ function setup(args, context) {
         const controls = args.slice(2);
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const selections = controls.filter((argument) => argument.startsWith('--capabilities='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
+        let capabilities;
+        try {
+            capabilities = normalizeCapabilitySelection(
+                selections.length === 0 ? '' : selections[0].slice('--capabilities='.length)
+            );
+        } catch {
+            capabilities = null;
+        }
         if (
             sources.length !== 1 ||
             sources[0] !== '--source=blank' ||
             adapters.length !== 1 ||
             adapters[0] !== '--adapter=core-only' ||
+            selections.length > 1 ||
+            capabilities === null ||
             jsonCount > 1 ||
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--source=') &&
-                !argument.startsWith('--adapter=')
+                !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--capabilities=')
             )
         ) {
             process.stderr.write(
                 'usage: prism-tool setup project metadata --source=blank ' +
-                '--adapter=core-only [--json]\n'
+                '--adapter=core-only [--capabilities=CSV] [--json]\n'
             );
             return EXIT.USAGE;
         }
@@ -1022,7 +1038,10 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project metadata requires strict-empty setup\n');
             return EXIT.TRANSACTION;
         }
-        const metadata = inspectMinimalMetadata({projectRoot: route.projectRoot});
+        const metadata = inspectCapabilityMetadata({
+            projectRoot: route.projectRoot,
+            capabilities,
+        });
         const report = {
             schemaVersion: 1,
             command: 'setup project metadata',
@@ -1031,6 +1050,7 @@ function setup(args, context) {
             projectRoot: route.projectRoot,
             source: 'BLANK',
             adapter: null,
+            capabilities,
             checks: [{
                 id: 'bootstrap-project-metadata',
                 status: 'PASS',
