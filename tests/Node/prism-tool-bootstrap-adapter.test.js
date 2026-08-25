@@ -85,7 +85,7 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
         : '';
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        `'use strict';\n${loadMarker}module.exports = {bootstrapProtocol: ${bootstrapProtocol}, prepareBootstrapProject() {}, installBootstrapDependencies() {}, verifyBootstrapProject() {}, inspect() {}, resolveTool() {}};\n`
+        `'use strict';\n${loadMarker}module.exports = {bootstrapProtocol: ${bootstrapProtocol}, prepareBootstrapProject() {}, installBootstrapDependencies() {}, runBootstrapQuality() {}, verifyBootstrapProject() {}, inspect() {}, resolveTool() {}};\n`
     );
 }
 

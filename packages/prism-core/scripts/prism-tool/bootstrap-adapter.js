@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+    discoverAdapter,
     loadAdapterHandler,
     registrationFor,
     validateBootstrapRegistration,
@@ -660,6 +661,32 @@ function inspectProvisionedBootstrapAdapter({
     });
 }
 
+function loadActiveBootstrapAdapter({projectRoot, coreRoot, identity}) {
+    const supported = loadSupportedAdapterCatalogue({coreRoot});
+    const adapter = supported.adapters.find(({packageName}) =>
+        packageName === identity?.packageName
+    );
+    const registration = discoverAdapter({projectRoot});
+    if (
+        adapter === undefined ||
+        JSON.stringify({
+            id: adapter.id,
+            packageName: adapter.packageName,
+            packageVersion: adapter.packageVersion,
+            bootstrapProtocol: adapter.bootstrapProtocol,
+        }) !== JSON.stringify(identity) ||
+        registration.packageName !== identity.packageName ||
+        registration.packageVersion !== identity?.packageVersion ||
+        registration.bootstrapProtocol !== identity?.bootstrapProtocol
+    ) {
+        throw new Error('active adapter does not match bootstrap evidence');
+    }
+    return Object.freeze({
+        handler: loadAdapterHandler(registration, identity.bootstrapProtocol),
+        registration,
+    });
+}
+
 function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const projectRoot = fs.realpathSync(requestedRoot);
@@ -797,6 +824,7 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
 module.exports = {
     cleanupBootstrapAdapter,
     inspectProvisionedBootstrapAdapter,
+    loadActiveBootstrapAdapter,
     provisionBootstrapAdapter,
     resolveBootstrapAcquisition,
 };

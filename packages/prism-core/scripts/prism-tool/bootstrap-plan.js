@@ -223,6 +223,7 @@ function planCoreOnlyProject({projectRoot: requestedRoot, coreRoot, input, rando
             source: Object.freeze({mode: 'BLANK', evidence: null}),
             adapter: null,
             adapterReportDigest: null,
+            activation: null,
             capabilities: Object.freeze([]),
             metadata,
             metadataDigest: sha256(metadataContents),
@@ -322,6 +323,7 @@ function openSelectedAttempt({
         adapter: selectedAdapterIdentity(inspection.adapter),
         registration: inspection.registration,
         handler: inspection.handler,
+        receipt: inspection.receipt,
     };
 }
 
@@ -400,11 +402,23 @@ function buildAdapterProjectPlan({
         persistedProviderReport(adapterReport, attempt.candidateRoot)
     );
     const attemptInventoryDigest = inventoryAttempt(attempt.attemptRoot);
+    const settingsPath = path.join(projectRoot, '.pi', 'settings.json');
+    const settingsStat = fs.lstatSync(settingsPath);
+    if (settingsStat.isSymbolicLink() || !settingsStat.isFile()) {
+        throw new Error('bootstrap adapter activation is invalid');
+    }
+    const activation = Object.freeze({
+        path: '.pi/settings.json',
+        kind: 'file',
+        mode: settingsStat.mode & 0o777,
+        sha256: attempt.receipt.settings.sha256,
+    });
     const plan = Object.freeze({
         schemaVersion: 1,
         source: Object.freeze({mode: 'BLANK', evidence: null}),
         adapter: attempt.adapter,
         adapterReportDigest: sha256(adapterReportContents),
+        activation,
         capabilities: Object.freeze([]),
         metadata,
         metadataDigest: sha256(metadataContents),
@@ -694,7 +708,7 @@ function validProviderIdentity(value) {
 
 function validatePlanShape(plan) {
     if (!isRecord(plan) || !hasExactKeys(plan, [
-        'schemaVersion', 'source', 'adapter', 'adapterReportDigest', 'capabilities',
+        'schemaVersion', 'source', 'adapter', 'adapterReportDigest', 'activation', 'capabilities',
         'metadata', 'metadataDigest',
         'providers', 'outputs', 'effects', 'checks', 'verification', 'recovery', 'filesystem',
     ])) {
@@ -713,6 +727,17 @@ function validatePlanShape(plan) {
                 ? plan.adapterReportDigest !== null
                 : typeof plan.adapterReportDigest !== 'string' ||
                     !/^[0-9a-f]{64}$/.test(plan.adapterReportDigest)
+        ) ||
+        (
+            plan.adapter === null
+                ? plan.activation !== null
+                : !isRecord(plan.activation) ||
+                    !hasExactKeys(plan.activation, ['path', 'kind', 'mode', 'sha256']) ||
+                    plan.activation.path !== '.pi/settings.json' ||
+                    plan.activation.kind !== 'file' ||
+                    ![0o600, 0o644].includes(plan.activation.mode) ||
+                    typeof plan.activation.sha256 !== 'string' ||
+                    !/^[0-9a-f]{64}$/.test(plan.activation.sha256)
         ) ||
         !Array.isArray(plan.capabilities) ||
         plan.capabilities.length !== 0 ||
@@ -849,8 +874,20 @@ function validateHeldProjectPlan({
             prepare: false,
             allowAppliedProject,
         });
-        if (JSON.stringify(state.adapter) !== JSON.stringify(envelope.plan.adapter)) {
+        if (
+            JSON.stringify(state.adapter) !== JSON.stringify(envelope.plan.adapter) ||
+            envelope.plan.activation.sha256 !== state.receipt.settings.sha256
+        ) {
             throw new Error('bootstrap adapter selection is stale');
+        }
+        const activationPath = path.join(projectRoot, ...envelope.plan.activation.path.split('/'));
+        const activationStat = fs.lstatSync(activationPath);
+        if (
+            activationStat.isSymbolicLink() ||
+            !activationStat.isFile() ||
+            (activationStat.mode & 0o777) !== envelope.plan.activation.mode
+        ) {
+            throw new Error('bootstrap adapter activation is stale');
         }
         adapterState = state;
         adapterReport = restoreProviderReport(

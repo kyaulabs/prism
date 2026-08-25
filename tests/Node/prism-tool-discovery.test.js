@@ -93,9 +93,12 @@ function writeAdapter(
     const installEntry = options.installBootstrapDependencies
         ? 'installBootstrapDependencies() {}, '
         : '';
+    const qualityEntry = options.runBootstrapQuality
+        ? 'runBootstrapQuality() {}, '
+        : '';
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        `'use strict';\n${marker}module.exports = {${protocolEntry}${prepareEntry}${installEntry}inspect() {}, resolveTool() {}};\n`
+        `'use strict';\n${marker}module.exports = {${protocolEntry}${prepareEntry}${installEntry}${qualityEntry}inspect() {}, resolveTool() {}};\n`
     );
 }
 
@@ -588,6 +591,7 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
         handlerBootstrapProtocol: 1,
         prepareBootstrapProject: true,
         installBootstrapDependencies: true,
+        runBootstrapQuality: true,
     });
     writeJson(path.join(matchingPi, 'npm', 'package.json'), {
         dependencies: {'@fixture/adapter': '1.0.0'},
@@ -635,6 +639,32 @@ test('loads a bootstrap handler only when its protocol matches validated metadat
     });
 
     assert.throws(() => loadAdapterHandler(missingInstallRegistration, 1), /bootstrap interface/);
+
+    const missingQualityRoot = makeTempDir();
+    roots.push(missingQualityRoot);
+    const missingQualityPi = path.join(missingQualityRoot, '.pi');
+    const missingQualityPackage = path.join(
+        missingQualityPi,
+        'npm',
+        'node_modules',
+        '@fixture',
+        'adapter'
+    );
+    writeAdapter(missingQualityPackage, '@fixture/adapter', 'fixture-tool', {
+        bootstrapProtocol: 1,
+        handlerBootstrapProtocol: 1,
+        prepareBootstrapProject: true,
+        installBootstrapDependencies: true,
+    });
+    writeJson(path.join(missingQualityPi, 'npm', 'package.json'), {
+        dependencies: {'@fixture/adapter': '1.0.0'},
+    });
+    const missingQualityRegistration = discoverAdapter({
+        projectRoot: missingQualityRoot,
+        piDir: missingQualityPi,
+    });
+
+    assert.throws(() => loadAdapterHandler(missingQualityRegistration, 1), /bootstrap interface/);
 
     const incompleteRoot = makeTempDir();
     roots.push(incompleteRoot);

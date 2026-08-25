@@ -17,6 +17,10 @@ const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/proce
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_CONTRACT = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
+);
 
 function captureWrites(action) {
     let stdout = '';
@@ -54,11 +58,125 @@ function planProject(projectRoot) {
     }));
 }
 
-function applyProject(projectRoot, planDigest) {
+function bootstrapRunner(projectRoot) {
+    return (command, args, options) => {
+        if (command === '/usr/bin/pi') {
+            fs.writeFileSync(
+                path.join(projectRoot, '.pi', 'settings.json'),
+                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+            );
+        }
+        if (command === 'composer' && args[0] === 'update') {
+            const packages = ADAPTER_CONTRACT.components
+                .filter(({ecosystem}) => ecosystem === 'composer')
+                .map(({package: packageName, version}) => ({name: packageName, version}));
+            fs.writeFileSync(
+                path.join(options.cwd, 'composer.lock'),
+                `${JSON.stringify({packages: [], 'packages-dev': packages})}\n`
+            );
+        }
+        if (command === 'npm' && args[0] === 'install') {
+            const packages = Object.fromEntries(ADAPTER_CONTRACT.components
+                .filter(({ecosystem}) => ecosystem === 'npm')
+                .map(({package: packageName, version}) => [
+                    `node_modules/${packageName}`,
+                    {version},
+                ]));
+            fs.writeFileSync(
+                path.join(options.cwd, 'package-lock.json'),
+                `${JSON.stringify({lockfileVersion: 3, packages: {'': {}, ...packages}})}\n`
+            );
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {
+                status: 0,
+                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                stderr: '',
+                error: undefined,
+            };
+        }
+        return {status: 0, stdout: '', stderr: '', error: undefined};
+    };
+}
+
+function installedGraphRunner(projectRoot) {
+    const commandVersions = new Map(ADAPTER_CONTRACT.components
+        .filter(({kind}) => kind === 'command')
+        .map(({executable, version}) => [executable, version]));
+    return (command, args) => {
+        if (command === 'composer' && args[0] === 'install') {
+            const binRoot = path.join(projectRoot, 'vendor', 'bin');
+            fs.mkdirSync(binRoot, {recursive: true});
+            for (const {ecosystem, kind, executable} of ADAPTER_CONTRACT.components) {
+                if (ecosystem !== 'composer' || kind !== 'command') continue;
+                fs.writeFileSync(path.join(binRoot, executable), '#!/usr/bin/env php\n', {mode: 0o755});
+            }
+        }
+        if (command === 'npm' && args[0] === 'ci') {
+            const binRoot = path.join(projectRoot, 'node_modules', '.bin');
+            fs.mkdirSync(binRoot, {recursive: true});
+            for (const {ecosystem, kind, executable} of ADAPTER_CONTRACT.components) {
+                if (ecosystem !== 'npm' || kind !== 'command') continue;
+                fs.writeFileSync(path.join(binRoot, executable), '#!/usr/bin/env node\n', {mode: 0o755});
+            }
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {
+                status: 0,
+                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                stderr: '',
+                error: undefined,
+            };
+        }
+        const version = commandVersions.get(path.basename(command));
+        return {
+            status: 0,
+            stdout: version === undefined ? '' : `${version}\n`,
+            stderr: '',
+            error: undefined,
+        };
+    };
+}
+
+function planSelectedProject(projectRoot) {
+    const run = bootstrapRunner(projectRoot);
+    const selected = captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run,
+    }));
+    assert.equal(selected.status, 0, selected.stderr || selected.stdout);
+    return captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`, '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Selected Seed Project',
+            summary: 'A deterministic selected-adapter seed project.',
+        }),
+        run,
+    }));
+}
+
+function applyProject(projectRoot, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
         `--digest=${planDigest}`, '--approval=yes', '--json',
-    ], {projectRoot, coreRoot: CORE_ROOT}));
+    ], {projectRoot, coreRoot: CORE_ROOT, ...context}));
 }
 
 function createRepository(projectRoot, planDigest, context = {}) {
@@ -99,6 +217,20 @@ function readyHooks(t) {
     const ready = readyRepository(t);
     assert.equal(applyHooks(ready.projectRoot, ready.plan.planDigest).status, 0);
     return ready;
+}
+
+function readySelectedHooks(t) {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planSelectedProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest, {
+        run: installedGraphRunner(projectRoot),
+    }).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+    return {projectRoot, plan};
 }
 
 function prepareSeed(projectRoot, planDigest, context = {}) {
@@ -197,6 +329,25 @@ test('creates an eligible unborn develop repository only after durable applicati
     assert.equal(journal.repository.disposition, 'CREATE');
     assert.equal(journal.hooks, null);
     assert.equal(journal.seed, null);
+});
+
+test('creates a repository after durable selected-adapter dependency state', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planSelectedProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, plan.planDigest, {
+        run: installedGraphRunner(projectRoot),
+    });
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+
+    const result = createRepository(projectRoot, plan.planDigest);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).data.resumePhase, 'HOOK_ACTIVATION');
+    assert.equal(fs.existsSync(path.join(projectRoot, 'vendor')), true);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'node_modules')), true);
 });
 
 test('resumes an exact agent-started repository after interruption', (t) => {
@@ -641,6 +792,47 @@ test('stages and attests the exact Core-only seed', (t) => {
     assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 1);
 });
 
+test('stages and attests selected-adapter evidence after shared quality passes', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const qualityInvocations = [];
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun(command, args, options) {
+            if (command === process.execPath && args.includes('doctor')) {
+                return {status: 0, stdout: '', stderr: '', error: undefined};
+            }
+            if (command.endsWith('/.github/scripts/check-php.sh')) {
+                qualityInvocations.push({command, args, cwd: options.cwd});
+                return {status: 0, stdout: '', stderr: '', error: undefined};
+            }
+            return runBounded(command, args, options);
+        },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(qualityInvocations.length, 1);
+    assert.deepEqual(qualityInvocations[0].args, ['--local']);
+    assert.deepEqual(stagedNames(projectRoot), [
+        ...plan.outputs.map(({path: name}) => name),
+        '.pi/settings.json',
+    ].sort());
+    assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('vendor/')), false);
+    assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('node_modules/')), false);
+    assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestation = JSON.parse(fs.readFileSync(
+        path.join(attemptRoot, 'seed-attestation.json'),
+        'utf8'
+    ));
+    assert.deepEqual(attestation.adapter, {
+        ...plan.adapter,
+        reportDigest: plan.adapterReportDigest,
+    });
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }));
+});
+
 test('rejects pre-staged entries and rolls back owned staging on readiness failure', async (t) => {
     await t.test('pre-staged entry', (nested) => {
         const {projectRoot, plan} = readyHooks(nested);
@@ -919,6 +1111,28 @@ test('dispatches Core-only pre-commit readiness without adapter execution', (t) 
     assert.equal(invocations.some(({args}) => args.includes('doctor')), true);
     assert.equal(invocations.some(({args}) => args.join(' ') === 'diff --cached --check'), true);
     assert.equal(runHook(projectRoot, 'unknown').status, 2);
+});
+
+test('dispatches selected-adapter quality through the pre-commit hook', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
+    const qualityCalls = [];
+
+    const result = runHook(projectRoot, 'pre-commit', [], {
+        hookRun: hookRunWithReadiness(),
+        loadHookAdapter(identity) {
+            assert.deepEqual(identity, plan.adapter);
+            return {
+                runBootstrapQuality(options) {
+                    qualityCalls.push(options.projectRoot);
+                    return {status: 'GO', checks: []};
+                },
+            };
+        },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(qualityCalls, [projectRoot]);
 });
 
 test('fails closed for non-Core project metadata without adapter execution', (t) => {

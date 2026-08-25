@@ -375,6 +375,38 @@ export default [
     return `${request.metadata.displayName}\n`;
 }
 
+function runBootstrapQuality({projectRoot, contract, run}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    if (contract?.package !== '@kyaulabs/prism-php-web' || typeof run !== 'function') {
+        throw new Error('PHP/web bootstrap quality input is invalid');
+    }
+    const scriptPath = path.join(canonicalProject, '.github', 'scripts', 'check-php.sh');
+    const stat = fs.lstatSync(scriptPath);
+    if (
+        stat.isSymbolicLink() ||
+        !stat.isFile() ||
+        (stat.mode & 0o777) !== 0o755 ||
+        fs.realpathSync(scriptPath) !== scriptPath
+    ) {
+        throw new Error('PHP/web bootstrap quality script is invalid');
+    }
+    const result = run(scriptPath, ['--local'], {
+        cwd: canonicalProject,
+        maxBuffer: 1048576,
+        timeout: 300000,
+    });
+    if (result?.error || result?.status !== 0) {
+        return {
+            status: 'NO-GO',
+            checks: [{id: 'php-web-quality', status: 'FAIL', message: 'PHP/web shared quality failed'}],
+        };
+    }
+    return {
+        status: 'GO',
+        checks: [{id: 'php-web-quality', status: 'PASS', message: 'PHP/web shared quality passed'}],
+    };
+}
+
 function verifyBootstrapScaffold({packageRoot, projectRoot, report, contract}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     try {
@@ -474,6 +506,6 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
     });
 }
 
-module.exports = {renderBootstrapScaffold, verifyBootstrapScaffold};
+module.exports = {renderBootstrapScaffold, runBootstrapQuality, verifyBootstrapScaffold};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

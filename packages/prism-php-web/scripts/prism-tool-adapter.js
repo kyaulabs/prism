@@ -3,7 +3,11 @@
 'use strict';
 
 const path = require('node:path');
-const {renderBootstrapScaffold, verifyBootstrapScaffold} = require('./toolchain/bootstrap-scaffold');
+const {
+    renderBootstrapScaffold,
+    runBootstrapQuality,
+    verifyBootstrapScaffold,
+} = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
 const {
     applyCandidate,
@@ -60,6 +64,7 @@ module.exports = {
     prepareBootstrapProject,
     resolve,
     resolveTool,
+    runBootstrapQuality,
     verify,
     verifyBootstrapProject,
 };

@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
+const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
 const {runBounded} = require('./process');
 
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -41,6 +42,18 @@ function readBounded(descriptor, maximum, message) {
     }
     if (offset > maximum) throw new Error(message);
     return buffer.subarray(0, offset);
+}
+
+function validAdapterIdentity(value) {
+    return exactKeys(value, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) &&
+        typeof value.id === 'string' &&
+        value.id.length > 0 &&
+        typeof value.packageName === 'string' &&
+        value.packageName.length > 0 &&
+        typeof value.packageVersion === 'string' &&
+        value.packageVersion.length > 0 &&
+        Number.isSafeInteger(value.bootstrapProtocol) &&
+        value.bootstrapProtocol > 0;
 }
 
 function readCoreProject(projectRoot, coreRoot) {
@@ -89,7 +102,7 @@ function readCoreProject(projectRoot, coreRoot) {
         !exactKeys(value.project, ['displayName', 'summary']) ||
         typeof value.project.displayName !== 'string' ||
         typeof value.project.summary !== 'string' ||
-        value.adapter !== null ||
+        (value.adapter !== null && !validAdapterIdentity(value.adapter)) ||
         !exactKeys(value.compatibility, ['corePackage', 'coreVersion', 'providerProtocol']) ||
         value.compatibility.corePackage !== '@kyaulabs/prism-core' ||
         value.compatibility.coreVersion !== corePackage.version ||
@@ -97,6 +110,7 @@ function readCoreProject(projectRoot, coreRoot) {
     ) {
         throw new Error('project manifest is invalid');
     }
+    return Object.freeze({adapter: value.adapter});
 }
 
 function canonicalRepository(requestedRoot, run, env) {
@@ -117,7 +131,33 @@ function localReadiness(projectRoot, coreRoot, run, env) {
     );
 }
 
-function preCommit(projectRoot, coreRoot, run, env) {
+function defaultHookAdapter(identity, projectRoot, coreRoot) {
+    const active = loadActiveBootstrapAdapter({
+        projectRoot,
+        coreRoot,
+        identity,
+    });
+    return Object.freeze({
+        runBootstrapQuality(options) {
+            return active.handler.runBootstrapQuality({
+                ...options,
+                contract: active.registration.contract,
+            });
+        },
+    });
+}
+
+function adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter) {
+    if (adapter === null) return;
+    const active = loadHookAdapter(adapter, projectRoot, coreRoot);
+    if (typeof active?.runBootstrapQuality !== 'function') {
+        throw new Error('adapter quality interface is invalid');
+    }
+    const result = active.runBootstrapQuality({projectRoot, run});
+    if (result?.status !== 'GO') throw new Error('adapter quality failed');
+}
+
+function preCommit(projectRoot, coreRoot, adapter, run, env, loadHookAdapter) {
     localReadiness(projectRoot, coreRoot, run, env);
     requireSuccess(
         invoke(run, 'git', ['diff', '--cached', '--check'], projectRoot, {env}),
@@ -132,6 +172,7 @@ function preCommit(projectRoot, coreRoot, run, env) {
     )) {
         validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
     }
+    adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter);
 }
 
 function gitDirectory(projectRoot, run, env) {
@@ -277,7 +318,7 @@ function initialProtectedPush(projectRoot, run, env, localRef, localOid, remoteR
     return count === '1' && parents.length === 1 && parents[0] === localOid;
 }
 
-function prePush(projectRoot, coreRoot, context, run, env) {
+function prePush(projectRoot, coreRoot, adapter, context, run, env, loadHookAdapter) {
     const input = readPushInput(context);
     const lines = input.split('\n').filter((line) => line !== '');
     if (lines.length === 0 || lines.length > 1024) throw new Error('push input is invalid');
@@ -293,8 +334,8 @@ function prePush(projectRoot, coreRoot, context, run, env) {
             throw new Error('push input is invalid');
         }
         const [localRef, localOid, remoteRef, remoteOid] = fields;
-        if (!/^refs\/(?:heads|tags)\/[A-Za-z0-9._\/-]+$/.test(localRef) ||
-            !/^refs\/(?:heads|tags)\/[A-Za-z0-9._\/-]+$/.test(remoteRef)) {
+        if (!/^refs\/(?:heads|tags)\/[A-Za-z0-9._/-]+$/.test(localRef) ||
+            !/^refs\/(?:heads|tags)\/[A-Za-z0-9._/-]+$/.test(remoteRef)) {
             throw new Error('push ref is invalid');
         }
         requireSuccess(
@@ -325,6 +366,7 @@ function prePush(projectRoot, coreRoot, context, run, env) {
         }
     }
     localReadiness(projectRoot, coreRoot, run, env);
+    adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter);
 }
 
 function validGrammar(event, args) {
@@ -353,13 +395,26 @@ function hookCommand(args, context = {}) {
             run,
             env
         );
-        readCoreProject(projectRoot, coreRoot);
-        if (event === 'pre-commit') preCommit(projectRoot, coreRoot, run, env);
+        const project = readCoreProject(projectRoot, coreRoot);
+        const loadHookAdapter = context.loadHookAdapter ?? defaultHookAdapter;
+        if (event === 'pre-commit') {
+            preCommit(projectRoot, coreRoot, project.adapter, run, env, loadHookAdapter);
+        }
         else if (event === 'commit-msg') {
             commitMessage(projectRoot, coreRoot, hookArgs[0], run, env);
         } else if (event === 'prepare-commit-msg') {
             prepareCommitMessage(projectRoot, coreRoot, hookArgs, run, env);
-        } else prePush(projectRoot, coreRoot, context, run, env);
+        } else {
+            prePush(
+                projectRoot,
+                coreRoot,
+                project.adapter,
+                context,
+                run,
+                env,
+                loadHookAdapter
+            );
+        }
         return 0;
     } catch {
         process.stderr.write(`prism hook: ${event} policy failed\n`);

@@ -560,6 +560,32 @@ test('rejects unknown scaffold manifest fields', (t) => {
     }), /manifest/);
 });
 
+test('runs the generated shared quality gate through the adapter handler', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const scriptPath = path.join(projectRoot, '.github', 'scripts', 'check-php.sh');
+    fs.mkdirSync(path.dirname(scriptPath), {recursive: true});
+    fs.writeFileSync(scriptPath, '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
+    fs.chmodSync(scriptPath, 0o755);
+    const invocations = [];
+
+    const result = handler.runBootstrapQuality({
+        projectRoot,
+        contract: CONTRACT,
+        run(command, args, options) {
+            invocations.push({command, args, cwd: options.cwd});
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    });
+
+    assert.equal(result.status, 'GO');
+    assert.deepEqual(invocations, [{
+        command: scriptPath,
+        args: ['--local'],
+        cwd: projectRoot,
+    }]);
+});
+
 test('does not render through a symlinked candidate parent', (t) => {
     const candidateRoot = makeTempDir();
     const outside = makeTempDir();

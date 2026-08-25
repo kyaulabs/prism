@@ -424,29 +424,29 @@ prism-tool commit create --type feat --scope setup --subject "apply blank php-we
 - Consumes: durable selected-adapter plan and report digest.
 - Produces: adapter-aware hook dispatch, shared PHP/web quality verification, exact staged inventory, and one-use seed attestation carrying adapter evidence.
 
-- [ ] **Step 1: Write failing hook/seed tests**
+- [x] **Step 1: Write failing hook/seed tests**
 
 Assert canonical hooks dispatch the selected adapter's public check command only when adapter evidence is present. Assert root-seed preparation binds adapter ID/package/version/protocol/report digest and exact scaffold inventory, rejects substitution, excludes operational/dependency/generated-output paths, runs shared quality before commit creation, and retains Core-only null-adapter behavior.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-php-web-bootstrap.test.js && bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: FAIL because seed plan validation and attestation require a null adapter.
 
-- [ ] **Step 3: Generalize adapter evidence and dispatch**
+- [x] **Step 3: Generalize adapter evidence and dispatch**
 
 Update hook/seed validation to read only the generic adapter identity and verified handler registration. The hook invokes the adapter-owned shared quality entry point; Core does not name PHP/web tools or files. Extend attestation and staged-inventory equality with adapter package identity, bootstrap protocol, persisted report digest, and every applied adapter output.
 
 Exclude `.pi/prism-tool/`, `vendor/`, `node_modules/`, browser caches, coverage output, generated CSS/JavaScript, `.env*` except `.env.example`, remotes, credentials, and unexpected index entries.
 
-- [ ] **Step 4: Run focused tests and verify Green**
+- [x] **Step 4: Run focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-php-web-bootstrap.test.js && bash tests/Shell/bootstrap_hook_dispatch_test.sh`
 
 Expected: PASS for both adapter-selected and Core-only seed paths.
 
-- [ ] **Step 5: Commit the seed slice**
+- [x] **Step 5: Commit the seed slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-hooks.js packages/prism-core/scripts/prism-tool/hook.js packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-php-web-bootstrap.test.js tests/Shell/bootstrap_hook_dispatch_test.sh
