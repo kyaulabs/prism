@@ -328,13 +328,13 @@ open_collective: "example"
 custom: ["https://example.test/fund"]
 ```
 
-- [ ] **Step 1: Write failing support and funding renderer tests**
+- [x] **Step 1: Write failing support and funding renderer tests**
 
 Add independent support and funding provider tests, default and explicit support labels/descriptions, support-only versus collaboration-plus-support blank-issue behavior, every funding provider, multi-value GitHub/custom limits, canonical provider ordering, exact outputs/modes/digests, deterministic rerendering, and no live lookup.
 
 Add negative renderer-boundary tests proving normalized request validation rejects changed capability metadata, unsupported providers, insecure destinations, and output overlap before returning a valid report.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run:
 
@@ -344,25 +344,25 @@ node --test tests/Node/prism-tool-bootstrap-capabilities.test.js
 
 Expected: FAIL because support and funding providers are unavailable.
 
-- [ ] **Step 3: Implement support config rendering**
+- [x] **Step 3: Implement support config rendering**
 
 Add a JSON-string YAML scalar helper so quotes, colons, and Unicode remain inert data. Render the normalized destination, label, and description. Set `blank_issues_enabled` from whether `request.capabilities` also contains `github-collaboration`; do not inspect generated issue templates.
 
-- [ ] **Step 4: Implement funding rendering**
+- [x] **Step 4: Implement funding rendering**
 
 Group normalized records by the closed provider order. Emit one scalar for providers limited to one record and arrays for `github` and `custom`. Preserve normalized record order within each provider, emit one trailing newline, and never construct external links for non-custom providers.
 
-- [ ] **Step 5: Register providers and README links**
+- [x] **Step 5: Register providers and README links**
 
 Extend profile descriptors, checks, verification declarations, dispatch, and Core README link rendering without changing adapter outputs.
 
-- [ ] **Step 6: Run focused tests and verify Green**
+- [x] **Step 6: Run focused tests and verify Green**
 
 Run the Step 2 command.
 
 Expected: PASS with support and funding independently selectable and no ownership overlap.
 
-- [ ] **Step 7: Commit the support and funding renderer slice**
+- [x] **Step 7: Commit the support and funding renderer slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-profile-providers.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js tests/Node/prism-tool-bootstrap-capabilities.test.js

@@ -22,6 +22,8 @@ const PROFILE_OUTPUTS = Object.freeze({
     ]),
     'security-disclosure': Object.freeze(['SECURITY.md']),
     'repository-ownership': Object.freeze(['.github/CODEOWNERS']),
+    'support-routing': Object.freeze(['.github/ISSUE_TEMPLATE/config.yml']),
+    funding: Object.freeze(['.github/FUNDING.yml']),
 });
 
 function profileCheck(capability) {
@@ -31,6 +33,8 @@ function profileCheck(capability) {
         'github-collaboration': 'GitHub collaboration',
         'security-disclosure': 'Security disclosure',
         'repository-ownership': 'Repository ownership',
+        'support-routing': 'Support routing',
+        funding: 'Funding',
     }[capability];
     return Object.freeze({
         id: `${capability}-render`,
@@ -334,6 +338,66 @@ function renderRepositoryOwnership({candidateRoot, request, coreVersion}) {
     });
 }
 
+function yamlString(value) {
+    return JSON.stringify(value);
+}
+
+function renderSupportRouting({candidateRoot, request, coreVersion}) {
+    const provider = providerIdentity(coreVersion, 'support-routing');
+    const support = request.metadata.capabilityMetadata['support-routing'];
+    const blankIssues = request.capabilities.includes('github-collaboration') ? 'false' : 'true';
+    const contents = Buffer.from(
+        `blank_issues_enabled: ${blankIssues}\n` +
+        'contact_links:\n' +
+        `  - name: ${yamlString(support.displayLabel)}\n` +
+        `    url: ${yamlString(support.destination)}\n` +
+        `    about: ${yamlString(support.description)}\n`,
+        'utf8'
+    );
+    return Object.freeze({
+        schemaVersion: 1,
+        provider,
+        status: 'GO',
+        outputs: Object.freeze([writeCandidate(
+            candidateRoot,
+            '.github/ISSUE_TEMPLATE/config.yml',
+            contents,
+            0o644
+        )]),
+        effects: Object.freeze([]),
+        checks: Object.freeze([profileCheck('support-routing')]),
+        verification: Object.freeze([profileVerification('support-routing')]),
+    });
+}
+
+function renderFunding({candidateRoot, request, coreVersion}) {
+    const provider = providerIdentity(coreVersion, 'funding');
+    const grouped = new Map();
+    for (const {provider: providerId, value} of request.metadata.capabilityMetadata.funding.records) {
+        if (!grouped.has(providerId)) grouped.set(providerId, []);
+        grouped.get(providerId).push(value);
+    }
+    const lines = [...grouped.entries()].map(([providerId, values]) =>
+        ['github', 'custom'].includes(providerId)
+            ? `${providerId}: ${JSON.stringify(values)}`
+            : `${providerId}: ${yamlString(values[0])}`
+    );
+    return Object.freeze({
+        schemaVersion: 1,
+        provider,
+        status: 'GO',
+        outputs: Object.freeze([writeCandidate(
+            candidateRoot,
+            '.github/FUNDING.yml',
+            Buffer.from(`${lines.join('\n')}\n`, 'utf8'),
+            0o644
+        )]),
+        effects: Object.freeze([]),
+        checks: Object.freeze([profileCheck('funding')]),
+        verification: Object.freeze([profileVerification('funding')]),
+    });
+}
+
 function renderGithubCollaboration({candidateRoot, coreVersion}) {
     const provider = providerIdentity(coreVersion, 'github-collaboration');
     const contents = collaborationContents();
@@ -376,6 +440,12 @@ function renderCoreProfileProviders({coreRoot, candidateRoot, request}) {
         }
         if (capability === 'repository-ownership') {
             return renderRepositoryOwnership({candidateRoot, request, coreVersion});
+        }
+        if (capability === 'support-routing') {
+            return renderSupportRouting({candidateRoot, request, coreVersion});
+        }
+        if (capability === 'funding') {
+            return renderFunding({candidateRoot, request, coreVersion});
         }
         throw new Error('profile provider is unavailable');
     }));

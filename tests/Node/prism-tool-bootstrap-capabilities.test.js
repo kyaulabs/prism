@@ -859,6 +859,137 @@ test('renders repository ownership with a default and contained path rules', (t)
     );
 });
 
+test('renders support routing with safe defaults and blank issues enabled', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['support-routing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Supported Project',
+                summary: 'A project with an explicit support destination.',
+                suggestedDisplayName: 'supported-project',
+                capabilityMetadata: {
+                    'support-routing': {
+                        destination: 'https://example.test/support',
+                        displayLabel: 'Support',
+                        description: 'Get help with this project.',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/ISSUE_TEMPLATE/config.yml', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'ISSUE_TEMPLATE', 'config.yml'), 'utf8'),
+        'blank_issues_enabled: true\n' +
+        'contact_links:\n' +
+        '  - name: "Support"\n' +
+        '    url: "https://example.test/support"\n' +
+        '    about: "Get help with this project."\n'
+    );
+});
+
+test('disables blank issues when collaboration and support are selected together', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['github-collaboration', 'support-routing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Collaborative Project',
+                summary: 'A project with structured intake and support routing.',
+                suggestedDisplayName: 'collaborative-project',
+                capabilityMetadata: {
+                    'github-collaboration': {},
+                    'support-routing': {
+                        destination: 'https://example.test/support',
+                        displayLabel: 'Help: support',
+                        description: 'Ask a question before filing an issue.',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(
+        path.join(candidateRoot, '.github', 'ISSUE_TEMPLATE', 'config.yml'),
+        'utf8'
+    );
+    assert.match(contents, /^blank_issues_enabled: false$/m);
+    assert.match(contents, /name: "Help: support"/);
+});
+
+test('renders funding records in closed provider order', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['funding'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Funded Project',
+                summary: 'A project with approved funding identities.',
+                suggestedDisplayName: 'funded-project',
+                capabilityMetadata: {
+                    funding: {
+                        records: [
+                            {provider: 'github', value: 'example'},
+                            {provider: 'github', value: 'example-team'},
+                            {provider: 'open_collective', value: 'example'},
+                            {provider: 'custom', value: 'https://example.test/fund'},
+                        ],
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/FUNDING.yml', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'FUNDING.yml'), 'utf8'),
+        'github: ["example","example-team"]\n' +
+        'open_collective: "example"\n' +
+        'custom: ["https://example.test/fund"]\n'
+    );
+});
+
 test('declares exact trusted ownership for selected profile providers', () => {
     const {loadCoreProfileProviderDescriptors} = require(
         '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
@@ -868,7 +999,7 @@ test('declares exact trusted ownership for selected profile providers', () => {
         coreRoot: CORE_ROOT,
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
-            'security-disclosure', 'repository-ownership',
+            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
         ],
     });
 
@@ -888,6 +1019,8 @@ test('declares exact trusted ownership for selected profile providers', () => {
         },
         {id: 'security-disclosure', outputs: ['SECURITY.md']},
         {id: 'repository-ownership', outputs: ['.github/CODEOWNERS']},
+        {id: 'support-routing', outputs: ['.github/ISSUE_TEMPLATE/config.yml']},
+        {id: 'funding', outputs: ['.github/FUNDING.yml']},
     ]);
     for (const descriptor of descriptors) {
         assert.equal(descriptor.packageName, '@kyaulabs/prism-core');
@@ -965,6 +1098,7 @@ test('renders all selected profiles deterministically without ownership overlap'
         source: {mode: 'BLANK', evidence: null},
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
+            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
         ],
         metadata: {
             schemaVersion: 1,
@@ -983,6 +1117,22 @@ test('renders all selected profiles deterministically without ownership overlap'
                     },
                 },
                 'github-collaboration': {},
+                'security-disclosure': {
+                    reportingContact: {kind: 'email', value: 'security@example.test'},
+                    supportedVersions: {policy: 'latest-release', rows: []},
+                },
+                'repository-ownership': {
+                    owners: ['@example'],
+                    rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+                },
+                'support-routing': {
+                    destination: 'https://example.test/support',
+                    displayLabel: 'Support',
+                    description: 'Get help with this project.',
+                },
+                funding: {
+                    records: [{provider: 'github', value: 'example'}],
+                },
             },
         },
         adapter: null,
