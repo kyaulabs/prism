@@ -136,11 +136,20 @@ function validHookEvidence(value) {
 }
 
 function validSeedEvidence(value) {
-    return isRecord(value) &&
+    if (!isRecord(value)) return false;
+    if (
         hasExactKeys(value, ['status', 'attestationDigest', 'stagedIndexDigest']) &&
-        value.status === 'READY' &&
+        value.status === 'READY'
+    ) {
+        return SHA256.test(value.attestationDigest) && SHA256.test(value.stagedIndexDigest);
+    }
+    return hasExactKeys(value, [
+        'status', 'attestationDigest', 'stagedIndexDigest', 'rootCommit',
+    ]) &&
+        value.status === 'CONSUMED' &&
         SHA256.test(value.attestationDigest) &&
-        SHA256.test(value.stagedIndexDigest);
+        SHA256.test(value.stagedIndexDigest) &&
+        /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value.rootCommit);
 }
 
 function validJournalState(value) {
@@ -193,6 +202,20 @@ function validJournalState(value) {
             value.reason === 'AMBIGUOUS_PROJECT_STATE' &&
             value.resumePhase === 'MANUAL_RECOVERY'
         );
+    }
+    if (
+        value.phase === 'COMPLETE' &&
+        value.status === 'COMPLETE' &&
+        value.reason === null &&
+        value.resumePhase === null &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest) &&
+        validRepositoryEvidence(value.repository) &&
+        validHookEvidence(value.hooks) &&
+        validSeedEvidence(value.seed) &&
+        value.seed.status === 'CONSUMED'
+    ) {
+        return true;
     }
     if (
         value.phase !== 'POST_APPLICATION' ||

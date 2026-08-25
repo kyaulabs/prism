@@ -9,9 +9,10 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
-const {validateActiveBootstrapSeed} = require(
-    '../../packages/prism-core/scripts/prism-tool/bootstrap-seed'
-);
+const {
+    completeBootstrapSeed,
+    validateActiveBootstrapSeed,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-seed');
 const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
@@ -142,8 +143,8 @@ function hookRunWithReadiness(invocations = []) {
     };
 }
 
-function createCommit(projectRoot, parents = [], message = 'test commit') {
-    const tree = git(projectRoot, ['mktree']);
+function createCommit(projectRoot, parents = [], message = 'test commit', indexTree = false) {
+    const tree = git(projectRoot, [indexTree ? 'write-tree' : 'mktree']);
     return execFileSync('git', [
         '-C', projectRoot, 'commit-tree', tree,
         ...parents.flatMap((parent) => ['-p', parent]),
@@ -542,6 +543,66 @@ test('preserves substituted seed attestation as recovery evidence', (t) => {
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
     assert.equal(journal.resumePhase, 'ROOT_SEED_PREPARATION');
     assert.equal(journal.seed, null);
+});
+
+test('completes one attested root commit and removes only transient attempt state', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    assert.equal(prepareSeed(projectRoot, plan.planDigest).status, 0);
+    const active = validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT});
+    const rootCommit = createCommit(projectRoot, [], 'ignore: bootstrap prism project', true);
+    execFileSync('git', ['-C', projectRoot, 'update-ref', 'refs/heads/develop', rootCommit]);
+    const runGit = (command, args, options) => {
+        if (args[0] === 'verify-commit') {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+
+    const result = completeBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        attestation: active,
+        previousHead: 'unborn',
+        newHead: rootCommit,
+        runGit,
+    });
+
+    assert.equal(result.status, 'COMPLETE');
+    assert.equal(git(projectRoot, ['rev-list', '--count', 'HEAD']), '1');
+    assert.equal(git(projectRoot, ['remote']), '');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi')), false);
+    for (const entry of plan.outputs) assert.equal(fs.existsSync(path.join(projectRoot, entry.path)), true);
+    assert.equal(git(projectRoot, ['status', '--porcelain=v1']), '');
+});
+
+test('retains consumed seed evidence when completion cleanup is interrupted', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    assert.equal(prepareSeed(projectRoot, plan.planDigest).status, 0);
+    const active = validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT});
+    const rootCommit = createCommit(projectRoot, [], 'ignore: bootstrap prism project', true);
+    execFileSync('git', ['-C', projectRoot, 'update-ref', 'refs/heads/develop', rootCommit]);
+    const runGit = (command, args, options) => args[0] === 'verify-commit'
+        ? {status: 0, stdout: '', stderr: '', error: undefined}
+        : runBounded(command, args, options);
+
+    assert.throws(() => completeBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        attestation: active,
+        previousHead: 'unborn',
+        newHead: rootCommit,
+        runGit,
+        fault(event) {
+            if (event.name === 'before-cleanup-entry') throw new Error('cleanup interrupted');
+        },
+    }));
+
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.phase, 'COMPLETE');
+    assert.equal(journal.seed.status, 'CONSUMED');
+    assert.equal(journal.seed.rootCommit, rootCommit);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'seed-attestation.json')), true);
 });
 
 test('dispatches Core-only pre-commit readiness without adapter execution', (t) => {

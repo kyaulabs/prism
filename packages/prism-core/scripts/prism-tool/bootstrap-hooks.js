@@ -113,6 +113,7 @@ function inspectBootstrapHooks({
     runGit = runBounded,
     env = process.env,
     allowUntracked = false,
+    allowCommittedRoot = false,
 }) {
     const root = fs.realpathSync(projectRoot);
     const journal = readBootstrapJournal({projectRoot: root, attemptId});
@@ -133,6 +134,7 @@ function inspectBootstrapHooks({
         runGit,
         env,
         allowUntracked,
+        allowCommittedRoot,
     }).data.repository;
     const planPathSet = new Set(journal.applied.map((entry) => entry.path));
     const hookInventory = [];

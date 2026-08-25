@@ -362,6 +362,9 @@ prism-tool commit create --type feat --scope setup --subject "attest the core-on
 ### Task 5: Consume root-seed attestations in the exclusive commit operation
 
 **Files:**
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-hooks.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-journal.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-repository.js`
 - Modify: `packages/prism-core/scripts/prism-tool/bootstrap-seed.js`
 - Modify: `packages/prism-core/scripts/prism-tool/commit.js`
 - Modify: `tests/Node/prism-tool-commit.test.js`
@@ -373,7 +376,7 @@ prism-tool commit create --type feat --scope setup --subject "attest the core-on
 - Exact reserved invocation: `prism-tool commit create --type ignore --subject "bootstrap prism project"`.
 - Successful output remains the canonical commit message followed by `Commit: <OID>`.
 
-- [ ] **Step 1: Write failing reserved-commit and completion tests**
+- [x] **Step 1: Write failing reserved-commit and completion tests**
 
 Extend commit tests so `ignore` is rejected when any of these holds: no active attestation, scope/body/issue reference supplied, wrong subject, existing HEAD, non-`develop` branch, inactive hooks, changed index digest, consumed attestation, multiple attempts, or substituted evidence.
 
@@ -383,13 +386,13 @@ Add completion assertions for zero-parent HEAD, `COMPLETE` journal transition, a
 
 Inject failures after Git success but before journal completion and during attempt cleanup. Assert non-zero transaction status, retained evidence, no automatic retry, and compatibility with the existing fatal-latch tests.
 
-- [ ] **Step 2: Run focused tests to verify Red**
+- [x] **Step 2: Run focused tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-commit.test.js tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because `ignore` does not require or consume root-seed evidence.
 
-- [ ] **Step 3: Bind the reserved commit to one-use evidence**
+- [x] **Step 3: Bind the reserved commit to one-use evidence**
 
 In `commit.js`:
 
@@ -408,17 +411,17 @@ In `bootstrap-seed.js`, `completeBootstrapSeed()` must:
 
 Keep ordinary non-`ignore` commit behavior byte-for-byte compatible.
 
-- [ ] **Step 4: Run focused and safety tests**
+- [x] **Step 4: Run focused and safety tests**
 
 Run: `node --test tests/Node/prism-tool-commit.test.js tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/safety-fatal-commit-latch.test.ts tests/Node/safety-extension-lifecycle.test.ts`
 
 Expected: PASS. Every reserved-commit failure remains observable as a failed standalone commit operation and therefore fatal to the active Pi session.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/commit.js tests/Node/prism-tool-commit.test.js tests/Node/prism-tool-bootstrap-seed.test.js
-prism-tool commit create --type feat --scope setup --subject "complete signed core-only root seeds" --fixes 386
+git add packages/prism-core/scripts/prism-tool/bootstrap-hooks.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-repository.js packages/prism-core/scripts/prism-tool/bootstrap-seed.js packages/prism-core/scripts/prism-tool/commit.js tests/Node/prism-tool-commit.test.js tests/Node/prism-tool-bootstrap-seed.test.js
+prism-tool commit create --type feat --scope setup --subject "complete signed core-only root seeds" --refs 386
 ```
 
 ---

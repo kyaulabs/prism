@@ -331,6 +331,7 @@ function validateActiveBootstrapSeed({
     coreRoot,
     runGit = runBounded,
     env = process.env,
+    allowCommittedRoot = false,
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
@@ -371,6 +372,7 @@ function validateActiveBootstrapSeed({
         runGit,
         env,
         allowUntracked: true,
+        allowCommittedRoot,
     });
     const expectedProviders = durable.plan.providers.map((provider) => ({
         ...provider,
@@ -422,6 +424,179 @@ function validateActiveBootstrapSeed({
     });
 }
 
-module.exports = {prepareBootstrapSeed, validateActiveBootstrapSeed};
+function fileDigest(filePath, expected) {
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (
+            !held.isFile() ||
+            held.dev !== expected.dev ||
+            held.ino !== expected.ino ||
+            held.mode !== expected.mode ||
+            held.size !== expected.size
+        ) throw new Error('bootstrap attempt cleanup state changed');
+        const contents = fs.readFileSync(descriptor);
+        const final = fs.fstatSync(descriptor);
+        if (final.dev !== held.dev || final.ino !== held.ino || final.size !== held.size) {
+            throw new Error('bootstrap attempt cleanup state changed');
+        }
+        return sha256(contents);
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function snapshotTree(root) {
+    const records = [];
+    function walk(current) {
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+            throw new Error('bootstrap attempt cleanup state is invalid');
+        }
+        const directory = stat.isDirectory();
+        const digest = directory ? null : fileDigest(current, stat);
+        records.push({path: current, stat, directory, digest});
+        if (directory) {
+            for (const name of fs.readdirSync(current).sort()) walk(path.join(current, name));
+        }
+        if (records.length > 4096) throw new Error('bootstrap attempt cleanup state is too large');
+    }
+    walk(root);
+    return records;
+}
+
+function removeSnapshot(records, fault) {
+    for (const record of [...records].reverse()) {
+        fault({name: 'before-cleanup-entry', path: record.path});
+        const current = fs.lstatSync(record.path);
+        if (
+            current.dev !== record.stat.dev ||
+            current.ino !== record.stat.ino ||
+            current.mode !== record.stat.mode ||
+            current.isDirectory() !== record.directory ||
+            current.isSymbolicLink() ||
+            (!record.directory && (
+                current.size !== record.stat.size ||
+                fileDigest(record.path, current) !== record.digest
+            ))
+        ) throw new Error('bootstrap attempt cleanup state changed');
+        if (record.directory) fs.rmdirSync(record.path);
+        else fs.unlinkSync(record.path);
+    }
+}
+
+function removeEmptyOperationalParents(projectRoot) {
+    for (const directory of [
+        path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap'),
+        path.join(projectRoot, '.pi', 'prism-tool'),
+        path.join(projectRoot, '.pi'),
+    ]) {
+        const stat = fs.lstatSync(directory, {throwIfNoEntry: false});
+        if (stat === undefined || stat.isSymbolicLink() || !stat.isDirectory()) break;
+        if (fs.readdirSync(directory).length !== 0) break;
+        fs.rmdirSync(directory);
+    }
+}
+
+function completeBootstrapSeed({
+    projectRoot: requestedRoot,
+    coreRoot,
+    attestation,
+    previousHead,
+    newHead,
+    runGit = runBounded,
+    env = process.env,
+    fault = () => {},
+}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    if (previousHead !== 'unborn' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(newHead)) {
+        throw new Error('root seed commit state is invalid');
+    }
+    const active = validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot,
+        runGit,
+        env,
+        allowCommittedRoot: true,
+    });
+    if (!sameAttestation(active, attestation)) throw new Error('root seed attestation changed');
+    const branch = requireSuccess(
+        invoke(runGit, projectRoot, env, ['symbolic-ref', '--quiet', '--short', 'HEAD']),
+        'root seed branch is invalid'
+    ).toString('utf8').trim();
+    const head = requireSuccess(
+        invoke(runGit, projectRoot, env, ['rev-parse', '--verify', 'HEAD']),
+        'root seed HEAD is invalid'
+    ).toString('utf8').trim();
+    const count = requireSuccess(
+        invoke(runGit, projectRoot, env, ['rev-list', '--count', 'HEAD']),
+        'root seed history is invalid'
+    ).toString('utf8').trim();
+    const parents = requireSuccess(
+        invoke(runGit, projectRoot, env, ['rev-list', '--parents', '-n', '1', 'HEAD']),
+        'root seed history is invalid'
+    ).toString('utf8').trim().split(/\s+/);
+    const remotes = requireSuccess(
+        invoke(runGit, projectRoot, env, ['remote']),
+        'root seed remotes are invalid'
+    ).toString('utf8').trim();
+    requireSuccess(
+        invoke(runGit, projectRoot, env, ['verify-commit', newHead]),
+        'root seed signature is invalid'
+    );
+    if (
+        branch !== 'develop' ||
+        head !== newHead ||
+        count !== '1' ||
+        parents.length !== 1 ||
+        parents[0] !== newHead ||
+        remotes !== ''
+    ) throw new Error('root seed commit is invalid');
+    const journal = active.journal;
+    transitionBootstrapJournal({
+        projectRoot,
+        attemptId: active.attemptId,
+        expectedPhase: 'POST_APPLICATION',
+        next: {
+            ...journal,
+            phase: 'COMPLETE',
+            status: 'COMPLETE',
+            resumePhase: null,
+            seed: {
+                ...journal.seed,
+                status: 'CONSUMED',
+                rootCommit: newHead,
+            },
+        },
+    });
+    fault({name: 'after-completion', projectRoot});
+    const attemptRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', active.attemptId
+    );
+    removeSnapshot(snapshotTree(attemptRoot), fault);
+    removeEmptyOperationalParents(projectRoot);
+    requireSuccess(
+        invoke(runGit, projectRoot, env, ['diff', '--cached', '--quiet', 'HEAD', '--']),
+        'root seed index is not clean'
+    );
+    const status = requireSuccess(
+        invoke(runGit, projectRoot, env, ['status', '--porcelain=v1', '--untracked-files=all']),
+        'root seed worktree is unavailable'
+    ).toString('utf8').trim();
+    if (status !== '') throw new Error('root seed worktree is not clean');
+    return Object.freeze({status: 'COMPLETE', rootCommit: newHead});
+}
+
+function sameAttestation(left, right) {
+    return left.attemptId === right.attemptId &&
+        left.stagedIndexDigest === right.stagedIndexDigest &&
+        JSON.stringify(left.attestation) === JSON.stringify(right.attestation);
+}
+
+module.exports = {
+    completeBootstrapSeed,
+    prepareBootstrapSeed,
+    validateActiveBootstrapSeed,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

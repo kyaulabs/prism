@@ -74,7 +74,13 @@ function removeOwnedDirectory(owned) {
     fs.rmdirSync(owned.path);
 }
 
-function validateCreatedRepository(projectRoot, runGit, env, allowHooksPath = false) {
+function validateCreatedRepository(
+    projectRoot,
+    runGit,
+    env,
+    allowHooksPath = false,
+    allowCommittedRoot = false
+) {
     const gitPath = path.join(projectRoot, '.git');
     const gitDirectory = fs.lstatSync(gitPath);
     if (
@@ -116,9 +122,9 @@ function validateCreatedRepository(projectRoot, runGit, env, allowHooksPath = fa
         objectFormat !== 'sha1' ||
         refFormat !== 'files' ||
         head.error ||
-        head.status === 0 ||
+        (allowCommittedRoot ? head.status !== 0 : head.status === 0) ||
         refs.error ||
-        refs.status !== 1 ||
+        (allowCommittedRoot ? refs.status !== 0 : refs.status !== 1) ||
         remotes !== '' ||
         JSON.stringify(configNames) !== JSON.stringify(allowedConfig) ||
         fs.lstatSync(path.join(gitPath, 'hooks'), {throwIfNoEntry: false}) !== undefined
@@ -149,6 +155,7 @@ function createBootstrapRepository({
     env = process.env,
     fault = () => {},
     allowUntracked = false,
+    allowCommittedRoot = false,
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const projectIdentity = fs.lstatSync(projectRoot);
@@ -172,7 +179,8 @@ function createBootstrapRepository({
             projectRoot,
             runGit,
             repositoryEnvironment(env),
-            journal.hooks !== null
+            journal.hooks !== null,
+            allowCommittedRoot
         );
         if (JSON.stringify(repository) !== JSON.stringify(journal.repository)) {
             throw new Error('created repository evidence changed');
