@@ -1841,6 +1841,29 @@ test('dispatches Core-only pre-commit readiness without adapter execution', (t) 
     assert.equal(runHook(projectRoot, 'unknown').status, 2);
 });
 
+test('rejects a symlinked active attempt before hook continuity reads', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const externalRoot = makeTempDir();
+    t.after(() => fs.rmSync(externalRoot, {recursive: true, force: true}));
+    const attemptRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID
+    );
+    const externalAttempt = path.join(externalRoot, ATTEMPT_ID);
+    fs.cpSync(attemptRoot, externalAttempt, {recursive: true});
+    fs.rmSync(attemptRoot, {recursive: true});
+    fs.symlinkSync(externalAttempt, attemptRoot, 'dir');
+    execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
+
+    const result = runHook(projectRoot, 'pre-commit', [], {
+        hookRun: hookRunWithReadiness(),
+        loadHookAdapter() {
+            throw new Error('Core-only hooks must not load an adapter');
+        },
+    });
+
+    assert.equal(result.status, 1);
+});
+
 test('dispatches selected-adapter quality through the pre-commit hook', (t) => {
     const {projectRoot, plan} = readySelectedHooks(t);
     execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);

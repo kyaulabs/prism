@@ -6,7 +6,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
-const {readBootstrapJournal} = require('./bootstrap-journal');
+const {
+    holdBootstrapAttemptDirectory,
+    readBootstrapJournal,
+} = require('./bootstrap-journal');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
@@ -191,54 +194,65 @@ function validateBootstrapHookState(projectRoot, coreRoot, project, run, env) {
     const active = attempts.filter(({journal}) => journal.status === 'ACTIVE');
     if (active.length !== 1) throw new Error('active bootstrap attempt is ambiguous');
     const [{attemptId, journal}] = active;
-    const manifest = journal.applied.find(({path: outputPath}) =>
-        outputPath === '.prism/project.json'
-    );
-    if (manifest?.sha256 !== project.manifestDigest) {
-        throw new Error('bootstrap project metadata is stale');
-    }
-    const metadataPath = path.join(bootstrapRoot, attemptId, 'reports', 'metadata.json');
-    const initial = fs.lstatSync(metadataPath);
-    if (
-        initial.isSymbolicLink() ||
-        !initial.isFile() ||
-        (initial.mode & 0o777) !== 0o600 ||
-        initial.size > MAX_MANIFEST_BYTES
-    ) {
-        throw new Error('bootstrap project metadata is stale');
-    }
-    const metadataDescriptor = fs.openSync(
-        metadataPath,
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
-    );
+    const directory = holdBootstrapAttemptDirectory({projectRoot, attemptId});
     try {
-        const held = fs.fstatSync(metadataDescriptor);
-        const metadata = readBounded(
-            metadataDescriptor,
-            MAX_MANIFEST_BYTES,
-            'bootstrap project metadata is stale'
+        const currentJournal = directory.readJournal();
+        if (JSON.stringify(currentJournal) !== JSON.stringify(journal)) {
+            throw new Error('active bootstrap attempt changed');
+        }
+        const manifest = currentJournal.applied.find(({path: outputPath}) =>
+            outputPath === '.prism/project.json'
         );
-        const final = fs.fstatSync(metadataDescriptor);
+        if (manifest?.sha256 !== project.manifestDigest) {
+            throw new Error('bootstrap project metadata is stale');
+        }
+        const metadataPath = path.join(directory.anchor, 'reports', 'metadata.json');
+        const initial = fs.lstatSync(metadataPath);
         if (
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            held.size !== initial.size ||
-            final.dev !== held.dev ||
-            final.ino !== held.ino ||
-            final.size !== held.size ||
-            metadata.length !== held.size ||
-            crypto.createHash('sha256').update(metadata).digest('hex') !== journal.metadataDigest
+            initial.isSymbolicLink() ||
+            !initial.isFile() ||
+            (initial.mode & 0o777) !== 0o600 ||
+            initial.size > MAX_MANIFEST_BYTES
         ) {
             throw new Error('bootstrap project metadata is stale');
         }
+        const metadataDescriptor = fs.openSync(
+            metadataPath,
+            fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+        );
+        try {
+            const held = fs.fstatSync(metadataDescriptor);
+            const metadata = readBounded(
+                metadataDescriptor,
+                MAX_MANIFEST_BYTES,
+                'bootstrap project metadata is stale'
+            );
+            const final = fs.fstatSync(metadataDescriptor);
+            if (
+                held.dev !== initial.dev ||
+                held.ino !== initial.ino ||
+                held.size !== initial.size ||
+                final.dev !== held.dev ||
+                final.ino !== held.ino ||
+                final.size !== held.size ||
+                metadata.length !== held.size ||
+                crypto.createHash('sha256').update(metadata).digest('hex') !==
+                    currentJournal.metadataDigest
+            ) {
+                throw new Error('bootstrap project metadata is stale');
+            }
+        } finally {
+            fs.closeSync(metadataDescriptor);
+        }
+        if (fs.lstatSync(
+            path.join(directory.anchor, 'seed-attestation.json'),
+            {throwIfNoEntry: false}
+        ) !== undefined) {
+            validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
+        }
+        directory.assertCurrent();
     } finally {
-        fs.closeSync(metadataDescriptor);
-    }
-    if (fs.lstatSync(
-        path.join(bootstrapRoot, attemptId, 'seed-attestation.json'),
-        {throwIfNoEntry: false}
-    ) !== undefined) {
-        validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
+        directory.close();
     }
 }
 
