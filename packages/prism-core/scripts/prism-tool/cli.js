@@ -370,7 +370,7 @@ function setup(args, context) {
         const report = {
             schemaVersion: 1,
             command: 'setup seed prepare',
-            projectRoot: fs.realpathSync(projectRoot),
+            projectRoot: reportProjectRoot(projectRoot),
             ...result,
         };
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
@@ -446,7 +446,7 @@ function setup(args, context) {
         const report = {
             schemaVersion: 1,
             command: `setup hooks ${operation}`,
-            projectRoot: fs.realpathSync(projectRoot),
+            projectRoot: reportProjectRoot(projectRoot),
             ...result,
         };
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
@@ -513,7 +513,7 @@ function setup(args, context) {
         const report = {
             schemaVersion: 1,
             command: 'setup repository create',
-            projectRoot: fs.realpathSync(projectRoot),
+            projectRoot: reportProjectRoot(projectRoot),
             ...created,
         };
         if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);

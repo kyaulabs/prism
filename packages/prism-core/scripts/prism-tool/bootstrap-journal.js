@@ -204,6 +204,17 @@ function validJournalState(value) {
         );
     }
     if (
+        value.phase === 'POST_APPLICATION' &&
+        value.status === 'ACTIVE' &&
+        value.reason === null &&
+        value.resumePhase === 'REPOSITORY_CREATION' &&
+        value.applied.length > 0 &&
+        SHA256.test(value.appliedInventoryDigest) &&
+        noPostApplicationEvidence
+    ) {
+        return true;
+    }
+    if (
         value.phase === 'COMPLETE' &&
         value.status === 'COMPLETE' &&
         value.reason === null &&
@@ -242,7 +253,25 @@ function validJournalState(value) {
     );
 }
 
-function validateJournal(value, projectRoot, attemptId) {
+function normalizeLegacyJournal(value) {
+    const legacyKeys = [
+        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
+        'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
+        'createdDirectories', 'appliedInventoryDigest',
+    ];
+    if (
+        isRecord(value) &&
+        value.schemaVersion === 1 &&
+        ['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) &&
+        hasExactKeys(value, legacyKeys)
+    ) {
+        return {...value, repository: null, hooks: null, seed: null};
+    }
+    return value;
+}
+
+function validateJournal(input, projectRoot, attemptId) {
+    const value = normalizeLegacyJournal(input);
     if (
         !isRecord(value) ||
         !hasExactKeys(value, [

@@ -21,17 +21,37 @@ assert_args() {
     local log=$1
     shift
     local -a actual=()
-    mapfile -d '' -t actual <"$log.args"
-    if [[ "${actual[*]}" != "$*" ]]; then
-        printf 'unexpected hook arguments: %s\n' "${actual[*]}" >&2
+    local value
+    while IFS= read -r -d '' value; do
+        actual+=("$value")
+    done <"$log.args"
+    if [[ "${#actual[@]}" -ne "$#" ]]; then
+        printf 'unexpected hook argument count: %s\n' "${#actual[@]}" >&2
         exit 1
     fi
+    local index=0
+    local expected
+    for expected in "$@"; do
+        if [[ "${actual[index]}" != "$expected" ]]; then
+            printf 'unexpected hook argument at %d: %s\n' "$index" "${actual[index]}" >&2
+            exit 1
+        fi
+        index=$((index + 1))
+    done
 }
 
 HOOK_LOG="$TMP/pre-commit" PATH="$FAKE_BIN:/usr/bin:/bin" \
     /bin/bash "$ROOT/packages/prism-core/config/bootstrap/hooks/pre-commit"
 assert_args "$TMP/pre-commit" hook pre-commit
 [[ ! -s "$TMP/pre-commit.stdin" ]]
+
+set +e
+HOOK_STATUS=7 HOOK_LOG="$TMP/pre-commit-failure" PATH="$FAKE_BIN:/usr/bin:/bin" \
+    /bin/bash "$ROOT/packages/prism-core/config/bootstrap/hooks/pre-commit"
+STATUS=$?
+set -e
+[[ "$STATUS" -eq 7 ]]
+assert_args "$TMP/pre-commit-failure" hook pre-commit
 
 MESSAGE="$TMP/COMMIT_EDITMSG"
 printf 'ignore: bootstrap prism project\n' >"$MESSAGE"

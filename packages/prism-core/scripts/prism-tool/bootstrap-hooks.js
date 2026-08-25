@@ -30,6 +30,18 @@ function requireSuccess(result, message) {
     return output(result);
 }
 
+function readBounded(descriptor, maximum, message) {
+    const buffer = Buffer.alloc(maximum + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    if (offset > maximum) throw new Error(message);
+    return buffer.subarray(0, offset);
+}
+
 function readRegularExecutable(filePath) {
     const initial = fs.lstatSync(filePath);
     if (
@@ -43,9 +55,11 @@ function readRegularExecutable(filePath) {
     const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
-        const contents = fs.readFileSync(descriptor);
+        if (held.size > MAX_HOOK_BYTES) throw new Error('bootstrap hook is invalid');
+        const contents = readBounded(descriptor, MAX_HOOK_BYTES, 'bootstrap hook is invalid');
         const final = fs.fstatSync(descriptor);
         if (
+            contents.length !== held.size ||
             held.dev !== initial.dev ||
             held.ino !== initial.ino ||
             final.dev !== held.dev ||
@@ -264,6 +278,7 @@ function applyBootstrapHooks({
             throw new Error('repository configuration changed during hook activation');
         }
         const evidence = inspected.data.evidence;
+        fault({name: 'before-journal', projectRoot: root});
         transitionBootstrapJournal({
             projectRoot: root,
             attemptId,
@@ -274,6 +289,11 @@ function applyBootstrapHooks({
                 hooks: evidence,
             },
         });
+        fault({name: 'after-journal', projectRoot: root});
+        readBootstrapJournal({projectRoot: root, attemptId});
+        if (!exactLocalHooksPath(root, runGit, env)) {
+            throw new Error('repository configuration changed during hook activation');
+        }
         return Object.freeze({
             ...inspected,
             disposition: 'HOOKS_ACTIVE',
@@ -290,15 +310,17 @@ function applyBootstrapHooks({
             }),
         });
     } catch (error) {
-        let recorded = false;
+        let journalState = 'NOT_RECORDED';
         try {
             const currentJournal = readBootstrapJournal({projectRoot: root, attemptId});
-            recorded = currentJournal.resumePhase === 'ROOT_SEED_PREPARATION' &&
-                JSON.stringify(currentJournal.hooks) === JSON.stringify(inspected.data.evidence);
+            if (
+                currentJournal.resumePhase === 'ROOT_SEED_PREPARATION' &&
+                JSON.stringify(currentJournal.hooks) === JSON.stringify(inspected.data.evidence)
+            ) journalState = 'RECORDED';
         } catch {
-            recorded = true;
+            journalState = 'AMBIGUOUS';
         }
-        if (!recorded && wrote && exactLocalHooksPath(root, runGit, env)) {
+        if (journalState === 'NOT_RECORDED' && wrote && exactLocalHooksPath(root, runGit, env)) {
             const rollback = invoke(runGit, root, env, [
                 'config', '--local', '--fixed-value', '--unset-all', 'core.hooksPath', HOOKS_PATH,
             ]);

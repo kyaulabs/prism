@@ -199,6 +199,101 @@ test('creates an eligible unborn develop repository only after durable applicati
     assert.equal(journal.seed, null);
 });
 
+test('resumes an exact agent-started repository after interruption', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+
+    const interrupted = createRepository(projectRoot, plan.planDigest, {
+        bootstrapRepositoryFault(event) {
+            if (event.name === 'after-init') throw new Error('simulated interruption');
+        },
+    });
+    assert.equal(interrupted.status, 5);
+    const initial = fs.lstatSync(path.join(projectRoot, '.git'));
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    fs.writeFileSync(
+        path.join(attemptRoot, 'repository.lock'),
+        `${JSON.stringify({schemaVersion: 1, attemptId: ATTEMPT_ID})}\n`,
+        {mode: 0o600}
+    );
+    fs.mkdirSync(path.join(attemptRoot, 'git-template'), {mode: 0o700});
+    fs.writeFileSync(path.join(attemptRoot, 'git-global.config'), '', {mode: 0o600});
+
+    const resumed = createRepository(projectRoot, plan.planDigest);
+
+    assert.equal(resumed.status, 0, resumed.stderr);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'repository.lock')), false);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'git-template')), false);
+    assert.equal(fs.existsSync(path.join(attemptRoot, 'git-global.config')), false);
+    const current = fs.lstatSync(path.join(projectRoot, '.git'));
+    assert.equal(current.dev, initial.dev);
+    assert.equal(current.ino, initial.ino);
+    assert.equal(JSON.parse(resumed.stdout).data.resumePhase, 'HOOK_ACTIVATION');
+});
+
+test('removes inherited Git configuration injection during repository creation', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+
+    const injected = {
+        ...process.env,
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_KEY_0: 'core.bare',
+        GIT_CONFIG_VALUE_0: 'true',
+        GIT_CONFIG_PARAMETERS: "'core.hooksPath'='ambient-hooks'",
+    };
+    const result = createRepository(projectRoot, plan.planDigest, {
+        env: injected,
+        bootstrapGitRun(command, args, options) {
+            if (
+                Object.keys(options.env).some((name) =>
+                    name === 'GIT_CONFIG_COUNT' ||
+                    name === 'GIT_CONFIG_PARAMETERS' ||
+                    /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(name)
+                )
+            ) return {status: 1, stdout: '', stderr: '', error: undefined};
+            return runBounded(command, args, options);
+        },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git(projectRoot, ['config', '--local', '--get', 'core.bare']), 'false');
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+});
+
+test('keeps successful setup reports structured when final root canonicalization races', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    const originalRealpath = fs.realpathSync;
+    fs.realpathSync = function raceFinalReport(filePath, ...args) {
+        const stack = new Error().stack ?? '';
+        if (
+            filePath === projectRoot &&
+            stack.includes('setup (') &&
+            !stack.includes('createBootstrapRepository') &&
+            !stack.includes('readBootstrapJournal') &&
+            !stack.includes('transitionBootstrapJournal')
+        ) throw new Error('simulated final report race');
+        return originalRealpath.call(this, filePath, ...args);
+    };
+    try {
+        const result = createRepository(projectRoot, plan.planDigest);
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(JSON.parse(result.stdout).projectRoot, path.resolve(projectRoot));
+    } finally {
+        fs.realpathSync = originalRealpath;
+    }
+});
+
 test('inspects and activates canonical hooks without rewriting wrappers', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -418,6 +513,58 @@ test('rolls back only its hook value after concurrent configuration change', (t)
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
     assert.equal(journal.resumePhase, 'HOOK_ACTIVATION');
     assert.equal(journal.hooks, null);
+});
+
+test('fails closed when hook configuration changes before journal publication', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+
+    const result = applyHooks(projectRoot, plan.planDigest, {
+        bootstrapHooksFault(event) {
+            if (event.name === 'before-journal') {
+                execFileSync('git', [
+                    '-C', projectRoot, 'config', '--local', 'core.hooksPath', 'human-hooks',
+                ]);
+            }
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(git(projectRoot, ['config', '--local', '--get', 'core.hooksPath']), 'human-hooks');
+});
+
+test('preserves active hook configuration when journal evidence becomes unreadable', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+
+    const result = applyHooks(projectRoot, plan.planDigest, {
+        bootstrapHooksFault(event) {
+            if (event.name === 'after-journal') fs.writeFileSync(journalPath, '{}\n');
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(
+        git(projectRoot, ['config', '--local', '--get', 'core.hooksPath']),
+        '.github/hooks'
+    );
+    assert.equal(fs.readFileSync(journalPath, 'utf8'), '{}\n');
+});
+
+test('reads canonical hooks through a bounded descriptor loop', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+    const originalRead = fs.readFileSync;
+    fs.readFileSync = function rejectUnboundedHookDescriptor(target, ...args) {
+        if (Number.isInteger(target) && (new Error().stack ?? '').includes('readRegularExecutable')) {
+            throw new Error('unbounded hook descriptor read');
+        }
+        return originalRead.call(this, target, ...args);
+    };
+    try {
+        assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
+    } finally {
+        fs.readFileSync = originalRead;
+    }
 });
 
 test('stages and attests the exact Core-only seed', (t) => {
@@ -701,6 +848,22 @@ test('runs the public Core-only seed sequence without publication', (t) => {
     ), false);
 });
 
+test('rejects a READY seed when another bootstrap attempt is malformed', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    assert.equal(prepareSeed(projectRoot, plan.planDigest).status, 0);
+    const malformedRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap',
+        '87654321-4321-4321-8321-cba987654321'
+    );
+    fs.mkdirSync(malformedRoot);
+    fs.writeFileSync(path.join(malformedRoot, 'journal.json'), '{}\n', {mode: 0o600});
+
+    assert.throws(
+        () => validateActiveBootstrapSeed({projectRoot, coreRoot: CORE_ROOT}),
+        /bootstrap attempt state is (?:invalid|stale)/
+    );
+});
+
 test('dispatches Core-only pre-commit readiness without adapter execution', (t) => {
     const {projectRoot} = readyHooks(t);
     execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
@@ -753,7 +916,7 @@ test('validates contained commit messages after local readiness', (t) => {
     fs.writeFileSync(messagePath, 'ignore: bootstrap prism project\n');
     const invocations = [];
     const hookRun = (command, args, options) => {
-        invocations.push({command, args, cwd: options.cwd});
+        invocations.push({command, args, cwd: options.cwd, input: options.input});
         if (command === process.execPath && (args.includes('doctor') || args.includes('commitlint'))) {
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
@@ -767,7 +930,11 @@ test('validates contained commit messages after local readiness', (t) => {
     const commitlint = invocations.findIndex(({args}) => args.includes('commitlint'));
     assert.equal(readiness >= 0, true);
     assert.equal(commitlint > readiness, true);
-    assert.equal(invocations[commitlint].args.at(-1), messagePath);
+    assert.equal(invocations[commitlint].args.includes('--edit'), false);
+    assert.equal(
+        Buffer.from(invocations[commitlint].input).toString('utf8'),
+        'ignore: bootstrap prism project\n'
+    );
 
     const outside = path.join(projectRoot, 'outside-message');
     fs.writeFileSync(outside, 'ignore: bootstrap prism project\n');
@@ -775,6 +942,27 @@ test('validates contained commit messages after local readiness', (t) => {
     const symlink = path.join(projectRoot, '.git', 'MESSAGE_LINK');
     fs.symlinkSync(messagePath, symlink);
     assert.equal(runHook(projectRoot, 'commit-msg', [symlink], {hookRun}).status, 1);
+});
+
+test('reads the Core manifest through a bounded descriptor loop', (t) => {
+    const {projectRoot} = readyHooks(t);
+    const originalRead = fs.readFileSync;
+    fs.readFileSync = function rejectUnboundedManifestDescriptor(target, ...args) {
+        if (Number.isInteger(target)) {
+            const linked = fs.readlinkSync(`/proc/self/fd/${target}`);
+            if (linked.endsWith('/.prism/project.json')) {
+                throw new Error('unbounded manifest descriptor read');
+            }
+        }
+        return originalRead.call(this, target, ...args);
+    };
+    try {
+        assert.equal(runHook(projectRoot, 'pre-commit', [], {
+            hookRun: hookRunWithReadiness(),
+        }).status, 0);
+    } finally {
+        fs.readFileSync = originalRead;
+    }
 });
 
 test('permits only the unborn protected develop root exception', (t) => {
@@ -814,6 +1002,17 @@ test('allows only an exact protected root push and rejects rewritten history', (
         hookRun,
     });
     assert.equal(initial.status, 0);
+
+    const shallowRun = (command, args, options) => {
+        if (command === 'git' && args.join(' ') === 'rev-parse --is-shallow-repository') {
+            return {status: 0, stdout: 'true\n', stderr: '', error: undefined};
+        }
+        return hookRun(command, args, options);
+    };
+    assert.equal(runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
+        input: `refs/heads/develop ${rootCommit} refs/heads/develop ${zeros}\n`,
+        hookRun: shallowRun,
+    }).status, 1);
 
     const laterProtected = runHook(projectRoot, 'pre-push', ['origin', 'example.invalid'], {
         input: `refs/heads/develop ${childCommit} refs/heads/develop ${zeros}\n`,
@@ -868,7 +1067,8 @@ test('preserves concurrently changed repository state without granting seed elig
     assert.equal(git(projectRoot, ['config', '--local', 'user.name']), 'Concurrent');
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
-    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.phase, 'POST_APPLICATION');
+    assert.equal(journal.resumePhase, 'REPOSITORY_CREATION');
     assert.equal(journal.repository, null);
 });
 
@@ -940,7 +1140,8 @@ test('preserves a concurrently created Git entry without normalizing it', (t) =>
     );
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
-    assert.equal(journal.phase, 'DURABLE');
+    assert.equal(journal.phase, 'POST_APPLICATION');
+    assert.equal(journal.resumePhase, 'REPOSITORY_CREATION');
     assert.equal(journal.repository, null);
 });
 

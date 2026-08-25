@@ -31,6 +31,18 @@ function exactKeys(value, expected) {
     return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
 }
 
+function readBounded(descriptor, maximum, message) {
+    const buffer = Buffer.alloc(maximum + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    if (offset > maximum) throw new Error(message);
+    return buffer.subarray(0, offset);
+}
+
 function readCoreProject(projectRoot, coreRoot) {
     const manifestPath = path.join(projectRoot, '.prism', 'project.json');
     const initial = fs.lstatSync(manifestPath);
@@ -46,9 +58,11 @@ function readCoreProject(projectRoot, coreRoot) {
     let contents;
     try {
         const held = fs.fstatSync(descriptor);
-        contents = fs.readFileSync(descriptor);
+        if (held.size > MAX_MANIFEST_BYTES) throw new Error('project manifest is invalid');
+        contents = readBounded(descriptor, MAX_MANIFEST_BYTES, 'project manifest is invalid');
         const final = fs.fstatSync(descriptor);
         if (
+            contents.length !== held.size ||
             held.dev !== initial.dev ||
             held.ino !== initial.ino ||
             final.dev !== held.dev ||
@@ -136,24 +150,44 @@ function containedMessage(projectRoot, messagePath, run, env) {
     const gitRoot = gitDirectory(projectRoot, run, env);
     const message = fs.realpathSync(messagePath);
     const relation = path.relative(gitRoot, message);
-    if (
-        relation === '' ||
-        relation.startsWith('..') ||
-        path.isAbsolute(relation)
-    ) {
+    if (relation === '' || relation.startsWith('..') || path.isAbsolute(relation)) {
         throw new Error('commit message path is invalid');
     }
-    return message;
+    const descriptor = fs.openSync(message, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (
+            held.dev !== initial.dev ||
+            held.ino !== initial.ino ||
+            !held.isFile() ||
+            held.size > MAX_MANIFEST_BYTES
+        ) throw new Error('commit message path is invalid');
+        const contents = readBounded(
+            descriptor,
+            MAX_MANIFEST_BYTES,
+            'commit message path is invalid'
+        );
+        const final = fs.fstatSync(descriptor);
+        if (
+            contents.length !== held.size ||
+            final.dev !== held.dev ||
+            final.ino !== held.ino ||
+            final.size !== held.size
+        ) throw new Error('commit message path changed');
+        return contents;
+    } finally {
+        fs.closeSync(descriptor);
+    }
 }
 
 function commitMessage(projectRoot, coreRoot, messagePath, run, env) {
-    const message = containedMessage(projectRoot, messagePath, run, env);
+    const contents = containedMessage(projectRoot, messagePath, run, env);
     localReadiness(projectRoot, coreRoot, run, env);
     const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
     requireSuccess(
         invoke(run, process.execPath, [
-            launcher, 'run', 'commitlint', '--', '--edit', message,
-        ], projectRoot, {env}),
+            launcher, 'run', 'commitlint', '--',
+        ], projectRoot, {env, input: contents}),
         'commit message validation failed'
     );
 }
@@ -227,6 +261,11 @@ function initialProtectedPush(projectRoot, run, env, localRef, localOid, remoteR
         isZero(localOid) ||
         !isZero(remoteOid)
     ) return false;
+    const shallow = requireSuccess(
+        gitResult(run, projectRoot, env, ['rev-parse', '--is-shallow-repository']),
+        'repository depth inspection failed'
+    );
+    if (shallow !== 'false') return false;
     const count = requireSuccess(
         gitResult(run, projectRoot, env, ['rev-list', '--count', localOid]),
         'push history inspection failed'

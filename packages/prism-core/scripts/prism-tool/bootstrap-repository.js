@@ -28,11 +28,17 @@ function requireSuccess(result, message) {
 
 function repositoryEnvironment(base, emptyConfig = null) {
     const env = {...base};
-    for (const name of [
-        'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY',
-        'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_INDEX_FILE', 'GIT_NAMESPACE',
-        'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
-    ]) delete env[name];
+    for (const name of Object.keys(env)) {
+        if (
+            [
+                'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY',
+                'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_INDEX_FILE', 'GIT_NAMESPACE',
+                'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+                'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM',
+            ].includes(name) ||
+            /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(name)
+        ) delete env[name];
+    }
     env.GIT_CONFIG_NOSYSTEM = '1';
     if (emptyConfig !== null) env.GIT_CONFIG_GLOBAL = emptyConfig;
     else delete env.GIT_CONFIG_GLOBAL;
@@ -72,6 +78,30 @@ function removeOwnedDirectory(owned) {
         throw new Error('repository operation directory changed');
     }
     fs.rmdirSync(owned.path);
+}
+
+function cleanupInterruptedOperation(attemptRoot, attemptId) {
+    const lockPath = path.join(attemptRoot, 'repository.lock');
+    const templateRoot = path.join(attemptRoot, 'git-template');
+    const emptyConfig = path.join(attemptRoot, 'git-global.config');
+    const paths = [lockPath, templateRoot, emptyConfig];
+    const present = paths.map((entry) => fs.lstatSync(entry, {throwIfNoEntry: false}));
+    if (present.every((entry) => entry === undefined)) return;
+    if (present.some((entry) => entry === undefined)) {
+        throw new Error('repository operation evidence is incomplete');
+    }
+    const lockContents = Buffer.from(`${JSON.stringify({schemaVersion: 1, attemptId})}\n`);
+    const lock = ownedFile(lockPath, lockContents);
+    const config = ownedFile(emptyConfig, Buffer.alloc(0));
+    const template = {path: templateRoot, stat: present[1]};
+    if (
+        (present[0].mode & 0o777) !== 0o600 ||
+        (present[1].mode & 0o777) !== 0o700 ||
+        (present[2].mode & 0o777) !== 0o600
+    ) throw new Error('repository operation evidence is invalid');
+    removeOwnedDirectory(template);
+    removeOwnedFile(config);
+    removeOwnedFile(lock);
 }
 
 function validateCreatedRepository(
@@ -159,7 +189,9 @@ function createBootstrapRepository({
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const projectIdentity = fs.lstatSync(projectRoot);
-    const journal = readBootstrapJournal({projectRoot, attemptId});
+    let journal = readBootstrapJournal({projectRoot, attemptId});
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
+    const gitPath = path.join(projectRoot, '.git');
     if (
         journal.phase === 'POST_APPLICATION' &&
         journal.status === 'ACTIVE' &&
@@ -178,7 +210,7 @@ function createBootstrapRepository({
         const repository = validateCreatedRepository(
             projectRoot,
             runGit,
-            repositoryEnvironment(env),
+            repositoryEnvironment(env, '/dev/null'),
             journal.hooks !== null,
             allowCommittedRoot
         );
@@ -201,21 +233,85 @@ function createBootstrapRepository({
             }),
         });
     }
-    const durable = validateDurableBootstrapProject({
-        projectRoot,
-        coreRoot,
-        attemptId,
-        planDigest,
-    });
+    let durable;
     if (
-        journal.phase !== 'DURABLE' ||
-        journal.status !== 'ACTIVE' ||
-        journal.appliedInventoryDigest !== durable.appliedInventoryDigest ||
-        fs.lstatSync(path.join(projectRoot, '.git'), {throwIfNoEntry: false}) !== undefined
+        journal.phase === 'POST_APPLICATION' &&
+        journal.status === 'ACTIVE' &&
+        journal.resumePhase === 'REPOSITORY_CREATION' &&
+        journal.repository === null
     ) {
-        throw new Error('repository bootstrap requires a durable project');
+        if (fs.lstatSync(gitPath, {throwIfNoEntry: false}) !== undefined) {
+            cleanupInterruptedOperation(attemptRoot, attemptId);
+        }
+        durable = validateDurableBootstrapProject({
+            projectRoot,
+            coreRoot,
+            attemptId,
+            planDigest,
+            allowRepository: true,
+            allowUntracked,
+        });
+    } else {
+        durable = validateDurableBootstrapProject({
+            projectRoot,
+            coreRoot,
+            attemptId,
+            planDigest,
+            allowUntracked,
+        });
+        if (
+            journal.phase !== 'DURABLE' ||
+            journal.status !== 'ACTIVE' ||
+            journal.appliedInventoryDigest !== durable.appliedInventoryDigest ||
+            fs.lstatSync(path.join(projectRoot, '.git'), {throwIfNoEntry: false}) !== undefined
+        ) {
+            throw new Error('repository bootstrap requires a durable project');
+        }
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'DURABLE',
+            next: {
+                ...journal,
+                phase: 'POST_APPLICATION',
+                resumePhase: 'REPOSITORY_CREATION',
+            },
+        });
+        journal = readBootstrapJournal({projectRoot, attemptId});
     }
-    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
+    if (fs.lstatSync(gitPath, {throwIfNoEntry: false}) !== undefined) {
+        const repository = validateCreatedRepository(
+            projectRoot,
+            runGit,
+            repositoryEnvironment(env, '/dev/null')
+        );
+        cleanupInterruptedOperation(attemptRoot, attemptId);
+        transitionBootstrapJournal({
+            projectRoot,
+            attemptId,
+            expectedPhase: 'POST_APPLICATION',
+            next: {
+                ...journal,
+                resumePhase: 'HOOK_ACTIVATION',
+                repository,
+            },
+        });
+        return Object.freeze({
+            status: 'GO',
+            disposition: 'REPOSITORY_CREATED',
+            checks: Object.freeze([Object.freeze({
+                id: 'bootstrap-repository',
+                status: 'PASS',
+                message: 'agent-started repository creation was reconciled',
+            })]),
+            data: Object.freeze({
+                attempt: Object.freeze({id: attemptId}),
+                planDigest,
+                repository,
+                resumePhase: 'HOOK_ACTIVATION',
+            }),
+        });
+    }
     const lockPath = path.join(attemptRoot, 'repository.lock');
     const templateRoot = path.join(attemptRoot, 'git-template');
     const emptyConfig = path.join(attemptRoot, 'git-global.config');
@@ -256,7 +352,7 @@ function createBootstrapRepository({
         transitionBootstrapJournal({
             projectRoot,
             attemptId,
-            expectedPhase: 'DURABLE',
+            expectedPhase: 'POST_APPLICATION',
             next: {
                 ...journal,
                 phase: 'POST_APPLICATION',

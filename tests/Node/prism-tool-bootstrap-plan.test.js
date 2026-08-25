@@ -185,6 +185,34 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     });
 });
 
+test('normalizes the prior schema-1 journal shape for recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    delete journal.repository;
+    delete journal.hooks;
+    delete journal.seed;
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal)}\n`, {mode: 0o600});
+
+    const normalized = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+
+    assert.equal(normalized.repository, null);
+    assert.equal(normalized.hooks, null);
+    assert.equal(normalized.seed, null);
+    assert.equal(normalized.phase, 'PREPARED');
+});
+
 test('rejects non-canonical applied paths in retained journals', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
