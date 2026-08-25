@@ -41,6 +41,81 @@ function readBoundedDescriptor(descriptor, size) {
     return contents;
 }
 
+function sameFile(left, right) {
+    return left.dev === right.dev && left.ino === right.ino;
+}
+
+function holdBootstrapAttemptDirectory({projectRoot: requestedRoot, attemptId}) {
+    if (
+        typeof fs.constants.O_DIRECTORY !== 'number' ||
+        typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
+        throw new Error('safe filesystem flags are unavailable');
+    }
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const attemptRoot = path.dirname(journalPath(projectRoot, attemptId));
+    const initial = fs.lstatSync(attemptRoot);
+    if (
+        initial.isSymbolicLink() ||
+        !initial.isDirectory() ||
+        (initial.mode & 0o777) !== 0o700
+    ) {
+        throw new Error('bootstrap attempt directory is invalid');
+    }
+    const descriptor = fs.openSync(
+        attemptRoot,
+        fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
+    );
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (!sameFile(initial, held)) throw new Error('bootstrap attempt directory changed');
+        let anchor;
+        for (const candidate of [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`]) {
+            try {
+                if (sameFile(fs.statSync(candidate), held)) {
+                    anchor = candidate;
+                    break;
+                }
+            } catch {
+                continue;
+            }
+        }
+        if (anchor === undefined) {
+            throw new Error('bootstrap attempt directory cannot be held safely');
+        }
+        const directory = {
+            anchor,
+            assertCurrent() {
+                const current = fs.lstatSync(attemptRoot);
+                if (
+                    current.isSymbolicLink() ||
+                    !current.isDirectory() ||
+                    !sameFile(current, held) ||
+                    !sameFile(fs.statSync(anchor), held)
+                ) {
+                    throw new Error('bootstrap attempt directory changed');
+                }
+            },
+            close() {
+                fs.closeSync(descriptor);
+            },
+            readJournal() {
+                const journal = readBootstrapJournalAt({
+                    projectRoot,
+                    attemptId,
+                    attemptRoot: anchor,
+                });
+                directory.assertCurrent();
+                return journal;
+            },
+        };
+        return directory;
+    } catch (error) {
+        fs.closeSync(descriptor);
+        throw error;
+    }
+}
+
 function validAdapter(value) {
     return value === null || (
         isRecord(value) &&
@@ -348,9 +423,8 @@ function validateJournal(input, projectRoot, attemptId) {
     return Object.freeze(value);
 }
 
-function readBootstrapJournal({projectRoot: requestedRoot, attemptId}) {
-    const projectRoot = fs.realpathSync(requestedRoot);
-    const filePath = journalPath(projectRoot, attemptId);
+function readBootstrapJournalAt({projectRoot, attemptId, attemptRoot}) {
+    const filePath = path.join(attemptRoot, 'journal.json');
     const initial = fs.lstatSync(filePath);
     if (
         initial.isSymbolicLink() ||
@@ -380,6 +454,15 @@ function readBootstrapJournal({projectRoot: requestedRoot, attemptId}) {
         return validateJournal(JSON.parse(contents.toString('utf8')), projectRoot, attemptId);
     } finally {
         fs.closeSync(descriptor);
+    }
+}
+
+function readBootstrapJournal({projectRoot, attemptId}) {
+    const directory = holdBootstrapAttemptDirectory({projectRoot, attemptId});
+    try {
+        return directory.readJournal();
+    } finally {
+        directory.close();
     }
 }
 
@@ -469,6 +552,7 @@ function createPreparedBootstrapJournal({projectRoot: requestedRoot, attemptId, 
 
 module.exports = {
     createPreparedBootstrapJournal,
+    holdBootstrapAttemptDirectory,
     readBootstrapJournal,
     transitionBootstrapJournal,
 };

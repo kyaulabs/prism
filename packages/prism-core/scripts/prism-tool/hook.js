@@ -2,9 +2,14 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
+const {
+    holdBootstrapAttemptDirectory,
+    readBootstrapJournal,
+} = require('./bootstrap-journal');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
@@ -129,7 +134,10 @@ function readCoreProject(projectRoot, coreRoot) {
     ) {
         throw new Error('project manifest is invalid');
     }
-    return Object.freeze({adapter: value.adapter});
+    return Object.freeze({
+        adapter: value.adapter,
+        manifestDigest: crypto.createHash('sha256').update(contents).digest('hex'),
+    });
 }
 
 function canonicalRepository(requestedRoot, run, env) {
@@ -176,22 +184,86 @@ function adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter) {
     if (result?.status !== 'GO') throw new Error('adapter quality failed');
 }
 
-function preCommit(projectRoot, coreRoot, adapter, run, env, loadHookAdapter) {
+function validateBootstrapHookState(projectRoot, coreRoot, project, run, env) {
+    const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
+    if (!fs.existsSync(bootstrapRoot)) return;
+    const attempts = fs.readdirSync(bootstrapRoot).map((attemptId) => ({
+        attemptId,
+        journal: readBootstrapJournal({projectRoot, attemptId}),
+    }));
+    const active = attempts.filter(({journal}) => journal.status === 'ACTIVE');
+    if (active.length !== 1) throw new Error('active bootstrap attempt is ambiguous');
+    const [{attemptId, journal}] = active;
+    const directory = holdBootstrapAttemptDirectory({projectRoot, attemptId});
+    try {
+        const currentJournal = directory.readJournal();
+        if (JSON.stringify(currentJournal) !== JSON.stringify(journal)) {
+            throw new Error('active bootstrap attempt changed');
+        }
+        const manifest = currentJournal.applied.find(({path: outputPath}) =>
+            outputPath === '.prism/project.json'
+        );
+        if (manifest?.sha256 !== project.manifestDigest) {
+            throw new Error('bootstrap project metadata is stale');
+        }
+        const metadataPath = path.join(directory.anchor, 'reports', 'metadata.json');
+        const initial = fs.lstatSync(metadataPath);
+        if (
+            initial.isSymbolicLink() ||
+            !initial.isFile() ||
+            (initial.mode & 0o777) !== 0o600 ||
+            initial.size > MAX_MANIFEST_BYTES
+        ) {
+            throw new Error('bootstrap project metadata is stale');
+        }
+        const metadataDescriptor = fs.openSync(
+            metadataPath,
+            fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+        );
+        try {
+            const held = fs.fstatSync(metadataDescriptor);
+            const metadata = readBounded(
+                metadataDescriptor,
+                MAX_MANIFEST_BYTES,
+                'bootstrap project metadata is stale'
+            );
+            const final = fs.fstatSync(metadataDescriptor);
+            if (
+                held.dev !== initial.dev ||
+                held.ino !== initial.ino ||
+                held.size !== initial.size ||
+                final.dev !== held.dev ||
+                final.ino !== held.ino ||
+                final.size !== held.size ||
+                metadata.length !== held.size ||
+                crypto.createHash('sha256').update(metadata).digest('hex') !==
+                    currentJournal.metadataDigest
+            ) {
+                throw new Error('bootstrap project metadata is stale');
+            }
+        } finally {
+            fs.closeSync(metadataDescriptor);
+        }
+        if (fs.lstatSync(
+            path.join(directory.anchor, 'seed-attestation.json'),
+            {throwIfNoEntry: false}
+        ) !== undefined) {
+            validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
+        }
+        directory.assertCurrent();
+    } finally {
+        directory.close();
+    }
+}
+
+function preCommit(projectRoot, coreRoot, project, run, env, loadHookAdapter) {
     localReadiness(projectRoot, coreRoot, run, env);
     requireSuccess(
         invoke(run, 'git', ['diff', '--cached', '--check'], projectRoot, {env}),
         'staged diff validation failed'
     );
-    const bootstrapRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap');
-    if (fs.existsSync(bootstrapRoot) && fs.readdirSync(bootstrapRoot).some((attemptId) =>
-        fs.lstatSync(
-            path.join(bootstrapRoot, attemptId, 'seed-attestation.json'),
-            {throwIfNoEntry: false}
-        ) !== undefined
-    )) {
-        validateActiveBootstrapSeed({projectRoot, coreRoot, runGit: run, env});
-    }
-    adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter);
+    validateBootstrapHookState(projectRoot, coreRoot, project, run, env);
+    adapterQuality(projectRoot, coreRoot, project.adapter, run, loadHookAdapter);
 }
 
 function gitDirectory(projectRoot, run, env) {
@@ -417,7 +489,7 @@ function hookCommand(args, context = {}) {
         const project = readCoreProject(projectRoot, coreRoot);
         const loadHookAdapter = context.loadHookAdapter ?? defaultHookAdapter;
         if (event === 'pre-commit') {
-            preCommit(projectRoot, coreRoot, project.adapter, run, env, loadHookAdapter);
+            preCommit(projectRoot, coreRoot, project, run, env, loadHookAdapter);
         }
         else if (event === 'commit-msg') {
             commitMessage(projectRoot, coreRoot, hookArgs[0], run, env);

@@ -195,6 +195,9 @@ function prepareBootstrapSeed({
         allowRepository: true,
         allowUntracked: true,
     });
+    if (journal.metadataDigest !== durable.plan.metadataDigest) {
+        throw new Error('bootstrap seed metadata is stale');
+    }
     const hooks = inspectBootstrapHooks({
         projectRoot,
         coreRoot,

@@ -80,6 +80,89 @@ test('reports only the metadata fields required by selected licensing', (t) => {
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
+test('reports only the metadata fields required by selected security disclosure', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=security-disclosure', '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['security-disclosure']);
+    assert.deepEqual(report.data.fields.map(({id, required}) => ({id, required})), [
+        {id: 'displayName', required: true},
+        {id: 'summary', required: true},
+        {id: 'security-disclosure.reportingContact', required: true},
+        {id: 'security-disclosure.supportedVersionPolicy', required: true},
+        {id: 'security-disclosure.supportedVersionRows', required: false},
+        {id: 'security-disclosure.acknowledgementHours', required: false},
+    ]);
+    assert.deepEqual(report.data.publications, [{
+        capability: 'security-disclosure',
+        field: 'security-disclosure.reportingContact',
+        outputs: ['SECURITY.md'],
+    }]);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('reports repository ownership, support, and funding metadata independently', (t) => {
+    const scenarios = [
+        {
+            capability: 'repository-ownership',
+            fields: [
+                'displayName', 'summary',
+                'repository-ownership.owners', 'repository-ownership.rules',
+            ],
+            publication: {
+                capability: 'repository-ownership',
+                field: 'repository-ownership.owners',
+                outputs: ['.github/CODEOWNERS'],
+            },
+        },
+        {
+            capability: 'support-routing',
+            fields: [
+                'displayName', 'summary',
+                'support-routing.destination', 'support-routing.displayLabel',
+                'support-routing.description',
+            ],
+            publication: {
+                capability: 'support-routing',
+                field: 'support-routing.destination',
+                outputs: ['.github/ISSUE_TEMPLATE/config.yml'],
+            },
+        },
+        {
+            capability: 'funding',
+            fields: ['displayName', 'summary', 'funding.records'],
+            publication: {
+                capability: 'funding',
+                field: 'funding.records',
+                outputs: ['.github/FUNDING.yml'],
+            },
+        },
+    ];
+
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        const result = captureWrites(() => main([
+            'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+            `--capabilities=${scenario.capability}`, '--json',
+        ], {projectRoot}));
+
+        assert.equal(result.status, 0, `${scenario.capability}: ${result.stderr}`);
+        const report = JSON.parse(result.stdout);
+        assert.deepEqual(report.capabilities, [scenario.capability]);
+        assert.deepEqual(report.data.fields.map(({id}) => id), scenario.fields);
+        assert.deepEqual(report.data.publications, [scenario.publication]);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
 test('reports selected capability metadata in canonical order', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -124,13 +207,35 @@ test('reports selected capability metadata in canonical order', (t) => {
     ]);
 });
 
+test('normalizes all project capabilities into canonical order', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout).capabilities, [
+        'licensing',
+        'community-governance',
+        'github-collaboration',
+        'security-disclosure',
+        'repository-ownership',
+        'support-routing',
+        'funding',
+    ]);
+});
+
 test('rejects non-canonical capability selections without changing the root', (t) => {
     const selections = [
         'licensing,licensing',
         ' licensing',
         'licensing,',
         'unknown-capability',
-        'security-disclosure',
+        'release-management',
     ];
     for (const selection of selections) {
         const projectRoot = makeTempDir();
@@ -201,6 +306,98 @@ test('normalizes selected capability metadata into canonical persisted values', 
     );
 });
 
+test('normalizes security disclosure metadata without inventing promises', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities: ['security-disclosure'],
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Secure Project',
+            summary: 'A project with a vulnerability reporting policy.',
+            capabilityMetadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'custom',
+                    supportedVersionRows: [
+                        {version: '2.x', status: 'supported'},
+                        {version: '1.x', status: 'unsupported'},
+                    ],
+                    acknowledgementHours: 72,
+                },
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata['security-disclosure'], {
+        reportingContact: {kind: 'email', value: 'security@example.test'},
+        supportedVersions: {
+            policy: 'custom',
+            rows: [
+                {version: '2.x', status: 'supported'},
+                {version: '1.x', status: 'unsupported'},
+            ],
+        },
+        acknowledgementHours: 72,
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({
+        metadata,
+        capabilities: ['security-disclosure'],
+    }), metadata);
+});
+
+test('normalizes repository ownership, support routing, and funding metadata', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const capabilities = ['repository-ownership', 'support-routing', 'funding'];
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Identity Project',
+            summary: 'A project with explicit ownership and public destinations.',
+            capabilityMetadata: {
+                'repository-ownership': {
+                    owners: ['@Example', '@Example/Core'],
+                    rules: [{pattern: '/docs/**', owners: ['@Example/Docs']}],
+                },
+                'support-routing': {
+                    destination: 'https://example.test/support',
+                },
+                funding: {
+                    records: [
+                        {provider: 'github', account: 'Example'},
+                        {provider: 'custom', destination: 'https://example.test/fund'},
+                    ],
+                },
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata, {
+        'repository-ownership': {
+            owners: ['@example', '@example/core'],
+            rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+        },
+        'support-routing': {
+            destination: 'https://example.test/support',
+            displayLabel: 'Support',
+            description: 'Get help with this project.',
+        },
+        funding: {
+            records: [
+                {provider: 'github', value: 'Example'},
+                {provider: 'custom', value: 'https://example.test/fund'},
+            ],
+        },
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({metadata, capabilities}), metadata);
+});
+
 test('rejects unsafe and non-closed capability metadata', (t) => {
     const cases = [
         {
@@ -240,6 +437,93 @@ test('rejects unsafe and non-closed capability metadata', (t) => {
                 displayName: 'Example Project',
                 summary: 'A deterministic project.',
                 capabilityMetadata: entry.capabilityMetadata,
+            }),
+        }));
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
+test('rejects unsafe and non-closed security identity metadata', (t) => {
+    const cases = [
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'http://example.test/report',
+                    supportedVersionPolicy: 'latest-release',
+                },
+            },
+        },
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'latest-release',
+                    supportedVersionRows: [{version: '1.x', status: 'supported'}],
+                },
+            },
+        },
+        {
+            capabilities: ['security-disclosure'],
+            metadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'custom',
+                    supportedVersionRows: [],
+                    acknowledgementHours: 0,
+                },
+            },
+        },
+        {
+            capabilities: ['repository-ownership'],
+            metadata: {'repository-ownership': {owners: ['owner']}},
+        },
+        {
+            capabilities: ['repository-ownership'],
+            metadata: {
+                'repository-ownership': {
+                    owners: ['@owner'],
+                    rules: [{pattern: '/../secret', owners: ['@owner']}],
+                },
+            },
+        },
+        {
+            capabilities: ['support-routing'],
+            metadata: {'support-routing': {destination: 'http://example.test/support'}},
+        },
+        {
+            capabilities: ['funding'],
+            metadata: {
+                funding: {
+                    records: [
+                        {provider: 'patreon', account: 'one'},
+                        {provider: 'patreon', account: 'two'},
+                    ],
+                },
+            },
+        },
+        {
+            capabilities: ['funding'],
+            metadata: {
+                funding: {
+                    records: [{provider: 'custom', destination: 'http://example.test/fund'}],
+                },
+            },
+        },
+    ];
+
+    for (const entry of cases) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        assert.throws(() => normalizeProjectMetadata({
+            projectRoot,
+            capabilities: entry.capabilities,
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Unsafe Project',
+                summary: 'A project with invalid public metadata.',
+                capabilityMetadata: entry.metadata,
             }),
         }));
         assert.deepEqual(fs.readdirSync(projectRoot), []);
@@ -443,6 +727,269 @@ test('renders neutral GitHub collaboration templates without project metadata', 
     assert.doesNotMatch(contents, /assignees:|labels:|windows|kyaulabs\/|github\.com\//i);
 });
 
+test('renders a security policy without an implicit acknowledgement promise', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['security-disclosure'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Secure Project',
+                summary: 'A project with a vulnerability reporting policy.',
+                suggestedDisplayName: 'secure-project',
+                capabilityMetadata: {
+                    'security-disclosure': {
+                        reportingContact: {
+                            kind: 'https',
+                            value: 'https://security.example.test/report',
+                        },
+                        supportedVersions: {
+                            policy: 'latest-release',
+                            rows: [],
+                        },
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: 'SECURITY.md', mode: 0o644}]);
+    const contents = fs.readFileSync(path.join(candidateRoot, 'SECURITY.md'), 'utf8');
+    assert.match(contents, /Security fixes are provided for the latest released version\./);
+    assert.match(contents, /https:\/\/security\.example\.test\/report/);
+    assert.doesNotMatch(contents, /acknowledge|within \d+ hours/i);
+    assert.deepEqual(reports[0].effects, []);
+    assert.equal(reports[0].checks[0].status, 'PASS');
+});
+
+test('renders custom supported versions and an explicit acknowledgement target', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['security-disclosure'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Secure Project',
+                summary: 'A project with explicit supported versions.',
+                suggestedDisplayName: 'secure-project',
+                capabilityMetadata: {
+                    'security-disclosure': {
+                        reportingContact: {kind: 'email', value: 'security@example.test'},
+                        supportedVersions: {
+                            policy: 'custom',
+                            rows: [
+                                {version: '2.x', status: 'supported'},
+                                {version: '1.x', status: 'unsupported'},
+                            ],
+                        },
+                        acknowledgementHours: 72,
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(path.join(candidateRoot, 'SECURITY.md'), 'utf8');
+    assert.match(contents, /\| 2\.x \| Yes \|/);
+    assert.match(contents, /\| 1\.x \| No \|/);
+    assert.match(contents, /mailto:security@example\.test/);
+    assert.match(contents, /acknowledge complete vulnerability reports within 72 hours/);
+});
+
+test('renders repository ownership with a default and contained path rules', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['repository-ownership'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Owned Project',
+                summary: 'A project with explicit review ownership.',
+                suggestedDisplayName: 'owned-project',
+                capabilityMetadata: {
+                    'repository-ownership': {
+                        owners: ['@example', '@example/core'],
+                        rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/CODEOWNERS', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'CODEOWNERS'), 'utf8'),
+        '*\t@example @example/core\n/docs/**\t@example/docs\n'
+    );
+});
+
+test('renders support routing with safe defaults and blank issues enabled', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['support-routing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Supported Project',
+                summary: 'A project with an explicit support destination.',
+                suggestedDisplayName: 'supported-project',
+                capabilityMetadata: {
+                    'support-routing': {
+                        destination: 'https://example.test/support',
+                        displayLabel: 'Support',
+                        description: 'Get help with this project.',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/ISSUE_TEMPLATE/config.yml', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'ISSUE_TEMPLATE', 'config.yml'), 'utf8'),
+        'blank_issues_enabled: true\n' +
+        'contact_links:\n' +
+        '  - name: "Support"\n' +
+        '    url: "https://example.test/support"\n' +
+        '    about: "Get help with this project."\n'
+    );
+});
+
+test('disables blank issues when collaboration and support are selected together', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['github-collaboration', 'support-routing'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Collaborative Project',
+                summary: 'A project with structured intake and support routing.',
+                suggestedDisplayName: 'collaborative-project',
+                capabilityMetadata: {
+                    'github-collaboration': {},
+                    'support-routing': {
+                        destination: 'https://example.test/support',
+                        displayLabel: 'Help: support',
+                        description: 'Ask a question before filing an issue.',
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(
+        path.join(candidateRoot, '.github', 'ISSUE_TEMPLATE', 'config.yml'),
+        'utf8'
+    );
+    assert.match(contents, /^blank_issues_enabled: false$/m);
+    assert.match(contents, /name: "Help: support"/);
+});
+
+test('renders funding records in closed provider order', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    const reports = renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['funding'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Funded Project',
+                summary: 'A project with approved funding identities.',
+                suggestedDisplayName: 'funded-project',
+                capabilityMetadata: {
+                    funding: {
+                        records: [
+                            {provider: 'github', value: 'example'},
+                            {provider: 'github', value: 'example-team'},
+                            {provider: 'open_collective', value: 'example'},
+                            {provider: 'custom', value: 'https://example.test/fund'},
+                        ],
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
+        path: outputPath,
+        mode,
+    })), [{path: '.github/FUNDING.yml', mode: 0o644}]);
+    assert.equal(
+        fs.readFileSync(path.join(candidateRoot, '.github', 'FUNDING.yml'), 'utf8'),
+        'github: ["example","example-team"]\n' +
+        'open_collective: "example"\n' +
+        'custom: ["https://example.test/fund"]\n'
+    );
+});
+
 test('declares exact trusted ownership for selected profile providers', () => {
     const {loadCoreProfileProviderDescriptors} = require(
         '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
@@ -452,6 +999,7 @@ test('declares exact trusted ownership for selected profile providers', () => {
         coreRoot: CORE_ROOT,
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
+            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
         ],
     });
 
@@ -469,6 +1017,10 @@ test('declares exact trusted ownership for selected profile providers', () => {
                 '.github/pull_request_template.md',
             ],
         },
+        {id: 'security-disclosure', outputs: ['SECURITY.md']},
+        {id: 'repository-ownership', outputs: ['.github/CODEOWNERS']},
+        {id: 'support-routing', outputs: ['.github/ISSUE_TEMPLATE/config.yml']},
+        {id: 'funding', outputs: ['.github/FUNDING.yml']},
     ]);
     for (const descriptor of descriptors) {
         assert.equal(descriptor.packageName, '@kyaulabs/prism-core');
@@ -546,6 +1098,7 @@ test('renders all selected profiles deterministically without ownership overlap'
         source: {mode: 'BLANK', evidence: null},
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
+            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
         ],
         metadata: {
             schemaVersion: 1,
@@ -564,6 +1117,22 @@ test('renders all selected profiles deterministically without ownership overlap'
                     },
                 },
                 'github-collaboration': {},
+                'security-disclosure': {
+                    reportingContact: {kind: 'email', value: 'security@example.test'},
+                    supportedVersions: {policy: 'latest-release', rows: []},
+                },
+                'repository-ownership': {
+                    owners: ['@example'],
+                    rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+                },
+                'support-routing': {
+                    destination: 'https://example.test/support',
+                    displayLabel: 'Support',
+                    description: 'Get help with this project.',
+                },
+                funding: {
+                    records: [{provider: 'github', value: 'example'}],
+                },
             },
         },
         adapter: null,
@@ -588,7 +1157,7 @@ test('renders all selected profiles deterministically without ownership overlap'
     );
 });
 
-test('plans each governance capability independently through the public launcher', (t) => {
+test('plans each project capability independently through the public launcher', (t) => {
     const scenarios = [
         {
             capability: 'licensing',
@@ -617,6 +1186,37 @@ test('plans each governance capability independently through the public launcher
                 '.github/ISSUE_TEMPLATE/feature_request.yml',
                 '.github/pull_request_template.md',
             ],
+        },
+        {
+            capability: 'security-disclosure',
+            capabilityMetadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'latest-release',
+                },
+            },
+            outputs: ['SECURITY.md'],
+        },
+        {
+            capability: 'repository-ownership',
+            capabilityMetadata: {
+                'repository-ownership': {owners: ['@example']},
+            },
+            outputs: ['.github/CODEOWNERS'],
+        },
+        {
+            capability: 'support-routing',
+            capabilityMetadata: {
+                'support-routing': {destination: 'https://example.test/support'},
+            },
+            outputs: ['.github/ISSUE_TEMPLATE/config.yml'],
+        },
+        {
+            capability: 'funding',
+            capabilityMetadata: {
+                funding: {records: [{provider: 'github', account: 'example'}]},
+            },
+            outputs: ['.github/FUNDING.yml'],
         },
     ];
 

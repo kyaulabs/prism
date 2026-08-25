@@ -5,7 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {TASK_NINE_CAPABILITIES} = require('./bootstrap-capabilities');
+const {PROJECT_CAPABILITIES} = require('./bootstrap-capabilities');
 const {
     normalizeProjectMetadata,
     validateNormalizedProjectMetadata,
@@ -820,7 +820,7 @@ function validatePlanShape(plan) {
         !Array.isArray(plan.capabilities) ||
         new Set(plan.capabilities).size !== plan.capabilities.length ||
         JSON.stringify(plan.capabilities) !== JSON.stringify(
-            TASK_NINE_CAPABILITIES.filter((capability) => plan.capabilities.includes(capability))
+            PROJECT_CAPABILITIES.filter((capability) => plan.capabilities.includes(capability))
         )
     ) {
         throw new Error('bootstrap project plan is invalid');
@@ -960,6 +960,16 @@ function validateHeldProjectPlan({
     const actualPlanDigest = sha256(Buffer.from(JSON.stringify(envelope.plan), 'utf8'));
     if (envelope.planDigest !== planDigest || actualPlanDigest !== planDigest) {
         throw new Error('bootstrap project plan is stale');
+    }
+    const expectedReports = [
+        'core-baseline.json',
+        'metadata.json',
+        'source.json',
+        ...envelope.plan.capabilities.map((capability) => `profile-${capability}.json`),
+        ...(envelope.plan.adapter === null ? [] : ['adapter-provider.json']),
+    ].sort();
+    if (JSON.stringify(fs.readdirSync(paths.reportsAnchor).sort()) !== JSON.stringify(expectedReports)) {
+        throw new Error('bootstrap provider report inventory is stale');
     }
     const sourceFile = readJsonFile(path.join(paths.reportsAnchor, 'source.json'));
     const sourceState = validateBootstrapSourceState(sourceFile.value, {

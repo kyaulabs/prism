@@ -171,6 +171,39 @@ test('documents provider-composed Blank and Template PHP web bootstrap boundarie
     assert.match(adapterReadme, /inspect.*resolve.*apply.*verify/is);
 });
 
+test('documents every optional project identity capability and its owned outputs', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /Optional project identity capabilities/i);
+    for (const capability of [
+        'licensing', 'community-governance', 'github-collaboration',
+        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+    ]) {
+        assert.equal(coreReadme.includes(`\`${capability}\``), true, capability);
+    }
+    for (const output of [
+        'LICENSE', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+        '.github/ISSUE_TEMPLATE/bug_report.yml',
+        '.github/ISSUE_TEMPLATE/feature_request.yml',
+        '.github/pull_request_template.md',
+        'SECURITY.md', '.github/CODEOWNERS',
+        '.github/ISSUE_TEMPLATE/config.yml', '.github/FUNDING.yml',
+    ]) {
+        assert.equal(coreReadme.includes(`\`${output}\``), true, output);
+    }
+    assert.match(coreReadme, /independent and disabled by default/i);
+    assert.match(coreReadme, /current-development.*latest-release.*latest-major-line.*custom/is);
+    assert.match(coreReadme, /acknowledgement.*1.*8760/is);
+    assert.match(coreReadme, /CODEOWNERS.*default.*\*/is);
+    assert.match(coreReadme, /Support.*Get help with this project/is);
+    assert.match(coreReadme, /blank_issues_enabled.*false.*github-collaboration/is);
+    assert.match(coreReadme, /funding.*15.*github.*custom.*four.*other.*one/is);
+    assert.match(coreReadme, /identity preview.*required fields.*publication targets/is);
+    assert.match(coreReadme, /Template manifests may\s+advertise.*never select/is);
+    assert.match(coreReadme, /Blank performs no Template\s+lookup/i);
+    assert.match(coreReadme, /prompt orchestration.*task 12/is);
+});
+
 test('documents human npm publication for managed lockstep package releases', () => {
     const npmDocs = fs.readFileSync(path.join(root, 'NPM.md'), 'utf8');
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');

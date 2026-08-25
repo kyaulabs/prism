@@ -226,6 +226,7 @@ test('keeps PHP/web ownership and bytes independent of Core governance profiles'
             ...base,
             capabilities: [
                 'licensing', 'community-governance', 'github-collaboration',
+                'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
             ],
             metadata: {
                 schemaVersion: 1,
@@ -244,6 +245,22 @@ test('keeps PHP/web ownership and bytes independent of Core governance profiles'
                         },
                     },
                     'github-collaboration': {},
+                    'security-disclosure': {
+                        reportingContact: {kind: 'email', value: 'security@example.test'},
+                        supportedVersions: {policy: 'latest-release', rows: []},
+                    },
+                    'repository-ownership': {
+                        owners: ['@example'],
+                        rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+                    },
+                    'support-routing': {
+                        destination: 'https://example.test/support',
+                        displayLabel: 'Support',
+                        description: 'Get help with this project.',
+                    },
+                    funding: {
+                        records: [{provider: 'github', value: 'example'}],
+                    },
                 },
             },
         },
@@ -264,6 +281,10 @@ test('keeps PHP/web ownership and bytes independent of Core governance profiles'
         '.github/ISSUE_TEMPLATE/bug_report.yml',
         '.github/ISSUE_TEMPLATE/feature_request.yml',
         '.github/pull_request_template.md',
+        'SECURITY.md',
+        '.github/CODEOWNERS',
+        '.github/ISSUE_TEMPLATE/config.yml',
+        '.github/FUNDING.yml',
     ]);
     assert.equal(governed.outputs.some(({path: outputPath}) => profilePaths.has(outputPath)), false);
 });

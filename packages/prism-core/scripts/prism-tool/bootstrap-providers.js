@@ -474,6 +474,10 @@ function projectReadme(metadata, capabilities) {
             '- [Issue templates](.github/ISSUE_TEMPLATE/)',
             '- [Pull request template](.github/pull_request_template.md)',
         ],
+        'security-disclosure': ['- [Security policy](SECURITY.md)'],
+        'repository-ownership': ['- [Repository ownership](.github/CODEOWNERS)'],
+        'support-routing': ['- [Support](.github/ISSUE_TEMPLATE/config.yml)'],
+        funding: ['- [Funding](.github/FUNDING.yml)'],
     };
     const projectLinks = capabilities.flatMap((capability) => links[capability] ?? []);
     return Buffer.from(

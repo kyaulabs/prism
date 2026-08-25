@@ -283,6 +283,130 @@ function applyProject(projectRoot, attemptId, planDigest, context = {}) {
     ], {projectRoot, ...context}));
 }
 
+function gitBlobSha(bytes) {
+    return crypto.createHash('sha1')
+        .update(Buffer.from(`blob ${bytes.length}\0`, 'utf8'))
+        .update(bytes)
+        .digest('hex');
+}
+
+function allCapabilityMetadata() {
+    return {
+        licensing: {
+            spdxId: 'MIT',
+            copyrightHolder: 'Example Organization',
+        },
+        'community-governance': {
+            conductContact: 'conduct@example.test',
+        },
+        'github-collaboration': {},
+        'security-disclosure': {
+            reportingContact: 'security@example.test',
+            supportedVersionPolicy: 'custom',
+            supportedVersionRows: [
+                {version: '2.x', status: 'supported'},
+                {version: '1.x', status: 'unsupported'},
+            ],
+            acknowledgementHours: 72,
+        },
+        'repository-ownership': {
+            owners: ['@example', '@example/core'],
+            rules: [{pattern: '/docs/**', owners: ['@example/docs']}],
+        },
+        'support-routing': {
+            destination: 'https://example.test/support',
+        },
+        funding: {
+            records: [
+                {provider: 'github', account: 'example'},
+                {provider: 'custom', destination: 'https://example.test/fund'},
+            ],
+        },
+    };
+}
+
+function advertiseTemplateCapabilities(fixture, capabilities) {
+    const additions = capabilities.filter((capability) =>
+        !fixture.manifest.entries.some((entry) => entry.capability === capability)
+    );
+    if (additions.length > 0) {
+        fixture.responses.tree.tree.push({
+            path: 'catalogue',
+            mode: '040000',
+            type: 'tree',
+            sha: 'abababababababababababababababababababab',
+        });
+    }
+    for (const capability of additions) {
+        const contents = Buffer.from(`${capability}\n`, 'utf8');
+        const entry = {
+            path: `catalogue/${capability}.txt`,
+            blobSha: gitBlobSha(contents),
+            size: contents.length,
+            class: 'optional-profile',
+            capability,
+            provider: {scope: 'core', id: capability},
+            disposition: 'render',
+        };
+        fixture.manifest.entries.push(entry);
+        fixture.responses.tree.tree.push({
+            path: entry.path,
+            mode: '100644',
+            type: 'blob',
+            sha: entry.blobSha,
+            size: entry.size,
+        });
+    }
+    const manifestBytes = Buffer.from(`${JSON.stringify(fixture.manifest)}\n`, 'utf8');
+    const manifestSha = gitBlobSha(manifestBytes);
+    const manifestTreeEntry = fixture.responses.tree.tree.find(({path: entryPath}) =>
+        entryPath === '.prism/template-manifest.json'
+    );
+    manifestTreeEntry.sha = manifestSha;
+    manifestTreeEntry.size = manifestBytes.length;
+    fixture.responses.manifestBlob.sha = manifestSha;
+    fixture.responses.manifestBlob.size = manifestBytes.length;
+    fixture.responses.manifestBlob.content = manifestBytes.toString('base64');
+}
+
+function attemptInventoryDigest(attemptRoot) {
+    const entries = [];
+    const walk = (relativeRoot) => {
+        const absoluteRoot = relativeRoot === '' ? attemptRoot : path.join(attemptRoot, relativeRoot);
+        for (const name of fs.readdirSync(absoluteRoot).sort()) {
+            const relativePath = relativeRoot === '' ? name : `${relativeRoot}/${name}`;
+            if ([
+                'plan/project.json', 'journal.json', 'apply.lock', 'seed-attestation.json',
+            ].includes(relativePath)) continue;
+            const absolutePath = path.join(absoluteRoot, name);
+            const stat = fs.lstatSync(absolutePath);
+            if (stat.isDirectory()) {
+                entries.push({
+                    path: relativePath,
+                    kind: 'directory',
+                    mode: stat.mode & 0o777,
+                    bytes: 0,
+                    sha256: null,
+                });
+                walk(relativePath);
+                continue;
+            }
+            const contents = fs.readFileSync(absolutePath);
+            entries.push({
+                path: relativePath,
+                kind: 'file',
+                mode: stat.mode & 0o777,
+                bytes: contents.length,
+                sha256: crypto.createHash('sha256').update(contents).digest('hex'),
+            });
+        }
+    };
+    walk('');
+    return crypto.createHash('sha256')
+        .update(Buffer.from(JSON.stringify(entries), 'utf8'))
+        .digest('hex');
+}
+
 test('reports structured transaction failures when the project root is unavailable', (t) => {
     const parent = makeTempDir();
     const projectRoot = path.join(parent, 'missing-project');
@@ -786,6 +910,187 @@ test('composes all governance profiles with a Blank PHP web adapter plan', (t) =
     assert.ok(readme.indexOf('[Code of Conduct]') < readme.indexOf('[Issue templates]'));
 });
 
+test('composes support with funding and all seven capabilities in canonical Blank plans', (t) => {
+    const pairRoot = makeTempDir();
+    const allRoot = makeTempDir();
+    t.after(() => fs.rmSync(pairRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(allRoot, {recursive: true, force: true}));
+
+    const pairResult = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=funding,support-routing', '--json',
+    ], {
+        projectRoot: pairRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Supported Project',
+            summary: 'A supported and funded project.',
+            capabilityMetadata: {
+                'support-routing': {destination: 'https://example.test/support'},
+                funding: {records: [{provider: 'github', account: 'example'}]},
+            },
+        }),
+    }));
+    assert.equal(pairResult.status, 0, pairResult.stderr);
+    const pair = JSON.parse(pairResult.stdout);
+    assert.deepEqual(pair.capabilities, ['support-routing', 'funding']);
+    assert.deepEqual(pair.providers.map(({id}) => id), [
+        'core-baseline', 'support-routing', 'funding',
+    ]);
+    assert.match(
+        fs.readFileSync(path.join(
+            path.dirname(path.dirname(pair.data.planPath)),
+            'candidate', '.github', 'ISSUE_TEMPLATE', 'config.yml'
+        ), 'utf8'),
+        /^blank_issues_enabled: true$/m
+    );
+
+    const allResult = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--json',
+    ], {
+        projectRoot: allRoot,
+        coreRoot: CORE_ROOT,
+        currentYear: 2026,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Complete Project',
+            summary: 'A project with every optional capability.',
+            capabilityMetadata: allCapabilityMetadata(),
+        }),
+    }));
+    assert.equal(allResult.status, 0, allResult.stderr);
+    const all = JSON.parse(allResult.stdout);
+    assert.deepEqual(all.capabilities, [
+        'licensing', 'community-governance', 'github-collaboration',
+        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+    ]);
+    assert.deepEqual(all.providers.map(({id}) => id), [
+        'core-baseline', 'licensing', 'community-governance', 'github-collaboration',
+        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+    ]);
+    assert.equal(all.outputs.length, 17);
+    assert.equal(all.checks.length, 8);
+    assert.equal(all.verification.length, 8);
+    const attemptRoot = path.dirname(path.dirname(all.data.planPath));
+    assert.match(
+        fs.readFileSync(path.join(
+            attemptRoot, 'candidate', '.github', 'ISSUE_TEMPLATE', 'config.yml'
+        ), 'utf8'),
+        /^blank_issues_enabled: false$/m
+    );
+    assert.deepEqual(fs.readdirSync(path.join(attemptRoot, 'reports')).sort(), [
+        'core-baseline.json',
+        'metadata.json',
+        'profile-community-governance.json',
+        'profile-funding.json',
+        'profile-github-collaboration.json',
+        'profile-licensing.json',
+        'profile-repository-ownership.json',
+        'profile-security-disclosure.json',
+        'profile-support-routing.json',
+        'source.json',
+    ]);
+});
+
+test('keeps the PHP web provider source- and capability-independent with all seven profiles', async (t) => {
+    const parents = [makeTempDir(), makeTempDir(), makeTempDir()];
+    const [minimalRoot, blankRoot, templateRoot] = parents.map((parent) =>
+        path.join(parent, 'complete-php-project')
+    );
+    for (const [index, projectRoot] of [minimalRoot, blankRoot, templateRoot].entries()) {
+        fs.mkdirSync(projectRoot);
+        t.after(() => fs.rmSync(parents[index], {recursive: true, force: true}));
+    }
+    assert.equal(provisionPhpWebAdapter(minimalRoot).status, 0);
+    assert.equal(provisionPhpWebAdapter(blankRoot).status, 0);
+    assert.equal(provisionPhpWebAdapter(templateRoot, 'template').status, 0);
+
+    const selection = 'funding,support-routing,repository-ownership,security-disclosure,' +
+        'github-collaboration,community-governance,licensing';
+    const minimalInput = JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Complete PHP Project',
+        summary: 'A PHP project with every optional capability.',
+    });
+    const minimalResult = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`, '--json',
+    ], {
+        projectRoot: minimalRoot,
+        coreRoot: CORE_ROOT,
+        input: minimalInput,
+        run: bootstrapRunner(minimalRoot),
+    }));
+    assert.equal(minimalResult.status, 0, minimalResult.stderr);
+    const allInput = JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Complete PHP Project',
+        summary: 'A PHP project with every optional capability.',
+        capabilityMetadata: allCapabilityMetadata(),
+    });
+    const blankResult = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        `--capabilities=${selection}`, '--json',
+    ], {
+        projectRoot: blankRoot,
+        coreRoot: CORE_ROOT,
+        currentYear: 2026,
+        input: allInput,
+        run: bootstrapRunner(blankRoot),
+    }));
+    assert.equal(blankResult.status, 0, blankResult.stderr);
+    const fixture = createTemplateFixture();
+    advertiseTemplateCapabilities(fixture, [
+        'licensing', 'community-governance', 'github-collaboration',
+        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+    ]);
+    const templateResult = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        `--capabilities=${selection}`, '--network-approved=yes', '--json',
+    ], {
+        projectRoot: templateRoot,
+        coreRoot: CORE_ROOT,
+        currentYear: 2026,
+        fetch: fixture.fetch,
+        input: allInput,
+        run: bootstrapRunner(templateRoot),
+    }));
+    assert.equal(templateResult.status, 0, templateResult.stderr);
+
+    const reports = [minimalResult, blankResult, templateResult].map((result) => {
+        const plan = JSON.parse(result.stdout);
+        const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+        const reportPath = path.join(attemptRoot, 'reports', 'adapter-provider.json');
+        assert.equal(fs.statSync(reportPath).mode & 0o777, 0o600);
+        return {plan, provider: JSON.parse(fs.readFileSync(reportPath, 'utf8'))};
+    });
+    assert.deepEqual(reports[1].provider, reports[0].provider);
+    assert.deepEqual(reports[2].provider, reports[0].provider);
+    for (const {plan} of reports.slice(1)) {
+        assert.deepEqual(plan.providers.map(({id}) => id), [
+            'core-baseline', 'licensing', 'community-governance', 'github-collaboration',
+            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+            'php-web-scaffold',
+        ]);
+        assert.equal(plan.outputs.length, 47);
+    }
+    const adapterPaths = reports[0].provider.outputs.map(({path: outputPath}) => outputPath);
+    for (const profilePath of [
+        'SECURITY.md', '.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/config.yml',
+        '.github/FUNDING.yml',
+    ]) {
+        assert.equal(adapterPaths.includes(profilePath), false);
+    }
+    assert.equal(fixture.calls.length, 4);
+});
+
 test('plans a Template project with the provisioned PHP web adapter', async (t) => {
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();
@@ -860,6 +1165,86 @@ test('composes an explicitly selected advertised Template capability', async (t)
         'core-baseline', 'licensing', 'php-web-scaffold',
     ]);
     assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
+});
+
+test('composes each advertised security identity profile into a Template Core-only plan', async (t) => {
+    const scenarios = [
+        {
+            capability: 'security-disclosure',
+            metadata: {
+                reportingContact: 'security@example.test',
+                supportedVersionPolicy: 'latest-release',
+            },
+            output: 'SECURITY.md',
+        },
+        {
+            capability: 'repository-ownership',
+            metadata: {owners: ['@example']},
+            output: '.github/CODEOWNERS',
+        },
+        {
+            capability: 'support-routing',
+            metadata: {destination: 'https://example.test/support'},
+            output: '.github/ISSUE_TEMPLATE/config.yml',
+        },
+        {
+            capability: 'funding',
+            metadata: {records: [{provider: 'github', account: 'example'}]},
+            output: '.github/FUNDING.yml',
+        },
+    ];
+
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        try {
+            const fixture = createTemplateFixture();
+            advertiseTemplateCapabilities(fixture, [scenario.capability]);
+            const result = await captureAsyncWrites(() => main([
+                'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+                `--capabilities=${scenario.capability}`, '--network-approved=yes', '--json',
+            ], {
+                projectRoot,
+                coreRoot: CORE_ROOT,
+                fetch: fixture.fetch,
+                randomUUID: () => ATTEMPT_ID,
+                input: JSON.stringify({
+                    schemaVersion: 1,
+                    displayName: 'Template Identity Project',
+                    summary: 'A Template project with explicit identity policy.',
+                    capabilityMetadata: {[scenario.capability]: scenario.metadata},
+                }),
+            }));
+
+            assert.equal(result.status, 0, `${scenario.capability}: ${result.stderr}`);
+            const report = JSON.parse(result.stdout);
+            const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+            const metadataPath = path.join(attemptRoot, 'reports', 'metadata.json');
+            const manifest = JSON.parse(fs.readFileSync(
+                path.join(attemptRoot, 'candidate', '.prism', 'project.json'),
+                'utf8'
+            ));
+            assert.deepEqual(report.capabilities, [scenario.capability]);
+            assert.deepEqual(report.providers.map(({id}) => id), [
+                'core-baseline', scenario.capability,
+            ]);
+            assert.equal(report.outputs.some(({path: outputPath}) => outputPath === scenario.output), true);
+            assert.equal(
+                fs.statSync(path.join(
+                    attemptRoot, 'reports', `profile-${scenario.capability}.json`
+                )).mode & 0o777,
+                0o600
+            );
+            assert.equal(
+                crypto.createHash('sha256').update(fs.readFileSync(metadataPath)).digest('hex'),
+                report.metadataDigest
+            );
+            assert.deepEqual(manifest.capabilities, report.capabilities);
+            assert.deepEqual(manifest.capabilityMetadata, report.metadata.capabilityMetadata);
+            assert.equal(fixture.calls.length, 4);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
 });
 
 test('rejects an unadvertised Template capability without preselecting advertisements', async (t) => {
@@ -2737,6 +3122,55 @@ test('rejects a substituted attempt child before opening external state', (t) =>
 
     assert.equal(result.status, 5);
     assert.equal(externalOpens, 0);
+});
+
+test('rejects an unknown profile report even when private digests are rebound', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        '--capabilities=security-disclosure', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Security Project',
+            summary: 'A digest-bound security project.',
+            capabilityMetadata: {
+                'security-disclosure': {
+                    reportingContact: 'security@example.test',
+                    supportedVersionPolicy: 'latest-release',
+                },
+            },
+        }),
+    }));
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    fs.writeFileSync(
+        path.join(attemptRoot, 'reports', 'profile-release-management.json'),
+        '{}\n',
+        {mode: 0o600}
+    );
+    const envelope = JSON.parse(fs.readFileSync(plan.data.planPath, 'utf8'));
+    envelope.plan.filesystem.attemptInventoryDigest = attemptInventoryDigest(attemptRoot);
+    const reboundDigest = crypto.createHash('sha256')
+        .update(Buffer.from(JSON.stringify(envelope.plan), 'utf8'))
+        .digest('hex');
+    envelope.planDigest = reboundDigest;
+    fs.writeFileSync(plan.data.planPath, `${JSON.stringify(envelope, null, 2)}\n`, {mode: 0o600});
+    const journalPath = path.join(attemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.planDigest = reboundDigest;
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal, null, 2)}\n`, {mode: 0o600});
+
+    const result = validatePlan(projectRoot, ATTEMPT_ID, reboundDigest, {coreRoot: CORE_ROOT});
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'STALE_PROJECT_STATE');
 });
 
 test('fails closed when any active project-plan state changes', () => {
