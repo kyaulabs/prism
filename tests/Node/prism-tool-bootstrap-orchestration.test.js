@@ -34,6 +34,26 @@ function captureWrites(action) {
     }
 }
 
+test('established project status preserves the existing setup route without bootstrap state', (t) => {
+    const projectRoot = makeTempDir();
+    fs.writeFileSync(path.join(projectRoot, 'README.md'), '# Established\n');
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const routed = captureWrites(() => main([
+        'setup', 'route', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    const status = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(routed.status, 0, routed.stderr);
+    assert.equal(JSON.parse(routed.stdout).route, 'ESTABLISHED_SETUP');
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(JSON.parse(status.stdout).disposition, 'NO_ACTIVE_BOOTSTRAP');
+    assert.deepEqual(fs.readdirSync(projectRoot), ['README.md']);
+    assert.equal(fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8'), '# Established\n');
+});
+
 test('active bootstrap status reports no retained attempt without mutation', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

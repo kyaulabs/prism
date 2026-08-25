@@ -247,11 +247,11 @@ prism-tool commit create --type feat --scope setup --subject "complete bootstrap
 - Established setup never invokes or mentions strict-empty source acquisition, adapter catalogue selection, project capability selection, project metadata, project plan/application/recovery, repository creation, bootstrap hooks, seed preparation, or automatic root commits.
 - Complete tests assert no authenticated GitHub, arbitrary URL, credential, Git remote, push, OCR expansion, hosted mutation, or publication authority.
 
-- [ ] **Step 1: Add a failing established-project isolation transcript**
+- [x] **Step 1: Add a failing established-project isolation transcript**
 
 Use a non-empty isolated root with no bootstrap state and record every launcher boundary. Assert status inspection is read-only and every empty-project boundary remains uncalled.
 
-- [ ] **Step 2: Run focused regressions to verify Red**
+- [x] **Step 2: Run focused regressions to verify Red**
 
 Run:
 
@@ -262,11 +262,11 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL until the final orchestration explicitly preserves the established route.
 
-- [ ] **Step 3: Tighten prompt and launcher regressions without changing established mechanics**
+- [x] **Step 3: Tighten prompt and launcher regressions without changing established mechanics**
 
 Add only assertions and minimal report handling needed to prove isolation. Do not refactor or reorder the accepted established-project sections.
 
-- [ ] **Step 4: Run all public bootstrap Node suites and the prompt seam**
+- [x] **Step 4: Run all public bootstrap Node suites and the prompt seam**
 
 Run:
 
@@ -277,7 +277,7 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Verify, review, update checkboxes, and create the commit**
+- [x] **Step 5: Verify, review, update checkboxes, and create the commit**
 
 ```bash
 git add tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/prism-tool-setup-route.test.js tests/Shell/toolchain_entrypoints_test.sh docs/plans/2026-08-25-setup-orchestration-regression-coverage.md

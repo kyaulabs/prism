@@ -109,14 +109,17 @@ else
 fi
 
 setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_status_line=$({ grep -niF 'prism-tool setup project status --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_release_line=$({ grep -niF 'prism-tool package-release inspect --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_adapter_line=$({ grep -niF 'Inspect project-local evidence only' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-if [ -n "$setup_route_line" ] && [ -n "$setup_release_line" ] && [ -n "$setup_adapter_line" ] \
-    && [ "$setup_route_line" -lt "$setup_release_line" ] \
-    && [ "$setup_route_line" -lt "$setup_adapter_line" ]; then
-    pass '/setup routes before package-release inspection and adapter discovery'
+if [ -n "$setup_route_line" ] && [ -n "$setup_status_line" ] \
+    && [ -n "$setup_release_line" ] && [ -n "$setup_adapter_line" ] \
+    && [ "$setup_route_line" -lt "$setup_status_line" ] \
+    && [ "$setup_status_line" -lt "$setup_release_line" ] \
+    && [ "$setup_status_line" -lt "$setup_adapter_line" ]; then
+    pass '/setup routes and inspects bootstrap status before established discovery'
 else
-    fail '/setup does not route before established-project discovery stages'
+    fail '/setup does not isolate retained bootstrap state from established discovery stages'
     failures=$((failures + 1))
 fi
 
