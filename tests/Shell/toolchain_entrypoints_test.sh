@@ -181,6 +181,18 @@ assert_file_contains "$ADAPTER_SKILLS/scss-mobile-first/SKILL.md" 'prism-tool ru
 assert_file_contains "$ADAPTER_SKILLS/scss-mobile-first/SKILL.md" 'prism-tool run sass --' 'scss-mobile-first compiles sass through the launcher'
 assert_file_not_contains "$ADAPTER_DOCS/tests.md" 'vendor/bin/pest' 'adapter test doc never invokes pest directly'
 
+echo "── Core-only post-durable repository seed boundary ──"
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'PROJECT_DURABLE / REPOSITORY_BOOTSTRAP' 'Core README documents the post-durable start state'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'REPOSITORY_CREATED / HOOK_ACTIVATION' 'Core README documents repository creation before hooks'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'HOOKS_ACTIVE / ROOT_SEED_PREPARATION' 'Core README documents hook activation before staging'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'SEED_READY / ROOT_SEED_COMMIT' 'Core README documents attested seed readiness'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool setup repository create' 'Core README documents repository creation through the launcher'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool setup hooks apply --approval=yes' 'Core README documents separate hook approval'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool setup seed prepare' 'Core README documents exact seed preparation'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'commit create --type ignore' 'Core README documents the reserved seed commit'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'creates no remote' 'Core README preserves the no-remote boundary'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'human .*develop.* push' 'Core README leaves initial publication to the human'
+
 echo "── hooks perform local-only readiness ──"
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-commit" 'doctor --local-only' 'pre-commit runs local doctor'
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-push" 'doctor --local-only' 'pre-push runs local doctor'

@@ -605,6 +605,102 @@ test('retains consumed seed evidence when completion cleanup is interrupted', (t
     assert.equal(fs.existsSync(path.join(attemptRoot, 'seed-attestation.json')), true);
 });
 
+test('rejects unsupported public bootstrap controls before mutation', () => {
+    const digest = 'a'.repeat(64);
+    const cases = [
+        ['setup', 'repository', 'unknown'],
+        ['setup', 'repository', 'create', `--attempt=${ATTEMPT_ID}`, `--digest=${digest}`, `--digest=${digest}`],
+        ['setup', 'hooks', 'apply', `--attempt=${ATTEMPT_ID}`, `--digest=${digest}`],
+        ['setup', 'hooks', 'apply', `--attempt=${ATTEMPT_ID}`, `--digest=${digest}`, '--approval=true'],
+        ['setup', 'seed', 'prepare', `--attempt=${ATTEMPT_ID}`, `--digest=${digest}`, '--attestation=chosen'],
+        ['setup', 'seed', 'prepare', '--attempt=invalid', `--digest=${digest}`],
+        ['setup', 'seed', 'prepare', `--attempt=${ATTEMPT_ID}`, '--digest=invalid'],
+        ['setup', 'seed', 'prepare', `--attempt=${ATTEMPT_ID}`, `--digest=${digest}`, '--index=chosen'],
+    ];
+    for (const args of cases) {
+        let calls = 0;
+        const result = captureWrites(() => main(args, {
+            run() {
+                calls += 1;
+                return {status: 1, stdout: '', stderr: '', error: undefined};
+            },
+        }));
+        assert.equal(result.status, 2, args.join(' '));
+        assert.equal(calls, 0, args.join(' '));
+    }
+});
+
+test('runs the public Core-only seed sequence without publication', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(inspectHooks(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+    assert.equal(prepareSeed(projectRoot, plan.planDigest).status, 0);
+    const invocations = [];
+    const run = (command, args, options = {}) => {
+        invocations.push({command, args});
+        if (command === process.execPath && (args.includes('doctor') || args.includes('commitlint'))) {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
+            return {status: 0, stdout: 'Test User <test@example.invalid>\n', stderr: '', error: undefined};
+        }
+        if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
+            return {status: 0, stdout: 'review-model\n', stderr: '', error: undefined};
+        }
+        if (command === 'git' && args[0] === 'verify-commit') {
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'git' && args[0] === 'commit') {
+            const tree = execFileSync('git', ['-C', projectRoot, 'write-tree'], {
+                encoding: 'utf8',
+                env: options.env,
+            }).trim();
+            const commit = execFileSync('git', ['-C', projectRoot, 'commit-tree', tree], {
+                encoding: 'utf8',
+                input: fs.readFileSync(args[3]),
+                env: {
+                    ...options.env,
+                    GIT_AUTHOR_NAME: 'Test User',
+                    GIT_AUTHOR_EMAIL: 'test@example.invalid',
+                    GIT_COMMITTER_NAME: 'Test User',
+                    GIT_COMMITTER_EMAIL: 'test@example.invalid',
+                },
+            }).trim();
+            execFileSync('git', ['-C', projectRoot, 'update-ref', 'refs/heads/develop', commit]);
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+
+    const committed = captureWrites(() => main([
+        'commit', 'create', '--type', 'ignore', '--subject', 'bootstrap prism project',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        cwd: projectRoot,
+        env: {...process.env, PI_MODEL: 'provider/implementation-model'},
+        randomBytes: () => Buffer.from('0123456789abcdef0123456789abcdef', 'hex'),
+        run,
+    }));
+
+    assert.equal(committed.status, 0, committed.stderr);
+    assert.match(committed.stdout, /^ignore: bootstrap prism project/m);
+    assert.equal(git(projectRoot, ['rev-list', '--count', 'HEAD']), '1');
+    assert.equal(git(projectRoot, ['status', '--porcelain=v1']), '');
+    assert.equal(git(projectRoot, ['remote']), '');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi')), false);
+    const forbidden = /^(?:gh|npm|pnpm|composer|ocr)$/;
+    const forbiddenGit = new Set(['clone', 'fetch', 'pull', 'push', 'merge', 'tag']);
+    assert.equal(invocations.some(({command, args}) =>
+        forbidden.test(path.basename(command)) ||
+        (path.basename(command) === 'git' && forbiddenGit.has(args[0]))
+    ), false);
+});
+
 test('dispatches Core-only pre-commit readiness without adapter execution', (t) => {
     const {projectRoot} = readyHooks(t);
     execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);

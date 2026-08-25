@@ -439,7 +439,7 @@ prism-tool commit create --type feat --scope setup --subject "complete signed co
 - Produces package inventory assertions for `bootstrap-repository.js`, `bootstrap-hooks.js`, `bootstrap-seed.js`, and `hook.js`.
 - Produces bounded documentation for post-durable recovery and the human-owned publication boundary.
 
-- [ ] **Step 1: Write failing package, CLI-grammar, and no-publication assertions**
+- [x] **Step 1: Write failing package, CLI-grammar, and no-publication assertions**
 
 Extend the packaged module list with:
 
@@ -458,7 +458,7 @@ plan -> apply -> repository create -> hooks inspect -> hooks apply
 
 Stub only external readiness, attribution, signing verification, and commit subprocess boundaries where a real signed commit is unavailable. Assert no invocation contains remote, clone, fetch, pull, push, merge, tag, `gh`, release, publication, package manager, adapter handler, browser, OCR network, or credential operation.
 
-- [ ] **Step 2: Run packaging and contract tests to verify Red**
+- [x] **Step 2: Run packaging and contract tests to verify Red**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js tests/Node/prism-tool-bootstrap-seed.test.js`
 
@@ -466,7 +466,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: FAIL until the new modules and documented public commands are packaged.
 
-- [ ] **Step 3: Complete bounded Core documentation**
+- [x] **Step 3: Complete bounded Core documentation**
 
 Update `packages/prism-core/README.md` with the closed post-durable sequence:
 
@@ -490,7 +490,7 @@ Document:
 
 Do not claim Template, adapter-backed, capability, or final prompt orchestration support in this slice.
 
-- [ ] **Step 4: Run the complete verification set**
+- [x] **Step 4: Run the complete verification set**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-commit.test.js tests/Node/prism-tool-setup-route.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -512,11 +512,11 @@ Run: `git diff --check`
 
 Expected: no output.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/README.md tests/Node/toolchain-packaging.test.js tests/Shell/toolchain_entrypoints_test.sh tests/Shell/bootstrap_hook_dispatch_test.sh
-prism-tool commit create --type test --scope setup --subject "regress core-only repository seeding" --refs 386
+git add docs/plans/2026-08-24-core-only-repository-bootstrap-and-seed.md packages/prism-core/README.md tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/toolchain-packaging.test.js tests/Shell/toolchain_entrypoints_test.sh
+prism-tool commit create --type test --scope setup --subject "regress core-only repository seeding" --fixes 386
 ```
 
 ---

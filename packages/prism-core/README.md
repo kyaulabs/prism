@@ -35,6 +35,24 @@ language-neutral half; install it **globally** so it runs in every project.
   preserved. Durable recovery returns `REPOSITORY_BOOTSTRAP` for the next setup
   slice. Application does not initialize Git, invoke dependency or quality
   commands, activate hooks, access the network, or invoke a subprocess.
+- **Post-durable Core-only repository seed** — Git begins only after durable
+  project application. The closed sequence is
+  `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →
+  `REPOSITORY_CREATED / HOOK_ACTIVATION` →
+  `HOOKS_ACTIVE / ROOT_SEED_PREPARATION` →
+  `SEED_READY / ROOT_SEED_COMMIT` →
+  `ignore: bootstrap prism project`. The launcher exposes
+  `prism-tool setup repository create`, `prism-tool setup hooks inspect`,
+  separately approved `prism-tool setup hooks apply --approval=yes`, and
+  `prism-tool setup seed prepare`; the final signed commit uses the exclusive
+  `prism-tool commit create --type ignore --subject "bootstrap prism project"`
+  operation. Only the active attempt's create-only repository is seed-eligible.
+  Canonical Core hooks dispatch no adapter, and seed staging includes exactly
+  the applied project outputs—not operational state or unrelated files. A
+  failed commit requires `/reload` and inspection and is never retried
+  automatically. Successful setup creates no remote: remote creation, the
+  initial human `develop` push, and post-push ruleset configuration remain
+  human-owned publication operations.
 - **Managed lockstep npm releases** — `/setup` discovers publishable root and
   declared-workspace packages, displays the exact package list, and installs
   the Core-owned release configuration plus canonical workflow only after
