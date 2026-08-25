@@ -45,9 +45,9 @@
 
 ### Revised Task 1D: Lint and application-free directory surface
 
-- [ ] Test and add canonical ESLint, Stylelint, ignore policy, and exact `.gitkeep` inventory.
-- [ ] Prove no application webroot, Aurora, SQL, nginx, deployment, SCSS/JS application source, or generated minified output is created.
-- [ ] Verify focused tests, then commit `feat(setup): render php-web bootstrap lint surfaces` with `Refs: #387`.
+- [x] Test and add canonical ESLint, Stylelint, ignore policy, and exact `.gitkeep` inventory.
+- [x] Prove no application webroot, Aurora, SQL, nginx, deployment, SCSS/JS application source, or generated minified output is created.
+- [x] Verify focused tests, then commit `feat(setup): render php-web bootstrap lint surfaces` with `Refs: #387`.
 
 ### Revised Task 1E: Shared local/CI quality implementation
 

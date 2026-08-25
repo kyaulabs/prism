@@ -166,6 +166,33 @@ test('renders an application-free PHP and Pest readiness surface', (t) => {
     assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /\$KYAULabs:/);
 });
 
+test('renders first-source-ready lint and application-free directory policy', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
+    const paths = report.outputs.map(({path: outputPath}) => outputPath);
+
+    assert.match(read('eslint.config.mjs'), /cdn\/js\/\*\*\/\*\.js/);
+    assert.match(read('eslint.config.mjs'), /no-console/);
+    assert.deepEqual(JSON.parse(read('.stylelintrc.json')), {
+        extends: ['stylelint-config-standard-scss'],
+        rules: {'selector-class-pattern': '^[a-z][a-z0-9-]*$', 'max-nesting-depth': 4},
+    });
+    assert.match(read('.gitignore'), /\/vendor\//);
+    assert.equal(paths.some((outputPath) => /(?:\.nginx\.conf|\.sql|cdn\/sass\/[^.]|cdn\/js\/[^.]|cdn\/css\/.*\.min\.css)/.test(outputPath)), false);
+});
+
 test('renders syntactically valid PHP readiness files', (t) => {
     const candidateRoot = makeTempDir();
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));

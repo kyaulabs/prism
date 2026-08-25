@@ -212,7 +212,18 @@ it('uses one final vim modeline', function (): void {
     if (outputPath.endsWith('.gitkeep')) return '';
     if (outputPath.endsWith('.sh')) return '#!/usr/bin/env bash\nset -euo pipefail\n# vim: ft=sh sts=4 sw=4 ts=4 et :\n';
     if (outputPath.endsWith('.php')) return '<?php\ndeclare(strict_types=1);\n\n// vim: ft=php sts=4 sw=4 ts=4 et :\n';
-    if (outputPath === 'eslint.config.mjs') return 'export default [];\n';
+    if (outputPath === 'eslint.config.mjs') return `// $KYAULabs: eslint.config.mjs setup@prism 2026/08/24 +0000 Exp $
+import js from '@eslint/js';
+export default [
+    {ignores: ['cdn/javascript/**/*.min.js']},
+    js.configs.recommended,
+    {files: ['cdn/js/**/*.js'], rules: {indent: ['error', 'tab'], 'no-unused-vars': 'warn', 'no-console': 'warn'}},
+];
+`;
+    if (outputPath === '.stylelintrc.json') return `${JSON.stringify({
+        extends: ['stylelint-config-standard-scss'],
+        rules: {'selector-class-pattern': '^[a-z][a-z0-9-]*$', 'max-nesting-depth': 4},
+    }, null, 2)}\n`;
     if (outputPath.endsWith('.json')) return '{}\n';
     if (outputPath.endsWith('.yml')) return 'name: Verify\n';
     return `${request.metadata.displayName}\n`;
