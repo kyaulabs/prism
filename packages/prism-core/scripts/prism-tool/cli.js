@@ -15,6 +15,7 @@ const {
     applyBootstrapProject,
     recoverBootstrapProject,
 } = require('./bootstrap-transaction');
+const {applyBootstrapHooks, inspectBootstrapHooks} = require('./bootstrap-hooks');
 const {createBootstrapRepository} = require('./bootstrap-repository');
 const {inspectTemplateSource} = require('./template-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
@@ -307,6 +308,82 @@ function reportProjectRoot(projectRoot) {
 }
 
 function setup(args, context) {
+    if (args[0] === 'hooks' && ['inspect', 'apply'].includes(args[1])) {
+        const operation = args[1];
+        const controls = args.slice(2);
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const digests = controls.filter((argument) => argument.startsWith('--digest='));
+        const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+        const jsonCount = controls.filter((argument) => argument === '--json').length;
+        if (
+            attempts.length !== 1 ||
+            !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length)) ||
+            digests.length !== 1 ||
+            !/^[0-9a-f]{64}$/.test(digests[0].slice('--digest='.length)) ||
+            (operation === 'inspect' && approvals.length !== 0) ||
+            (operation === 'apply' && (approvals.length !== 1 || approvals[0] !== '--approval=yes')) ||
+            jsonCount > 1 ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--digest=') &&
+                !argument.startsWith('--approval=')
+            )
+        ) {
+            process.stderr.write(
+                `usage: prism-tool setup hooks ${operation} --attempt=UUID --digest=SHA256` +
+                `${operation === 'apply' ? ' --approval=yes' : ''} [--json]\n`
+            );
+            return EXIT.USAGE;
+        }
+        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let result;
+        try {
+            const input = {
+                projectRoot,
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                attemptId: attempts[0].slice('--attempt='.length),
+                planDigest: digests[0].slice('--digest='.length),
+                runGit: context.bootstrapGitRun ?? runBounded,
+                env: context.env ?? process.env,
+            };
+            result = operation === 'inspect' ? inspectBootstrapHooks(input) : applyBootstrapHooks({
+                ...input,
+                approval: 'yes',
+                fault: context.bootstrapHooksFault,
+            });
+        } catch {
+            const report = {
+                schemaVersion: 1,
+                command: `setup hooks ${operation}`,
+                status: 'NO-GO',
+                disposition: 'HOOKS_CONFLICT',
+                projectRoot: reportProjectRoot(projectRoot),
+                checks: [{
+                    id: 'bootstrap-hooks',
+                    status: 'FAIL',
+                    message: 'canonical bootstrap hooks could not be activated safely',
+                }],
+                data: {
+                    attempt: {id: attempts[0].slice('--attempt='.length)},
+                    resumePhase: 'MANUAL_RECOVERY',
+                    nextAction: 'Inspect the retained hook and repository configuration state.',
+                },
+            };
+            if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+            else process.stdout.write(`${report.status}\n`);
+            return EXIT.TRANSACTION;
+        }
+        const report = {
+            schemaVersion: 1,
+            command: `setup hooks ${operation}`,
+            projectRoot: fs.realpathSync(projectRoot),
+            ...result,
+        };
+        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+        else process.stdout.write(`${report.status}\n`);
+        return EXIT.OK;
+    }
     if (args[0] === 'repository' && args[1] === 'create') {
         const controls = args.slice(2);
         const attempts = controls.filter((argument) => argument.startsWith('--attempt='));

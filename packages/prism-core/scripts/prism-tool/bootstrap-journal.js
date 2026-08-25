@@ -127,6 +127,14 @@ function validRepositoryEvidence(value) {
         SHA256.test(value.configDigest);
 }
 
+function validHookEvidence(value) {
+    return isRecord(value) &&
+        hasExactKeys(value, ['disposition', 'hooksPath', 'inventoryDigest']) &&
+        value.disposition === 'ACTIVE' &&
+        value.hooksPath === '.github/hooks' &&
+        SHA256.test(value.inventoryDigest);
+}
+
 function validJournalState(value) {
     const noPostApplicationEvidence = value.repository === null &&
         value.hooks === null && value.seed === null;
@@ -178,15 +186,24 @@ function validJournalState(value) {
             value.resumePhase === 'MANUAL_RECOVERY'
         );
     }
-    return value.phase === 'POST_APPLICATION' &&
-        value.status === 'ACTIVE' &&
-        value.reason === null &&
+    if (
+        value.phase !== 'POST_APPLICATION' ||
+        value.status !== 'ACTIVE' ||
+        value.reason !== null ||
+        value.applied.length === 0 ||
+        !SHA256.test(value.appliedInventoryDigest) ||
+        !validRepositoryEvidence(value.repository) ||
+        value.seed !== null
+    ) {
+        return false;
+    }
+    return (
         value.resumePhase === 'HOOK_ACTIVATION' &&
-        value.applied.length > 0 &&
-        SHA256.test(value.appliedInventoryDigest) &&
-        validRepositoryEvidence(value.repository) &&
-        value.hooks === null &&
-        value.seed === null;
+        value.hooks === null
+    ) || (
+        value.resumePhase === 'ROOT_SEED_PREPARATION' &&
+        validHookEvidence(value.hooks)
+    );
 }
 
 function validateJournal(value, projectRoot, attemptId) {

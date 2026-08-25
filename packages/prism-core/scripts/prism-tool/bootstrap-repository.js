@@ -74,32 +74,7 @@ function removeOwnedDirectory(owned) {
     fs.rmdirSync(owned.path);
 }
 
-function readHeldFile(filePath) {
-    const initial = fs.lstatSync(filePath);
-    if (initial.isSymbolicLink() || !initial.isFile()) {
-        throw new Error('repository configuration is invalid');
-    }
-    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    try {
-        const held = fs.fstatSync(descriptor);
-        const contents = fs.readFileSync(descriptor);
-        const latest = fs.fstatSync(descriptor);
-        if (
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            latest.dev !== held.dev ||
-            latest.ino !== held.ino ||
-            latest.size !== held.size
-        ) {
-            throw new Error('repository configuration changed');
-        }
-        return contents;
-    } finally {
-        fs.closeSync(descriptor);
-    }
-}
-
-function validateCreatedRepository(projectRoot, runGit, env) {
+function validateCreatedRepository(projectRoot, runGit, env, allowHooksPath = false) {
     const gitPath = path.join(projectRoot, '.git');
     const gitDirectory = fs.lstatSync(gitPath);
     if (
@@ -134,6 +109,8 @@ function validateCreatedRepository(projectRoot, runGit, env) {
     const allowedConfig = [
         'core.bare', 'core.filemode', 'core.logallrefupdates', 'core.repositoryformatversion',
     ];
+    if (allowHooksPath) allowedConfig.push('core.hookspath');
+    allowedConfig.sort();
     if (
         branch !== 'develop' ||
         objectFormat !== 'sha1' ||
@@ -148,7 +125,11 @@ function validateCreatedRepository(projectRoot, runGit, env) {
     ) {
         throw new Error('created repository postconditions failed');
     }
-    const configDigest = sha256(readHeldFile(path.join(gitPath, 'config')));
+    const configEntries = requireSuccess(
+        invoke(runGit, projectRoot, env, ['config', '--local', '--null', '--list']),
+        'created repository configuration is invalid'
+    ).split('\0').filter(Boolean).filter((entry) => !entry.startsWith('core.hookspath\n')).sort();
+    const configDigest = sha256(Buffer.from(JSON.stringify(configEntries)));
     return Object.freeze({
         disposition: 'CREATE',
         gitDirectory: Object.freeze({dev: gitDirectory.dev, ino: gitDirectory.ino}),
@@ -174,7 +155,7 @@ function createBootstrapRepository({
     if (
         journal.phase === 'POST_APPLICATION' &&
         journal.status === 'ACTIVE' &&
-        journal.resumePhase === 'HOOK_ACTIVATION'
+        ['HOOK_ACTIVATION', 'ROOT_SEED_PREPARATION'].includes(journal.resumePhase)
     ) {
         validateDurableBootstrapProject({
             projectRoot,
@@ -186,7 +167,8 @@ function createBootstrapRepository({
         const repository = validateCreatedRepository(
             projectRoot,
             runGit,
-            repositoryEnvironment(env)
+            repositoryEnvironment(env),
+            journal.hooks !== null
         );
         if (JSON.stringify(repository) !== JSON.stringify(journal.repository)) {
             throw new Error('created repository evidence changed');
@@ -203,7 +185,7 @@ function createBootstrapRepository({
                 attempt: Object.freeze({id: attemptId}),
                 planDigest,
                 repository,
-                resumePhase: 'HOOK_ACTIVATION',
+                resumePhase: journal.resumePhase,
             }),
         });
     }

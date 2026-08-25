@@ -9,6 +9,7 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -63,8 +64,31 @@ function createRepository(projectRoot, planDigest, context = {}) {
     ], {projectRoot, coreRoot: CORE_ROOT, ...context}));
 }
 
+function inspectHooks(projectRoot, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'hooks', 'inspect', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${planDigest}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT, ...context}));
+}
+
+function applyHooks(projectRoot, planDigest, context = {}) {
+    return captureWrites(() => main([
+        'setup', 'hooks', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${planDigest}`, '--approval=yes', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT, ...context}));
+}
+
 function git(projectRoot, args) {
     return execFileSync('git', ['-C', projectRoot, ...args], {encoding: 'utf8'}).trim();
+}
+
+function readyRepository(t) {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    return {projectRoot, plan};
 }
 
 test('creates an eligible unborn develop repository only after durable application', (t) => {
@@ -103,6 +127,227 @@ test('creates an eligible unborn develop repository only after durable applicati
     assert.equal(journal.repository.disposition, 'CREATE');
     assert.equal(journal.hooks, null);
     assert.equal(journal.seed, null);
+});
+
+test('inspects and activates canonical hooks without rewriting wrappers', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const plan = JSON.parse(planProject(projectRoot).stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    const events = ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg'];
+    const initial = new Map(events.map((event) => [
+        event,
+        fs.lstatSync(path.join(projectRoot, '.github', 'hooks', event)),
+    ]));
+
+    const inspected = inspectHooks(projectRoot, plan.planDigest);
+
+    assert.equal(inspected.status, 0);
+    const inspection = JSON.parse(inspected.stdout);
+    assert.equal(inspection.status, 'GO');
+    assert.equal(inspection.disposition, 'HOOKS_READY');
+    assert.equal(inspection.data.activeHooksPath, null);
+    assert.deepEqual(
+        inspection.data.hooks,
+        events.map((event) => ({event, path: `.github/hooks/${event}`, disposition: 'PRESERVE'}))
+    );
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+
+    const applied = applyHooks(projectRoot, plan.planDigest);
+
+    assert.equal(applied.status, 0);
+    const report = JSON.parse(applied.stdout);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'HOOKS_ACTIVE');
+    assert.equal(report.data.hooks.hooksPath, '.github/hooks');
+    assert.equal(git(projectRoot, ['config', '--local', '--get', 'core.hooksPath']), '.github/hooks');
+    for (const event of events) {
+        const current = fs.lstatSync(path.join(projectRoot, '.github', 'hooks', event));
+        assert.equal(current.dev, initial.get(event).dev);
+        assert.equal(current.ino, initial.get(event).ino);
+        assert.equal(current.mtimeMs, initial.get(event).mtimeMs);
+    }
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.phase, 'POST_APPLICATION');
+    assert.equal(journal.resumePhase, 'ROOT_SEED_PREPARATION');
+    assert.equal(journal.hooks.disposition, 'ACTIVE');
+    assert.equal(journal.hooks.hooksPath, '.github/hooks');
+    const configPath = path.join(projectRoot, '.git', 'config');
+    const activeConfig = fs.lstatSync(configPath);
+
+    const resumed = applyHooks(projectRoot, plan.planDigest);
+
+    assert.equal(resumed.status, 0);
+    assert.equal(JSON.parse(resumed.stdout).disposition, 'HOOKS_ACTIVE');
+    const resumedConfig = fs.lstatSync(configPath);
+    assert.equal(resumedConfig.dev, activeConfig.dev);
+    assert.equal(resumedConfig.ino, activeConfig.ino);
+    assert.equal(resumedConfig.mtimeMs, activeConfig.mtimeMs);
+});
+
+test('rejects conflicting hook inventories and effective configuration without writes', async (t) => {
+    const cases = [
+        {
+            name: 'changed canonical bytes',
+            mutate(projectRoot) {
+                fs.appendFileSync(path.join(projectRoot, '.github', 'hooks', 'pre-commit'), '# drift\n');
+            },
+        },
+        {
+            name: 'canonical mode drift',
+            mutate(projectRoot) {
+                fs.chmodSync(path.join(projectRoot, '.github', 'hooks', 'pre-push'), 0o644);
+            },
+        },
+        {
+            name: 'symlinked canonical wrapper',
+            mutate(projectRoot) {
+                const hookPath = path.join(projectRoot, '.github', 'hooks', 'commit-msg');
+                fs.unlinkSync(hookPath);
+                fs.symlinkSync(path.join(CORE_ROOT, 'config', 'bootstrap', 'hooks', 'commit-msg'), hookPath);
+            },
+        },
+        {
+            name: 'non-regular canonical wrapper',
+            mutate(projectRoot) {
+                const hookPath = path.join(projectRoot, '.github', 'hooks', 'prepare-commit-msg');
+                fs.unlinkSync(hookPath);
+                fs.mkdirSync(hookPath);
+            },
+        },
+        {
+            name: 'unknown canonical wrapper',
+            mutate(projectRoot) {
+                fs.writeFileSync(path.join(projectRoot, '.github', 'hooks', 'post-commit'), '#!/bin/sh\n');
+            },
+        },
+        {
+            name: 'active legacy hook',
+            mutate(projectRoot) {
+                const hooksRoot = path.join(projectRoot, '.git', 'hooks');
+                fs.mkdirSync(hooksRoot);
+                fs.writeFileSync(path.join(hooksRoot, 'pre-commit'), '#!/bin/sh\n', {mode: 0o755});
+            },
+        },
+        {
+            name: 'differing local hooks path',
+            mutate(projectRoot) {
+                execFileSync('git', ['-C', projectRoot, 'config', '--local', 'core.hooksPath', 'human-hooks']);
+            },
+        },
+    ];
+    for (const scenario of cases) {
+        await t.test(scenario.name, (nested) => {
+            const {projectRoot, plan} = readyRepository(nested);
+            scenario.mutate(projectRoot);
+            const configPath = path.join(projectRoot, '.git', 'config');
+            const before = fs.readFileSync(configPath);
+
+            const result = inspectHooks(projectRoot, plan.planDigest);
+
+            assert.equal(result.status, 5);
+            assert.equal(JSON.parse(result.stdout).disposition, 'HOOKS_CONFLICT');
+            assert.equal(fs.readFileSync(configPath).equals(before), true);
+        });
+    }
+});
+
+test('rejects ambient hook configuration and literal-approval bypasses', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+    const ambient = inspectHooks(projectRoot, plan.planDigest, {
+        env: {
+            ...process.env,
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'core.hooksPath',
+            GIT_CONFIG_VALUE_0: 'ambient-hooks',
+        },
+    });
+    assert.equal(ambient.status, 5);
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+
+    const bypass = captureWrites(() => main([
+        'setup', 'hooks', 'apply', `--attempt=${ATTEMPT_ID}`,
+        `--digest=${plan.planDigest}`, '--approval=true', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(bypass.status, 2);
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+});
+
+test('rejects repository configuration substitution before activation', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+    const configPath = path.join(projectRoot, '.git', 'config');
+    const originalPath = path.join(projectRoot, '.git', 'config.original');
+    const original = fs.readFileSync(configPath);
+
+    const result = applyHooks(projectRoot, plan.planDigest, {
+        bootstrapHooksFault(event) {
+            if (event.name === 'before-config') {
+                fs.renameSync(configPath, originalPath);
+                fs.writeFileSync(configPath, original);
+            }
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(fs.readFileSync(configPath).equals(original), true);
+    assert.equal(fs.readFileSync(originalPath).equals(original), true);
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+});
+
+test('preserves repository configuration when hook activation fails', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+    const configPath = path.join(projectRoot, '.git', 'config');
+    const initial = fs.readFileSync(configPath);
+    const failingGit = (command, args, options) => {
+        if (args.join(' ') === 'config --local core.hooksPath .github/hooks') {
+            return {status: 1, stdout: '', stderr: '', error: undefined};
+        }
+        return runBounded(command, args, options);
+    };
+
+    const result = applyHooks(projectRoot, plan.planDigest, {bootstrapGitRun: failingGit});
+
+    assert.equal(result.status, 5);
+    assert.equal(fs.readFileSync(configPath).equals(initial), true);
+});
+
+test('rolls back only its hook value after concurrent configuration change', (t) => {
+    const {projectRoot, plan} = readyRepository(t);
+
+    const result = applyHooks(projectRoot, plan.planDigest, {
+        bootstrapHooksFault(event) {
+            if (event.name === 'after-config') {
+                execFileSync('git', [
+                    '-C', projectRoot, 'config', '--local', 'user.name', 'Concurrent Human',
+                ]);
+            }
+        },
+    });
+
+    assert.equal(result.status, 5);
+    assert.equal(git(projectRoot, ['config', '--local', '--get', 'user.name']), 'Concurrent Human');
+    assert.throws(() => execFileSync(
+        'git', ['-C', projectRoot, 'config', '--local', '--get', 'core.hooksPath'],
+        {stdio: 'pipe'}
+    ), {status: 1});
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.equal(journal.resumePhase, 'HOOK_ACTIVATION');
+    assert.equal(journal.hooks, null);
 });
 
 test('preserves concurrently changed repository state without granting seed eligibility', (t) => {

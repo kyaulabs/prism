@@ -160,6 +160,8 @@ prism-tool commit create --type feat --scope setup --subject "create durable cor
 
 **Files:**
 - Create: `packages/prism-core/scripts/prism-tool/bootstrap-hooks.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-journal.js`
+- Modify: `packages/prism-core/scripts/prism-tool/bootstrap-repository.js`
 - Modify: `packages/prism-core/scripts/prism-tool/cli.js`
 - Modify: `tests/Node/prism-tool-bootstrap-seed.test.js`
 
@@ -172,7 +174,7 @@ prism-tool commit create --type feat --scope setup --subject "create durable cor
   - `prism-tool setup hooks apply --attempt=UUID --digest=SHA256 --approval=yes [--json]`
 - Produces hook evidence `{disposition: 'ACTIVE', hooksPath: '.github/hooks', inventoryDigest: SHA256}`.
 
-- [ ] **Step 1: Write failing inspection and activation tests**
+- [x] **Step 1: Write failing inspection and activation tests**
 
 Add helpers for `setup hooks inspect` and `setup hooks apply`. The inspection happy path must report the four exact executable wrappers as `PRESERVE`, report no active effective hooks path, and perform no writes.
 
@@ -180,13 +182,13 @@ The apply happy path must require literal approval, set only repository-local `c
 
 Add conflicts for changed bytes, mode drift, symlink/non-regular targets, unknown or duplicate canonical wrappers, active non-sample `.git/hooks/<event>`, effective system/global/worktree/command hooks paths, differing local hooks path, `.git/config` substitution, concurrent configuration change, and activation failure. Existing bytes and human configuration must be preserved; rollback may remove only the exact local config value written by the active call.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because hook inspection and approval-gated activation do not exist.
 
-- [ ] **Step 3: Implement package-to-project hook attestation**
+- [x] **Step 3: Implement package-to-project hook attestation**
 
 In `bootstrap-hooks.js`:
 
@@ -199,16 +201,16 @@ In `bootstrap-hooks.js`:
 - During apply, repeat inspection, set repository-local `core.hooksPath` as the final commit point, re-read origin/value, transition the journal to `ROOT_SEED_PREPARATION`, and return `HOOKS_ACTIVE`.
 - If a caught failure occurs after the local write, unset only when the current origin/value still exactly match the active call; otherwise preserve state and report manual recovery.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: PASS with no wrapper rewrite and one exact local hooks-path activation.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/bootstrap-hooks.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-seed.test.js
+git add packages/prism-core/scripts/prism-tool/bootstrap-hooks.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-repository.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-seed.test.js
 prism-tool commit create --type feat --scope setup --subject "activate canonical bootstrap hooks" --refs 386
 ```
 
