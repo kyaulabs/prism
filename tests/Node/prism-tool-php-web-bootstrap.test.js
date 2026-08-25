@@ -193,6 +193,71 @@ test('renders first-source-ready lint and application-free directory policy', (t
     assert.equal(paths.some((outputPath) => /(?:\.nginx\.conf|\.sql|cdn\/sass\/[^.]|cdn\/js\/[^.]|cdn\/css\/.*\.min\.css)/.test(outputPath)), false);
 });
 
+test('renders one shared local and CI PHP web quality implementation', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
+    const check = read('.github/scripts/check-php.sh');
+    const ordered = ['doctor --local-only', 'php -l', 'run php-cs-fixer', 'run stylelint', 'run eslint', 'php -S', 'run pest', 'coverage-gate.php', 'tests/Shell/run-all.sh'];
+    let previous = -1;
+    for (const marker of ordered) {
+        const index = check.indexOf(marker);
+        assert.equal(index > previous, true, marker);
+        previous = index;
+    }
+    assert.match(check, /\^\[0-9a-f\]\{40\}\$/);
+    assert.match(check, /trap .*cleanup/);
+    assert.match(check, /seq 1 50/);
+    assert.match(check, /file_get_contents/);
+    assert.equal(
+        read('.github/scripts/coverage-gate.php'),
+        fs.readFileSync(path.join(ADAPTER_ROOT, 'scripts', 'coverage-gate.php'), 'utf8')
+    );
+    assert.match(read('tests/Shell/run-all.sh'), /\*_test\.sh/);
+});
+
+test('stops only its browser fixture server when a quality gate fails', (t) => {
+    const candidateRoot = makeTempDir();
+    const fakeBin = path.join(candidateRoot, 'fake-bin');
+    const pidFile = path.join(candidateRoot, 'server.pid');
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    fs.mkdirSync(fakeBin);
+    fs.writeFileSync(path.join(fakeBin, 'prism-tool'), '#!/usr/bin/env bash\n[[ "$*" != "run pest -- --coverage --min=80" ]]\n', {mode: 0o755});
+    fs.writeFileSync(path.join(fakeBin, 'git'), '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
+    fs.writeFileSync(path.join(fakeBin, 'php'), '#!/usr/bin/env bash\nif [[ "$1" == -S ]]; then echo $$ > "$SERVER_PID_FILE"; while :; do sleep 1; done; fi\nexit 0\n', {mode: 0o755});
+    const check = report.outputs.find(({path: outputPath}) => outputPath === '.github/scripts/check-php.sh').candidatePath;
+
+    assert.throws(() => execFileSync('bash', [check, '--local'], {
+        cwd: candidateRoot,
+        env: {...process.env, PATH: `${fakeBin}:/usr/bin:/bin`, SERVER_PID_FILE: pidFile},
+        stdio: 'pipe',
+    }));
+    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+    assert.throws(() => process.kill(pid, 0));
+});
+
 test('renders syntactically valid PHP readiness files', (t) => {
     const candidateRoot = makeTempDir();
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
@@ -209,6 +274,9 @@ test('renders syntactically valid PHP readiness files', (t) => {
     });
     for (const output of report.outputs.filter(({path: outputPath}) => outputPath.endsWith('.php'))) {
         assert.match(execFileSync('php', ['-l', output.candidatePath], {encoding: 'utf8'}), /No syntax errors detected/);
+    }
+    for (const output of report.outputs.filter(({path: outputPath}) => outputPath.endsWith('.sh'))) {
+        execFileSync('bash', ['-n', output.candidatePath]);
     }
 });
 

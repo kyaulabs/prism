@@ -51,9 +51,9 @@
 
 ### Revised Task 1E: Shared local/CI quality implementation
 
-- [ ] Test and add `.github/scripts/check-php.sh`, the byte-identical coverage helper, and optional shell aggregator.
-- [ ] Prove identical gate order, validated CI base, conditional lint, bounded browser server, guaranteed cleanup, aggregate coverage, and per-file coverage.
-- [ ] Verify focused Node/shell tests, then commit `feat(setup): render shared php-web quality gates` with `Refs: #387`.
+- [x] Test and add `.github/scripts/check-php.sh`, the byte-identical coverage helper, and optional shell aggregator.
+- [x] Prove identical gate order, validated CI base, conditional lint, bounded browser server, guaranteed cleanup, aggregate coverage, and per-file coverage.
+- [x] Verify focused Node/shell tests, then commit `feat(setup): render shared php-web quality gates` with `Refs: #387`.
 
 ### Revised Task 1F: Create-only generated CI
 

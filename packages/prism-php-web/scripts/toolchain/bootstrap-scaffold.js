@@ -79,7 +79,45 @@ function npmProjectName(request) {
     return normalized;
 }
 
-function contents(outputPath, request, contract) {
+function contents(outputPath, request, contract, packageRoot) {
+    if (outputPath === '.github/scripts/check-php.sh') return `#!/usr/bin/env bash
+set -euo pipefail
+MODE="\${1:---local}"
+BASE=""
+if [[ "$MODE" == --ci ]]; then
+    BASE="\${2#--base=}"
+    [[ "$BASE" =~ ^[0-9a-f]{40}$ ]] || exit 2
+    git cat-file -e "$BASE^{commit}"
+fi
+SERVER_PID=""
+cleanup() { [[ -z "$SERVER_PID" ]] || kill "$SERVER_PID" 2>/dev/null || true; }
+trap cleanup EXIT
+prism-tool doctor --local-only
+find backend tests -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l
+prism-tool run php-cs-fixer -- fix --dry-run --diff
+find cdn/sass -type f -name '*.scss' -print -quit | grep -q . && prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input || true
+find cdn/js -type f -name '*.js' -print -quit | grep -q . && prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern || true
+php -S 127.0.0.1:8080 -t tests/Browser/fixtures >/dev/null 2>&1 &
+SERVER_PID=$!
+READY=no
+for attempt in $(seq 1 50); do
+    if php -r "exit(@file_get_contents('http://127.0.0.1:8080/smoke.html') === false ? 1 : 0);"; then READY=yes; break; fi
+    sleep 0.1
+done
+[[ "$READY" == yes ]] || exit 1
+export PEST_BROWSER_BASE_URL=http://127.0.0.1:8080
+prism-tool run pest -- --coverage --min=80
+if [[ "$MODE" == --ci ]]; then git diff --name-only "$BASE" HEAD -- '*.php'; else git diff --cached --name-only --diff-filter=AM -- '*.php'; fi | php .github/scripts/coverage-gate.php tests/coverage.xml
+[[ ! -x tests/Shell/run-all.sh ]] || tests/Shell/run-all.sh
+`;
+    if (outputPath === '.github/scripts/coverage-gate.php') {
+        return fs.readFileSync(path.join(packageRoot, 'scripts', 'coverage-gate.php'), 'utf8');
+    }
+    if (outputPath === 'tests/Shell/run-all.sh') return `#!/usr/bin/env bash
+set -euo pipefail
+shopt -s nullglob
+for test_file in tests/Shell/*_test.sh; do bash "$test_file"; done
+`;
     if (outputPath === 'composer.json') {
         const dependencies = Object.fromEntries(contract.components
             .filter(({ecosystem}) => ecosystem === 'composer')
@@ -239,7 +277,7 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
     const outputs = manifest.outputs.map((outputPath) => {
         const candidatePath = path.join(canonicalCandidate, ...outputPath.split('/'));
         ensureCandidateParent(canonicalCandidate, outputPath);
-        const value = Buffer.from(contents(outputPath, request, contract), 'utf8');
+        const value = Buffer.from(contents(outputPath, request, contract, packageRoot), 'utf8');
         const mode = outputPath.endsWith('.sh') ? 0o755 : 0o644;
         fs.writeFileSync(candidatePath, value, {flag: 'wx', mode});
         fs.chmodSync(candidatePath, mode);
