@@ -7,6 +7,7 @@ const {execFileSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const yaml = require('js-yaml');
 const {makeTempDir} = require('./helpers');
 const handler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 const {renderBootstrapScaffold} = require(
@@ -225,6 +226,43 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
         fs.readFileSync(path.join(ADAPTER_ROOT, 'scripts', 'coverage-gate.php'), 'utf8')
     );
     assert.match(read('tests/Shell/run-all.sh'), /\*_test\.sh/);
+});
+
+test('renders pinned create-only CI that invokes the shared quality gate', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+    const workflow = fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === '.github/workflows/ci.yml').candidatePath, 'utf8');
+
+    assert.equal(yaml.load(workflow).jobs.verify['runs-on'], 'ubuntu-latest');
+    assert.match(workflow, /permissions:\n {2}contents: read/);
+    assert.match(workflow, /actions\/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0/);
+    assert.match(workflow, /fetch-depth: 0/);
+    assert.match(workflow, /persist-credentials: false/);
+    assert.match(workflow, /setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45/);
+    assert.match(workflow, /setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
+    assert.match(workflow, /composer install .*--no-scripts/);
+    assert.match(workflow, /npm ci --ignore-scripts/);
+    assert.match(workflow, /pi-coding-agent@0\.84\.1/);
+    assert.match(workflow, /prism-core@0\.3\.1/);
+    assert.match(workflow, /prism-php-web@0\.3\.1/);
+    assert.match(workflow, /semgrep>=1\.173\.0,<2\.0\.0/);
+    assert.match(workflow, /open-code-review@>=1\.9\.1 <2\.0\.0/);
+    assert.match(workflow, /doctor --local-only/);
+    assert.match(workflow, /run playwright -- install --with-deps chromium/);
+    assert.match(workflow, /4b825dc642cb6eb9a060e54bf8d69288fbee4904/);
+    assert.match(workflow, /check-php\.sh --ci --base=/);
+    assert.doesNotMatch(workflow, /npx|vendor\/bin|ocr (?:review|llm test)|persist-credentials: true/);
 });
 
 test('stops only its browser fixture server when a quality gate fails', (t) => {

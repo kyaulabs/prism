@@ -57,9 +57,9 @@
 
 ### Revised Task 1F: Create-only generated CI
 
-- [ ] Test every acceptance criterion in `docs/research/2026-08-20-testing-ready-generated-ci.md`.
-- [ ] Render pinned read-only hosted CI with full history, PHP 8.5/PCOV, Node 24, locked installs, exact Prism versions, bounded Semgrep/OCR, local-only doctor, Chromium, first-push comparison, and one shared-check invocation.
-- [ ] Verify focused and packaging tests, then commit `ci(setup): render php-web bootstrap verification workflow` with `Refs: #387`.
+- [x] Test every acceptance criterion in `docs/research/2026-08-20-testing-ready-generated-ci.md`.
+- [x] Render pinned read-only hosted CI with full history, PHP 8.5/PCOV, Node 24, locked installs, exact Prism versions, bounded Semgrep/OCR, local-only doctor, Chromium, first-push comparison, and one shared-check invocation.
+- [x] Verify focused and packaging tests, then commit `ci(setup): render php-web bootstrap verification workflow` with `Refs: #387`.
 
 ### Revised Task 1G: Closed provider report
 

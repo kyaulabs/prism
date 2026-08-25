@@ -113,6 +113,63 @@ if [[ "$MODE" == --ci ]]; then git diff --name-only "$BASE" HEAD -- '*.php'; els
     if (outputPath === '.github/scripts/coverage-gate.php') {
         return fs.readFileSync(path.join(packageRoot, 'scripts', 'coverage-gate.php'), 'utf8');
     }
+    if (outputPath === '.github/workflows/ci.yml') return `name: Verify
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: \${{ github.workflow }}-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45
+        with:
+          php-version: '8.5'
+          coverage: pcov
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - run: composer install --no-progress --no-interaction --no-scripts
+      - run: npm ci --ignore-scripts
+      - run: python3 -m venv /tmp/semgrep && /tmp/semgrep/bin/pip install 'semgrep>=1.173.0,<2.0.0'
+      - run: npm install -g --ignore-scripts '@alibaba-group/open-code-review@>=1.9.1 <2.0.0'
+      - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.84.1'
+      - run: pi install npm:@kyaulabs/prism-core@0.3.1
+      - run: pi install -l npm:@kyaulabs/prism-php-web@0.3.1
+      - run: prism-tool doctor --local-only
+      - run: prism-tool run playwright -- install --with-deps chromium
+      - id: base
+        env:
+          EVENT_NAME: \${{ github.event_name }}
+          EVENT_BEFORE: \${{ github.event.before }}
+          PR_BASE: \${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            comparison="$(git merge-base HEAD "$PR_BASE")"
+          elif [[ "$EVENT_BEFORE" == 0000000000000000000000000000000000000000 ]]; then
+            comparison=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+          else
+            comparison="$EVENT_BEFORE"
+          fi
+          [[ "$comparison" =~ ^[0-9a-f]{40}$ ]]
+          echo "comparison=$comparison" >> "$GITHUB_OUTPUT"
+      - run: .github/scripts/check-php.sh --ci --base=\${{ steps.base.outputs.comparison }}
+`;
     if (outputPath === 'tests/Shell/run-all.sh') return `#!/usr/bin/env bash
 set -euo pipefail
 shopt -s nullglob
