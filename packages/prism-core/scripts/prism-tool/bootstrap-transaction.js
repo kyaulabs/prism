@@ -10,6 +10,7 @@ const {
     transitionBootstrapJournal,
 } = require('./bootstrap-journal');
 const {validateBootstrapProjectPlan} = require('./bootstrap-plan');
+const {cleanupBootstrapAdapter} = require('./bootstrap-adapter');
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
@@ -120,11 +121,42 @@ function assertOwnedDirectory(directoryPath, expectedMode = 0o700) {
     return {dev: stat.dev, ino: stat.ino};
 }
 
-function removePreparedAttempt(projectRoot, attemptId) {
+function removePreparedAttempt(projectRoot, attemptId, adapter = null) {
     const piRoot = path.join(projectRoot, '.pi');
     const prismRoot = path.join(piRoot, 'prism-tool');
     const bootstrapRoot = path.join(prismRoot, 'bootstrap');
     const attemptRoot = path.join(bootstrapRoot, attemptId);
+    if (adapter !== null) {
+        const allowedAttemptEntries = new Set([
+            'adapter.json', 'candidate', 'reports', 'plan', 'journal.json',
+        ]);
+        if (
+            fs.readdirSync(projectRoot).join(',') !== '.pi' ||
+            fs.readdirSync(piRoot).some((entry) =>
+                !['npm', 'prism-tool', 'settings.json'].includes(entry)
+            ) ||
+            fs.readdirSync(prismRoot).join(',') !== 'bootstrap' ||
+            fs.readdirSync(bootstrapRoot).join(',') !== attemptId ||
+            fs.readdirSync(attemptRoot).some((entry) => !allowedAttemptEntries.has(entry))
+        ) {
+            throw new Error('bootstrap project root changed');
+        }
+        for (const entry of fs.readdirSync(attemptRoot)) {
+            if (entry === 'adapter.json') continue;
+            const entryPath = path.join(attemptRoot, entry);
+            const stat = fs.lstatSync(entryPath);
+            if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+                throw new Error('bootstrap attempt state is unsafe');
+            }
+            if (stat.isDirectory()) fs.rmSync(entryPath, {recursive: true});
+            else fs.unlinkSync(entryPath);
+        }
+        const cleanup = cleanupBootstrapAdapter({projectRoot, attemptId});
+        if (cleanup.status !== 'GO' || fs.readdirSync(projectRoot).length !== 0) {
+            throw new Error('bootstrap adapter cleanup failed');
+        }
+        return;
+    }
     if (
         fs.readdirSync(projectRoot).join(',') !== '.pi' ||
         fs.readdirSync(piRoot).join(',') !== 'prism-tool' ||
@@ -737,7 +769,7 @@ function applyBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (recoveryError) {
         if (project !== undefined) project.close();
@@ -810,7 +842,7 @@ function recoverApplyingBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (error) {
         if (project !== undefined) project.close();
@@ -852,7 +884,7 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     }
     try {
         validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
-        removePreparedAttempt(projectRoot, attemptId);
+        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
     } catch (error) {
         transitionBootstrapJournal({
             projectRoot,

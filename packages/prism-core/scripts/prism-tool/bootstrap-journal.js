@@ -39,6 +39,21 @@ function readBoundedDescriptor(descriptor, size) {
     return contents;
 }
 
+function validAdapter(value) {
+    return value === null || (
+        isRecord(value) &&
+        hasExactKeys(value, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) &&
+        typeof value.id === 'string' &&
+        value.id.length > 0 &&
+        typeof value.packageName === 'string' &&
+        value.packageName.length > 0 &&
+        typeof value.packageVersion === 'string' &&
+        value.packageVersion.length > 0 &&
+        Number.isSafeInteger(value.bootstrapProtocol) &&
+        value.bootstrapProtocol > 0
+    );
+}
+
 function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
     if (
         typeof projectRoot !== 'string' ||
@@ -50,7 +65,7 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         !hasExactKeys(plan.source, ['mode', 'evidence']) ||
         plan.source.mode !== 'BLANK' ||
         plan.source.evidence !== null ||
-        plan.adapter !== null
+        !validAdapter(plan.adapter)
     ) {
         throw new Error('bootstrap journal input is invalid');
     }
@@ -61,7 +76,7 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         planDigest,
         metadataDigest: plan.metadataDigest,
         source: plan.source,
-        adapter: null,
+        adapter: plan.adapter,
         phase: 'PREPARED',
         status: 'ACTIVE',
         reason: null,
@@ -288,7 +303,7 @@ function validateJournal(input, projectRoot, attemptId) {
         !hasExactKeys(value.source, ['mode', 'evidence']) ||
         value.source.mode !== 'BLANK' ||
         value.source.evidence !== null ||
-        value.adapter !== null ||
+        !validAdapter(value.adapter) ||
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||
         value.applied.some((entry) => !validAppliedEntry(entry)) ||

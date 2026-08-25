@@ -15,6 +15,7 @@ const {
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 
 function captureWrites(action) {
     let stdout = '';
@@ -45,6 +46,59 @@ function planInput(projectRoot, input, context = {}) {
 
 function planProject(projectRoot, input, context = {}) {
     return planInput(projectRoot, JSON.stringify(input), context);
+}
+
+function bootstrapRunner(projectRoot) {
+    return (command, args) => {
+        if (command === '/usr/bin/pi') {
+            fs.writeFileSync(
+                path.join(projectRoot, '.pi', 'settings.json'),
+                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {
+                status: 0,
+                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                stderr: '',
+                error: undefined,
+            };
+        }
+        return {status: 0, stdout: '', stderr: '', error: undefined};
+    };
+}
+
+function provisionPhpWebAdapter(projectRoot) {
+    return captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run: bootstrapRunner(projectRoot),
+    }));
+}
+
+function planPhpWebProject(projectRoot, run = bootstrapRunner(projectRoot)) {
+    return captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`, '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Blank PHP Project',
+            summary: 'An application-free PHP web scaffold.',
+        }),
+        run,
+    }));
 }
 
 function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
@@ -185,6 +239,106 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     });
 });
 
+test('plans a Blank project with the provisioned PHP web adapter', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const selected = provisionPhpWebAdapter(projectRoot);
+    assert.equal(selected.status, 0);
+
+    const result = planPhpWebProject(projectRoot);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.adapter, {
+        id: 'php-web',
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '0.3.1',
+        bootstrapProtocol: 1,
+    });
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline',
+        'php-web-scaffold',
+    ]);
+    assert.match(report.adapterReportDigest, /^[0-9a-f]{64}$/);
+    assert.equal(report.outputs.length, 37);
+    assert.equal(report.outputs.every((output, index, outputs) =>
+        index === 0 || outputs[index - 1].path.localeCompare(output.path) < 0
+    ), true);
+    assert.deepEqual(report.effects.map(({id}) => id), [
+        'composer-lock-resolution',
+        'npm-lock-resolution',
+        'composer-install',
+        'npm-install',
+        'playwright-chromium',
+    ]);
+    assert.deepEqual(report.checks.map(({id}) => id), [
+        'core-baseline-render',
+        'php-web-scaffold-render',
+    ]);
+    assert.deepEqual(report.verification.map(({id}) => id), [
+        'core-baseline-inventory',
+        'php-web-scaffold-inventory',
+    ]);
+    assert.deepEqual(report.filesystem.allowedRootEntries, ['.pi']);
+    assert.equal(report.data.attempt.id, ATTEMPT_ID);
+});
+
+test('persists and validates the selected-adapter project plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0);
+    const plan = JSON.parse(planned.stdout);
+
+    const result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.disposition, 'PLAN_VALID');
+    assert.deepEqual(report.adapter, plan.adapter);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+    assert.deepEqual(journal.adapter, plan.adapter);
+    assert.equal(journal.phase, 'PREPARED');
+});
+
+test('removes provisional adapter state when provider planning fails', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const runner = bootstrapRunner(projectRoot);
+
+    const result = planPhpWebProject(projectRoot, (command, args, options) => {
+        if (command === 'composer' && args[0] === 'update') {
+            return {status: 1, stdout: '', stderr: 'resolution failed', error: undefined};
+        }
+        return runner(command, args, options);
+    });
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('preserves changed provisional adapter state for recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    fs.writeFileSync(
+        path.join(projectRoot, '.pi', 'settings.json'),
+        `${JSON.stringify({packages: [ADAPTER_ROOT], themes: []}, null, 2)}\n`
+    );
+
+    const result = planPhpWebProject(projectRoot);
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'settings.json')), true);
+});
+
 test('normalizes the prior schema-1 journal shape for recovery', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -288,6 +442,25 @@ test('restores strict emptiness when a prepared project plan is declined', (t) =
     assert.equal(report.status, 'GO');
     assert.equal(report.disposition, 'ROOT_RESTORED');
     assert.equal(report.data.resumePhase, null);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('restores strict emptiness when a selected-adapter plan is declined', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0);
+    const plan = JSON.parse(planned.stdout);
+
+    const result = recoverProject(projectRoot, ATTEMPT_ID, plan.planDigest, {
+        coreRoot: CORE_ROOT,
+    });
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.equal(report.disposition, 'ROOT_RESTORED');
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 

@@ -227,7 +227,7 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     }
 }
 
-function projectManifest(metadata, coreVersion) {
+function projectManifest(metadata, coreVersion, adapter) {
     return Buffer.from(`${JSON.stringify({
         schemaVersion: 1,
         source: {mode: 'BLANK', evidence: null},
@@ -236,7 +236,7 @@ function projectManifest(metadata, coreVersion) {
             displayName: metadata.displayName,
             summary: metadata.summary,
         },
-        adapter: null,
+        adapter,
         compatibility: {
             corePackage: '@kyaulabs/prism-core',
             coreVersion,
@@ -269,7 +269,21 @@ function validateRequest(request) {
         request.source.evidence !== null ||
         !Array.isArray(request.capabilities) ||
         request.capabilities.length !== 0 ||
-        request.adapter !== null ||
+        (
+            request.adapter !== null &&
+            (
+                !isRecord(request.adapter) ||
+                !hasExactKeys(request.adapter, [
+                    'id', 'packageName', 'packageVersion', 'bootstrapProtocol',
+                ]) ||
+                typeof request.adapter.id !== 'string' ||
+                typeof request.adapter.packageName !== 'string' ||
+                typeof request.adapter.packageVersion !== 'string' ||
+                !EXACT_VERSION.test(request.adapter.packageVersion) ||
+                !Number.isSafeInteger(request.adapter.bootstrapProtocol) ||
+                request.adapter.bootstrapProtocol < 1
+            )
+        ) ||
         !isRecord(request.metadata) ||
         !hasExactKeys(request.metadata, [
             'schemaVersion', 'displayName', 'summary', 'suggestedDisplayName',
@@ -287,7 +301,11 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     const registry = loadTrustedProviderRegistry({coreRoot: canonicalCore});
     const provider = registry.providers[0];
     const contents = new Map([
-        ['.prism/project.json', projectManifest(request.metadata, provider.packageVersion)],
+        ['.prism/project.json', projectManifest(
+            request.metadata,
+            provider.packageVersion,
+            request.adapter
+        )],
         ['README.md', projectReadme(request.metadata)],
         ['commitlint.config.cjs', readRegular(
             path.join(canonicalCore, 'config', 'commitlint.config.cjs'),

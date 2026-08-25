@@ -10,7 +10,11 @@ const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {renderCoreBaseline} = require('./bootstrap-providers');
-const {planCoreOnlyProject, validateBootstrapProjectPlan} = require('./bootstrap-plan');
+const {
+    planAdapterProject,
+    planCoreOnlyProject,
+    validateBootstrapProjectPlan,
+} = require('./bootstrap-plan');
 const {
     applyBootstrapProject,
     recoverBootstrapProject,
@@ -722,28 +726,45 @@ function setup(args, context) {
         const controls = args.slice(2);
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
+        const adapterPackage = adapters.length === 1
+            ? adapters[0].slice('--adapter='.length)
+            : '';
+        const coreOnly = adapterPackage === 'core-only';
         if (
             sources.length !== 1 ||
             sources[0] !== '--source=blank' ||
             adapters.length !== 1 ||
-            adapters[0] !== '--adapter=core-only' ||
+            adapterPackage.length === 0 ||
+            (!coreOnly && !/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(adapterPackage)) ||
+            (coreOnly && attempts.length !== 0) ||
+            (!coreOnly && (attempts.length !== 1 || attempts[0].length === '--attempt='.length)) ||
             jsonCount > 1 ||
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--source=') &&
-                !argument.startsWith('--adapter=')
+                !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--attempt=')
             )
         ) {
             process.stderr.write(
                 'usage: prism-tool setup project plan --source=blank ' +
-                '--adapter=core-only [--json]\n'
+                '--adapter=core-only|PACKAGE [--attempt=UUID] [--json]\n'
             );
             return EXIT.USAGE;
         }
-        const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
-        const route = inspectSetupRoute({projectRoot, source: 'BLANK'});
-        if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
+        const requestedRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+        let route;
+        try {
+            route = coreOnly
+                ? inspectSetupRoute({projectRoot: requestedRoot, source: 'BLANK'})
+                : {projectRoot: fs.realpathSync(requestedRoot), status: 'GO', disposition: 'PROVISIONED'};
+        } catch {
+            process.stderr.write('prism-tool: project planning requires valid setup state\n');
+            return EXIT.TRANSACTION;
+        }
+        if (coreOnly && (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY')) {
             process.stderr.write('prism-tool: project planning requires strict-empty setup\n');
             return EXIT.TRANSACTION;
         }
@@ -757,7 +778,7 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project metadata is invalid\n');
             return EXIT.TRANSACTION;
         }
-        if (context.bootstrapPlanStage === 'provider') {
+        if (context.bootstrapPlanStage === 'provider' && coreOnly) {
             let provider;
             try {
                 provider = renderCoreBaseline({
@@ -793,7 +814,7 @@ function setup(args, context) {
         }
         let planned;
         try {
-            planned = planCoreOnlyProject({
+            const planOptions = {
                 projectRoot: route.projectRoot,
                 coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
                 input: JSON.stringify({
@@ -801,8 +822,18 @@ function setup(args, context) {
                     displayName: metadata.displayName,
                     summary: metadata.summary,
                 }),
-                randomUUID: context.randomUUID ?? crypto.randomUUID,
-            });
+            };
+            planned = coreOnly
+                ? planCoreOnlyProject({
+                    ...planOptions,
+                    randomUUID: context.randomUUID ?? crypto.randomUUID,
+                })
+                : planAdapterProject({
+                    ...planOptions,
+                    attemptId: attempts[0].slice('--attempt='.length),
+                    packageName: adapterPackage,
+                    run: context.run ?? runBounded,
+                });
         } catch (error) {
             if (error.recoveryRequired) {
                 const report = {

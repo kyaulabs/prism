@@ -304,7 +304,7 @@ prism-tool commit create --type refactor --scope setup --subject "compose truste
 - Consumes: `setup adapter select` receipt, normalized metadata, selected adapter registration, Core report, adapter report.
 - Produces: `prism-tool setup project plan --source=blank --adapter=@kyaulabs/prism-php-web --attempt=<UUID> [--json]` and a combined digest-bound plan.
 
-- [ ] **Step 1: Write the failing public CLI plan test**
+- [x] **Step 1: Write the failing public CLI plan test**
 
 From a strict-empty root with a provisioned PHP/web receipt, invoke the public CLI and assert:
 
@@ -317,13 +317,13 @@ From a strict-empty root with a provisioned PHP/web receipt, invoke the public C
 - no PHP/web literal appears in Core except inert selected package/registration data; and
 - decline or provider failure removes the provisional adapter and restores strict emptiness.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: FAIL because project planning accepts only `--adapter=core-only`.
 
-- [ ] **Step 3: Compose the selected adapter plan**
+- [x] **Step 3: Compose the selected adapter plan**
 
 Refactor `planCoreOnlyProject` into a generic Blank planner that:
 
@@ -338,13 +338,13 @@ Refactor `planCoreOnlyProject` into a generic Blank planner that:
 
 Update CLI usage to accept exactly `core-only` or the validated provisioned package. Require the receipt attempt ID for selected adapters; reject caller-selected paths, stale receipts, package substitution, and missing preparation support.
 
-- [ ] **Step 4: Run focused tests and verify Green**
+- [x] **Step 4: Run focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: PASS for Core-only regression and adapter-selected Blank planning.
 
-- [ ] **Step 5: Commit the plan slice**
+- [x] **Step 5: Commit the plan slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-php-web-bootstrap.test.js

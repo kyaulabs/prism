@@ -582,6 +582,79 @@ function validateReceipt(receipt, projectRoot, attemptId) {
     }
 }
 
+function inspectProvisionedBootstrapAdapter({
+    projectRoot: requestedRoot,
+    coreRoot,
+    attemptId,
+    packageName,
+}) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const paths = attemptPaths(projectRoot, attemptId);
+    const receipt = readJson(paths.receiptPath);
+    validateReceipt(receipt, projectRoot, attemptId);
+    const catalogue = loadSupportedAdapterCatalogue({coreRoot});
+    const adapter = catalogue.adapters.find((candidate) => candidate.packageName === packageName);
+    if (
+        !adapter ||
+        receipt.source !== 'BLANK' ||
+        !isRecord(receipt.acquisition) ||
+        Object.keys(receipt.acquisition).sort().join(',') !== 'installSource,kind' ||
+        !['LOCAL', 'NPM'].includes(receipt.acquisition.kind) ||
+        typeof receipt.acquisition.installSource !== 'string' ||
+        JSON.stringify(receipt.adapter) !== JSON.stringify(adapter)
+    ) {
+        throw new Error('bootstrap adapter receipt is stale');
+    }
+    const expectedPi = receipt.acquisition.kind === 'NPM'
+        ? ['npm', 'prism-tool', 'settings.json']
+        : ['prism-tool', 'settings.json'];
+    if (
+        !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
+        !equalsEntries(piEntries(projectRoot), expectedPi)
+    ) {
+        throw new Error('bootstrap adapter state is stale');
+    }
+    const settings = settingsEvidence(projectRoot, receipt.acquisition);
+    if (settings.sha256 !== receipt.settings.sha256) {
+        throw new Error('bootstrap adapter settings are stale');
+    }
+    if (receipt.acquisition.kind === 'NPM') {
+        const inventory = assertNpmState(projectRoot, adapter);
+        if (
+            !isRecord(receipt.npmInventory) ||
+            inventory.sha256 !== receipt.npmInventory.sha256 ||
+            inventory.bytes !== receipt.npmInventory.bytes
+        ) {
+            throw new Error('bootstrap adapter npm state is stale');
+        }
+    } else if (
+        receipt.npmInventory !== null ||
+        fs.existsSync(path.join(projectRoot, '.pi', 'npm'))
+    ) {
+        throw new Error('bootstrap adapter acquisition state is stale');
+    }
+    const registration = registrationFor(receipt.registration.packageRoot, adapter.packageName);
+    validateBootstrapRegistration(registration, adapter, coreRoot);
+    const registrationReceipt = {
+        packageName: registration.packageName,
+        packageVersion: registration.packageVersion,
+        bootstrapProtocol: registration.bootstrapProtocol,
+        packageRoot: registration.packageRoot,
+        contractPath: registration.contractPath,
+        handlerPath: registration.handlerPath,
+    };
+    if (JSON.stringify(receipt.registration) !== JSON.stringify(registrationReceipt)) {
+        throw new Error('bootstrap adapter registration is stale');
+    }
+    return Object.freeze({
+        adapter: Object.freeze({...adapter}),
+        handler: loadAdapterHandler(registration, adapter.bootstrapProtocol),
+        receipt: Object.freeze(receipt),
+        registration: Object.freeze(registration),
+    });
+}
+
 function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const projectRoot = fs.realpathSync(requestedRoot);
@@ -718,6 +791,7 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
 
 module.exports = {
     cleanupBootstrapAdapter,
+    inspectProvisionedBootstrapAdapter,
     provisionBootstrapAdapter,
     resolveBootstrapAcquisition,
 };
