@@ -70,6 +70,16 @@ function loadTrustedProviderRegistry({coreRoot}) {
             packageVersion: manifest.version,
             protocolVersion: 1,
             outputs: OUTPUTS,
+            effects: Object.freeze([]),
+            checks: Object.freeze([Object.freeze({
+                id: 'core-baseline-render',
+                status: 'PASS',
+                message: 'Core baseline candidate files were rendered',
+            })]),
+            verification: Object.freeze([Object.freeze({
+                id: 'core-baseline-inventory',
+                command: 'setup project validate',
+            })]),
         })]),
     });
 }

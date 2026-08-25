@@ -214,21 +214,15 @@ function validateProviderReport({projectRoot, candidateRoot, registry, report}) 
     }
     const trusted = validateProviderIdentity(registry, report.provider);
     if (
+        !Array.isArray(trusted.outputs) ||
+        !Array.isArray(trusted.effects) ||
+        !Array.isArray(trusted.checks) ||
+        !Array.isArray(trusted.verification) ||
         !Array.isArray(report.outputs) ||
         report.outputs.length !== trusted.outputs.length ||
-        !Array.isArray(report.effects) ||
-        report.effects.length !== 0 ||
-        !Array.isArray(report.checks) ||
-        report.checks.length !== 1 ||
-        !hasExactKeys(report.checks[0], ['id', 'status', 'message']) ||
-        report.checks[0].id !== 'core-baseline-render' ||
-        report.checks[0].status !== 'PASS' ||
-        typeof report.checks[0].message !== 'string' ||
-        !Array.isArray(report.verification) ||
-        report.verification.length !== 1 ||
-        !hasExactKeys(report.verification[0], ['id', 'command']) ||
-        report.verification[0].id !== 'core-baseline-inventory' ||
-        report.verification[0].command !== 'setup project validate'
+        JSON.stringify(report.effects) !== JSON.stringify(trusted.effects) ||
+        JSON.stringify(report.checks) !== JSON.stringify(trusted.checks) ||
+        JSON.stringify(report.verification) !== JSON.stringify(trusted.verification)
     ) {
         throw new Error('provider report is invalid');
     }

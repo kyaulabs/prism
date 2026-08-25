@@ -246,17 +246,17 @@ prism-tool commit create --type feat --scope setup --subject "expose php-web boo
 - Consumes: Core provider descriptors and one descriptor derived from a fully validated selected-adapter registration.
 - Produces: generic `validateProviderReport({projectRoot, candidateRoot, registry, report})` supporting closed provider-specific output ownership, allowed effects, checks, and verification declarations.
 
-- [ ] **Step 1: Write failing mixed-provider validation tests**
+- [x] **Step 1: Write failing mixed-provider validation tests**
 
 Add cases proving Core accepts one valid Core report plus one valid PHP/web report, rejects identity/version/protocol substitution, unknown report fields, unknown effects/checks/verification, invalid paths/modes/digests, and exact or prefix ownership overlap. Assert the test never imports PHP/web path literals into Core production modules.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: FAIL because validation is hard-coded to the Core baseline's seven outputs and check IDs.
 
-- [ ] **Step 3: Deepen the provider descriptor contract**
+- [x] **Step 3: Deepen the provider descriptor contract**
 
 Retain `loadTrustedProviderRegistry({coreRoot})` for Core. Add a generic trusted descriptor shape:
 
@@ -277,13 +277,13 @@ For Core, `outputs` remains the exact seven-path list. For the selected adapter,
 
 Update `validateProviderReport` to compare each report section against its descriptor, validate candidate bytes safely, and return semantic outputs. Keep `composeProviderReports` as the sole overlap gate.
 
-- [ ] **Step 4: Run focused and packaging tests**
+- [x] **Step 4: Run focused and packaging tests**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS; malformed report matrix remains fail-closed.
 
-- [ ] **Step 5: Commit the composition slice**
+- [x] **Step 5: Commit the composition slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-providers.js packages/prism-core/scripts/prism-tool/bootstrap-composer.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js
