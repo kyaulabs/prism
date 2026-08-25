@@ -163,6 +163,36 @@ test('reports repository ownership, support, and funding metadata independently'
     }
 });
 
+test('reports release management repository metadata and publication targets', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
+        '--capabilities=release-management', '--json',
+    ], {projectRoot}));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['release-management']);
+    assert.deepEqual(report.data.fields.map(({id}) => id), [
+        'displayName',
+        'summary',
+        'release-management.repository',
+    ]);
+    assert.deepEqual(report.data.publications, [{
+        capability: 'release-management',
+        field: 'release-management.repository',
+        outputs: [
+            'CHANGELOG.md',
+            'cliff.toml',
+            '.github/workflows/release.yml',
+            '.prism/release.json',
+        ],
+    }]);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
 test('reports selected capability metadata in canonical order', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -213,7 +243,7 @@ test('normalizes all project capabilities into canonical order', (t) => {
 
     const result = captureWrites(() => main([
         'setup', 'project', 'metadata', '--source=blank', '--adapter=core-only',
-        '--capabilities=funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
+        '--capabilities=release-management,funding,support-routing,repository-ownership,security-disclosure,github-collaboration,community-governance,licensing',
         '--json',
     ], {projectRoot}));
 
@@ -226,6 +256,7 @@ test('normalizes all project capabilities into canonical order', (t) => {
         'repository-ownership',
         'support-routing',
         'funding',
+        'release-management',
     ]);
 });
 
@@ -235,7 +266,6 @@ test('rejects non-canonical capability selections without changing the root', (t
         ' licensing',
         'licensing,',
         'unknown-capability',
-        'release-management',
     ];
     for (const selection of selections) {
         const projectRoot = makeTempDir();
@@ -398,6 +428,63 @@ test('normalizes repository ownership, support routing, and funding metadata', (
     assert.deepEqual(validateNormalizedProjectMetadata({metadata, capabilities}), metadata);
 });
 
+test('normalizes release management repository coordinates without external lookup', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const metadata = normalizeProjectMetadata({
+        projectRoot,
+        capabilities: ['release-management'],
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Release Project',
+            summary: 'A project with managed releases.',
+            capabilityMetadata: {
+                'release-management': {repository: 'Example-Org/Example-Project'},
+            },
+        }),
+    });
+
+    assert.deepEqual(metadata.capabilityMetadata['release-management'], {
+        repository: 'example-org/example-project',
+    });
+    assert.deepEqual(validateNormalizedProjectMetadata({
+        metadata,
+        capabilities: ['release-management'],
+    }), metadata);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects unsafe release management repository coordinates', (t) => {
+    const repositories = [
+        'https://github.com/example/project',
+        'example/project/extra',
+        'example/.project',
+        '-example/project',
+        'example/project.git',
+        'example /project',
+        'example/project\n',
+        'example/',
+    ];
+    for (const repository of repositories) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        assert.throws(() => normalizeProjectMetadata({
+            projectRoot,
+            capabilities: ['release-management'],
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Unsafe Release Project',
+                summary: 'A project with invalid release metadata.',
+                capabilityMetadata: {
+                    'release-management': {repository},
+                },
+            }),
+        }), /release/);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
+});
+
 test('rejects unsafe and non-closed capability metadata', (t) => {
     const cases = [
         {
@@ -528,6 +615,119 @@ test('rejects unsafe and non-closed security identity metadata', (t) => {
         }));
         assert.deepEqual(fs.readdirSync(projectRoot), []);
     }
+});
+
+test('renders a trusted release management provider from publishable candidate packages', (t) => {
+    const candidateRoot = makeTempDir();
+    const packageRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(packageRoot, 'package.json'), `${JSON.stringify({
+        name: '@example/project',
+        version: '0.1.0',
+    }, null, 2)}\n`);
+    const {renderReleaseManagementProvider} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-release-provider'
+    );
+
+    const report = renderReleaseManagementProvider({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        packageRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['release-management'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Release Project',
+                summary: 'A project with managed releases.',
+                suggestedDisplayName: 'release-project',
+                capabilityMetadata: {
+                    'release-management': {repository: 'example/project'},
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    assert.equal(report.status, 'GO');
+    assert.equal(report.provider.id, 'release-management');
+    assert.deepEqual(report.outputs.map(({path: outputPath}) => outputPath), [
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]);
+    assert.match(fs.readFileSync(path.join(candidateRoot, 'cliff.toml'), 'utf8'),
+        /github\.com\/example\/project\/releases/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(
+        path.join(candidateRoot, '.prism', 'release.json'),
+        'utf8'
+    )).packages, ['.']);
+    assert.equal(fs.existsSync(path.join(packageRoot, '.pi')), false);
+});
+
+test('rejects release management when package candidates or trusted resources are invalid', (t) => {
+    const candidateRoot = makeTempDir();
+    const packageRoot = makeTempDir();
+    const fixtureCore = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(fixtureCore, {recursive: true, force: true}));
+    fs.cpSync(CORE_ROOT, fixtureCore, {recursive: true});
+    const {renderReleaseManagementProvider} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-release-provider'
+    );
+    const request = {
+        schemaVersion: 1,
+        source: {mode: 'BLANK', evidence: null},
+        capabilities: ['release-management'],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Release Project',
+            summary: 'A project with managed releases.',
+            suggestedDisplayName: 'release-project',
+            capabilityMetadata: {
+                'release-management': {repository: 'example/project'},
+            },
+        },
+        adapter: null,
+    };
+    fs.writeFileSync(path.join(packageRoot, 'package.json'), `${JSON.stringify({
+        name: '@example/private',
+        version: '0.1.0',
+        private: true,
+    }, null, 2)}\n`);
+
+    assert.throws(() => renderReleaseManagementProvider({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        packageRoot,
+        request,
+    }), /no publishable release packages/);
+
+    fs.writeFileSync(path.join(packageRoot, 'package.json'), `${JSON.stringify({
+        name: '@example/public',
+        version: '0.1.0',
+    }, null, 2)}\n`);
+    const templatePath = path.join(
+        fixtureCore,
+        'config',
+        'bootstrap',
+        'release',
+        'cliff.toml'
+    );
+    fs.writeFileSync(
+        templatePath,
+        fs.readFileSync(templatePath, 'utf8').replaceAll('{{REPOSITORY_COORDINATE}}', 'example/fixed')
+    );
+    assert.throws(() => renderReleaseManagementProvider({
+        coreRoot: fixtureCore,
+        candidateRoot,
+        packageRoot,
+        request,
+    }), /cliff template is invalid/);
 });
 
 test('renders a trusted MIT licensing provider report', (t) => {
@@ -1000,6 +1200,7 @@ test('declares exact trusted ownership for selected profile providers', () => {
         capabilities: [
             'licensing', 'community-governance', 'github-collaboration',
             'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+            'release-management',
         ],
     });
 
@@ -1021,6 +1222,15 @@ test('declares exact trusted ownership for selected profile providers', () => {
         {id: 'repository-ownership', outputs: ['.github/CODEOWNERS']},
         {id: 'support-routing', outputs: ['.github/ISSUE_TEMPLATE/config.yml']},
         {id: 'funding', outputs: ['.github/FUNDING.yml']},
+        {
+            id: 'release-management',
+            outputs: [
+                'CHANGELOG.md',
+                'cliff.toml',
+                '.github/workflows/release.yml',
+                '.prism/release.json',
+            ],
+        },
     ]);
     for (const descriptor of descriptors) {
         assert.equal(descriptor.packageName, '@kyaulabs/prism-core');

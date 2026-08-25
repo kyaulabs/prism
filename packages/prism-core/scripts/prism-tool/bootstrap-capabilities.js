@@ -13,6 +13,7 @@ const PROJECT_CAPABILITIES = Object.freeze([
     'repository-ownership',
     'support-routing',
     'funding',
+    'release-management',
 ]);
 
 function normalizeCapabilitySelection(value) {
@@ -185,6 +186,24 @@ function inspectCapabilityMetadata({projectRoot, capabilities}) {
             capability: 'funding',
             field: 'funding.records',
             outputs: Object.freeze(['.github/FUNDING.yml']),
+        }));
+    }
+    if (capabilities.includes('release-management')) {
+        fields.push(Object.freeze({
+            id: 'release-management.repository',
+            required: true,
+            suggestedValue: null,
+            maximumLength: 140,
+        }));
+        publications.push(Object.freeze({
+            capability: 'release-management',
+            field: 'release-management.repository',
+            outputs: Object.freeze([
+                'CHANGELOG.md',
+                'cliff.toml',
+                '.github/workflows/release.yml',
+                '.prism/release.json',
+            ]),
         }));
     }
     return Object.freeze({

@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -816,6 +816,18 @@ function readPlanFile(operation, area, relativePath) {
     }
 }
 
+function renderReleaseCapabilityFiles({projectRoot, coreRoot}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    const candidates = discoverReleasePackages({projectRoot: canonicalProject});
+    return Object.freeze({
+        candidates: Object.freeze(candidates.map((candidate) => Object.freeze({...candidate}))),
+        files: Object.freeze({
+            [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(candidates)),
+            [WORKFLOW_PATH]: readCanonicalWorkflow(coreRoot),
+        }),
+    });
+}
+
 function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LEGACY_WORKFLOW_SHA256}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     let inspection = inspectReleaseCapability({
@@ -843,10 +855,14 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         }
         inspection = lockedInspection;
         operation = createOperation(canonicalProject);
-        const desired = new Map([
-            [CONFIG_PATH, Buffer.from(renderManagedConfiguration(inspection.candidates))],
-            [WORKFLOW_PATH, readCanonicalWorkflow(coreRoot)],
-        ]);
+        const rendered = renderReleaseCapabilityFiles({
+            projectRoot: canonicalProject,
+            coreRoot,
+        });
+        if (JSON.stringify(rendered.candidates) !== JSON.stringify(inspection.candidates)) {
+            throw new Error('package-release ownership changed while planning');
+        }
+        const desired = new Map(Object.entries(rendered.files));
         const files = {};
         let diff = '';
         for (const [relativePath, after] of desired) {
@@ -1479,6 +1495,7 @@ module.exports = {
     packageTagPrefix,
     planReleaseCapability,
     renderManagedConfiguration,
+    renderReleaseCapabilityFiles,
     sha256,
     validateConfiguredPackages,
     verifyReleaseCapability,

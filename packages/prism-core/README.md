@@ -57,16 +57,18 @@ language-neutral half; install it **globally** so it runs in every project.
   and the root-seed attestation also bind the adapter identity, activation file,
   and provider-report digest. Setup creates no remote and performs no publication
   or push; those operations remain human-owned.
-- **Optional project identity capabilities** — Core owns seven independently
-  selectable profiles. The seven profiles are independent and disabled by default:
+- **Optional project capabilities** — Core owns eight independently selectable
+  profiles. The eight profiles are independent and disabled by default:
   `licensing` emits `LICENSE`; `community-governance` emits
   `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md`; `github-collaboration` emits
   `.github/ISSUE_TEMPLATE/bug_report.yml`,
   `.github/ISSUE_TEMPLATE/feature_request.yml`, and
   `.github/pull_request_template.md`; `security-disclosure` emits `SECURITY.md`;
   `repository-ownership` emits `.github/CODEOWNERS`; `support-routing` emits
-  `.github/ISSUE_TEMPLATE/config.yml`; and `funding` emits
-  `.github/FUNDING.yml`. Licensing supports exactly `AGPL-3.0-only` and `MIT`.
+  `.github/ISSUE_TEMPLATE/config.yml`; `funding` emits `.github/FUNDING.yml`;
+  and `release-management` emits `CHANGELOG.md`, `cliff.toml`,
+  `.github/workflows/release.yml`, and `.prism/release.json`. Licensing supports
+  exactly `AGPL-3.0-only` and `MIT`.
   Conduct and security reporting contacts accept normalized email addresses or
   credential-free HTTPS destinations. Security version policy is exactly one of
   `current-development`, `latest-release`, `latest-major-line`, or `custom`; custom
@@ -81,8 +83,18 @@ language-neutral half; install it **globally** so it runs in every project.
   project metadata and emits neutral templates. Template manifests may advertise
   these capabilities but never select them; Blank performs no Template lookup. The
   identity preview reports required fields and publication targets without mutating
-  the project. Interactive prompt orchestration and preview confirmation remain
-  deferred to task 12.
+  the project. Release management requires one locally validated lowercase
+  `owner/repository` coordinate, performs no live GitHub lookup, and collects no
+  initial version. Its package configuration is rendered only after ADR-0079's
+  existing discovery accepts at least one publishable root or declared-workspace npm
+  package; package discovery never selects the capability. The current Core-only
+  baseline has no npm package and the PHP/web scaffold is private-only, so those
+  candidates reject selected release management before plan display and restore
+  strict emptiness. A future or fixture adapter with publishable packages receives
+  the canonical workflow and lockstep configuration through the same outer bootstrap
+  transaction. Setup creates no repository, remote, tag, GitHub Release, push, or npm
+  publication; those actions remain human-owned. Interactive prompt orchestration
+  and preview confirmation remain deferred to task 12.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →

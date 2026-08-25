@@ -24,6 +24,12 @@ const PROFILE_OUTPUTS = Object.freeze({
     'repository-ownership': Object.freeze(['.github/CODEOWNERS']),
     'support-routing': Object.freeze(['.github/ISSUE_TEMPLATE/config.yml']),
     funding: Object.freeze(['.github/FUNDING.yml']),
+    'release-management': Object.freeze([
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]),
 });
 
 function profileCheck(capability) {
@@ -35,6 +41,7 @@ function profileCheck(capability) {
         'repository-ownership': 'Repository ownership',
         'support-routing': 'Support routing',
         funding: 'Funding',
+        'release-management': 'Release management',
     }[capability];
     return Object.freeze({
         id: `${capability}-render`,
@@ -414,7 +421,12 @@ function renderGithubCollaboration({candidateRoot, coreVersion}) {
     });
 }
 
-function renderCoreProfileProviders({coreRoot, candidateRoot, request}) {
+function renderCoreProfileProviders({
+    coreRoot,
+    candidateRoot,
+    packageRoot = candidateRoot,
+    request,
+}) {
     validateRequest(request);
     const coreVersion = readCoreManifest(coreRoot).version;
     return Object.freeze(request.capabilities.map((capability) => {
@@ -446,6 +458,14 @@ function renderCoreProfileProviders({coreRoot, candidateRoot, request}) {
         }
         if (capability === 'funding') {
             return renderFunding({candidateRoot, request, coreVersion});
+        }
+        if (capability === 'release-management') {
+            return require('./bootstrap-release-provider').renderReleaseManagementProvider({
+                coreRoot,
+                candidateRoot,
+                packageRoot,
+                request,
+            });
         }
         throw new Error('profile provider is unavailable');
     }));
