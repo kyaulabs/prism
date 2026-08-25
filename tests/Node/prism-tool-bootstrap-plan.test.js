@@ -734,6 +734,58 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
 });
 
+test('composes all governance profiles with a Blank PHP web adapter plan', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=licensing,community-governance,github-collaboration', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        currentYear: 2026,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Governed PHP Project',
+            summary: 'A governed PHP web scaffold.',
+            capabilityMetadata: {
+                licensing: {
+                    spdxId: 'AGPL-3.0-only',
+                    copyrightHolder: 'Example Organization',
+                },
+                'community-governance': {
+                    conductContact: 'conduct@example.test',
+                },
+                'github-collaboration': {},
+            },
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, [
+        'licensing', 'community-governance', 'github-collaboration',
+    ]);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline', 'licensing', 'community-governance',
+        'github-collaboration', 'php-web-scaffold',
+    ]);
+    assert.equal(report.outputs.length, 43);
+    assert.equal(report.checks.length, 5);
+    assert.equal(report.verification.length, 5);
+    const readme = fs.readFileSync(path.join(
+        path.dirname(path.dirname(report.data.planPath)),
+        'candidate', 'README.md'
+    ), 'utf8');
+    assert.match(readme, /\[License\]\(LICENSE\)/);
+    assert.ok(readme.indexOf('[License]') < readme.indexOf('[Code of Conduct]'));
+    assert.ok(readme.indexOf('[Code of Conduct]') < readme.indexOf('[Issue templates]'));
+});
+
 test('plans a Template project with the provisioned PHP web adapter', async (t) => {
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();
@@ -770,6 +822,75 @@ test('plans a Template project with the provisioned PHP web adapter', async (t) 
     assert.equal(report.checks.length, 2);
     assert.equal(report.verification.length, 2);
     assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+});
+
+test('composes an explicitly selected advertised Template capability', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--capabilities=licensing', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        currentYear: 2026,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Licensed Template Project',
+            summary: 'An explicitly licensed Template project.',
+            capabilityMetadata: {
+                licensing: {
+                    spdxId: 'MIT',
+                    copyrightHolder: 'Example Organization',
+                },
+            },
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.capabilities, ['licensing']);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline', 'licensing', 'php-web-scaffold',
+    ]);
+    assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
+});
+
+test('rejects an unadvertised Template capability without preselecting advertisements', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--capabilities=community-governance', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Governed Template Project',
+            summary: 'A Template project with explicit governance.',
+            capabilityMetadata: {
+                'community-governance': {
+                    conductContact: 'conduct@example.test',
+                },
+            },
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /Template source is invalid/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+    assert.equal(fixture.calls.length, 4);
 });
 
 test('rejects Template planning against a Blank adapter receipt before acquisition', async (t) => {

@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -226,29 +227,36 @@ function loadTrustedAdapterProviderDescriptor({registration}) {
     });
 }
 
-function loadTrustedProviderRegistry({coreRoot}) {
+function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
     const canonicalCore = fs.realpathSync(coreRoot);
     const manifest = readCoreManifest(canonicalCore);
+    const baseline = Object.freeze({
+        id: 'core-baseline',
+        displayName: 'Prism Core baseline',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: manifest.version,
+        protocolVersion: 1,
+        outputs: OUTPUTS,
+        effects: Object.freeze([]),
+        checks: Object.freeze([Object.freeze({
+            id: 'core-baseline-render',
+            status: 'PASS',
+            message: 'Core baseline candidate files were rendered',
+        })]),
+        verification: Object.freeze([Object.freeze({
+            id: 'core-baseline-inventory',
+            command: 'setup project validate',
+        })]),
+    });
+    const profiles = capabilities.length === 0
+        ? []
+        : require('./bootstrap-profile-providers').loadCoreProfileProviderDescriptors({
+            coreRoot: canonicalCore,
+            capabilities,
+        });
     return Object.freeze({
         schemaVersion: 1,
-        providers: Object.freeze([Object.freeze({
-            id: 'core-baseline',
-            displayName: 'Prism Core baseline',
-            packageName: '@kyaulabs/prism-core',
-            packageVersion: manifest.version,
-            protocolVersion: 1,
-            outputs: OUTPUTS,
-            effects: Object.freeze([]),
-            checks: Object.freeze([Object.freeze({
-                id: 'core-baseline-render',
-                status: 'PASS',
-                message: 'Core baseline candidate files were rendered',
-            })]),
-            verification: Object.freeze([Object.freeze({
-                id: 'core-baseline-inventory',
-                command: 'setup project validate',
-            })]),
-        })]),
+        providers: Object.freeze([baseline, ...profiles]),
     });
 }
 
@@ -434,15 +442,18 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     }
 }
 
-function projectManifest(source, metadata, coreVersion, adapter) {
+function projectManifest(source, capabilities, metadata, coreVersion, adapter) {
     return Buffer.from(`${JSON.stringify({
         schemaVersion: 1,
         source,
-        capabilities: [],
+        capabilities,
         project: {
             displayName: metadata.displayName,
             summary: metadata.summary,
         },
+        ...(capabilities.length === 0 ? {} : {
+            capabilityMetadata: metadata.capabilityMetadata,
+        }),
         adapter,
         compatibility: {
             corePackage: '@kyaulabs/prism-core',
@@ -452,12 +463,27 @@ function projectManifest(source, metadata, coreVersion, adapter) {
     }, null, 2)}\n`, 'utf8');
 }
 
-function projectReadme(metadata) {
+function projectReadme(metadata, capabilities) {
+    const links = {
+        licensing: ['- [License](LICENSE)'],
+        'community-governance': [
+            '- [Code of Conduct](CODE_OF_CONDUCT.md)',
+            '- [Contributing](CONTRIBUTING.md)',
+        ],
+        'github-collaboration': [
+            '- [Issue templates](.github/ISSUE_TEMPLATE/)',
+            '- [Pull request template](.github/pull_request_template.md)',
+        ],
+    };
+    const projectLinks = capabilities.flatMap((capability) => links[capability] ?? []);
     return Buffer.from(
         `# ${metadata.displayName}\n\n${metadata.summary}\n\n` +
         '## Development\n\n' +
         'This project uses Prism Core. Verify local readiness with ' +
-        '`prism-tool doctor --local-only` and follow the Prism engineering pipeline.\n',
+        '`prism-tool doctor --local-only` and follow the Prism engineering pipeline.\n' +
+        (projectLinks.length === 0
+            ? ''
+            : `\n## Project policies\n\n${projectLinks.join('\n')}\n`),
         'utf8'
     );
 }
@@ -476,7 +502,6 @@ function validateRequest(request) {
     if (
         request.schemaVersion !== 1 ||
         !Array.isArray(request.capabilities) ||
-        request.capabilities.length !== 0 ||
         (
             request.adapter !== null &&
             (
@@ -491,13 +516,16 @@ function validateRequest(request) {
                 !Number.isSafeInteger(request.adapter.bootstrapProtocol) ||
                 request.adapter.bootstrapProtocol < 1
             )
-        ) ||
-        !isRecord(request.metadata) ||
-        !hasExactKeys(request.metadata, [
-            'schemaVersion', 'displayName', 'summary', 'suggestedDisplayName',
-        ]) ||
-        request.metadata.schemaVersion !== 1
+        )
     ) {
+        throw new Error('provider request is invalid');
+    }
+    try {
+        validateNormalizedProjectMetadata({
+            metadata: request.metadata,
+            capabilities: request.capabilities,
+        });
+    } catch {
         throw new Error('provider request is invalid');
     }
 }
@@ -511,11 +539,12 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     const contents = new Map([
         ['.prism/project.json', projectManifest(
             request.source,
+            request.capabilities,
             request.metadata,
             provider.packageVersion,
             request.adapter
         )],
-        ['README.md', projectReadme(request.metadata)],
+        ['README.md', projectReadme(request.metadata, request.capabilities)],
         ['commitlint.config.cjs', readRegular(
             path.join(canonicalCore, 'config', 'commitlint.config.cjs'),
             'commitlint configuration'
@@ -563,7 +592,10 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
 module.exports = {
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
+    readCoreManifest,
+    readRegular,
     renderCoreBaseline,
+    writeCandidate,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

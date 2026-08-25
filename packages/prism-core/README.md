@@ -27,7 +27,8 @@ language-neutral half; install it **globally** so it runs in every project.
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
 - **Strict-empty Core-only project transactions** — Blank and Template setup
-  collect only an editable project name and one-sentence summary, render a
+  collect an editable project name, one-sentence summary, and only the closed
+  metadata required by explicitly selected capabilities, then render a
   private candidate beneath `.pi/prism-tool/bootstrap/`, and return a
   digest-bound plan. Template acquisition reads a fixed public source only as
   immutable, untrusted catalogue evidence; it never supplies project bytes,
@@ -51,12 +52,25 @@ language-neutral half; install it **globally** so it runs in every project.
   If interruption retains `apply.recovery.lock`, `setup project recover` reports
   its exact project-relative path; after confirming no setup process is running,
   remove only that path and rerun `setup project apply` with the retained attempt
-  and digest.
-  Source evidence is digest-bound through the private plan, recovery journal,
-  durable project manifest, and root-seed attestation. Canonical hooks and the
-  root-seed attestation also bind the adapter identity, activation file, and
-  provider-report digest. Setup creates no remote and performs no publication
+  and digest. Source evidence is digest-bound through the private plan, recovery
+  journal, durable project manifest, and root-seed attestation. Canonical hooks
+  and the root-seed attestation also bind the adapter identity, activation file,
+  and provider-report digest. Setup creates no remote and performs no publication
   or push; those operations remain human-owned.
+- **Optional governance and collaboration capabilities** — `licensing`,
+  `community-governance`, and `github-collaboration` are independent and
+  disabled by default. Core exclusively owns their outputs: `LICENSE`;
+  `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md`; and the two issue forms plus
+  `.github/pull_request_template.md`, respectively. Licensing supports exactly
+  `AGPL-3.0-only` and `MIT`, requires a safe copyright holder, and persists the
+  explicitly supplied year or the normalized current UTC year. Community
+  governance requires one normalized email address or credential-free HTTPS
+  conduct contact. GitHub collaboration requires no project metadata and emits
+  neutral templates. Template manifests may advertise these capabilities but
+  never select them; Blank performs no Template lookup. Metadata inspection
+  reports required fields and publication targets without mutating the project.
+  Interactive one-question-at-a-time selection and preview confirmation are a
+  separate setup-orchestration capability.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →

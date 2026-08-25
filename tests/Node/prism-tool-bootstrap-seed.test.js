@@ -66,16 +66,36 @@ async function captureAsyncWrites(action) {
     }
 }
 
-function planProject(projectRoot) {
+function planProject(projectRoot, capabilities = []) {
+    const capabilityControl = capabilities.length === 0
+        ? []
+        : [`--capabilities=${capabilities.join(',')}`];
+    const capabilityMetadata = {
+        licensing: {
+            spdxId: 'MIT',
+            copyrightHolder: 'Example Organization',
+        },
+        'community-governance': {
+            conductContact: 'conduct@example.test',
+        },
+        'github-collaboration': {},
+    };
     return captureWrites(() => main([
-        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+        ...capabilityControl, '--json',
     ], {
         projectRoot,
         coreRoot: CORE_ROOT,
+        currentYear: 2026,
         input: JSON.stringify({
             schemaVersion: 1,
             displayName: 'Seed Project',
             summary: 'A deterministic Core-only seed project.',
+            ...(capabilities.length === 0 ? {} : {
+                capabilityMetadata: Object.fromEntries(capabilities.map((capability) => [
+                    capability, capabilityMetadata[capability],
+                ])),
+            }),
         }),
         randomUUID: () => ATTEMPT_ID,
     }));
@@ -287,6 +307,18 @@ function readyHooks(t) {
     const ready = readyRepository(t);
     assert.equal(applyHooks(ready.projectRoot, ready.plan.planDigest).status, 0);
     return ready;
+}
+
+function readyCapabilityHooks(t, capabilities) {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, capabilities);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
+    assert.equal(createRepository(projectRoot, plan.planDigest).status, 0);
+    assert.equal(applyHooks(projectRoot, plan.planDigest).status, 0);
+    return {projectRoot, plan};
 }
 
 function readySelectedHooks(t) {
@@ -882,6 +914,48 @@ test('stages and attests the exact Core-only seed', (t) => {
     fs.appendFileSync(path.join(projectRoot, 'README.md'), 'index drift\n');
     execFileSync('git', ['-C', projectRoot, 'add', 'README.md']);
     assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 1);
+});
+
+test('stages and attests every selected governance profile', (t) => {
+    const capabilities = [
+        'licensing', 'community-governance', 'github-collaboration',
+    ];
+    const {projectRoot, plan} = readyCapabilityHooks(t, capabilities);
+
+    const result = prepareSeed(projectRoot, plan.planDigest);
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const expectedProfilePaths = [
+        'LICENSE', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+        '.github/ISSUE_TEMPLATE/bug_report.yml',
+        '.github/ISSUE_TEMPLATE/feature_request.yml',
+        '.github/pull_request_template.md',
+    ];
+    assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
+    for (const outputPath of expectedProfilePaths) {
+        assert.equal(stagedNames(projectRoot).includes(outputPath), true, outputPath);
+    }
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+    const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+    assert.deepEqual(attestation.capabilities, capabilities);
+    assert.deepEqual(attestation.providers.map(({id}) => id), [
+        'core-baseline', ...capabilities,
+    ]);
+    assert.equal(attestation.providers.every(({reportDigest}) =>
+        /^[0-9a-f]{64}$/.test(reportDigest)
+    ), true);
+    assert.doesNotThrow(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }));
+    const changed = globalThis.structuredClone(attestation);
+    changed.capabilities = ['licensing'];
+    fs.writeFileSync(attestationPath, `${JSON.stringify(changed, null, 2)}\n`, {mode: 0o600});
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /seed attestation changed|active bootstrap seed changed/);
 });
 
 test('stages and attests selected-adapter evidence after shared quality passes', (t) => {

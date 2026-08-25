@@ -51,14 +51,26 @@ function validBootstrapSource(source) {
 }
 
 function validateRequest(request, contract) {
+    const capabilities = Array.isArray(request?.capabilities) ? request.capabilities : [];
+    const metadataKeys = capabilities.length === 0
+        ? ['schemaVersion', 'displayName', 'summary', 'suggestedDisplayName']
+        : ['schemaVersion', 'displayName', 'summary', 'suggestedDisplayName', 'capabilityMetadata'];
     if (
         !hasExactKeys(request, ['schemaVersion', 'source', 'capabilities', 'metadata', 'adapter']) ||
         request.schemaVersion !== 1 ||
         !validBootstrapSource(request.source) ||
         !Array.isArray(request.capabilities) ||
-        request.capabilities.length !== 0 ||
-        !hasExactKeys(request.metadata, ['schemaVersion', 'displayName', 'summary', 'suggestedDisplayName']) ||
+        request.capabilities.length > 16 ||
+        new Set(request.capabilities).size !== request.capabilities.length ||
+        request.capabilities.some((capability) =>
+            typeof capability !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(capability)
+        ) ||
+        !hasExactKeys(request.metadata, metadataKeys) ||
         request.metadata.schemaVersion !== 1 ||
+        (capabilities.length > 0 && !hasExactKeys(
+            request.metadata.capabilityMetadata,
+            capabilities
+        )) ||
         !hasExactKeys(request.adapter, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) ||
         request.adapter.id !== 'php-web' ||
         request.adapter.packageName !== contract.package ||

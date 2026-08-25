@@ -8,7 +8,11 @@ const path = require('node:path');
 const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
-const {inspectMinimalMetadata, normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {
+    inspectCapabilityMetadata,
+    normalizeCapabilitySelection,
+} = require('./bootstrap-capabilities');
 const {renderCoreBaseline} = require('./bootstrap-providers');
 const {
     planAdapterProject,
@@ -744,6 +748,7 @@ function setup(args, context) {
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
         const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
         const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
+        const selections = controls.filter((argument) => argument.startsWith('--capabilities='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
         const adapterPackage = adapters.length === 1
             ? adapters[0].slice('--adapter='.length)
@@ -754,12 +759,22 @@ function setup(args, context) {
         const validNetwork = sourceName === 'template'
             ? networks.length === 1 && networks[0] === '--network-approved=yes'
             : networks.length === 0;
+        let capabilities;
+        try {
+            capabilities = normalizeCapabilitySelection(
+                selections.length === 0 ? '' : selections[0].slice('--capabilities='.length)
+            );
+        } catch {
+            capabilities = null;
+        }
         if (
             sources.length !== 1 ||
             !validSource ||
             !validNetwork ||
             adapters.length !== 1 ||
             adapterPackage.length === 0 ||
+            selections.length > 1 ||
+            capabilities === null ||
             (!coreOnly && !/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(adapterPackage)) ||
             (coreOnly && attempts.length !== 0) ||
             (!coreOnly && (attempts.length !== 1 || attempts[0].length === '--attempt='.length)) ||
@@ -769,12 +784,14 @@ function setup(args, context) {
                 !argument.startsWith('--source=') &&
                 !argument.startsWith('--adapter=') &&
                 !argument.startsWith('--attempt=') &&
-                !argument.startsWith('--network-approved=')
+                !argument.startsWith('--network-approved=') &&
+                !argument.startsWith('--capabilities=')
             )
         ) {
             process.stderr.write(
                 'usage: prism-tool setup project plan --source=template|blank ' +
-                '--adapter=core-only|PACKAGE [--attempt=UUID] [--network-approved=yes] [--json]\n'
+                '--adapter=core-only|PACKAGE [--attempt=UUID] [--capabilities=CSV] ' +
+                '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
         }
@@ -793,10 +810,14 @@ function setup(args, context) {
             return EXIT.TRANSACTION;
         }
         let metadata;
+        let metadataInput;
         try {
+            metadataInput = readBoundedStdin({...context, inputLimit: 16384});
             metadata = normalizeProjectMetadata({
                 projectRoot: route.projectRoot,
-                input: readBoundedStdin({...context, inputLimit: 16384}),
+                input: metadataInput,
+                capabilities,
+                currentYear: context.currentYear ?? new Date().getUTCFullYear(),
             });
         } catch {
             process.stderr.write('prism-tool: project metadata is invalid\n');
@@ -845,7 +866,7 @@ function setup(args, context) {
                         projectRoot: route.projectRoot,
                         source: 'TEMPLATE',
                         adapter: selectedTemplateAdapter,
-                        capabilities: [],
+                        capabilities,
                         checks: [{
                             id: 'bootstrap-project-plan',
                             status: 'FAIL',
@@ -877,7 +898,7 @@ function setup(args, context) {
                         request: {
                             schemaVersion: 1,
                             source: sourceState.source,
-                            capabilities: [],
+                            capabilities,
                             metadata,
                             adapter: null,
                         },
@@ -906,11 +927,9 @@ function setup(args, context) {
                 const planOptions = {
                     projectRoot: route.projectRoot,
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                    input: JSON.stringify({
-                        schemaVersion: metadata.schemaVersion,
-                        displayName: metadata.displayName,
-                        summary: metadata.summary,
-                    }),
+                    input: metadataInput,
+                    capabilities,
+                    currentYear: context.currentYear ?? new Date().getUTCFullYear(),
                     sourceState,
                 };
                 planned = coreOnly
@@ -935,7 +954,7 @@ function setup(args, context) {
                         projectRoot: route.projectRoot,
                         source: sourceState.source,
                         adapter: null,
-                        capabilities: [],
+                        capabilities,
                         checks: [{
                             id: 'bootstrap-project-plan',
                             status: 'FAIL',
@@ -984,7 +1003,7 @@ function setup(args, context) {
             try {
                 sourceState = normalizeTemplateBootstrapSource({
                     report: sourceReport,
-                    capabilities: [],
+                    capabilities,
                     adapter: selectedTemplateAdapter,
                 });
             } catch {
@@ -997,22 +1016,34 @@ function setup(args, context) {
         const controls = args.slice(2);
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const selections = controls.filter((argument) => argument.startsWith('--capabilities='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
+        let capabilities;
+        try {
+            capabilities = normalizeCapabilitySelection(
+                selections.length === 0 ? '' : selections[0].slice('--capabilities='.length)
+            );
+        } catch {
+            capabilities = null;
+        }
         if (
             sources.length !== 1 ||
             sources[0] !== '--source=blank' ||
             adapters.length !== 1 ||
             adapters[0] !== '--adapter=core-only' ||
+            selections.length > 1 ||
+            capabilities === null ||
             jsonCount > 1 ||
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--source=') &&
-                !argument.startsWith('--adapter=')
+                !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--capabilities=')
             )
         ) {
             process.stderr.write(
                 'usage: prism-tool setup project metadata --source=blank ' +
-                '--adapter=core-only [--json]\n'
+                '--adapter=core-only [--capabilities=CSV] [--json]\n'
             );
             return EXIT.USAGE;
         }
@@ -1022,7 +1053,10 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project metadata requires strict-empty setup\n');
             return EXIT.TRANSACTION;
         }
-        const metadata = inspectMinimalMetadata({projectRoot: route.projectRoot});
+        const metadata = inspectCapabilityMetadata({
+            projectRoot: route.projectRoot,
+            capabilities,
+        });
         const report = {
             schemaVersion: 1,
             command: 'setup project metadata',
@@ -1031,6 +1065,7 @@ function setup(args, context) {
             projectRoot: route.projectRoot,
             source: 'BLANK',
             adapter: null,
+            capabilities,
             checks: [{
                 id: 'bootstrap-project-metadata',
                 status: 'PASS',

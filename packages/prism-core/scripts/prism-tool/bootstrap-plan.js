@@ -5,13 +5,18 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {normalizeProjectMetadata} = require('./bootstrap-metadata');
+const {TASK_NINE_CAPABILITIES} = require('./bootstrap-capabilities');
+const {
+    normalizeProjectMetadata,
+    validateNormalizedProjectMetadata,
+} = require('./bootstrap-metadata');
 const {composeProviderReports, validateProviderReport} = require('./bootstrap-composer');
 const {
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
     renderCoreBaseline,
 } = require('./bootstrap-providers');
+const {renderCoreProfileProviders} = require('./bootstrap-profile-providers');
 const {
     createPreparedBootstrapJournal,
     readBootstrapJournal,
@@ -193,53 +198,80 @@ function planCoreOnlyProject({
     coreRoot,
     input,
     randomUUID,
+    capabilities = [],
+    currentYear = new Date().getUTCFullYear(),
     sourceState = blankBootstrapSource(),
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
-    const normalizedSource = validateBootstrapSourceState(sourceState);
+    const normalizedSource = validateBootstrapSourceState(sourceState, {
+        capabilities,
+        adapter: null,
+    });
     const route = inspectSetupRoute({projectRoot, source: normalizedSource.source.mode});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
         throw new Error('project planning requires strict-empty setup');
     }
-    const normalized = normalizeProjectMetadata({projectRoot, input});
+    const normalized = normalizeProjectMetadata({
+        projectRoot,
+        input,
+        capabilities,
+        currentYear,
+    });
     const metadata = Object.freeze({
         schemaVersion: normalized.schemaVersion,
         displayName: normalized.displayName,
         summary: normalized.summary,
+        ...(capabilities.length === 0 ? {} : {
+            capabilityMetadata: normalized.capabilityMetadata,
+        }),
     });
     let attempt;
     try {
         attempt = createAttempt(projectRoot, randomUUID);
-        const providerReport = renderCoreBaseline({
+        const request = {
+            schemaVersion: 1,
+            source: normalizedSource.source,
+            capabilities,
+            metadata: normalized,
+            adapter: null,
+        };
+        const coreReport = renderCoreBaseline({
             coreRoot,
-            projectRoot,
             candidateRoot: attempt.candidateRoot,
-            request: {
-                schemaVersion: 1,
-                source: normalizedSource.source,
-                capabilities: [],
-                metadata: normalized,
-                adapter: null,
-            },
+            request,
         });
-        const registry = loadTrustedProviderRegistry({coreRoot});
-        const validated = validateProviderReport({
-            projectRoot,
+        const profileReports = renderCoreProfileProviders({
+            coreRoot,
             candidateRoot: attempt.candidateRoot,
-            registry,
-            report: providerReport,
+            request,
         });
-        const outputs = composeProviderReports({reports: [{
-            provider: providerReport.provider,
-            outputs: validated,
-        }]}).map(semanticOutput);
+        const providerReports = [coreReport, ...profileReports];
+        const registry = loadTrustedProviderRegistry({coreRoot, capabilities});
+        const reports = providerReports.map((report) => ({
+            provider: report.provider,
+            outputs: validateProviderReport({
+                projectRoot,
+                candidateRoot: attempt.candidateRoot,
+                registry,
+                report,
+            }),
+        }));
+        const outputs = composeProviderReports({reports}).map(semanticOutput);
         const sourceContents = writeExclusive(
             path.join(attempt.reportsRoot, 'source.json'),
             normalizedSource
         );
         const metadataContents = writeExclusive(path.join(attempt.reportsRoot, 'metadata.json'), metadata);
-        const persistedProvider = persistedProviderReport(providerReport, attempt.candidateRoot);
-        writeExclusive(path.join(attempt.reportsRoot, 'core-baseline.json'), persistedProvider);
+        writeExclusive(
+            path.join(attempt.reportsRoot, 'core-baseline.json'),
+            persistedProviderReport(coreReport, attempt.candidateRoot)
+        );
+        for (const report of profileReports) {
+            writeExclusive(
+                path.join(attempt.reportsRoot, `profile-${report.provider.id}.json`),
+                persistedProviderReport(report, attempt.candidateRoot)
+            );
+        }
         const attemptInventoryDigest = inventoryAttempt(attempt.attemptRoot);
         const plan = Object.freeze({
             schemaVersion: 1,
@@ -248,14 +280,14 @@ function planCoreOnlyProject({
             adapter: null,
             adapterReportDigest: null,
             activation: null,
-            capabilities: Object.freeze([]),
+            capabilities: Object.freeze([...capabilities]),
             metadata,
             metadataDigest: sha256(metadataContents),
-            providers: Object.freeze([providerReport.provider]),
+            providers: Object.freeze(providerReports.map(({provider}) => provider)),
             outputs: Object.freeze(outputs),
-            effects: Object.freeze([]),
-            checks: providerReport.checks,
-            verification: providerReport.verification,
+            effects: Object.freeze(providerReports.flatMap(({effects}) => effects)),
+            checks: Object.freeze(providerReports.flatMap(({checks}) => checks)),
+            verification: Object.freeze(providerReports.flatMap(({verification}) => verification)),
             recovery: Object.freeze({
                 beforeDurable: 'REMOVE_OWNED_ATTEMPT_AND_PROVE_STRICT_EMPTY',
                 afterDurable: 'RETAIN_PROJECT_AND_RESUME',
@@ -360,15 +392,25 @@ function buildAdapterProjectPlan({
     attemptId,
     packageName,
     run,
+    capabilities = [],
+    currentYear = new Date().getUTCFullYear(),
     sourceState = blankBootstrapSource(),
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const source = validateBootstrapSource(sourceState?.source);
-    const normalized = normalizeProjectMetadata({projectRoot, input});
+    const normalized = normalizeProjectMetadata({
+        projectRoot,
+        input,
+        capabilities,
+        currentYear,
+    });
     const metadata = Object.freeze({
         schemaVersion: normalized.schemaVersion,
         displayName: normalized.displayName,
         summary: normalized.summary,
+        ...(capabilities.length === 0 ? {} : {
+            capabilityMetadata: normalized.capabilityMetadata,
+        }),
     });
     const attempt = openSelectedAttempt({
         projectRoot,
@@ -378,19 +420,23 @@ function buildAdapterProjectPlan({
         expectedSource: source.mode,
     });
     const normalizedSource = validateBootstrapSourceState(sourceState, {
-        capabilities: [],
+        capabilities,
         adapter: attempt.adapter,
     });
     const request = {
         schemaVersion: 1,
         source: normalizedSource.source,
-        capabilities: [],
+        capabilities,
         metadata: normalized,
         adapter: attempt.adapter,
     };
     const coreReport = renderCoreBaseline({
         coreRoot,
-        projectRoot,
+        candidateRoot: attempt.candidateRoot,
+        request,
+    });
+    const profileReports = renderCoreProfileProviders({
+        coreRoot,
         candidateRoot: attempt.candidateRoot,
         request,
     });
@@ -402,7 +448,7 @@ function buildAdapterProjectPlan({
         request,
         run,
     });
-    const coreRegistry = loadTrustedProviderRegistry({coreRoot});
+    const coreRegistry = loadTrustedProviderRegistry({coreRoot, capabilities});
     const adapterDescriptor = loadTrustedAdapterProviderDescriptor({
         registration: attempt.registration,
     });
@@ -410,22 +456,24 @@ function buildAdapterProjectPlan({
         schemaVersion: 1,
         providers: [...coreRegistry.providers, adapterDescriptor],
     };
-    const coreOutputs = validateProviderReport({
-        projectRoot,
-        candidateRoot: attempt.candidateRoot,
-        registry,
-        report: coreReport,
-    });
+    const coreProviderReports = [coreReport, ...profileReports];
+    const reports = coreProviderReports.map((report) => ({
+        provider: report.provider,
+        outputs: validateProviderReport({
+            projectRoot,
+            candidateRoot: attempt.candidateRoot,
+            registry,
+            report,
+        }),
+    }));
     const adapterOutputs = validateProviderReport({
         projectRoot,
         candidateRoot: adapterCandidateRoot,
         registry,
         report: adapterReport,
     });
-    const outputs = composeProviderReports({reports: [
-        {provider: coreReport.provider, outputs: coreOutputs},
-        {provider: adapterReport.provider, outputs: adapterOutputs},
-    ]}).map(semanticOutput);
+    reports.push({provider: adapterReport.provider, outputs: adapterOutputs});
+    const outputs = composeProviderReports({reports}).map(semanticOutput);
     const sourceContents = writeExclusive(
         path.join(attempt.reportsRoot, 'source.json'),
         normalizedSource
@@ -435,6 +483,12 @@ function buildAdapterProjectPlan({
         path.join(attempt.reportsRoot, 'core-baseline.json'),
         persistedProviderReport(coreReport, attempt.candidateRoot)
     );
+    for (const report of profileReports) {
+        writeExclusive(
+            path.join(attempt.reportsRoot, `profile-${report.provider.id}.json`),
+            persistedProviderReport(report, attempt.candidateRoot)
+        );
+    }
     const adapterReportContents = writeExclusive(
         path.join(attempt.reportsRoot, 'adapter-provider.json'),
         persistedProviderReport(adapterReport, attempt.candidateRoot)
@@ -458,15 +512,24 @@ function buildAdapterProjectPlan({
         adapter: attempt.adapter,
         adapterReportDigest: sha256(adapterReportContents),
         activation,
-        capabilities: Object.freeze([]),
+        capabilities: Object.freeze([...capabilities]),
         metadata,
         metadataDigest: sha256(metadataContents),
-        providers: Object.freeze([coreReport.provider, adapterReport.provider]),
+        providers: Object.freeze([
+            ...coreProviderReports.map(({provider}) => provider),
+            adapterReport.provider,
+        ]),
         outputs: Object.freeze(outputs),
-        effects: Object.freeze([...coreReport.effects, ...adapterReport.effects]),
-        checks: Object.freeze([...coreReport.checks, ...adapterReport.checks]),
+        effects: Object.freeze([
+            ...coreProviderReports.flatMap(({effects}) => effects),
+            ...adapterReport.effects,
+        ]),
+        checks: Object.freeze([
+            ...coreProviderReports.flatMap(({checks}) => checks),
+            ...adapterReport.checks,
+        ]),
         verification: Object.freeze([
-            ...coreReport.verification,
+            ...coreProviderReports.flatMap(({verification}) => verification),
             ...adapterReport.verification,
         ]),
         recovery: Object.freeze({
@@ -753,9 +816,22 @@ function validatePlanShape(plan) {
     ])) {
         throw new Error('bootstrap project plan is invalid');
     }
-    const providerCount = plan.adapter === null ? 1 : 2;
+    if (
+        !Array.isArray(plan.capabilities) ||
+        new Set(plan.capabilities).size !== plan.capabilities.length ||
+        JSON.stringify(plan.capabilities) !== JSON.stringify(
+            TASK_NINE_CAPABILITIES.filter((capability) => plan.capabilities.includes(capability))
+        )
+    ) {
+        throw new Error('bootstrap project plan is invalid');
+    }
+    const providerCount = 1 + plan.capabilities.length + (plan.adapter === null ? 0 : 1);
     try {
         validateBootstrapSource(plan.source);
+        validateNormalizedProjectMetadata({
+            metadata: plan.metadata,
+            capabilities: plan.capabilities,
+        });
     } catch {
         throw new Error('bootstrap project plan is invalid');
     }
@@ -781,10 +857,7 @@ function validatePlanShape(plan) {
                     typeof plan.activation.sha256 !== 'string' ||
                     !/^[0-9a-f]{64}$/.test(plan.activation.sha256)
         ) ||
-        !Array.isArray(plan.capabilities) ||
-        plan.capabilities.length !== 0 ||
         !isRecord(plan.metadata) ||
-        !hasExactKeys(plan.metadata, ['schemaVersion', 'displayName', 'summary']) ||
         typeof plan.metadataDigest !== 'string' ||
         !/^[0-9a-f]{64}$/.test(plan.metadataDigest) ||
         !Array.isArray(plan.providers) ||
@@ -911,15 +984,23 @@ function validateHeldProjectPlan({
         throw new Error('bootstrap project metadata is stale');
     }
     const coreReport = restoreProviderReport('core-baseline.json', paths);
-    const coreRegistry = loadTrustedProviderRegistry({coreRoot});
-    const reports = [];
-    const coreOutputs = validateProviderReport({
-        projectRoot,
-        candidateRoot: paths.candidateRoot,
-        registry: coreRegistry,
-        report: coreReport,
+    const profileReports = envelope.plan.capabilities.map((capability) =>
+        restoreProviderReport(`profile-${capability}.json`, paths)
+    );
+    const coreRegistry = loadTrustedProviderRegistry({
+        coreRoot,
+        capabilities: envelope.plan.capabilities,
     });
-    reports.push({provider: coreReport.provider, outputs: coreOutputs});
+    const coreProviderReports = [coreReport, ...profileReports];
+    const reports = coreProviderReports.map((report) => ({
+        provider: report.provider,
+        outputs: validateProviderReport({
+            projectRoot,
+            candidateRoot: paths.candidateRoot,
+            registry: coreRegistry,
+            report,
+        }),
+    }));
     let adapterReport = null;
     let adapterState = null;
     if (envelope.plan.adapter !== null) {
@@ -988,7 +1069,9 @@ function validateHeldProjectPlan({
     }
     if (
         !hasExactKeys(projectManifest, [
-            'schemaVersion', 'source', 'capabilities', 'project', 'adapter', 'compatibility',
+            'schemaVersion', 'source', 'capabilities', 'project',
+            ...(envelope.plan.capabilities.length === 0 ? [] : ['capabilityMetadata']),
+            'adapter', 'compatibility',
         ]) ||
         projectManifest.schemaVersion !== 1 ||
         JSON.stringify(projectManifest.source) !== JSON.stringify(envelope.plan.source) ||
@@ -997,6 +1080,11 @@ function validateHeldProjectPlan({
             displayName: envelope.plan.metadata.displayName,
             summary: envelope.plan.metadata.summary,
         }) ||
+        (
+            envelope.plan.capabilities.length > 0 &&
+            JSON.stringify(projectManifest.capabilityMetadata) !==
+                JSON.stringify(envelope.plan.metadata.capabilityMetadata)
+        ) ||
         JSON.stringify(projectManifest.adapter) !== JSON.stringify(envelope.plan.adapter)
     ) {
         throw new Error('bootstrap project metadata manifest is stale');
@@ -1005,22 +1093,22 @@ function validateHeldProjectPlan({
         JSON.stringify(outputs) !== JSON.stringify(envelope.plan.outputs) ||
         JSON.stringify(reports.map(({provider}) => provider)) !== JSON.stringify(envelope.plan.providers) ||
         JSON.stringify([
-            ...coreReport.effects,
+            ...coreProviderReports.flatMap(({effects}) => effects),
             ...(adapterReport?.effects ?? []),
         ]) !== JSON.stringify(envelope.plan.effects) ||
         JSON.stringify([
-            ...coreReport.checks,
+            ...coreProviderReports.flatMap(({checks}) => checks),
             ...(adapterReport?.checks ?? []),
         ]) !== JSON.stringify(envelope.plan.checks) ||
         JSON.stringify([
-            ...coreReport.verification,
+            ...coreProviderReports.flatMap(({verification}) => verification),
             ...(adapterReport?.verification ?? []),
         ]) !== JSON.stringify(envelope.plan.verification) ||
         inventoryAttempt(paths.attemptRoot) !== envelope.plan.filesystem.attemptInventoryDigest
     ) {
         throw new Error('bootstrap project state is stale');
     }
-    const providerReports = [coreReport, ...(adapterReport === null ? [] : [adapterReport])];
+    const providerReports = [...coreProviderReports, ...(adapterReport === null ? [] : [adapterReport])];
     const candidates = outputs.map((output) => {
         const report = providerReports.find(({provider}) =>
             JSON.stringify(provider) === JSON.stringify(output.provider)
