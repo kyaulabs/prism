@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -71,6 +71,16 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'exact displayed package.*version|
 assert_file_contains "$CORE_PROMPTS/setup.md" 'No second adapter-installation question|no redundant.*install' 'strict-empty adapter selection is the installation authorization'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter cleanup --attempt=' 'strict-empty setup cleans provisional adapter state on stop'
 assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--package=|setup adapter select.*--version=|setup adapter select.*--url=' 'strict-empty setup accepts no caller package authority'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup source --source=.*--adapter=' 'strict-empty setup inspects the selected source after adapter selection'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose optional project capabilities.*none' 'strict-empty setup leaves every optional capability disabled by default'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project metadata --source=' 'strict-empty setup obtains selected metadata fields from the launcher'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Preview identity-bearing metadata|identity-bearing metadata preview' 'strict-empty setup previews public identity metadata'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Publish the displayed identity-bearing metadata[?].*\(yes/no\)' 'strict-empty setup separately confirms identity publication'
+assert_file_contains "$CORE_PROMPTS/setup.md" "<<'PRISM_PROJECT_METADATA'" 'strict-empty setup passes bounded metadata through inert stdin'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project plan --source=' 'strict-empty setup composes one complete project plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Approve the complete displayed project plan[?].*\(yes/no\)' 'strict-empty setup retains literal complete-plan approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project recover --attempt=' 'strict-empty plan decline restores transaction-owned state'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'Until the selected source route.*immediately clean' 'strict-empty setup no longer stops after adapter selection'
 
 setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)

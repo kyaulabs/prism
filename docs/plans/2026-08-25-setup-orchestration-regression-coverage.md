@@ -119,11 +119,11 @@ prism-tool commit create --type feat --scope setup --subject "inspect resumable 
 - The prompt serializes one normalized single-line JSON object as a single-quoted here-document to `setup project plan`; metadata values are rejected before shell rendering if they contain controls or newlines.
 - The complete `PLAN_READY` report is displayed before one literal `yes` approval. Decline invokes `setup project recover` for a prepared plan or `setup adapter cleanup` for a receipt-only attempt.
 
-- [ ] **Step 1: Add failing prompt-contract assertions for the complete pre-durable order**
+- [x] **Step 1: Add failing prompt-contract assertions for the complete pre-durable order**
 
 Assert command and question ordering, disabled capability defaults, selected-field metadata, identity preview, here-document stdin, complete plan display, literal plan approval, decline recovery, and absence of redundant adapter approval.
 
-- [ ] **Step 2: Run the shell contract to verify Red**
+- [x] **Step 2: Run the shell contract to verify Red**
 
 Run:
 
@@ -133,15 +133,15 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL because `/setup` currently cleans the adapter and stops before source, capability, metadata, and plan orchestration.
 
-- [ ] **Step 3: Replace the strict-empty temporary stop with the approved flow**
+- [x] **Step 3: Replace the strict-empty temporary stop with the approved flow**
 
 Update only the strict-empty section of `setup.md`. Keep the established sections behaviorally unchanged. Require closed report schemas and render validated attempt IDs, package identities, capability IDs, and digests literally in later commands.
 
-- [ ] **Step 4: Add public transcript regressions**
+- [x] **Step 4: Add public transcript regressions**
 
 In the Node orchestration suite, exercise Template-default, Blank, Cancel, Core-only, PHP/web, no-capability, selected-capability, metadata-preview decline, and plan decline transcripts through public launcher commands. Assert pre-durable decline restores an empty root.
 
-- [ ] **Step 5: Run the focused Task 2 suites**
+- [x] **Step 5: Run the focused Task 2 suites**
 
 Run:
 
@@ -152,7 +152,7 @@ node --test tests/Node/prism-tool-bootstrap-orchestration.test.js
 
 Expected: PASS.
 
-- [ ] **Step 6: Verify, review, update checkboxes, and create the commit**
+- [x] **Step 6: Verify, review, update checkboxes, and create the commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md tests/Shell/toolchain_entrypoints_test.sh tests/Node/prism-tool-bootstrap-orchestration.test.js docs/plans/2026-08-25-setup-orchestration-regression-coverage.md
