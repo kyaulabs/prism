@@ -105,6 +105,17 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
         packageVersion: '0.3.1',
         protocolVersion: 1,
     });
+    assert.deepEqual(report.effects.map(({id}) => id), [
+        'composer-lock-resolution',
+        'npm-lock-resolution',
+        'composer-install',
+        'npm-install',
+        'playwright-chromium',
+    ]);
+    assert.deepEqual(report.verification, [{
+        id: 'php-web-scaffold-inventory',
+        command: 'setup verify --adapter=@kyaulabs/prism-php-web --network-approved=yes',
+    }]);
 });
 
 test('renders canonical dependency manifests from the adapter contract', (t) => {
@@ -401,6 +412,36 @@ test('rejects a candidate dependency graph with any advisory', (t) => {
     }), /advis/);
 });
 
+test('verifies the applied scaffold inventory and rejects changed bytes', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+        },
+    });
+
+    assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report, contract: CONTRACT}).status, 'GO');
+    for (const mutate of [
+        (copy) => { copy.unknown = true; },
+        (copy) => { copy.provider.packageVersion = '9.9.9'; },
+        (copy) => { copy.effects[4].command = 'playwright install firefox'; },
+        (copy) => { copy.checks[0].id = 'unknown'; },
+    ]) {
+        const copy = JSON.parse(JSON.stringify(report));
+        mutate(copy);
+        assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report: copy, contract: CONTRACT}).status, 'NO-GO');
+    }
+    fs.appendFileSync(path.join(candidateRoot, 'package.json'), 'changed');
+    assert.equal(handler.verifyBootstrapProject({projectRoot: candidateRoot, report, contract: CONTRACT}).status, 'NO-GO');
+});
+
 test('rejects scaffold manifest paths that escape the candidate root', (t) => {
     const packageRoot = makeTempDir();
     const candidateRoot = makeTempDir();
@@ -429,6 +470,24 @@ test('rejects scaffold manifest paths that escape the candidate root', (t) => {
         },
     }), /manifest|path/);
     assert.equal(fs.existsSync(escapedPath), false);
+});
+
+test('rejects unknown bootstrap provider request fields', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    assert.throws(() => handler.prepareBootstrapProject({
+        candidateRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            command: 'untrusted',
+        },
+    }), /request/);
 });
 
 test('rejects unknown scaffold manifest fields', (t) => {

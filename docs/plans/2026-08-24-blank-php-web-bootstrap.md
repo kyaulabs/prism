@@ -63,9 +63,9 @@
 
 ### Revised Task 1G: Closed provider report
 
-- [ ] Test malformed requests/reports, identity/version/protocol substitution, unknown effects/checks, changed bytes, and non-Chromium targets.
-- [ ] Implement exact request/report validation and `verifyBootstrapScaffold` with closed dependency/browser effects.
-- [ ] Run verification-before-completion for Revised Tasks 1A–1G, then commit `feat(setup): close php-web bootstrap provider reports` with `Refs: #387`.
+- [x] Test malformed requests/reports, identity/version/protocol substitution, unknown effects/checks, changed bytes, and non-Chromium targets.
+- [x] Implement exact request/report validation and `verifyBootstrapScaffold` with closed dependency/browser effects.
+- [x] Run verification-before-completion for Revised Tasks 1A–1G, then commit `feat(setup): close php-web bootstrap provider reports` with `Refs: #387`.
 
 ### Superseded Task 1: Define and render the package-owned PHP/web scaffold
 

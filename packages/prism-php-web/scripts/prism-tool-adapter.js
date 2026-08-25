@@ -3,7 +3,7 @@
 'use strict';
 
 const path = require('node:path');
-const {renderBootstrapScaffold} = require('./toolchain/bootstrap-scaffold');
+const {renderBootstrapScaffold, verifyBootstrapScaffold} = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
 const {
     applyCandidate,
@@ -44,6 +44,13 @@ function verify(options) {
     return verifyInstalledProject(options);
 }
 
+function verifyBootstrapProject(options) {
+    return verifyBootstrapScaffold({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
+}
+
 module.exports = {
     apply,
     bootstrapProtocol,
@@ -52,6 +59,7 @@ module.exports = {
     resolve,
     resolveTool,
     verify,
+    verifyBootstrapProject,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

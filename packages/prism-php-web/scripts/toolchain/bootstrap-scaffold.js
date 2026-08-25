@@ -7,6 +7,57 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 
+const EFFECTS = Object.freeze([
+    Object.freeze({id: 'composer-lock-resolution', kind: 'network', command: 'composer update --no-install --no-scripts --no-interaction'}),
+    Object.freeze({id: 'npm-lock-resolution', kind: 'network', command: 'npm install --package-lock-only --ignore-scripts'}),
+    Object.freeze({id: 'composer-install', kind: 'network', command: 'composer install --no-scripts --no-interaction'}),
+    Object.freeze({id: 'npm-install', kind: 'network', command: 'npm ci --ignore-scripts'}),
+    Object.freeze({id: 'playwright-chromium', kind: 'browser', command: 'playwright install chromium'}),
+]);
+const CHECKS = Object.freeze([Object.freeze({
+    id: 'php-web-scaffold-render',
+    status: 'PASS',
+    message: 'PHP/web scaffold candidate files were rendered',
+})]);
+const VERIFICATION = Object.freeze([Object.freeze({
+    id: 'php-web-scaffold-inventory',
+    command: 'setup verify --adapter=@kyaulabs/prism-php-web --network-approved=yes',
+})]);
+
+function packageVersion(packageRoot) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+    if (manifest?.name !== '@kyaulabs/prism-php-web' || typeof manifest.version !== 'string') {
+        throw new Error('PHP/web adapter package identity is invalid');
+    }
+    return manifest.version;
+}
+
+function hasExactKeys(value, keys) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+        Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+}
+
+function validateRequest(request, contract) {
+    if (
+        !hasExactKeys(request, ['schemaVersion', 'source', 'capabilities', 'metadata', 'adapter']) ||
+        request.schemaVersion !== 1 ||
+        !hasExactKeys(request.source, ['mode', 'evidence']) ||
+        request.source.mode !== 'BLANK' ||
+        request.source.evidence !== null ||
+        !Array.isArray(request.capabilities) ||
+        request.capabilities.length !== 0 ||
+        !hasExactKeys(request.metadata, ['schemaVersion', 'displayName', 'summary', 'suggestedDisplayName']) ||
+        request.metadata.schemaVersion !== 1 ||
+        !hasExactKeys(request.adapter, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) ||
+        request.adapter.id !== 'php-web' ||
+        request.adapter.packageName !== contract.package ||
+        !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(request.adapter.packageVersion) ||
+        request.adapter.bootstrapProtocol !== 1
+    ) {
+        throw new Error('PHP/web bootstrap provider request is invalid');
+    }
+}
+
 function validateOutputPath(outputPath) {
     if (
         typeof outputPath !== 'string' ||
@@ -324,12 +375,55 @@ export default [
     return `${request.metadata.displayName}\n`;
 }
 
+function verifyBootstrapScaffold({packageRoot, projectRoot, report, contract}) {
+    const canonicalProject = fs.realpathSync(projectRoot);
+    try {
+        if (
+            !hasExactKeys(report, ['schemaVersion', 'provider', 'status', 'outputs', 'effects', 'checks', 'verification']) ||
+            report.schemaVersion !== 1 ||
+            report.status !== 'GO' ||
+            !hasExactKeys(report.provider, ['id', 'packageName', 'packageVersion', 'protocolVersion']) ||
+            report.provider.id !== 'php-web-scaffold' ||
+            report.provider.packageName !== contract.package ||
+            report.provider.packageVersion !== packageVersion(packageRoot) ||
+            report.provider.protocolVersion !== 1 ||
+            !Array.isArray(report.outputs) ||
+            JSON.stringify(report.effects) !== JSON.stringify(EFFECTS) ||
+            JSON.stringify(report.checks) !== JSON.stringify(CHECKS) ||
+            JSON.stringify(report.verification) !== JSON.stringify(VERIFICATION)
+        ) {
+            throw new Error('PHP/web bootstrap provider report is invalid');
+        }
+        for (const output of report.outputs) {
+            const outputPath = validateOutputPath(output.path);
+            const filePath = path.join(canonicalProject, ...outputPath.split('/'));
+            const stat = fs.lstatSync(filePath);
+            if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== output.mode) {
+                throw new Error('PHP/web bootstrap output is invalid');
+            }
+            const digest = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+            if (digest !== output.sha256) throw new Error('PHP/web bootstrap output changed');
+        }
+        return {
+            status: 'GO',
+            checks: [{id: 'php-web-scaffold-inventory', status: 'PASS', message: 'PHP/web scaffold inventory verified'}],
+            data: {outputs: report.outputs.length},
+        };
+    } catch {
+        return {
+            status: 'NO-GO',
+            checks: [{id: 'php-web-scaffold-inventory', status: 'FAIL', message: 'PHP/web scaffold inventory verification failed'}],
+            data: {reason: 'verification failure'},
+        };
+    }
+}
+
 function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract, run}) {
     const canonicalCandidate = fs.realpathSync(candidateRoot);
     const manifest = loadManifest(packageRoot);
-    if (request?.schemaVersion !== 1 || request.source?.mode !== 'BLANK' ||
-        request.adapter?.packageName !== contract.package || request.adapter?.bootstrapProtocol !== 1) {
-        throw new Error('PHP/web bootstrap request is invalid');
+    validateRequest(request, contract);
+    if (request.adapter.packageVersion !== packageVersion(packageRoot)) {
+        throw new Error('PHP/web bootstrap provider request is invalid');
     }
     const outputs = manifest.outputs.map((outputPath) => {
         const candidatePath = path.join(canonicalCandidate, ...outputPath.split('/'));
@@ -374,12 +468,12 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
         provider: Object.freeze({id: manifest.providerId, packageName: contract.package, packageVersion: request.adapter.packageVersion, protocolVersion: 1}),
         status: 'GO',
         outputs: Object.freeze(finalOutputs),
-        effects: Object.freeze([]),
-        checks: Object.freeze([{id: 'php-web-scaffold-render', status: 'PASS', message: 'PHP/web scaffold candidate files were rendered'}]),
-        verification: Object.freeze([{id: 'php-web-scaffold-inventory', command: `setup verify --adapter=${contract.package} --network-approved=yes`}]),
+        effects: EFFECTS,
+        checks: CHECKS,
+        verification: VERIFICATION,
     });
 }
 
-module.exports = {renderBootstrapScaffold};
+module.exports = {renderBootstrapScaffold, verifyBootstrapScaffold};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
