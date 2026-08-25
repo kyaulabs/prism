@@ -204,8 +204,7 @@ function writeApplyLock(lockPath, attemptId) {
     return {path: lockPath, dev: stat.dev, ino: stat.ino, contents, pid: process.pid};
 }
 
-function readApplyLockPath(lockPath, attemptId) {
-    const stat = fs.lstatSync(lockPath);
+function assertApplyLockStat(stat) {
     if (
         stat.isSymbolicLink() ||
         !stat.isFile() ||
@@ -215,14 +214,16 @@ function readApplyLockPath(lockPath, attemptId) {
     ) {
         throw new Error('bootstrap apply lock changed');
     }
+}
+
+function readStableApplyLock(lockPath, stat) {
     const descriptor = fs.openSync(lockPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    let contents;
     try {
         const held = fs.fstatSync(descriptor);
         if (held.dev !== stat.dev || held.ino !== stat.ino || held.size !== stat.size) {
             throw new Error('bootstrap apply lock changed');
         }
-        contents = fs.readFileSync(descriptor);
+        const contents = fs.readFileSync(descriptor);
         const final = fs.fstatSync(descriptor);
         const current = fs.lstatSync(lockPath);
         if (
@@ -237,21 +238,25 @@ function readApplyLockPath(lockPath, attemptId) {
         ) {
             throw new Error('bootstrap apply lock changed');
         }
+        return contents;
     } finally {
         fs.closeSync(descriptor);
     }
+}
+
+function parseApplyLock(contents, attemptId) {
     let value;
     try {
         value = JSON.parse(contents);
     } catch {
         throw new Error('bootstrap apply lock changed');
     }
+    const keys = Object.keys(value ?? {}).sort().join(',');
     if (
         value === null ||
         typeof value !== 'object' ||
         Array.isArray(value) ||
-        ![['attemptId', 'schemaVersion'], ['attemptId', 'pid', 'schemaVersion']]
-            .some((keys) => Object.keys(value).sort().join(',') === keys.sort().join(',')) ||
+        !['attemptId,schemaVersion', 'attemptId,pid,schemaVersion'].includes(keys) ||
         value.schemaVersion !== 1 ||
         value.attemptId !== attemptId ||
         (
@@ -261,6 +266,14 @@ function readApplyLockPath(lockPath, attemptId) {
     ) {
         throw new Error('bootstrap apply lock changed');
     }
+    return value;
+}
+
+function readApplyLockPath(lockPath, attemptId) {
+    const stat = fs.lstatSync(lockPath);
+    assertApplyLockStat(stat);
+    const contents = readStableApplyLock(lockPath, stat);
+    const value = parseApplyLock(contents, attemptId);
     return {path: lockPath, dev: stat.dev, ino: stat.ino, contents, pid: value.pid ?? null};
 }
 
@@ -278,37 +291,32 @@ function processIsRunning(pid) {
     }
 }
 
-function applyClaims(attemptRoot) {
-    const claims = [];
-    for (const name of fs.readdirSync(attemptRoot)) {
-        if (!name.startsWith('apply.claim-')) continue;
-        const match = /^apply\.claim-([1-9][0-9]*)-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(name);
-        if (match === null) throw new Error('bootstrap apply lock changed');
-        const ownerPid = Number(match[1]);
-        if (!Number.isSafeInteger(ownerPid)) throw new Error('bootstrap apply lock changed');
-        claims.push({path: path.join(attemptRoot, name), ownerPid});
+function assertApplyRecovery(attemptRoot, allowedRecovery = null) {
+    if (fs.readdirSync(attemptRoot).some((name) => name.startsWith('apply.claim-'))) {
+        throw new Error('bootstrap apply lock changed');
     }
-    return claims;
-}
-
-function assertApplyClaims(attemptRoot, allowedClaim = null) {
-    const claims = applyClaims(attemptRoot);
+    const recoveryPath = path.join(attemptRoot, 'apply.recovery.lock');
+    const stat = fs.lstatSync(recoveryPath, {throwIfNoEntry: false});
+    if (allowedRecovery === null) {
+        if (stat !== undefined) throw new Error('bootstrap apply lock recovery requires manual action');
+        return;
+    }
     if (
-        (allowedClaim === null && claims.length !== 0) ||
-        (
-            allowedClaim !== null &&
-            (claims.length !== 1 || claims[0].path !== allowedClaim)
-        )
+        stat === undefined ||
+        stat.isSymbolicLink() ||
+        !stat.isFile() ||
+        stat.dev !== allowedRecovery.dev ||
+        stat.ino !== allowedRecovery.ino
     ) {
-        throw new Error('bootstrap apply lock recovery is active');
+        throw new Error('bootstrap apply lock recovery changed');
     }
 }
 
-function acquireApplyLock(attemptRoot, attemptId, allowedClaim = null) {
-    assertApplyClaims(attemptRoot, allowedClaim);
+function acquireApplyLock(attemptRoot, attemptId, allowedRecovery = null) {
+    assertApplyRecovery(attemptRoot, allowedRecovery);
     const lock = writeApplyLock(path.join(attemptRoot, 'apply.lock'), attemptId);
     try {
-        assertApplyClaims(attemptRoot, allowedClaim);
+        assertApplyRecovery(attemptRoot, allowedRecovery);
         return lock;
     } catch (error) {
         releaseApplyLock(lock);
@@ -316,38 +324,7 @@ function acquireApplyLock(attemptRoot, attemptId, allowedClaim = null) {
     }
 }
 
-function normalizeApplyClaim(attemptRoot, attemptId) {
-    const claims = applyClaims(attemptRoot);
-    if (claims.length === 0) return;
-    if (claims.length !== 1) throw new Error('bootstrap apply lock changed');
-    const [claim] = claims;
-    if (processIsRunning(claim.ownerPid)) {
-        throw new Error('bootstrap apply lock recovery is active');
-    }
-    const retained = readApplyLockPath(claim.path, attemptId);
-    const lockPath = path.join(attemptRoot, 'apply.lock');
-    const lockStat = fs.lstatSync(lockPath, {throwIfNoEntry: false});
-    if (lockStat === undefined) {
-        fs.renameSync(claim.path, lockPath);
-        const restored = readApplyLock(attemptRoot, attemptId);
-        if (
-            restored.dev !== retained.dev ||
-            restored.ino !== retained.ino ||
-            !restored.contents.equals(retained.contents)
-        ) {
-            throw new Error('bootstrap apply lock changed');
-        }
-        return;
-    }
-    const current = readApplyLock(attemptRoot, attemptId);
-    if (current.pid === null || processIsRunning(current.pid)) {
-        throw new Error('bootstrap apply lock is active');
-    }
-    releaseApplyLock(retained);
-}
-
 function acquireDurableApplyLock(attemptRoot, attemptId) {
-    normalizeApplyClaim(attemptRoot, attemptId);
     try {
         return acquireApplyLock(attemptRoot, attemptId);
     } catch (error) {
@@ -357,27 +334,29 @@ function acquireDurableApplyLock(attemptRoot, attemptId) {
     if (retained.pid === null || processIsRunning(retained.pid)) {
         throw new Error('bootstrap apply lock is active');
     }
-    const claimPath = path.join(
-        attemptRoot,
-        `apply.claim-${process.pid}-${crypto.randomUUID()}`
+    const recovery = writeApplyLock(
+        path.join(attemptRoot, 'apply.recovery.lock'),
+        attemptId
     );
-    fs.renameSync(retained.path, claimPath);
-    const claim = readApplyLockPath(claimPath, attemptId);
-    if (
-        claim.dev !== retained.dev ||
-        claim.ino !== retained.ino ||
-        !claim.contents.equals(retained.contents)
-    ) {
-        throw new Error('bootstrap apply lock changed');
-    }
-    const lock = acquireApplyLock(attemptRoot, attemptId, claimPath);
+    let lock = null;
     try {
-        releaseApplyLock(claim);
+        const current = readApplyLock(attemptRoot, attemptId);
+        if (
+            current.dev !== retained.dev ||
+            current.ino !== retained.ino ||
+            !current.contents.equals(retained.contents)
+        ) {
+            throw new Error('bootstrap apply lock changed');
+        }
+        releaseApplyLock(current);
+        lock = acquireApplyLock(attemptRoot, attemptId, recovery);
+        releaseApplyLock(recovery);
+        return lock;
     } catch (error) {
-        releaseDurableApplyLock(lock);
+        if (lock !== null) releaseDurableApplyLock(lock);
+        releaseDurableApplyLock(recovery);
         throw error;
     }
-    return lock;
 }
 
 function releaseApplyLock(lock) {
