@@ -95,9 +95,17 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'ROOT_SEED_COMMIT|REPOSITORY_CREAT
 assert_file_contains "$CORE_PROMPTS/setup.md" 'create/configure the hosted repository.*add the remote.*push `develop`.*rulesets' 'strict-empty final reporting leaves publication to the human'
 assert_file_not_contains "$CORE_PROMPTS/setup.md" 'git remote add|git push|gh repo create' 'strict-empty setup never executes publication commands'
 
-setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+SETUP_ENTRY_SECTION="${RESULT_FILE}.setup-entry"
+SETUP_CONTINUATION_SECTION="${RESULT_FILE}.setup-continuation"
+register_temp_dir "$SETUP_ENTRY_SECTION" "$SETUP_CONTINUATION_SECTION"
+awk '/^## Setup entry routing$/ { active=1 } /^## Strict-empty continuation and recovery$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$SETUP_ENTRY_SECTION"
+awk '/^## Strict-empty continuation and recovery$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$SETUP_CONTINUATION_SECTION"
+
+setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
 if [ -n "$setup_source_choice_line" ] && [ -n "$setup_adapter_catalogue_line" ] \
     && [ -n "$setup_adapter_question_line" ] \
     && [ "$setup_source_choice_line" -lt "$setup_adapter_catalogue_line" ] \
@@ -108,13 +116,13 @@ else
     failures=$((failures + 1))
 fi
 
-setup_source_inspect_line=$({ grep -niF 'prism-tool setup source --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_capabilities_line=$({ grep -niF 'Choose optional project capabilities' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_identity_approval_line=$({ grep -niF 'Publish the displayed identity-bearing metadata?' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_plan_line=$({ grep -niF 'prism-tool setup project plan --source=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_plan_approval_line=$({ grep -niF 'Approve the complete displayed project plan?' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_recover_line=$({ grep -niF 'prism-tool setup project recover --attempt=' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_source_inspect_line=$({ grep -niF 'prism-tool setup source --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_capabilities_line=$({ grep -niF 'Choose optional project capabilities' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_identity_approval_line=$({ grep -niF 'Publish the displayed identity-bearing metadata?' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_plan_line=$({ grep -niF 'prism-tool setup project plan --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_plan_approval_line=$({ grep -niF 'Approve the complete displayed project plan?' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_recover_line=$({ grep -niF 'prism-tool setup project recover --attempt=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
 if [ -n "$setup_source_inspect_line" ] && [ -n "$setup_capabilities_line" ] \
     && [ -n "$setup_metadata_line" ] && [ -n "$setup_identity_approval_line" ] \
     && [ -n "$setup_plan_line" ] && [ -n "$setup_plan_approval_line" ] \
@@ -129,6 +137,31 @@ if [ -n "$setup_source_inspect_line" ] && [ -n "$setup_capabilities_line" ] \
     pass 'strict-empty setup preserves source, metadata, publication, and plan ordering'
 else
     fail 'strict-empty setup reorders source, metadata, publication, or plan stages'
+    failures=$((failures + 1))
+fi
+
+setup_validate_line=$({ grep -niF 'prism-tool setup project validate --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_apply_line=$({ grep -niF 'prism-tool setup project apply --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_repository_line=$({ grep -niF 'prism-tool setup repository create --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_inspect_line=$({ grep -niF 'prism-tool setup hooks inspect --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_approval_line=$({ grep -niF 'Activate the displayed canonical Git hooks?' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_apply_line=$({ grep -niF 'prism-tool setup hooks apply --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_seed_line=$({ grep -niF 'prism-tool setup seed prepare --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_commit_line=$({ grep -niF 'prism-tool commit create --type ignore --subject "bootstrap prism project"' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_validate_line" ] && [ -n "$setup_apply_line" ] \
+    && [ -n "$setup_repository_line" ] && [ -n "$setup_hook_inspect_line" ] \
+    && [ -n "$setup_hook_approval_line" ] && [ -n "$setup_hook_apply_line" ] \
+    && [ -n "$setup_seed_line" ] && [ -n "$setup_commit_line" ] \
+    && [ "$setup_validate_line" -lt "$setup_apply_line" ] \
+    && [ "$setup_apply_line" -lt "$setup_repository_line" ] \
+    && [ "$setup_repository_line" -lt "$setup_hook_inspect_line" ] \
+    && [ "$setup_hook_inspect_line" -lt "$setup_hook_approval_line" ] \
+    && [ "$setup_hook_approval_line" -lt "$setup_hook_apply_line" ] \
+    && [ "$setup_hook_apply_line" -lt "$setup_seed_line" ] \
+    && [ "$setup_seed_line" -lt "$setup_commit_line" ]; then
+    pass 'strict-empty setup preserves validation, application, repository, hooks, and seed ordering'
+else
+    fail 'strict-empty setup reorders validation, application, repository, hooks, or seed stages'
     failures=$((failures + 1))
 fi
 

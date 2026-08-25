@@ -275,6 +275,37 @@ test('active bootstrap status preserves unexpected attempt artifacts for manual 
     assert.equal(fs.readFileSync(path.join(attemptRoot, 'unexpected.txt'), 'utf8'), 'preserve me\n');
 });
 
+test('active bootstrap status preserves wrong-type attempt entries for manual recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = captureWrites(() => main([
+        'setup', 'project', 'plan', '--source=blank', '--adapter=core-only', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Wrong Type Project',
+            summary: 'A project preserving wrong-type attempt state.',
+        }),
+    }));
+    assert.equal(planned.status, 0, planned.stderr);
+    const candidateRoot = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'candidate'
+    );
+    fs.rmSync(candidateRoot, {recursive: true});
+    fs.symlinkSync(path.join(projectRoot, 'missing-candidate'), candidateRoot);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).disposition, 'RECOVERY_REQUIRED');
+    assert.equal(fs.lstatSync(candidateRoot).isSymbolicLink(), true);
+});
+
 test('active bootstrap status rejects stable artifacts outside their journal phase', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

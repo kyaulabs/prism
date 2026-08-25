@@ -8,12 +8,12 @@ const {inspectProvisionedBootstrapAttempt} = require('./bootstrap-adapter');
 const {readBootstrapJournal} = require('./bootstrap-journal');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const BASE_ATTEMPT_ENTRIES = Object.freeze([
-    'candidate',
-    'journal.json',
-    'plan',
-    'reports',
-]);
+const BASE_ATTEMPT_ENTRY_TYPES = Object.freeze({
+    candidate: 'directory',
+    'journal.json': 'file',
+    plan: 'directory',
+    reports: 'directory',
+});
 
 function noActiveBootstrap(projectRoot) {
     return {
@@ -132,12 +132,19 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
             throw new Error('bootstrap status attempt is unsupported');
         }
         const journal = readBootstrapJournal({projectRoot, attemptId});
-        const expectedEntries = [...BASE_ATTEMPT_ENTRIES];
-        if (journal.adapter !== null) expectedEntries.push('adapter.json');
-        if (journal.seed !== null) expectedEntries.push('seed-attestation.json');
+        const expectedEntries = new Map(Object.entries(BASE_ATTEMPT_ENTRY_TYPES));
+        if (journal.adapter !== null) expectedEntries.set('adapter.json', 'file');
+        if (journal.seed !== null) expectedEntries.set('seed-attestation.json', 'file');
         if (
-            entries.length !== expectedEntries.length ||
-            entries.some((entry) => !expectedEntries.includes(entry))
+            entries.length !== expectedEntries.size ||
+            entries.some((entry) => {
+                const expectedType = expectedEntries.get(entry);
+                if (expectedType === undefined) return true;
+                const stat = fs.lstatSync(path.join(attemptRoot, entry));
+                return stat.isSymbolicLink() || (
+                    expectedType === 'directory' ? !stat.isDirectory() : !stat.isFile()
+                );
+            })
         ) {
             throw new Error('bootstrap status attempt is unsupported');
         }
