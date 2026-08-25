@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -60,11 +60,12 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         !ATTEMPT_ID.test(attemptId) ||
         !SHA256.test(planDigest) ||
         !isRecord(plan) ||
+        !SHA256.test(plan.sourceDigest) ||
         !SHA256.test(plan.metadataDigest) ||
         !isRecord(plan.source) ||
         !hasExactKeys(plan.source, ['mode', 'evidence']) ||
-        plan.source.mode !== 'BLANK' ||
-        plan.source.evidence !== null ||
+        !['BLANK', 'TEMPLATE'].includes(plan.source.mode) ||
+        (plan.source.mode === 'BLANK' ? plan.source.evidence !== null : !isRecord(plan.source.evidence)) ||
         !validAdapter(plan.adapter)
     ) {
         throw new Error('bootstrap journal input is invalid');
@@ -74,6 +75,7 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         attemptId,
         projectRoot,
         planDigest,
+        sourceDigest: plan.sourceDigest,
         metadataDigest: plan.metadataDigest,
         source: plan.source,
         adapter: plan.adapter,
@@ -278,7 +280,7 @@ function validJournalState(value) {
 
 function normalizeLegacyJournal(value) {
     const legacyKeys = [
-        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
+        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'sourceDigest', 'metadataDigest',
         'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
         'createdDirectories', 'appliedInventoryDigest',
     ];
@@ -298,7 +300,7 @@ function validateJournal(input, projectRoot, attemptId) {
     if (
         !isRecord(value) ||
         !hasExactKeys(value, [
-            'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
+            'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'sourceDigest', 'metadataDigest',
             'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
             'createdDirectories', 'appliedInventoryDigest', 'repository', 'hooks', 'seed',
         ]) ||
@@ -306,11 +308,12 @@ function validateJournal(input, projectRoot, attemptId) {
         value.attemptId !== attemptId ||
         value.projectRoot !== projectRoot ||
         !SHA256.test(value.planDigest) ||
+        !SHA256.test(value.sourceDigest) ||
         !SHA256.test(value.metadataDigest) ||
         !isRecord(value.source) ||
         !hasExactKeys(value.source, ['mode', 'evidence']) ||
-        value.source.mode !== 'BLANK' ||
-        value.source.evidence !== null ||
+        !['BLANK', 'TEMPLATE'].includes(value.source.mode) ||
+        (value.source.mode === 'BLANK' ? value.source.evidence !== null : !isRecord(value.source.evidence)) ||
         !validAdapter(value.adapter) ||
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||

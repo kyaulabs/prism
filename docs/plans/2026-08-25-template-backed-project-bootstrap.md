@@ -196,7 +196,7 @@ prism-tool commit create --type feat --scope setup --subject "accept template pr
 - Consumes: `setup project plan --source=template --adapter=core-only --network-approved=yes --json`, metadata JSON on stdin, fixed-source fetch implementation, and `randomUUID`.
 - Produces: the existing `PLAN_READY` report plus `sourceDigest`, with `source.mode === 'TEMPLATE'` and immutable evidence.
 
-- [ ] **Step 1: Write the failing Core-only Template plan test**
+- [x] **Step 1: Write the failing Core-only Template plan test**
 
 Use `createTemplateFixture()` through the public CLI. Assert the fixed four-request sequence, one Core provider, zero optional capabilities, seven Core outputs, no remote bytes in the candidate, and these plan fields:
 
@@ -211,13 +211,13 @@ Use `createTemplateFixture()` through the public CLI. Assert the fixed four-requ
 
 Assert `reports/source.json` is mode `0600`, contains only `{schemaVersion, source, catalogue}`, and hashes to `sourceDigest`.
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL with project-plan usage restricted to `--source=blank`.
 
-- [ ] **Step 3: Add Template planning controls**
+- [x] **Step 3: Add Template planning controls**
 
 Accept exactly:
 
@@ -229,23 +229,23 @@ Continue rejecting missing approval, approval on Blank, duplicate controls, unkn
 
 Acquire and normalize Template source before creating launcher-owned attempt directories. Pass the normalized source to the existing Core plan builder.
 
-- [ ] **Step 4: Persist and bind normalized source state**
+- [x] **Step 4: Persist and bind normalized source state**
 
 Write `reports/source.json` create-only at `0600`. Add `sourceDigest` to the plan and prepared journal. Include the source report in `attemptInventoryDigest`. Update plan/journal validators so Blank and Template share one schema and source evidence is revalidated against `reports/source.json` before plan validation succeeds.
 
 Do not persist HTTP responses or manifest bytes. Keep the normalized catalogue only in private attempt state; only `plan.source.evidence` enters the candidate project manifest.
 
-- [ ] **Step 5: Add failure and no-fallback tests**
+- [x] **Step 5: Add failure and no-fallback tests**
 
 Prove that network rejection, hostile Template data, changed source state, stale source digest, and provider failure leave a Core-only root strictly empty. Assert no failure report or filesystem state changes source mode to Blank.
 
-- [ ] **Step 6: Run the focused tests and verify Green**
+- [x] **Step 6: Run the focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-template-source.test.js tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: PASS for both Blank and Template Core-only planning.
 
-- [ ] **Step 7: Commit the Core-only planning slice**
+- [x] **Step 7: Commit the Core-only planning slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-plan.test.js

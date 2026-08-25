@@ -8,11 +8,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir} = require('./helpers');
+const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     readBootstrapJournal,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-journal');
 const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
+const {
+    validateBootstrapProjectPlan,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-plan');
 const {
     applyBootstrapProject,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-transaction');
@@ -60,6 +64,27 @@ function captureWrites(action) {
     };
     try {
         return {status: action(), stdout, stderr};
+    } finally {
+        process.stdout.write = stdoutWrite;
+        process.stderr.write = stderrWrite;
+    }
+}
+
+async function captureAsyncWrites(action) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => {
+        stdout += chunk;
+        return true;
+    };
+    process.stderr.write = (chunk) => {
+        stderr += chunk;
+        return true;
+    };
+    try {
+        return {status: await action(), stdout, stderr};
     } finally {
         process.stdout.write = stdoutWrite;
         process.stderr.write = stderrWrite;
@@ -297,6 +322,7 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     assert.equal(report.status, 'GO');
     assert.equal(report.disposition, 'PLAN_READY');
     assert.deepEqual(report.source, {mode: 'BLANK', evidence: null});
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
     assert.equal(report.adapter, null);
     assert.deepEqual(report.capabilities, []);
     assert.equal(report.metadata.displayName, 'Editable Project Name');
@@ -324,6 +350,7 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         attemptId: ATTEMPT_ID,
         projectRoot: fs.realpathSync(projectRoot),
         planDigest: report.planDigest,
+        sourceDigest: report.sourceDigest,
         metadataDigest: report.metadataDigest,
         source: {mode: 'BLANK', evidence: null},
         adapter: null,
@@ -338,6 +365,173 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         hooks: null,
         seed: null,
     });
+});
+
+test('creates a digest-bound Template Core-only project plan from fixed source evidence', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.disposition, 'PLAN_READY');
+    assert.equal(report.source.mode, 'TEMPLATE');
+    assert.equal(report.source.evidence.commitSha, fixture.commitSha);
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
+    assert.equal(report.adapter, null);
+    assert.deepEqual(report.capabilities, []);
+    assert.equal(report.providers.length, 1);
+    assert.equal(report.outputs.length, 7);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
+    const sourceContents = fs.readFileSync(sourcePath);
+    assert.equal(fs.statSync(sourcePath).mode & 0o777, 0o600);
+    assert.deepEqual(Object.keys(JSON.parse(sourceContents)), [
+        'schemaVersion', 'source', 'catalogue',
+    ]);
+    assert.equal(crypto.createHash('sha256').update(sourceContents).digest('hex'), report.sourceDigest);
+    assert.equal(sourceContents.includes(Buffer.from('api.github.com')), false);
+    const validated = validateBootstrapProjectPlan({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        attemptId: ATTEMPT_ID,
+        planDigest: report.planDigest,
+    });
+    assert.deepEqual(validated.source, report.source);
+    assert.equal(validated.sourceDigest, report.sourceDigest);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'template-manifest.json')), false);
+});
+
+test('keeps failed Template Core-only planning strict-empty without Blank fallback', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({transport: {rejectIndex: 0}});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Template source is unavailable/);
+    assert.equal(result.stderr.includes('Blank'), false);
+    assert.equal(fixture.calls.length, 1);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects changed private Template source state before project mutation', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const planned = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+    const plan = JSON.parse(planned.stdout);
+    const sourcePath = path.join(path.dirname(path.dirname(plan.data.planPath)), 'reports', 'source.json');
+    const changed = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+    changed.catalogue.entries[0].path = 'changed/path';
+    fs.writeFileSync(sourcePath, `${JSON.stringify(changed)}\n`, {mode: 0o600});
+
+    const result = validatePlan(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    const report = JSON.parse(result.stdout);
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'STALE_PROJECT_STATE');
+    assert.deepEqual(fs.readdirSync(projectRoot), ['.pi']);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'README.md')), false);
+    assert.equal(changed.source.mode, 'TEMPLATE');
+});
+
+test('restores strict emptiness when a Template provider fails after acquisition', async (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(coreRoot, 'package.json'), JSON.stringify({
+        name: '@kyaulabs/not-prism-core',
+        version: '0.3.1',
+    }));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template Core Project',
+            summary: 'A trusted-provider Core project.',
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('rejects malformed project-plan source and network controls', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const cases = [
+        ['--source=template', '--adapter=core-only'],
+        ['--source=template', '--adapter=core-only', '--network-approved=no'],
+        ['--source=blank', '--adapter=core-only', '--network-approved=yes'],
+    ];
+
+    for (const controls of cases) {
+        const result = captureWrites(() => main(['setup', 'project', 'plan', ...controls], {
+            projectRoot,
+            coreRoot: CORE_ROOT,
+            input: '{}',
+        }));
+        assert.equal(result.status, 2);
+        assert.match(result.stderr, /^usage: prism-tool setup project plan/);
+        assert.deepEqual(fs.readdirSync(projectRoot), []);
+    }
 });
 
 test('plans a Blank project with the provisioned PHP web adapter', (t) => {

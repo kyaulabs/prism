@@ -23,6 +23,10 @@ const {applyBootstrapHooks, inspectBootstrapHooks} = require('./bootstrap-hooks'
 const {createBootstrapRepository} = require('./bootstrap-repository');
 const {prepareBootstrapSeed} = require('./bootstrap-seed');
 const {inspectTemplateSource} = require('./template-source');
+const {
+    blankBootstrapSource,
+    normalizeTemplateBootstrapSource,
+} = require('./bootstrap-source');
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
     cleanupBootstrapAdapter,
@@ -738,17 +742,25 @@ function setup(args, context) {
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
         const attempts = controls.filter((argument) => argument.startsWith('--attempt='));
+        const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
         const adapterPackage = adapters.length === 1
             ? adapters[0].slice('--adapter='.length)
             : '';
         const coreOnly = adapterPackage === 'core-only';
+        const sourceName = sources.length === 1 ? sources[0].slice('--source='.length) : '';
+        const validSource = ['blank', 'template'].includes(sourceName);
+        const validNetwork = sourceName === 'template'
+            ? networks.length === 1 && networks[0] === '--network-approved=yes'
+            : networks.length === 0;
         if (
             sources.length !== 1 ||
-            sources[0] !== '--source=blank' ||
+            !validSource ||
+            !validNetwork ||
             adapters.length !== 1 ||
             adapterPackage.length === 0 ||
             (!coreOnly && !/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(adapterPackage)) ||
+            (sourceName === 'template' && !coreOnly) ||
             (coreOnly && attempts.length !== 0) ||
             (!coreOnly && (attempts.length !== 1 || attempts[0].length === '--attempt='.length)) ||
             jsonCount > 1 ||
@@ -756,12 +768,13 @@ function setup(args, context) {
                 argument !== '--json' &&
                 !argument.startsWith('--source=') &&
                 !argument.startsWith('--adapter=') &&
-                !argument.startsWith('--attempt=')
+                !argument.startsWith('--attempt=') &&
+                !argument.startsWith('--network-approved=')
             )
         ) {
             process.stderr.write(
-                'usage: prism-tool setup project plan --source=blank ' +
-                '--adapter=core-only|PACKAGE [--attempt=UUID] [--json]\n'
+                'usage: prism-tool setup project plan --source=template|blank ' +
+                '--adapter=core-only|PACKAGE [--attempt=UUID] [--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
         }
@@ -769,7 +782,7 @@ function setup(args, context) {
         let route;
         try {
             route = coreOnly
-                ? inspectSetupRoute({projectRoot: requestedRoot, source: 'BLANK'})
+                ? inspectSetupRoute({projectRoot: requestedRoot, source: sourceName.toUpperCase()})
                 : {projectRoot: fs.realpathSync(requestedRoot), status: 'GO', disposition: 'PROVISIONED'};
         } catch {
             process.stderr.write('prism-tool: project planning requires valid setup state\n');
@@ -789,102 +802,128 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project metadata is invalid\n');
             return EXIT.TRANSACTION;
         }
-        if (context.bootstrapPlanStage === 'provider' && coreOnly) {
-            let provider;
-            try {
-                provider = renderCoreBaseline({
-                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+        const executePlan = (sourceState) => {
+            if (context.bootstrapPlanStage === 'provider' && coreOnly) {
+                let provider;
+                try {
+                    provider = renderCoreBaseline({
+                        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                        projectRoot: route.projectRoot,
+                        candidateRoot: context.bootstrapCandidateRoot,
+                        request: {
+                            schemaVersion: 1,
+                            source: sourceState.source,
+                            capabilities: [],
+                            metadata,
+                            adapter: null,
+                        },
+                    });
+                } catch {
+                    process.stderr.write('prism-tool: Core baseline provider failed\n');
+                    return EXIT.TRANSACTION;
+                }
+                const report = {
+                    schemaVersion: 1,
+                    command: 'setup project plan',
+                    status: 'GO',
+                    disposition: 'PROVIDER_READY',
                     projectRoot: route.projectRoot,
-                    candidateRoot: context.bootstrapCandidateRoot,
-                    request: {
+                    source: sourceState.source.mode,
+                    adapter: null,
+                    checks: provider.checks,
+                    data: provider,
+                };
+                if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+                else process.stdout.write(`${report.status}\n`);
+                return EXIT.OK;
+            }
+            let planned;
+            try {
+                const planOptions = {
+                    projectRoot: route.projectRoot,
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    input: JSON.stringify({
+                        schemaVersion: metadata.schemaVersion,
+                        displayName: metadata.displayName,
+                        summary: metadata.summary,
+                    }),
+                    sourceState,
+                };
+                planned = coreOnly
+                    ? planCoreOnlyProject({
+                        ...planOptions,
+                        randomUUID: context.randomUUID ?? crypto.randomUUID,
+                    })
+                    : planAdapterProject({
+                        ...planOptions,
+                        attemptId: attempts[0].slice('--attempt='.length),
+                        packageName: adapterPackage,
+                        run: context.run ?? runBounded,
+                    });
+            } catch (error) {
+                if (error.recoveryRequired) {
+                    const report = {
                         schemaVersion: 1,
-                        source: {mode: 'BLANK', evidence: null},
-                        capabilities: [],
-                        metadata,
+                        command: 'setup project plan',
+                        status: 'NO-GO',
+                        disposition: 'RECOVERY_REQUIRED',
+                        reason: 'AMBIGUOUS_ATTEMPT_STATE',
+                        projectRoot: route.projectRoot,
+                        source: sourceState.source,
                         adapter: null,
-                    },
-                });
-            } catch {
-                process.stderr.write('prism-tool: Core baseline provider failed\n');
+                        capabilities: [],
+                        checks: [{
+                            id: 'bootstrap-project-plan',
+                            status: 'FAIL',
+                            message: 'bootstrap attempt state changed unexpectedly and was preserved',
+                        }],
+                        data: {
+                            recoveryPath: error.recoveryPath,
+                            nextAction: 'Inspect the retained attempt state manually before retrying setup.',
+                        },
+                    };
+                    if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+                    else process.stdout.write(`${report.status}\n`);
+                    return EXIT.TRANSACTION;
+                }
+                process.stderr.write('prism-tool: project planning failed\n');
                 return EXIT.TRANSACTION;
             }
             const report = {
                 schemaVersion: 1,
                 command: 'setup project plan',
                 status: 'GO',
-                disposition: 'PROVIDER_READY',
+                disposition: 'PLAN_READY',
                 projectRoot: route.projectRoot,
-                source: 'BLANK',
-                adapter: null,
-                checks: provider.checks,
-                data: provider,
+                ...planned,
             };
             if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
             else process.stdout.write(`${report.status}\n`);
             return EXIT.OK;
-        }
-        let planned;
-        try {
-            const planOptions = {
-                projectRoot: route.projectRoot,
-                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                input: JSON.stringify({
-                    schemaVersion: metadata.schemaVersion,
-                    displayName: metadata.displayName,
-                    summary: metadata.summary,
-                }),
-            };
-            planned = coreOnly
-                ? planCoreOnlyProject({
-                    ...planOptions,
-                    randomUUID: context.randomUUID ?? crypto.randomUUID,
-                })
-                : planAdapterProject({
-                    ...planOptions,
-                    attemptId: attempts[0].slice('--attempt='.length),
-                    packageName: adapterPackage,
-                    run: context.run ?? runBounded,
-                });
-        } catch (error) {
-            if (error.recoveryRequired) {
-                const report = {
-                    schemaVersion: 1,
-                    command: 'setup project plan',
-                    status: 'NO-GO',
-                    disposition: 'RECOVERY_REQUIRED',
-                    reason: 'AMBIGUOUS_ATTEMPT_STATE',
-                    projectRoot: route.projectRoot,
-                    source: {mode: 'BLANK', evidence: null},
-                    adapter: null,
-                    capabilities: [],
-                    checks: [{
-                        id: 'bootstrap-project-plan',
-                        status: 'FAIL',
-                        message: 'bootstrap attempt state changed unexpectedly and was preserved',
-                    }],
-                    data: {
-                        recoveryPath: error.recoveryPath,
-                        nextAction: 'Inspect the retained attempt state manually before retrying setup.',
-                    },
-                };
-                if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
-                else process.stdout.write(`${report.status}\n`);
+        };
+        if (sourceName === 'blank') return executePlan(blankBootstrapSource());
+        return inspectTemplateSource({
+            projectRoot: route.projectRoot,
+            source: 'TEMPLATE',
+            fetchImpl: context.fetch,
+        }).then((sourceReport) => {
+            if (sourceReport.status !== 'GO' || sourceReport.disposition !== 'SOURCE_READY') {
+                process.stderr.write('prism-tool: Template source is unavailable\n');
                 return EXIT.TRANSACTION;
             }
-            process.stderr.write('prism-tool: project planning failed\n');
-            return EXIT.TRANSACTION;
-        }
-        const report = {
-            schemaVersion: 1,
-            command: 'setup project plan',
-            status: 'GO',
-            disposition: 'PLAN_READY',
-            projectRoot: route.projectRoot,
-            ...planned,
-        };
-        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
-        else process.stdout.write(`${report.status}\n`);
-        return EXIT.OK;
+            let sourceState;
+            try {
+                sourceState = normalizeTemplateBootstrapSource({
+                    report: sourceReport,
+                    capabilities: [],
+                    adapter: null,
+                });
+            } catch {
+                process.stderr.write('prism-tool: Template source is invalid\n');
+                return EXIT.TRANSACTION;
+            }
+            return executePlan(sourceState);
+        });
     }
     if (args[0] === 'project' && args[1] === 'metadata') {
         const controls = args.slice(2);
