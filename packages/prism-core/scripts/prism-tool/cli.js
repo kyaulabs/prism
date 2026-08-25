@@ -22,7 +22,7 @@ const {
 const {applyBootstrapHooks, inspectBootstrapHooks} = require('./bootstrap-hooks');
 const {createBootstrapRepository} = require('./bootstrap-repository');
 const {prepareBootstrapSeed} = require('./bootstrap-seed');
-const {inspectTemplateSource} = require('./template-source');
+const {acquireTemplateSource, inspectTemplateSource} = require('./template-source');
 const {
     blankBootstrapSource,
     normalizeTemplateBootstrapSource,
@@ -30,6 +30,7 @@ const {
 const {inspectSupportedAdapters, selectCoreOnlyAdapter} = require('./supported-adapters');
 const {
     cleanupBootstrapAdapter,
+    inspectProvisionedBootstrapAdapter,
     provisionBootstrapAdapter,
 } = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
@@ -760,7 +761,6 @@ function setup(args, context) {
             adapters.length !== 1 ||
             adapterPackage.length === 0 ||
             (!coreOnly && !/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(adapterPackage)) ||
-            (sourceName === 'template' && !coreOnly) ||
             (coreOnly && attempts.length !== 0) ||
             (!coreOnly && (attempts.length !== 1 || attempts[0].length === '--attempt='.length)) ||
             jsonCount > 1 ||
@@ -802,6 +802,70 @@ function setup(args, context) {
             process.stderr.write('prism-tool: project metadata is invalid\n');
             return EXIT.TRANSACTION;
         }
+        let selectedTemplateAdapter = null;
+        if (sourceName === 'template' && !coreOnly) {
+            try {
+                const inspection = inspectProvisionedBootstrapAdapter({
+                    projectRoot: route.projectRoot,
+                    coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                    attemptId: attempts[0].slice('--attempt='.length),
+                    packageName: adapterPackage,
+                    expectedSource: 'TEMPLATE',
+                });
+                selectedTemplateAdapter = {
+                    id: inspection.adapter.id,
+                    packageName: inspection.adapter.packageName,
+                    packageVersion: inspection.adapter.packageVersion,
+                    bootstrapProtocol: inspection.adapter.bootstrapProtocol,
+                };
+            } catch {
+                process.stderr.write('prism-tool: project planning requires valid adapter state\n');
+                return EXIT.TRANSACTION;
+            }
+        }
+        const failTemplatePreparation = (message) => {
+            if (!coreOnly) {
+                let cleanup;
+                try {
+                    cleanup = cleanupBootstrapAdapter({
+                        projectRoot: route.projectRoot,
+                        attemptId: attempts[0].slice('--attempt='.length),
+                    });
+                } catch {
+                    cleanup = null;
+                }
+                if (cleanup?.status !== 'GO') {
+                    const attemptId = attempts[0].slice('--attempt='.length);
+                    const report = {
+                        schemaVersion: 1,
+                        command: 'setup project plan',
+                        status: 'NO-GO',
+                        disposition: 'RECOVERY_REQUIRED',
+                        reason: 'AMBIGUOUS_ATTEMPT_STATE',
+                        projectRoot: route.projectRoot,
+                        source: 'TEMPLATE',
+                        adapter: selectedTemplateAdapter,
+                        capabilities: [],
+                        checks: [{
+                            id: 'bootstrap-project-plan',
+                            status: 'FAIL',
+                            message: 'bootstrap attempt state could not be proven safe to remove',
+                        }],
+                        data: {
+                            recoveryPath: cleanup?.data?.recoveryPath ?? path.join(
+                                route.projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId
+                            ),
+                            nextAction: 'Inspect the retained attempt state manually before retrying setup.',
+                        },
+                    };
+                    if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+                    else process.stdout.write(`${report.status}\n`);
+                    return EXIT.TRANSACTION;
+                }
+            }
+            process.stderr.write(`prism-tool: ${message}\n`);
+            return EXIT.TRANSACTION;
+        };
         const executePlan = (sourceState) => {
             if (context.bootstrapPlanStage === 'provider' && coreOnly) {
                 let provider;
@@ -902,25 +966,29 @@ function setup(args, context) {
             return EXIT.OK;
         };
         if (sourceName === 'blank') return executePlan(blankBootstrapSource());
-        return inspectTemplateSource({
-            projectRoot: route.projectRoot,
-            source: 'TEMPLATE',
-            fetchImpl: context.fetch,
-        }).then((sourceReport) => {
+        const sourceAcquisition = coreOnly
+            ? inspectTemplateSource({
+                projectRoot: route.projectRoot,
+                source: 'TEMPLATE',
+                fetchImpl: context.fetch,
+            })
+            : acquireTemplateSource({
+                projectRoot: route.projectRoot,
+                fetchImpl: context.fetch ?? globalThis.fetch,
+            }).catch(() => ({status: 'NO-GO', disposition: 'SOURCE_UNAVAILABLE'}));
+        return sourceAcquisition.then((sourceReport) => {
             if (sourceReport.status !== 'GO' || sourceReport.disposition !== 'SOURCE_READY') {
-                process.stderr.write('prism-tool: Template source is unavailable\n');
-                return EXIT.TRANSACTION;
+                return failTemplatePreparation('Template source is unavailable');
             }
             let sourceState;
             try {
                 sourceState = normalizeTemplateBootstrapSource({
                     report: sourceReport,
                     capabilities: [],
-                    adapter: null,
+                    adapter: selectedTemplateAdapter,
                 });
             } catch {
-                process.stderr.write('prism-tool: Template source is invalid\n');
-                return EXIT.TRANSACTION;
+                return failTemplatePreparation('Template source is invalid');
             }
             return executePlan(sourceState);
         });

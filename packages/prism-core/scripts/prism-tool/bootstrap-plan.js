@@ -308,6 +308,7 @@ function openSelectedAttempt({
     coreRoot,
     attemptId,
     packageName,
+    expectedSource,
     prepare = true,
     allowAppliedProject = false,
 }) {
@@ -318,6 +319,7 @@ function openSelectedAttempt({
         coreRoot,
         attemptId,
         packageName,
+        expectedSource,
         allowAppliedProject,
     });
     if (prepare && fs.readdirSync(attemptRoot).join(',') !== 'adapter.json') {
@@ -365,7 +367,13 @@ function buildAdapterProjectPlan({
         displayName: normalized.displayName,
         summary: normalized.summary,
     });
-    const attempt = openSelectedAttempt({projectRoot, coreRoot, attemptId, packageName});
+    const attempt = openSelectedAttempt({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        packageName,
+        expectedSource: normalizedSource.source.mode,
+    });
     const request = {
         schemaVersion: 1,
         source: normalizedSource.source,
@@ -906,6 +914,7 @@ function validateHeldProjectPlan({
             coreRoot,
             attemptId,
             packageName: envelope.plan.adapter.packageName,
+            expectedSource: envelope.plan.source.mode,
             prepare: false,
             allowAppliedProject,
         });

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,9 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir, writeJson} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {
+    inspectProvisionedBootstrapAdapter,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-adapter');
 
 function captureWrites(action) {
     let stdout = '';
@@ -407,6 +410,23 @@ test('provisions a validated co-shipped adapter by exact local path', (t) => {
         [fs.realpathSync(adapterRoot)]
     );
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'npm')), false);
+    const receipt = JSON.parse(fs.readFileSync(report.data.attempt.receiptPath, 'utf8'));
+    assert.equal(receipt.source, 'TEMPLATE');
+    const inspected = inspectProvisionedBootstrapAdapter({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        packageName: '@kyaulabs/prism-php-web',
+        expectedSource: 'TEMPLATE',
+    });
+    assert.equal(inspected.receipt.source, 'TEMPLATE');
+    assert.throws(() => inspectProvisionedBootstrapAdapter({
+        projectRoot,
+        coreRoot,
+        attemptId,
+        packageName: '@kyaulabs/prism-php-web',
+        expectedSource: 'BLANK',
+    }), /receipt is stale/);
 });
 
 test('cleans only attempt-created paths when Pi adapter installation fails', (t) => {

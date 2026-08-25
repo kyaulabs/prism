@@ -267,41 +267,41 @@ prism-tool commit create --type feat --scope setup --subject "plan template-back
 - Consumes: a provisioned adapter receipt whose `source` is `TEMPLATE`, then `setup project plan --source=template --adapter=@kyaulabs/prism-php-web --attempt=<UUID> --network-approved=yes --json`.
 - Produces: the existing two-provider combined plan with Template source evidence and unchanged adapter report schema.
 
-- [ ] **Step 1: Write failing Template adapter receipt tests**
+- [x] **Step 1: Write failing Template adapter receipt tests**
 
 Provision the PHP/web adapter with `--source=template`. Assert the receipt records `TEMPLATE`, inspection accepts it only when the requested plan source is also `TEMPLATE`, and Blank/Template receipt substitution fails closed.
 
-- [ ] **Step 2: Run adapter tests and verify Red**
+- [x] **Step 2: Run adapter tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: FAIL because provisioned receipt inspection requires `receipt.source === 'BLANK'`.
 
-- [ ] **Step 3: Bind adapter attempts to the selected source**
+- [x] **Step 3: Bind adapter attempts to the selected source**
 
 Add an explicit expected source to `inspectProvisionedBootstrapAdapter()` and `openSelectedAttempt()`. Accept only `BLANK` or `TEMPLATE`; require exact equality between receipt, plan control, and normalized source state on every initial and retained validation.
 
-- [ ] **Step 4: Write the failing selected-adapter Template plan test**
+- [x] **Step 4: Write the failing selected-adapter Template plan test**
 
 Provision the adapter first, then plan through the public CLI. Assert Template acquisition occurs only after the exact attempt and adapter receipt are validated. Assert the resulting provider IDs remain `core-baseline` and `php-web-scaffold`, output/effect/check/verification counts match Blank, and the project plan binds the Template source and source digest.
 
-- [ ] **Step 5: Implement selected-adapter Template planning**
+- [x] **Step 5: Implement selected-adapter Template planning**
 
 For a selected adapter, validate the provisional attempt before fixed Template acquisition. Invoke the internal fixed-source acquisition function without rerunning strict-empty routing, normalize the report against the selected adapter, then call the same adapter preparation and Core composition path used by Blank.
 
 If acquisition, normalization, provider rendering, composition, or plan persistence fails before durability, remove only ownership-proven adapter and attempt state and prove strict emptiness. If cleanup cannot prove ownership, return `RECOVERY_REQUIRED` with the exact retained attempt path and one action.
 
-- [ ] **Step 6: Add cleanup and no-fallback tests**
+- [x] **Step 6: Add cleanup and no-fallback tests**
 
 Inject failure at each boundary: before first request, after repository metadata, after commit, after tree, after manifest, after source persistence, during Core rendering, during adapter rendering, and during plan validation. Assert exact cleanup or bounded retained recovery, never Blank fallback, and never a second adapter installation.
 
-- [ ] **Step 7: Run focused tests and verify Green**
+- [x] **Step 7: Run focused tests and verify Green**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: PASS with one provisional adapter installation and one fixed Template acquisition.
 
-- [ ] **Step 8: Commit the selected-adapter planning slice**
+- [x] **Step 8: Commit the selected-adapter planning slice**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-adapter.js packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-bootstrap-plan.test.js

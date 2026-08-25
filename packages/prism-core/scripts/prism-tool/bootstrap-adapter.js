@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -588,9 +588,13 @@ function inspectProvisionedBootstrapAdapter({
     coreRoot,
     attemptId,
     packageName,
+    expectedSource,
     allowAppliedProject = false,
 }) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    if (!['BLANK', 'TEMPLATE'].includes(expectedSource)) {
+        throw new Error('bootstrap adapter source is invalid');
+    }
     const projectRoot = fs.realpathSync(requestedRoot);
     const paths = attemptPaths(projectRoot, attemptId);
     const receipt = readJson(paths.receiptPath);
@@ -599,7 +603,7 @@ function inspectProvisionedBootstrapAdapter({
     const adapter = catalogue.adapters.find((candidate) => candidate.packageName === packageName);
     if (
         !adapter ||
-        receipt.source !== 'BLANK' ||
+        receipt.source !== expectedSource ||
         !isRecord(receipt.acquisition) ||
         Object.keys(receipt.acquisition).sort().join(',') !== 'installSource,kind' ||
         !['LOCAL', 'NPM'].includes(receipt.acquisition.kind) ||

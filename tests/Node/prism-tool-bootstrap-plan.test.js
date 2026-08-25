@@ -198,9 +198,9 @@ function installedGraphRunner(projectRoot, operations) {
     };
 }
 
-function provisionPhpWebAdapter(projectRoot) {
+function provisionPhpWebAdapter(projectRoot, source = 'blank') {
     return captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        'setup', 'adapter', 'select', '--adapter=php-web', `--source=${source}`,
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
@@ -577,6 +577,210 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     ]);
     assert.deepEqual(report.filesystem.allowedRootEntries, ['.pi']);
     assert.equal(report.data.attempt.id, ATTEMPT_ID);
+});
+
+test('plans a Template project with the provisioned PHP web adapter', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const selected = provisionPhpWebAdapter(projectRoot, 'template');
+    assert.equal(selected.status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.source.mode, 'TEMPLATE');
+    assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline',
+        'php-web-scaffold',
+    ]);
+    assert.equal(report.outputs.length, 37);
+    assert.equal(report.effects.length, 5);
+    assert.equal(report.checks.length, 2);
+    assert.equal(report.verification.length, 2);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+});
+
+test('rejects Template planning against a Blank adapter receipt before acquisition', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /valid adapter state/);
+    assert.equal(fixture.calls.length, 0);
+    const receiptPath = path.join(
+        projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json'
+    );
+    assert.equal(JSON.parse(fs.readFileSync(receiptPath, 'utf8')).source, 'BLANK');
+});
+
+test('cleans Template adapter attempts at every fixed-source acquisition boundary', async () => {
+    for (const rejectIndex of [0, 1, 2, 3]) {
+        const projectRoot = makeTempDir();
+        const fixture = createTemplateFixture({transport: {rejectIndex}});
+        try {
+            assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+            const result = await captureAsyncWrites(() => main([
+                'setup', 'project', 'plan', '--source=template',
+                '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+                '--network-approved=yes', '--json',
+            ], {
+                projectRoot,
+                coreRoot: CORE_ROOT,
+                fetch: fixture.fetch,
+                input: JSON.stringify({
+                    schemaVersion: 1,
+                    displayName: 'Template PHP Project',
+                    summary: 'A trusted-provider PHP web scaffold.',
+                }),
+                run: bootstrapRunner(projectRoot),
+            }));
+
+            assert.equal(result.status, 5);
+            assert.match(result.stderr, /Template source is unavailable/);
+            assert.equal(fixture.calls.length, rejectIndex + 1);
+            assert.deepEqual(fs.readdirSync(projectRoot), []);
+        } finally {
+            fs.rmSync(projectRoot, {recursive: true, force: true});
+        }
+    }
+});
+
+test('cleans a Template adapter attempt when advertisements omit its provider', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture({
+        mutateManifest: (manifest) => {
+            const entry = manifest.entries.find(({path: entryPath}) => entryPath === '.gitignore');
+            entry.class = 'optional-profile';
+            entry.capability = 'licensing';
+            entry.provider = {scope: 'core', id: 'licensing'};
+        },
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /Template source is invalid/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('retains ambiguous Template adapter state with one recovery action', async (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: async () => {
+            fs.writeFileSync(path.join(projectRoot, 'user-state.txt'), 'retain\n');
+            throw new Error('network failure');
+        },
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stderr, '');
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.source, 'TEMPLATE');
+    assert.equal(report.data.recoveryPath, path.join(
+        fs.realpathSync(projectRoot), '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID
+    ));
+    assert.equal(fs.readFileSync(path.join(projectRoot, 'user-state.txt'), 'utf8'), 'retain\n');
+});
+
+test('cleans Template adapter state when trusted provider composition fails', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot, 'template').status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = () => {
+        throw new Error('injected provider failure');
+    };
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Template PHP Project',
+            summary: 'A trusted-provider PHP web scaffold.',
+        }),
+        run: bootstrapRunner(projectRoot),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /project planning failed/);
+    assert.equal(fixture.calls.length, 4);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
 test('rejects adapter report declarations that differ from the package-owned manifest', (t) => {
