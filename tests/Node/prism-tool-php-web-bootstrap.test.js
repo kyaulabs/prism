@@ -281,6 +281,7 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
 test('stops only its browser fixture server when a quality gate fails', (t) => {
     const candidateRoot = makeTempDir();
     const fakeBin = path.join(candidateRoot, 'fake-bin');
+    const invocationFile = path.join(candidateRoot, 'prism-tool.invocations');
     const pidFile = path.join(candidateRoot, 'server.pid');
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
     const report = handler.prepareBootstrapProject({
@@ -295,16 +296,26 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
         },
     });
     fs.mkdirSync(fakeBin);
-    fs.writeFileSync(path.join(fakeBin, 'prism-tool'), '#!/usr/bin/env bash\n[[ "$1" != run || "$2" != pest ]]\n', {mode: 0o755});
+    fs.writeFileSync(
+        path.join(fakeBin, 'prism-tool'),
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PRISM_INVOCATION_FILE"\nif [[ "$1" == run && "$2" == pest ]]; then exit 1; fi\nexit 0\n',
+        {mode: 0o755}
+    );
     fs.writeFileSync(path.join(fakeBin, 'git'), '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
     fs.writeFileSync(path.join(fakeBin, 'php'), '#!/usr/bin/env bash\nif [[ "$1" == -S ]]; then echo $$ > "$SERVER_PID_FILE"; while :; do sleep 1; done; fi\nexit 0\n', {mode: 0o755});
     const check = report.outputs.find(({path: outputPath}) => outputPath === '.github/scripts/check-php.sh').candidatePath;
 
     assert.throws(() => execFileSync('bash', [check, '--local'], {
         cwd: candidateRoot,
-        env: {...process.env, PATH: `${fakeBin}:/usr/bin:/bin`, SERVER_PID_FILE: pidFile},
+        env: {
+            ...process.env,
+            PATH: `${fakeBin}:/usr/bin:/bin`,
+            PRISM_INVOCATION_FILE: invocationFile,
+            SERVER_PID_FILE: pidFile,
+        },
         stdio: 'pipe',
     }));
+    assert.match(fs.readFileSync(invocationFile, 'utf8'), /^run pest -- --coverage --min=80$/m);
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
     assert.throws(() => process.kill(pid, 0));
 });
