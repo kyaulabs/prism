@@ -2,9 +2,10 @@
 
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {validateBootstrapSource} = require('./bootstrap-source');
+const {blankBootstrapSource, validateBootstrapSource} = require('./bootstrap-source');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -282,19 +283,35 @@ function validJournalState(value) {
 
 function normalizeLegacyJournal(value) {
     const legacyKeys = [
-        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'sourceDigest', 'metadataDigest',
+        'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'metadataDigest',
         'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
         'createdDirectories', 'appliedInventoryDigest',
     ];
+    const sourceBoundLegacyKeys = [...legacyKeys, 'sourceDigest'];
     if (
-        isRecord(value) &&
-        value.schemaVersion === 1 &&
-        ['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) &&
-        hasExactKeys(value, legacyKeys)
+        !isRecord(value) ||
+        value.schemaVersion !== 1 ||
+        !['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) ||
+        (!hasExactKeys(value, legacyKeys) && !hasExactKeys(value, sourceBoundLegacyKeys))
     ) {
-        return {...value, repository: null, hooks: null, seed: null};
+        return value;
     }
-    return value;
+    let sourceDigest = value.sourceDigest;
+    if (sourceDigest === undefined) {
+        if (
+            !isRecord(value.source) ||
+            !hasExactKeys(value.source, ['mode', 'evidence']) ||
+            value.source.mode !== 'BLANK' ||
+            value.source.evidence !== null
+        ) {
+            return value;
+        }
+        const sourceState = blankBootstrapSource();
+        sourceDigest = crypto.createHash('sha256').update(
+            `${JSON.stringify(sourceState, null, 2)}\n`
+        ).digest('hex');
+    }
+    return {...value, sourceDigest, repository: null, hooks: null, seed: null};
 }
 
 function validateJournal(input, projectRoot, attemptId) {

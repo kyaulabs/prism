@@ -1048,7 +1048,7 @@ test('preserves changed provisional adapter state for recovery', (t) => {
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'settings.json')), true);
 });
 
-test('normalizes the prior schema-1 journal shape for recovery', (t) => {
+test('normalizes the pre-sourceDigest schema-1 journal shape for recovery', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     const planned = planProject(projectRoot, {
@@ -1063,6 +1063,7 @@ test('normalizes the prior schema-1 journal shape for recovery', (t) => {
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const journalPath = path.join(attemptRoot, 'journal.json');
     const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    delete journal.sourceDigest;
     delete journal.repository;
     delete journal.hooks;
     delete journal.seed;
@@ -1070,6 +1071,7 @@ test('normalizes the prior schema-1 journal shape for recovery', (t) => {
 
     const normalized = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
 
+    assert.equal(normalized.sourceDigest, plan.sourceDigest);
     assert.equal(normalized.repository, null);
     assert.equal(normalized.hooks, null);
     assert.equal(normalized.seed, null);
