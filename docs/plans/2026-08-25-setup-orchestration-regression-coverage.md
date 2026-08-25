@@ -303,11 +303,11 @@ prism-tool commit create --type test --scope setup --subject "regress complete s
 - Document that setup creates no remote and that hosted repository creation, remote addition, initial `develop` push, and post-push rulesets are human actions.
 - Package tests assert the complete public contract and reject stale deferred wording.
 
-- [ ] **Step 1: Add failing packaging and documentation assertions**
+- [x] **Step 1: Add failing packaging and documentation assertions**
 
 Require completed orchestration, deterministic recovery, human publication actions, and absence of `deferred to task 12`.
 
-- [ ] **Step 2: Run focused documentation tests to verify Red**
+- [x] **Step 2: Run focused documentation tests to verify Red**
 
 Run:
 
@@ -318,11 +318,11 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL on stale deferred documentation and missing public workflow text.
 
-- [ ] **Step 3: Update public and packaged documentation**
+- [x] **Step 3: Update public and packaged documentation**
 
 Describe behavior and boundaries without duplicating implementation internals or weakening the prompt/launcher source of truth.
 
-- [ ] **Step 4: Run focused tests to verify Green**
+- [x] **Step 4: Run focused tests to verify Green**
 
 Run:
 
@@ -333,7 +333,7 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Run complete Node and shell regression suites**
+- [x] **Step 5: Run complete Node and shell regression suites**
 
 Run:
 
@@ -346,9 +346,9 @@ Expected: PASS.
 
 - [ ] **Step 6: Run the repository pre-push gate**
 
-Run `/check` through the active prompt workflow. Expected: every Core and PHP/web delegated check passes, including lint, generated-CI parity, security checks, Node tests, shell tests, Pest coverage, and changed-file coverage.
+Run `/check` through the active prompt workflow after the Task 5 commit so its mandatory clean-tree repository-state gate can pass. Expected: every Core and PHP/web delegated check passes, including lint, generated-CI parity, security checks, Node tests, shell tests, Pest coverage, and changed-file coverage.
 
-- [ ] **Step 7: Verify, review, update checkboxes, and create the commit**
+- [x] **Step 7: Verify, review, update checkboxes, and create the commit**
 
 ```bash
 git add packages/prism-core/README.md packages/prism-php-web/README.md README.md CODING_HARNESS.md tests/Node/toolchain-packaging.test.js tests/Shell/toolchain_entrypoints_test.sh docs/plans/2026-08-25-setup-orchestration-regression-coverage.md

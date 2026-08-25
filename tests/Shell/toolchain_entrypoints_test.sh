@@ -218,6 +218,10 @@ assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool setu
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'commit create --type ignore' 'Core README documents the reserved seed commit'
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'creates no remote' 'Core README preserves the no-remote boundary'
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'human .*develop.* push' 'Core README leaves initial publication to the human'
+assert_file_not_contains "$REPO_ROOT/packages/prism-core/README.md" 'deferred to task 12' 'Core README removes stale task 12 deferral'
+assert_file_contains "$REPO_ROOT/README.md" 'Strict-empty `/setup`.*Template.*Blank.*Cancel' 'public README documents strict-empty setup choices'
+assert_file_contains "$REPO_ROOT/CODING_HARNESS.md" 'Strict-empty `/setup`.*established-project' 'harness docs preserve established setup isolation'
+assert_file_contains "$REPO_ROOT/packages/prism-php-web/README.md" 'separate hook approval.*signed root seed' 'adapter README documents completed seed orchestration'
 
 echo "── hooks perform local-only readiness ──"
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-commit" 'doctor --local-only' 'pre-commit runs local doctor'

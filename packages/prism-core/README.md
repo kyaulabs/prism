@@ -26,9 +26,13 @@ language-neutral half; install it **globally** so it runs in every project.
   by `install-global.sh` so the core is "always running".
 - The managed `prism-tool` launcher, backed by the installed core package and
   verified against mandatory Semgrep and OCR readiness.
-- **Strict-empty Core-only project transactions** — Blank and Template setup
-  collect an editable project name, one-sentence summary, and only the closed
-  metadata required by explicitly selected capabilities, then render a
+- **Strict-empty `/setup` orchestration** — Template, Blank, or Cancel is the
+  first closed choice. Template is recommended; Blank performs no Template
+  lookup; Cancel exits without bootstrap state. The next choice is Core-only or
+  PHP/web, and selecting PHP/web is the exact displayed adapter installation
+  authorization. Every optional capability remains disabled by default. Setup
+  collects an editable project name, one-sentence summary, and only the closed
+  metadata required by explicitly selected capabilities, then renders a
   private candidate beneath `.pi/prism-tool/bootstrap/`, and return a
   digest-bound plan. Template acquisition reads a fixed public source only as
   immutable, untrusted catalogue evidence; it never supplies project bytes,
@@ -92,9 +96,12 @@ language-neutral half; install it **globally** so it runs in every project.
   candidates reject selected release management before plan display and restore
   strict emptiness. A future or fixture adapter with publishable packages receives
   the canonical workflow and lockstep configuration through the same outer bootstrap
-  transaction. Setup creates no repository, remote, tag, GitHub Release, push, or npm
-  publication; those actions remain human-owned. Interactive prompt orchestration
-  and preview confirmation remain deferred to task 12.
+  transaction. Setup displays an identity preview before publication confirmation,
+  then presents the complete project plan for one literal approval. A decline or
+  pre-durable failure restores strict emptiness when ownership is provable; every
+  post-durable failure is retained with one deterministic resume action. Setup
+  creates no repository, remote, tag, GitHub Release, push, or npm publication during
+  planning or application; those actions remain human-owned.
 - **Post-durable Core-only repository seed** — Git begins only after durable
   project application. The closed sequence is
   `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →
@@ -104,7 +111,8 @@ language-neutral half; install it **globally** so it runs in every project.
   `ignore: bootstrap prism project`. The launcher exposes
   `prism-tool setup repository create`, `prism-tool setup hooks inspect`,
   separately approved `prism-tool setup hooks apply --approval=yes`, and
-  `prism-tool setup seed prepare`; the final signed commit uses the exclusive
+  `prism-tool setup seed prepare`; separate hook approval precedes the signed root seed,
+  and the final signed commit uses the exclusive
   `prism-tool commit create --type ignore --subject "bootstrap prism project"`
   operation. Only the active attempt's create-only repository is seed-eligible.
   Canonical Core hooks dispatch no adapter, and seed staging includes exactly
@@ -112,7 +120,11 @@ language-neutral half; install it **globally** so it runs in every project.
   failed commit requires `/reload` and inspection and is never retried
   automatically. Successful setup creates no remote: remote creation, the
   initial human `develop` push, and post-push ruleset configuration remain
-  human-owned publication operations.
+  human-owned publication operations. Human publication consists of creating or
+  configuring the hosted repository, adding the remote, using it to push `develop`,
+  and then configuring rulesets. Established projects retain the existing
+  evidence-driven setup workflow and never enter these strict-empty choices or
+  transaction stages.
 - **Managed lockstep npm releases** — `/setup` discovers publishable root and
   declared-workspace packages, displays the exact package list, and installs
   the Core-owned release configuration plus canonical workflow only after

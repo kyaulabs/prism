@@ -56,8 +56,12 @@ restores strict emptiness when owned state can be removed safely; failure after
 durability retains the complete scaffold and exact phase evidence for a
 deterministic resume. Canonical hooks run the adapter-owned shared quality gate,
 and root-seed readiness binds the adapter activation and provider report digest
-while excluding dependency and operational state. Setup performs no remote,
-publication, or push operation.
+while excluding dependency and operational state. PHP/web selection is the exact
+package installation authorization; the complete project plan has its own later
+approval. After durable application, separate hook approval precedes the signed root seed.
+Setup performs no remote, publication, or push operation;
+the human creates or configures the hosted repository, adds the remote, pushes
+`develop`, and configures post-push rulesets.
 
 ## Consumer toolchain
 
