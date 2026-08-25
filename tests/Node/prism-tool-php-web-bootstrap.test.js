@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -524,6 +524,55 @@ test('reads the trusted adapter manifest through one held file identity', (t) =>
         fs.readSync = originalRead;
     }
     assert.equal(substituted, true);
+});
+
+test('rejects an in-place trusted manifest write during a held read', (t) => {
+    const packageRoot = makeTempDir();
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(packageRoot, 'config', 'bootstrap'), {recursive: true});
+    fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
+        name: CONTRACT.package,
+        version: '0.3.1',
+    }));
+    const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
+    const originalManifest = fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'scaffold.json'));
+    const changedManifest = Buffer.from(originalManifest);
+    const displayName = changedManifest.indexOf('PHP/web scaffold');
+    assert.notEqual(displayName, -1);
+    changedManifest[displayName] = 'X'.charCodeAt(0);
+    fs.writeFileSync(manifestPath, originalManifest);
+    const originalOpen = fs.openSync;
+    const originalRead = fs.readSync;
+    let manifestDescriptor = null;
+    let changed = false;
+    fs.openSync = function holdManifest(file, ...args) {
+        const descriptor = originalOpen.call(this, file, ...args);
+        if (path.basename(file) === 'scaffold.json') manifestDescriptor = descriptor;
+        return descriptor;
+    };
+    fs.readSync = function changeManifestDuringRead(descriptor, ...args) {
+        const count = originalRead.call(this, descriptor, ...args);
+        if (!changed && descriptor === manifestDescriptor) {
+            changed = true;
+            fs.writeFileSync(manifestPath, changedManifest);
+        }
+        return count;
+    };
+
+    try {
+        assert.throws(() => loadTrustedAdapterProviderDescriptor({
+            registration: {
+                packageRoot: fs.realpathSync(packageRoot),
+                packageName: CONTRACT.package,
+                packageVersion: '0.3.1',
+                bootstrapProtocol: 1,
+            },
+        }), /adapter provider manifest changed/);
+    } finally {
+        fs.openSync = originalOpen;
+        fs.readSync = originalRead;
+    }
+    assert.equal(changed, true);
 });
 
 test('verifies the applied scaffold inventory and rejects changed bytes', (t) => {

@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -46,41 +46,49 @@ function readBounded(descriptor, label) {
     return Buffer.concat(chunks, total);
 }
 
+function resourceMode(stat) {
+    return Number(stat.mode & 0o777n);
+}
+
+function sameResourceVersion(left, right) {
+    return left.dev === right.dev &&
+        left.ino === right.ino &&
+        left.size === right.size &&
+        left.mode === right.mode &&
+        left.ctimeNs === right.ctimeNs &&
+        left.mtimeNs === right.mtimeNs;
+}
+
 function readHeldRegular(filePath, openPath, label, expectedMode = null) {
-    const initial = fs.lstatSync(openPath);
+    const initial = fs.lstatSync(openPath, {bigint: true});
     if (
         initial.isSymbolicLink() ||
         !initial.isFile() ||
-        initial.size > MAX_RESOURCE_BYTES ||
-        (expectedMode !== null && (initial.mode & 0o777) !== expectedMode) ||
+        initial.size > BigInt(MAX_RESOURCE_BYTES) ||
+        (expectedMode !== null && resourceMode(initial) !== expectedMode) ||
         typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error(`${label} is invalid`);
     }
     const descriptor = fs.openSync(openPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
-        const held = fs.fstatSync(descriptor);
+        const held = fs.fstatSync(descriptor, {bigint: true});
         if (
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
             !held.isFile() ||
-            held.size !== initial.size ||
-            (expectedMode !== null && (held.mode & 0o777) !== expectedMode)
+            !sameResourceVersion(initial, held) ||
+            (expectedMode !== null && resourceMode(held) !== expectedMode)
         ) {
             throw new Error(`${label} changed`);
         }
         const contents = readBounded(descriptor, label);
-        const final = fs.fstatSync(descriptor);
-        const current = fs.lstatSync(filePath);
+        const final = fs.fstatSync(descriptor, {bigint: true});
+        const current = fs.lstatSync(filePath, {bigint: true});
         if (
-            final.dev !== held.dev ||
-            final.ino !== held.ino ||
-            final.size !== held.size ||
-            contents.length !== held.size ||
+            !sameResourceVersion(held, final) ||
+            contents.length !== Number(held.size) ||
             current.isSymbolicLink() ||
             !current.isFile() ||
-            current.dev !== held.dev ||
-            current.ino !== held.ino
+            !sameResourceVersion(held, current)
         ) {
             throw new Error(`${label} changed`);
         }

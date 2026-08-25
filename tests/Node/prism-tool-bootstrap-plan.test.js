@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -1327,6 +1327,82 @@ test('recovers a crash-retained apply lock for a durable attempt', (t) => {
 
     assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
     assert.equal(fs.existsSync(lockPath), false);
+});
+
+test('serializes competing recovery of one stale durable apply lock', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID);
+    const lockPath = path.join(attemptRoot, 'apply.lock');
+    fs.writeFileSync(lockPath, `${JSON.stringify({
+        schemaVersion: 1,
+        attemptId: ATTEMPT_ID,
+        pid: 2147483647,
+    })}\n`, {mode: 0o600});
+    const originalRename = fs.renameSync;
+    let competing = null;
+    fs.renameSync = function competeAfterRecoveryClaim(source, target, ...args) {
+        const result = originalRename.call(this, source, target, ...args);
+        if (competing === null && path.basename(target).startsWith('apply.claim-')) {
+            competing = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+        }
+        return result;
+    };
+
+    let resumed;
+    try {
+        resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    } finally {
+        fs.renameSync = originalRename;
+    }
+
+    assert.notEqual(competing, null);
+    assert.notEqual(competing.status, 0, competing.stdout);
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(fs.existsSync(lockPath), false);
+    assert.equal(fs.readdirSync(attemptRoot).some((name) => name.startsWith('apply.claim-')), false);
+});
+
+test('recovers a crash-retained apply recovery claim', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const planned = planProject(projectRoot, {
+        schemaVersion: 1,
+        displayName: 'Project',
+        summary: 'One sentence.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    const plan = JSON.parse(planned.stdout);
+    const applied = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+    const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID);
+    const lockPath = path.join(attemptRoot, 'apply.lock');
+    const claimPath = path.join(attemptRoot, `apply.claim-2147483647-${ATTEMPT_ID}`);
+    fs.writeFileSync(lockPath, `${JSON.stringify({
+        schemaVersion: 1,
+        attemptId: ATTEMPT_ID,
+        pid: 2147483647,
+    })}\n`, {mode: 0o600});
+    fs.renameSync(lockPath, claimPath);
+
+    const resumed = applyProject(projectRoot, ATTEMPT_ID, plan.planDigest, {coreRoot: CORE_ROOT});
+
+    assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
+    assert.equal(fs.existsSync(lockPath), false);
+    assert.equal(fs.existsSync(claimPath), false);
 });
 
 test('restores strict emptiness when application fails before durability', (t) => {
