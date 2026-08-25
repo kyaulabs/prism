@@ -119,7 +119,8 @@ test('packs the core package with every owned resource and executable modes', ()
     for (const module of [
         'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
         'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
-        'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-source',
+        'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
+        'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
         'cli', 'code-review', 'commit', 'hook',
         'consent', 'contract', 'discovery',

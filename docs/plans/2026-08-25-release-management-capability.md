@@ -273,15 +273,15 @@ function renderReleaseManagementProvider({
 - The report has no network effects, one `release-management-render` PASS check, and one `release-management-inventory` verification using `setup project validate`.
 - The renderer replaces every cliff repository token with the normalized metadata coordinate, writes all four outputs at mode `0644`, and uses `renderReleaseCapabilityFiles` for `.prism/release.json` and the workflow.
 
-- [ ] **Step 1: Write failing provider tests**
+- [x] **Step 1: Write failing provider tests**
 
 Create isolated candidate roots proving exact descriptor ownership, deterministic bytes, normalized coordinate rendering, non-empty package configuration, unchanged canonical workflow bytes, no output overlap, and no operation artifacts under `.pi/prism-tool/package-release`.
 
-- [ ] **Step 2: Add renderer failure tests**
+- [x] **Step 2: Add renderer failure tests**
 
 Cover no publishable package, private-only packages, malformed package manifests/workspaces, stale or malformed normalized metadata, missing/duplicate cliff tokens, changed canonical workflow resources, candidate output collisions, and symlinked package roots.
 
-- [ ] **Step 3: Run focused tests to verify Red**
+- [x] **Step 3: Run focused tests to verify Red**
 
 Run:
 
@@ -291,11 +291,11 @@ node --test tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/tool
 
 Expected: FAIL because the release provider and four owned outputs are unavailable.
 
-- [ ] **Step 4: Implement the focused provider module**
+- [x] **Step 4: Implement the focused provider module**
 
 Keep package discovery/rendering in `bootstrap-release-provider.js`; leave the existing governance/security profile renderers focused on their current surfaces. Delegate from `renderCoreProfileProviders` only when the selected ID is `release-management`.
 
-- [ ] **Step 5: Run focused tests to verify Green**
+- [x] **Step 5: Run focused tests to verify Green**
 
 Run:
 
@@ -305,7 +305,7 @@ node --test tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/tool
 
 Expected: PASS with an exact four-file provider report and no mutation outside the candidate root.
 
-- [ ] **Step 6: Create the commit**
+- [x] **Step 6: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-release-provider.js packages/prism-core/scripts/prism-tool/bootstrap-profile-providers.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js tests/Node/prism-tool-bootstrap-capabilities.test.js tests/Node/toolchain-packaging.test.js docs/plans/2026-08-25-release-management-capability.md
