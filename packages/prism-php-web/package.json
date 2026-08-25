@@ -11,6 +11,7 @@
     "skills",
     "prompts",
     "scripts",
+    "config",
     "docs",
     "toolchain.json",
     "safe-dirs.json",
