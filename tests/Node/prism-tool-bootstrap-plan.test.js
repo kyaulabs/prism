@@ -862,6 +862,37 @@ test('composes an explicitly selected advertised Template capability', async (t)
     assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
 });
 
+test('rejects an unadvertised Template capability without preselecting advertisements', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'project', 'plan', '--source=template', '--adapter=core-only',
+        '--capabilities=community-governance', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        fetch: fixture.fetch,
+        randomUUID: () => ATTEMPT_ID,
+        input: JSON.stringify({
+            schemaVersion: 1,
+            displayName: 'Governed Template Project',
+            summary: 'A Template project with explicit governance.',
+            capabilityMetadata: {
+                'community-governance': {
+                    conductContact: 'conduct@example.test',
+                },
+            },
+        }),
+    }));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /Template source is invalid/);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+    assert.equal(fixture.calls.length, 4);
+});
+
 test('rejects Template planning against a Blank adapter receipt before acquisition', async (t) => {
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();

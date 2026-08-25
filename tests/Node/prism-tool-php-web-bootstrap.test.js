@@ -189,6 +189,85 @@ test('renders identical PHP/web scaffold bytes for Blank and Template requests',
     assert.deepEqual(template.verification, blank.verification);
 });
 
+test('keeps PHP/web ownership and bytes independent of Core governance profiles', (t) => {
+    const minimalRoot = makeTempDir();
+    const governedRoot = makeTempDir();
+    t.after(() => fs.rmSync(minimalRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(governedRoot, {recursive: true, force: true}));
+    const base = {
+        schemaVersion: 1,
+        source: {mode: 'BLANK', evidence: null},
+        adapter: {
+            id: 'php-web',
+            packageName: '@kyaulabs/prism-php-web',
+            packageVersion: '0.3.1',
+            bootstrapProtocol: 1,
+        },
+    };
+    const minimal = handler.prepareBootstrapProject({
+        candidateRoot: minimalRoot,
+        contract: CONTRACT,
+        request: {
+            ...base,
+            capabilities: [],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Provider Parity Project',
+                summary: 'A capability-independent PHP web scaffold.',
+                suggestedDisplayName: 'provider-parity-project',
+            },
+        },
+        run: successfulResult,
+    });
+    const governed = handler.prepareBootstrapProject({
+        candidateRoot: governedRoot,
+        contract: CONTRACT,
+        request: {
+            ...base,
+            capabilities: [
+                'licensing', 'community-governance', 'github-collaboration',
+            ],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Provider Parity Project',
+                summary: 'A capability-independent PHP web scaffold.',
+                suggestedDisplayName: 'provider-parity-project',
+                capabilityMetadata: {
+                    licensing: {
+                        spdxId: 'MIT',
+                        year: 2026,
+                        copyrightHolder: 'Example Organization',
+                    },
+                    'community-governance': {
+                        conductContact: {
+                            kind: 'email', value: 'conduct@example.test',
+                        },
+                    },
+                    'github-collaboration': {},
+                },
+            },
+        },
+        run: successfulResult,
+    });
+
+    const semantic = ({outputs, effects, checks, verification}) => ({
+        outputs: outputs.map(({path: outputPath, kind, mode, sha256}) => ({
+            path: outputPath, kind, mode, sha256,
+        })),
+        effects,
+        checks,
+        verification,
+    });
+    assert.deepEqual(semantic(governed), semantic(minimal));
+    const profilePaths = new Set([
+        'LICENSE', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+        '.github/ISSUE_TEMPLATE/bug_report.yml',
+        '.github/ISSUE_TEMPLATE/feature_request.yml',
+        '.github/pull_request_template.md',
+    ]);
+    assert.equal(governed.outputs.some(({path: outputPath}) => profilePaths.has(outputPath)), false);
+});
+
 test('renders canonical dependency manifests from the adapter contract', (t) => {
     const candidateRoot = makeTempDir();
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));

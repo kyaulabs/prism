@@ -545,6 +545,72 @@ test('renders all selected profiles deterministically without ownership overlap'
     }
 });
 
+test('plans each governance capability independently through the public launcher', (t) => {
+    const scenarios = [
+        {
+            capability: 'licensing',
+            capabilityMetadata: {
+                licensing: {
+                    spdxId: 'MIT',
+                    copyrightHolder: 'Example Organization',
+                },
+            },
+            outputs: ['LICENSE'],
+        },
+        {
+            capability: 'community-governance',
+            capabilityMetadata: {
+                'community-governance': {
+                    conductContact: 'conduct@example.test',
+                },
+            },
+            outputs: ['CODE_OF_CONDUCT.md', 'CONTRIBUTING.md'],
+        },
+        {
+            capability: 'github-collaboration',
+            capabilityMetadata: {'github-collaboration': {}},
+            outputs: [
+                '.github/ISSUE_TEMPLATE/bug_report.yml',
+                '.github/ISSUE_TEMPLATE/feature_request.yml',
+                '.github/pull_request_template.md',
+            ],
+        },
+    ];
+
+    for (const scenario of scenarios) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        const result = captureWrites(() => main([
+            'setup', 'project', 'plan', '--source=blank', '--adapter=core-only',
+            `--capabilities=${scenario.capability}`, '--json',
+        ], {
+            projectRoot,
+            coreRoot: CORE_ROOT,
+            randomUUID: () => ATTEMPT_ID,
+            currentYear: 2026,
+            input: JSON.stringify({
+                schemaVersion: 1,
+                displayName: 'Independent Project',
+                summary: 'An independently configured project.',
+                capabilityMetadata: scenario.capabilityMetadata,
+            }),
+        }));
+
+        assert.equal(result.status, 0, scenario.capability);
+        const report = JSON.parse(result.stdout);
+        assert.deepEqual(report.capabilities, [scenario.capability]);
+        assert.deepEqual(report.providers.map(({id}) => id), [
+            'core-baseline', scenario.capability,
+        ]);
+        assert.deepEqual(
+            report.outputs
+                .map(({path: outputPath}) => outputPath)
+                .filter((outputPath) => scenario.outputs.includes(outputPath)),
+            scenario.outputs
+        );
+    }
+});
+
 test('composes a selected licensing provider into a Blank Core-only plan', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

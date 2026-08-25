@@ -439,25 +439,25 @@ prism-tool commit create --type feat --scope setup --subject "attest governance 
 **Interfaces:**
 - Produces end-to-end task-9 evidence through the public launcher. Interactive prompt orchestration remains task 12.
 
-- [ ] **Step 1: Add public Core-only end-to-end regressions**
+- [x] **Step 1: Add public Core-only end-to-end regressions**
 
 Exercise metadata inspection, Blank and Template planning, plan validation, durable application, recovery, repository creation, hook activation, and seed preparation with each capability independently and all together. Assert capability independence, zero default selection, deterministic rerendering, publication preview data, exact output inventory, no Template preselection, and no network lookup beyond the already authorized Template source sequence.
 
-- [ ] **Step 2: Add selected-adapter parity regressions**
+- [x] **Step 2: Add selected-adapter parity regressions**
 
 Prove the PHP/web adapter receives normalized decisions but owns none of the profile paths, its report/effects/checks remain source- and capability-independent, and Core profile selection composes without adapter overlap.
 
-- [ ] **Step 3: Add the failure matrix**
+- [x] **Step 3: Add the failure matrix**
 
 Cover invalid SPDX IDs, malformed holders, invalid conduct contacts, unknown/duplicate capability selection, missing Template advertisement, changed package resources, profile overlap, stale metadata, pre-durable renderer failure, and post-durable output drift. Assert strict-empty restoration or exact retained recovery state as appropriate.
 
-- [ ] **Step 4: Document the public task-9 contract**
+- [x] **Step 4: Document the public task-9 contract**
 
 Update the Core README with the three available disabled-by-default capabilities, exact output ownership, supported SPDX IDs, closed metadata rules, deterministic persisted year/contact behavior, Template advertisement-only semantics, and the statement that prompt orchestration for selecting them is completed separately.
 
 Do not modify `packages/prism-core/prompts/setup.md`; interactive selection, one-question-at-a-time metadata collection, and preview confirmation belong to task 12.
 
-- [ ] **Step 5: Run focused and full Node verification**
+- [x] **Step 5: Run focused and full Node verification**
 
 Run:
 
@@ -468,7 +468,7 @@ npm run test:node
 
 Expected: PASS with minimal-profile, Template, Blank, Core-only, adapter, recovery, hook, and seed regressions green.
 
-- [ ] **Step 6: Mark the plan complete and commit with the closing reference**
+- [x] **Step 6: Mark the plan complete and commit with the closing reference**
 
 Mark every completed checkbox in this plan, then load `verification-before-completion`.
 
