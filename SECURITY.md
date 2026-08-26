@@ -1,37 +1,42 @@
 # Security Policy
 
-This document outlines security procedures and general policies.
+## Supported versions
 
-* [Supported Version](#supported-versions)
-* [Reporting a Bug](#reporting-a-bug)
-* [Disclosure Policy](#disclosure-policy)
-* [Comments](#comments)
+Prism remains pre-1.0.
 
-## Supported Versions
+| Version | Supported |
+| --- | --- |
+| `<1.0.0` | Yes |
+| `>=1.0.0` | No |
 
-| Version   | Supported          |
-| --------- | ------------------ |
-| < 1.0.0   | :white_check_mark: |
-| >= 1.0.0  | :x:                |
+## Report a vulnerability
 
-## Reporting a Bug
+Email security reports to [git@kyaulabs.com](mailto:git@kyaulabs.com).
 
-The team and community take all security bugs seriously. Thank you for improving the security. We appreciate your efforts and responsible disclosure and will make every effort to acknowledge your contributions.
+Do not open a public issue for a suspected vulnerability. Do not include API
+keys, tokens, passwords, private keys, environment files, exploit data, or
+other credentials in GitHub issues, pull requests, discussions, logs, or agent
+context.
 
-Report security bugs by emailing the lead maintainer at [git@kyaulabs.com](mailto:git@kyaulabs.com).
+Include:
 
-The lead maintainer will acknowledge your email within 48 hours, and will send a more detailed response within 48 hours indicating the next steps in handling your report. After the initial reply to your report, the security team will endeavor to keep you informed of the progress towards a fix and full announcement, and may ask for additional information or guidance.
+- the affected Prism version or commit;
+- the affected package or component;
+- reproduction steps or a minimal proof of concept;
+- the expected and observed security boundary;
+- known impact and mitigations;
+- a safe way to contact you.
 
-Report security bugs in third-party modules/packages to the person or team maintaining the module and/or package.
+Report vulnerabilities in third-party dependencies to their maintainers as
+well as to Prism when Prism's use of the dependency creates an exploitable
+condition.
 
-## Disclosure Policy
+## Disclosure process
 
-When the security team receives a security bug report, they will assign it to a primary handler. This person will coordinate the fix and release process, involving the following steps:
+The maintainer will acknowledge the report within 48 hours and provide an
+initial handling response within another 48 hours when possible. The handler
+will confirm the issue, identify affected versions, check for related defects,
+prepare fixes for supported versions, and coordinate release and disclosure.
 
-* Confirm the problem and determine the affected versions.
-* Audit code to find any potential similar problems.
-* Prepare fixes for all releases still under maintenance. These fixes will be released as fast as possible.
-
-## Comments
-
-If you have suggestions on how this process could be improved please submit a pull request.
+Keep the report private until the maintainer confirms that a fix and disclosure
+are ready. Credit is optional and follows the reporter's preference.
