@@ -102,6 +102,8 @@ The globally installed, language-agnostic harness package.
   explicitly approved launcher operations.
 - Owns the opt-in package-release capability, canonical release workflow,
   managed release-file transaction, and lockstep npm package semantics.
+- Owns changed-file Markdown validation through an exact bundled tool, a
+  packaged non-executable policy, and one staged/branch checker interface.
 - Never configures a remote, pushes a branch, merges a pull request, or
   accesses credentials.
 
@@ -466,6 +468,7 @@ Pi-era decisions:
 - `adr/0087-structured-redacted-safety-diagnostics.md` — preserve fail-closed safety while reporting stable redacted diagnostic categories and retry guidance.
 - `adr/0088-user-authored-frontend-design-and-visual-review.md` — keep project aesthetics user-authored and provide adapter-owned reusable visual review tooling with local-by-default evidence and explicit trust boundaries.
 - `adr/0089-progressive-output-style-guidance.md` — apply a compact global prose baseline and load detailed Distill guidance only for durable or substantial writing while preserving technical precision and pstack attribution.
+- `adr/0090-core-markdown-lint-gate.md` — bundle exact Markdown linting in Core and validate changed maintained documentation through one packaged, changed-file-only checker.
 
 ## When to update this file
 

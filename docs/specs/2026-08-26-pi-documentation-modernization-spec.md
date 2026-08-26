@@ -103,9 +103,10 @@ receive immediate structural feedback.
 13. As a Prism developer, I want the prose rewrite kept separate from skills,
     prompt templates, agent instructions, and unrelated source, so that
     Distill cannot change harness behavior under the guise of editing prose.
-14. As a future skill author, I want any Markdown lint profile for structured
-    skill files to understand their front matter and embedded syntax, so that
-    linting does not corrupt an executable instruction format.
+14. As a future skill author, I want structured skill files excluded until a
+    dedicated profile proves that it preserves front matter and embedded
+    syntax, so that a documentation gate cannot corrupt an executable
+    instruction format.
 15. As a future maintainer, I want the work divided into coherent reader
     journeys, so that each review can check meaning, links, and duplication
     within a manageable surface.
@@ -135,9 +136,9 @@ before editing:
 - **Protected external text:** legal, licensed, vendored, or third-party
   template prose. Preserve it.
 - **Runtime instruction surface:** skills, prompt templates, and agent
-  instruction files. Exclude them from the Distill rewrite. A future-facing
-  lint profile may check changed skills without rewriting their meaning or
-  format.
+  instruction files. Exclude them from the Distill rewrite and the initial
+  Markdown gate. A later specification may add a dedicated structured-
+  Markdown profile without rewriting their meaning or format.
 
 The classification is based on purpose and current use, not directory or
 filename alone.
@@ -228,13 +229,11 @@ The modernization branch applies the same policy to every Markdown document
 it modifies. Untouched accepted ADRs are not bulk-normalized merely to satisfy
 a new style tool.
 
-Structured runtime Markdown, including skills, may use a separate packaged
-profile that understands YAML front matter and sanctioned embedded syntax.
-This branch may add that profile and its fixtures, but it must not rewrite
-skills merely to establish a clean baseline. If a safe profile cannot be
-proved during implementation, skills remain outside the initial required
-path set and the limitation is recorded explicitly rather than hidden behind
-a broad ignore.
+Structured runtime Markdown, including skills, prompt templates, and agent
+instructions, is outside the initial required path set. Its executable front
+matter and embedded syntax require a separate profile and test contract. A
+later specification may add that profile, but this branch must not rewrite or
+silently lint runtime instruction surfaces merely to establish a baseline.
 
 The packaged policy starts from the standard `markdownlint` rules and permits
 only narrow, documented exceptions needed for technical prose, exact protected
@@ -276,10 +275,10 @@ replace repeated detail elsewhere with a link or concise summary.
 
 ### Architecture records
 
-A new ADR is required before implementing the Core Markdown gate. The decision
+ADR-0090 records the Core Markdown gate before implementation. The decision
 is cross-cutting and changes the bundled toolchain, canonical hook behavior,
-consumer-project checks, configuration ownership, and CI parity. The ADR must
-record the chosen tool, required path scope, structured-Markdown treatment,
+consumer-project checks, configuration ownership, and CI parity. It defines
+the chosen tool, required path scope, structured-Markdown treatment,
 changed-file semantics, exception policy, and shared enforcement interface.
 
 Existing records continue to govern the surrounding work:
@@ -321,8 +320,8 @@ new behavior and cover at least:
 - staged-blob linting rather than unstaged working-tree content;
 - branch changed-file selection for `/check` and CI;
 - packaged configuration resolution through Prism Core;
-- preservation of YAML front matter and sanctioned structured Markdown in any
-  skill profile included in the initial gate;
+- exclusion of skills, prompt templates, agent instructions, and other
+  structured runtime Markdown from the initial path policy;
 - propagation of linter failures and success status;
 - safe handling of spaces, unusual Git path characters, symlinks, and paths
   that attempt to escape the repository or temporary workspace;
@@ -372,6 +371,8 @@ the Markdown gate remain out of scope.
 ## Out of scope
 
 - Rewriting skills or skill files as part of the Distill pass.
+- Adding the structured-Markdown lint profile for skills, prompt templates, or
+  agent instruction files.
 - Editing prompt templates or agent instruction files for prose modernization.
 - Rewriting accepted ADR bodies.
 - Bulk-normalizing untouched historical Markdown solely to satisfy the new
@@ -391,9 +392,8 @@ the Markdown gate remain out of scope.
 The active Wayfinder map is
 [wayfinder(docs): modernize Prism documentation for Pi](https://github.com/kyaulabs/prism/issues/419).
 
-Relevant existing decisions are ADR-0015, ADR-0025, ADR-0027, ADR-0055,
-ADR-0059, ADR-0061, and ADR-0089. The next available ADR should record the
-Markdown linting contract before implementation begins.
+Relevant decisions are ADR-0015, ADR-0025, ADR-0027, ADR-0055, ADR-0059,
+ADR-0061, ADR-0089, and ADR-0090.
 
 The artifact-retirement slice must inspect Git and current tracker evidence
 before deleting retained work. Age or the presence of an OpenCode reference
