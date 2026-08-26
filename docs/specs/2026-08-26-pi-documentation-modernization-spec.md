@@ -389,7 +389,7 @@ the Markdown gate remain out of scope.
 
 ## Further notes
 
-The active Wayfinder map is
+The completed Wayfinder map is
 [wayfinder(docs): modernize Prism documentation for Pi](https://github.com/kyaulabs/prism/issues/419).
 
 Relevant decisions are ADR-0015, ADR-0025, ADR-0027, ADR-0055, ADR-0059,
