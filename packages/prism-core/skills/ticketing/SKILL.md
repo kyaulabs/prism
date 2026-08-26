@@ -102,49 +102,70 @@ gh label list --repo OWNER/REPO --json name
 Cache the returned issue type node IDs, field IDs + options, and label names.
 If `gh auth status` fails, stop and tell the user to run `gh auth login`.
 
-## The gh create to type to fields to labels pattern
+## GraphQL issue mutation pattern
 
-Follow the `tracker-operator` skill. Execute in order:
+Follow `tracker-operator`'s project-local JSON-envelope transport. Use Pi's
+write tool to create `.pi/tmp/tracker-create-issue.json` with the finalized
+trusted control values and confirmed untrusted tracker payload as JSON data:
 
-```bash
-# 1. Detect repo dynamically — never hard-code
-gh repo view --json nameWithOwner -q .nameWithOwner
-gh repo view --json owner -q .owner.login
-gh repo view --json name -q .name
+```json
+{
+  "query": "mutation CreateIssue($input: CreateIssueInput!) { createIssue(input: $input) { issue { id number url } } }",
+  "variables": {
+    "input": {
+      "repositoryId": "REPOSITORY_NODE_ID",
+      "title": "CONFIRMED_TITLE",
+      "body": "CONFIRMED_BODY",
+      "issueTypeId": "ISSUE_TYPE_NODE_ID",
+      "labelIds": ["LABEL_NODE_ID"],
+      "assigneeIds": ["ACTOR_NODE_ID"],
+      "parentIssueId": "PARENT_ISSUE_NODE_ID",
+      "issueFields": [
+        {"fieldId": "PRIORITY_FIELD_NODE_ID", "singleSelectOptionId": "PRIORITY_OPTION_NODE_ID"},
+        {"fieldId": "EFFORT_FIELD_NODE_ID", "singleSelectOptionId": "EFFORT_OPTION_NODE_ID"},
+        {"fieldId": "PROGRESS_FIELD_NODE_ID", "singleSelectOptionId": "PROGRESS_OPTION_NODE_ID"}
+      ]
+    }
+  }
+}
 ```
 
-Validate and retain the outputs as inert `REPO`, `OWNER`, and `NAME` context,
-then render their literal values in every later command.
+Omit optional properties that do not apply; never populate them with invented
+IDs. Every node ID comes from the read-only pre-flight. The `issueFields`
+entries use the discovered field and option node IDs required by
+`IssueFieldCreateOrUpdateInput`, so type, fields, labels, assignees, and parent
+metadata are created atomically where supported.
 
+<!-- tracker-graphql:start -->
 ```bash
-# 2. Create the issue — capture the issue number from the output URL.
-# Write title and body to temp files via single-quoted heredoc (no expansion).
-# gh issue create has no title-file flag, so read the one-line title safely.
-cat > /tmp/issue-title.txt <<'HEREDOC'
-<title>
-HEREDOC
-cat > /tmp/issue-body.md <<'HEREDOC'
-<body>
-HEREDOC
-IFS= read -r TITLE < /tmp/issue-title.txt
-gh issue create --repo OWNER/REPO --title "$TITLE" --body-file /tmp/issue-body.md
+gh api graphql --input .pi/tmp/tracker-create-issue.json
+```
+<!-- tracker-graphql:end -->
 
-# 3. Get the issue's GraphQL node ID and retain the output as inert context.
-gh issue view <N> --repo OWNER/REPO --json id -q .id
+For an existing issue, use Pi's write tool to create a separate literal input
+file containing `updateIssue`:
 
-# 4. Set the issue type via GraphQL mutation.
-gh api graphql -F nodeId="<NODE_ID>" -F typeId="<TYPE_NODE_ID>" -f query='mutation($nodeId:ID!,$typeId:ID!) { updateIssue(input: { id: $nodeId, issueTypeId: $typeId }) { issue { number issueType { name } } } }'
-
-# 5. Set custom field values via REST POST.
-gh api "repos/OWNER/REPO/issues/<N>/issue-field-values" -X POST \
-  -f issue_field_values='[{"field_id": <ID>, "value": "<value>"}, ...]'
-
-# 6. Apply labels (skip if none selected).
-gh issue edit <N> --repo OWNER/REPO --add-label "<label1>,<label2>"
+```json
+{
+  "query": "mutation UpdateIssue($input: UpdateIssueInput!) { updateIssue(input: $input) { issue { id number url } } }",
+  "variables": {
+    "input": {
+      "id": "ISSUE_NODE_ID",
+      "issueTypeId": "ISSUE_TYPE_NODE_ID",
+      "labelIds": ["LABEL_NODE_ID"],
+      "issueFieldUpdates": [
+        {"fieldName": "Progress", "operation": "SET", "value": "In Progress"}
+      ]
+    }
+  }
+}
 ```
 
-Replace all `<...>` placeholders with actual values. Use cached type node
-IDs and field IDs from the pre-flight step.
+Existing-issue field updates use exact discovered field names and string option
+names. Do not send numeric option database IDs in the string-valued `value`
+property. Use dedicated tracker-operator envelopes for `addComment`,
+`closeIssue`, `addAssigneesToAssignable`, `addLabelsToLabelable`, `addSubIssue`,
+and `addBlockedBy`.
 
 ## Single-issue workflow
 
@@ -187,7 +208,8 @@ confirmation authorizes the full displayed mutation batch.
 
 ### Step 7: Create issue (using `tracker-operator`)
 
-Execute the gh pattern with finalized data without another mutation prompt.
+Execute the GraphQL issue mutation pattern with finalized data without another
+mutation prompt.
 
 ### Step 8: Report
 
@@ -279,35 +301,33 @@ blocking edge.
 
 ### Step 9: Create epic + task issues (using `tracker-operator`)
 
-Execute the gh pattern for the epic, then for each task without further
-mutation approval. Task title format: `<type>(<scope>): <task title> task#N`.
+Execute the GraphQL issue mutation pattern for the epic, then for each task
+without further mutation approval. Set each task's `parentIssueId` during
+`createIssue`. Task title format: `<type>(<scope>): <task title> task#N`.
 
 ### Step 10: Wire blocking edges
 
-For each confirmed blocking relationship, execute:
+For each confirmed blocking relationship, discover the task and prerequisite
+node IDs, write an inert JSON envelope with Pi's write tool, and invoke the
+canonical literal-path transport. The mutation is:
 
-```bash
-# Pre-flight: verify gh supports --add-blocked-by (v2.94.0+)
-gh --version
-
-# Wire: task is blocked by prerequisite
-gh issue edit <task_number> --repo "$REPO" --add-blocked-by <prereq_number>
+```json
+{
+  "query": "mutation AddBlockedBy($input: AddBlockedByInput!) { addBlockedBy(input: $input) { clientMutationId } }",
+  "variables": {
+    "input": {
+      "issueId": "TASK_NODE_ID",
+      "blockingIssueId": "PREREQUISITE_NODE_ID"
+    }
+  }
+}
 ```
 
-If `gh --version` < 2.94.0, fall back to GraphQL:
-
-Get each node ID in a separate call and retain both outputs as inert context:
-
+<!-- tracker-graphql:start -->
 ```bash
-gh issue view <TASK_NUM> --repo OWNER/REPO --json id -q .id
-gh issue view <PREREQ_NUM> --repo OWNER/REPO --json id -q .id
+gh api graphql --input .pi/tmp/tracker-add-blocked-by.json
 ```
-
-Render the validated literal node IDs into the mutation:
-
-```bash
-gh api graphql -F taskId="TASK_NODE_ID" -F prereqId="PREREQ_NODE_ID" -f query='mutation($taskId:ID!,$prereqId:ID!) { addBlockedBy(input: {issueId: $taskId, blockingIssueId: $prereqId}) { clientMutationId } }'
-```
+<!-- tracker-graphql:end -->
 
 ### Step 11: Report
 
@@ -337,6 +357,7 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
   authorization for all gh CLI execution
 - ADR-0085 — one preview confirmation authorizes the complete tracker mutation
   batch
+- ADR-0086 — standing read authorization and GraphQL-first tracker transport
 
 ## Rules
 
@@ -357,18 +378,16 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
 - All field IDs and type node IDs must be queried dynamically, never
   hard-coded.
 - Never interpolate user content (issue titles, bodies, PR descriptions, label
-  names) into shell command strings. Use a single-quoted heredoc
-  (`<<'HEREDOC'`) to write payloads to temp files, read a one-line title with
-  `IFS= read -r TITLE < FILE`, and pass it via `--title "$TITLE"`; pass bodies
-  via `--body-file FILE`. For GraphQL, always use `-F` variable bindings —
-  never inline `<placeholder>` text inside a query string.
+  names) into shell command strings. Serialize it with Pi's write tool as JSON
+  data under project-local `.pi/tmp/`, then invoke GraphQL with a literal input
+  path in a separate command.
 - No forced linear blocking edges — sequential tasks are not necessarily
   dependent.
 
 ## Gotchas
 
-- `gh issue edit --add-blocked-by` requires gh v2.94.0+ (2026-06-10).
-  Always pre-flight `gh --version` before attempting blocking-edge wiring.
+- Blocking edges use the GraphQL `addBlockedBy` mutation directly; do not
+  introduce a version-dependent convenience-command first attempt.
 - The `plan` label may not exist yet — create it idempotently before
   applying.
 - Historical references to `/plan-to-issues` remain in ADR-0017 and

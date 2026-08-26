@@ -104,6 +104,19 @@ assert_between_contains "$TICKETING" '## Execution topology' '## Mode detection'
 assert_between_ordered "$TICKETING" '## From-spec decomposition workflow' '## Wide-refactor path' 'epic creation uses one confirmation and no per-command pause' 'This single confirmation' '### Step 9: Create epic + task issues' 'without further'
 assert_not_contains "$TICKETING" 'Present every mutation and wait for explicit human approval' 'ticketing does not pause for every mutation'
 
+printf '%s\n' '── GraphQL-first tracker transport ──'
+assert_between_contains "$TRACKER" '## GraphQL mutation transport' '## Untrusted content' 'gh api graphql --input .pi/tmp/tracker-mutation.json' 'tracker mutations use a literal project-local GraphQL payload'
+assert_between_contains "$TICKETING" '## GraphQL issue mutation pattern' '## Single-issue workflow' 'createIssue' 'ticketing creates issues through GraphQL'
+assert_between_contains "$TICKETING" '## GraphQL issue mutation pattern' '## Single-issue workflow' 'issueFields' 'ticketing creates issue fields atomically where supported'
+assert_between_contains "$FROM_ISSUE" '### 5. Apply Type + Progress + triage label' '### 6. Route' 'updateIssue' 'from-issue updates existing issues through GraphQL'
+assert_between_contains "$WAYFINDER" '## The Map' '### Labels (idempotent)' 'addComment' 'Wayfinder comments use GraphQL'
+assert_not_contains "$TICKETING" 'issue-field-values' 'ticketing removes the REST field-values endpoint'
+assert_not_contains "$FROM_ISSUE" 'issue-field-values' 'from-issue removes the REST field-values endpoint'
+assert_not_contains "$TICKETING" 'gh issue create' 'ticketing removes convenience issue creation'
+assert_not_contains "$TICKETING" 'gh issue edit' 'ticketing removes convenience issue mutation'
+assert_not_contains "$FROM_ISSUE" 'gh issue edit' 'from-issue removes convenience issue mutation'
+assert_not_contains "$WAYFINDER" 'gh issue edit' 'Wayfinder removes convenience relationship mutation'
+
 printf '\nwayfinder_workflow_contract_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
 

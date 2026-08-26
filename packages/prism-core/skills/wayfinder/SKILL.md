@@ -86,14 +86,20 @@ GitHub child issues.
 The map is an index, not a store. A decision lives in exactly one ticket; the
 map records a one-line gist and link.
 
-Create maps and tickets with the `ticketing` skill's gh pattern. Wire native
-blocking relationships with:
+Create maps and tickets with `ticketing`'s GraphQL `createIssue` pattern.
+Set `parentIssueId` while creating child tickets. Use the tracker-operator's
+GraphQL envelopes for `addAssigneesToAssignable`, `addComment`, `closeIssue`,
+`updateIssue`, `addSubIssue`, and `addBlockedBy`; no convenience mutation is a
+first attempt or fallback.
 
+For every mutation, write tracker content as inert JSON with Pi's write tool
+under `.pi/tmp/`, then run a separate literal-path command:
+
+<!-- tracker-graphql:start -->
 ```bash
-gh issue edit <child> --add-blocked-by <blocker>
+gh api graphql --input .pi/tmp/wayfinder-mutation.json
 ```
-
-For gh older than 2.94.0, use `ticketing`'s GraphQL `addBlockedBy` fallback.
+<!-- tracker-graphql:end -->
 
 ### Labels (idempotent)
 

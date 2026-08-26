@@ -1,4 +1,4 @@
-// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: safety-tool-call-handler.test.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -141,6 +141,28 @@ test("the exact pull request workflow blocks pass the safety boundary", () => {
         const { deps } = makeDeps();
         assert.equal(handleToolCall("bash", { command }, deps), undefined);
         assert.equal(deps.breaker.count("s1"), 0);
+    }
+});
+
+test("the exact tracker GraphQL commands pass the safety boundary", () => {
+    const resources = [
+        "../../packages/prism-core/skills/tracker-operator/SKILL.md",
+        "../../packages/prism-core/skills/ticketing/SKILL.md",
+        "../../packages/prism-core/skills/from-issue/SKILL.md",
+        "../../packages/prism-core/skills/wayfinder/SKILL.md",
+    ];
+
+    for (const resource of resources) {
+        const source = readFileSync(new URL(resource, import.meta.url), "utf8");
+        const blocks = source.matchAll(/<!-- tracker-graphql:start -->\n```bash\n([\s\S]*?)\n```\n<!-- tracker-graphql:end -->/g);
+        let count = 0;
+        for (const block of blocks) {
+            count += 1;
+            const { deps } = makeDeps();
+            assert.equal(handleToolCall("bash", { command: block[1] }, deps), undefined, resource);
+            assert.equal(deps.breaker.count("s1"), 0, resource);
+        }
+        assert.equal(count > 0, true, resource);
     }
 });
 

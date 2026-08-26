@@ -139,7 +139,7 @@ prism-tool commit create --type fix --scope tracker --subject "align workflow au
 - Consumes: standing-read and bounded mutation authorization from Task 1.
 - Produces: canonical JSON-envelope GraphQL mutation recipes invoked through literal `.pi/tmp/` paths.
 
-- [ ] **Step 1: Add one failing GraphQL-first contract slice**
+- [x] **Step 1: Add one failing GraphQL-first contract slice**
 
 Extend `tests/Shell/wayfinder_workflow_contract_test.sh` with assertions that:
 
@@ -157,13 +157,13 @@ assert_not_contains "$FROM_ISSUE" 'gh issue edit' 'from-issue removes convenienc
 assert_not_contains "$WAYFINDER" 'gh issue edit' 'Wayfinder removes convenience relationship mutation'
 ```
 
-- [ ] **Step 2: Run the shell contract and confirm Red**
+- [x] **Step 2: Run the shell contract and confirm Red**
 
 Run: `bash tests/Shell/wayfinder_workflow_contract_test.sh`
 
 Expected: FAIL because REST and `gh issue` mutation recipes remain.
 
-- [ ] **Step 3: Define the canonical GraphQL envelope and recipes**
+- [x] **Step 3: Define the canonical GraphQL envelope and recipes**
 
 In `tracker-operator`, replace `/tmp` and convenience mutation guidance with this contract:
 
@@ -249,7 +249,7 @@ Update `from-issue` Step 5 to use `updateIssue`, and Step 11 to use
 `addComment`. Update Wayfinder creation, assignment, comments, closes,
 sub-issues, and blocking edges to refer to the tracker-operator envelopes.
 
-- [ ] **Step 4: Make the exact marked GraphQL command pass the public safety boundary**
+- [x] **Step 4: Make the exact marked GraphQL command pass the public safety boundary**
 
 Add this test to `tests/Node/safety-tool-call-handler.test.ts`:
 
@@ -280,7 +280,7 @@ test("the exact tracker GraphQL commands pass the safety boundary", () => {
 Add the same marked literal command block to each listed skill where it owns or
 invokes a mutation.
 
-- [ ] **Step 5: Replace obsolete shell-injection assertions**
+- [x] **Step 5: Replace obsolete shell-injection assertions**
 
 In `tests/Shell/skill_shell_injection_test.sh`, remove assertions and active
 examples that require `gh issue create`, title variables, `/tmp`, or heredocs.
@@ -307,7 +307,7 @@ done
 Retain the existing PR-title injection tests that are unrelated to tracker
 mutation transport.
 
-- [ ] **Step 6: Run focused tests and create the commit**
+- [x] **Step 6: Run focused tests and create the commit**
 
 Run: `bash tests/Shell/wayfinder_workflow_contract_test.sh`
 

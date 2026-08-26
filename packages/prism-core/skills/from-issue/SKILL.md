@@ -104,23 +104,38 @@ gh repo view --json owner -q .owner.login
 gh repo view --json name -q .name
 ```
 
-Validate and retain the outputs as inert `REPO`, `OWNER`, and `NAME` context,
-then render their literal values in later commands:
+Validate and retain the outputs as inert `REPO`, `OWNER`, and `NAME` context.
+Discover the issue, issue-type, and label node IDs. After the confirmation gate,
+use Pi's write tool to serialize an `updateIssue` envelope under
+`.pi/tmp/from-issue-update.json`:
 
-```bash
-# Type through the issue-type field, not a label.
-# Bind all GraphQL values with gh -F variables; never inline issue content.
-
-# Progress (+ Priority/Effort) through the issue-fields endpoint.
-gh api "repos/OWNER/REPO/issues/<NN>/issue-field-values" -X POST \
-  -f issue_field_values='<confirmed JSON payload>'
-
-# Triage meta label.
-gh issue edit <NN> --repo OWNER/REPO --add-label "ready-for-agent"
+```json
+{
+  "query": "mutation UpdateIssue($input: UpdateIssueInput!) { updateIssue(input: $input) { issue { id number url } } }",
+  "variables": {
+    "input": {
+      "id": "ISSUE_NODE_ID",
+      "issueTypeId": "ISSUE_TYPE_NODE_ID",
+      "labelIds": ["TRIAGE_LABEL_NODE_ID"],
+      "issueFieldUpdates": [
+        {"fieldName": "Progress", "operation": "SET", "value": "CONFIRMED_PROGRESS_NAME"}
+      ]
+    }
+  }
+}
 ```
 
+Use exact field and option names for string-valued updates; never send numeric
+option database IDs as `value` strings.
+
+<!-- tracker-graphql:start -->
+```bash
+gh api graphql --input .pi/tmp/from-issue-update.json
+```
+<!-- tracker-graphql:end -->
+
 **Confirmation gate:** present the Type, Progress, and label you intend to
-apply and wait for explicit user approval before any GitHub mutation.
+apply and wait for explicit user approval before this bounded mutation batch.
 
 ### 6. Route
 
@@ -204,7 +219,16 @@ Every comment posted to the issue ends with this disclaimer block:
 ```
 
 Post one summary comment after the routing decision: the agreed Type + Progress
-+ label, routing path, and next step. Gate on user approval before posting.
++ label, routing path, and next step. Gate on user approval before posting. Use
+Pi's write tool to serialize the complete comment and disclaimer as the
+`body` variable of an `addComment` GraphQL envelope; never place it in shell
+source.
+
+<!-- tracker-graphql:start -->
+```bash
+gh api graphql --input .pi/tmp/from-issue-comment.json
+```
+<!-- tracker-graphql:end -->
 
 ## Output format
 
