@@ -50,9 +50,9 @@ has_obsolete_pr_title_flag() {
 tracker_transport_is_canonical() {
 	local file="$1"
 	awk '
-		index($0, "gh api graphql") {
+		/^[[:space:]]*gh api graphql([[:space:]]|$)/ {
 			seen = 1
-			if (!index($0, "gh api graphql --input .pi/tmp/")) unsafe = 1
+			if ($0 !~ /^[[:space:]]*gh api graphql --input \.pi\/tmp\/[[:alnum:]_.\/-]+\.json[[:space:]]*$/) unsafe = 1
 		}
 		END { exit !(seen && !unsafe) }
 	' "$file"
@@ -68,8 +68,12 @@ cat > "$TMPDIR/tracker-inline.md" <<'TRACKER_INLINE'
 gh api graphql --input .pi/tmp/tracker-mutation.json
 gh api graphql -f query=mutation
 TRACKER_INLINE
+cat > "$TMPDIR/tracker-appended.md" <<'TRACKER_APPENDED'
+gh api graphql --input .pi/tmp/tracker-mutation.json -f query=mutation
+TRACKER_APPENDED
 if tracker_transport_is_canonical "$TMPDIR/tracker-canonical.md" \
-	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-inline.md"; then
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-inline.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-appended.md"; then
 	pass "tracker transport contract rejects inline GraphQL mutation arguments"
 else
 	fail "tracker transport contract accepts inline GraphQL mutation arguments"
