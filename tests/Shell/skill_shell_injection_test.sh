@@ -52,7 +52,7 @@ tracker_transport_is_canonical() {
 	awk '
 		/^[[:space:]]*gh api graphql([[:space:]]|$)/ {
 			seen = 1
-			if ($0 !~ /^[[:space:]]*gh api graphql --input \.pi\/tmp\/[[:alnum:]_.\/-]+\.json[[:space:]]*$/) unsafe = 1
+			if ($0 !~ /^[[:space:]]*gh api graphql --input \.pi\/tmp\/[[:alnum:]_.-]+\.json[[:space:]]*$/) unsafe = 1
 		}
 		END { exit !(seen && !unsafe) }
 	' "$file"
@@ -71,12 +71,16 @@ TRACKER_INLINE
 cat > "$TMPDIR/tracker-appended.md" <<'TRACKER_APPENDED'
 gh api graphql --input .pi/tmp/tracker-mutation.json -f query=mutation
 TRACKER_APPENDED
+cat > "$TMPDIR/tracker-traversal.md" <<'TRACKER_TRAVERSAL'
+gh api graphql --input .pi/tmp/../outside.json
+TRACKER_TRAVERSAL
 if tracker_transport_is_canonical "$TMPDIR/tracker-canonical.md" \
 	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-inline.md" \
-	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-appended.md"; then
-	pass "tracker transport contract rejects inline GraphQL mutation arguments"
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-appended.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-traversal.md"; then
+	pass "tracker transport contract rejects inline arguments and path traversal"
 else
-	fail "tracker transport contract accepts inline GraphQL mutation arguments"
+	fail "tracker transport contract accepts inline arguments or path traversal"
 fi
 
 # ── Static scan: tracker mutation transport ─────────────────────────────────
