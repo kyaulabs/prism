@@ -84,6 +84,11 @@ test('packs the core package with every owned resource and executable modes', ()
     const packed = packPackage(CORE_PKG);
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('config/commitlint.config.cjs'), true);
+    assert.equal(
+        packed.files.has('config/markdownlint-cli2.json'),
+        true,
+        'packaged Markdown policy present'
+    );
     assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
     assert.equal(packed.files.has('config/bootstrap/licenses/AGPL-3.0-only.txt'), true);
     assert.equal(packed.files.has('config/bootstrap/licenses/MIT.txt'), true);

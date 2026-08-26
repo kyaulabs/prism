@@ -37,6 +37,18 @@
       "argumentPolicy": {"mode": "passthrough"}
     },
     {
+      "id": "markdownlint-cli2",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "markdownlint-cli2",
+      "version": "0.23.2",
+      "provisioning": "bundled",
+      "authentication": "none",
+      "executable": "markdownlint-cli2",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
       "id": "semgrep",
       "kind": "command",
       "ecosystem": "pypi",

@@ -25,7 +25,8 @@
   "dependencies": {
     "@commitlint/config-conventional": "21.2.2",
     "commitlint": "21.2.2",
-    "git-cliff": "2.13.1"
+    "git-cliff": "2.13.1",
+    "markdownlint-cli2": "0.23.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

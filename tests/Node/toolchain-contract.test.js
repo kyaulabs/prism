@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -68,6 +68,30 @@ function boundedOcrContract(versionRequirement = {
 test('loads both schema-v1 package contracts', () => {
     assert.equal(loadContract(coreContract).role, 'core');
     assert.equal(loadContract(adapterContract).role, 'adapter');
+});
+
+test('declares the exact bundled Markdown engine', () => {
+    const contract = loadContract(coreContract);
+    const component = contract.components.find(({id}) => id === 'markdownlint-cli2');
+    const corePackage = require('../../packages/prism-core/package.json');
+    const rootPackage = require('../../package.json');
+    const lock = require('../../package-lock.json');
+
+    assert.deepEqual(component, {
+        id: 'markdownlint-cli2',
+        kind: 'command',
+        ecosystem: 'npm',
+        package: 'markdownlint-cli2',
+        version: '0.23.2',
+        provisioning: 'bundled',
+        authentication: 'none',
+        executable: 'markdownlint-cli2',
+        versionArguments: ['--version'],
+        argumentPolicy: {mode: 'passthrough'},
+    });
+    assert.equal(corePackage.dependencies['markdownlint-cli2'], '0.23.2');
+    assert.equal(rootPackage.devDependencies['markdownlint-cli2'], '0.23.2');
+    assert.equal(lock.packages['node_modules/markdownlint-cli2'].version, '0.23.2');
 });
 
 test('declares the approved bounded external compatibility requirements', () => {
@@ -226,6 +250,7 @@ test('pins every approved root npm tool exactly and drops the unowned language s
         commitlint: '21.2.2',
         eslint: '10.8.1',
         'git-cliff': '2.13.1',
+        'markdownlint-cli2': '0.23.2',
         playwright: '1.62.1',
         sass: '1.102.0',
         stylelint: '17.14.1',

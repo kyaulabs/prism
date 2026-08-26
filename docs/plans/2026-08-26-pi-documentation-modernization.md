@@ -72,7 +72,7 @@ Markdown, Node test runner, existing shell contract tests.
   `0.23.2`, and packaged config path
   `packages/prism-core/config/markdownlint-cli2.json`.
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 Add this test to `tests/Node/toolchain-contract.test.js` and add
 `markdownlint-cli2: '0.23.2'` to the existing root exact-tool map:
@@ -113,7 +113,7 @@ assert.equal(
 );
 ```
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -124,7 +124,7 @@ node --test tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging
 Expected: FAIL because the component, dependency, lock entry, and config do not
 exist.
 
-- [ ] **Step 3: Add the exact dependency, contract, and configuration**
+- [x] **Step 3: Add the exact dependency, contract, and configuration**
 
 Run the approved registry mutation with lifecycle scripts disabled:
 
@@ -184,7 +184,7 @@ Create `packages/prism-core/config/markdownlint-cli2.json` with exactly:
 }
 ```
 
-- [ ] **Step 4: Audit and verify Green**
+- [x] **Step 4: Audit and verify Green**
 
 Run:
 
@@ -202,7 +202,7 @@ node --test tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add package.json package-lock.json packages/prism-core/package.json packages/prism-core/toolchain.json packages/prism-core/config/markdownlint-cli2.json tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js
