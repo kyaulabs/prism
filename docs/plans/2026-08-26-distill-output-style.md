@@ -135,7 +135,7 @@ prism-tool commit create --type test --scope distill --subject "add output guida
 - Consumes: ADR-0089, the approved spec, and the contract checker from Task 1.
 - Produces: one globally active baseline plus an on-demand skill and detailed reference.
 
-- [ ] **Step 1: Write the failing package assertions**
+- [x] **Step 1: Write the failing package assertions**
 
 Extend `toolchain-packaging.test.js` with exact assertions for:
 
@@ -162,7 +162,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL because the Distill files and NOTICE entry do not exist.
 
-- [ ] **Step 2: Add the compact global rule**
+- [x] **Step 2: Add the compact global rule**
 
 Insert this exact section after `## Project Context`:
 
@@ -184,7 +184,7 @@ Add this skill-table row:
 | `distill` | Writing or editing durable, rewritten, tone-sensitive, or substantial prose. Removes machine-written habits while preserving meaning and technical precision |
 ```
 
-- [ ] **Step 3: Add the Distill skill and pattern reference**
+- [x] **Step 3: Add the Distill skill and pattern reference**
 
 `SKILL.md` frontmatter must be:
 
@@ -218,7 +218,7 @@ Its body must define:
 - Never add opinions, anecdotes, emotion, or informality that the source did not support.
 - Protect exact syntax and quoted material.
 
-- [ ] **Step 4: Add attribution and orientation text**
+- [x] **Step 4: Add attribution and orientation text**
 
 Add this NOTICE entry before the pi-coding-agent entry:
 
@@ -245,7 +245,7 @@ Wire `check-distill-contract.sh` into `validate-harness.sh` under this exact mar
 
 Pass the resolved repository root as a literal argument. Add that marker to the required-check list in `validate-harness_test.sh`.
 
-- [ ] **Step 5: Run focused and full checks**
+- [x] **Step 5: Run focused and full checks**
 
 Run:
 

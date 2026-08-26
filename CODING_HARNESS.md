@@ -197,6 +197,10 @@ in `AGENTS.md` § Commands); custom skills under `packages/*/skills/` (the
 index in `AGENTS.md` § Skills Available). The `writing-skills` skill governs
 authoring new ones.
 
+All natural-language output follows the compact global rule in `AGENTS.md`.
+Durable, rewritten, tone-sensitive, or substantial prose loads the `distill`
+skill for its detailed editing pass and progressively disclosed pattern catalog.
+
 The ordinary branch-completion path removes committed plan/spec artifacts,
 requires a clean tree, then pauses once for finalization acceptance. One
 acceptance authorizes one attempt in strict order: target synchronization,

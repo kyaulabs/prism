@@ -11,6 +11,16 @@
 - `CONTEXT.md` (root) — domain glossary, entities, invariants, boundaries, non-goals. Read before domain-coupled work (see `domain-context` skill). Draft or refresh it via `/prime`.
 - `adr/` — Architecture Decision Records (Nygard format). Write one for hard-to-reverse or cross-cutting decisions (see `adr` skill).
 
+## Output style
+
+Write natural-language prose directly and concretely. Cut filler, flattery,
+puffery, vague attribution, unsupported claims, and canned chatbot phrases.
+Prefer plain words and varied sentence rhythm. Preserve exact syntax,
+quotations, required formats, and established domain terms. Never invent
+feelings or experience to sound human. Before responding, ask what sounds
+machine-written and fix it. Load the `distill` skill for durable, rewritten,
+tone-sensitive, or substantial prose.
+
 ## Labels
 
 Issue labels use a two-axis vocabulary — **type** (GitHub issue-type field)
@@ -289,6 +299,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `conventional-commits` | Writing or reviewing commit messages |
 | `audit-deps` | Scanning dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, prompts, or docs in the harness packages |
+| `distill` | Writing or editing durable, rewritten, tone-sensitive, or substantial prose. Removes machine-written habits while preserving meaning and technical precision |
 | `architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation; returns go/no-go + `ADR-required:` line |
 | `code-review` | Reviewing staged changes before push |
 | `spec-review` | Read-only review that checks requirement coverage against the branch's spec |
