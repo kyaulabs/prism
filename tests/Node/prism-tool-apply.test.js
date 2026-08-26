@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -597,6 +597,58 @@ test('removes a partially created managed file when close reports failure', (t) 
     for (const name of VISUAL_REVIEW_FILES) {
         assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
     }
+});
+
+test('retries transient created-file cleanup during outer rollback', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const targetPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const originalCloseSync = fs.closeSync;
+    const originalRmSync = fs.rmSync;
+    let targetDescriptor;
+    let closeFailed = false;
+    let removeAttempts = 0;
+    let runCount = 0;
+    fs.closeSync = function closeWithReportedFailure(descriptor) {
+        if (descriptor === targetDescriptor && !closeFailed) {
+            closeFailed = true;
+            originalCloseSync.call(fs, descriptor);
+            throw new Error('close reported failure');
+        }
+        return originalCloseSync.call(fs, descriptor);
+    };
+    fs.rmSync = function removeWithTransientFailure(filePath, options) {
+        if (filePath === targetPath) {
+            removeAttempts += 1;
+            if (removeAttempts === 1) throw new Error('transient removal failure');
+        }
+        return originalRmSync.call(fs, filePath, options);
+    };
+    t.after(() => {
+        fs.closeSync = originalCloseSync;
+        fs.rmSync = originalRmSync;
+    });
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            const descriptor = fs.openSync(filePath, flags, mode);
+            if (filePath === targetPath) targetDescriptor = descriptor;
+            return descriptor;
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(removeAttempts, 2);
+    assert.equal(runCount, 0);
+    assert.equal(fs.existsSync(targetPath), false);
 });
 
 test('applies dependency and canonical visual review files with Chromium only', (t) => {

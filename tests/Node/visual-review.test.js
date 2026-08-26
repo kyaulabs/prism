@@ -1,4 +1,4 @@
-// $KYAULabs: visual-review.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: visual-review.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -288,6 +288,80 @@ test('does not publish evidence when screenshot generation reports a page error'
         /late client failure/
     );
     assert.equal(fs.readdirSync(root).length, 0);
+});
+
+test('replaces an evidence symlink without following it', async (t) => {
+    const module = await import(moduleUrl);
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-symlink-write-'));
+    t.after(() => fs.rmSync(parent, {recursive: true, force: true}));
+    const root = path.join(parent, 'evidence');
+    const external = path.join(parent, 'external.png');
+    fs.mkdirSync(root);
+    fs.writeFileSync(external, 'external content');
+    const capture = module.expandVisualReviewCases(module.validateVisualReviewConfig(structuredClone(valid)))[0];
+    const outputs = module.evidencePaths(capture, root);
+    const originalMkdirSync = fs.mkdirSync;
+    let swapped = false;
+    fs.mkdirSync = function createThenSubstituteOutput(directory, options) {
+        const result = originalMkdirSync.call(fs, directory, options);
+        if (path.resolve(directory) === path.resolve(root) && !swapped) {
+            fs.symlinkSync(external, outputs.image);
+            swapped = true;
+        }
+        return result;
+    };
+    t.after(() => { fs.mkdirSync = originalMkdirSync; });
+    const page = {screenshot: async () => Buffer.from('safe image')};
+
+    await module.publishVisualReviewEvidence(
+        page,
+        capture,
+        {playwright: '1.62.1', chromium: '123.0.0'},
+        {head: 'a'.repeat(40), dirty: false},
+        [],
+        root
+    );
+
+    assert.equal(swapped, true);
+    assert.equal(fs.readFileSync(external, 'utf8'), 'external content');
+    assert.equal(fs.lstatSync(outputs.image).isFile(), true);
+    assert.equal(fs.readFileSync(outputs.image, 'utf8'), 'safe image');
+});
+
+test('rejects an evidence-root symlink substituted during directory creation', async (t) => {
+    const module = await import(moduleUrl);
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-root-race-'));
+    t.after(() => fs.rmSync(parent, {recursive: true, force: true}));
+    const root = path.join(parent, 'evidence');
+    const held = path.join(parent, 'held');
+    const external = path.join(parent, 'external');
+    fs.mkdirSync(external);
+    const capture = module.expandVisualReviewCases(module.validateVisualReviewConfig(structuredClone(valid)))[0];
+    const originalMkdirSync = fs.mkdirSync;
+    let swapped = false;
+    fs.mkdirSync = function createThenSwap(directory, options) {
+        const result = originalMkdirSync.call(fs, directory, options);
+        if (path.resolve(directory) === path.resolve(root) && !swapped) {
+            fs.renameSync(root, held);
+            fs.symlinkSync(external, root, 'dir');
+            swapped = true;
+        }
+        return result;
+    };
+    t.after(() => { fs.mkdirSync = originalMkdirSync; });
+    const page = {screenshot: async () => Buffer.from('not published')};
+
+    await assert.rejects(module.publishVisualReviewEvidence(
+        page,
+        capture,
+        {playwright: '1.62.1', chromium: '123.0.0'},
+        {head: 'a'.repeat(40), dirty: false},
+        [],
+        root
+    ));
+
+    assert.equal(swapped, true);
+    assert.deepEqual(fs.readdirSync(external), []);
 });
 
 test('reports revision identity without exposing repository content', async () => {

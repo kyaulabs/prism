@@ -1,4 +1,4 @@
-// $KYAULabs: workspace.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: workspace.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -128,7 +128,7 @@ function removeCreatedFileQuietly(filePath, identity) {
     }
 }
 
-function writeCreateAtomic(filePath, content, mode, open) {
+function writeCreateAtomic(filePath, content, mode, open, track) {
     let descriptor;
     let identity;
     try {
@@ -139,6 +139,7 @@ function writeCreateAtomic(filePath, content, mode, open) {
             mode
         );
         identity = fs.fstatSync(descriptor);
+        track({dev: identity.dev, ino: identity.ino});
         fs.writeFileSync(descriptor, content);
         fs.fchmodSync(descriptor, mode);
         fs.fsyncSync(descriptor);
@@ -193,7 +194,13 @@ function replaceConsumerFiles({
             const targetPath = path.join(projectRoot, name);
             const content = fs.readFileSync(path.join(candidateRoot, name));
             if (!original.exists) {
-                created.set(name, writeCreateAtomic(targetPath, content, original.mode, open));
+                writeCreateAtomic(
+                    targetPath,
+                    content,
+                    original.mode,
+                    open,
+                    (identity) => created.set(name, identity)
+                );
             } else {
                 writeAtomic(targetPath, content, original.mode, rename);
             }

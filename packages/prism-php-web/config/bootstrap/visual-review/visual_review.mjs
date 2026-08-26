@@ -2,6 +2,7 @@
 
 import {Buffer} from 'node:buffer';
 import {execFileSync} from 'node:child_process';
+import {randomBytes} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -174,6 +175,103 @@ function assertNoPageErrors(errors) {
 	}
 }
 
+function closeQuietly(descriptor) {
+	try {
+		fs.closeSync(descriptor);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function assertEvidenceDirectory(directory) {
+	const stat = fs.lstatSync(directory.root);
+	if (
+		stat.isSymbolicLink() ||
+		!stat.isDirectory() ||
+		stat.dev !== directory.dev ||
+		stat.ino !== directory.ino ||
+		fs.realpathSync(directory.root) !== directory.root
+	) {
+		throw new Error('visual review output escapes working directory');
+	}
+}
+
+function openEvidenceDirectory(root) {
+	const outputRoot = path.resolve(root);
+	let descriptor;
+	try {
+		if (
+			typeof fs.constants.O_DIRECTORY !== 'number' ||
+			typeof fs.constants.O_NOFOLLOW !== 'number'
+		) {
+			throw new Error();
+		}
+		fs.mkdirSync(outputRoot, {recursive: true, mode: 0o700});
+		descriptor = fs.openSync(
+			outputRoot,
+			fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
+		);
+		const stat = fs.fstatSync(descriptor);
+		if (!stat.isDirectory() || fs.realpathSync(outputRoot) !== outputRoot) throw new Error();
+		let heldPath = null;
+		for (const prefix of ['/proc/self/fd', '/dev/fd']) {
+			const candidate = path.join(prefix, String(descriptor));
+			try {
+				if (fs.realpathSync(candidate) === outputRoot) {
+					heldPath = candidate;
+					break;
+				}
+			} catch {
+				continue;
+			}
+		}
+		if (heldPath === null) throw new Error();
+		const directory = {root: outputRoot, heldPath, descriptor, dev: stat.dev, ino: stat.ino};
+		assertEvidenceDirectory(directory);
+		return directory;
+	} catch {
+		if (descriptor !== undefined) closeQuietly(descriptor);
+		throw new Error('visual review output escapes working directory');
+	}
+}
+
+function writeEvidenceFile(directory, filePath, content) {
+	if (path.dirname(filePath) !== directory.root) {
+		throw new Error('visual review output escapes working directory');
+	}
+	const name = path.basename(filePath);
+	const temporary = path.join(
+		directory.heldPath,
+		`.${name}.prism-${randomBytes(16).toString('hex')}.tmp`
+	);
+	const destination = path.join(directory.heldPath, name);
+	let descriptor;
+	let temporaryExists = false;
+	try {
+		descriptor = fs.openSync(
+			temporary,
+			fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW,
+			0o600
+		);
+		temporaryExists = true;
+		fs.writeFileSync(descriptor, content);
+		fs.fchmodSync(descriptor, 0o600);
+		fs.fsyncSync(descriptor);
+		fs.closeSync(descriptor);
+		descriptor = undefined;
+		assertEvidenceDirectory(directory);
+		fs.renameSync(temporary, destination);
+		temporaryExists = false;
+		fs.fsyncSync(directory.descriptor);
+		assertEvidenceDirectory(directory);
+	} catch {
+		if (descriptor !== undefined) closeQuietly(descriptor);
+		if (temporaryExists) fs.rmSync(temporary, {force: true});
+		throw new Error('visual review evidence publication failed');
+	}
+}
+
 export async function publishVisualReviewEvidence(
 	page,
 	capture,
@@ -187,9 +285,13 @@ export async function publishVisualReviewEvidence(
 	assertNoPageErrors(errors);
 	const outputs = evidencePaths(capture, root);
 	const metadata = evidenceMetadata(capture, versions, revision);
-	fs.mkdirSync(path.dirname(outputs.image), {recursive: true});
-	fs.writeFileSync(outputs.image, image, {mode: 0o600});
-	fs.writeFileSync(outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`, {mode: 0o600});
+	const directory = openEvidenceDirectory(path.dirname(outputs.image));
+	try {
+		writeEvidenceFile(directory, outputs.image, image);
+		writeEvidenceFile(directory, outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`);
+	} finally {
+		closeQuietly(directory.descriptor);
+	}
 	return outputs;
 }
 
