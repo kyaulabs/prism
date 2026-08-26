@@ -7,6 +7,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 
+const VISUAL_REVIEW_SOURCES = new Set([
+    'visual_review.example.json',
+    'visual_review.mjs',
+    'visual_review.spec.mjs',
+]);
+
 function packageVersion(packageRoot) {
     const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
     if (manifest?.name !== '@kyaulabs/prism-php-web' || typeof manifest.version !== 'string') {
@@ -293,6 +299,15 @@ function npmProjectName(request) {
 }
 
 function contents(outputPath, request, contract, packageRoot) {
+    if (VISUAL_REVIEW_SOURCES.has(outputPath)) {
+        return fs.readFileSync(path.join(
+            packageRoot,
+            'config',
+            'bootstrap',
+            'visual-review',
+            outputPath
+        ), 'utf8');
+    }
     if (outputPath === '.github/scripts/check-php.sh') return `#!/usr/bin/env bash
 set -euo pipefail
 MODE="\${1:---local}"
@@ -310,6 +325,9 @@ find backend tests -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l
 prism-tool run php-cs-fixer -- fix --dry-run --diff
 find cdn/sass -type f -name '*.scss' -print -quit | grep -q . && prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input || true
 find cdn/js -type f -name '*.js' -print -quit | grep -q . && prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern || true
+if [[ -f visual_review.json ]]; then
+    prism-tool run playwright -- test visual_review.spec.mjs --list --workers=1
+fi
 php -S 127.0.0.1:8080 -t tests/Browser/fixtures >/dev/null 2>&1 &
 SERVER_PID=$!
 READY=no
@@ -404,7 +422,15 @@ for test_file in tests/Shell/*_test.sh; do bash "$test_file"; done
         const dependencies = Object.fromEntries(contract.components
             .filter(({ecosystem}) => ecosystem === 'npm')
             .map(({package: packageName, version}) => [packageName, version]));
-        return `${JSON.stringify({name: npmProjectName(request), private: true, scripts: {check: '.github/scripts/check-php.sh --local'}, devDependencies: dependencies}, null, 2)}\n`;
+        return `${JSON.stringify({
+            name: npmProjectName(request),
+            private: true,
+            scripts: {
+                check: '.github/scripts/check-php.sh --local',
+                'visual-review': 'prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line',
+            },
+            devDependencies: dependencies,
+        }, null, 2)}\n`;
     }
     if (outputPath === 'composer.lock') return '{"packages":[],"packages-dev":[]}\n';
     if (outputPath === 'package-lock.json') return '{"lockfileVersion":3,"packages":{}}\n';
@@ -509,7 +535,7 @@ function convention_source_files(): array
     $files = [];
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
     foreach ($iterator as $file) {
-        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'scss', 'sh', 'ts'], true)) {
+        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'mjs', 'scss', 'sh', 'ts'], true)) {
             $files[] = $file->getPathname();
         }
     }
@@ -532,7 +558,7 @@ it('uses one final vim modeline', function (): void {
 });
 `;
     if (outputPath === 'tests/Browser/fixtures/smoke.html') return '<!doctype html><title>Prism ready</title><h1>Prism ready</h1>\n';
-    if (outputPath === '.gitignore') return "/vendor/\n/node_modules/\n/tests/coverage/\n/tests/coverage.xml\n.env\n.env.*\n!.env.example\n";
+    if (outputPath === '.gitignore') return "/vendor/\n/node_modules/\n/tests/coverage/\n/tests/coverage.xml\n/tests/Browser/Screenshots/\n.env\n.env.*\n!.env.example\n";
     if (outputPath.endsWith('.gitkeep')) return '';
     if (outputPath.endsWith('.sh')) return '#!/usr/bin/env bash\nset -euo pipefail\n# vim: ft=sh sts=4 sw=4 ts=4 et :\n';
     if (outputPath.endsWith('.php')) return '<?php\ndeclare(strict_types=1);\n\n// vim: ft=php sts=4 sw=4 ts=4 et :\n';

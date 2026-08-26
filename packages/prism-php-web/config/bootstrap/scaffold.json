@@ -32,7 +32,10 @@
     "tests/Shell/run-all.sh",
     "tests/Unit/Harness/ArchTest.php",
     "tests/Unit/Harness/RcsHeaderConventionTest.php",
-    "tests/bootstrap.php"
+    "tests/bootstrap.php",
+    "visual_review.example.json",
+    "visual_review.mjs",
+    "visual_review.spec.mjs"
   ],
   "effects": [
     {

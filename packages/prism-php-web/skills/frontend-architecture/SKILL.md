@@ -57,16 +57,16 @@ If jQuery is introduced, note the reason in the PR. Modern vanilla APIs
 (`querySelector`, `classList`, `fetch`, `IntersectionObserver`,
 `CustomElements`) cover the vast majority of cases.
 
-## Design tokens
+## Project-defined design tokens
 
-Visual tokens (colors, shadows, surfaces) are defined canonically by the
-`frontend-design` skill as `:root` CSS custom properties. This skill
-**consumes** them; it does not redefine them.
+Consume project-defined semantic CSS custom properties derived from the
+committed user-authored visual brief.
 
-- Read tokens via `var(--token)` in SCSS, not hardcoded values.
-- Component-level overrides belong in the component's SCSS, scoped to the
-  component's class — never on `:root` (that is the design layer's domain).
-- If a token is missing, add it in the design layer first, then consume it.
+- Do not prescribe token names or values in this skill.
+- Do not hardcode repeated visual values in component SCSS.
+- Define stable semantic tokens in the project's design layer, then consume
+  them with `var(--token)`.
+- Keep component overrides scoped to the component rather than `:root`.
 
 ## CSP-friendly scripts
 
@@ -80,7 +80,7 @@ Visual tokens (colors, shadows, surfaces) are defined canonically by the
 
 ## Cross-refs
 
-- `frontend-design` — visual language, neumorphism, token definitions.
+- `frontend-design` — user-authored visual brief and quality recommendations.
 - `accessibility` — keyboard handlers, focus management, motion safety.
 - `scss-mobile-first` — where styles live and how they're built.
 - `aurora-page` — how scripts and styles are registered on a page.

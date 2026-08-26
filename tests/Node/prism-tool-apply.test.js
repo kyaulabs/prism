@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -18,10 +18,13 @@ const {
 } = require('../../packages/prism-php-web/scripts/toolchain/workspace');
 const {makeTempDir, sha256, writeExecutable, writeJson} = require('./helpers');
 
-const adapterContract = loadContract(path.resolve(
-    __dirname,
-    '../../packages/prism-php-web/toolchain.json'
-));
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const VISUAL_REVIEW_FILES = [
+    'visual_review.example.json',
+    'visual_review.mjs',
+    'visual_review.spec.mjs',
+];
+const adapterContract = loadContract(path.join(ADAPTER_ROOT, 'toolchain.json'));
 
 function captureWrites(action) {
     let stdout = '';
@@ -95,18 +98,29 @@ function makeCandidateFixture() {
     for (const [name, content] of Object.entries(candidateFiles)) {
         fs.writeFileSync(path.join(candidateRoot, name), content, {mode: 0o600});
     }
+    const visualReviewFiles = Object.fromEntries(VISUAL_REVIEW_FILES.map((name) => {
+        const content = fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name));
+        fs.writeFileSync(path.join(candidateRoot, name), content, {mode: 0o600});
+        return [name, content];
+    }));
     const plan = {
         schemaVersion: 1,
         adapter: adapterContract.package,
         projectRoot: fs.realpathSync(projectRoot),
         original: Object.fromEntries(Object.entries(originalFiles).map(([name, content]) => [name, sha256(content)])),
         candidate: Object.fromEntries(Object.entries(candidateFiles).map(([name, content]) => [name, sha256(content)])),
+        scaffold: Object.fromEntries(Object.entries(visualReviewFiles).map(([name, content]) => [name, {
+            disposition: 'CREATE',
+            original: 'absent',
+            candidate: sha256(content),
+            mode: 0o644,
+        }])),
         audit: {critical: 0, high: 0, moderate: 0, low: 0},
         browserTargets: ['chromium'],
     };
     const planPath = path.join(workspace.root, 'candidate-plan.json');
     writeJson(planPath, plan);
-    return {candidateFiles, plan, planPath, projectRoot};
+    return {candidateFiles, plan, planPath, projectRoot, visualReviewFiles};
 }
 
 test('rejects every non-literal mutation approval before files or subprocesses change', (t) => {
@@ -218,6 +232,70 @@ test('rejects a broken symlink substituted for an absent original file', (t) => 
     assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
 });
 
+test('preserves exact canonical visual review files without rewriting them', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const identities = new Map();
+    for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
+        const target = path.join(fixture.projectRoot, name);
+        fs.writeFileSync(target, content, {mode: 0o644});
+        fs.chmodSync(target, 0o644);
+        fixture.plan.scaffold[name] = {
+            disposition: 'PRESERVE',
+            original: sha256(content),
+            candidate: sha256(content),
+            mode: 0o644,
+        };
+        const stat = fs.statSync(target, {bigint: true});
+        identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
+    }
+    writeJson(fixture.planPath, fixture.plan);
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        packageRoot: ADAPTER_ROOT,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        run(command, args) {
+            if (command === 'composer' && args[0] === 'install') {
+                return {status: 1, stdout: '', stderr: '', error: undefined};
+            }
+            throw new Error('unexpected command');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'post-apply failure');
+    for (const name of VISUAL_REVIEW_FILES) {
+        const stat = fs.statSync(path.join(fixture.projectRoot, name), {bigint: true});
+        assert.deepEqual({ino: stat.ino, mtimeNs: stat.mtimeNs}, identities.get(name), name);
+    }
+});
+
+test('rejects a stale create target before package installation', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const target = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    fs.writeFileSync(target, 'appeared after approval\n', {mode: 0o644});
+    let runCount = 0;
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        packageRoot: ADAPTER_ROOT,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'stale plan');
+    assert.equal(runCount, 0);
+    assert.equal(fs.readFileSync(target, 'utf8'), 'appeared after approval\n');
+});
+
 test('rejects substituted candidate plans and ownership markers before mutation', (t) => {
     const fixtures = [];
     t.after(() => {
@@ -264,6 +342,30 @@ test('rejects substituted candidate plans and ownership markers before mutation'
             mutate(fixture) {
                 fixture.plan.browserTargets = ['chromium', 'firefox'];
                 writeJson(fixture.planPath, fixture.plan);
+            },
+            workspaceRemains: false,
+            reason: 'invalid plan',
+        },
+        {
+            name: 'managed file disposition',
+            mutate(fixture) {
+                fixture.plan.scaffold[VISUAL_REVIEW_FILES[0]].disposition = 'REPLACE';
+                writeJson(fixture.planPath, fixture.plan);
+            },
+            workspaceRemains: false,
+            reason: 'invalid plan',
+        },
+        {
+            name: 'managed candidate hash',
+            mutate(fixture) {
+                fs.appendFileSync(path.join(
+                    fixture.projectRoot,
+                    '.pi',
+                    'prism-tool',
+                    'work',
+                    'candidate',
+                    VISUAL_REVIEW_FILES[0]
+                ), 'substituted\n');
             },
             workspaceRemains: false,
             reason: 'invalid plan',
@@ -346,7 +448,7 @@ test('rolls back every original state when atomic replacement fails before insta
         planPath: fixture.planPath,
         rename(source, destination) {
             renameCount += 1;
-            if (renameCount === 3) throw new Error('fixture rename failure');
+            if (renameCount === 2) throw new Error('fixture rename failure');
             fs.renameSync(source, destination);
         },
         run() {
@@ -357,17 +459,199 @@ test('rolls back every original state when atomic replacement fails before insta
 
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.reason, 'transaction failure');
-    assert.equal(renameCount >= 3, true);
+    assert.equal(renameCount >= 2, true);
     assert.equal(runCount, 0);
     for (const [name, content] of Object.entries(original)) {
         const filePath = path.join(fixture.projectRoot, name);
         if (content === null) assert.equal(fs.existsSync(filePath), false, name);
         else assert.deepEqual(fs.readFileSync(filePath), content, name);
     }
+    for (const name of VISUAL_REVIEW_FILES) {
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
+    }
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
 });
 
-test('applies all four files and installs the exact locked graph with Chromium only', (t) => {
+test('preserves a path created concurrently during atomic managed CREATE', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const racingName = VISUAL_REVIEW_FILES[0];
+    const racingPath = path.join(fixture.projectRoot, racingName);
+    let runCount = 0;
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            if (filePath === racingPath) {
+                fs.writeFileSync(filePath, 'concurrent project data\n', {flag: 'wx', mode: 0o640});
+                fs.chmodSync(filePath, 0o640);
+            }
+            return fs.openSync(filePath, flags, mode);
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(runCount, 0);
+    assert.equal(fs.readFileSync(racingPath, 'utf8'), 'concurrent project data\n');
+    assert.equal(fs.statSync(racingPath).mode & 0o777, 0o640);
+    for (const name of VISUAL_REVIEW_FILES.slice(1)) {
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
+    }
+    for (const [name, content] of Object.entries({
+        'composer.json': '{"name":"fixture/project"}\n',
+        'composer.lock': '{"packages":[],"packages-dev":[]}\n',
+        'package.json': '{"name":"fixture-project"}\n',
+        'package-lock.json': '{"lockfileVersion":3,"packages":{}}\n',
+    })) {
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, name), 'utf8'), content, name);
+    }
+});
+
+test('preserves a concurrently replaced CREATE path during rollback', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const firstPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const secondPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[1]);
+    let runCount = 0;
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            if (filePath === secondPath) {
+                fs.rmSync(firstPath);
+                fs.writeFileSync(firstPath, 'replacement after create\n', {flag: 'wx', mode: 0o640});
+                fs.writeFileSync(secondPath, 'concurrent second file\n', {flag: 'wx', mode: 0o640});
+                fs.chmodSync(firstPath, 0o640);
+                fs.chmodSync(secondPath, 0o640);
+            }
+            return fs.openSync(filePath, flags, mode);
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(runCount, 0);
+    assert.equal(fs.readFileSync(firstPath, 'utf8'), 'replacement after create\n');
+    assert.equal(fs.readFileSync(secondPath, 'utf8'), 'concurrent second file\n');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[2])), false);
+    for (const [name, content] of Object.entries({
+        'composer.json': '{"name":"fixture/project"}\n',
+        'composer.lock': '{"packages":[],"packages-dev":[]}\n',
+        'package.json': '{"name":"fixture-project"}\n',
+        'package-lock.json': '{"lockfileVersion":3,"packages":{}}\n',
+    })) {
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, name), 'utf8'), content, name);
+    }
+});
+
+test('removes a partially created managed file when close reports failure', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const targetPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const originalCloseSync = fs.closeSync;
+    let targetDescriptor;
+    let closeFailed = false;
+    let runCount = 0;
+    fs.closeSync = function closeWithReportedFailure(descriptor) {
+        if (descriptor === targetDescriptor && !closeFailed) {
+            closeFailed = true;
+            originalCloseSync.call(fs, descriptor);
+            throw new Error('close reported failure');
+        }
+        return originalCloseSync.call(fs, descriptor);
+    };
+    t.after(() => { fs.closeSync = originalCloseSync; });
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            const descriptor = fs.openSync(filePath, flags, mode);
+            if (filePath === targetPath) targetDescriptor = descriptor;
+            return descriptor;
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(closeFailed, true);
+    assert.equal(runCount, 0);
+    for (const name of VISUAL_REVIEW_FILES) {
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
+    }
+});
+
+test('retries transient created-file cleanup during outer rollback', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const targetPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const originalCloseSync = fs.closeSync;
+    const originalRmSync = fs.rmSync;
+    let targetDescriptor;
+    let closeFailed = false;
+    let removeAttempts = 0;
+    let runCount = 0;
+    fs.closeSync = function closeWithReportedFailure(descriptor) {
+        if (descriptor === targetDescriptor && !closeFailed) {
+            closeFailed = true;
+            originalCloseSync.call(fs, descriptor);
+            throw new Error('close reported failure');
+        }
+        return originalCloseSync.call(fs, descriptor);
+    };
+    fs.rmSync = function removeWithTransientFailure(filePath, options) {
+        if (filePath === targetPath) {
+            removeAttempts += 1;
+            if (removeAttempts === 1) throw new Error('transient removal failure');
+        }
+        return originalRmSync.call(fs, filePath, options);
+    };
+    t.after(() => {
+        fs.closeSync = originalCloseSync;
+        fs.rmSync = originalRmSync;
+    });
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            const descriptor = fs.openSync(filePath, flags, mode);
+            if (filePath === targetPath) targetDescriptor = descriptor;
+            return descriptor;
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(removeAttempts, 2);
+    assert.equal(runCount, 0);
+    assert.equal(fs.existsSync(targetPath), false);
+});
+
+test('applies dependency and canonical visual review files with Chromium only', (t) => {
     const fixture = makeCandidateFixture();
     t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
     const originalModes = {
@@ -451,6 +735,11 @@ test('applies all four files and installs the exact locked graph with Chromium o
         const filePath = path.join(fixture.projectRoot, name);
         assert.equal(fs.readFileSync(filePath, 'utf8'), content, name);
         assert.equal(fs.statSync(filePath).mode & 0o777, originalModes[name], name);
+    }
+    for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
+        const filePath = path.join(fixture.projectRoot, name);
+        assert.deepEqual(fs.readFileSync(filePath), content, name);
+        assert.equal(fs.statSync(filePath).mode & 0o777, 0o644, name);
     }
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
 });

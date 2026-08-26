@@ -1,4 +1,4 @@
-// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -8,6 +8,10 @@ const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 const {resolveTool} = require('./project');
 const {
+    readCanonicalVisualReviewFiles,
+    VISUAL_REVIEW_FILES,
+} = require('./visual-review-files');
+const {
     createWorkspace,
     readOwnedWorkspace,
     recoverWorkspace,
@@ -16,6 +20,7 @@ const {
 
 const CONSUMER_FILES = ['composer.json', 'composer.lock', 'package.json', 'package-lock.json'];
 const COMMAND_OPTIONS = Object.freeze({maxBuffer: 1048576, timeout: 300000});
+const DEFAULT_PACKAGE_ROOT = path.resolve(__dirname, '../..');
 
 class InvalidPlanError extends Error {}
 class PostApplyError extends Error {
@@ -35,13 +40,14 @@ function hasExactKeys(value, keys) {
         Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 
-function validatePlan(plan, contract, canonicalProject) {
+function validatePlan(plan, contract, canonicalProject, canonicalFiles) {
     if (!hasExactKeys(plan, [
         'schemaVersion',
         'adapter',
         'projectRoot',
         'original',
         'candidate',
+        'scaffold',
         'audit',
         'browserTargets',
     ])) throw new InvalidPlanError('candidate plan schema is invalid');
@@ -51,6 +57,7 @@ function validatePlan(plan, contract, canonicalProject) {
         plan.projectRoot !== canonicalProject ||
         !hasExactKeys(plan.original, CONSUMER_FILES) ||
         !hasExactKeys(plan.candidate, CONSUMER_FILES) ||
+        !hasExactKeys(plan.scaffold, VISUAL_REVIEW_FILES) ||
         !hasExactKeys(plan.audit, ['critical', 'high', 'moderate', 'low']) ||
         !Array.isArray(plan.browserTargets)
     ) {
@@ -62,6 +69,20 @@ function validatePlan(plan, contract, canonicalProject) {
         }
         if (!DIGEST.test(plan.candidate[name])) {
             throw new InvalidPlanError('candidate plan digest is invalid');
+        }
+    }
+    for (const name of VISUAL_REVIEW_FILES) {
+        const record = plan.scaffold[name];
+        const canonical = canonicalFiles.get(name);
+        if (
+            !hasExactKeys(record, ['disposition', 'original', 'candidate', 'mode']) ||
+            !['CREATE', 'PRESERVE'].includes(record.disposition) ||
+            record.candidate !== canonical.sha256 ||
+            record.mode !== canonical.mode ||
+            (record.disposition === 'CREATE' && record.original !== 'absent') ||
+            (record.disposition === 'PRESERVE' && record.original !== canonical.sha256)
+        ) {
+            throw new InvalidPlanError('candidate scaffold plan is invalid');
         }
     }
     if (Object.values(plan.audit).some((total) => !Number.isInteger(total) || total !== 0)) {
@@ -282,7 +303,119 @@ function cleanupOwnedWorkspace(projectRoot, adapter) {
     }
 }
 
-function applyCandidate({contract, projectRoot, planPath, rename, run}) {
+function stageVisualReviewFiles({packageRoot, projectRoot, candidateRoot}) {
+    const canonicalFiles = readCanonicalVisualReviewFiles(packageRoot);
+    const scaffold = {};
+    for (const name of VISUAL_REVIEW_FILES) {
+        const canonical = canonicalFiles.get(name);
+        const projectPath = path.join(projectRoot, name);
+        let stat;
+        try {
+            stat = fs.lstatSync(projectPath);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+        let disposition = 'CREATE';
+        let original = 'absent';
+        if (stat !== undefined) {
+            if (
+                stat.isSymbolicLink() ||
+                !stat.isFile() ||
+                (stat.mode & 0o777) !== canonical.mode ||
+                digestFile(projectPath) !== canonical.sha256
+            ) {
+                throw new Error('managed visual review file conflicts with canonical content');
+            }
+            disposition = 'PRESERVE';
+            original = canonical.sha256;
+        }
+        const candidatePath = path.join(candidateRoot, name);
+        fs.writeFileSync(candidatePath, canonical.content, {flag: 'wx', mode: 0o600});
+        fs.chmodSync(candidatePath, 0o600);
+        scaffold[name] = {
+            disposition,
+            original,
+            candidate: canonical.sha256,
+            mode: canonical.mode,
+        };
+    }
+    return scaffold;
+}
+
+function validateConsumerCandidateFiles({canonicalProject, candidateRoot, plan}) {
+    for (const name of CONSUMER_FILES) {
+        const currentPath = path.join(canonicalProject, name);
+        let currentStat;
+        try {
+            currentStat = fs.lstatSync(currentPath);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw new StalePlanError('consumer file is invalid');
+        }
+        let actual = 'absent';
+        if (currentStat) {
+            if (currentStat.isSymbolicLink() || !currentStat.isFile()) {
+                throw new StalePlanError('consumer file is invalid');
+            }
+            actual = digestFile(currentPath);
+        }
+        if (plan.original[name] !== actual) throw new StalePlanError('candidate plan is stale');
+        const candidatePath = path.join(candidateRoot, name);
+        const candidateStat = fs.lstatSync(candidatePath);
+        if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) {
+            throw new InvalidPlanError('candidate file is invalid');
+        }
+        if (digestFile(candidatePath) !== plan.candidate[name]) {
+            throw new InvalidPlanError('candidate file digest does not match');
+        }
+    }
+}
+
+function validateScaffoldCandidateFiles({canonicalProject, candidateRoot, canonicalFiles, plan}) {
+    const createNames = [];
+    for (const name of VISUAL_REVIEW_FILES) {
+        const record = plan.scaffold[name];
+        const currentPath = path.join(canonicalProject, name);
+        let currentStat;
+        try {
+            currentStat = fs.lstatSync(currentPath);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw new StalePlanError('managed file is invalid');
+        }
+        if (record.disposition === 'CREATE') {
+            if (currentStat !== undefined) throw new StalePlanError('candidate plan is stale');
+            createNames.push(name);
+        } else if (
+            currentStat === undefined ||
+            currentStat.isSymbolicLink() ||
+            !currentStat.isFile() ||
+            (currentStat.mode & 0o777) !== record.mode ||
+            digestFile(currentPath) !== record.original
+        ) {
+            throw new StalePlanError('candidate plan is stale');
+        }
+        const candidatePath = path.join(candidateRoot, name);
+        const candidateStat = fs.lstatSync(candidatePath);
+        if (
+            candidateStat.isSymbolicLink() ||
+            !candidateStat.isFile() ||
+            digestFile(candidatePath) !== record.candidate ||
+            record.candidate !== canonicalFiles.get(name).sha256
+        ) {
+            throw new InvalidPlanError('candidate scaffold file is invalid');
+        }
+    }
+    return createNames;
+}
+
+function applyCandidate({
+    contract,
+    packageRoot = DEFAULT_PACKAGE_ROOT,
+    projectRoot,
+    planPath,
+    open,
+    rename,
+    run,
+}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     let workspace;
     try {
@@ -302,41 +435,26 @@ function applyCandidate({contract, projectRoot, planPath, rename, run}) {
         } catch {
             throw new InvalidPlanError('candidate plan is invalid');
         }
-        const plan = validatePlan(parsedPlan, contract, canonicalProject);
+        const canonicalFiles = readCanonicalVisualReviewFiles(packageRoot);
+        const plan = validatePlan(parsedPlan, contract, canonicalProject, canonicalFiles);
         const candidateRoot = path.join(workspace.root, 'candidate');
         const candidateStat = fs.lstatSync(candidateRoot);
         if (candidateStat.isSymbolicLink() || !candidateStat.isDirectory()) {
             throw new InvalidPlanError('candidate directory is invalid');
         }
-        for (const name of CONSUMER_FILES) {
-            const currentPath = path.join(canonicalProject, name);
-            let currentStat;
-            try {
-                currentStat = fs.lstatSync(currentPath);
-            } catch (error) {
-                if (error.code !== 'ENOENT') throw new StalePlanError('consumer file is invalid');
-            }
-            let actual = 'absent';
-            if (currentStat) {
-                if (currentStat.isSymbolicLink() || !currentStat.isFile()) {
-                    throw new StalePlanError('consumer file is invalid');
-                }
-                actual = digestFile(currentPath);
-            }
-            if (plan.original[name] !== actual) throw new StalePlanError('candidate plan is stale');
-            const candidatePath = path.join(candidateRoot, name);
-            const candidateFileStat = fs.lstatSync(candidatePath);
-            if (candidateFileStat.isSymbolicLink() || !candidateFileStat.isFile()) {
-                throw new InvalidPlanError('candidate file is invalid');
-            }
-            if (digestFile(candidatePath) !== plan.candidate[name]) {
-                throw new InvalidPlanError('candidate file digest does not match');
-            }
-        }
+        validateConsumerCandidateFiles({canonicalProject, candidateRoot, plan});
+        const createNames = validateScaffoldCandidateFiles({
+            canonicalProject,
+            candidateRoot,
+            canonicalFiles,
+            plan,
+        });
         replaceConsumerFiles({
             projectRoot: canonicalProject,
             workspaceRoot: workspace.root,
-            names: CONSUMER_FILES,
+            names: [...CONSUMER_FILES, ...createNames],
+            createModes: new Map(createNames.map((name) => [name, plan.scaffold[name].mode])),
+            open,
             rename,
         });
         installLockedGraph({contract, projectRoot: canonicalProject, run});
@@ -378,7 +496,7 @@ function applyCandidate({contract, projectRoot, planPath, rename, run}) {
     }
 }
 
-function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
+function resolveCandidate({contract, packageRoot = DEFAULT_PACKAGE_ROOT, projectRoot, workspaceRoot, run}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const expectedWorkspace = path.join(canonicalProject, '.pi', 'prism-tool', 'work');
     if (workspaceRoot !== undefined && path.resolve(workspaceRoot) !== expectedWorkspace) {
@@ -401,6 +519,9 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
         const candidateRoot = path.join(workspace.root, 'candidate');
         fs.mkdirSync(originalRoot, {mode: 0o700});
         fs.mkdirSync(candidateRoot, {mode: 0o700});
+        stage = 'managed-file-conflict';
+        const scaffold = stageVisualReviewFiles({packageRoot, projectRoot: canonicalProject, candidateRoot});
+        stage = 'candidate-preparation';
         const original = {};
         for (const name of CONSUMER_FILES) {
             const sourcePath = path.join(canonicalProject, name);
@@ -499,12 +620,29 @@ function resolveCandidate({contract, projectRoot, workspaceRoot, run}) {
             diff += diffResult.stdout;
             stage = 'candidate-validation';
         }
+        for (const name of VISUAL_REVIEW_FILES) {
+            if (scaffold[name].disposition !== 'CREATE') continue;
+            stage = 'candidate-diff';
+            const diffResult = run('git', [
+                'diff',
+                '--no-index',
+                '--',
+                '/dev/null',
+                path.join(candidateRoot, name),
+            ], {...COMMAND_OPTIONS, cwd: workspace.root});
+            if (diffResult.error || ![0, 1].includes(diffResult.status)) {
+                throw new Error('candidate diff failed');
+            }
+            diff += diffResult.stdout;
+            stage = 'candidate-validation';
+        }
         const plan = {
             schemaVersion: 1,
             adapter: contract.package,
             projectRoot: canonicalProject,
             original,
             candidate,
+            scaffold,
             audit,
             browserTargets: [...contract.browserTargets],
         };

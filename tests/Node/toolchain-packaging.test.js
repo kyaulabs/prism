@@ -279,10 +279,25 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
-    for (const module of ['audit', 'bootstrap-scaffold', 'project', 'transaction', 'workspace']) {
+    for (const module of [
+        'audit', 'bootstrap-scaffold', 'project', 'transaction', 'visual-review-files', 'workspace',
+    ]) {
         assert.equal(packed.files.has(`scripts/toolchain/${module}.js`), true, module);
     }
     assert.equal(packed.files.has('config/bootstrap/scaffold.json'), true, 'bootstrap scaffold manifest packaged');
+    for (const visualReviewResource of [
+        'config/bootstrap/visual-review/visual_review.mjs',
+        'config/bootstrap/visual-review/visual_review.spec.mjs',
+        'config/bootstrap/visual-review/visual_review.example.json',
+        'skills/visual-review/SKILL.md',
+        'docs/visual-review.md',
+    ]) {
+        assert.equal(
+            packed.files.has(visualReviewResource),
+            true,
+            `${visualReviewResource} packaged`
+        );
+    }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 3, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 10, true, 'skills present');
     assert.equal(tarPaths(packed, 'package/docs/').length >= 4, true, 'docs present');

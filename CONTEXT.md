@@ -54,6 +54,9 @@ documentation, and conversation.
 | supported-adapter catalogue | The Core-shipped schema-versioned closed list of adapters eligible for strict-empty setup, including exact project-local package identities, versions, and bootstrap protocol compatibility. |
 | template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
 | testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
+| user-authored visual brief | The versioned project record of approved visual intent, inspiration references, viewport priorities, and aesthetic decisions supplied by the user; Prism contributes no fallback palette, theme type, or design movement. |
+| visual review tooling | Adapter-scaffolded consumer-repository scripts and closed configuration that use the declared browser toolchain to capture reproducible frontend evidence without replacing functional browser tests. |
+| visual review evidence | Deterministic screenshots and metadata captured across approved routes, states, and viewports during frontend development; working evidence is local by default and committed only with explicit user approval. |
 | repository seed | The sole signed root commit created on unborn `develop` after durable project application, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Its evidence may contain a nullable adapter and binds source, capabilities, providers, metadata, plan, hooks, and staged state. Publication remains human-owned. |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
@@ -118,7 +121,10 @@ A project-local specialization of the Prism core.
   never owns Template acquisition, Core/profile rendering, combined-plan
   approval, strict-empty rollback, or repository creation.
 - Owns stack-specific local/CI quality behavior, generated CI, dependency
-  population, and browser acquisition behind Core orchestration.
+  population, browser acquisition, and visual review tooling behind Core
+  orchestration.
+- Scaffolds a user-authored visual brief and reusable visual review tooling
+  without selecting a palette, theme type, design movement, or inspiration.
 - A change that requires stack-specific logic in core is an architecture
   boundary failure and must halt for review.
 
@@ -458,6 +464,7 @@ Pi-era decisions:
 - `adr/0085-workflow-authorized-tracker-operations.md` — authorize bounded tracker mutation batches and continuous Wayfinder map lifecycles without per-command or per-frontier approval.
 - `adr/0086-standing-readonly-github-and-graphql-first-tracker-operations.md` — standing-authorize read-only GitHub metadata and use GraphQL as the canonical tracker mutation transport.
 - `adr/0087-structured-redacted-safety-diagnostics.md` — preserve fail-closed safety while reporting stable redacted diagnostic categories and retry guidance.
+- `adr/0088-user-authored-frontend-design-and-visual-review.md` — keep project aesthetics user-authored and provide adapter-owned reusable visual review tooling with local-by-default evidence and explicit trust boundaries.
 
 ## When to update this file
 

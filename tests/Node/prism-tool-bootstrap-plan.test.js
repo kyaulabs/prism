@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -835,7 +835,7 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
         'php-web-scaffold',
     ]);
     assert.match(report.adapterReportDigest, /^[0-9a-f]{64}$/);
-    assert.equal(report.outputs.length, 37);
+    assert.equal(report.outputs.length, 40);
     assert.equal(report.outputs.every((output, index, outputs) =>
         index === 0 || outputs[index - 1].path.localeCompare(output.path) < 0
     ), true);
@@ -898,7 +898,7 @@ test('composes all governance profiles with a Blank PHP web adapter plan', (t) =
         'core-baseline', 'licensing', 'community-governance',
         'github-collaboration', 'php-web-scaffold',
     ]);
-    assert.equal(report.outputs.length, 43);
+    assert.equal(report.outputs.length, 46);
     assert.equal(report.checks.length, 5);
     assert.equal(report.verification.length, 5);
     const readme = fs.readFileSync(path.join(
@@ -1079,7 +1079,7 @@ test('keeps the PHP web provider source- and capability-independent with all sev
             'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
             'php-web-scaffold',
         ]);
-        assert.equal(plan.outputs.length, 47);
+        assert.equal(plan.outputs.length, 50);
     }
     const adapterPaths = reports[0].provider.outputs.map(({path: outputPath}) => outputPath);
     for (const profilePath of [
@@ -1122,7 +1122,7 @@ test('plans a Template project with the provisioned PHP web adapter', async (t) 
         'core-baseline',
         'php-web-scaffold',
     ]);
-    assert.equal(report.outputs.length, 37);
+    assert.equal(report.outputs.length, 40);
     assert.equal(report.effects.length, 5);
     assert.equal(report.checks.length, 2);
     assert.equal(report.verification.length, 2);

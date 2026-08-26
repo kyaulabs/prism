@@ -249,7 +249,7 @@ prism ships as two pi packages (ADR-0058):
 - **`@kyaulabs/prism-php-web`** — the PHP/web stack adapter. Installed
   **project-locally** (`pi install -l ./packages/prism-php-web`) inside a PHP
   project. It contributes the `php-web-stack`, `tdd-php`, `rcs-header`,
-  `aurora-page`, and other stack skills, plus the adapter `safe-dirs.json`
+  `aurora-page`, `visual-review`, and other stack skills, plus the adapter `safe-dirs.json`
   the safety extension reads for `rm -rf` safe zones.
 
 **Adapter activation:** when a project contains `composer.json` or `aurora/`,
@@ -261,8 +261,8 @@ say: if no stack skill is loaded, ask the user which adapter applies.
 
 Load these on demand when the task requires them. Core skills (below) are
 global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
-`aurora-page`, `pest-browser`, `scss-mobile-first`, `accessibility`,
-`frontend-design`, `frontend-architecture`, `database`, `security-coding-php`,
+`aurora-page`, `pest-browser`, `visual-review`, `scss-mobile-first`,
+`accessibility`, `frontend-design`, `frontend-architecture`, `database`, `security-coding-php`,
 …) are documented in the active adapter and available once it is installed.
 
 | Skill | When to use |
