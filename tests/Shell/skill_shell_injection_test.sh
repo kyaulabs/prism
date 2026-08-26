@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: skill_shell_injection_test.sh kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 set -euo pipefail
 
 # ── Skill Shell Injection Test ────────────────────────────────────────────────
-# Verify that shell commands in skill markdown files use safe quoting patterns.
-# Two families:
-#   1. gh api graphql uses -F variable bindings (not single-quoted $VAR)
-#   2. gh pr create uses a quoted title variable and --body-file.
-#
-# Also demonstrates that a crafted malicious title does not execute embedded
-# commands when passed through the safe patterns (active injection test).
+# Verify that tracker mutations use inert project-local GraphQL input files
+# and that pull-request title/body transport remains injection-safe.
 #
 # Fixes: #200
 # ─────────────────────────────────────────────────────────────────────────────
@@ -52,53 +47,68 @@ has_obsolete_pr_title_flag() {
 	[ "$obsolete" -eq 1 ]
 }
 
-# ── Static scan: ticketing SKILL.md ──────────────────────────────────────────
-TICKETING="$REPO_ROOT/packages/prism-core/skills/ticketing/SKILL.md"
+tracker_transport_is_canonical() {
+	local file="$1"
+	awk '
+		/^[[:space:]]*gh api graphql([[:space:]]|$)/ {
+			seen = 1
+			if ($0 !~ /^[[:space:]]*gh api graphql --input \.pi\/tmp\/[[:alnum:]_.-]+\.json[[:space:]]*$/) unsafe = 1
+		}
+		END { exit !(seen && !unsafe) }
+	' "$file"
+}
 
+TMPDIR=$(mktemp -d)
+register_temp_dir "$TMPDIR"
+
+cat > "$TMPDIR/tracker-canonical.md" <<'TRACKER_CANONICAL'
+gh api graphql --input .pi/tmp/tracker-mutation.json
+TRACKER_CANONICAL
+cat > "$TMPDIR/tracker-inline.md" <<'TRACKER_INLINE'
+gh api graphql --input .pi/tmp/tracker-mutation.json
+gh api graphql -f query=mutation
+TRACKER_INLINE
+cat > "$TMPDIR/tracker-appended.md" <<'TRACKER_APPENDED'
+gh api graphql --input .pi/tmp/tracker-mutation.json -f query=mutation
+TRACKER_APPENDED
+cat > "$TMPDIR/tracker-traversal.md" <<'TRACKER_TRAVERSAL'
+gh api graphql --input .pi/tmp/../outside.json
+TRACKER_TRAVERSAL
+if tracker_transport_is_canonical "$TMPDIR/tracker-canonical.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-inline.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-appended.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-traversal.md"; then
+	pass "tracker transport contract rejects inline arguments and path traversal"
+else
+	fail "tracker transport contract accepts inline arguments or path traversal"
+fi
+
+# ── Static scan: tracker mutation transport ─────────────────────────────────
 echo "── Skill shell injection scan ──────────────"
 
-if [ ! -f "$TICKETING" ]; then
-	fail "ticketing/SKILL.md not found"
-else
-	# Check 1: No single-quoted $OWNER in graphql -f query
-	if grep -nE "graphql[[:space:]]+-f[[:space:]]+query=['\"][{]+[[:space:]]*\\$" "$TICKETING" > /dev/null 2>&1; then
-		fail "ticketing/SKILL.md: graphql query still uses inline \$VAR expansion (should use -F variables)"
-	else
-		pass "ticketing/SKILL.md: graphql queries use -F variable bindings"
-	fi
+TRACKER_SKILLS=(
+	"$REPO_ROOT/packages/prism-core/skills/tracker-operator/SKILL.md"
+	"$REPO_ROOT/packages/prism-core/skills/ticketing/SKILL.md"
+	"$REPO_ROOT/packages/prism-core/skills/from-issue/SKILL.md"
+	"$REPO_ROOT/packages/prism-core/skills/wayfinder/SKILL.md"
+)
 
-	# Check 2: No shell variable embedded inside a single-quoted graphql query
-	# The bug pattern: -f query='... $OWNER ...' with $ inside single quotes
-	if grep -nE "query='[^']*\\\$[A-Z_]+[^']*'" "$TICKETING" > /dev/null 2>&1; then
-		fail "ticketing/SKILL.md: graphql query has shell variable inside single-quoted string"
-	else
-		pass "ticketing/SKILL.md: no shell variables inside single-quoted graphql strings"
+for tracker_skill in "${TRACKER_SKILLS[@]}"; do
+	if [ ! -r "$tracker_skill" ]; then
+		fail "$tracker_skill is missing or unreadable"
+		continue
 	fi
-
-	# Check 5: No gh issue create with inline --title "<literal>" or --body "<literal>"
-	# Bug:   --title "<title>" or --body "<body>"   (inline interpolation)
-	# Safe:  --title "$TITLE" and --body-file FILE   (variable + file)
-	if grep -nE 'issue create.*--title[[:space:]]+"[^$]' "$TICKETING" > /dev/null 2>&1; then
-		fail "ticketing/SKILL.md: gh issue create uses inline --title (should use heredoc + variable)"
+	if tracker_transport_is_canonical "$tracker_skill"; then
+		pass "$tracker_skill uses only project-local GraphQL input files"
 	else
-		pass "ticketing/SKILL.md: gh issue create uses safe title pattern (variable)"
+		fail "$tracker_skill contains a non-canonical GraphQL mutation"
 	fi
-
-	# Check 6: gh issue create must use --body-file, not inline --body
-	if grep -nE 'issue create.*--body[[:space:]]+"' "$TICKETING" > /dev/null 2>&1; then
-		fail "ticketing/SKILL.md: gh issue create uses inline --body (should use --body-file)"
+	if grep -qE 'gh issue (create|edit|comment|close)' "$tracker_skill"; then
+		fail "$tracker_skill contains a convenience mutation"
 	else
-		pass "ticketing/SKILL.md: gh issue create uses --body-file"
+		pass "$tracker_skill contains no convenience mutation"
 	fi
-
-	# Check 7: No <UPPERCASE_PLACEHOLDER> inside single-quoted graphql queries
-	# All values must be -F variables, not inline-interpolated placeholders
-	if grep -nE "query='[^']*<[A-Z][A-Z_]*>[^']*'" "$TICKETING" > /dev/null 2>&1; then
-		fail "ticketing/SKILL.md: graphql query has inline <PLACEHOLDER> (should use -F variables)"
-	else
-		pass "ticketing/SKILL.md: graphql queries use -F variables for all placeholders"
-	fi
-fi
+done
 
 # ── Static scan: finishing-a-development-branch SKILL.md + pr command ────────
 FINISHING="$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"
@@ -153,9 +163,6 @@ fi
 # Demonstrate that a crafted title does not execute embedded commands
 # when passed via quoted heredoc and read into a quoted variable.
 
-TMPDIR=$(mktemp -d)
-register_temp_dir "$TMPDIR"
-
 injection_sentinel="$TMPDIR/pr_command_injection"
 backtick_sentinel="$TMPDIR/pr_command_backtick"
 rm -f "$injection_sentinel" "$backtick_sentinel"
@@ -202,66 +209,6 @@ if [ "$TITLE_VAR" = "$expected_bytes" ]; then
 else
 	fail "active injection test: payload bytes altered in variable transport"
 fi
-
-# ── Active injection test: graphql -F variables ──────────────────────────────
-# Demonstrate that shell variables with crafty content don't execute
-# when passed via -F (simulate the variable assignment pattern).
-
-MALVAR='$(id > /tmp/pwned_injection_test)'
-SENTINEL2="/tmp/pwned_injection_test"
-rm -f "$SENTINEL2"
-
-# Assign the variable (no expansion — assignment is safe)
-INJECTED="$MALVAR"
-
-# The actual pattern: gh api graphql -F owner="$OWNER" ...
-# Simulate: just verify that the variable assignment itself is safe
-if [ -f "$SENTINEL2" ]; then
-	fail "active injection test: graphql -F variable assignment executed \$()"
-	rm -f "$SENTINEL2"
-else
-	pass "active injection test: graphql -F variable assignment does not execute \$()"
-fi
-
-# Verify the literal value is stored
-EXPECTED='$(id > /tmp/pwned_injection_test)'
-if [ "$INJECTED" = "$EXPECTED" ]; then
-	pass "active injection test: malicious content stored literally in graphql variable"
-else
-	fail "active injection test: malicious content was modified or expanded"
-fi
-
-# ── Active injection test: issue-create title via variable ───────────────────
-# Demonstrate that a malicious title written to a file via quoted heredoc,
-# read into a variable via $(cat), and passed as --title "$TITLE" does NOT
-# execute embedded commands. This is the safe pattern for gh issue create
-# (which lacks --title-file).
-SENTINEL3="/tmp/issue_pwn_test"
-rm -f "$SENTINEL3"
-touch "$SENTINEL3"
-
-# Write malicious title via quoted-heredoc (no expansion inside the body)
-cat > "$TMPDIR/issue-title.txt" <<'HEREDOC'
-fix: bug"; rm -rf /tmp/issue_pwn_test; # injected
-HEREDOC
-
-# Read into variable — command substitution reads file content as DATA
-ISSUE_TITLE=$(cat "$TMPDIR/issue-title.txt")
-
-# Verify sentinel still exists — reading file content into a variable via
-# $(cat) must NOT execute embedded commands (rm -rf in this case).
-if [ -f "$SENTINEL3" ]; then
-	pass "active injection test: issue-title via variable did NOT execute embedded command"
-else
-	fail "active injection test: issue-title variable assignment executed rm"
-fi
-rm -f "$SENTINEL3"
-
-# Verify the malicious pattern is preserved literally in the variable
-case "$ISSUE_TITLE" in
-	*rm\ -rf*) pass "active injection test: malicious pattern preserved literally in variable" ;;
-	*)         fail "active injection test: malicious pattern missing from variable" ;;
-esac
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 print_summary "skill shell injection"

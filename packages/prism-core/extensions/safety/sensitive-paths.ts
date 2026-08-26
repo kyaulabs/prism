@@ -1,4 +1,4 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
 import { realpathSync } from "node:fs";
@@ -9,8 +9,19 @@ export interface SensitivePathOptions {
     extraPaths?: readonly string[];
 }
 
+export type SafetyDiagnosticStage = "shell-model" | "wrapper-unwrapping" | "setup-trust" | "classifier";
+
+export interface SafetyDiagnostic {
+    code: string;
+    stage: SafetyDiagnosticStage;
+    category: string;
+    retry: string;
+    offset?: number;
+}
+
 export interface SensitiveMatch {
     className: string;
+    diagnostic?: SafetyDiagnostic;
 }
 
 interface RawPattern {
@@ -304,14 +315,39 @@ function hasArithmeticBuiltin(command: string): boolean {
     return false;
 }
 
-/**
- * Detect shell constructs the flat tokenizer cannot model. Command-substitution
- * spellings block even inside single quotes because shell builtins can evaluate
- * them recursively. Numeric-only arithmetic expansion is accepted; identifiers
- * and arithmetic commands block.
- */
-export function hasUnmodelableShellConstruct(command: string): boolean {
-    if (hasDelayedEvaluationBuiltin(command) || hasArithmeticBuiltin(command)) return true;
+const PAYLOAD_RETRY = "Write inert payload data with a Pi file tool, then invoke a literal project-local path in a separate command.";
+const LITERAL_RETRY = "Replace dynamic shell evaluation with a reviewed literal command or a launcher-owned script invoked by literal path.";
+const WRAPPER_RETRY = "Invoke the resolved literal script directly in a separate command.";
+const SETUP_RETRY = "Invoke the trusted project-local setup script directly from .github/scripts.";
+const INTERNAL_RETRY = "Split the operation into separate simple literal commands and report this diagnostic code if it persists.";
+
+function analysisDiagnostic(code: string, stage: SafetyDiagnosticStage,
+                            category: string, retry: string): SafetyDiagnostic {
+    return { code, stage, category, retry };
+}
+
+function shellDiagnostic(code: string, category: string, retry: string,
+                         offset?: number): SafetyDiagnostic {
+    return offset === undefined
+        ? { code, stage: "shell-model", category, retry }
+        : { code, stage: "shell-model", category, retry, offset };
+}
+
+function hasUnsafeIndexedAssignmentInCommand(command: string): boolean {
+    const normalizedCommand = command.replace(/\\\r?\n/g, "");
+    return splitShellSegments(normalizedCommand).some(hasUnsafeIndexedAssignment);
+}
+
+export function diagnoseUnmodelableShellConstruct(command: string): SafetyDiagnostic | null {
+    if (hasDelayedEvaluationBuiltin(command)) {
+        return shellDiagnostic("PRISM-SHELL-006", "recursive-evaluator", LITERAL_RETRY);
+    }
+    if (hasUnsafeIndexedAssignmentInCommand(command)) {
+        return shellDiagnostic("PRISM-SHELL-008", "indexed-evaluation", LITERAL_RETRY);
+    }
+    if (hasArithmeticBuiltin(command)) {
+        return shellDiagnostic("PRISM-SHELL-007", "arithmetic-evaluation", LITERAL_RETRY);
+    }
     let quote: '"' | "'" | null = null;
     for (let i = 0; i < command.length; i++) {
         const ch = command[i];
@@ -322,11 +358,15 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
             }
             if (ch === "$" && command[i + 1] === "(") {
                 const end = safeArithmeticExpansionEnd(command, i);
-                if (end === null) return true;
+                if (end === null) {
+                    return command.startsWith("$((", i)
+                        ? shellDiagnostic("PRISM-SHELL-007", "arithmetic-evaluation", LITERAL_RETRY, i)
+                        : shellDiagnostic("PRISM-SHELL-001", "command-substitution", PAYLOAD_RETRY, i);
+                }
                 i = end - 1;
                 continue;
             }
-            if (ch === "`") return true;
+            if (ch === "`") return shellDiagnostic("PRISM-SHELL-002", "backtick-substitution", PAYLOAD_RETRY, i);
             continue;
         }
         if (quote === '"') {
@@ -340,12 +380,18 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
             }
             if (ch === "$" && command[i + 1] === "(") {
                 const end = safeArithmeticExpansionEnd(command, i);
-                if (end === null) return true;
+                if (end === null) {
+                    return command.startsWith("$((", i)
+                        ? shellDiagnostic("PRISM-SHELL-007", "arithmetic-evaluation", LITERAL_RETRY, i)
+                        : shellDiagnostic("PRISM-SHELL-001", "command-substitution", PAYLOAD_RETRY, i);
+                }
                 i = end - 1;
                 continue;
             }
-            if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
-            if (ch === "`") return true;
+            if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) {
+                return shellDiagnostic("PRISM-SHELL-008", "indexed-evaluation", LITERAL_RETRY, i);
+            }
+            if (ch === "`") return shellDiagnostic("PRISM-SHELL-002", "backtick-substitution", PAYLOAD_RETRY, i);
             continue;
         }
         if (ch === "\\") {
@@ -362,18 +408,30 @@ export function hasUnmodelableShellConstruct(command: string): boolean {
         }
         if (ch === "$" && command[i + 1] === "(") {
             const end = safeArithmeticExpansionEnd(command, i);
-            if (end === null) return true;
+            if (end === null) {
+                return command.startsWith("$((", i)
+                    ? shellDiagnostic("PRISM-SHELL-007", "arithmetic-evaluation", LITERAL_RETRY, i)
+                    : shellDiagnostic("PRISM-SHELL-001", "command-substitution", PAYLOAD_RETRY, i);
+            }
             i = end - 1;
             continue;
         }
-        if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) return true;
-        if (ch === "`" || command.startsWith("$'", i)) return true;
-        if (command.startsWith("((", i)
-            || command.startsWith("<(", i)
-            || command.startsWith(">(", i)
-            || command.startsWith("<<<", i)) return true;
+        if (ch === "$" && hasUnsafeIndexedParameterExpansion(command, i)) {
+            return shellDiagnostic("PRISM-SHELL-008", "indexed-evaluation", LITERAL_RETRY, i);
+        }
+        if (ch === "`") return shellDiagnostic("PRISM-SHELL-002", "backtick-substitution", PAYLOAD_RETRY, i);
+        if (command.startsWith("$'", i)) return shellDiagnostic("PRISM-SHELL-003", "ansi-c-quoting", PAYLOAD_RETRY, i);
+        if (command.startsWith("<(", i) || command.startsWith(">(", i)) {
+            return shellDiagnostic("PRISM-SHELL-004", "process-substitution", LITERAL_RETRY, i);
+        }
+        if (command.startsWith("<<<", i)) return shellDiagnostic("PRISM-SHELL-005", "here-string", LITERAL_RETRY, i);
+        if (command.startsWith("((", i)) return shellDiagnostic("PRISM-SHELL-007", "arithmetic-evaluation", LITERAL_RETRY, i);
     }
-    return false;
+    return null;
+}
+
+export function hasUnmodelableShellConstruct(command: string): boolean {
+    return diagnoseUnmodelableShellConstruct(command) !== null;
 }
 
 const SENSITIVE_FALLBACK_RE =
@@ -609,7 +667,15 @@ export function sensitiveOperandCheck(command: string, opts: SensitivePathOption
     try {
         return sensitiveOperandCheckImpl(command, opts, 0);
     } catch {
-        return { className: "unresolvable" };
+        return {
+            className: "unresolvable",
+            diagnostic: analysisDiagnostic(
+                "PRISM-SHELL-012",
+                "classifier",
+                "internal-classifier",
+                INTERNAL_RETRY,
+            ),
+        };
     }
 }
 
@@ -639,16 +705,37 @@ function judgeToken(token: string, trustedSetup: boolean, opts: SensitivePathOpt
 }
 
 function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, depth: number): SensitiveMatch | null {
-    if (depth > MAX_UNWRAP_DEPTH) return { className: "unresolvable" };
-    if (hasUnmodelableShellConstruct(command)) return { className: "unresolvable" };
+    if (depth > MAX_UNWRAP_DEPTH) {
+        return {
+            className: "unresolvable",
+            diagnostic: analysisDiagnostic(
+                "PRISM-SHELL-010",
+                "wrapper-unwrapping",
+                "wrapper-depth",
+                WRAPPER_RETRY,
+            ),
+        };
+    }
+    const diagnostic = diagnoseUnmodelableShellConstruct(command);
+    if (diagnostic !== null) return { className: "unresolvable", diagnostic };
     const segments = splitShellSegments(command);
     for (const segment of segments) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
         // Per-segment: a command that IS a bare variable reference cannot be
         // analyzed (echo hi; $p, bash -c "$p") — fail closed (OCR rounds 4-5).
-        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
-        if (VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) return { className: "unresolvable" };
+        if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))
+            || VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) {
+            return {
+                className: "unresolvable",
+                diagnostic: analysisDiagnostic(
+                    "PRISM-SHELL-009",
+                    "shell-model",
+                    "variable-command",
+                    LITERAL_RETRY,
+                ),
+            };
+        }
         const inner = tryUnwrapSegment(tokens);
         if (inner !== null) {
             const match = sensitiveOperandCheckImpl(inner, opts, depth + 1);
@@ -666,7 +753,17 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             // judging (OCR finding C3).
         }
         const trust = setupScriptTrust(tokens, opts, depth);
-        if (trust === "untrusted-subcommand") return { className: "unresolvable" };
+        if (trust === "untrusted-subcommand") {
+            return {
+                className: "unresolvable",
+                diagnostic: analysisDiagnostic(
+                    "PRISM-SHELL-011",
+                    "setup-trust",
+                    "untrusted-setup",
+                    SETUP_RETRY,
+                ),
+            };
+        }
         const trustedSetup = trust === "trusted";
         for (const token of tokens) {
             const match = judgeToken(token, trustedSetup, opts);

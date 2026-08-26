@@ -98,19 +98,16 @@ Empty output means FAIL: no PHP coverage driver loaded (pcov or xdebug).
 Report the remediation (install pcov via pecl, or enable xdebug) and stop.
 `pcov.enabled=0` is fine — the pest launcher injects `-d pcov.enabled=1`.
 
-Then run the full suite with coverage (Clover XML feeds the changed-file
-gate) through the launcher. When a dev server is up, pass its URL via
-`PEST_BROWSER_BASE_URL` exactly as CI sets it:
+Then run the full suite with coverage (Clover XML feeds the changed-file gate)
+through the launcher with the exact adapter-owned command used by CI and TDD:
 
 ```bash
 PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
 ```
 
-When no browser tests or dev server are involved, run without the variable:
-
-```bash
-prism-tool run pest -- --coverage
-```
+Use this command even when no browser test consumes the URL. The environment
+variable is inert for non-browser tests and prevents local, CI, TDD, and plan
+execution from drifting onto different coverage commands.
 
 **Changed-file coverage gate** — enforced mechanically by the same script
 CI uses (`coverage-gate.php`):

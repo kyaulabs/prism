@@ -1,8 +1,11 @@
-// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sensitiveOperandCheck } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
+import {
+    diagnoseUnmodelableShellConstruct,
+    sensitiveOperandCheck,
+} from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
 import { resolveExtraPaths } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
 const OPTS = { projectDir: "/repo", home: "/home/tester" };
@@ -38,8 +41,20 @@ test("prism-user-manifest denied normally; kept for trusted setup scripts", () =
     assert.equal(sensitiveOperandCheck(".github/scripts/setup-rulesets.sh --config ~/.config/opencode/x", OPTS), null);
 });
 
-test("untrusted setup subcommand resolves unresolvable", () => {
-    assert.equal(sensitiveOperandCheck('bash -c "setup-rulesets.sh"', OPTS)?.className, "unresolvable");
+test("untrusted setup subcommand resolves with setup-trust diagnostics", () => {
+    const match = sensitiveOperandCheck('bash -c "setup-rulesets.sh"', OPTS);
+    assert.equal(match?.className, "unresolvable");
+    assert.equal(match?.diagnostic?.code, "PRISM-SHELL-011");
+    assert.equal(match?.diagnostic?.stage, "setup-trust");
+    assert.equal(match?.diagnostic?.category, "untrusted-setup");
+});
+
+test("wrapper-depth exhaustion retains a stable diagnostic", () => {
+    const match = sensitiveOperandCheck("env env env env env echo ok", OPTS);
+    assert.equal(match?.className, "unresolvable");
+    assert.equal(match?.diagnostic?.code, "PRISM-SHELL-010");
+    assert.equal(match?.diagnostic?.stage, "wrapper-unwrapping");
+    assert.equal(match?.diagnostic?.category, "wrapper-depth");
 });
 
 test("non-string or empty input passes", () => {
@@ -52,8 +67,8 @@ test("resolveExtraPaths keeps valid entries and logs rejected lines", () => {
     const paths = resolveExtraPaths("~/.gnupg/\nrelative/path\n/root/good\n\n", (m) => logged.push(m));
     assert.deepEqual(paths, ["~/.gnupg/", "/root/good"]);
     assert.equal(logged.length, 1);
-    assert.match(logged[0], /ignoring malformed sensitive-paths entry/);
-    assert.match(logged[0], /relative\/path/);
+    assert.match(logged[0], /ignoring malformed sensitive-paths entry at line 2/);
+    assert.doesNotMatch(logged[0], /relative\/path/);
 });
 
 test("resolveExtraPaths rejects control-character entries", () => {
@@ -70,6 +85,28 @@ test("resolveExtraPaths empty input yields no paths and no logs", () => {
     assert.deepEqual(resolveExtraPaths(" \n\t\n", (m) => logged.push(m)), []);
     assert.equal(logged.length, 0);
 });
+test("unmodelable shell constructs retain stable redacted diagnostic categories", () => {
+    const cases = [
+        ["echo $(date)", "PRISM-SHELL-001", "command-substitution"],
+        ["echo `date`", "PRISM-SHELL-002", "backtick-substitution"],
+        ["bash -c $'echo hi'", "PRISM-SHELL-003", "ansi-c-quoting"],
+        ["cat <(printf hi)", "PRISM-SHELL-004", "process-substitution"],
+        ["bash <<< payload", "PRISM-SHELL-005", "here-string"],
+        ["eval '$PAYLOAD'", "PRISM-SHELL-006", "recursive-evaluator"],
+        ["value=$((value + 1))", "PRISM-SHELL-007", "arithmetic-evaluation"],
+        ["echo \"${arr[$PAYLOAD]}\"", "PRISM-SHELL-008", "indexed-evaluation"],
+    ] as const;
+
+    for (const [command, code, category] of cases) {
+        const diagnostic = diagnoseUnmodelableShellConstruct(command);
+        assert.equal(diagnostic?.code, code, command);
+        assert.equal(diagnostic?.stage, "shell-model", command);
+        assert.equal(diagnostic?.category, category, command);
+        assert.equal(typeof diagnostic?.retry, "string", command);
+        assert.doesNotMatch(JSON.stringify(diagnostic), /date|PAYLOAD|arr/, command);
+    }
+});
+
 test("fail-closed: substitution-hidden sensitive reads are refused", () => {
     assert.equal(sensitiveOperandCheck("echo $(cat ~/.ssh/id_rsa)", OPTS)?.className, "unresolvable");
     assert.equal(sensitiveOperandCheck("cat `~/.ssh/id_rsa`", OPTS)?.className, "unresolvable");
@@ -91,7 +128,10 @@ test("wrapper payloads that are bare variable references fail closed", () => {
 
 test("variable-reference payloads fail closed across quoting and segments", () => {
     assert.equal(sensitiveOperandCheck('sudo bash -c "\\"$p\\""', OPTS)?.className, "unresolvable");
-    assert.equal(sensitiveOperandCheck("echo hi; $p", OPTS)?.className, "unresolvable");
+    const variableCommand = sensitiveOperandCheck("echo hi; $p", OPTS);
+    assert.equal(variableCommand?.className, "unresolvable");
+    assert.equal(variableCommand?.diagnostic?.code, "PRISM-SHELL-009");
+    assert.equal(variableCommand?.diagnostic?.category, "variable-command");
 });
 
 test("quote-aware segmentation: variable payloads behind quoted separators", () => {
