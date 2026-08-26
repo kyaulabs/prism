@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -111,6 +111,20 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
+    assert.equal(packed.files.has('skills/distill/SKILL.md'), true, 'Distill skill packaged');
+    assert.equal(
+        packed.files.has('skills/distill/references/patterns.md'),
+        true,
+        'Distill pattern reference packaged'
+    );
+    assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
+    const coreNotice = execFileSync('tar', ['-xOzf', packed.tarball, 'package/NOTICE'], {
+        encoding: 'utf8',
+    });
+    assert.match(coreNotice, /https:\/\/github\.com\/cursor\/plugins\/tree\/main\/pstack/);
+    assert.match(coreNotice, /Copyright \(c\) 2026 Lauren Tan/);
+    assert.match(coreNotice, /License: MIT/);
+    assert.match(coreNotice, /packages\/prism-core\/skills\/distill\/SKILL\.md/);
     assert.notEqual(packed.files.get('scripts/prism-tool.js') & 0o111, 0, 'bin is executable');
     assert.notEqual(packed.files.get('scripts/install-global.sh') & 0o111, 0, 'installer is executable');
     assert.notEqual(packed.files.get('scripts/install-hooks.sh') & 0o111, 0, 'hook installer is executable');

@@ -110,6 +110,17 @@ mcp-searxng
     - packages/prism-core/skills/searxng/SKILL.md
     - packages/prism-core/skills/searxng/search.sh
 
+cursor/plugins pstack
+  URL: https://github.com/cursor/plugins/tree/main/pstack
+  Copyright: Copyright (c) 2026 Lauren Tan
+  License: MIT
+  What was adapted: The unslop editing process and catalog of common
+    machine-written prose patterns, adapted into Prism's compact global
+    baseline plus progressively disclosed Distill skill and reference.
+  Used in:
+    - packages/prism-core/skills/distill/SKILL.md
+    - packages/prism-core/skills/distill/references/patterns.md
+
 @earendil-works/pi-coding-agent
   URL: https://github.com/earendil-works/pi-coding-agent
   Copyright: Copyright (c) earendil-works

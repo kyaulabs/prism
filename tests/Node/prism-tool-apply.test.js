@@ -519,7 +519,26 @@ test('preserves a concurrently replaced CREATE path during rollback', (t) => {
     t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
     const firstPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
     const secondPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[1]);
+    const originalLstatSync = fs.lstatSync;
+    let createdIdentity;
+    let replacementInstalled = false;
     let runCount = 0;
+    fs.lstatSync = function lstatWithReusedInode(filePath, options) {
+        const stat = originalLstatSync.call(fs, filePath, options);
+        if (filePath !== firstPath || !replacementInstalled) return stat;
+        return new Proxy(stat, {
+            get(target, property) {
+                if (property === 'dev' || property === 'ino') {
+                    return typeof target[property] === 'bigint'
+                        ? BigInt(createdIdentity[property])
+                        : Number(createdIdentity[property]);
+                }
+                const value = Reflect.get(target, property);
+                return typeof value === 'function' ? value.bind(target) : value;
+            },
+        });
+    };
+    t.after(() => { fs.lstatSync = originalLstatSync; });
 
     const result = applyCandidate({
         contract: adapterContract,
@@ -532,8 +551,11 @@ test('preserves a concurrently replaced CREATE path during rollback', (t) => {
                 fs.writeFileSync(secondPath, 'concurrent second file\n', {flag: 'wx', mode: 0o640});
                 fs.chmodSync(firstPath, 0o640);
                 fs.chmodSync(secondPath, 0o640);
+                replacementInstalled = true;
             }
-            return fs.openSync(filePath, flags, mode);
+            const descriptor = fs.openSync(filePath, flags, mode);
+            if (filePath === firstPath) createdIdentity = fs.fstatSync(descriptor, {bigint: true});
+            return descriptor;
         },
         run() {
             runCount += 1;
