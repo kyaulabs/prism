@@ -175,9 +175,9 @@ function assertNoPageErrors(errors) {
 	}
 }
 
-function closeQuietly(descriptor) {
+function closeQuietly(descriptor, filesystem = fs) {
 	try {
-		fs.closeSync(descriptor);
+		filesystem.closeSync(descriptor);
 		return true;
 	} catch {
 		return false;
@@ -185,54 +185,85 @@ function closeQuietly(descriptor) {
 }
 
 function assertEvidenceDirectory(directory) {
-	const stat = fs.lstatSync(directory.root);
+	const stat = directory.filesystem.lstatSync(directory.root);
 	if (
 		stat.isSymbolicLink() ||
 		!stat.isDirectory() ||
 		stat.dev !== directory.dev ||
 		stat.ino !== directory.ino ||
-		fs.realpathSync(directory.root) !== directory.root
+		directory.filesystem.realpathSync(directory.root) !== directory.root
 	) {
 		throw new Error('visual review output escapes working directory');
 	}
 }
 
-function openEvidenceDirectory(root) {
+function openEvidenceDirectory(root, filesystem = fs) {
 	const outputRoot = path.resolve(root);
 	let descriptor;
 	try {
+		filesystem.mkdirSync(outputRoot, {recursive: true, mode: 0o700});
+		const pathStat = filesystem.lstatSync(outputRoot);
 		if (
-			typeof fs.constants.O_DIRECTORY !== 'number' ||
-			typeof fs.constants.O_NOFOLLOW !== 'number'
+			pathStat.isSymbolicLink() ||
+			!pathStat.isDirectory() ||
+			filesystem.realpathSync(outputRoot) !== outputRoot
 		) {
 			throw new Error();
 		}
-		fs.mkdirSync(outputRoot, {recursive: true, mode: 0o700});
-		descriptor = fs.openSync(
-			outputRoot,
-			fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW
-		);
-		const stat = fs.fstatSync(descriptor);
-		if (!stat.isDirectory() || fs.realpathSync(outputRoot) !== outputRoot) throw new Error();
-		let heldPath = null;
-		for (const prefix of ['/proc/self/fd', '/dev/fd']) {
-			const candidate = path.join(prefix, String(descriptor));
-			try {
-				if (fs.realpathSync(candidate) === outputRoot) {
-					heldPath = candidate;
-					break;
+		let stat = pathStat;
+		let heldPath = outputRoot;
+		if (
+			typeof filesystem.constants.O_DIRECTORY === 'number' &&
+			typeof filesystem.constants.O_NOFOLLOW === 'number'
+		) {
+			descriptor = filesystem.openSync(
+				outputRoot,
+				filesystem.constants.O_RDONLY |
+					filesystem.constants.O_DIRECTORY |
+					filesystem.constants.O_NOFOLLOW
+			);
+			stat = filesystem.fstatSync(descriptor);
+			if (!stat.isDirectory()) throw new Error();
+			for (const prefix of ['/proc/self/fd', '/dev/fd']) {
+				const candidate = path.join(prefix, String(descriptor));
+				try {
+					if (filesystem.realpathSync(candidate) === outputRoot) {
+						heldPath = candidate;
+						break;
+					}
+				} catch {
+					continue;
 				}
-			} catch {
-				continue;
+			}
+			if (heldPath === outputRoot) {
+				closeQuietly(descriptor, filesystem);
+				descriptor = undefined;
+				stat = pathStat;
 			}
 		}
-		if (heldPath === null) throw new Error();
-		const directory = {root: outputRoot, heldPath, descriptor, dev: stat.dev, ino: stat.ino};
+		const directory = {
+			root: outputRoot,
+			heldPath,
+			descriptor,
+			dev: stat.dev,
+			ino: stat.ino,
+			filesystem,
+		};
 		assertEvidenceDirectory(directory);
 		return directory;
 	} catch {
-		if (descriptor !== undefined) closeQuietly(descriptor);
+		if (descriptor !== undefined) closeQuietly(descriptor, filesystem);
 		throw new Error('visual review output escapes working directory');
+	}
+}
+
+function removeEvidenceTemporaryQuietly(directory, temporary) {
+	try {
+		assertEvidenceDirectory(directory);
+		directory.filesystem.rmSync(temporary, {force: true});
+		return true;
+	} catch {
+		return false;
 	}
 }
 
@@ -246,28 +277,36 @@ function writeEvidenceFile(directory, filePath, content) {
 		`.${name}.prism-${randomBytes(16).toString('hex')}.tmp`
 	);
 	const destination = path.join(directory.heldPath, name);
+	const noFollow = typeof directory.filesystem.constants.O_NOFOLLOW === 'number'
+		? directory.filesystem.constants.O_NOFOLLOW
+		: 0;
 	let descriptor;
 	let temporaryExists = false;
 	try {
-		descriptor = fs.openSync(
+		descriptor = directory.filesystem.openSync(
 			temporary,
-			fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW,
+			directory.filesystem.constants.O_CREAT |
+				directory.filesystem.constants.O_EXCL |
+				directory.filesystem.constants.O_WRONLY |
+				noFollow,
 			0o600
 		);
 		temporaryExists = true;
-		fs.writeFileSync(descriptor, content);
-		fs.fchmodSync(descriptor, 0o600);
-		fs.fsyncSync(descriptor);
-		fs.closeSync(descriptor);
+		directory.filesystem.writeFileSync(descriptor, content);
+		directory.filesystem.fchmodSync(descriptor, 0o600);
+		directory.filesystem.fsyncSync(descriptor);
+		directory.filesystem.closeSync(descriptor);
 		descriptor = undefined;
 		assertEvidenceDirectory(directory);
-		fs.renameSync(temporary, destination);
+		directory.filesystem.renameSync(temporary, destination);
 		temporaryExists = false;
-		fs.fsyncSync(directory.descriptor);
+		if (directory.descriptor !== undefined) {
+			directory.filesystem.fsyncSync(directory.descriptor);
+		}
 		assertEvidenceDirectory(directory);
 	} catch {
-		if (descriptor !== undefined) closeQuietly(descriptor);
-		if (temporaryExists) fs.rmSync(temporary, {force: true});
+		if (descriptor !== undefined) closeQuietly(descriptor, directory.filesystem);
+		if (temporaryExists) removeEvidenceTemporaryQuietly(directory, temporary);
 		throw new Error('visual review evidence publication failed');
 	}
 }
@@ -278,19 +317,22 @@ export async function publishVisualReviewEvidence(
 	versions,
 	revision,
 	errors,
-	root = path.resolve('tests/Browser/Screenshots/visual-review')
+	root = path.resolve('tests/Browser/Screenshots/visual-review'),
+	filesystem = fs
 ) {
 	assertNoPageErrors(errors);
 	const image = await page.screenshot({fullPage: true, animations: 'disabled'});
 	assertNoPageErrors(errors);
-	const outputs = evidencePaths(capture, root);
+	const outputs = evidencePaths(capture, root, filesystem);
 	const metadata = evidenceMetadata(capture, versions, revision);
-	const directory = openEvidenceDirectory(path.dirname(outputs.image));
+	const directory = openEvidenceDirectory(path.dirname(outputs.image), filesystem);
 	try {
 		writeEvidenceFile(directory, outputs.image, image);
 		writeEvidenceFile(directory, outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`);
 	} finally {
-		closeQuietly(directory.descriptor);
+		if (directory.descriptor !== undefined) {
+			closeQuietly(directory.descriptor, filesystem);
+		}
 	}
 	return outputs;
 }
@@ -310,14 +352,18 @@ export function evidenceMetadata(capture, versions, revision) {
 	});
 }
 
-export function evidencePaths(capture, root = path.resolve('tests/Browser/Screenshots/visual-review')) {
+export function evidencePaths(
+	capture,
+	root = path.resolve('tests/Browser/Screenshots/visual-review'),
+	filesystem = fs
+) {
 	const outputRoot = path.resolve(root);
 	const parsed = path.parse(outputRoot);
 	let cursor = parsed.root;
 	for (const segment of outputRoot.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
 		cursor = path.join(cursor, segment);
-		if (!fs.existsSync(cursor)) continue;
-		const stat = fs.lstatSync(cursor);
+		if (!filesystem.existsSync(cursor)) continue;
+		const stat = filesystem.lstatSync(cursor);
 		if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('visual review output escapes working directory');
 	}
 	const base = `${capture.caseId}--${capture.stateId}--${capture.viewportId}`;
@@ -325,8 +371,8 @@ export function evidencePaths(capture, root = path.resolve('tests/Browser/Screen
 	const metadata = path.resolve(outputRoot, `${base}.json`);
 	for (const candidate of [image, metadata]) {
 		if (!candidate.startsWith(`${outputRoot}${path.sep}`)) throw new Error('visual review output escapes working directory');
-		if (fs.existsSync(candidate)) {
-			const stat = fs.lstatSync(candidate);
+		if (filesystem.existsSync(candidate)) {
+			const stat = filesystem.lstatSync(candidate);
 			if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('visual review output escapes working directory');
 		}
 	}

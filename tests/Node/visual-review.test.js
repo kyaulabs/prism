@@ -328,6 +328,38 @@ test('replaces an evidence symlink without following it', async (t) => {
     assert.equal(fs.readFileSync(outputs.image, 'utf8'), 'safe image');
 });
 
+test('publishes through a contained-path fallback without Unix directory flags', async (t) => {
+    const module = await import(moduleUrl);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-portable-'));
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const capture = module.expandVisualReviewCases(module.validateVisualReviewConfig(structuredClone(valid)))[0];
+    const portableConstants = {...fs.constants, O_DIRECTORY: undefined, O_NOFOLLOW: undefined};
+    let openCount = 0;
+    const portableFs = {
+        ...fs,
+        constants: portableConstants,
+        openSync(...args) {
+            openCount += 1;
+            return fs.openSync(...args);
+        },
+    };
+    const page = {screenshot: async () => Buffer.from('portable image')};
+
+    const outputs = await module.publishVisualReviewEvidence(
+        page,
+        capture,
+        {playwright: '1.62.1', chromium: '123.0.0'},
+        {head: 'a'.repeat(40), dirty: false},
+        [],
+        root,
+        portableFs
+    );
+
+    assert.ok(openCount > 0);
+    assert.equal(fs.readFileSync(outputs.image, 'utf8'), 'portable image');
+    assert.equal(fs.lstatSync(outputs.metadata).isFile(), true);
+});
+
 test('rejects an evidence-root symlink substituted during directory creation', async (t) => {
     const module = await import(moduleUrl);
     const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-root-race-'));
