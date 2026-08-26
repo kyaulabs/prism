@@ -4,6 +4,7 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import {TextDecoder} from 'node:util';
 import {URL} from 'node:url';
 
 const ID = /^[a-z][a-z0-9-]{0,63}$/;
@@ -89,17 +90,25 @@ export function validateVisualReviewConfig(value) {
 }
 
 export function loadVisualReviewConfig(filePath = path.resolve('visual_review.json')) {
-	let stat;
-	try {
-		stat = fs.lstatSync(filePath);
-	} catch {
-		invalid();
-	}
-	if (stat.isSymbolicLink() || !stat.isFile() || stat.size > 262144) invalid();
+	let descriptor;
 	let value;
 	try {
-		value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+		if (typeof fs.constants.O_NOFOLLOW !== 'number') invalid();
+		descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+		const stat = fs.fstatSync(descriptor);
+		if (!stat.isFile() || stat.size > 262144) invalid();
+		const raw = fs.readFileSync(descriptor);
+		value = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(raw));
+		fs.closeSync(descriptor);
+		descriptor = undefined;
 	} catch {
+		if (descriptor !== undefined) {
+			try {
+				fs.closeSync(descriptor);
+			} catch {
+				invalid();
+			}
+		}
 		invalid();
 	}
 	return validateVisualReviewConfig(value);

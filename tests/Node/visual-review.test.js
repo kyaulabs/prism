@@ -156,6 +156,36 @@ test('loads bounded regular configuration files and rejects symlinks', async (t)
     assert.throws(() => module.loadVisualReviewConfig(linkPath), /visual review configuration is invalid/);
 });
 
+test('reads configuration through one held file identity during path replacement', async (t) => {
+    const module = await import(moduleUrl);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-identity-'));
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const configPath = path.join(root, 'visual_review.json');
+    const heldPath = path.join(root, 'held.json');
+    const replacementPath = path.join(root, 'replacement.json');
+    const replacement = structuredClone(valid);
+    replacement.baseUrl = 'http://127.0.0.1:9090';
+    fs.writeFileSync(configPath, `${JSON.stringify(valid)}\n`, {mode: 0o600});
+    fs.writeFileSync(replacementPath, `${JSON.stringify(replacement)}\n`, {mode: 0o600});
+    const originalOpenSync = fs.openSync;
+    let swapped = false;
+    fs.openSync = function openAndSwap(filePath, flags, mode) {
+        const descriptor = originalOpenSync.call(fs, filePath, flags, mode);
+        if (filePath === configPath && !swapped) {
+            fs.renameSync(configPath, heldPath);
+            fs.symlinkSync(replacementPath, configPath);
+            swapped = true;
+        }
+        return descriptor;
+    };
+    t.after(() => { fs.openSync = originalOpenSync; });
+
+    const loaded = module.loadVisualReviewConfig(configPath);
+
+    assert.equal(swapped, true);
+    assert.equal(loaded.baseUrl, 'http://127.0.0.1:8080/');
+});
+
 test('fails uniformly for missing malformed and oversized configuration files', async (t) => {
     const module = await import(moduleUrl);
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-invalid-'));
@@ -236,13 +266,14 @@ test('captures deterministic mobile desktop and reflow evidence in Chromium', as
     assert.equal(JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'home--default--reflow.json'), 'utf8')).viewport.width, 320);
 });
 
-test('fails capture when a page reports a JavaScript console error', async (t) => {
-    const {result} = await runVisualReview(
+test('fails capture without publishing evidence when a page reports a JavaScript console error', async (t) => {
+    const {root, result} = await runVisualReview(
         t,
         '<!doctype html><html><body><main>Broken</main><script>console.error("client failure")</script></body></html>'
     );
     assert.notEqual(result.status, 0);
     assert.match(`${result.stdout}\n${result.stderr}`, /client failure/);
+    assert.equal(fs.existsSync(path.join(root, 'tests/Browser/Screenshots/visual-review')), false);
 });
 
 test('publishes the local-only capture inspection and milestone contract', () => {

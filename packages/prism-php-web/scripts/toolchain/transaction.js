@@ -412,6 +412,7 @@ function applyCandidate({
     packageRoot = DEFAULT_PACKAGE_ROOT,
     projectRoot,
     planPath,
+    open,
     rename,
     run,
 }) {
@@ -453,6 +454,7 @@ function applyCandidate({
             workspaceRoot: workspace.root,
             names: [...CONSUMER_FILES, ...createNames],
             createModes: new Map(createNames.map((name) => [name, plan.scaffold[name].mode])),
+            open,
             rename,
         });
         installLockedGraph({contract, projectRoot: canonicalProject, run});

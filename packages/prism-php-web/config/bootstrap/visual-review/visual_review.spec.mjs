@@ -41,6 +41,7 @@ for (const capture of captures) {
 			}
 			await applyVisualReviewActions(page, capture.actions);
 			assertCaptureOrigin(page.url(), capture.url);
+			expect(errors).toEqual([]);
 			const outputs = evidencePaths(capture);
 			fs.mkdirSync(path.dirname(outputs.image), {recursive: true});
 			await page.screenshot({path: outputs.image, fullPage: true, animations: 'disabled'});
@@ -49,7 +50,6 @@ for (const capture of captures) {
 				chromium: browser.version(),
 			}, revision);
 			fs.writeFileSync(outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`, {mode: 0o600});
-			expect(errors).toEqual([]);
 		} finally {
 			await context.close();
 		}

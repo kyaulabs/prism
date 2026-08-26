@@ -97,17 +97,56 @@ function writeAtomic(filePath, content, mode, rename) {
     }
 }
 
+function removeCreatedFile(filePath, identity) {
+    let stat;
+    try {
+        stat = fs.lstatSync(filePath);
+    } catch (error) {
+        if (error.code === 'ENOENT') return;
+        throw error;
+    }
+    if (!stat.isSymbolicLink() && stat.isFile() && stat.dev === identity.dev && stat.ino === identity.ino) {
+        fs.rmSync(filePath, {force: false});
+    }
+}
+
+function writeCreateAtomic(filePath, content, mode, open) {
+    let descriptor;
+    let identity;
+    try {
+        if (typeof fs.constants.O_NOFOLLOW !== 'number') throw new Error('exclusive file creation is unavailable');
+        descriptor = open(
+            filePath,
+            fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW,
+            mode
+        );
+        identity = fs.fstatSync(descriptor);
+        fs.writeFileSync(descriptor, content);
+        fs.fchmodSync(descriptor, mode);
+        fs.fsyncSync(descriptor);
+        fs.closeSync(descriptor);
+        descriptor = undefined;
+        return {dev: identity.dev, ino: identity.ino};
+    } catch (error) {
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+        if (identity !== undefined) removeCreatedFile(filePath, identity);
+        throw error;
+    }
+}
+
 function replaceConsumerFiles({
     projectRoot,
     workspaceRoot,
     names,
     createModes = new Map(),
+    open = fs.openSync,
     rename = fs.renameSync,
 }) {
     const backupRoot = path.join(workspaceRoot, 'backups');
     const candidateRoot = path.join(workspaceRoot, 'candidate');
     fs.mkdirSync(backupRoot, {mode: 0o700});
     const originals = new Map();
+    const created = new Map();
     try {
         for (const name of names) {
             const targetPath = path.join(projectRoot, name);
@@ -133,8 +172,13 @@ function replaceConsumerFiles({
         }
         for (const name of names) {
             const original = originals.get(name);
+            const targetPath = path.join(projectRoot, name);
             const content = fs.readFileSync(path.join(candidateRoot, name));
-            writeAtomic(path.join(projectRoot, name), content, original.mode, rename);
+            if (!original.exists) {
+                created.set(name, writeCreateAtomic(targetPath, content, original.mode, open));
+            } else {
+                writeAtomic(targetPath, content, original.mode, rename);
+            }
         }
         fs.rmSync(backupRoot, {recursive: true, force: false});
     } catch (error) {
@@ -143,7 +187,7 @@ function replaceConsumerFiles({
             if (!original) continue;
             const targetPath = path.join(projectRoot, name);
             if (!original.exists) {
-                fs.rmSync(targetPath, {force: true});
+                if (created.has(name)) removeCreatedFile(targetPath, created.get(name));
                 continue;
             }
             writeAtomic(targetPath, fs.readFileSync(original.backupPath), original.mode, rename);

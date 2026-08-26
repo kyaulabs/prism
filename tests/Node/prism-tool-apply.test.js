@@ -448,7 +448,7 @@ test('rolls back every original state when atomic replacement fails before insta
         planPath: fixture.planPath,
         rename(source, destination) {
             renameCount += 1;
-            if (renameCount === 6) throw new Error('fixture rename failure');
+            if (renameCount === 2) throw new Error('fixture rename failure');
             fs.renameSync(source, destination);
         },
         run() {
@@ -459,7 +459,7 @@ test('rolls back every original state when atomic replacement fails before insta
 
     assert.equal(result.status, 'NO-GO');
     assert.equal(result.data.reason, 'transaction failure');
-    assert.equal(renameCount >= 3, true);
+    assert.equal(renameCount >= 2, true);
     assert.equal(runCount, 0);
     for (const [name, content] of Object.entries(original)) {
         const filePath = path.join(fixture.projectRoot, name);
@@ -470,6 +470,91 @@ test('rolls back every original state when atomic replacement fails before insta
         assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
     }
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
+});
+
+test('preserves a path created concurrently during atomic managed CREATE', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const racingName = VISUAL_REVIEW_FILES[0];
+    const racingPath = path.join(fixture.projectRoot, racingName);
+    let runCount = 0;
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            if (filePath === racingPath) {
+                fs.writeFileSync(filePath, 'concurrent project data\n', {flag: 'wx', mode: 0o640});
+                fs.chmodSync(filePath, 0o640);
+            }
+            return fs.openSync(filePath, flags, mode);
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(runCount, 0);
+    assert.equal(fs.readFileSync(racingPath, 'utf8'), 'concurrent project data\n');
+    assert.equal(fs.statSync(racingPath).mode & 0o777, 0o640);
+    for (const name of VISUAL_REVIEW_FILES.slice(1)) {
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
+    }
+    for (const [name, content] of Object.entries({
+        'composer.json': '{"name":"fixture/project"}\n',
+        'composer.lock': '{"packages":[],"packages-dev":[]}\n',
+        'package.json': '{"name":"fixture-project"}\n',
+        'package-lock.json': '{"lockfileVersion":3,"packages":{}}\n',
+    })) {
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, name), 'utf8'), content, name);
+    }
+});
+
+test('preserves a concurrently replaced CREATE path during rollback', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const firstPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const secondPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[1]);
+    let runCount = 0;
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            if (filePath === secondPath) {
+                fs.rmSync(firstPath);
+                fs.writeFileSync(firstPath, 'replacement after create\n', {flag: 'wx', mode: 0o640});
+                fs.writeFileSync(secondPath, 'concurrent second file\n', {flag: 'wx', mode: 0o640});
+                fs.chmodSync(firstPath, 0o640);
+                fs.chmodSync(secondPath, 0o640);
+            }
+            return fs.openSync(filePath, flags, mode);
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(runCount, 0);
+    assert.equal(fs.readFileSync(firstPath, 'utf8'), 'replacement after create\n');
+    assert.equal(fs.readFileSync(secondPath, 'utf8'), 'concurrent second file\n');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[2])), false);
+    for (const [name, content] of Object.entries({
+        'composer.json': '{"name":"fixture/project"}\n',
+        'composer.lock': '{"packages":[],"packages-dev":[]}\n',
+        'package.json': '{"name":"fixture-project"}\n',
+        'package-lock.json': '{"lockfileVersion":3,"packages":{}}\n',
+    })) {
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, name), 'utf8'), content, name);
+    }
 });
 
 test('applies dependency and canonical visual review files with Chromium only', (t) => {
