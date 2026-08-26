@@ -787,7 +787,7 @@ prism-tool commit create --type feat --scope setup --subject "provision canonica
 - Consumes: `frontend-design`, `visual-review`, canonical runner files, and the exact Playwright command.
 - Produces: a documented Red → Green → capture → inspect → recapture → milestone-confirmation workflow and discoverable adapter skill catalogue.
 
-- [ ] **Step 1: Extend contract tests before documentation**
+- [x] **Step 1: Extend contract tests before documentation**
 
 Add assertions that:
 
@@ -800,7 +800,7 @@ contains "$CORE_AGENTS" '`visual-review`' 'the global catalogue advertises the a
 
 Update packaging tests to assert `skills/visual-review/SKILL.md`, `docs/visual-review.md`, and all three canonical visual-review source files are present in the adapter tarball.
 
-- [ ] **Step 2: Run contract and packaging tests to verify Red**
+- [x] **Step 2: Run contract and packaging tests to verify Red**
 
 Run: `bash tests/Shell/frontend_design_contract_test.sh`
 
@@ -810,7 +810,7 @@ Run: `node --test tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL on missing orchestration, catalogue, separation, and package assertions.
 
-- [ ] **Step 3: Update the integration guidance**
+- [x] **Step 3: Update the integration guidance**
 
 In `tdd-php`, make frontend slices follow this exact sequence:
 
@@ -830,7 +830,7 @@ In `pest-browser`, state that critical functional flows remain here and visual d
 
 Add `visual-review` to the adapter skill list in `packages/prism-core/AGENTS.md`, the PHP/web README, and `CODING_HARNESS.md`. Document setup create/preserve/conflict behavior, local-only evidence, the active config filename, the exact capture command, and the no-authenticated-capture boundary.
 
-- [ ] **Step 4: Run all targeted verification and the full local gate**
+- [x] **Step 4: Run all targeted verification and the full local gate**
 
 Run: `bash tests/Shell/frontend_design_contract_test.sh`
 
@@ -844,7 +844,7 @@ Run the repository `/check` prompt.
 
 Expected: all harness, shell, PHP, lint, coverage, toolchain, and Chromium checks PASS.
 
-- [ ] **Step 5: Create the terminal implementation commit**
+- [x] **Step 5: Create the terminal implementation commit**
 
 ```bash
 git add packages/prism-php-web/skills/tdd-php/SKILL.md packages/prism-php-web/skills/pest-browser/SKILL.md packages/prism-php-web/README.md packages/prism-core/AGENTS.md CODING_HARNESS.md tests/Shell/toolchain_entrypoints_test.sh tests/Shell/frontend_design_contract_test.sh tests/Node/toolchain-packaging.test.js

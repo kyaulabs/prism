@@ -52,7 +52,7 @@ fix.
 | `packages/prism-core/prompts/` | Core slash commands (pi prompt templates) |
 | `packages/prism-core/extensions/safety/` | The **one** safety extension — sensitive-path + `rm -rf` + `--no-verify` classifier, denial circuit breaker, and independent fatal commit latch (ADRs 0056, 0074) |
 | `packages/prism-core/scripts/` | Language-agnostic helper scripts (`new-branch.sh`, `resolve-identity.sh`, `install-global.sh`, …) |
-| `packages/prism-php-web/` | The PHP/web adapter — `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, `/check-php`, `safe-dirs.json` |
+| `packages/prism-php-web/` | The PHP/web adapter — `php-web-stack`, `tdd-php`, `frontend-design`, `visual-review`, `rcs-header`, `aurora-page`, `/check-php`, `safe-dirs.json` |
 | `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
 | `adr/` | Architecture Decision Records (Nygard format) |
 | `AGENTS.md` (repo root) | Repo-level project instructions (concatenates with the global core `AGENTS.md`) |
@@ -74,6 +74,15 @@ configured, or authenticated by Prism.
 php-cs-fixer, Playwright (Chromium only), sass, uglify-js, eslint, and
 stylelint are provisioned into the consumer project's native manifests and
 lockfiles through `prism-tool setup`.
+
+The PHP/web adapter never supplies frontend aesthetics. A committed,
+user-authored visual brief gates styling, and `visual-review` uses the declared
+Chromium toolchain to capture configured mobile, desktop, 320px reflow, and
+changed-state evidence from unauthenticated loopback pages. The agent inspects
+and iterates on every PNG after behavior reaches Green, then waits for user
+milestone approval. Working captures remain ignored under
+`tests/Browser/Screenshots/`; committed references require explicit approval.
+`pest-browser` remains limited to critical functional browser flows.
 
 Registry access and consumer mutation remain separate operation-specific
 approvals. `/setup` is the sole prompt for global standing OCR consent, which

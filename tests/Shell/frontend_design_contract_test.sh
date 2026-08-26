@@ -7,6 +7,9 @@ REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 FRONTEND="$REPO_ROOT/packages/prism-php-web/skills/frontend-design/SKILL.md"
 ARCHITECTURE="$REPO_ROOT/packages/prism-php-web/skills/frontend-architecture/SKILL.md"
 ACCESSIBILITY="$REPO_ROOT/packages/prism-php-web/skills/accessibility/SKILL.md"
+TDD_PHP="$REPO_ROOT/packages/prism-php-web/skills/tdd-php/SKILL.md"
+PEST_BROWSER="$REPO_ROOT/packages/prism-php-web/skills/pest-browser/SKILL.md"
+CORE_AGENTS="$REPO_ROOT/packages/prism-core/AGENTS.md"
 source "$REPO_ROOT/tests/Shell/lib/counter_helpers.sh"
 
 contains() {
@@ -41,6 +44,10 @@ not_contains "$ACCESSIBILITY" 'neumorph' 'accessibility is design-language-neutr
 contains "$ACCESSIBILITY" '24 × 24 CSS px' 'accessibility states the WCAG AA target-size minimum'
 contains "$ACCESSIBILITY" '44 × 44 CSS px' 'accessibility retains stronger primary-touch guidance'
 contains "$ACCESSIBILITY" 'stricter Prism recommendation' 'accessibility labels 44px guidance accurately'
+contains "$TDD_PHP" 'Load `visual-review` after Green' 'frontend TDD loads visual review after behavior passes'
+contains "$TDD_PHP" 'prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line' 'frontend TDD uses the canonical capture command'
+contains "$PEST_BROWSER" 'Visual design iteration belongs to `visual-review`' 'functional and subjective browser concerns stay separate'
+contains "$CORE_AGENTS" '`visual-review`' 'the global catalogue advertises the adapter skill'
 
 printf '\nfrontend_design_contract_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

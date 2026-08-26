@@ -18,7 +18,8 @@ present.
 - **`security-coding-php`** — PHP/SQL bound-parameter patterns, Aurora CSRF,
   file-upload safety.
 - **Frontend skills** — `frontend-design`, `frontend-architecture`,
-  `scss-mobile-first`, `accessibility`.
+  `scss-mobile-first`, `accessibility`, and `visual-review` for iterative,
+  user-approved Chromium evidence.
 - **Page & doc skills** — `aurora-page`, `rcs-header`, `pest-browser`, `database`.
 - **Commands** — `/check-php` (lint + coverage gate), `/build-assets` (Dart Sass
   + uglify-js), `/deploy`.
@@ -77,7 +78,37 @@ build.
 
 Established projects retain the existing public `setup inspect`, `setup
 resolve`, `setup apply`, and `setup verify` workflow; Blank and Template
-bootstrap add no behavior to those operations.
+bootstrap add no behavior to those operations. Setup creates the canonical
+`visual_review.mjs`, `visual_review.spec.mjs`, and `visual_review.example.json`
+files when absent, preserves exact canonical files without rewriting them, and
+fails on conflicting paths.
+
+## Visual review
+
+Prism does not choose a project's palette, typography, visual movement, motion,
+or component aesthetics. Styling starts only after the user supplies a visual
+reference or equivalently detailed written brief and approves the resulting
+committed design brief.
+
+After each visual TDD slice reaches Green, load `visual-review`. Copy
+`visual_review.example.json` to the active `visual_review.json`, configure only
+approved loopback routes and states, then run:
+
+```bash
+prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
+```
+
+The closed configuration and action vocabulary are documented in
+[`docs/visual-review.md`](./docs/visual-review.md). The workflow captures the
+configured mobile, desktop, 320px reflow, and changed-state matrix, requires the
+agent to inspect every PNG and iterate until the set is acceptable, then pauses
+for user milestone approval. Captures are restricted to unauthenticated
+loopback pages with controlled non-sensitive data. Working evidence stays under
+`tests/Browser/Screenshots/` and is ignored by default; committing reference
+images requires explicit user approval.
+
+`pest-browser` remains responsible for critical functional browser flows.
+`visual-review` owns subjective visual inspection and milestone evidence.
 
 ## License
 
