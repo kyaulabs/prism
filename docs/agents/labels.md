@@ -1,127 +1,114 @@
-# Issue Label Vocabulary
+# Issue labels and fields
 
-The single source of truth for issue labels and fields across KYAULabs
-repositories. The vocabulary uses GitHub's native **issue-type** and
-**Progress** fields as the primary axes, supplemented by **wayfinder** and
-**meta** labels.
+Prism uses two required GitHub issue axes: native issue **Type** and native
+**Progress**. Optional Wayfinder and meta labels add navigation or context but
+do not replace either axis.
 
-## Axes
+## Type
 
-Every issue carries **exactly one** issue type and **exactly one** Progress
-value. Optional wayfinder and meta labels may be added at your discretion.
+Every issue has exactly one native issue type.
 
-### Type — What the issue is
+| Type | Color | Meaning | Commit type |
+| --- | :---: | --- | --- |
+| `Bug` | red | Unexpected or unintended behavior | `fix` |
+| `Feature` | blue | New capability or enhancement | `feat` |
+| `Patch` | blue | Small incremental correction | `patch` |
+| `Documentation` | green | Documentation addition or change | `docs` |
+| `Performance` | blue | Speed or efficiency improvement | `perf` |
+| `Refactor` | yellow | Structural change without behavior change | `refactor` |
+| `Style` | yellow | Formatting or presentation without logic change | `style` |
+| `Test` | pink | Test addition or correction | `test` |
+| `CI/CD` | pink | Build, CI, or deployment pipeline change | `ci` |
+| `Chore` | gray | Maintenance that fits no narrower type | `chore` |
+| `Security` | red | Vulnerability or security correction | `fix` |
 
-Tracked via GitHub's native **issue-type** field (not labels).
+The values follow Conventional Commit vocabulary except for the
+project-specific `Security` type.
 
-| Type | Color | Description |
-| :--- | :---: | --- |
-| `Bug` | red | An unexpected problem or unintended behavior (conventional: `fix`) |
-| `Feature` | blue | A new feature, capability, or enhancement (conventional: `feat`) |
-| `Patch` | blue | A small, incremental fix or update (conventional: `patch`) |
-| `Documentation` | green | Additions or changes to documentation (conventional: `docs`) |
-| `Performance` | blue | A change that improves speed or efficiency (conventional: `perf`) |
-| `Refactor` | yellow | Code restructuring with no change in behavior (conventional: `refactor`) |
-| `Style` | yellow | Formatting or styling changes with no logic impact (conventional: `style`) |
-| `Test` | pink | Adding or updating tests (conventional: `test`) |
-| `CI/CD` | pink | Changes to build, CI, or deployment pipelines (conventional: `ci`) |
-| `Chore` | gray | Miscellaneous maintenance and upkeep (conventional: `chore`) |
-| `Security` | red | A security vulnerability or related fix |
+## Progress
 
-> Type values mirror [Conventional Commits](https://www.conventionalcommits.org/)
-> types. `Security` is a project-specific addition.
+Every issue has exactly one native Progress value.
 
-### Progress — Where the issue is in its lifecycle
+| Value | Color | Meaning |
+| --- | :---: | --- |
+| `Under Construction` | orange | Early definition or preparation |
+| `In Progress` | yellow | Active implementation or investigation |
+| `Testing` | yellow | Validation, review, or trial work |
+| `Complete` | green | Required work is complete |
 
-Tracked via GitHub's native **Progress** issue field (not labels).
+Progress describes lifecycle state, not issue type or priority.
 
-| Value | Color | Description |
-| :--- | :---: | --- |
-| `Under Construction` | orange | Beginning stages |
-| `In Progress` | yellow | Actively being worked on |
-| `Testing` | yellow | Testing ideas or methods |
-| `Complete` | green | Complete |
+## Wayfinder labels
 
-### Wayfinder — Optional navigation labels
+Use these labels only for decomposition and decision-map navigation.
 
-Flat labels with no prefix, used for epic/task relationship tracking, plus the
-colon-prefixed `wayfinder:*` set used by the `wayfinder` skill to mark a
-decision-map and its ticket types.
+| Label | Color | Meaning |
+| --- | :---: | --- |
+| `epic` | `#5319e7` | Parent issue for several implementation tasks |
+| `task` | `#5319e7` | Task linked beneath an epic |
+| `wayfinder:map` | `#5319e7` | Canonical Wayfinder decision map |
+| `wayfinder:research` | `#5319e7` | Research needed to clear a decision |
+| `wayfinder:prototype` | `#5319e7` | Human-in-the-loop prototype ticket |
+| `wayfinder:grilling` | `#5319e7` | One-question-at-a-time decision ticket |
+| `wayfinder:task` | `#5319e7` | Manual task that unblocks the map |
 
-| Label | Color | Description |
-| :--- | :---: | --- |
-| `epic` | `#5319e7` | Parent epic tracking multiple sub-issues (non-wayfinder) |
-| `task` | `#5319e7` | Sub-issue linked to an epic (non-wayfinder) |
-| `wayfinder:map` | `#5319e7` | The wayfinder decision-map issue (canonical artifact) |
-| `wayfinder:research` | `#5319e7` | Wayfinder ticket: AFK research / doc reading |
-| `wayfinder:prototype` | `#5319e7` | Wayfinder ticket: HITL prototype via the prototype skill |
-| `wayfinder:grilling` | `#5319e7` | Wayfinder ticket: HITL grilling, one question at a time |
-| `wayfinder:task` | `#5319e7` | Wayfinder ticket: manual work unblocking a decision |
+`epic` and `task` are general decomposition labels. The `wayfinder:*` labels
+belong to the Wayfinder workflow.
 
-### Meta — Optional context labels
+## Meta labels
 
-Flat labels with no prefix. Provide context, workflow signals, and issue
-lifecycle flags.
+Meta labels provide optional context and workflow signals.
 
-| Label | Color | Description |
-| :--- | :---: | --- |
-| `brainstorming` | `#db2780` | Coming up with a new approach |
+| Label | Color | Meaning |
+| --- | :---: | --- |
+| `brainstorming` | `#db2780` | Needs design exploration |
 | `research` | `#db2780` | Needs investigation before implementation |
-| `request for comments` | `#db2780` | External opinions requested |
-| `help wanted` | `#db2780` | Assistance requested from contributors |
-| `good first issue` | `#4e3cb2` | Suitable for new contributors |
-| `plan` | `#0ea5e9` | Work from a `docs/plans/` implementation plan |
-| `needs-info` | `#fbca04` | Triage: issue lacks detail to proceed (awaiting reporter) |
-| `ready-for-agent` | `#0e8a16` | Triage: classified and routed, ready for an agent to pick up |
-| `duplicate` | `#cfd3d7` | Duplicate of another issue |
-| `invalid` | `#cfd3d7` | Not a valid issue |
+| `request for comments` | `#db2780` | Requests external review or opinions |
+| `help wanted` | `#db2780` | Invites contributor assistance |
+| `good first issue` | `#4e3cb2` | Suitable for a new contributor |
+| `plan` | `#0ea5e9` | Work follows a `docs/plans/` implementation plan |
+| `needs-info` | `#fbca04` | Reporter information is missing |
+| `ready-for-agent` | `#0e8a16` | Classified, routed, and ready for work |
+| `duplicate` | `#cfd3d7` | Duplicates another issue |
+| `invalid` | `#cfd3d7` | Does not describe valid project work |
 | `on hold` | `#cfd3d7` | Temporarily paused |
 | `won't fix` | `#cfd3d7` | Will not be addressed |
 
-### Additional Fields
+## Additional fields
 
-These issue fields are tracked natively by GitHub but are supplementary to the
-type/progress axes.
+| Field | Kind | Values or meaning |
+| --- | --- | --- |
+| `Priority` | Single select | Critical, High, Medium, Low |
+| `Effort` | Single select | Small, Medium, Large, Extra Large |
+| `Start date` | Date | Planned or actual start |
+| `Target date` | Date | Planned or actual target |
 
-| Field | Type | Description |
-| :--- | :---: | --- |
-| `Priority` | single_select | Critical, High, Medium, Low |
-| `Effort` | single_select | Small, Medium, Large, Extra Large |
-| `Start date` | date | Planned or actual start date |
-| `Target date` | date | Planned or actual target date |
+Priority and Effort are planning data. They do not change the required Type or
+Progress values.
 
 ## Invariants
 
-1. **Exactly one issue type** — every issue has exactly one type (enforced by
-   GitHub).
-2. **Exactly one Progress value** — every issue has exactly one progress value
-   (enforced by GitHub).
-3. **Zero or more wayfinder labels** — optional, for epic/task tracking.
-4. **Zero or more meta labels** — optional, for context and workflow signals.
+1. Every issue has exactly one Type.
+2. Every issue has exactly one Progress value.
+3. An issue may have zero or more Wayfinder labels.
+4. An issue may have zero or more meta labels.
+5. Priority, Effort, and dates remain supplementary fields.
+6. Label color and spelling are canonical; workflows must not create synonyms.
 
-## Relationship to Conventional Commits
+## Conventional Commit mapping
 
-Issue type values correspond directly to Conventional Commit types. When an
-issue is resolved by a commit, the commit type should match the issue's type:
+The implementation commit should use the commit type in the Type table. A
+`Patch` normally uses `patch`; use `fix` only when the repository's commit
+contract or release policy requires it. `Security` uses `fix` because
+Conventional Commits has no security type.
 
-| Issue type | Commit type |
-| :--- | :--- |
-| Bug | `fix` |
-| Feature | `feat` |
-| Patch | `patch` / `fix` |
-| Documentation | `docs` |
-| Performance | `perf` |
-| Refactor | `refactor` |
-| Style | `style` |
-| Test | `test` |
-| CI/CD | `ci` |
-| Chore | `chore` |
-| Security | `fix` |
+Issue references and closing behavior are separate from type selection. Follow
+the `conventional-commits` skill and the approved plan when choosing `Refs:` or
+`Fixes:`.
 
 ## History
 
-This vocabulary succeeds the earlier TPS (Type, Priority, Status) label-based
-system documented in `README.md`. The type and progress axes are now tracked
-via GitHub's native issue-type and Progress fields, replacing the old flat
-label groups. Priority and Effort remain as native single-select fields. The
-former optional labels are retained as meta labels.
+This vocabulary replaced the former label-only Type, Priority, and Status
+scheme. Type and Progress now use native GitHub fields. Priority and Effort
+remain supplementary fields, while useful workflow labels remain in the meta
+set.

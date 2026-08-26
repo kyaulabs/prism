@@ -1,115 +1,134 @@
 # @kyaulabs/prism-php-web
 
-The **PHP/web stack adapter** for the [prism](https://github.com/kyaulabs/prism)
-coding harness on [pi](https://pi.dev).
+Prism's PHP/web adapter adds stack-specific instructions, skills, prompts,
+project providers, and toolchain contracts to globally installed Prism Core.
+Install it project-locally when a trusted project contains `composer.json` or
+`aurora/`.
 
-prism's language-agnostic core ([@kyaulabs/prism-core](https://www.npmjs.com/package/@kyaulabs/prism-core))
-carries the pipeline and discipline. This adapter adds the **PHP/Aurora-specific**
-skills and commands, and the `rm -rf` safe-zone list the core's safety extension
-reads. Install it **per project** wherever `composer.json` or `aurora/` is
-present.
+## Adapter responsibility
 
-## What it provides
+The adapter owns:
 
-- **`php-web-stack`** — the stack: PHP 8.5+, MariaDB, nginx, SCSS → Dart Sass,
-  vanilla JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP.
-- **`tdd-php`** — the PHP/Pest half of TDD (test framework, coverage tooling,
-  lint), loaded alongside the core `tdd` skill.
-- **`security-coding-php`** — PHP/SQL bound-parameter patterns, Aurora CSRF,
-  file-upload safety.
-- **Frontend skills** — `frontend-design`, `frontend-architecture`,
-  `scss-mobile-first`, `accessibility`, and `visual-review` for iterative,
-  user-approved Chromium evidence.
-- **Page & doc skills** — `aurora-page`, `rcs-header`, `pest-browser`, `database`.
-- **Commands** — `/check-php` (lint + coverage gate), `/build-assets` (Dart Sass
-  + uglify-js), `/deploy`.
-- **`safe-dirs.json`** — the `rm -rf` safe zones (`vendor`, `cdn/css`,
-  `cdn/javascript`, …) the core safety extension enforces.
+- PHP 8.5+, MariaDB, nginx, Aurora, and the no-MVC application boundary;
+- Pest 5 on PHPUnit 13, changed-file coverage, and PHP/web quality commands;
+- SCSS through Dart Sass, vanilla JavaScript, and generated asset handling;
+- accessibility, frontend architecture, visual design, and visual review;
+- database, security, page, browser-test, and source-header guidance;
+- the PHP/web bootstrap provider and consumer toolchain contract;
+- project-local `safe-dirs.json` data for Core's safety extension.
 
-## Install
+Core continues to own the engineering pipeline, setup transaction, repository
+bootstrap, Markdown gate, consent, commits, review chains, and publication
+boundaries.
 
-Inside a PHP project:
+## Prerequisites and install
+
+Install Prism Core globally first. Semgrep and OpenCodeReview (`ocr`) remain
+Core prerequisites. Consumer development uses PHP 8.5+, Composer, Node.js,
+MariaDB, nginx, and the exact tools declared by this adapter.
+
+From the trusted consumer project:
 
 ```bash
 pi install -l npm:@kyaulabs/prism-php-web
 ```
 
-On first run pi asks to **trust** the project (or save the decision with
-`/trust`) so project-local resources load.
+Pi asks whether to trust project-local resources. Review the project before
+accepting or persisting that decision with `/trust`.
+
+## Established project setup
+
+Established projects retain Core's public setup sequence:
+
+```text
+setup inspect -> setup resolve -> setup apply -> setup verify
+```
+
+Setup discovers the project, presents exact package and file changes, obtains
+separate registry and literal mutation approvals, resolves audited lockfiles
+with lifecycle scripts disabled, and verifies the resulting toolchain. It does
+not replace application architecture or rewrite conflicting project files.
+
+When absent, setup creates canonical `visual_review.mjs`,
+`visual_review.spec.mjs`, and `visual_review.example.json` files. It preserves
+byte-identical canonical files and fails on conflicting paths.
 
 ## Blank and Template project bootstrap
 
-Strict-empty Blank or Template setup can select this exact PHP/web adapter
-through Core's generic provider protocol. Both source modes use the same generic
-adapter preparation, provider report, installed-graph verification, and shared
-quality contracts. Template evidence cannot change stack outputs: the adapter
-renders byte-identical trusted scaffold content for equivalent metadata and
-verifies an application-free,
-testing-ready scaffold: dependency manifests and locks, Pest/PHPUnit readiness,
-first-source lint configuration, shared local/CI quality gates, canonical hosted
-CI, and empty source/test directories without an application webroot, Aurora
-checkout, database schema, nginx configuration, or deployment assets.
+Strict-empty Blank and Template setup can select this adapter through Core's
+generic provider protocol. PHP/web selection is the exact package installation authorization;
+the complete project plan has a later approval.
 
-Locked Composer and npm resolution and installation run with lifecycle scripts
-disabled. Every advisory blocks, and browser acquisition installs only the
-declared Playwright Chromium build. Failure before Core's durable marker
-restores strict emptiness when owned state can be removed safely; failure after
-durability retains the complete scaffold and exact phase evidence for a
-deterministic resume. Canonical hooks run the adapter-owned shared quality gate,
-and root-seed readiness binds the adapter activation and provider report digest
-while excluding dependency and operational state. PHP/web selection is the exact
-package installation authorization; the complete project plan has its own later
-approval. After durable application, separate hook approval precedes the signed root seed.
-Setup performs no remote, publication, or push operation;
-the human creates or configures the hosted repository, adds the remote, pushes
-`develop`, and configures post-push rulesets.
+Both source modes use the same generic preparation, provider report,
+installed-graph verification, and quality contracts. Template catalogue data
+cannot change stack output. Equivalent metadata produces byte-identical trusted scaffold content.
 
-## Consumer toolchain
+The provider verifies an application-free, testing-ready scaffold with locked
+Composer and npm manifests, Pest/PHPUnit readiness, source-first lint policy,
+shared local and CI quality gates, hosted CI, and empty source and test
+directories. It creates no application webroot, Aurora checkout, database
+schema, nginx configuration, or deployment assets.
 
-The adapter declares its exact consumer-development tools in
-`toolchain.json` (Pest 5 on PHPUnit 13, php-cs-fixer, Playwright Chromium,
-Dart Sass, uglify-js, eslint, stylelint). `prism-tool setup` provisions them
-into the consumer project's `composer.json`/`package.json` and lockfiles only
-after separate registry and literal-`yes` mutation approvals, then installs
-them from the audited locks with lifecycle scripts disabled. The candidate
-workspace (`.pi/prism-tool/work/`) is ownership-marked and safely recovered
-or cleaned after interruption; Playwright installs only the matching Chromium
-build.
+Dependency resolution and installation keep lifecycle scripts disabled. Every advisory blocks.
+Browser acquisition installs only the declared Playwright Chromium build.
 
-Established projects retain the existing public `setup inspect`, `setup
-resolve`, `setup apply`, and `setup verify` workflow; Blank and Template
-bootstrap add no behavior to those operations. Setup creates the canonical
-`visual_review.mjs`, `visual_review.spec.mjs`, and `visual_review.example.json`
-files when absent, preserves exact canonical files without rewriting them, and
-fails on conflicting paths.
+Before Core's durable marker, a failure restores strict emptiness when ownership
+is provable. After durability, the complete scaffold and exact phase evidence
+remain for deterministic recovery. Root-seed readiness binds adapter activation
+and the provider report digest while excluding dependencies and operational
+state; separate hook approval precedes the signed root seed.
+
+Setup creates no remote and performs no publication or push. The human creates
+or configures the hosted repository, adds the remote, pushes `develop`, and
+configures rulesets.
+
+## Consumer toolchain and quality gate
+
+`toolchain.json` declares Pest 5 on PHPUnit 13, php-cs-fixer, Playwright with
+Chromium, Dart Sass, uglify-js, ESLint, and stylelint. These resolve through
+`prism-tool`; gates do not use arbitrary binaries from `PATH` or install tools
+on demand.
+
+The shared quality gate is `/check`. Core checks language-independent policy,
+including changed Markdown, then delegates to `/check-php` for PHP style,
+SCSS, JavaScript, tests, and changed-file coverage. Changed PHP files require at
+least 80% line coverage.
+
+Generated assets are outputs. Edit `cdn/sass/` and `cdn/js/`, then use the
+adapter build command; never edit `cdn/css/*.min.css` or
+`cdn/javascript/*.min.js`.
 
 ## Visual review
 
-Prism does not choose a project's palette, typography, visual movement, motion,
-or component aesthetics. Styling starts only after the user supplies a visual
-reference or equivalently detailed written brief and approves the resulting
-committed design brief.
-
-After each visual TDD slice reaches Green, load `visual-review`. Copy
-`visual_review.example.json` to the active `visual_review.json`, configure only
-approved loopback routes and states, then run:
+Visual review begins only after the user supplies and approves a visual brief.
+After each rendered slice reaches Green, copy `visual_review.example.json` to
+`visual_review.json`, define approved loopback routes and states, and run:
 
 ```bash
 prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
 ```
 
-The closed configuration and action vocabulary are documented in
-[`docs/visual-review.md`](./docs/visual-review.md). The workflow captures the
-configured mobile, desktop, 320px reflow, and changed-state matrix, requires the
-agent to inspect every PNG and iterate until the set is acceptable, then pauses
-for user milestone approval. Captures are restricted to unauthenticated
-loopback pages with controlled non-sensitive data. Working evidence stays under
-`tests/Browser/Screenshots/` and is ignored by default; committing reference
-images requires explicit user approval.
+Read every generated PNG, repair failures, and recapture the affected mobile,
+desktop, 320-pixel reflow, color-mode, and interaction-state evidence. Working
+captures stay under `tests/Browser/Screenshots/` and are ignored by default.
+Commit reference images only with explicit user approval.
 
-`pest-browser` remains responsible for critical functional browser flows.
-`visual-review` owns subjective visual inspection and milestone evidence.
+The tooling accepts unauthenticated loopback pages with controlled,
+non-sensitive data. `pest-browser` owns critical functional browser flows;
+`visual-review` owns visual inspection and milestone evidence. See
+[Visual review tooling](docs/visual-review.md).
+
+## Core handoff
+
+Load `php-web-stack` with Core workflow skills. Core owns brainstorming,
+specification, plans, Red-Green-Refactor discipline, verification, branch
+finalization, and preparation-only `/pr`; this adapter supplies the concrete
+PHP/web commands and standards used at each step.
+
+Humans push branches, create pull requests, merge, publish packages, and operate
+production deployments.
 
 ## License
 
-AGPL-3.0-only. See [NOTICE](./NOTICE) for the attribution chain.
+The adapter is licensed under AGPL-3.0-only. See [NOTICE](NOTICE) for
+attribution and retained upstream licenses.
