@@ -246,7 +246,7 @@ prism-tool commit create --type feat --scope frontend --subject "make visual des
 - Produces: `validateVisualReviewConfig(value)`, `loadVisualReviewConfig(filePath)`, `expandVisualReviewCases(config)`, `applyVisualReviewActions(page, actions)`, `revisionIdentity(cwd)`, `evidenceMetadata(capture, versions, revision)`, and `evidencePaths(capture, root)`.
 - Runtime command: `prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line`.
 
-- [ ] **Step 1: Write failing Node tests for the closed configuration boundary**
+- [x] **Step 1: Write failing Node tests for the closed configuration boundary**
 
 Create `tests/Node/visual-review.test.js` with tests that import the future module and assert:
 
@@ -333,13 +333,13 @@ test('evidence paths remain inside the fixed working directory', async () => {
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the focused Node test to verify Red**
+- [x] **Step 2: Run the focused Node test to verify Red**
 
 Run: `node --test tests/Node/visual-review.test.js`
 
 Expected: FAIL because `visual_review.mjs` does not exist.
 
-- [ ] **Step 3: Implement the closed runtime and Playwright capture spec**
+- [x] **Step 3: Implement the closed runtime and Playwright capture spec**
 
 Implement `visual_review.mjs` with these exact public exports and constraints:
 
@@ -546,13 +546,13 @@ Create `visual_review.example.json` with `mobile` and `desktop` set to `null` an
 
 Create the `visual-review` skill with the exact public command, the capture → read PNGs → repair → recapture loop, user milestone gate, ignored-evidence policy, and prohibition on external/authenticated/sensitive captures. Put the closed JSON shape and action vocabulary in `packages/prism-php-web/docs/visual-review.md`; keep the skill concise and cross-reference the doc.
 
-- [ ] **Step 4: Run the focused runtime tests**
+- [x] **Step 4: Run the focused runtime tests**
 
 Run: `node --test tests/Node/visual-review.test.js`
 
 Expected: PASS, including rejection of external origins, unknown fields, unsafe actions, duplicate IDs, and escaping evidence paths.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-php-web/config/bootstrap/visual-review packages/prism-php-web/skills/visual-review/SKILL.md packages/prism-php-web/docs/visual-review.md tests/Node/visual-review.test.js

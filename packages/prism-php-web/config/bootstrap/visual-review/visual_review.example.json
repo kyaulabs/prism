@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "baseUrl": "http://127.0.0.1:8080",
+  "viewports": {
+    "mobile": null,
+    "desktop": null
+  },
+  "cases": []
+}
