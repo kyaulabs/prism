@@ -47,6 +47,34 @@ has_obsolete_pr_title_flag() {
 	[ "$obsolete" -eq 1 ]
 }
 
+tracker_transport_is_canonical() {
+	local file="$1"
+	awk '
+		index($0, "gh api graphql") {
+			seen = 1
+			if (!index($0, "gh api graphql --input .pi/tmp/")) unsafe = 1
+		}
+		END { exit !(seen && !unsafe) }
+	' "$file"
+}
+
+TMPDIR=$(mktemp -d)
+register_temp_dir "$TMPDIR"
+
+cat > "$TMPDIR/tracker-canonical.md" <<'TRACKER_CANONICAL'
+gh api graphql --input .pi/tmp/tracker-mutation.json
+TRACKER_CANONICAL
+cat > "$TMPDIR/tracker-inline.md" <<'TRACKER_INLINE'
+gh api graphql --input .pi/tmp/tracker-mutation.json
+gh api graphql -f query=mutation
+TRACKER_INLINE
+if tracker_transport_is_canonical "$TMPDIR/tracker-canonical.md" \
+	&& ! tracker_transport_is_canonical "$TMPDIR/tracker-inline.md"; then
+	pass "tracker transport contract rejects inline GraphQL mutation arguments"
+else
+	fail "tracker transport contract accepts inline GraphQL mutation arguments"
+fi
+
 # ── Static scan: tracker mutation transport ─────────────────────────────────
 echo "── Skill shell injection scan ──────────────"
 
@@ -58,10 +86,14 @@ TRACKER_SKILLS=(
 )
 
 for tracker_skill in "${TRACKER_SKILLS[@]}"; do
-	if grep -qF 'gh api graphql --input .pi/tmp/' "$tracker_skill"; then
-		pass "$tracker_skill uses a project-local GraphQL input file"
+	if [ ! -r "$tracker_skill" ]; then
+		fail "$tracker_skill is missing or unreadable"
+		continue
+	fi
+	if tracker_transport_is_canonical "$tracker_skill"; then
+		pass "$tracker_skill uses only project-local GraphQL input files"
 	else
-		fail "$tracker_skill is missing the GraphQL input-file transport"
+		fail "$tracker_skill contains a non-canonical GraphQL mutation"
 	fi
 	if grep -qE 'gh issue (create|edit|comment|close)' "$tracker_skill"; then
 		fail "$tracker_skill contains a convenience mutation"
@@ -122,9 +154,6 @@ fi
 # ── Active injection test: malicious title through safe pattern ─────────────
 # Demonstrate that a crafted title does not execute embedded commands
 # when passed via quoted heredoc and read into a quoted variable.
-
-TMPDIR=$(mktemp -d)
-register_temp_dir "$TMPDIR"
 
 injection_sentinel="$TMPDIR/pr_command_injection"
 backtick_sentinel="$TMPDIR/pr_command_backtick"
