@@ -21,6 +21,8 @@ The skill keeps its main body small. Its adapted pattern catalog lives in `refer
 
 The capability is instruction-only. It adds no extension, output filter, second model pass, dependency, persistent state, model selection, or readiness requirement.
 
+Distill adapts the MIT-licensed pstack `unslop` skill by Lauren Tan. The skill frontmatter must preserve that provenance through a `derived-from:` field, and `packages/prism-core/NOTICE` must include the upstream URL, copyright, license, adaptation summary, and used-in path.
+
 ## Scope
 
 Distill applies to natural-language prose produced in:
@@ -209,6 +211,7 @@ The implementation is expected to touch:
 - `packages/prism-core/skills/distill/SKILL.md`;
 - `packages/prism-core/skills/distill/references/patterns.md`;
 - `CODING_HARNESS.md`;
+- `packages/prism-core/NOTICE`;
 - harness validation and regression tests;
 - one new ADR recording the cross-cutting convention.
 
@@ -227,7 +230,8 @@ Automated tests must verify:
 5. `APPEND_SYSTEM.md` and the safety extension do not gain duplicate style enforcement.
 6. The skill states the activation conditions, exclusions, precedence order, and no-fabrication rule.
 7. The pattern reference preserves coverage of the supplied content, language, style, communication, filler, jargon, and plain-speech concerns.
-8. No new dependency, model preference, extension, launcher operation, or persistent state is introduced.
+8. The skill carries `derived-from:` attribution for pstack and the Prism core NOTICE preserves Lauren Tan's MIT notice.
+9. No new dependency, model preference, extension, launcher operation, or persistent state is introduced.
 
 Tests should assert instruction contracts and package layout. They must not snapshot generated prose or claim deterministic model compliance.
 
@@ -254,7 +258,8 @@ Pi-native model-output evaluation remains out of scope under the deferred eval a
 - Code, commands, identifiers, logs, quotations, citations, machine formats, templates, and commit syntax remain unchanged.
 - Prism glossary terms remain valid in their defined technical sense.
 - The implementation adds no second extension, output filter, extra model call, dependency, persistent state, readiness gate, or model-specific behavior.
-- Package, discovery, reference, index, and instruction-size checks pass.
+- Package, discovery, reference, index, attribution, and instruction-size checks pass.
+- The pstack source, Lauren Tan copyright, and MIT license are preserved in skill metadata and `packages/prism-core/NOTICE`.
 - An accepted ADR records the always-on convention and enforcement boundary before implementation completes.
 
 ## Non-goals
