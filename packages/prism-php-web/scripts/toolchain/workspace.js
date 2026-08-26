@@ -106,15 +106,31 @@ function closeQuietly(descriptor) {
     }
 }
 
+function createdFileIdentity(stat) {
+    return {
+        dev: stat.dev,
+        ino: stat.ino,
+        birthtimeNs: stat.birthtimeNs,
+        ctimeNs: stat.ctimeNs,
+        mtimeNs: stat.mtimeNs,
+        size: stat.size,
+        mode: stat.mode,
+    };
+}
+
+function sameCreatedFile(stat, identity) {
+    return Object.entries(identity).every(([field, value]) => stat[field] === value);
+}
+
 function removeCreatedFile(filePath, identity) {
     let stat;
     try {
-        stat = fs.lstatSync(filePath);
+        stat = fs.lstatSync(filePath, {bigint: true});
     } catch (error) {
         if (error.code === 'ENOENT') return;
         throw error;
     }
-    if (!stat.isSymbolicLink() && stat.isFile() && stat.dev === identity.dev && stat.ino === identity.ino) {
+    if (!stat.isSymbolicLink() && stat.isFile() && sameCreatedFile(stat, identity)) {
         fs.rmSync(filePath, {force: false});
     }
 }
@@ -138,16 +154,27 @@ function writeCreateAtomic(filePath, content, mode, open, track) {
             fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW,
             mode
         );
-        identity = fs.fstatSync(descriptor);
-        track({dev: identity.dev, ino: identity.ino});
+        identity = createdFileIdentity(fs.fstatSync(descriptor, {bigint: true}));
+        track(identity);
         fs.writeFileSync(descriptor, content);
         fs.fchmodSync(descriptor, mode);
         fs.fsyncSync(descriptor);
+        identity = createdFileIdentity(fs.fstatSync(descriptor, {bigint: true}));
+        track(identity);
         fs.closeSync(descriptor);
         descriptor = undefined;
-        return {dev: identity.dev, ino: identity.ino};
+        return identity;
     } catch (error) {
-        if (descriptor !== undefined) closeQuietly(descriptor);
+        if (descriptor !== undefined) {
+            try {
+                identity = createdFileIdentity(fs.fstatSync(descriptor, {bigint: true}));
+                track(identity);
+            } catch {
+                closeQuietly(descriptor);
+                descriptor = undefined;
+            }
+            if (descriptor !== undefined) closeQuietly(descriptor);
+        }
         if (identity !== undefined) removeCreatedFileQuietly(filePath, identity);
         throw error;
     }
