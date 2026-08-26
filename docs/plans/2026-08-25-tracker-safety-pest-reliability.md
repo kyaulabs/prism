@@ -446,7 +446,7 @@ prism-tool commit create --type fix --scope workflow --subject "preserve issue c
 - Consumes: existing fail-closed shell classifier.
 - Produces: `SafetyDiagnostic` metadata on unresolvable matches and a shared `diagnoseUnmodelableShellConstruct(command)` seam.
 
-- [ ] **Step 1: Add the first failing diagnostic-category test**
+- [x] **Step 1: Add the first failing diagnostic-category test**
 
 Add imports for `diagnoseUnmodelableShellConstruct` and add one table-driven test:
 
@@ -474,13 +474,13 @@ test("unmodelable shell constructs retain stable redacted diagnostic categories"
 });
 ```
 
-- [ ] **Step 2: Run the test and confirm Red**
+- [x] **Step 2: Run the test and confirm Red**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 
 Expected: FAIL because `diagnoseUnmodelableShellConstruct` and structured metadata do not exist.
 
-- [ ] **Step 3: Add the diagnostic types and direct syntax classifier**
+- [x] **Step 3: Add the diagnostic types and direct syntax classifier**
 
 Add these exported interfaces:
 
@@ -529,7 +529,7 @@ Update `pre-tool-use.ts` to consume the shared diagnostic rather than deriving
 a second unsupported-syntax explanation. Its finding reason remains redacted
 and contains code, stage, category, and retry only.
 
-- [ ] **Step 4: Add and implement remaining analysis-stage categories**
+- [x] **Step 4: Add and implement remaining analysis-stage categories**
 
 Add one test at a time, making each Green before the next:
 
@@ -544,13 +544,13 @@ stages `shell-model`, `wrapper-unwrapping`, and `setup-trust` respectively.
 The public catch in `sensitiveOperandCheck` returns code `PRISM-SHELL-012`,
 stage `classifier`, category `internal-classifier`, and static retry guidance.
 
-- [ ] **Step 5: Run focused safety tests and create the commit**
+- [x] **Step 5: Run focused safety tests and create the commit**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts`
 
 Expected: PASS.
 
-Run: `node --test tests/Node/safety-pre-tool-use.test.ts`
+Run: `node --test tests/Node/safety-classify.test.ts`
 
 Expected: PASS.
 

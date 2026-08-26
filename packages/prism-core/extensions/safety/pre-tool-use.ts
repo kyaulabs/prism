@@ -1,8 +1,8 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
-import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, hasUnmodelableShellConstruct, BARE_VARIABLE_RE, VARIABLE_COMMAND_POSITION_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
+import { tokenizeCommand, tryUnwrapSegment, findShellWrapperPayload, resolvePathToken, diagnoseUnmodelableShellConstruct, BARE_VARIABLE_RE, VARIABLE_COMMAND_POSITION_RE, stripSurroundingQuotes, splitShellSegments, MAX_UNWRAP_DEPTH } from "./sensitive-paths.ts";
 
 // Re-export for tests.
 export { tokenizeCommand } from "./sensitive-paths.ts";
@@ -292,10 +292,13 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
     if (depth > MAX_UNWRAP_DEPTH) {
         return { severity: "block", reason: "nested wrapper depth exceeded — failing closed" };
     }
-    if (hasUnmodelableShellConstruct(command)) {
+    const diagnostic = diagnoseUnmodelableShellConstruct(command);
+    if (diagnostic !== null) {
         return {
             severity: "block",
-            reason: "unmodelable shell construct (substitution/quoting/here-string) — failing closed per ADR-0036",
+            reason: `unmodelable shell construct — code=${diagnostic.code}; ` +
+                `stage=${diagnostic.stage}; category=${diagnostic.category}; ` +
+                `safe retry: ${diagnostic.retry}; failing closed per ADR-0036`,
         };
     }
     const ctx: RuleCtx = {
