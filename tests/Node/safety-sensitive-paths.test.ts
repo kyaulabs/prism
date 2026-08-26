@@ -67,8 +67,8 @@ test("resolveExtraPaths keeps valid entries and logs rejected lines", () => {
     const paths = resolveExtraPaths("~/.gnupg/\nrelative/path\n/root/good\n\n", (m) => logged.push(m));
     assert.deepEqual(paths, ["~/.gnupg/", "/root/good"]);
     assert.equal(logged.length, 1);
-    assert.match(logged[0], /ignoring malformed sensitive-paths entry/);
-    assert.match(logged[0], /relative\/path/);
+    assert.match(logged[0], /ignoring malformed sensitive-paths entry at line 2/);
+    assert.doesNotMatch(logged[0], /relative\/path/);
 });
 
 test("resolveExtraPaths rejects control-character entries", () => {

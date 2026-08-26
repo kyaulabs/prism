@@ -575,7 +575,7 @@ prism-tool commit create --type fix --scope safety --subject "preserve shell ana
 - Consumes: `SensitiveMatch.diagnostic` from Task 4.
 - Produces: redacted `[prism safety] BLOCKED` reasons with stable recovery guidance.
 
-- [ ] **Step 1: Add the failing Markdown-comment reproduction**
+- [x] **Step 1: Add the failing Markdown-comment reproduction**
 
 Add this test:
 
@@ -596,13 +596,13 @@ test("Markdown backticks report a redacted actionable diagnostic", () => {
 });
 ```
 
-- [ ] **Step 2: Run the handler test and confirm Red**
+- [x] **Step 2: Run the handler test and confirm Red**
 
 Run: `node --test tests/Node/safety-tool-call-handler.test.ts`
 
 Expected: FAIL because the handler still emits only the generic unanalyzable reason.
 
-- [ ] **Step 3: Format diagnostics without raw input**
+- [x] **Step 3: Format diagnostics without raw input**
 
 Replace the generic unresolvable formatter with:
 
@@ -629,14 +629,14 @@ Change `resolveExtraPaths` malformed-entry logging so it reports the rejected
 line number and static reason category, not `JSON.stringify(line)` or the raw
 exception message. Update its tests to assert the invalid path text is absent.
 
-- [ ] **Step 4: Add redaction invariants for every category**
+- [x] **Step 4: Add redaction invariants for every category**
 
 Update existing generic `/could not be analyzed/` assertions to also require
 stable codes where the expected category is known. Add a table asserting each
 handler reason omits unique markers embedded in the source command. Preserve
 all breaker-count assertions.
 
-- [ ] **Step 5: Run safety suites and create the commit**
+- [x] **Step 5: Run safety suites and create the commit**
 
 Run: `node --test tests/Node/safety-sensitive-paths.test.ts tests/Node/safety-tool-call-handler.test.ts`
 

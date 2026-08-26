@@ -81,6 +81,46 @@ test("bash unanalyzable command blocks with an analysis reason, not a path hit",
     assert.equal(deps.breaker.count("s1"), 1);
 });
 
+test("Markdown backticks report a redacted actionable diagnostic", () => {
+    const { deps } = makeDeps();
+    const secretMarker = "do-not-disclose-comment-body";
+    const command = 'gh issue comment 42 --body "`' + secretMarker + '`"';
+    const result = handleToolCall("bash", { command }, deps);
+
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /PRISM-SHELL-002/);
+    assert.match(result?.reason ?? "", /stage=shell-model/);
+    assert.match(result?.reason ?? "", /category=backtick-substitution/);
+    assert.match(result?.reason ?? "", /Pi file tool/);
+    assert.doesNotMatch(result?.reason ?? "", new RegExp(secretMarker));
+    assert.equal(deps.breaker.count("s1"), 1);
+});
+
+test("all shell diagnostic categories remain redacted at the tool boundary", () => {
+    const cases = [
+        ["echo $(printf marker-command-substitution)", "PRISM-SHELL-001", "marker-command-substitution"],
+        ["echo `printf marker-backtick`", "PRISM-SHELL-002", "marker-backtick"],
+        ["bash -c $'marker-ansi'", "PRISM-SHELL-003", "marker-ansi"],
+        ["cat <(printf marker-process)", "PRISM-SHELL-004", "marker-process"],
+        ["bash <<< marker-here-string", "PRISM-SHELL-005", "marker-here-string"],
+        ["eval 'marker-recursive'", "PRISM-SHELL-006", "marker-recursive"],
+        ["marker-arithmetic=x; value=$((value + 1))", "PRISM-SHELL-007", "marker-arithmetic"],
+        ["echo \"${arr[$markerIndexed]}\"", "PRISM-SHELL-008", "markerIndexed"],
+        ["echo ok; $markerCommand", "PRISM-SHELL-009", "markerCommand"],
+        ["env env env env env marker-wrapper", "PRISM-SHELL-010", "marker-wrapper"],
+        ['bash -c "setup-rulesets.sh" marker-setup', "PRISM-SHELL-011", "marker-setup"],
+    ] as const;
+
+    for (const [command, code, marker] of cases) {
+        const { deps } = makeDeps();
+        const result = handleToolCall("bash", { command }, deps);
+        assert.equal(result?.block, true, command);
+        assert.match(result?.reason ?? "", new RegExp(code), command);
+        assert.doesNotMatch(result?.reason ?? "", new RegExp(marker), command);
+        assert.equal(deps.breaker.count("s1"), 1, command);
+    }
+});
+
 test("bash malformed args blocks and feeds the breaker", () => {
     const { deps } = makeDeps();
     const result = handleToolCall("bash", { command: 42 }, deps);
@@ -430,15 +470,17 @@ test("unhandled tools pass through", () => {
     assert.equal(handleToolCall("write", { path: "/repo/b.php", content: "x" }, deps), undefined);
 });
 
-test("internal error fails closed with ADR-0036 reason", () => {
+test("internal error fails closed with a redacted classifier diagnostic", () => {
     const throwing = {
-        isTripped: () => { throw new Error("boom"); },
+        isTripped: () => { throw new Error("do-not-disclose-internal-error"); },
     } as unknown as DenialCircuitBreaker;
     const { deps } = makeDeps({ breaker: throwing });
     const result = handleToolCall("bash", { command: "echo hi" }, deps);
     assert.equal(result?.block, true);
     assert.match(result?.reason ?? "", /failing closed per ADR-0036/);
-    assert.match(result?.reason ?? "", /boom/);
+    assert.match(result?.reason ?? "", /PRISM-SHELL-012/);
+    assert.match(result?.reason ?? "", /category=internal-classifier/);
+    assert.doesNotMatch(result?.reason ?? "", /do-not-disclose-internal-error/);
 });
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :
