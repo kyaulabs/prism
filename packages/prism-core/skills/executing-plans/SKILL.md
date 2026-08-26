@@ -43,6 +43,7 @@ the closing reference.
 The single agent executes every task directly, regardless of plan size:
 
 - Read the plan, pick up the first unchecked task, and load the `tdd` skill.
+- Before running a stack command, compare it with the active adapter; reject direct stack-tool execution or invented flags and return the plan to `writing-plans` instead of silently improvising a replacement.
 - Implement the task inline using one Red → Green → Refactor cycle at a time.
 - After each task, run `verification-before-completion` and the internal
   per-task review gate. When both pass, continue automatically to the next task.

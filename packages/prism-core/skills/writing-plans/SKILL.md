@@ -201,6 +201,7 @@ review.
    you used in later tasks match what you defined in earlier tasks? A function
    called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 4. **Issue-reference count:** For an issue-derived plan, verify exactly one commit recipe uses `--fixes NN`, every earlier logical implementation commit uses `--refs NN`, and all numbers match the immutable originating issue.
+5. **Adapter command audit:** Copy every stack-specific verification command from the active adapter verbatim. Reject direct executables, invented flags, and normalized alternatives; core planning guidance does not duplicate stack syntax.
 
 If you find issues, fix them inline. No need to re-review — just fix and move
 on. If you find a spec requirement with no task, add the task.

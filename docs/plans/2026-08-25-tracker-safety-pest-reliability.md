@@ -669,7 +669,7 @@ prism-tool commit create --type fix --scope safety --subject "report redacted re
 - Consumes: adapter-owned Pest `argvPrefix` and browser base URL contract.
 - Produces: one exact coverage invocation and a core adapter-command validation rule.
 
-- [ ] **Step 1: Add the failing exact-command assertions**
+- [x] **Step 1: Add the failing exact-command assertions**
 
 Add:
 
@@ -687,13 +687,13 @@ assert_file_contains "$CORE_SKILLS/executing-plans/SKILL.md" 'reject.*direct sta
 
 Use extended-regex quoting compatible with the existing helper.
 
-- [ ] **Step 2: Run the contract and confirm Red**
+- [x] **Step 2: Run the contract and confirm Red**
 
 Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: FAIL because `tdd-php` and `check-php` still contain a bare coverage invocation and core planning/execution lacks the command-audit language.
 
-- [ ] **Step 3: Make the adapter command canonical**
+- [x] **Step 3: Make the adapter command canonical**
 
 In `tdd-php`, replace every coverage-only command with:
 
@@ -725,7 +725,7 @@ adapter. Reject direct stack-tool execution or invented flags and return the
 plan to `writing-plans`; do not silently improvise a replacement.
 ```
 
-- [ ] **Step 4: Run adapter and shell contracts**
+- [x] **Step 4: Run adapter and shell contracts**
 
 Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
@@ -735,7 +735,7 @@ Run: `bash tests/Shell/instruction_shell_safety_test.sh`
 
 Expected: all PASS.
 
-- [ ] **Step 5: Commit the adapter contract**
+- [x] **Step 5: Commit the adapter contract**
 
 Run separately: `git add tests/Shell/toolchain_entrypoints_test.sh packages/prism-php-web/skills/tdd-php/SKILL.md packages/prism-php-web/prompts/check-php.md packages/prism-core/skills/writing-plans/SKILL.md packages/prism-core/skills/executing-plans/SKILL.md`
 
