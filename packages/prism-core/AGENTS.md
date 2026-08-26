@@ -47,7 +47,10 @@ from the repository root.
 >
 > - NEVER edit generated minified assets (`*.min.css`, `*.min.js`) — these are generated (edit the SCSS/JS sources; see the active adapter's stack skill for details)
 > - NEVER commit `.env` files — use `.env.example` only
-> - Do not access external APIs without explicit permission
+> - External API mutations and non-GitHub network access require the explicit
+  authorization defined by their active workflow.
+  Read-only GitHub repository and tracker metadata accessed by an active Prism workflow is standing-authorized
+  and does not require another permission prompt (ADR-0086).
 > - Do not modify files outside the project directory
 > - New dependencies must be explicitly noted
 > - When glob/grep returns unexpected empty results, verify with `ls` before concluding a file does not exist

@@ -61,6 +61,9 @@ Every map and ticket is a GitHub issue with a title. In narration and the map's
 
 Invoking Wayfinder to chart a destination or continue a named map authorizes the
 bounded tracker lifecycle for that map under ADR-0085.
+Invocation or continuation is the complete authorization for this lifecycle.
+Do not ask to claim, display exact mutations, or reconfirm routine operations.
+The user's next substantive decision is the only reason to pause.
 
 Routine map lifecycle mutations are pre-authorized: idempotent label setup; map
 and child-issue creation; assignment and claims; comments, edits, closes, and

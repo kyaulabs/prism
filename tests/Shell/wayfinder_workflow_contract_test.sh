@@ -90,6 +90,12 @@ assert_between_contains "$CORE_AGENTS" '## Skills Available' '## Commands' 'work
 
 printf '%s\n' '── Tracker authorization contract ──'
 assert_between_contains "$TRACKER" '## Authorization contract' '## Least-privilege command scope' 'workflow-scoped mutation authorization' 'tracker operator supports workflow-scoped authorization'
+assert_between_contains "$TRACKER" '## Authorization contract' '## Least-privilege command scope' 'Read-only GitHub repository and tracker metadata is standing-authorized' 'tracker reads are standing-authorized'
+assert_between_contains "$TRACKER" '## Authorization contract' '## Least-privilege command scope' 'Do not ask for network permission for those reads.' 'tracker reads require no permission prompt'
+assert_between_contains "$WAYFINDER" '## Workflow authorization' '## The Map' 'Invocation or continuation is the complete authorization' 'Wayfinder invocation is the complete lifecycle authorization'
+assert_between_contains "$WAYFINDER" '## Workflow authorization' '## The Map' 'Do not ask to claim, display exact mutations, or reconfirm' 'Wayfinder has no repeated claim or mutation confirmation'
+assert_between_contains "$CORE_AGENTS" '## Hard Boundaries' '## File Naming' 'Read-only GitHub repository and tracker metadata accessed by an active Prism workflow is standing-authorized' 'global API boundary recognizes standing GitHub reads'
+assert_not_contains "$CORE_AGENTS" '- Do not access external APIs without explicit permission' 'global API boundary no longer contradicts standing GitHub reads'
 assert_between_contains "$TRACKER" '## Rules' '## Cross-refs' "caller's active workflow authorization" 'tracker rules consume workflow authorization'
 assert_between_contains "$TRACKER" '## Rules' '## Cross-refs' 'not require per-command approval.' 'tracker rules avoid per-command prompts'
 assert_not_contains "$TRACKER" 'requires approval for every mutation' 'tracker operator does not require per-mutation approval'

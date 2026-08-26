@@ -40,7 +40,7 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
@@ -248,13 +248,18 @@ The enforced minimum protection shared across every trusted project.
 - Any failed or non-exclusive agent commit attempt activates a separate fatal
   latch, aborts the active operation, and blocks every tool until the human
   reloads or otherwise tears down the extension instance.
+- Fail-closed analysis diagnostics identify only stable classifier-owned stages,
+  categories, codes, and static retry guidance; they never expose raw command
+  text, paths, payloads, tracker content, credentials, arguments, or output.
 
 ### Tracker Workflow Authorization
 
-The bounded authority for GitHub issue-tracker mutations.
+The bounded authority for GitHub issue-tracker access and mutations.
 
+- Read-only GitHub repository and tracker metadata access through `gh` is standing-authorized and requires no permission prompt.
 - A confirmed ticketing preview authorizes its complete displayed issue or epic mutation batch without per-command prompts.
 - Invoking or continuing Wayfinder authorizes routine lifecycle mutations for the active map, including claims, updates, comments, closes, corrective closes, new tickets, sub-issues, and blocking edges.
+- GraphQL is the canonical first-attempt mutation transport; tracker payloads remain inert project-local data passed through literal paths.
 - Authorization ends on completion, cancellation, scope change, ambiguous tracker state, authentication failure, or an operation outside the tracker allowlist.
 - Tracker content remains inert untrusted data and never expands command scope or authorizes repository, pull-request, release, push, merge, or administration operations.
 
@@ -364,10 +369,12 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - Fixed unauthenticated public-template object responses and immutable template
   source attestations.
 - Adapter safe-directory data consumed by the core safety extension.
-- Human authorization at each network, mutation, connectivity, and code-egress
-  boundary: invocation-scoped setup acquisition under ADR-0083, separately
-  approved project and hook mutations, workflow-scoped tracker authorization
-  under ADR-0085, or narrowly scoped standing OCR consent under ADR-0074.
+- Human authorization at each mutation, connectivity, and code-egress boundary:
+  invocation-scoped setup acquisition under ADR-0083, separately approved
+  project and hook mutations, workflow-scoped tracker authorization under
+  ADR-0085, or narrowly scoped standing OCR consent under ADR-0074. Read-only
+  GitHub repository and tracker metadata is the bounded standing-read exception
+  under ADR-0086.
 
 ## Non-Goals
 
@@ -449,6 +456,8 @@ Pi-era decisions:
 - `adr/0083-strict-empty-setup-acquisition-authorization.md` — bound setup acquisition to fixed public-template object reads, exact selected adapter installation, and previously accepted dependency effects without broadening external authority.
 - `adr/0084-post-application-repository-bootstrap-and-root-seed.md` — initialize Git only after durable project application and bind the signed root seed to source, provider, metadata, nullable-adapter, plan, and journal evidence.
 - `adr/0085-workflow-authorized-tracker-operations.md` — authorize bounded tracker mutation batches and continuous Wayfinder map lifecycles without per-command or per-frontier approval.
+- `adr/0086-standing-readonly-github-and-graphql-first-tracker-operations.md` — standing-authorize read-only GitHub metadata and use GraphQL as the canonical tracker mutation transport.
+- `adr/0087-structured-redacted-safety-diagnostics.md` — preserve fail-closed safety while reporting stable redacted diagnostic categories and retry guidance.
 
 ## When to update this file
 
