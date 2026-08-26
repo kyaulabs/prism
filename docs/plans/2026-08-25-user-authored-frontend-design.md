@@ -38,7 +38,7 @@
 - Consumes: `grilling`, `accessibility`, `scss-mobile-first`, and the committed `user-authored visual brief` domain contract.
 - Produces: a frontend-design intake contract with no fallback aesthetic; project-defined semantic CSS custom properties; design-language-neutral accessibility guidance.
 
-- [ ] **Step 1: Write the failing contract test**
+- [x] **Step 1: Write the failing contract test**
 
 Create `tests/Shell/frontend_design_contract_test.sh`:
 
@@ -92,13 +92,13 @@ printf '\nfrontend_design_contract_test.sh: %d passed, %d failed\n' "$PASS" "$FA
 # vim: ft=sh sts=4 sw=4 ts=4 et :
 ```
 
-- [ ] **Step 2: Run the contract test to verify Red**
+- [x] **Step 2: Run the contract test to verify Red**
 
 Run: `bash tests/Shell/frontend_design_contract_test.sh`
 
 Expected: FAIL on the missing grilling/intake language and on existing neumorphism, palette, token, and target-size wording.
 
-- [ ] **Step 3: Replace the three skill contracts**
+- [x] **Step 3: Replace the three skill contracts**
 
 Rewrite `frontend-design` with these exact sections and rules:
 
@@ -217,13 +217,13 @@ contrast guidance and use:
   boundary; never weaken the accessibility floor.
 ```
 
-- [ ] **Step 4: Run the contract test to verify Green**
+- [x] **Step 4: Run the contract test to verify Green**
 
 Run: `bash tests/Shell/frontend_design_contract_test.sh`
 
 Expected: PASS with all user-intake, no-default, token, contrast, and target-size assertions green.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add tests/Shell/frontend_design_contract_test.sh packages/prism-php-web/skills/frontend-design/SKILL.md packages/prism-php-web/skills/frontend-architecture/SKILL.md packages/prism-php-web/skills/accessibility/SKILL.md
