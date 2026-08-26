@@ -1,11 +1,12 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {MAX_EXECUTION_TIMEOUT_MS, assertPackageParity, loadContract} = require('./contract');
+const {MAX_EXECUTION_TIMEOUT_MS} = require('./contract');
+const {loadCoreContract, resolveBundledComponent} = require('./core-toolchain');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {normalizeProjectMetadata} = require('./bootstrap-metadata');
@@ -49,6 +50,7 @@ const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
+const {markdownCommand} = require('./markdown');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {codeReviewCommand} = require('./code-review');
 const {
@@ -61,39 +63,6 @@ const {
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 const BOOTSTRAP_ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const RUN_USAGE = 'usage: prism-tool run TOOL_ID [--timeout-ms=MILLISECONDS] -- ARGUMENTS';
-
-function packageRootFor(packageName, coreRoot) {
-    let current = fs.realpathSync(coreRoot);
-    while (true) {
-        const candidate = path.join(current, 'node_modules', packageName);
-        const manifestPath = path.join(candidate, 'package.json');
-        if (fs.existsSync(manifestPath)) {
-            const root = fs.realpathSync(candidate);
-            const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-            if (manifest.name === packageName) return {manifest, root};
-        }
-        const parent = path.dirname(current);
-        if (parent === current) break;
-        current = parent;
-    }
-    throw new Error(`package root not found for ${packageName}`);
-}
-
-function resolveBundledComponent(coreRoot, component) {
-    const resolved = packageRootFor(component.package, coreRoot);
-    if (resolved.manifest.version !== component.version) {
-        throw new Error(`package version drift for ${component.id}`);
-    }
-    const bin = resolved.manifest.bin;
-    const relative = typeof bin === 'string' ? bin : bin?.[component.executable];
-    if (typeof relative !== 'string') throw new Error(`package bin missing for ${component.id}`);
-    const executable = fs.realpathSync(path.resolve(resolved.root, relative));
-    const relation = path.relative(resolved.root, executable);
-    if (relation.startsWith('..') || path.isAbsolute(relation)) {
-        throw new Error(`package bin escapes root for ${component.id}`);
-    }
-    return executable;
-}
 
 function parseRun(args) {
     const toolId = args[0];
@@ -139,13 +108,6 @@ function readBoundedStdin(context) {
         chunks.push(Buffer.from(buffer.subarray(0, count)));
     }
     return Buffer.concat(chunks);
-}
-
-function loadCoreContract(coreRoot) {
-    const contract = loadContract(path.join(coreRoot, 'toolchain.json'));
-    const packageJson = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
-    assertPackageParity(contract, packageJson);
-    return contract;
 }
 
 function parseDoctor(args) {
@@ -1702,6 +1664,10 @@ function runDeclaredTool(args, context) {
         process.stderr.write('prism-tool: OCR requires the dedicated code-review operation\n');
         return EXIT.USAGE;
     }
+    if (component.id === 'markdownlint-cli2') {
+        process.stderr.write('prism-tool: markdownlint-cli2 requires the dedicated markdown operation\n');
+        return EXIT.USAGE;
+    }
     const defaultTimeoutMs = component.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
     if (
         parsed.timeoutMs !== undefined &&
@@ -1910,6 +1876,7 @@ function main(argv, context = {}) {
     if (command === 'pr') return prCommand(args, context);
     if (command === 'commit') return commitCommand(args, context);
     if (command === 'hook') return hookCommand(args, context);
+    if (command === 'markdown') return markdownCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
     if (command === 'code-review') return codeReviewCommand(args, context);
     if (command === 'package-release') return packageReleaseCommand(args, context);
