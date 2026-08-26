@@ -97,8 +97,14 @@ else
     fail "invalid invocation contract mismatch: rc=$usage_status output=$usage_output"
 fi
 
+FIXTURE=$(mktemp -d "$REPO_ROOT/.distill-contract-test.XXXXXX")
+trap 'rm -rf "$FIXTURE"' EXIT
+MISSING_ROOT="$FIXTURE/missing-repository-root"
+mkdir "$MISSING_ROOT"
+rmdir "$MISSING_ROOT"
+
 set +e
-root_output=$(bash "$CHECKER" "$REPO_ROOT/.missing-distill-root" 2>&1)
+root_output=$(bash "$CHECKER" "$MISSING_ROOT" 2>&1)
 root_status=$?
 set -e
 if [ "$root_status" -eq 2 ] && printf '%s\n' "$root_output" | grep -Fq 'repository root is not a readable directory'; then
@@ -107,8 +113,6 @@ else
     fail "unreadable-root contract mismatch: rc=$root_status output=$root_output"
 fi
 
-FIXTURE=$(mktemp -d "$REPO_ROOT/.distill-contract-test.XXXXXX")
-trap 'rm -rf "$FIXTURE"' EXIT
 make_valid_fixture "$FIXTURE"
 
 if output=$(bash "$CHECKER" "$FIXTURE" 2>&1); then
