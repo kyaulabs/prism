@@ -186,6 +186,28 @@ test('reads configuration through one held file identity during path replacement
     assert.equal(loaded.baseUrl, 'http://127.0.0.1:8080/');
 });
 
+test('rejects configuration growth beyond the size cap after descriptor validation', async (t) => {
+    const module = await import(moduleUrl);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-growth-'));
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const configPath = path.join(root, 'visual_review.json');
+    fs.writeFileSync(configPath, `${JSON.stringify(valid)}\n`, {mode: 0o600});
+    const originalFstatSync = fs.fstatSync;
+    let grew = false;
+    fs.fstatSync = function validateThenGrow(descriptor) {
+        const stat = originalFstatSync.call(fs, descriptor);
+        if (!grew) {
+            fs.appendFileSync(configPath, ' '.repeat(262145));
+            grew = true;
+        }
+        return stat;
+    };
+    t.after(() => { fs.fstatSync = originalFstatSync; });
+
+    assert.throws(() => module.loadVisualReviewConfig(configPath), /visual review configuration is invalid/);
+    assert.equal(grew, true);
+});
+
 test('fails uniformly for missing malformed and oversized configuration files', async (t) => {
     const module = await import(moduleUrl);
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-invalid-'));
@@ -239,6 +261,33 @@ test('applies only the validated declarative browser actions in order', async ()
         ['press', '#four', 'Enter'],
         ['wait-for-selector', '#five', 'visible'],
     ]);
+});
+
+test('does not publish evidence when screenshot generation reports a page error', async (t) => {
+    const module = await import(moduleUrl);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-publish-'));
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const capture = module.expandVisualReviewCases(module.validateVisualReviewConfig(structuredClone(valid)))[0];
+    const errors = [];
+    const page = {
+        async screenshot() {
+            errors.push('late client failure');
+            return Buffer.from('not-published');
+        },
+    };
+
+    await assert.rejects(
+        module.publishVisualReviewEvidence(
+            page,
+            capture,
+            {playwright: '1.62.1', chromium: '123.0.0'},
+            {head: 'a'.repeat(40), dirty: false},
+            errors,
+            root
+        ),
+        /late client failure/
+    );
+    assert.equal(fs.readdirSync(root).length, 0);
 });
 
 test('reports revision identity without exposing repository content', async () => {

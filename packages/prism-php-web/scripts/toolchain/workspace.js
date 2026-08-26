@@ -97,6 +97,15 @@ function writeAtomic(filePath, content, mode, rename) {
     }
 }
 
+function closeQuietly(descriptor) {
+    try {
+        fs.closeSync(descriptor);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function removeCreatedFile(filePath, identity) {
     let stat;
     try {
@@ -107,6 +116,15 @@ function removeCreatedFile(filePath, identity) {
     }
     if (!stat.isSymbolicLink() && stat.isFile() && stat.dev === identity.dev && stat.ino === identity.ino) {
         fs.rmSync(filePath, {force: false});
+    }
+}
+
+function removeCreatedFileQuietly(filePath, identity) {
+    try {
+        removeCreatedFile(filePath, identity);
+        return true;
+    } catch {
+        return false;
     }
 }
 
@@ -128,8 +146,8 @@ function writeCreateAtomic(filePath, content, mode, open) {
         descriptor = undefined;
         return {dev: identity.dev, ino: identity.ino};
     } catch (error) {
-        if (descriptor !== undefined) fs.closeSync(descriptor);
-        if (identity !== undefined) removeCreatedFile(filePath, identity);
+        if (descriptor !== undefined) closeQuietly(descriptor);
+        if (identity !== undefined) removeCreatedFileQuietly(filePath, identity);
         throw error;
     }
 }

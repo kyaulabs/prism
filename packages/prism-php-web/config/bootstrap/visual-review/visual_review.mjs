@@ -1,5 +1,6 @@
 // $KYAULabs: visual_review.mjs setup@prism 2026/08/25 +0000 Exp $
 
+import {Buffer} from 'node:buffer';
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -97,8 +98,15 @@ export function loadVisualReviewConfig(filePath = path.resolve('visual_review.js
 		descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
 		const stat = fs.fstatSync(descriptor);
 		if (!stat.isFile() || stat.size > 262144) invalid();
-		const raw = fs.readFileSync(descriptor);
-		value = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(raw));
+		const raw = Buffer.alloc(262145);
+		let bytesRead = 0;
+		while (bytesRead < raw.length) {
+			const count = fs.readSync(descriptor, raw, bytesRead, raw.length - bytesRead, bytesRead);
+			if (count === 0) break;
+			bytesRead += count;
+		}
+		if (bytesRead > 262144) invalid();
+		value = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(raw.subarray(0, bytesRead)));
 		fs.closeSync(descriptor);
 		descriptor = undefined;
 	} catch {
@@ -158,6 +166,31 @@ export function revisionIdentity(cwd = process.cwd()) {
 	} catch {
 		return Object.freeze({head: null, dirty: null});
 	}
+}
+
+function assertNoPageErrors(errors) {
+	if (errors.length > 0) {
+		throw new Error(`visual review page errors: ${errors.join('\n')}`);
+	}
+}
+
+export async function publishVisualReviewEvidence(
+	page,
+	capture,
+	versions,
+	revision,
+	errors,
+	root = path.resolve('tests/Browser/Screenshots/visual-review')
+) {
+	assertNoPageErrors(errors);
+	const image = await page.screenshot({fullPage: true, animations: 'disabled'});
+	assertNoPageErrors(errors);
+	const outputs = evidencePaths(capture, root);
+	const metadata = evidenceMetadata(capture, versions, revision);
+	fs.mkdirSync(path.dirname(outputs.image), {recursive: true});
+	fs.writeFileSync(outputs.image, image, {mode: 0o600});
+	fs.writeFileSync(outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`, {mode: 0o600});
+	return outputs;
 }
 
 export function evidenceMetadata(capture, versions, revision) {

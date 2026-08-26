@@ -557,6 +557,48 @@ test('preserves a concurrently replaced CREATE path during rollback', (t) => {
     }
 });
 
+test('removes a partially created managed file when close reports failure', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    const targetPath = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    const originalCloseSync = fs.closeSync;
+    let targetDescriptor;
+    let closeFailed = false;
+    let runCount = 0;
+    fs.closeSync = function closeWithReportedFailure(descriptor) {
+        if (descriptor === targetDescriptor && !closeFailed) {
+            closeFailed = true;
+            originalCloseSync.call(fs, descriptor);
+            throw new Error('close reported failure');
+        }
+        return originalCloseSync.call(fs, descriptor);
+    };
+    t.after(() => { fs.closeSync = originalCloseSync; });
+
+    const result = applyCandidate({
+        contract: adapterContract,
+        projectRoot: fixture.projectRoot,
+        planPath: fixture.planPath,
+        open(filePath, flags, mode) {
+            const descriptor = fs.openSync(filePath, flags, mode);
+            if (filePath === targetPath) targetDescriptor = descriptor;
+            return descriptor;
+        },
+        run() {
+            runCount += 1;
+            throw new Error('subprocess must not run');
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'transaction failure');
+    assert.equal(closeFailed, true);
+    assert.equal(runCount, 0);
+    for (const name of VISUAL_REVIEW_FILES) {
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false, name);
+    }
+});
+
 test('applies dependency and canonical visual review files with Chromium only', (t) => {
     const fixture = makeCandidateFixture();
     t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));

@@ -1,16 +1,13 @@
 // $KYAULabs: visual_review.spec.mjs setup@prism 2026/08/25 +0000 Exp $
 
-import fs from 'node:fs';
 import {createRequire} from 'node:module';
-import path from 'node:path';
-import {expect, test} from 'playwright/test';
+import {test} from 'playwright/test';
 import {
 	applyVisualReviewActions,
 	assertCaptureOrigin,
-	evidenceMetadata,
-	evidencePaths,
 	expandVisualReviewCases,
 	loadVisualReviewConfig,
+	publishVisualReviewEvidence,
 	revisionIdentity,
 } from './visual_review.mjs';
 
@@ -41,15 +38,10 @@ for (const capture of captures) {
 			}
 			await applyVisualReviewActions(page, capture.actions);
 			assertCaptureOrigin(page.url(), capture.url);
-			expect(errors).toEqual([]);
-			const outputs = evidencePaths(capture);
-			fs.mkdirSync(path.dirname(outputs.image), {recursive: true});
-			await page.screenshot({path: outputs.image, fullPage: true, animations: 'disabled'});
-			const metadata = evidenceMetadata(capture, {
+			await publishVisualReviewEvidence(page, capture, {
 				playwright: playwrightVersion,
 				chromium: browser.version(),
-			}, revision);
-			fs.writeFileSync(outputs.metadata, `${JSON.stringify(metadata, null, 2)}\n`, {mode: 0o600});
+			}, revision, errors);
 		} finally {
 			await context.close();
 		}
