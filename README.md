@@ -246,6 +246,19 @@ covering only provider connectivity and reviewed-code egress through
 `prism-tool consent revoke-ocr`. Installation and CI use local-only readiness,
 never create consent, and never run OCR review.
 
+### Strict-empty project setup
+
+Strict-empty `/setup`: Template, Blank, or Cancel is the first choice; Template is recommended.
+Core-only and the exact PHP/web adapter are supported, every optional capability
+starts disabled, and identity metadata is previewed before publication confirmation
+and complete-plan approval. A pre-durable decline or failure restores strict
+emptiness when ownership is provable; post-durable failures retain one closed resume
+action. Git starts only after durable application, separate hook approval precedes
+the signed root seed, and setup creates no remote. The human creates or configures
+the hosted repository, adds the remote, pushes `develop`, and configures post-push
+rulesets. Existing projects retain the established setup workflow and do not receive
+strict-empty source, adapter, capability, metadata, or bootstrap-transaction prompts.
+
 ## Git Hooks
 
 ### Configuration

@@ -2,6 +2,8 @@
 
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const {URL} = require('node:url');
 const {inspectSetupRoute} = require('./setup-route');
 const {TemplateSourceError, requestTemplateJson} = require('./template-source-http');
@@ -124,6 +126,53 @@ async function acquireTemplateSource({fetchImpl, projectRoot}) {
     });
 }
 
+function inspectProvisionedBlankSource({projectRoot}) {
+    try {
+        return blankReport(fs.realpathSync(projectRoot));
+    } catch {
+        return sourceReport({
+            projectRoot: path.resolve(projectRoot),
+            source: 'BLANK',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason: 'ROOT_UNAVAILABLE',
+            data: null,
+        });
+    }
+}
+
+async function inspectProvisionedTemplateSource({projectRoot, fetchImpl}) {
+    let canonicalRoot;
+    try {
+        canonicalRoot = fs.realpathSync(projectRoot);
+    } catch {
+        return sourceReport({
+            projectRoot: path.resolve(projectRoot),
+            source: 'TEMPLATE',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason: 'ROOT_UNAVAILABLE',
+            data: null,
+        });
+    }
+    try {
+        return await acquireTemplateSource({
+            fetchImpl: fetchImpl ?? globalThis.fetch,
+            projectRoot: canonicalRoot,
+        });
+    } catch (error) {
+        const reason = error instanceof TemplateSourceError ? error.code : 'NETWORK_FAILED';
+        return sourceReport({
+            projectRoot: canonicalRoot,
+            source: 'TEMPLATE',
+            status: 'NO-GO',
+            disposition: 'SOURCE_UNAVAILABLE',
+            reason,
+            data: null,
+        });
+    }
+}
+
 async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     const route = inspectSetupRoute({projectRoot, source});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
@@ -148,6 +197,11 @@ async function inspectTemplateSource({projectRoot, source, fetchImpl}) {
     }
 }
 
-module.exports = {acquireTemplateSource, inspectTemplateSource};
+module.exports = {
+    acquireTemplateSource,
+    inspectProvisionedBlankSource,
+    inspectProvisionedTemplateSource,
+    inspectTemplateSource,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

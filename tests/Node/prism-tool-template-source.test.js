@@ -10,7 +10,15 @@ const test = require('node:test');
 const {makeTempDir} = require('./helpers');
 const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
-const {inspectTemplateSource} = require('../../packages/prism-core/scripts/prism-tool/template-source');
+const {
+    inspectProvisionedBlankSource,
+    inspectProvisionedTemplateSource,
+    inspectTemplateSource,
+} = require('../../packages/prism-core/scripts/prism-tool/template-source');
+
+const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
+const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 
 async function captureWrites(action) {
     let stdout = '';
@@ -79,6 +87,115 @@ test('resolves Template to immutable source evidence through fixed public URLs',
         true
     );
     assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('reports a missing provisioned Blank root as unavailable', (t) => {
+    const projectRoot = makeTempDir();
+    fs.rmSync(projectRoot, {recursive: true, force: true});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const report = inspectProvisionedBlankSource({projectRoot});
+
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'SOURCE_UNAVAILABLE');
+    assert.equal(report.reason, 'ROOT_UNAVAILABLE');
+    assert.equal(report.projectRoot, path.resolve(projectRoot));
+});
+
+test('reports a missing provisioned Template root as unavailable', async (t) => {
+    const projectRoot = makeTempDir();
+    fs.rmSync(projectRoot, {recursive: true, force: true});
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+
+    const report = await inspectProvisionedTemplateSource({
+        projectRoot,
+        fetchImpl: async () => {
+            throw new Error('missing roots must not fetch');
+        },
+    });
+
+    assert.equal(report.status, 'NO-GO');
+    assert.equal(report.disposition, 'SOURCE_UNAVAILABLE');
+    assert.equal(report.reason, 'ROOT_UNAVAILABLE');
+    assert.equal(report.projectRoot, path.resolve(projectRoot));
+});
+
+test('resolves Template catalogue after exact adapter provisioning', async (t) => {
+    const projectRoot = makeTempDir();
+    const fixture = createTemplateFixture();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = await captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=template',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run() {
+            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+            fs.writeFileSync(
+                path.join(projectRoot, '.pi', 'settings.json'),
+                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    }));
+    assert.equal(provisioned.status, 0, provisioned.stderr);
+
+    const result = await source(
+        projectRoot,
+        fixture.fetch,
+        '--source=template',
+        '--adapter=@kyaulabs/prism-php-web',
+        `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes'
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.disposition, 'SOURCE_READY');
+    assert.equal(report.source, 'TEMPLATE');
+    assert.equal(report.adapter.packageName, '@kyaulabs/prism-php-web');
+    assert.equal(report.data.catalogue.schemaVersion, 1);
+    assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
+});
+
+test('returns Blank source evidence after exact adapter provisioning without fetching', async (t) => {
+    const projectRoot = makeTempDir();
+    let fetches = 0;
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = await captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run() {
+            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+            fs.writeFileSync(
+                path.join(projectRoot, '.pi', 'settings.json'),
+                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    }));
+    assert.equal(provisioned.status, 0, provisioned.stderr);
+
+    const result = await source(projectRoot, async () => {
+        fetches += 1;
+        throw new Error('Blank must not fetch');
+    }, '--source=blank', '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`);
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.disposition, 'SOURCE_READY');
+    assert.equal(report.source, 'BLANK');
+    assert.equal(report.adapter.packageName, '@kyaulabs/prism-php-web');
+    assert.equal(report.data.catalogue, null);
+    assert.equal(fetches, 0);
 });
 
 test('returns Blank source evidence without a template network call', async (t) => {

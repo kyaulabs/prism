@@ -214,7 +214,29 @@ test('documents every optional project capability and its owned outputs', () => 
     assert.match(coreReadme, /publishable root.*declared-workspace npm\s+package/is);
     assert.match(coreReadme, /Core-only.*no npm package.*PHP\/web.*private-only/is);
     assert.match(coreReadme, /creates no repository.*remote.*tag.*GitHub Release.*push.*npm\s+publication/is);
-    assert.match(coreReadme, /prompt orchestration.*task 12/is);
+    assert.doesNotMatch(coreReadme, /deferred to task 12/i);
+});
+
+test('publishes the complete strict-empty setup orchestration contract', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const adapterReadme = fs.readFileSync(path.join(ADAPTER_PKG, 'README.md'), 'utf8');
+    const publicReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+    const harnessDocs = fs.readFileSync(path.join(root, 'CODING_HARNESS.md'), 'utf8');
+    const combined = [coreReadme, adapterReadme, publicReadme, harnessDocs].join('\n');
+
+    assert.match(coreReadme, /Template.*Blank.*Cancel/is);
+    assert.match(coreReadme, /Core-only.*PHP\/web/is);
+    assert.match(coreReadme, /capabilit(?:y|ies).*disabled by default/is);
+    assert.match(coreReadme, /identity preview.*complete project plan/is);
+    assert.match(coreReadme, /pre-durable.*strict emptiness.*post-durable.*retained/is);
+    assert.match(coreReadme, /separate hook approval.*signed root seed/is);
+    assert.match(coreReadme, /established projects.*existing.*setup/is);
+    assert.match(adapterReadme, /selection.*installation authorization/is);
+    assert.match(adapterReadme, /separate hook approval.*signed root seed/is);
+    assert.match(publicReadme, /strict-empty.*\/setup.*Template.*Blank.*Cancel/is);
+    assert.match(harnessDocs, /strict-empty.*\/setup.*established-project/is);
+    assert.match(combined, /hosted repository.*remote.*push `develop`.*rulesets/is);
+    assert.doesNotMatch(combined, /deferred to task 12/i);
 });
 
 test('documents human npm publication for managed lockstep package releases', () => {

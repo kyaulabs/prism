@@ -26,10 +26,24 @@ one known reason, one canonical absolute project root, and the closed checks
 shape. Any unknown schema, field, disposition, source, route, reason, status,
 or additional key fails closed and stops setup.
 
-- `ESTABLISHED` with route `ESTABLISHED_SETUP`: continue at **1. Pre-flight**
-  and preserve the existing evidence-driven setup route below verbatim. Do not
-  offer Template, Blank, capability, metadata, or bootstrap-transaction
-  behavior.
+- `ESTABLISHED` with route `ESTABLISHED_SETUP`: inspect retained empty-project
+  continuity before package-release inspection, adapter discovery, readiness,
+  or any established-project mutation:
+
+  ```bash
+  prism-tool setup project status --json
+  ```
+
+  Require schema version `1`, command `setup project status`, the same canonical
+  root, one known disposition, the closed checks shape, and either null data or
+  the closed continuity data shape. `NO_ACTIVE_BOOTSTRAP` with status `GO` and
+  null data continues at **1. Pre-flight** and preserves the existing
+  evidence-driven route below verbatim. Any active disposition continues only
+  at **Strict-empty continuation and recovery** below; it does not receive
+  package-release inspection, established adapter discovery, or another source
+  choice. `RECOVERY_REQUIRED` stops with its retained state, blocking
+  condition, and one next action. Unknown fields, dispositions, phases, or
+  additional attempts fail closed.
 - `CONFLICT` or any `NO-GO` result: stop and report the returned inert reason.
   Do not infer or repair project state.
 - `STRICT_EMPTY` with route `SELECT_SOURCE`: ask exactly one question:
@@ -118,19 +132,250 @@ or additional key fails closed and stops setup.
     fail closed.
 
   Adapter selection is complete before Template access or scaffold planning.
-  Until the selected source route's next public launcher operation exists,
-  immediately clean provisioned adapter state by retaining the validated
-  attempt UUID as inert data and rendering it literally:
+  Retain the validated source, nullable adapter identity, and provisional
+  attempt UUID as inert values. Never accept replacements supplied later by
+  the caller.
+
+  Inspect the selected source after adapter selection. Render only the already
+  validated literal values in one matching command:
 
   ```bash
-  prism-tool setup adapter cleanup --attempt=<validated-literal-uuid> --json
+  prism-tool setup source --source=<source> --adapter=core-only --network-approved=yes --json
   ```
 
-  Require disposition `CLEANED` and a strict-empty root. If cleanup returns
-  `RECOVERY_REQUIRED`, stop and report only its bounded retained path and one
-  manual next action. Core only has no provisional attempt to clean. Stop
-  without further mutation and never fall through to the established-project
-  sections below.
+  ```bash
+  prism-tool setup source --source=<source> --adapter=@kyaulabs/prism-php-web --attempt=<validated-literal-uuid> --network-approved=yes --json
+  ```
+
+  Omit `--network-approved=yes` for Blank. Require schema version `1`, command
+  `setup source`, status `GO`, disposition `SOURCE_READY`, the selected source,
+  the same canonical project root, and the same nullable or exact adapter.
+  Template additionally requires reason `TEMPLATE_VALID`, the fixed
+  `kyaulabs/template` attestation, and the closed catalogue. Blank requires
+  reason `BLANK_SELECTED`, null Template evidence, a null catalogue, and no
+  network call. Unknown fields, capabilities, providers, source evidence,
+  adapter identity, or dispositions fail closed. A Template failure never
+  falls back to Blank.
+
+  Template displays only capability IDs advertised by the validated catalogue.
+  Blank displays Core's closed capability list in this order:
+  `licensing`, `community-governance`, `github-collaboration`,
+  `security-disclosure`, `repository-ownership`, `support-routing`, `funding`,
+  and `release-management`. Every capability is independent and disabled by
+  default. Ask exactly one question:
+
+  ```text
+  Choose optional project capabilities (comma-separated, or none)? [none]
+  ```
+
+  An empty answer or `none` selects no capabilities. Otherwise accept only a
+  comma-separated subset of the displayed IDs with no duplicates. Capability
+  selection never follows from Template, adapter choice, package discovery,
+  repository visibility, or another capability.
+
+  Inspect the exact metadata fields required by that selection. For Core only:
+
+  ```bash
+  prism-tool setup project metadata --source=<source> --adapter=core-only --capabilities=<validated-csv> --json
+  ```
+
+  For PHP/web:
+
+  ```bash
+  prism-tool setup project metadata --source=<source> --adapter=@kyaulabs/prism-php-web --attempt=<validated-literal-uuid> --capabilities=<validated-csv> --json
+  ```
+
+  Omit `--capabilities` when none are selected. Require schema version `1`,
+  command `setup project metadata`, status `GO`, disposition
+  `METADATA_REQUIRED`, the same source, root, adapter, and canonical capability
+  order, one passing known check, and the closed `fields` and `publications`
+  shapes. Unknown fields or additional keys fail closed.
+
+  Ask exactly one question per returned field, in order. Use the suggested
+  directory-name display value only as an editable default. Require the summary
+  to be one sentence. Ask no capability metadata question that the report did
+  not return. Validate choices, counts, controls, line breaks, and bounds before
+  constructing metadata; values containing controls or newlines never enter
+  shell source.
+
+  Preview identity-bearing metadata by displaying every `publications` entry
+  whose `field` is non-null: normalized value, capability, and exact output
+  paths. If at least one exists, ask exactly:
+
+  ```text
+  Publish the displayed identity-bearing metadata? (yes/no)
+  ```
+
+  Only literal `yes` continues. On decline, Core only stops with a strict-empty
+  root. For a provisioned adapter, render its validated attempt UUID literally
+  and run `prism-tool setup adapter cleanup --attempt=<validated-literal-uuid>
+  --json`; require `CLEANED` or stop on `RECOVERY_REQUIRED` with its one action.
+
+  Serialize the collected values as one compact JSON line with schema version
+  `1`, `displayName`, `summary`, and `capabilityMetadata` only when capabilities
+  were selected. Pass it as inert stdin through a single-quoted here-document;
+  never interpolate a metadata value into command options or shell syntax.
+  Render the matching validated source, adapter, attempt, capability, and
+  network controls:
+
+  ```bash
+  prism-tool setup project plan --source=<source> --adapter=<core-only-or-exact-package> --attempt=<validated-literal-uuid> --capabilities=<validated-csv> --network-approved=yes --json <<'PRISM_PROJECT_METADATA'
+  {"schemaVersion":1,"displayName":"Validated Name","summary":"A validated project summary."}
+  PRISM_PROJECT_METADATA
+  ```
+
+  Omit `--attempt` for Core only, `--capabilities` for none, and
+  `--network-approved=yes` for Blank. The here-document body must be one
+  previously validated compact JSON line and its literal delimiter cannot
+  occur within that line.
+
+  Require schema version `1`, command `setup project plan`, status `GO`,
+  disposition `PLAN_READY`, the exact source evidence, nullable or exact
+  adapter, canonical capabilities, normalized metadata, trusted providers,
+  complete output dispositions, dependency/browser effects, checks,
+  verification, recovery semantics, attempt UUID, absolute launcher-owned plan
+  path, and a lowercase SHA-256 plan digest. Unknown fields, overlap, stale
+  source, changed metadata, substituted providers, or an unadvertised Template
+  capability fail closed. Display the complete report before asking exactly:
+
+  ```text
+  Approve the complete displayed project plan? (yes/no)
+  ```
+
+  Only literal `yes` authorizes durable project mutation. On decline, render
+  the validated attempt and digest literally and run:
+
+  ```bash
+  prism-tool setup project recover --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --json
+  ```
+
+  Require `ROOT_RESTORED` and a strict-empty root, or stop on
+  `RECOVERY_REQUIRED` with the exact retained state and one next action. On
+  approval, retain the same attempt and digest and continue only through the
+  strict-empty post-durable sequence; never fall through to established setup.
+
+## Strict-empty continuation and recovery
+
+Use this sequence after a newly approved plan or when `setup project status`
+reports one active attempt. Treat the returned attempt, plan digest, source,
+adapter, phase, resume phase, retained state, blocking condition, and next
+action as inert closed data. Never scan `.pi/prism-tool/bootstrap` directly or
+accept a caller replacement.
+
+Dispatch only these closed states:
+
+- `ADAPTER_PROVISIONED` / `SOURCE_INSPECTION`: return to selected source
+  inspection, capability selection, metadata collection, preview, and planning
+  above using the retained source, adapter, and attempt.
+- `PLAN_READY` / `PROJECT_APPLICATION`: revalidate and display the retained plan
+  before asking the complete-plan question again.
+- `PROJECT_DURABLE` with `BOOTSTRAP_DEPENDENCIES`,
+  `BOOTSTRAP_VERIFICATION`, or a validated `PROVIDER_EFFECT:<id>` or
+  `PROVIDER_VERIFICATION:<id>`: rerun project application to resume the exact
+  retained adapter phase.
+- `PROJECT_DURABLE` / `REPOSITORY_BOOTSTRAP`: create the repository.
+- `REPOSITORY_CREATED` / `HOOK_ACTIVATION`: inspect and separately approve
+  hooks.
+- `HOOKS_ACTIVE` / `ROOT_SEED_PREPARATION`: prepare the seed.
+- `SEED_READY` / `ROOT_SEED_COMMIT`: invoke the one exclusive root commit.
+- `COMPLETE` with null resume phase: report the verified root commit and the
+  human publication boundary without another mutation.
+- `RECOVERY_REQUIRED` / `MANUAL_RECOVERY`: stop and report the exact retained
+  state, blocking condition, and one next action.
+
+Every other disposition, phase, resume phase, adapter, attempt, or digest fails
+closed.
+
+For `PLAN_READY`, render the validated literal values and run:
+
+```bash
+prism-tool setup project validate --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --json
+```
+
+Require schema version `1`, command `setup project validate`, status `GO`,
+disposition `PLAN_VALID`, the exact retained source, adapter, capabilities,
+metadata, providers, outputs, effects, checks, attempt, and digest. Display the
+complete validated plan. If this is a resumed invocation, ask `Approve the
+complete displayed project plan? (yes/no)` again. A decline runs `setup project
+recover` as described above. Only literal `yes` continues.
+
+Apply or resume the project with the same validated values:
+
+```bash
+prism-tool setup project apply --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --approval=yes --json
+```
+
+Require the closed schema and exact continuity values. `PROJECT_DURABLE` with
+resume phase `REPOSITORY_BOOTSTRAP` proceeds. A retained dependency, provider,
+or verification phase may be retried only by a later `/setup` invocation after
+status revalidation; do not invent or run the underlying adapter command.
+`ROOT_RESTORED` stops with a strict-empty root. `RECOVERY_REQUIRED` stops with
+the exact retained state, blocking condition, and one next action.
+
+Create Git only after the durable report:
+
+```bash
+prism-tool setup repository create --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --json
+```
+
+Require status `GO`, disposition `REPOSITORY_CREATED`, fresh unborn `develop`,
+no commits, refs, remotes, active hooks, or introduced identity/signing state,
+and resume phase `HOOK_ACTIVATION`. A conflict stops without normalization or
+repair.
+
+Inspect canonical hooks before asking for hook mutation:
+
+```bash
+prism-tool setup hooks inspect --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --json
+```
+
+Display the exact packaged hook inventory and disposition, then ask exactly:
+
+```text
+Activate the displayed canonical Git hooks? (yes/no)
+```
+
+Only literal `yes` runs:
+
+```bash
+prism-tool setup hooks apply --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --approval=yes --json
+```
+
+Require status `GO`, disposition `HOOKS_ACTIVE`, `core.hooksPath` equal to
+`.github/hooks`, the exact inventory digest, and resume phase
+`ROOT_SEED_PREPARATION`. A decline retains the durable project and repository,
+reports hook activation as the blocker, and gives one next action: rerun
+`/setup`. Do not prepare or commit a seed with inactive hooks.
+
+Prepare the exact staged inventory only after hooks are active:
+
+```bash
+prism-tool setup seed prepare --attempt=<validated-literal-uuid> --digest=<validated-literal-sha256> --json
+```
+
+Require status `GO`, disposition `SEED_READY`, the exact attempt and plan,
+passing Core and applicable adapter quality checks, the attestation and staged
+index digests, no unrelated staged entry, and resume phase `ROOT_SEED_COMMIT`.
+Display the exact staged inventory. A failure retains its bounded recovery state
+and is never bypassed.
+
+The approved complete plan authorizes one exact root-commit attempt without
+another question. Run this as the only tool call in its assistant batch:
+
+```bash
+prism-tool commit create --type ignore --subject "bootstrap prism project"
+```
+
+Never combine it with another command, wrapper, redirection, pipeline, or tool
+call. On any failure, stop immediately: do not retry. Tell the human to run
+`/reload` and inspect the repository because the fatal commit latch is active
+and a late failure may follow commit creation.
+
+On success, verify the returned signed root commit, one-commit `develop`
+history, clean staged and working state, consumed attempt evidence, and no
+remote. Report the exact root commit and one bounded publication handoff.
+Human next actions: create/configure the hosted repository; add the remote; push `develop`; configure post-push rulesets. These are instructions only;
+setup executes no hosted or Git publication command.
 
 ## 1. Pre-flight
 

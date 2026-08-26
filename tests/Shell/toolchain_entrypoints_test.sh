@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -71,10 +71,41 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'exact displayed package.*version|
 assert_file_contains "$CORE_PROMPTS/setup.md" 'No second adapter-installation question|no redundant.*install' 'strict-empty adapter selection is the installation authorization'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter cleanup --attempt=' 'strict-empty setup cleans provisional adapter state on stop'
 assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--package=|setup adapter select.*--version=|setup adapter select.*--url=' 'strict-empty setup accepts no caller package authority'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup source --source=.*--adapter=' 'strict-empty setup inspects the selected source after adapter selection'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose optional project capabilities.*none' 'strict-empty setup leaves every optional capability disabled by default'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project metadata --source=' 'strict-empty setup obtains selected metadata fields from the launcher'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Preview identity-bearing metadata|identity-bearing metadata preview' 'strict-empty setup previews public identity metadata'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Publish the displayed identity-bearing metadata[?].*\(yes/no\)' 'strict-empty setup separately confirms identity publication'
+assert_file_contains "$CORE_PROMPTS/setup.md" "<<'PRISM_PROJECT_METADATA'" 'strict-empty setup passes bounded metadata through inert stdin'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project plan --source=' 'strict-empty setup composes one complete project plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Approve the complete displayed project plan[?].*\(yes/no\)' 'strict-empty setup retains literal complete-plan approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project recover --attempt=' 'strict-empty plan decline restores transaction-owned state'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'Until the selected source route.*immediately clean' 'strict-empty setup no longer stops after adapter selection'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project status --json' 'setup inspects retained bootstrap state before established discovery'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project validate --attempt=' 'strict-empty setup revalidates the approved project plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project apply --attempt=.*--approval=yes' 'strict-empty setup applies only the approved plan'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup repository create --attempt=' 'strict-empty setup creates Git only after durability'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup hooks inspect --attempt=' 'strict-empty setup inspects canonical hooks before approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Activate the displayed canonical Git hooks[?].*\(yes/no\)' 'strict-empty hook activation has a separate question'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup hooks apply --attempt=.*--approval=yes' 'strict-empty setup activates hooks only after approval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup seed prepare --attempt=' 'strict-empty setup prepares the attested root seed after hooks'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool commit create --type ignore --subject "bootstrap prism project"' 'strict-empty setup uses the reserved exclusive root commit'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'only tool call in its assistant batch' 'strict-empty root commit preserves launcher exclusivity'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'ROOT_SEED_COMMIT|REPOSITORY_CREATION|HOOK_ACTIVATION|ROOT_SEED_PREPARATION' 'strict-empty setup dispatches only closed resume phases'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'create/configure the hosted repository.*add the remote.*push `develop`.*rulesets' 'strict-empty final reporting leaves publication to the human'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'git remote add|git push|gh repo create' 'strict-empty setup never executes publication commands'
 
-setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+SETUP_ENTRY_SECTION="${RESULT_FILE}.setup-entry"
+SETUP_CONTINUATION_SECTION="${RESULT_FILE}.setup-continuation"
+register_temp_dir "$SETUP_ENTRY_SECTION" "$SETUP_CONTINUATION_SECTION"
+awk '/^## Setup entry routing$/ { active=1 } /^## Strict-empty continuation and recovery$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$SETUP_ENTRY_SECTION"
+awk '/^## Strict-empty continuation and recovery$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$SETUP_CONTINUATION_SECTION"
+
+setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
 if [ -n "$setup_source_choice_line" ] && [ -n "$setup_adapter_catalogue_line" ] \
     && [ -n "$setup_adapter_question_line" ] \
     && [ "$setup_source_choice_line" -lt "$setup_adapter_catalogue_line" ] \
@@ -85,15 +116,67 @@ else
     failures=$((failures + 1))
 fi
 
+setup_source_inspect_line=$({ grep -niF 'prism-tool setup source --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_capabilities_line=$({ grep -niF 'Choose optional project capabilities' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_identity_approval_line=$({ grep -niF 'Publish the displayed identity-bearing metadata?' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_plan_line=$({ grep -niF 'prism-tool setup project plan --source=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_plan_approval_line=$({ grep -niF 'Approve the complete displayed project plan?' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_recover_line=$({ grep -niF 'prism-tool setup project recover --attempt=' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_source_inspect_line" ] && [ -n "$setup_capabilities_line" ] \
+    && [ -n "$setup_metadata_line" ] && [ -n "$setup_identity_approval_line" ] \
+    && [ -n "$setup_plan_line" ] && [ -n "$setup_plan_approval_line" ] \
+    && [ -n "$setup_recover_line" ] \
+    && [ "$setup_adapter_question_line" -lt "$setup_source_inspect_line" ] \
+    && [ "$setup_source_inspect_line" -lt "$setup_capabilities_line" ] \
+    && [ "$setup_capabilities_line" -lt "$setup_metadata_line" ] \
+    && [ "$setup_metadata_line" -lt "$setup_identity_approval_line" ] \
+    && [ "$setup_identity_approval_line" -lt "$setup_plan_line" ] \
+    && [ "$setup_plan_line" -lt "$setup_plan_approval_line" ] \
+    && [ "$setup_plan_approval_line" -lt "$setup_recover_line" ]; then
+    pass 'strict-empty setup preserves source, metadata, publication, and plan ordering'
+else
+    fail 'strict-empty setup reorders source, metadata, publication, or plan stages'
+    failures=$((failures + 1))
+fi
+
+setup_validate_line=$({ grep -niF 'prism-tool setup project validate --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_apply_line=$({ grep -niF 'prism-tool setup project apply --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_repository_line=$({ grep -niF 'prism-tool setup repository create --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_inspect_line=$({ grep -niF 'prism-tool setup hooks inspect --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_approval_line=$({ grep -niF 'Activate the displayed canonical Git hooks?' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_hook_apply_line=$({ grep -niF 'prism-tool setup hooks apply --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_seed_line=$({ grep -niF 'prism-tool setup seed prepare --attempt=' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_commit_line=$({ grep -niF 'prism-tool commit create --type ignore --subject "bootstrap prism project"' "$SETUP_CONTINUATION_SECTION" || true; } | cut -d: -f1 | head -1)
+if [ -n "$setup_validate_line" ] && [ -n "$setup_apply_line" ] \
+    && [ -n "$setup_repository_line" ] && [ -n "$setup_hook_inspect_line" ] \
+    && [ -n "$setup_hook_approval_line" ] && [ -n "$setup_hook_apply_line" ] \
+    && [ -n "$setup_seed_line" ] && [ -n "$setup_commit_line" ] \
+    && [ "$setup_validate_line" -lt "$setup_apply_line" ] \
+    && [ "$setup_apply_line" -lt "$setup_repository_line" ] \
+    && [ "$setup_repository_line" -lt "$setup_hook_inspect_line" ] \
+    && [ "$setup_hook_inspect_line" -lt "$setup_hook_approval_line" ] \
+    && [ "$setup_hook_approval_line" -lt "$setup_hook_apply_line" ] \
+    && [ "$setup_hook_apply_line" -lt "$setup_seed_line" ] \
+    && [ "$setup_seed_line" -lt "$setup_commit_line" ]; then
+    pass 'strict-empty setup preserves validation, application, repository, hooks, and seed ordering'
+else
+    fail 'strict-empty setup reorders validation, application, repository, hooks, or seed stages'
+    failures=$((failures + 1))
+fi
+
 setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_status_line=$({ grep -niF 'prism-tool setup project status --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_release_line=$({ grep -niF 'prism-tool package-release inspect --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 setup_adapter_line=$({ grep -niF 'Inspect project-local evidence only' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-if [ -n "$setup_route_line" ] && [ -n "$setup_release_line" ] && [ -n "$setup_adapter_line" ] \
-    && [ "$setup_route_line" -lt "$setup_release_line" ] \
-    && [ "$setup_route_line" -lt "$setup_adapter_line" ]; then
-    pass '/setup routes before package-release inspection and adapter discovery'
+if [ -n "$setup_route_line" ] && [ -n "$setup_status_line" ] \
+    && [ -n "$setup_release_line" ] && [ -n "$setup_adapter_line" ] \
+    && [ "$setup_route_line" -lt "$setup_status_line" ] \
+    && [ "$setup_status_line" -lt "$setup_release_line" ] \
+    && [ "$setup_status_line" -lt "$setup_adapter_line" ]; then
+    pass '/setup routes and inspects bootstrap status before established discovery'
 else
-    fail '/setup does not route before established-project discovery stages'
+    fail '/setup does not isolate retained bootstrap state from established discovery stages'
     failures=$((failures + 1))
 fi
 
@@ -192,6 +275,10 @@ assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool setu
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'commit create --type ignore' 'Core README documents the reserved seed commit'
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'creates no remote' 'Core README preserves the no-remote boundary'
 assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'human .*develop.* push' 'Core README leaves initial publication to the human'
+assert_file_not_contains "$REPO_ROOT/packages/prism-core/README.md" 'deferred to task 12' 'Core README removes stale task 12 deferral'
+assert_file_contains "$REPO_ROOT/README.md" 'Strict-empty `/setup`.*Template.*Blank.*Cancel' 'public README documents strict-empty setup choices'
+assert_file_contains "$REPO_ROOT/CODING_HARNESS.md" 'Strict-empty `/setup`.*established-project' 'harness docs preserve established setup isolation'
+assert_file_contains "$REPO_ROOT/packages/prism-php-web/README.md" 'separate hook approval.*signed root seed' 'adapter README documents completed seed orchestration'
 
 echo "── hooks perform local-only readiness ──"
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-commit" 'doctor --local-only' 'pre-commit runs local doctor'

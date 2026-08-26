@@ -89,6 +89,16 @@ workspace under `.pi/prism-tool/work/` is ownership-marked and recovered or
 cleaned safely after interruption; the managed launcher refuses to overwrite
 or remove unrelated executables.
 
+Strict-empty `/setup` preserves established-project setup isolation. It offers
+Template, Blank, or Cancel, then Core-only or the exact PHP/web
+adapter; optional capabilities start disabled, public identity metadata is
+previewed, and one complete plan is approved before mutation. Pre-durable
+failures restore strict emptiness when ownership is provable. Post-durable
+failures retain one exact resume action through repository creation, separate
+hook approval, quality-attested staging, and the signed root seed. Setup creates
+no remote or hosted state: the human creates or configures the hosted repository,
+adds the remote, pushes `develop`, and configures post-push rulesets.
+
 ## pi mapping
 
 | opencode concept | prism-on-pi destination |
