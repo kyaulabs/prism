@@ -86,6 +86,9 @@ const OUTPUTS = [
     'tests/Unit/Harness/ArchTest.php',
     'tests/Unit/Harness/RcsHeaderConventionTest.php',
     'tests/bootstrap.php',
+    'visual_review.example.json',
+    'visual_review.mjs',
+    'visual_review.spec.mjs',
 ];
 
 test('renders the complete blank PHP/web scaffold through the adapter provider', (t) => {
@@ -312,6 +315,8 @@ test('renders canonical dependency manifests from the adapter contract', (t) => 
     assert.equal(composer.scripts.check, '.github/scripts/check-php.sh --local');
     assert.equal(npm.name, 'example-project');
     assert.equal(npm.private, true);
+    assert.equal(npm.scripts['visual-review'],
+        'prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line');
     assert.equal(npm.devDependencies.playwright, '1.62.1');
 });
 
@@ -347,6 +352,15 @@ test('renders an application-free PHP and Pest readiness surface', (t) => {
     assert.match(read('tests/Browser/SmokeTest.php'), /Prism ready/);
     assert.match(read('tests/Unit/Harness/ArchTest.php'), /RecursiveDirectoryIterator/);
     assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /\$KYAULabs:/);
+    assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /'mjs'/);
+    assert.match(read('visual_review.mjs'), /export function validateVisualReviewConfig/);
+    assert.match(read('visual_review.spec.mjs'), /from 'playwright\/test'/);
+    assert.deepEqual(JSON.parse(read('visual_review.example.json')), {
+        schemaVersion: 1,
+        baseUrl: 'http://127.0.0.1:8080',
+        viewports: {mobile: null, desktop: null},
+        cases: [],
+    });
 });
 
 test('renders first-source-ready lint and application-free directory policy', (t) => {
@@ -373,6 +387,7 @@ test('renders first-source-ready lint and application-free directory policy', (t
         rules: {'selector-class-pattern': '^[a-z][a-z0-9-]*$', 'max-nesting-depth': 4},
     });
     assert.match(read('.gitignore'), /\/vendor\//);
+    assert.match(read('.gitignore'), /\/tests\/Browser\/Screenshots\//);
     assert.equal(paths.some((outputPath) => /(?:\.nginx\.conf|\.sql|cdn\/sass\/[^.]|cdn\/js\/[^.]|cdn\/css\/.*\.min\.css)/.test(outputPath)), false);
 });
 
@@ -401,6 +416,7 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
     }
     assert.match(check, /\^\[0-9a-f\]\{40\}\$/);
     assert.match(check, /trap .*cleanup/);
+    assert.match(check, /visual_review\.json.*visual_review\.spec\.mjs.*--list/s);
     assert.match(check, /seq 1 50/);
     assert.match(check, /file_get_contents/);
     assert.equal(

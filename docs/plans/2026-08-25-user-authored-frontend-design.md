@@ -572,7 +572,7 @@ prism-tool commit create --type feat --scope visual-review --subject "add closed
 - Consumes: canonical source files from Task 2.
 - Produces in consumer repositories: `visual_review.mjs`, `visual_review.spec.mjs`, `visual_review.example.json`, an npm `visual-review` script, screenshot ignore policy, and check-time config validation when `visual_review.json` exists.
 
-- [ ] **Step 1: Extend the scaffold tests first**
+- [x] **Step 1: Extend the scaffold tests first**
 
 Add the three root files to the `OUTPUTS` fixture and assert:
 
@@ -591,13 +591,13 @@ assert.match(read('.gitignore'), /tests\/Browser\/Screenshots\//);
 assert.match(read('.github/scripts/check-php.sh'), /visual_review\.json.*visual_review\.spec\.mjs.*--list/s);
 ```
 
-- [ ] **Step 2: Run the scaffold test to verify Red**
+- [x] **Step 2: Run the scaffold test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: FAIL because the manifest and rendered project omit the three visual-review files, script, ignore rule, and validation command.
 
-- [ ] **Step 3: Render the canonical files and shared validation**
+- [x] **Step 3: Render the canonical files and shared validation**
 
 Add these output paths to `scaffold.json`:
 
@@ -635,13 +635,13 @@ Add the npm script shown in Step 1 and change the generated `.gitignore` to incl
 
 Do not add screenshots or an active `visual_review.json` to scaffold inventory.
 
-- [ ] **Step 4: Run the scaffold and packaging tests**
+- [x] **Step 4: Run the scaffold and packaging tests**
 
 Run: `node --test tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS; Blank and Template output bytes remain identical, Playwright remains `1.62.1`, Chromium remains the only browser target, and the new canonical files are packaged.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-php-web/config/bootstrap/scaffold.json packages/prism-php-web/scripts/toolchain/bootstrap-scaffold.js tests/Node/prism-tool-php-web-bootstrap.test.js
