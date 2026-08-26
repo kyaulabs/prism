@@ -29,6 +29,15 @@ Before starting, confirm the agent can:
 If a required capability is unavailable, do not partially run this skill.
 Surface the missing capability and halt.
 
+## Issue provenance gate
+
+Read the plan's immutable originating issue metadata before the first task. If
+it is `#NN`, verify each non-terminal logical implementation commit uses `--refs NN`
+and the terminal logical implementation commit uses `--fixes NN`.
+Do not continue with missing, mismatched, zero, or duplicate closing recipes;
+return the plan to `writing-plans`. Finalization cleanup commits do not repeat
+the closing reference.
+
 ## Inline execution
 
 The single agent executes every task directly, regardless of plan size:

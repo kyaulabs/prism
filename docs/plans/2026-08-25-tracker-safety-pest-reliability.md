@@ -340,7 +340,7 @@ prism-tool commit create --type fix --scope tracker --subject "use GraphQL-first
 - Consumes: validated positive issue number from `from-issue`.
 - Produces: immutable `**Originating issue:** #NN` plan metadata and one deterministic `--refs`/`--fixes` commit policy.
 
-- [ ] **Step 1: Create the failing provenance contract**
+- [x] **Step 1: Create the failing provenance contract**
 
 Create `tests/Shell/issue_reference_workflow_contract_test.sh` with the required
 shebang, hook-managed RCS header position, `set -euo pipefail`, helper import,
@@ -362,13 +362,13 @@ assert_contains "$CONVENTIONAL" 'exactly one.*closing reference' 'commit workflo
 Use local `assert_contains` and `assert_not_contains` helpers matching existing
 Shell contract conventions.
 
-- [ ] **Step 2: Run the new contract and confirm Red**
+- [x] **Step 2: Run the new contract and confirm Red**
 
 Run: `bash tests/Shell/issue_reference_workflow_contract_test.sh`
 
 Expected: FAIL on every provenance assertion.
 
-- [ ] **Step 3: Add immutable plan provenance and commit rules**
+- [x] **Step 3: Add immutable plan provenance and commit rules**
 
 Add this required line to the writing-plans header immediately after Tech Stack:
 
@@ -415,7 +415,7 @@ Never derive the number from branch prose or untrusted issue content, and never
 create more than one closing reference for the plan.
 ```
 
-- [ ] **Step 4: Run the contract and create the commit**
+- [x] **Step 4: Run the contract and create the commit**
 
 Run: `bash tests/Shell/issue_reference_workflow_contract_test.sh`
 
