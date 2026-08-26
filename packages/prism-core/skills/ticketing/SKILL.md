@@ -14,8 +14,11 @@ and pass `$ARGUMENTS`.
 
 This is a single-agent workflow. Before any GitHub operation, load the
 `tracker-operator` skill and follow its least-privilege and untrusted-content
-rules. Run read-only `gh` steps directly. Present every mutation and wait for
-explicit human approval before running it.
+rules. Run read-only `gh` steps directly.
+The full-preview confirmation authorizes the complete mutation batch.
+After confirmation, execute every issue, epic, task, type, field, label,
+sub-issue, and blocking-edge operation in that displayed batch without
+per-command approval.
 
 ## Mode detection
 
@@ -179,11 +182,12 @@ Present the 5 toggles. Default is none.
 
 ### Step 6: Full preview + confirmation
 
-Print a complete preview and wait for confirmation (y/n).
+Print a complete preview and wait for confirmation (y/n). This single
+confirmation authorizes the full displayed mutation batch.
 
 ### Step 7: Create issue (using `tracker-operator`)
 
-Execute the gh pattern with finalized data.
+Execute the gh pattern with finalized data without another mutation prompt.
 
 ### Step 8: Report
 
@@ -269,12 +273,14 @@ preview step.
 ### Step 8: Full preview + confirmation
 
 Print a complete preview with epic + all tasks + fields + labels + any
-blocking edges. Wait for confirmation (y/n).
+blocking edges. Wait for confirmation (y/n). This single confirmation
+authorizes the epic and every displayed task, relationship, field, label, and
+blocking edge.
 
 ### Step 9: Create epic + task issues (using `tracker-operator`)
 
-Execute the gh pattern for the epic, then for each task. Task title
-format: `<type>(<scope>): <task title> task#N`.
+Execute the gh pattern for the epic, then for each task without further
+mutation approval. Task title format: `<type>(<scope>): <task title> task#N`.
 
 ### Step 10: Wire blocking edges
 
@@ -327,12 +333,17 @@ decomposition does NOT split horizontally into one-issue-per-file. Instead:
 - `docs/agents/labels.md` — label vocabulary
 - ADR-0019 — original mapping decision (partially superseded by ADR-0020)
 - ADR-0020 — unified command architecture
-- `tracker-operator` skill — least-privilege protocol for all gh CLI execution
+- `tracker-operator` skill — least-privilege protocol and workflow-scoped
+  authorization for all gh CLI execution
+- ADR-0085 — one preview confirmation authorizes the complete tracker mutation
+  batch
 
 ## Rules
 
 - Never hard-code the repo name. Always detect via `gh repo view`.
-- Never create issues without user confirmation.
+- Never create issues without the workflow's full-preview confirmation.
+- After that confirmation, never ask for per-command approval inside the
+  displayed mutation batch.
 - Title must follow conventional commit format with parentheses for scope.
 - Security-related descriptions must use `fix(security)`.
 - Feature and Patch types prompt for all 5 custom fields; all other types

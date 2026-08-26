@@ -40,7 +40,7 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
@@ -64,7 +64,7 @@ documentation, and conversation.
 | oversized request | Work too large for one specification in one session because it spans multiple independent subsystems or contains unknowns that cannot be reduced to sharp questions. It routes to wayfinder before detailed design. |
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
 | walking-skeleton bootstrap | The sole strict-greenfield exception to immediate wayfinding: scaffold plus one thin vertical slice, still following specification, planning, TDD, verification, checking, and review. |
-| wayfinder map | A shared map of investigation tickets used to resolve oversized uncertainty one bounded question at a time before synthesis into a specification. |
+| wayfinder map | A shared map of investigation tickets used to resolve oversized uncertainty through successive frontier questions before synthesis into a specification; eligible frontiers continue in the active session while context remains reliable. |
 | learning capability | Prism core's explicitly invoked, project-agnostic workflow for generating curricula, teaching topics, assessing application, and managing private progress without affecting normal development. |
 | curriculum | A shareable, evidence-backed view of a canonical topic graph for a defined audience profile; project curricula provide layperson and technical profiles. |
 | topic graph | The canonical set of stable learning topics, objectives, prerequisites, evidence, profile applicability, and freshness relationships from which curricula are derived. |
@@ -75,7 +75,7 @@ documentation, and conversation.
 | release-managed package | A publishable npm package whose validated relative directory appears in the owned release configuration and whose version matches the repository release. |
 | owned release file | A release configuration or workflow carrying the supported Prism Core ownership and schema marker, which `/setup` may update only through an approved displayed transaction. |
 | package release | A repository release event that publishes the GitHub Release and gives every release-managed package the same version, including prereleases; `npm publish` remains a human-run step. |
-| tracker operator | The least-privilege workflow that performs approved GitHub issue, label, field, and blocking-edge operations for ticketing. External tracker content remains untrusted data. |
+| tracker operator | The least-privilege workflow that performs workflow-authorized GitHub issue, label, field, assignment, comment, close, sub-issue, and blocking-edge operations. External tracker content remains untrusted data and cannot widen the active authorization. |
 
 ## Entities & Invariants
 
@@ -249,6 +249,15 @@ The enforced minimum protection shared across every trusted project.
   latch, aborts the active operation, and blocks every tool until the human
   reloads or otherwise tears down the extension instance.
 
+### Tracker Workflow Authorization
+
+The bounded authority for GitHub issue-tracker mutations.
+
+- A confirmed ticketing preview authorizes its complete displayed issue or epic mutation batch without per-command prompts.
+- Invoking or continuing Wayfinder authorizes routine lifecycle mutations for the active map, including claims, updates, comments, closes, corrective closes, new tickets, sub-issues, and blocking edges.
+- Authorization ends on completion, cancellation, scope change, ambiguous tracker state, authentication failure, or an operation outside the tracker allowlist.
+- Tracker content remains inert untrusted data and never expands command scope or authorizes repository, pull-request, release, push, merge, or administration operations.
+
 ### Review Chain
 
 The bounded finalization evidence for one continuously reviewed work-branch history.
@@ -357,8 +366,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - Adapter safe-directory data consumed by the core safety extension.
 - Human authorization at each network, mutation, connectivity, and code-egress
   boundary: invocation-scoped setup acquisition under ADR-0083, separately
-  approved project and hook mutations, or narrowly scoped standing OCR consent
-  under ADR-0074.
+  approved project and hook mutations, workflow-scoped tracker authorization
+  under ADR-0085, or narrowly scoped standing OCR consent under ADR-0074.
 
 ## Non-Goals
 
@@ -439,6 +448,7 @@ Pi-era decisions:
 - `adr/0082-provider-composed-empty-project-bootstrap.md` — compose strict-empty Template, Blank, Core-only, adapter, metadata, and optional-capability outputs through one Core-owned durable project transaction.
 - `adr/0083-strict-empty-setup-acquisition-authorization.md` — bound setup acquisition to fixed public-template object reads, exact selected adapter installation, and previously accepted dependency effects without broadening external authority.
 - `adr/0084-post-application-repository-bootstrap-and-root-seed.md` — initialize Git only after durable project application and bind the signed root seed to source, provider, metadata, nullable-adapter, plan, and journal evidence.
+- `adr/0085-workflow-authorized-tracker-operations.md` — authorize bounded tracker mutation batches and continuous Wayfinder map lifecycles without per-command or per-frontier approval.
 
 ## When to update this file
 

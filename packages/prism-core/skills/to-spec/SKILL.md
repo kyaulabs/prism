@@ -45,6 +45,9 @@ Do NOT load this skill when:
    **Present the seam sketch to the user and confirm it before finalizing the
    spec.** This is the single confirmation gate — to-spec does not interview,
    but it gates on the seam choice because it shapes every test.
+   A completed Wayfinder map supplies that confirmation.
+   When called from Wayfinder, present the seam sketch as an informational
+   status and continue without another approval pause.
 
 3. **Write the spec** using the template below. Save it to
    `docs/specs/YYYY-MM-DD-<topic>-spec.md`. Do NOT publish to the issue tracker
@@ -113,7 +116,8 @@ Anything else relevant.
 - **No interview.** Do not ask the user questions to gather requirements — that
   is `brainstorming` + `grilling`. to-spec synthesizes what is already known.
 - **One gate only.** The seam sketch is the single confirmation point. Beyond
-  that, write the spec directly.
+  that, write the spec directly. A completed Wayfinder map already satisfies
+  this gate; do not ask again during the exit handoff.
 - **Spec file, not a ticket.** Write to `docs/specs/`; do not create issues.
 - **Use domain vocabulary.** Pull terms from `CONTEXT.md`; cite relevant ADRs.
 - **No file paths or code in the spec body.** Record decisions and interfaces,
@@ -136,8 +140,9 @@ Known failure modes. Add entries when this skill causes a preventable mistake.
   through `grilling`.
 - *Publishing to the issue tracker* — to-spec writes a docs/specs/ file. Route
   to `/issue` for ticketing afterwards; do not create issues from to-spec.
-- *Skipping the seam gate* — the seam sketch confirmation is mandatory; it
-  shapes every test. Present it before finalizing.
+- *Skipping the seam gate* — the seam sketch confirmation is mandatory unless
+  a completed Wayfinder map already settled it. Present the sketch before
+  finalizing; in the Wayfinder path, report it and continue without pausing.
 - *Low-level seams* — testing private internals is a smell. Move up to the
   highest public boundary; prefer existing seams.
 - *Stale code in the spec* — file paths and snippets rot. Record decisions and

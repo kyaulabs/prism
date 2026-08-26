@@ -109,7 +109,7 @@ unknowns that cannot be expressed as sharp questions — branches to `wayfinder`
 before detailed grilling; brainstorming does not decompose it here. The sole
 exception is strict greenfield: a walking-skeleton bootstrap (scaffold plus
 one thin vertical slice) whose approved spec rides the human-pushed
-single-root seed (ADR-0044) before a fresh wayfinder session maps the
+single-root seed (ADR-0044) before a later wayfinder continuation maps the
 remainder (ADR-0050). The design cycle ends at the committed spec and feature
 branch and hands off to planning; bootstrap branches also require `/check`
 and the `code-review` skill plus the wayfinder map's immutable bootstrap-spec
@@ -275,7 +275,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
 | `finishing-a-development-branch` | When a feature branch is complete — consume plan approval for cleanup, synchronization, unlimited `/check`, one four-axis review, revalidation, and automatic preparation-only `/pr`; require fresh approval for additional reviews |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
-| `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
+| `wayfinder` | Work too big for one specification or too foggy for sharp questions — chart a shared GitHub issue map, process eligible frontiers continuously, and merge to `to-spec` |
 | `receiving-code-review` | Triaging and responding to `code-review` findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `domain-context` | Before domain-coupled work — read/update `CONTEXT.md` |
 | `adr` | Writing, reviewing, or superseding an Architecture Decision Record |
@@ -296,7 +296,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `from-issue` | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies labels, analyzes, plans, halts for approval, creates the branch, and hands off; routes bugs to `debug` and chores to the fast-path |
 | `resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
-| `tracker-operator` | Executes the ticketing workflow's GitHub operations (`/issue`-family, `/setup-labels`) — least-privilege issues/labels/fields scope (ADR-0052) |
+| `tracker-operator` | Executes bounded GitHub tracker operations for ticketing and Wayfinder — least-privilege, workflow-authorized issues/labels/fields scope (ADR-0085) |
 | `docs-writer` | Generating docblocks, RCS headers, and documentation |
 | `pi-docs` | Pointer to pi's installed docs/examples on disk — read instead of guessing |
 

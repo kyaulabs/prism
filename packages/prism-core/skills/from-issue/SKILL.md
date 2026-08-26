@@ -148,11 +148,13 @@ routing matrix demands it:
 | Ambiguous / multiple approaches | STOP and load `brainstorming` |
 | Technical viability uncertain | STOP and load `prototype` within the brainstorming phase |
 
-**Oversized-scope stop (ADR-0050):** recognize an oversized issue from the
-issue description and codebase evidence — multiple independent subsystems, or
-unknowns that cannot be expressed as sharp questions. STOP: do not decompose
-the work and do not continue to Step 8. Start a fresh focused session and load
-`wayfinder` to run the scope classifier and chart the map.
+**Oversized-scope transition (ADR-0050):** recognize an oversized issue from
+the issue description and codebase evidence — multiple independent subsystems,
+or unknowns that cannot be expressed as sharp questions. Do not decompose the
+work or continue to Step 8. Load `wayfinder` and
+continue in the current session when context remains reliable.
+Start a new session only for explicit user preference, material context
+degradation requiring `/handoff`, a fatal tool state, or an external blocker.
 
 ### 8. Plan
 
@@ -261,8 +263,8 @@ prompt (Step 9).
   seems obvious.
 - *Treating needs-info/ready-for-agent as Progress values* — they are meta
   labels. Progress remains a separate field.
-- *Decomposing oversized scope here* — stop and load `wayfinder` in a fresh
-  focused session.
+- *Decomposing oversized scope here* — transition to `wayfinder`; preserve the
+  current session unless a specific continuity halt condition applies.
 - *Proceeding before plan approval* — Step 9 is a hard gate.
 - *Posting a comment without the AI disclaimer* — every comment carries it.
 - *Hard-coding repository or field IDs* — always detect them dynamically.
