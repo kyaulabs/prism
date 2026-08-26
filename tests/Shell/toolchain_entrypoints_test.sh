@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -221,6 +221,8 @@ assert_file_not_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
+assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool markdown lint --changed-from' 'check runs changed Markdown through the shared gate'
+assert_file_contains "$CORE_PROMPTS/check.md" 'one tool call.*retain.*literal SHA|retain.*literal SHA.*later call' 'check resolves and retains the Markdown base separately'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr preflight' 'pr delegates preflight to the launcher'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr validate-title' 'pr delegates title validation to the launcher'
 assert_file_contains "$PR_TOOL" "'doctor', '--local-only'" 'pr launcher operation performs local-only readiness'
@@ -297,6 +299,8 @@ assert_file_contains "$REPO_ROOT/packages/prism-php-web/README.md" 'separate hoo
 
 echo "── hooks perform local-only readiness ──"
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-commit" 'doctor --local-only' 'pre-commit runs local doctor'
+assert_file_contains "$REPO_ROOT/.github/hooks/pre-commit" 'markdown lint --cached' 'pre-commit runs staged Markdown through the shared gate'
+assert_file_contains "$REPO_ROOT/.github/workflows/ci.yml" 'markdown lint --changed-from' 'CI runs changed Markdown through the shared gate'
 assert_file_contains "$REPO_ROOT/.github/hooks/pre-push" 'doctor --local-only' 'pre-push runs local doctor'
 assert_file_contains "$REPO_ROOT/.github/hooks/commit-msg" 'doctor --local-only' 'commit-msg runs local doctor'
 

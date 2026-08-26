@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -528,7 +528,9 @@ function runHook(projectRoot, event, args = [], context = {}) {
 function hookRunWithReadiness(invocations = []) {
     return (command, args, options) => {
         invocations.push({command, args, cwd: options.cwd});
-        if (command === process.execPath && args.includes('doctor')) {
+        if (command === process.execPath && (
+            args.includes('doctor') || args.includes('markdown')
+        )) {
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
         return runBounded(command, args, options);
@@ -1909,7 +1911,9 @@ test('dispatches Core-only pre-commit readiness without adapter execution', (t) 
     const invocations = [];
     const hookRun = (command, args, options) => {
         invocations.push({command, args, cwd: options.cwd});
-        if (command === process.execPath && args.includes('doctor')) {
+        if (command === process.execPath && (
+            args.includes('doctor') || args.includes('markdown')
+        )) {
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
         return runBounded(command, args, options);
@@ -1926,6 +1930,9 @@ test('dispatches Core-only pre-commit readiness without adapter execution', (t) 
     assert.equal(result.stdout, '');
     assert.equal(result.stderr, '');
     assert.equal(invocations.some(({args}) => args.includes('doctor')), true);
+    const markdownInvocation = invocations.find(({args}) => args.includes('markdown'));
+    assert.ok(markdownInvocation);
+    assert.deepEqual(markdownInvocation.args.slice(-3), ['markdown', 'lint', '--cached']);
     assert.equal(invocations.some(({args}) => args.join(' ') === 'diff --cached --check'), true);
     assert.equal(runHook(projectRoot, 'unknown').status, 2);
 });

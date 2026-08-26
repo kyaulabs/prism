@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -321,6 +321,11 @@ SERVER_PID=""
 cleanup() { [[ -z "$SERVER_PID" ]] || kill "$SERVER_PID" 2>/dev/null || true; }
 trap cleanup EXIT
 prism-tool doctor --local-only
+if [[ "$MODE" == --ci ]]; then
+    prism-tool markdown lint --changed-from "$BASE"
+else
+    prism-tool markdown lint --cached
+fi
 find backend tests -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l
 prism-tool run php-cs-fixer -- fix --dry-run --diff
 find cdn/sass -type f -name '*.scss' -print -quit | grep -q . && prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input || true

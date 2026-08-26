@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -407,7 +407,7 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
     });
     const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
     const check = read('.github/scripts/check-php.sh');
-    const ordered = ['doctor --local-only', 'php -l', 'run php-cs-fixer', 'run stylelint', 'run eslint', 'php -S', 'run pest', 'coverage-gate.php', 'tests/Shell/run-all.sh'];
+    const ordered = ['doctor --local-only', 'markdown lint', 'php -l', 'run php-cs-fixer', 'run stylelint', 'run eslint', 'php -S', 'run pest', 'coverage-gate.php', 'tests/Shell/run-all.sh'];
     let previous = -1;
     for (const marker of ordered) {
         const index = check.indexOf(marker);
@@ -415,6 +415,8 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
         previous = index;
     }
     assert.match(check, /\^\[0-9a-f\]\{40\}\$/);
+    assert.match(check, /markdown lint --cached/);
+    assert.match(check, /markdown lint --changed-from "\$BASE"/);
     assert.match(check, /trap .*cleanup/);
     assert.match(check, /visual_review\.json.*visual_review\.spec\.mjs.*--list/s);
     assert.match(check, /seq 1 50/);
