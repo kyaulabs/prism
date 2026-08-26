@@ -30,15 +30,13 @@
 **Files:**
 - Create: `packages/prism-core/scripts/check-distill-contract.sh`
 - Create: `tests/Shell/check_distill_contract_test.sh`
-- Modify: `packages/prism-core/scripts/validate-harness.sh:62-94`
-- Modify: `tests/Shell/validate-harness_test.sh:22-35`
 
 **Interfaces:**
 - Consumes: one repository-root path.
 - Produces: exit `0` when the contract passes, exit `1` for violations, exit `2` for invalid invocation or unreadable required inputs.
 - Diagnostics: one line per defect, prefixed with the repository-relative path.
 
-- [ ] **Step 1: Write the failing checker tests**
+- [x] **Step 1: Write the failing checker tests**
 
 Create fixture trees that cover:
 
@@ -75,7 +73,7 @@ required pattern headings:
   ## Prism exceptions
 ```
 
-- [ ] **Step 2: Run the focused test and confirm Red**
+- [x] **Step 2: Run the focused test and confirm Red**
 
 Run:
 
@@ -85,7 +83,7 @@ bash tests/Shell/check_distill_contract_test.sh
 
 Expected: FAIL because `check-distill-contract.sh` does not exist.
 
-- [ ] **Step 3: Implement the checker and validator integration**
+- [x] **Step 3: Implement the checker**
 
 `check-distill-contract.sh` must:
 
@@ -100,26 +98,17 @@ Expected: FAIL because `check-distill-contract.sh` does not exist.
 - reject `distill` or `## Output style` in `APPEND_SYSTEM.md`;
 - aggregate all diagnostics before returning `1`.
 
-Wire it into `validate-harness.sh` under this exact marker:
-
-```text
-── Checking Distill output-style contract ──
-```
-
-Pass the resolved repository root as a literal argument. Add that marker to the required-check list in `validate-harness_test.sh`.
-
-- [ ] **Step 4: Run focused checks and confirm Green**
+- [x] **Step 4: Run focused checks and confirm Green**
 
 Run:
 
 ```bash
 bash tests/Shell/check_distill_contract_test.sh
-bash tests/Shell/validate-harness_test.sh
 ```
 
-Expected: both PASS against their fixture contracts. The real-tree validator may still fail until Task 2 adds the Distill resources.
+Expected: PASS against the fixture contracts.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Stage only the checker, its test, and validator integration. Then create:
 
@@ -139,6 +128,8 @@ prism-tool commit create --type test --scope distill --subject "add output guida
 - Modify: `packages/prism-core/NOTICE:113-128`
 - Modify: `CODING_HARNESS.md:193-199`
 - Modify: `tests/Node/toolchain-packaging.test.js:83-145`
+- Modify: `packages/prism-core/scripts/validate-harness.sh:62-94`
+- Modify: `tests/Shell/validate-harness_test.sh:22-35`
 
 **Interfaces:**
 - Consumes: ADR-0089, the approved spec, and the contract checker from Task 1.
@@ -245,6 +236,14 @@ cursor/plugins pstack
 ```
 
 Add one paragraph under `CODING_HARNESS.md` section `Harness commands and skills` stating that all natural-language output follows the compact global rule and that substantial or durable prose loads `distill`.
+
+Wire `check-distill-contract.sh` into `validate-harness.sh` under this exact marker:
+
+```text
+── Checking Distill output-style contract ──
+```
+
+Pass the resolved repository root as a literal argument. Add that marker to the required-check list in `validate-harness_test.sh`.
 
 - [ ] **Step 5: Run focused and full checks**
 
