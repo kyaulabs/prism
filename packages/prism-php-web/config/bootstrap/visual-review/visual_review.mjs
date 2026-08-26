@@ -210,37 +210,33 @@ function openEvidenceDirectory(root, filesystem = fs) {
 		) {
 			throw new Error();
 		}
-		let stat = pathStat;
-		let heldPath = outputRoot;
 		if (
-			typeof filesystem.constants.O_DIRECTORY === 'number' &&
-			typeof filesystem.constants.O_NOFOLLOW === 'number'
+			typeof filesystem.constants.O_DIRECTORY !== 'number' ||
+			typeof filesystem.constants.O_NOFOLLOW !== 'number'
 		) {
-			descriptor = filesystem.openSync(
-				outputRoot,
-				filesystem.constants.O_RDONLY |
-					filesystem.constants.O_DIRECTORY |
-					filesystem.constants.O_NOFOLLOW
-			);
-			stat = filesystem.fstatSync(descriptor);
-			if (!stat.isDirectory()) throw new Error();
-			for (const prefix of ['/proc/self/fd', '/dev/fd']) {
-				const candidate = path.join(prefix, String(descriptor));
-				try {
-					if (filesystem.realpathSync(candidate) === outputRoot) {
-						heldPath = candidate;
-						break;
-					}
-				} catch {
-					continue;
+			throw new Error();
+		}
+		descriptor = filesystem.openSync(
+			outputRoot,
+			filesystem.constants.O_RDONLY |
+				filesystem.constants.O_DIRECTORY |
+				filesystem.constants.O_NOFOLLOW
+		);
+		const stat = filesystem.fstatSync(descriptor);
+		if (!stat.isDirectory()) throw new Error();
+		let heldPath = null;
+		for (const prefix of ['/proc/self/fd', '/dev/fd']) {
+			const candidate = path.join(prefix, String(descriptor));
+			try {
+				if (filesystem.realpathSync(candidate) === outputRoot) {
+					heldPath = candidate;
+					break;
 				}
-			}
-			if (heldPath === outputRoot) {
-				closeQuietly(descriptor, filesystem);
-				descriptor = undefined;
-				stat = pathStat;
+			} catch {
+				continue;
 			}
 		}
+		if (heldPath === null) throw new Error();
 		const directory = {
 			root: outputRoot,
 			heldPath,
@@ -277,9 +273,6 @@ function writeEvidenceFile(directory, filePath, content) {
 		`.${name}.prism-${randomBytes(16).toString('hex')}.tmp`
 	);
 	const destination = path.join(directory.heldPath, name);
-	const noFollow = typeof directory.filesystem.constants.O_NOFOLLOW === 'number'
-		? directory.filesystem.constants.O_NOFOLLOW
-		: 0;
 	let descriptor;
 	let temporaryExists = false;
 	try {
@@ -288,7 +281,7 @@ function writeEvidenceFile(directory, filePath, content) {
 			directory.filesystem.constants.O_CREAT |
 				directory.filesystem.constants.O_EXCL |
 				directory.filesystem.constants.O_WRONLY |
-				noFollow,
+				directory.filesystem.constants.O_NOFOLLOW,
 			0o600
 		);
 		temporaryExists = true;

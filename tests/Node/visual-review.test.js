@@ -328,7 +328,7 @@ test('replaces an evidence symlink without following it', async (t) => {
     assert.equal(fs.readFileSync(outputs.image, 'utf8'), 'safe image');
 });
 
-test('publishes through a contained-path fallback without Unix directory flags', async (t) => {
+test('fails closed without Unix held-directory support', async (t) => {
     const module = await import(moduleUrl);
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-portable-'));
     t.after(() => fs.rmSync(root, {recursive: true, force: true}));
@@ -343,9 +343,9 @@ test('publishes through a contained-path fallback without Unix directory flags',
             return fs.openSync(...args);
         },
     };
-    const page = {screenshot: async () => Buffer.from('portable image')};
+    const page = {screenshot: async () => Buffer.from('not published')};
 
-    const outputs = await module.publishVisualReviewEvidence(
+    await assert.rejects(module.publishVisualReviewEvidence(
         page,
         capture,
         {playwright: '1.62.1', chromium: '123.0.0'},
@@ -353,11 +353,10 @@ test('publishes through a contained-path fallback without Unix directory flags',
         [],
         root,
         portableFs
-    );
+    ), /visual review output escapes working directory/);
 
-    assert.ok(openCount > 0);
-    assert.equal(fs.readFileSync(outputs.image, 'utf8'), 'portable image');
-    assert.equal(fs.lstatSync(outputs.metadata).isFile(), true);
+    assert.equal(openCount, 0);
+    assert.deepEqual(fs.readdirSync(root), []);
 });
 
 test('rejects an evidence-root symlink substituted during directory creation', async (t) => {
@@ -442,7 +441,11 @@ test('publishes the local-only capture inspection and milestone contract', () =>
     assert.equal(skill.includes(command), true);
     assert.match(reference, /click.*hover.*focus.*press.*wait-for-selector/s);
     assert.match(reference, /loopback/);
+    assert.match(reference, /held directory descriptor/);
+    assert.match(reference, /unsupported platforms fail closed/i);
     assert.match(reference, /visual_review\.example\.json/);
+    assert.match(skill, /held directory descriptor/);
+    assert.match(skill, /unsupported platforms fail closed/i);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

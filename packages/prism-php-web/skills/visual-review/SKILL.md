@@ -34,6 +34,11 @@ case, uses headless Chromium, fails on page or console errors, and writes
 bounded PNG and JSON evidence under
 `tests/Browser/Screenshots/visual-review/`.
 
+Evidence publication requires a Unix-like runtime with safe directory flags and
+a held directory descriptor exposed through `/proc/self/fd` or `/dev/fd`.
+Unsupported platforms fail closed before writing. Use a supported local or CI
+environment; never weaken containment to obtain screenshots.
+
 ## Inspect and iterate
 
 Read every generated PNG. Check:

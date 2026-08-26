@@ -66,6 +66,11 @@ prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output te
 The command requires a valid `visual_review.json`. Missing or incomplete project
 decisions fail closed; the tooling does not substitute defaults.
 
+Evidence publication requires a Unix-like runtime that exposes safe directory
+flags and a held directory descriptor through `/proc/self/fd` or `/dev/fd`.
+Unsupported platforms fail closed before writing evidence. Run the capture in a
+supported local or CI environment rather than weakening output containment.
+
 Evidence uses deterministic names:
 
 ```text
