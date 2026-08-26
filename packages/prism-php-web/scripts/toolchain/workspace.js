@@ -1,4 +1,4 @@
-// $KYAULabs: workspace.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: workspace.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -97,7 +97,13 @@ function writeAtomic(filePath, content, mode, rename) {
     }
 }
 
-function replaceConsumerFiles({projectRoot, workspaceRoot, names, rename = fs.renameSync}) {
+function replaceConsumerFiles({
+    projectRoot,
+    workspaceRoot,
+    names,
+    createModes = new Map(),
+    rename = fs.renameSync,
+}) {
     const backupRoot = path.join(workspaceRoot, 'backups');
     const candidateRoot = path.join(workspaceRoot, 'candidate');
     fs.mkdirSync(backupRoot, {mode: 0o700});
@@ -112,7 +118,7 @@ function replaceConsumerFiles({projectRoot, workspaceRoot, names, rename = fs.re
                 if (error.code !== 'ENOENT') throw error;
             }
             if (!targetStat) {
-                originals.set(name, {exists: false, mode: 0o600});
+                originals.set(name, {exists: false, mode: createModes.get(name) ?? 0o600});
                 continue;
             }
             if (targetStat.isSymbolicLink() || !targetStat.isFile()) {

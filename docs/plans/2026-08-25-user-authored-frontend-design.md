@@ -664,7 +664,7 @@ prism-tool commit create --type feat --scope scaffold --subject "include reusabl
 - Produces: `VISUAL_REVIEW_FILES`, `readCanonicalVisualReviewFiles(packageRoot)`, and a plan `scaffold` object keyed by the three fixed output names.
 - Plan record: `{disposition: "CREATE"|"PRESERVE", original: "absent"|sha256, candidate: sha256, mode: 420}`.
 
-- [ ] **Step 1: Add failing resolve/apply tests**
+- [x] **Step 1: Add failing resolve/apply tests**
 
 Cover these public behaviors:
 
@@ -686,13 +686,13 @@ Add separate tests proving:
 - a stale create target blocks apply before package installation;
 - a write failure rolls back newly created visual files and dependency manifests together.
 
-- [ ] **Step 2: Run focused setup tests to verify Red**
+- [x] **Step 2: Run focused setup tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-resolve.test.js tests/Node/prism-tool-apply.test.js`
 
 Expected: FAIL because candidate plans have no `scaffold` section and established setup ignores canonical visual files.
 
-- [ ] **Step 3: Implement the fixed canonical-file plan section**
+- [x] **Step 3: Implement the fixed canonical-file plan section**
 
 Create `visual-review-files.js`:
 
@@ -756,13 +756,13 @@ function replaceConsumerFiles({projectRoot, workspaceRoot, names, createModes = 
 
 Call it with `0o644` for CREATE visual-review files and preserve existing manifest modes. Never include PRESERVE visual files in `names`, so exact files keep inode and mtime.
 
-- [ ] **Step 4: Run resolve/apply and bootstrap regression tests**
+- [x] **Step 4: Run resolve/apply and bootstrap regression tests**
 
 Run: `node --test tests/Node/prism-tool-resolve.test.js tests/Node/prism-tool-apply.test.js tests/Node/prism-tool-php-web-bootstrap.test.js`
 
 Expected: PASS, including create/preserve/conflict, rollback, stale-plan, dependency, browser, and strict-empty scaffold coverage.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-php-web/scripts/toolchain/visual-review-files.js packages/prism-php-web/scripts/prism-tool-adapter.js packages/prism-php-web/scripts/toolchain/transaction.js packages/prism-php-web/scripts/toolchain/workspace.js tests/Node/prism-tool-resolve.test.js tests/Node/prism-tool-apply.test.js

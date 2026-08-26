@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -28,7 +28,10 @@ function apply(options) {
             data: {reason: 'approval required'},
         };
     }
-    return applyCandidate(options);
+    return applyCandidate({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
 }
 
 function prepareBootstrapProject(options) {
@@ -42,7 +45,10 @@ function prepareBootstrapProject(options) {
 }
 
 function resolve(options) {
-    return resolveCandidate(options);
+    return resolveCandidate({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
 }
 
 function verify(options) {
