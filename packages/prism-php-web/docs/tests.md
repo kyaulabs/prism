@@ -1,108 +1,128 @@
-# Good and Bad Tests
+# PHP/web test design
 
-## Bootstrap
+Write tests against behavior visible through a public seam. A good test fails
+for the missing behavior, survives an internal refactor, and uses an expected
+value derived independently of the implementation.
 
-If `tests/Pest.php` does not exist, run `prism-tool run pest -- --init` before
-writing tests. This creates the Pest bootstrap. The agent should run this if
-it encounters a repo with no test bootstrap.
+## Pest bootstrap
 
-> [!WARNING]
-> `pest --init` generates a **bare** `Pest.php` (stock scaffolding only —
-> no arch tests). After running it, the agent must create
-> `tests/Unit/Harness/ArchTest.php` with the three filesystem-walker arch
-> tests described in `packages/prism-php-web/docs/conventions.md` (Arch Tests
-> section).
-> Do not append `arch()` blocks to `Pest.php` — they will not execute.
+If `tests/Pest.php` is absent, run:
 
----
-
-Examples are Pest/PHP, matching the project stack.
-
-## Good Tests
-
-**Integration-style**: Test through real interfaces, not mocks of internal parts.
-
-```php
-// GOOD: Tests observable behavior
-it('checks out a valid cart', function () {
-    $cart = createCart();
-    $cart->add($product);
-
-    $result = checkout($cart, $paymentMethod);
-
-    expect($result->status)->toBe('confirmed');
-});
+```bash
+prism-tool run pest -- --init
 ```
 
-Characteristics:
+The generated file is stock Pest scaffolding. Create
+`tests/Unit/Harness/ArchTest.php` separately with the filesystem-walker checks
+from [PHP/web coding conventions](conventions.md). Do not append Pest
+architecture blocks to `tests/Pest.php`; they do not scan procedural source.
 
-- Tests behavior users/callers care about
-- Uses public API only
-- Survives internal refactors
-- Describes WHAT, not HOW
-- One logical assertion per test
+Use PHPUnit's default test case unless the project already defines a shared
+`Tests\TestCase`. Bind a custom case only to directories that need it.
 
-## Bad Tests
+## Behavior-first tests
 
-**Implementation-detail tests**: Coupled to internal structure.
-
-```php
-// BAD: Tests implementation details
-it('calls payment service during checkout', function () {
-    $mockPayment = Mockery::mock(PaymentService::class);
-    App::bind(PaymentService::class, fn () => $mockPayment);
-
-    $mockPayment->shouldReceive('process')
-        ->once()
-        ->with($cart->total);
-
-    checkout($cart, $payment);
-});
-```
-
-Red flags:
-
-- Mocking internal collaborators
-- Testing private methods
-- Asserting on call counts/order
-- Test breaks when refactoring without behavior change
-- Test name describes HOW not WHAT
-- Verifying through external means instead of interface
+Test through the same interface a caller uses:
 
 ```php
-// BAD: Bypasses interface to verify
-it('saves the user to the database', function () {
-    createUser(['name' => 'Alice']);
-
-    $row = $db->query('SELECT * FROM users WHERE name = ?', ['Alice']);
-
-    expect($row)->not->toBeNull();
-});
-
-// GOOD: Verifies through interface
 it('makes a created user retrievable', function () {
-    $user = createUser(['name' => 'Alice']);
-    $retrieved = getUser($user->id);
+    $created = createUser(['name' => 'Alice']);
+
+    $retrieved = getUser($created->id);
 
     expect($retrieved->name)->toBe('Alice');
 });
 ```
 
-**Tautological tests**: Expected value restates the implementation, so the test passes by construction.
+Good tests:
+
+- name one observable behavior;
+- arrange only the state needed by that behavior;
+- act through a public function, method, HTTP route, or command;
+- assert an independent result or state transition;
+- cover success, rejection, boundary, and failure cases;
+- remain deterministic and isolated.
+
+Use `describe()` for one behavior surface, `it()` for one scenario, and Pest
+datasets when the same rule must hold for several inputs.
+
+## Implementation coupling
+
+Do not test private methods, internal call order, helper invocation counts, or
+concrete collaborator construction. These assertions can fail while public
+behavior remains correct.
+
+A boundary mock may assert the outbound external contract, but the test should
+still assert the public result:
 
 ```php
-// BAD: Expected value is recomputed the way the code computes it
-it('sums line items into the total', function () {
-    $items = collect([['price' => 10], ['price' => 5]]);
-    $expected = $items->sum('price');
+it('rejects a declined payment', function () {
+    $payments = Mockery::mock(PaymentClient::class);
+    $payments->shouldReceive('charge')
+        ->once()
+        ->andReturn(new PaymentResult('declined'));
 
-    expect(calculateTotal($items))->toBe($expected);
+    $result = checkout(aCart(), $payments);
+
+    expect($result->status)->toBe('payment-declined');
 });
+```
 
-// GOOD: Expected value is an independent, known literal
-it('sums line items into the total', function () {
-    $items = collect([['price' => 10], ['price' => 5]]);
+Read [Mocking system boundaries](mocking.md) before adding a mock.
+
+## Independent expectations
+
+Do not recompute the expected value with the same operations as production
+code:
+
+```php
+it('sums line items', function () {
+    $items = [['price' => 10], ['price' => 5]];
 
     expect(calculateTotal($items))->toBe(15);
 });
 ```
+
+A tautological test that calls the same collection sum in both production and
+expectation can preserve the same defect on both sides.
+
+## Fixtures and data
+
+Keep fixtures small and specific to the behavior. Build them through named test
+helpers or fixture files when that improves readability. Do not use production
+exports, personal data, credentials, wall-clock time, or shared mutable state.
+
+Prefer a disposable real database for query behavior. Reset database and file
+state between tests. Use fixed times and random seeds when the behavior depends
+on them.
+
+## Test layers
+
+- Unit tests cover pure policy and value behavior.
+- Feature tests cover one application-facing behavior through its public seam.
+- Integration tests cover SQL, filesystem, process, or external adapter
+  boundaries.
+- Browser tests are reserved for critical user flows that cannot be proven more
+  cheaply below the browser.
+- Visual review is not a functional browser test; it inspects rendered evidence
+  after Green.
+
+## Red, Green, and full verification
+
+During TDD, run the narrow Pest path or filter through `prism-tool`, first to
+confirm Red and then Green. Before completion, run the full applicable suite and
+the shared `/check` gate.
+
+Coverage uses the adapter-owned command:
+
+```bash
+PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+```
+
+The changed-file gate reads `tests/coverage.xml` and requires at least 80% line
+coverage on each changed PHP file in the coverage source set. Coverage does not
+replace assertions: uncovered behavior needs a test, while unreachable
+defensive code needs an explicit, justified exclusion.
+
+`/check` runs Core policy first and delegates to `/check-php` for php-cs-fixer,
+stylelint, ESLint, Pest coverage, and the changed-file coverage gate.

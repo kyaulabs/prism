@@ -1,76 +1,104 @@
-# When to Mock
+# Mocking system boundaries
 
-Mock at **system boundaries** only:
+Mock only when a test crosses a system boundary that is slow, nondeterministic,
+unavailable, or unsafe to exercise directly.
 
-- External APIs (payment, email, etc.)
-- Databases (sometimes — prefer a test DB)
-- Time/randomness
-- File system (sometimes)
+Suitable boundaries include:
 
-Don't mock:
+- external payment, mail, or HTTP services;
+- time and randomness;
+- the filesystem when a real temporary directory would obscure the behavior;
+- a database only when a disposable test database is impractical.
 
-- Your own classes/modules
-- Internal collaborators
-- Anything you control
+Do not mock classes or modules owned by the application, private methods, or
+internal collaborators. Such mocks bind tests to the current implementation and
+make safe refactoring harder.
 
-## Designing for Mockability
+## Prefer a real local boundary
 
-At system boundaries, design interfaces that are easy to mock:
+Use a real test database, temporary directory, or in-process parser when it is
+fast and isolated. A real boundary catches schema, query, encoding, and
+serialization failures that a mock would reproduce only if the test author
+already knew about them.
 
-**1. Use dependency injection**
+Fixtures must be minimal, deterministic, credential-free, and created by the
+test. Do not copy production data into a fixture.
 
-Pass external dependencies in rather than creating them internally:
+## Inject external dependencies
+
+Pass the boundary into the behavior rather than creating it inside the
+function:
 
 ```php
-// Easy to mock
-function processPayment(Order $order, PaymentClient $paymentClient): Result
-{
-    return $paymentClient->charge($order->getTotal());
-}
-
-// Hard to mock
-function processPayment(Order $order): Result
-{
-    $client = new StripeClient(getenv('STRIPE_KEY'));
-
-    return $client->charge($order->getTotal());
+function processPayment(
+    Order $order,
+    PaymentClient $payments,
+): PaymentResult {
+    return $payments->charge($order->total());
 }
 ```
 
-**2. Prefer SDK-style interfaces over generic fetchers**
+A function that reads credentials and constructs an external client internally
+mixes policy with transport and is harder to test. Move that construction to
+the composition boundary.
 
-Create specific methods for each external operation instead of one generic
-method with conditional logic:
+## Use narrow SDK-style interfaces
+
+Give each external operation a typed method:
 
 ```php
-// GOOD: Each method is independently mockable
-interface ApiClient
+interface OrderGateway
 {
-    public function getUser(int $id): User;
-    public function getOrders(int $userId): array;
-    public function createOrder(array $data): Order;
-}
+    public function findOrder(int $id): ?Order;
 
-// BAD: Mocking requires conditional logic inside the mock
-interface ApiClient
-{
-    public function fetch(string $endpoint, array $options = []): mixed;
+    /** @return list<Order> */
+    public function findOrdersForUser(int $userId): array;
+
+    public function createOrder(NewOrder $order): Order;
 }
 ```
 
-The SDK approach means:
+Avoid a generic `fetch(string $endpoint, array $options): mixed` interface. It
+moves routing logic into test setup, weakens return types, and makes each test
+reimplement the remote protocol.
 
-- Each mock returns one specific shape
-- No conditional logic in test setup
-- Easier to see which endpoints a test exercises
-- Type safety per operation
+## Pest and Mockery example
 
-## Pest/Mockery notes
+Mock the boundary interface, then assert the public result:
 
-- Use `Mockery::mock(InterfaceName::class)` against an interface, never against
-  a concrete class you own.
-- Bind the mock via the container (`App::bind(...)`) only when the code under
-  test cannot accept the dependency as a parameter.
-- Prefer a real test database over a DB mock wherever practical — it catches
-  schema and query bugs the mock would hide.
-- Reset mocks in `afterEach()` to avoid cross-test leakage.
+```php
+it('confirms an accepted payment', function () {
+    $payments = Mockery::mock(PaymentClient::class);
+    $payments->shouldReceive('charge')
+        ->once()
+        ->andReturn(new PaymentResult('accepted'));
+
+    $result = processPayment(anOrder(total: 1250), $payments);
+
+    expect($result->status)->toBe('accepted');
+});
+```
+
+The call expectation describes the external contract. Do not add expectations
+for internal helper calls or construction order.
+
+Use `Mockery::mock(InterfaceName::class)`, not a concrete application class.
+Inject the mock as a parameter or constructor dependency. Bind it through a
+project composition mechanism only when the public seam cannot accept the
+dependency directly.
+
+Reset shared Mockery state in `afterEach()` when project bootstrap does not
+already do so. Keep one mock behavior per scenario; conditional mock callbacks
+usually indicate that the boundary interface is too broad.
+
+## Review questions
+
+Before keeping a mock, ask:
+
+1. Is this dependency outside the application's control?
+2. Would a real local implementation be clearer and fast enough?
+3. Is the interface narrow and typed for one external capability?
+4. Does the assertion describe caller-visible behavior?
+5. Would an internal refactor leave the test unchanged?
+
+If any answer is no, redesign the seam or use a real boundary.

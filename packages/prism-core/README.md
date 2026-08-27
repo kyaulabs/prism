@@ -1,230 +1,268 @@
 # @kyaulabs/prism-core
 
-The **language-agnostic core** of the [prism](https://github.com/kyaulabs/prism)
-coding harness for [pi](https://pi.dev).
+Prism Core is the language-independent half of the Prism coding harness for
+[pi](https://pi.dev). Install it globally so its instructions, skills, prompts,
+safety extension, and launcher are available in every trusted project.
 
-prism re-expresses a disciplined engineering pipeline — **brainstorm → spec →
-plan → TDD → verify → review** — as pi-native **skills**, **prompt templates**,
-and **one safety extension**, run by a single pi agent. This package is the
-language-neutral half; install it **globally** so it runs in every project.
+## Package responsibility
 
-## What it provides
+Core owns:
 
-- **Pipeline & discipline skills** — `brainstorming`, `grilling`, `to-spec`,
-  `writing-plans`, `executing-plans`, `tdd`, `verification-before-completion`,
-  `code-review`, `architect`, `wayfinder`, `finishing-a-development-branch`, …
-- **Collapsed-agent skills** — `consult`, `from-issue`, `debug`, `explore`,
-  `resolve-merge-conflicts`, `tracker-operator`, `docs-writer`, and the review
-  trio (`code-review` / `spec-review` / `standards-review` / `test-audit`).
-- **Prompt templates** (slash commands) — `/check`, `/issue`, `/pr`,
-  `/release`, `/router`, `/security`, `/doctor`, `/prime`, `/teach`, …
-- **The safety extension** — a `tool_call` gate that enforces a credential-path
-  deny floor and an `rm -rf` safe-zone policy, with an independent denial
-  circuit breaker and fatal failed-commit latch.
-- **Research skills** — `websearch`, `searxng` (CLI-shell; no MCP).
-- The always-on `AGENTS.md` + `APPEND_SYSTEM.md`, deployed to `~/.pi/agent/`
-  by `install-global.sh` so the core is "always running".
-- The managed `prism-tool` launcher, backed by the installed core package and
-  verified against mandatory Semgrep and OCR readiness.
-- **Strict-empty `/setup` orchestration** — Template, Blank, or Cancel is the
-  first closed choice. Template is recommended; Blank performs no Template
-  lookup; Cancel exits without bootstrap state. The next choice is Core-only or
-  PHP/web, and selecting PHP/web is the exact displayed adapter installation
-  authorization. Every optional capability remains disabled by default. Setup
-  collects an editable project name, one-sentence summary, and only the closed
-  metadata required by explicitly selected capabilities, then renders a
-  private candidate beneath `.pi/prism-tool/bootstrap/`, and return a
-  digest-bound plan. Template acquisition reads a fixed public source only as
-  immutable, untrusted catalogue evidence; it never supplies project bytes,
-  policy, output paths, packages, defaults, or metadata. The
-  transaction progresses from `PLAN_READY` / `PREPARED` through `APPLYING` to
-  `PROJECT_DURABLE`. Pre-durable failure returns `ROOT_RESTORED` when owned
-  state is safely removed or `RECOVERY_REQUIRED` when ambiguous state must be
-  preserved. Durable recovery returns `REPOSITORY_BOOTSTRAP` for the next setup
-  slice. Application does not initialize Git, invoke dependency or quality
-  commands, activate hooks, access the network, or invoke a subprocess.
-- **Provider-composed Blank and Template projects** — strict-empty setup can
-  select the exact PHP/web adapter as well as Core-only. All durable project
-  bytes come from trusted installed Core and adapter providers; Template data
-  can only advertise locally recognized providers and disabled-by-default
-  capabilities. Core remains stack-agnostic: it validates and composes generic
-  provider reports, owns the outer durable
-  transaction, and delegates stack outputs and effects to the validated
-  project-local adapter. Failure before the durable marker restores strict
-  emptiness when transaction ownership remains provable. Failure after the
-  durable marker retains the complete scaffold and deterministic resume evidence.
-  If interruption retains `apply.recovery.lock`, `setup project recover` reports
-  its exact project-relative path; after confirming no setup process is running,
-  remove only that path and rerun `setup project apply` with the retained attempt
-  and digest. Source evidence is digest-bound through the private plan, recovery
-  journal, durable project manifest, and root-seed attestation. Canonical hooks
-  and the root-seed attestation also bind the adapter identity, activation file,
-  and provider-report digest. Setup creates no remote and performs no publication
-  or push; those operations remain human-owned.
-- **Optional project capabilities** — Core owns eight independently selectable
-  profiles. The eight profiles are independent and disabled by default:
-  `licensing` emits `LICENSE`; `community-governance` emits
-  `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md`; `github-collaboration` emits
-  `.github/ISSUE_TEMPLATE/bug_report.yml`,
-  `.github/ISSUE_TEMPLATE/feature_request.yml`, and
-  `.github/pull_request_template.md`; `security-disclosure` emits `SECURITY.md`;
-  `repository-ownership` emits `.github/CODEOWNERS`; `support-routing` emits
-  `.github/ISSUE_TEMPLATE/config.yml`; `funding` emits `.github/FUNDING.yml`;
-  and `release-management` emits `CHANGELOG.md`, `cliff.toml`,
-  `.github/workflows/release.yml`, and `.prism/release.json`. Licensing supports
-  exactly `AGPL-3.0-only` and `MIT`.
-  Conduct and security reporting contacts accept normalized email addresses or
-  credential-free HTTPS destinations. Security version policy is exactly one of
-  `current-development`, `latest-release`, `latest-major-line`, or `custom`; custom
-  policy supplies explicit rows, and the optional acknowledgement target is 1–8760
-  hours. `CODEOWNERS` always starts with the default `*` owners and may add normalized
-  repository-rooted rules. Support routing uses a credential-free HTTPS destination,
-  default label `Support`, and default description `Get help with this project.`;
-  `blank_issues_enabled` is `false` with `github-collaboration` and `true` otherwise.
-  Funding accepts at most 15 records from its closed provider vocabulary: `github`
-  and `custom` permit four each, every other provider permits one, and custom entries
-  require credential-free HTTPS destinations. GitHub collaboration requires no
-  project metadata and emits neutral templates. Template manifests may advertise
-  these capabilities but never select them; Blank performs no Template lookup. The
-  identity preview reports required fields and publication targets without mutating
-  the project. Release management requires one locally validated lowercase
-  `owner/repository` coordinate, performs no live GitHub lookup, and collects no
-  initial version. Its package configuration is rendered only after ADR-0079's
-  existing discovery accepts at least one publishable root or declared-workspace npm
-  package; package discovery never selects the capability. The current Core-only
-  baseline has no npm package and the PHP/web scaffold is private-only, so those
-  candidates reject selected release management before plan display and restore
-  strict emptiness. A future or fixture adapter with publishable packages receives
-  the canonical workflow and lockstep configuration through the same outer bootstrap
-  transaction. Setup displays an identity preview before publication confirmation,
-  then presents the complete project plan for one literal approval. A decline or
-  pre-durable failure restores strict emptiness when ownership is provable; every
-  post-durable failure is retained with one deterministic resume action. Setup
-  creates no repository, remote, tag, GitHub Release, push, or npm publication during
-  planning or application; those actions remain human-owned.
-- **Post-durable Core-only repository seed** — Git begins only after durable
-  project application. The closed sequence is
-  `PROJECT_DURABLE / REPOSITORY_BOOTSTRAP` →
-  `REPOSITORY_CREATED / HOOK_ACTIVATION` →
-  `HOOKS_ACTIVE / ROOT_SEED_PREPARATION` →
-  `SEED_READY / ROOT_SEED_COMMIT` →
-  `ignore: bootstrap prism project`. The launcher exposes
-  `prism-tool setup repository create`, `prism-tool setup hooks inspect`,
-  separately approved `prism-tool setup hooks apply --approval=yes`, and
-  `prism-tool setup seed prepare`; separate hook approval precedes the signed root seed,
-  and the final signed commit uses the exclusive
-  `prism-tool commit create --type ignore --subject "bootstrap prism project"`
-  operation. Only the active attempt's create-only repository is seed-eligible.
-  Canonical Core hooks dispatch no adapter, and seed staging includes exactly
-  the applied project outputs—not operational state or unrelated files. A
-  failed commit requires `/reload` and inspection and is never retried
-  automatically. Successful setup creates no remote: remote creation, the
-  initial human `develop` push, and post-push ruleset configuration remain
-  human-owned publication operations. Human publication consists of creating or
-  configuring the hosted repository, adding the remote, using it to push `develop`,
-  and then configuring rulesets. Established projects retain the existing
-  evidence-driven setup workflow and never enter these strict-empty choices or
-  transaction stages.
-- **Managed lockstep npm releases** — `/setup` discovers publishable root and
-  declared-workspace packages, displays the exact package list, and installs
-  the Core-owned release configuration plus canonical workflow only after
-  explicit enablement and displayed-diff mutation approval. Package-release
-  setup remains independent of language adapters. The operation lock records
-  its owner PID in `.pi/prism-tool/package-release.lock`; after a crash, a
-  human must verify that PID is no longer running before removing that exact
-  lock file. Prism does not auto-remove an existing lock.
+- the engineering workflow and language-independent skills;
+- Core prompt templates such as `/setup`, `/check`, `/pr`, and `/release`;
+- global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
+- the sole safety extension;
+- the `prism-tool` launcher and Core toolchain contract;
+- strict-empty setup orchestration and generic project-provider composition;
+- repository creation, canonical hooks, root-seed preparation, and recovery;
+- optional project capabilities;
+- managed release configuration and review-chain state.
+
+Stack behavior belongs to project-local adapters. The PHP/web adapter supplies
+PHP, Aurora, MariaDB, nginx, SCSS, JavaScript, Pest, and browser guidance while
+Core remains stack-agnostic.
+
+The package archive includes `extensions/`, `skills/`, `prompts/`, `scripts/`,
+`config/`, `docs/`, `toolchain.json`, `safe-dirs.json`, `AGENTS.md`,
+`APPEND_SYSTEM.md`, and `NOTICE`.
 
 ## Install
 
-Semgrep `>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` must already be installed.
-Configure OCR directly with its own provider/model commands; Prism never reads
-or writes its credentials.
+Semgrep `>=1.173.0 <2.0.0` and OpenCodeReview (`ocr`)
+`>=1.9.1 <2.0.0` must already be installed. Prism verifies them but never
+installs, configures, authenticates, or reads their credentials.
 
-From a Prism checkout, install the local core without registry access:
+From a Prism checkout:
 
 ```bash
 bash packages/prism-core/scripts/install-global.sh
 ```
 
-To install the published npm package, approve registry access independently:
+For an npm source, the installer requires separate registry authorization:
 
 ```bash
-PRISM_CORE_SOURCE=npm:@kyaulabs/prism-core \
-  bash packages/prism-core/scripts/install-global.sh \
-  --network-approved=yes
+PRISM_CORE_SOURCE=npm:@kyaulabs/prism-core bash packages/prism-core/scripts/install-global.sh --network-approved=yes
 ```
 
-The installer performs offline `doctor --local-only` readiness only. It never
-creates an OCR-consent record or runs `ocr llm test`. After installation, run
-`/setup` to inspect or grant global standing OCR consent and complete live
-readiness.
-
-The installer deploys `prism-tool` to `${PRISM_BIN_DIR:-$HOME/.local/bin}` and
-does not edit shell startup files or `PATH`. It refuses to overwrite or remove
-an unrelated executable. Remove only a Prism-owned launcher with:
+The installer deploys `prism-tool` to
+`${PRISM_BIN_DIR:-$HOME/.local/bin}` and installs the global instruction
+resources. It does not edit shell startup files or `PATH`, and it refuses to
+overwrite an unrelated launcher. Remove a Prism-owned launcher with:
 
 ```bash
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
 ```
 
-A readiness failure leaves the installed package, launcher, and context
-resources available for remediation but does not report toolchain GO. After a
-successful install, run `pi` in any trusted project. Authenticate with `/login`
-for your provider. Model and thinking selection is yours at any time —
-**Ctrl+P** cycles models, **Shift+Tab** sets thinking; the harness prescribes
-nothing (ADR-0067). Run `/setup` to write your own session defaults and manage
-standing OCR consent.
+Installation runs `doctor --local-only`, does not create standing OCR consent,
+and does not run a live provider test. A readiness failure leaves the package,
+launcher, and context resources installed for remediation.
 
-## Adapter
+After installation, run `/setup` to inspect or grant standing OCR consent and
+to write optional pi session defaults. Revoke consent through `/setup` with
+`prism-tool consent revoke-ocr`. Provider login and model selection remain pi
+operations; Prism does not prescribe them.
 
-For PHP/Aurora web projects, add the stack adapter per-project:
+Install a stack adapter in the consumer project. For PHP/web:
 
 ```bash
 pi install -l npm:@kyaulabs/prism-php-web
 ```
 
-## Toolchain readiness
+## Toolchain and Markdown readiness
 
-The package declares its owned tools in `toolchain.json`: bundled core tools
-(commitlint, git-cliff) resolve through `prism-tool`; Semgrep
-`>=1.173.0 <2.0.0` and OCR `>=1.9.1 <2.0.0` are mandatory external
-prerequisites that Prism verifies but never installs, configures, or
-authenticates (ADR-0063). Registry access and consumer mutation remain separate
-operation-specific approvals. `/setup` manages one explicit global standing
-OCR consent covering only connectivity checks and reviewed-code egress through
-the dedicated `prism-tool code-review ocr` operation (ADR-0074). Full
-`/doctor` validates that consent before one live `ocr llm test`; local-only
-readiness and installation remain offline. Revoke through `/setup` with
-`prism-tool consent revoke-ocr`. CI provisions compatible Semgrep/OCR releases
-only to construct its ephemeral verification environment and never creates a
-consent record.
+`toolchain.json` declares exact bundled Core tools and compatible external
+prerequisites. Core bundles commitlint, git-cliff, and `markdownlint-cli2`.
+Semgrep and OCR remain mandatory external tools. Routine gates never install or
+update tools.
 
-## Approval-free operational boundaries
+Run offline readiness with:
 
-Ordinary and release commits use one standalone
-`prism-tool commit create` call. The launcher owns attribution, commitlint,
-hooks, signing, and `HEAD` verification. A failed, unsafe, ambiguous, or
-non-exclusive commit attempt aborts the agent and blocks every tool until the
-human runs `/reload`; Prism never retries automatically.
+```bash
+prism-tool doctor --local-only
+```
 
-After implementation and ADR-0027 artifact cleanup, the
-`finishing-a-development-branch` skill pauses once for finalization acceptance.
-One acceptance authorizes one synchronization, attestation, full `/check`,
-four-axis review, SHA revalidation, and automatic `/pr` preparation attempt.
-The first accepted review creates a bounded review chain with all four axes.
-After a Blocking repair, fresh acceptance reviews only the continuous repair delta and records closure evidence. Advisory findings do not block `/pr` and
-need no waiver. Base or history changes, discontinuity, malformed state, or a
-HEAD mismatch invalidate the chain and require a new complete initial review.
-Existing branches without chain state follow that initial-review path; Prism
-never migrates session-only evidence. Chain state is untracked under
-`.pi/prism-tool/code-review/`. `/pr` does not create issues or mutate GitHub.
-Any failed gate stops before `/pr` and requires fresh finalization acceptance
-after repair.
+Full `/doctor` validates standing OCR consent before one connectivity test.
+Reviewed-code egress is available only through the dedicated
+`prism-tool code-review ocr` operation. CI provisions compatible tools in its
+ephemeral environment but creates no consent and runs no OCR review.
 
-`/pr` remains preparation-only: humans push, create pull requests, and merge.
+The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
+package READMEs and package docs, and maintained extension READMEs:
+
+```bash
+prism-tool markdown lint --cached
+prism-tool markdown lint --changed-from REVISION
+```
+
+The checker reads staged or committed Git blobs, uses the packaged
+configuration, and never loads project-local Markdown configuration, plugins,
+or custom rules. Skills, prompts, agent instructions, generated history, legal
+text, and unrelated templates require separate format-aware treatment.
+
+## Established and strict-empty setup
+
+Established projects keep the existing evidence-driven setup path. They do not
+enter strict-empty source selection, adapter acquisition, or bootstrap
+transactions.
+
+Strict-empty setup offers Template, Blank, or Cancel. Template is recommended.
+Blank performs no Template lookup. Cancel exits without creating bootstrap
+state. The next choice is Core-only or PHP/web; strict-empty setup may select
+the exact PHP/web adapter after displaying its package and version. Adapter
+selection is the installation authorization.
+
+Optional capabilities are disabled by default. Setup renders an identity preview
+of public fields and publication targets before the complete project plan and
+its one literal mutation approval.
+
+### Provider-composed Blank and Template projects
+
+All durable project bytes in Provider-composed Blank and Template projects
+come from trusted installed Core and adapter providers. Template acquisition supplies
+only immutable, untrusted catalogue evidence. Template manifests may advertise
+recognized providers and capabilities but never select them, define project
+bytes, add packages, or control policy.
+
+Core validates and composes generic provider reports. The same generic
+preparation, provider-report, and quality contracts apply to Core-only and
+adapter projects. Core owns the outer transaction; adapters own stack output.
+
+Source and provider evidence remain digest-bound through the private plan,
+recovery journal, durable project manifest, and root-seed attestation. Canonical
+hooks also bind the adapter identity, activation file, and provider-report
+digest.
+
+Before the durable marker, a failure restores strict emptiness when transaction
+ownership is provable. After the durable marker, Prism retains the complete
+project and deterministic resume evidence. If `apply.recovery.lock` remains
+after interruption, then after confirming no setup process is running, remove only
+the reported lock path and rerun the retained apply operation.
+
+### Application states and effects
+
+The application transaction moves through:
+
+```text
+PLAN_READY -> PREPARED -> APPLYING -> PROJECT_DURABLE
+```
+
+A pre-durable failure reports `ROOT_RESTORED` when owned state is removed or
+`RECOVERY_REQUIRED` when ambiguous evidence must remain. Durable recovery
+reports `REPOSITORY_BOOTSTRAP`.
+
+Application does not initialize Git, run dependency or quality commands,
+activate hooks, or access the network. It creates no remote, performs no
+publication, and makes no push.
+
+## Optional project capabilities
+
+The eight profiles are independent and disabled by default:
+
+| Capability | Owned output |
+| --- | --- |
+| `licensing` | `LICENSE` |
+| `community-governance` | `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` |
+| `github-collaboration` | `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/pull_request_template.md` |
+| `security-disclosure` | `SECURITY.md` |
+| `repository-ownership` | `.github/CODEOWNERS` |
+| `support-routing` | `.github/ISSUE_TEMPLATE/config.yml` |
+| `funding` | `.github/FUNDING.yml` |
+| `release-management` | `CHANGELOG.md`, `cliff.toml`, `.github/workflows/release.yml`, `.prism/release.json` |
+
+Licensing supports `AGPL-3.0-only` and `MIT`. Security policy is one of
+`current-development`, `latest-release`, `latest-major-line`, or `custom`.
+Custom policies provide explicit rows. An optional acknowledgement target is
+bounded from 1 to 8760 hours.
+
+`CODEOWNERS` starts with the default `*` rule. Support routing defaults to label
+`Support` and description `Get help with this project.` The
+`blank_issues_enabled` value is `false` when `github-collaboration` is enabled
+and `true` otherwise.
+
+Funding accepts at most 15 records. The `github` and `custom` providers allow
+four records each; every other provider allows one. Custom destinations must be
+credential-free HTTPS URLs.
+
+The identity preview lists required fields and publication targets without
+mutation. Template manifests may advertise capabilities but never select them;
+Blank performs no Template lookup.
+
+Release management accepts one validated lowercase `owner/repository`
+coordinate, performs no live GitHub lookup, and collects no initial version.
+Package discovery requires at least one publishable root or declared-workspace npm
+package. The current Core-only scaffold has no npm package and the PHP/web
+scaffold is private-only, so release management stops before plan display for
+those candidates.
+
+Setup creates no repository, remote, tag, GitHub Release, push, or npm
+publication during planning or application. These remain human-owned.
+
+## Repository creation, hooks, and root seed
+
+Git begins only after durable project application. The closed sequence is:
+
+```text
+PROJECT_DURABLE / REPOSITORY_BOOTSTRAP
+REPOSITORY_CREATED / HOOK_ACTIVATION
+HOOKS_ACTIVE / ROOT_SEED_PREPARATION
+SEED_READY / ROOT_SEED_COMMIT
+ignore: bootstrap prism project
+```
+
+`prism-tool setup repository create` creates the eligible repository.
+`prism-tool setup hooks inspect` presents canonical hooks, and separately
+approved `prism-tool setup hooks apply --approval=yes` activates them.
+`prism-tool setup seed prepare` stages exactly the applied outputs and records
+the root-seed attestation. Separate hook approval precedes the signed root seed.
+The commit uses:
+
+```bash
+prism-tool commit create --type ignore --subject "bootstrap prism project"
+```
+
+A failed commit requires `/reload` and inspection. Prism never retries it.
+Successful setup creates no remote. The human configures the hosted repository and remote, then owns the initial `develop` push: push `develop` before configuring rulesets.
+
+## Recovery and approval boundaries
+
+Pre-durable failures restore strict emptiness when ownership remains provable.
+Post-durable failures retain one exact resume action. Operational state is
+private beneath `.pi/prism-tool/` and is never staged into the root seed.
+
+Registry access, consumer mutation, standing OCR consent, reviewed-code egress,
+hook activation, and complete project-plan application are distinct approval
+boundaries. Local readiness, installation checks, hooks, and CI do not create
+consent.
+
+Ordinary commits use one standalone `prism-tool commit create` call. The
+launcher owns attribution, commitlint, hooks, signing, and `HEAD` verification.
+A failed, unsafe, ambiguous, or non-exclusive attempt blocks all tools until
+`/reload`.
+
+Branch completion uses one finalization acceptance for synchronization,
+attestation, `/check`, all four axes, SHA revalidation, and automatic `/pr`
+preparation. One complete initial review starts the review chain. After a
+Blocking repair, fresh acceptance reviews only the repair delta. Advisory
+findings do not block `/pr`. Advisory findings do not block publication or need
+a waiver. Base or history changes, discontinuity, incomplete axes, malformed
+state, or a `HEAD` mismatch require a new complete initial review. A failed gate
+requires fresh finalization acceptance after repair.
+
+`/pr` is preparation-only. Humans push branches, create pull requests, and
+merge.
+
+## Managed lockstep npm releases
+
+`/setup` discovers publishable packages and displays the exact package list.
+It installs Core-owned release configuration only after explicit enablement and displayed-diff mutation approval. The package-release lock records its owner
+PID; a human confirms that the process has stopped before removing the exact
+lock path.
+
+`/release` versions configured packages in lockstep. Release CI creates the
+GitHub Release and package tags. npm publication remains one human-run command
+per configured package.
 
 ## License
 
-AGPL-3.0-only. See [NOTICE](./NOTICE) for the full attribution chain
-(obra/superpowers, mattpocock/skills, anthropics/skills, glebis/claude-skills,
-@earendil-works/pi-coding-agent).
+Prism Core is licensed under AGPL-3.0-only. See [NOTICE](NOTICE) for attribution
+and retained upstream licenses.

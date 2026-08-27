@@ -1,60 +1,92 @@
-# Coding Conventions
+# PHP/web coding conventions
 
-Bundled with the `prism-php-web` adapter. This file is the canonical source for file naming, indentation, and code style. The global core AGENTS.md defers here.
+This is the adapter's canonical reference for file names, indentation, PHP
+architecture, JavaScript, and SCSS. Source-header and PHPDoc details remain in
+the `rcs-header` skill.
 
-## File Naming
+## File names
 
-| File type                      | Convention                              | Example                        |
-|--------------------------------|-----------------------------------------|--------------------------------|
-| PHP helpers, config            | `snake_case.php`                        | `config_loader.php`            |
-| PHP class / interface / trait  | `PascalCase.php`                        | `UserAuth.php`                 |
-| Test files                     | `PascalCaseTest.php`                    | `UserAuthenticationTest.php`   |
-| SCSS, JS, other files          | `snake_case`                            | `site_styles.scss`             |
-| Time-stamped files             | `name-YYYYMMDDThhmmss.ext`              | `report-20240722T143000.php`   |
+| File kind | Convention | Example |
+| --- | --- | --- |
+| PHP helper or configuration | `snake_case.php` | `config_loader.php` |
+| PHP class, interface, or trait | `PascalCase.php` | `UserAuth.php` |
+| Test | `PascalCaseTest.php` | `UserAuthenticationTest.php` |
+| SCSS, JavaScript, or other source | `snake_case` | `site_styles.scss` |
+| Timestamped output | `name-YYYYMMDDThhmmss.ext` | `report-20240722T143000.php` |
 
 ## Indentation
 
-- PHP: 4-space (PSR-12)
-- SCSS: 2-space
-- JS: tabs, tab-stop 4
-- TS: 4-space
+- PHP and TypeScript: four spaces.
+- SCSS: two spaces.
+- JavaScript: tabs displayed at width four.
+- Never mix tabs and spaces within one indentation level.
 
-## PHP Standards
+## PHP and Aurora
 
-- PSR-12 code style, enforced by `php-cs-fixer`
-- `declare(strict_types=1)` on all backend classes
-- All classes, methods, and functions require PHPDoc (see `rcs-header` skill)
-- No explanatory inline comments unless explicitly requested
-- Raw SQL or Aurora SQL handler — no ORM
+Use PHP 8.5+ and PSR-12. Every PHP source file declares
+`strict_types=1`. Classes, methods, and functions require PHPDoc with parameters,
+return values, and thrown exceptions.
 
-## Arch Tests (enforced via `tests/Unit/Harness/ArchTest.php`)
+The application is deliberately no-MVC. Public PHP pages include Aurora,
+produce HTML directly, and use raw SQL or Aurora's SQL handler. There is no
+controller layer, template engine, router, or ORM. Non-public PHP logic belongs
+under `backend/`.
 
-Architecture tests live in `tests/Unit/Harness/ArchTest.php` alongside
-`RcsHeaderConventionTest.php`. They use filesystem walkers
-(`RecursiveDirectoryIterator`) to scan all PHP source files — not
-pest-plugin-arch's autoload-based DSL, which cannot see procedural code
-(see `adr/0004-filesystem-walker-arch-tests.md`).
+`aurora/` is a framework submodule. Treat changes proposed inside it as a
+cross-boundary architecture decision; do not patch the submodule to hide an
+application defect.
 
-Three tests scan all PHP files (excluding `vendor/`, `node_modules/`,
-`aurora/`, `cdn/css/`, `cdn/javascript/`, `tests/Semgrep/`):
+Use bound SQL parameters for all data values. Database schema rules and
+migration naming live in the `database` skill. Trust-boundary handling lives in
+`security-coding` and `security-coding-php`.
 
-- **Vacuity guard** — fails if the scan finds zero PHP files, preventing
-  silent pass-via-empty-universe.
-- **No debug functions** — scans each PHP file for `var_dump`, `print_r`,
-  `dd`, and `dump` calls using word-boundary regex.
-- **Strict types** — asserts every PHP file has `declare(strict_types=1)`
-  in its first 10 lines.
+Do not add explanatory inline comments unless the user requests them. Prefer a
+clear name, a smaller function, or a deeper module.
 
+## Required source ceremony
+
+Every `.php`, `.js`, `.scss`, `.sh`, and `.ts` source file has one canonical
+RCS-style header and one final vim modeline. The pre-commit hook normalizes both;
+do not hand-edit their identity or date fields.
+
+Read `rcs-header` before creating or modifying source. Markdown, JSON, YAML,
+generated assets, dependencies, and the Aurora submodule do not receive these
+headers.
+
+## Architecture tests
+
+`tests/Unit/Harness/ArchTest.php` uses filesystem walkers so procedural PHP is
+included. The suite excludes dependencies, generated assets, Aurora, and
+Semgrep fixtures, then enforces:
+
+- a vacuity guard that fails when no PHP source is found;
+- absence of `var_dump`, `print_r`, `dd`, and `dump` calls;
+- `declare(strict_types=1)` within the first ten lines of each PHP file.
+
+`tests/Unit/Harness/RcsHeaderConventionTest.php` checks source-header placement.
+Do not put Pest architecture declarations in `tests/Pest.php`; they do not cover
+the procedural source tree.
 
 ## JavaScript
 
-- Vanilla JS preferred; jQuery only when vanilla is insufficient
-- Tab indentation, tab-stop 4
-- ESLint enforced via `eslint.config.mjs`
-- Never edit `cdn/javascript/*.min.js` — edit source in `cdn/js/` and rebuild
+Use progressive enhancement. Pages must keep their basic content and actions
+usable without JavaScript where the feature permits it. Prefer vanilla ES6+
+modules; use jQuery only when the platform API is insufficient.
 
-## SCSS / CSS
+Keep scripts CSP-friendly: no string evaluation, dynamic inline-script
+construction, or hidden server-generated behavior. Consume design values
+through CSS custom properties rather than duplicating tokens in JavaScript.
+ESLint configuration lives in `eslint.config.mjs`.
 
-- Mobile-first: base styles for smallest viewport, `min-width` queries for larger screens
-- See `scss-mobile-first` skill for full rules
-- Never edit `cdn/css/*.min.css` — edit source in `cdn/sass/` and rebuild
+Edit JavaScript source under `cdn/js/`. Never edit generated
+`cdn/javascript/*.min.js` files.
+
+## SCSS and generated CSS
+
+Write mobile-first base styles for the smallest viewport, then add `min-width`
+queries for larger layouts. Follow `scss-mobile-first` for breakpoints, units,
+touch targets, and responsive checks.
+
+Edit SCSS under `cdn/sass/`. Never edit generated `cdn/css/*.min.css`. Rebuild
+assets through the adapter command and verify the generated output rather than
+patching it.

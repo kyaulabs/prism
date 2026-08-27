@@ -1,61 +1,64 @@
 # Visual review tooling
 
-The PHP/web adapter's repository-owned visual review tooling captures
-project-authored cases with the declared Playwright dependency and Chromium
-browser target. It is separate from Pest Browser functional tests and from
-human visual approval.
+The PHP/web adapter captures project-authored visual cases with its declared
+Playwright dependency and Chromium target. The result is local inspection
+evidence, not a functional Pest Browser test and not a substitute for human
+milestone approval.
 
 ## Files
 
-- `visual_review.mjs` — closed configuration validation, case expansion,
-  allowlisted actions, revision identity, metadata, and output containment.
-- `visual_review.spec.mjs` — public headless Chromium capture entry point.
-- `visual_review.example.json` — intentionally incomplete project template.
-- `visual_review.json` — mutable project-owned active configuration; create it
-  from the example after the user approves routes, states, and viewports.
+| File | Responsibility |
+| --- | --- |
+| `visual_review.mjs` | Validate configuration, expand cases, constrain actions, and contain evidence output |
+| `visual_review.spec.mjs` | Run the public headless Chromium capture |
+| `visual_review.example.json` | Show the schema without making project design decisions |
+| `visual_review.json` | Store the project's approved routes, states, and viewports |
 
-## Configuration
+Create the active configuration by copying the example only after the user has
+approved the visual brief and review cases.
 
-The root object permits exactly these keys:
+## Declarative configuration
+
+The root permits only:
 
 | Key | Contract |
 | --- | --- |
-| `schemaVersion` | Integer `1`. |
-| `baseUrl` | Loopback HTTP(S) URL without credentials, query, or fragment. |
-| `viewports` | Exactly `mobile` and `desktop`, both user-selected. |
-| `cases` | One to 64 route cases; expanded evidence is capped at 128 captures. |
+| `schemaVersion` | Integer `1` |
+| `baseUrl` | Loopback HTTP or HTTPS origin without credentials, query, or fragment |
+| `viewports` | Exactly user-selected `mobile` and `desktop` viewports |
+| `cases` | One to 64 route cases, with at most 128 expanded captures |
 
-A viewport contains exactly integer `width` and `height` values between 240 and
-4096 CSS pixels. The runner always derives an additional 320 CSS-pixel reflow
-viewport using the selected mobile height.
+Viewport `width` and `height` are integers from 240 through 4096 CSS pixels.
+The runner derives a 320 CSS-pixel reflow viewport using the mobile height.
 
-A case contains exactly:
+Each case contains only:
 
 | Key | Contract |
 | --- | --- |
-| `id` | Lowercase identifier matching `[a-z][a-z0-9-]{0,63}`. |
-| `path` | Same-origin absolute path beginning with `/`. |
-| `readySelector` | CSS selector to await, or `null`. |
-| `states` | One to 16 uniquely identified states. |
+| `id` | Lowercase `[a-z][a-z0-9-]{0,63}` identifier |
+| `path` | Same-origin absolute path beginning with `/` |
+| `readySelector` | CSS selector to await, or `null` |
+| `states` | One to 16 states with unique identifiers |
 
-A state contains exactly `id`, `colorScheme`, and `actions`. `colorScheme` is
-`light`, `dark`, or `no-preference` only when the user-authored brief requires
-that state. `actions` contains at most 16 closed declarative actions.
+Each state contains exactly `id`, `colorScheme`, and `actions`. A color scheme
+is `light`, `dark`, or `no-preference`, and should be present in the evidence
+matrix only when the approved brief requires it. A state has at most 16
+declarative actions.
 
-## Action vocabulary
+## Allowed actions
 
-| Action | Fields | Behavior |
+| Action | Fields | Effect |
 | --- | --- | --- |
-| `click` | `type`, `selector` | Click the matched element. |
-| `hover` | `type`, `selector` | Hover the matched element. |
-| `focus` | `type`, `selector` | Focus the matched element. |
-| `press` | `type`, `selector`, `key` | Press an allowlisted navigation or activation key. |
-| `wait-for-selector` | `type`, `selector` | Wait until the matched element is visible. |
+| `click` | `type`, `selector` | Click the selected element |
+| `hover` | `type`, `selector` | Hover the selected element |
+| `focus` | `type`, `selector` | Focus the selected element |
+| `press` | `type`, `selector`, `key` | Press an allowlisted activation or navigation key |
+| `wait-for-selector` | `type`, `selector` | Wait until the selected element is visible |
 
-No action accepts JavaScript, PHP, shell, launcher commands, arbitrary modules,
-storage state, cookies, headers, or credentials.
+Actions cannot contain JavaScript, PHP, shell, launcher commands, arbitrary
+modules, storage state, cookies, headers, or credentials.
 
-## Capture
+## Capture command
 
 Run from the consumer repository root:
 
@@ -63,15 +66,10 @@ Run from the consumer repository root:
 prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
 ```
 
-The command requires a valid `visual_review.json`. Missing or incomplete project
-decisions fail closed; the tooling does not substitute defaults.
+A missing, malformed, oversized, symlinked, or incomplete
+`visual_review.json` fails closed. The runner does not invent defaults.
 
-Evidence publication requires a Unix-like runtime that exposes safe directory
-flags and a held directory descriptor through `/proc/self/fd` or `/dev/fd`.
-Unsupported platforms fail closed before writing evidence. Run the capture in a
-supported local or CI environment rather than weakening output containment.
-
-Evidence uses deterministic names:
+Evidence names are deterministic:
 
 ```text
 <case-id>--<state-id>--mobile.png
@@ -79,36 +77,65 @@ Evidence uses deterministic names:
 <case-id>--<state-id>--reflow.png
 ```
 
-Each PNG has adjacent JSON metadata containing case, state, viewport,
-color-scheme, Playwright/Chromium versions, revision identity, dirty-tree state,
-and full-page capture status. Metadata omits the raw URL, selectors, actions,
-and page content.
+Each PNG has adjacent JSON metadata with case, state, viewport, color scheme,
+Playwright and Chromium versions, revision identity, dirty-tree state, and
+full-page status. Metadata excludes raw URLs, selectors, actions, and page
+content.
 
 ## Inspection and retention
 
-Read every PNG after each meaningful visual slice and after the final relevant
-change. Repair clipping, overflow, hierarchy, spacing, state, accessibility, or
-reference-fidelity failures and recapture the affected set. Present mobile and
-desktop milestone evidence for user confirmation.
+Read every generated PNG after each meaningful visual slice and after the final
+related change. Check reference fidelity, hierarchy, clipping, overflow,
+spacing, responsive reflow, interaction state, color mode, focus, and visible
+accessibility failures. Repair and recapture the complete affected set.
 
-`tests/Browser/Screenshots/` is local working evidence and ignored by default.
-Commit selected reference evidence only after explicit user approval.
+Present the configured mobile and desktop milestone evidence for user
+confirmation. `tests/Browser/Screenshots/` is ignored local working evidence by
+default. Commit selected reference images only after explicit user approval.
 
-## Trust boundary
+## Trust boundaries
 
-The default boundary is a loopback origin using controlled non-sensitive
-development data. Do not use this workflow for authenticated pages, browser
-storage state, cookies, tokens, credentials, production personal data, secrets,
-or non-local targets. External references remain untrusted data and require
-explicit access permission.
+### Origin and navigation
+
+The configured origin must be unauthenticated loopback HTTP or HTTPS with
+controlled, non-sensitive data. Every case path and every captured navigation
+must remain on that origin. A redirect or action that leaves it fails the
+capture.
+
+Do not configure browser storage, cookies, tokens, credentials, authenticated
+pages, production personal data, secrets, or non-local targets. External visual
+references are untrusted data and require the active workflow's access
+approval.
+
+### Filesystem and publication
+
+Evidence remains under `tests/Browser/Screenshots/visual-review/`. The runner
+rejects symlinked configuration and evidence roots, non-regular files, path
+replacement races, and output paths that escape the fixed directory.
+
+Publication requires Unix safe-directory flags and a held directory descriptor
+through `/proc/self/fd` or `/dev/fd`. Unsupported platforms fail closed before
+writing evidence. Page errors, JavaScript console errors, failed actions, and
+screenshot failures do not publish a partial evidence set.
+
+### Evidence meaning
+
+A clean capture proves only that the declared local case rendered without the
+runner's blocked failure conditions. It does not prove correctness,
+accessibility conformance, security, production fidelity, or user approval.
+The agent must inspect the images and the user owns milestone acceptance.
 
 ## Recovery
 
-- Invalid configuration: compare every object with the closed keys and bounds
-  above; do not add command or script fields.
-- Missing Playwright or Chromium: run approved adapter setup; do not install an
-  undeclared package or browser target.
+- Invalid configuration: compare each object with the closed keys, types, and
+  bounds above. Do not add script or command fields.
+- Missing Playwright or Chromium: rerun approved adapter setup. Do not install
+  another package or browser target.
 - Page, console, readiness, action, or screenshot failure: repair the local
-  fixture or project behavior and rerun the complete affected evidence set.
-- Output-containment failure: remove symlinks or non-regular paths from the
-  screenshot working directory; do not redirect evidence elsewhere.
+  fixture or behavior, then rerun the complete affected set.
+- Origin failure: remove redirects or navigation that leave the configured
+  loopback origin.
+- Output containment failure: remove symlinks and non-regular paths from the
+  evidence directory. Do not redirect output elsewhere.
+- Unsupported filesystem primitives: move the run to a supported local or CI
+  environment instead of weakening containment.

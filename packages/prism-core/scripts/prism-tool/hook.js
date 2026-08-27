@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -158,6 +158,16 @@ function localReadiness(projectRoot, coreRoot, run, env) {
     );
 }
 
+function lintMarkdown(projectRoot, coreRoot, run, env) {
+    const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
+    requireSuccess(
+        invoke(run, process.execPath, [
+            launcher, 'markdown', 'lint', '--cached',
+        ], projectRoot, {env}),
+        'Markdown lint failed'
+    );
+}
+
 function defaultHookAdapter(identity, projectRoot, coreRoot) {
     const active = loadActiveBootstrapAdapter({
         projectRoot,
@@ -258,6 +268,7 @@ function validateBootstrapHookState(projectRoot, coreRoot, project, run, env) {
 
 function preCommit(projectRoot, coreRoot, project, run, env, loadHookAdapter) {
     localReadiness(projectRoot, coreRoot, run, env);
+    lintMarkdown(projectRoot, coreRoot, run, env);
     requireSuccess(
         invoke(run, 'git', ['diff', '--cached', '--check'], projectRoot, {env}),
         'staged diff validation failed'

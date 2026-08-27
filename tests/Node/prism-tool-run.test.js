@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -119,6 +119,20 @@ test('runs bundled git-cliff from an unrelated working directory', (t) => {
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /git-cliff 2\.13\.1/);
+});
+
+test('rejects generic execution of the operation-only Markdown linter', (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+
+    const result = spawnSync(
+        process.execPath,
+        [cli, 'run', 'markdownlint-cli2', '--', '--version'],
+        {cwd: directory, encoding: 'utf8', env: readyExternalEnvironment(directory)}
+    );
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /dedicated markdown operation/i);
 });
 
 test('applies the core commit policy outside the Prism checkout', (t) => {

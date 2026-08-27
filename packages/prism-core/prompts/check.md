@@ -37,7 +37,28 @@ git diff --check
 - Confirm the current branch is not `main` or `develop` unless this is the
   documented single-root greenfield seed exception (ADR-0044).
 
-## 4. Debug-artifact audit
+## 4. Changed Markdown
+
+Resolve the target branch merge base in one tool call, retain the exact literal SHA,
+and use it as the final argument in a later tool call.
+Do not use command substitution, an environment variable, or a caller-supplied
+path list.
+
+```bash
+git merge-base HEAD TARGET_BRANCH
+```
+
+Replace `RETAINED_BASE_SHA` below with the retained hexadecimal SHA before
+running the separate gate call:
+
+```bash
+prism-tool markdown lint --changed-from RETAINED_BASE_SHA
+```
+
+A Markdown violation, unsafe revision, tool failure, timeout, or output-limit
+failure is blocking.
+
+## 5. Debug-artifact audit
 
 Inspect every file changed from the branch merge-base and confirm no temporary
 instrumentation, breakpoints, scratch files, focused-test flags, or debug-only
@@ -57,7 +78,7 @@ fi
 Historical examples in frozen ADRs and plans are excluded; inspect any other
 hit as inert text before deciding whether it is a real conflict marker.
 
-## 5. Harness validation
+## 6. Harness validation
 
 When this repository contains the Prism packages, run:
 
@@ -74,7 +95,7 @@ A validator failure is blocking. In an ordinary consumer project where the
 package source is not checked out, report this gate SKIPPED rather than
 inventing a package path.
 
-## 6. Active adapter gate
+## 7. Active adapter gate
 
 Delegate framework-specific lint, tests, coverage, syntax, and asset checks to
 the active stack adapter:

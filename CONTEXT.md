@@ -18,10 +18,10 @@ conventions, tools, and gates for their ecosystem. This repository ships the
 PHP/web adapter and retains PHP/Aurora heritage as test infrastructure; it is
 not itself a deployable web application.
 
-The former OpenCode runtime and manifest architecture is retired. OpenCode-era
-ADRs remain frozen historical records, while Pi-era decisions begin at
-ADR-0055. The former eval framework is deferred pending a separate Pi-native
-design.
+Prism ran on OpenCode before its Pi migration. ADRs 0001–0054 are frozen
+pre-Pi records, not current runtime guidance; ADR-0055 begins the Pi-era
+architecture. Eval execution remains deferred until a separate Pi-native design
+is approved.
 
 ## Domain Glossary
 
@@ -102,6 +102,8 @@ The globally installed, language-agnostic harness package.
   explicitly approved launcher operations.
 - Owns the opt-in package-release capability, canonical release workflow,
   managed release-file transaction, and lockstep npm package semantics.
+- Owns changed-file Markdown validation through an exact bundled tool, a
+  packaged non-executable policy, and one staged/branch checker interface.
 - Never configures a remote, pushes a branch, merges a pull request, or
   accesses credentials.
 
@@ -138,6 +140,9 @@ The declaration that connects Prism resources to executable capabilities.
 - Declares each tool as bundled, external, or consumer-development scope.
 - Contains no credentials, secret-bearing URLs, or arbitrary shell source.
 - Has mechanical parity with package manifests and active lockfile scopes.
+- Keeps Core Markdown execution behind the dedicated changed-file checker and
+  packaged configuration; consumer rules, plugins, and generic tool dispatch
+  cannot alter the gate.
 - Fails closed on malformed data, unsupported schemas, duplicate IDs, drift,
   or ambiguous adapter registration.
 
@@ -404,8 +409,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   responsibilities.
 - **No model fine-tuning or hosting** — Pi and upstream providers own model
   execution and authentication.
-- **No Pi-native eval execution yet** — the former OpenCode eval suite remains
-  deferred until a separate specification defines a Pi SDK/RPC design.
+- **No Pi-native eval execution yet** — evals remain deferred until a separate
+  specification defines their Pi SDK or RPC design.
 - **No rewriting frozen ADRs** — ADRs 0001–0054 remain historical records and
   are superseded only by new Pi-era decisions.
 
@@ -466,6 +471,7 @@ Pi-era decisions:
 - `adr/0087-structured-redacted-safety-diagnostics.md` — preserve fail-closed safety while reporting stable redacted diagnostic categories and retry guidance.
 - `adr/0088-user-authored-frontend-design-and-visual-review.md` — keep project aesthetics user-authored and provide adapter-owned reusable visual review tooling with local-by-default evidence and explicit trust boundaries.
 - `adr/0089-progressive-output-style-guidance.md` — apply a compact global prose baseline and load detailed Distill guidance only for durable or substantial writing while preserving technical precision and pstack attribution.
+- `adr/0090-core-markdown-lint-gate.md` — bundle exact Markdown linting in Core and validate changed maintained documentation through one packaged, changed-file-only checker.
 
 ## When to update this file
 

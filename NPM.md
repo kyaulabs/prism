@@ -1,278 +1,188 @@
-# NPM.md — Publishing & Updating the prism pi packages
+# Publishing Prism packages to npm
 
-> How to publish `@kyaulabs/prism-core` and `@kyaulabs/prism-php-web` to the
-> npm registry, and how consumers update them. This is the playbook for the
-> deferred Stage 7 #3 work ("Publish + repo split"). Until the first publish,
-> consumers install from a local clone (see [`README.md`](README.md)).
+This document covers publication and updates for the two Prism pi packages. npm
+publication is human-run. Release CI never receives npm credentials and never
+runs `npm publish`.
 
-## What gets published
+## Packages and ownership
 
-Two **scoped** packages, each a real [pi package](https://pi.dev/packages):
-
-| Package | Source dir | Ships | `pi` manifest |
+| Package | Source | Install scope | Contents |
 | --- | --- | --- | --- |
-| `@kyaulabs/prism-core` | `packages/prism-core` | skills, prompts, the **safety extension** (`extensions/`), managed release workflow (`config/release.yml`), package-release launcher module, `AGENTS.md`, `APPEND_SYSTEM.md`, scripts, `safe-dirs.json`, NOTICE | `extensions` + `skills` + `prompts` |
-| `@kyaulabs/prism-php-web` | `packages/prism-php-web` | PHP/web skills + prompts, `safe-dirs.json`, NOTICE | `skills` + `prompts` |
+| `@kyaulabs/prism-core` | `packages/prism-core` | Global | Core skills, prompts, safety extension, scripts, packaged configuration, toolchain contract, and global instructions |
+| `@kyaulabs/prism-php-web` | `packages/prism-php-web` | Project-local | PHP/web skills, prompts, bootstrap provider, scripts, configuration, and adapter contract |
 
-**No build step.** pi extensions are jiti-transpiled `.ts` loaded at runtime;
-you publish the source directly. There is no `dist/`, no compiler, no
-`prepublishOnly` build. The `files` array in each `package.json` is the exact
-tarball manifest.
+The repository root package is private and cannot be published. Each package's
+`files` array defines its archive. Prism publishes source directly; there is no
+package build or `dist/` directory.
 
-The repo-root `package.json` is `"private": true` (named `prism`) — it can
-never be published. Only the two sub-directories under `packages/` are
-publishable units.
+Both packages currently declare:
 
----
+- `AGPL-3.0-only`;
+- Node.js `>=22.19.0`;
+- public scoped-package access;
+- package-specific README and NOTICE files.
 
-## ⚠️ Pre-publish readiness checklist (do once, before the first publish)
+Core alone declares pi as a peer dependency because its TypeScript safety
+extension imports pi's runtime API. The PHP/web adapter has no extension and
+needs no pi peer dependency.
 
-These items are **not** yet applied. Work through them before `npm publish` or
-the published package will be broken or bare.
+## Publication-readiness checks
 
-### 1. Declare pi as a `peerDependency` in `prism-core` (CRITICAL)
-
-The safety extension imports pi's bundled core at runtime:
-
-```ts
-// packages/prism-core/extensions/safety/index.ts
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-```
-
-pi loads each package with its **own module root**, so pi's core is *provided
-by the host*, never bundled. Per pi's package contract, any package that
-imports a pi bundled core **must** declare it as a `peerDependencies` entry
-with `"*"` (and must NOT put it in `dependencies`/`bundledDependencies`).
-Without this, the extension fails to import in a consumer's install.
-
-Add to **`packages/prism-core/package.json`** only (the PHP adapter has no
-`.ts`/extensions, so it needs none):
-
-```json
-{
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
-  }
-}
-```
-
-> `prism-php-web` ships only skills/prompts (no `extensions/`, no TS) — it
-> imports nothing from pi at runtime, so it needs **no** `peerDependencies`.
-
-### 2. Add `engines` and `publishConfig` to both packages
-
-```json
-{
-  "engines": { "node": ">=22.19.0" },
-  "publishConfig": { "access": "public" }
-}
-```
-
-- `engines.node` mirrors pi's own floor (`>=22.19.0`).
-- `publishConfig.access: "public"` — scoped packages are **private by
-  default**; this bakes public access in so you never forget `--access public`.
-
-> **Do not add `"type": "module"`.** The packages ship CommonJS helper
-> scripts (`frontmatter-parser.js`, `check-peer-deps.js`, `jsonc-strip.js`)
-> that `validate-harness.sh` runs directly via `node`; under
-> `"type": "module"` Node treats `.js` as ESM and `require()` throws
-> (`require is not defined in ES module scope`), breaking the validator. pi
-> loads the `.ts` extension through jiti regardless of `"type"`, so it is not
-> needed.
-
-> Omit `publishConfig.provenance`. Prism intentionally keeps npm publication a
-> human-run operation and does not give release CI npm credentials.
-
-### 3. Add a per-package `README.md` (recommended)
-
-npm publishes each sub-directory independently, so the repo-root `README.md`
-does **not** ship with the packages — the npm package pages would be bare, and
-the [pi.dev package gallery](https://pi.dev/packages) (which lists everything
-tagged `pi-package`) shows no description. Add a short `README.md` to each of
-`packages/prism-core/` and `packages/prism-php-web/` (one paragraph + install
-line + link back to this repo). Optional but strongly recommended.
-
-The `"license": "AGPL-3.0-only"` field already satisfies npm's license check;
-a LICENSE *file* is not required (and is not currently shipped). See
-[Licensing](#licensing) below.
-
-### 4. Verify the tarball with `npm pack --dry-run`
+Run these checks before the first publication and before every later release:
 
 ```bash
-cd packages/prism-core && npm pack --dry-run
-cd packages/prism-php-web && npm pack --dry-run
+npm ci --ignore-scripts
+npm audit --audit-level=low
+node --test tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js
+bash packages/prism-core/scripts/validate-harness.sh
 ```
 
-Confirm the listed files are **exactly** the `files` array (plus auto-included
-`package.json` / `README.md` / `LICENSE` if present) — nothing extra (no
-`node_modules/`, no tests, no `.git`).
-
-### 5. Test the local tarball behaves like a real install
+Inspect both archives:
 
 ```bash
-npm pack                              # produces kyaulabs-prism-core-0.1.0.tgz
-pi install ./kyaulabs-prism-core-0.1.0.tgz   # installs the tarball globally
-pi -e ./kyaulabs-prism-core-0.1.0.tgz        # or try it for one run
+cd packages/prism-core
+npm pack --dry-run
 ```
 
-Confirm the safety extension loads and a known-blocked command is blocked
-(e.g. `pi -e <pkg> -p "read ~/.ssh/id_rsa"` is denied).
-
----
-
-## One-time account setup
-
-1. **npm account + org.** Have an npm account that is a member of the
-   `@kyaulabs` org with publish rights on the scope. Enable **2FA** (Settings
-   → Account Security → "auth and writes").
-2. **Log in locally:**
-   ```bash
-   npm login
-   # Username, password, OTP. Writes an auth token to ~/.npmrc.
-   npm whoami            # confirm: your username
-   npm org ls kyaulabs   # confirm org membership
-   ```
-
----
-
-## Publishing a release (manual, post-merge)
-
-The `/release` pipeline authors every configured package in lockstep with the
-repository release, while humans own `npm publish`. For repository release
-`vX.Y.Z`, each configured `package.json` contains `X.Y.Z` without the leading
-`v`, including releases where a package changed only because its version was
-updated.
-
-After the release PR merges, release CI creates the GitHub Release first and
-then reconciles every configured package tag (`prism-core@X.Y.Z`-style) at the
-merge SHA. `/release` prints one human-run publication command per configured
-package:
-
 ```bash
-# Run every line printed by /release after the release PR merges:
-cd packages/prism-core && npm publish --access public      # OTP prompt if 2FA is enabled
-cd packages/prism-php-web && npm publish --access public
+cd packages/prism-php-web
+npm pack --dry-run
 ```
 
-> **Tag shape.** Package tags are `prism-core@<ver>` / `prism-php-web@<ver>` —
-> never bare `v*` (the repository release tag). CI creates them only after the
-> GitHub Release; do not create or move package tags manually.
+Confirm that each archive contains only its declared package files plus npm's
+auto-included metadata. It must not contain repository tests, unowned files,
+consumer dependencies, or checkout state.
 
-### `npm publish` quick reference
+For first publication, also build a local tarball and install it into a clean pi
+environment. Confirm that Core loads the safety extension, prompts, skills,
+config, and launcher from the archive. Confirm that the adapter loads
+project-locally and declares the same bootstrap protocol as Core expects.
 
-| Flag | When |
-| --- | --- |
-| `--access public` | First publish of a scoped package (or always — harmless). Baked in via `publishConfig.access`. |
-| `--otp 123456` | If your account has 2FA on writes and you're publishing interactively without a prompt. |
-| `--dry-run` | Rehearse without uploading. |
+## Human account preparation
 
----
+The publisher needs:
 
-Release CI never authenticates to npm and never runs `npm publish`. It owns
-only repository publication, package-tag reconciliation, and back-merge PR
-creation; the human-run commands above remain the npm publication boundary.
+1. an npm account with publish rights in the `@kyaulabs` organization;
+2. two-factor authentication enabled for account changes and package writes;
+3. a current local npm login;
+4. successful `npm whoami` and organization-membership checks.
 
----
+Keep npm credentials in npm's credential store. Do not add credentials to the
+repository, workflow files, shell history, issue text, or agent context.
 
-## Updating packages
+## Release and publication
 
-### Maintainer (cutting a new version)
+Prism versions configured packages in lockstep with the repository release.
+`/release` writes the confirmed version into every configured package manifest,
+prepares the changelog and signed release commit, and prints the later human
+publication commands.
 
-Versions and tags come from the release pipeline — run `/release` (ADR-0066).
-It writes the confirmed repository version into every configured
-`package.json`, commits those manifests on the release branch, and prints one
-human-run `npm publish --access public` command per configured package. After
-the merge, `release.yml` creates the GitHub Release and then reconciles every
-configured package tag at that same merge SHA. Run every printed publication
-command, including for packages whose only change is the lockstep version.
+After the release pull request merges, release CI creates the GitHub Release
+first. It then reconciles package tags such as `prism-core@X.Y.Z` and
+`prism-php-web@X.Y.Z` at the release merge commit and opens the back-merge pull
+request.
 
-If you maintain a `CHANGELOG.md` per package (optional), update it in the
-release commit.
-
-### Consumer (getting updates)
-
-Once published, users install by name — **no clone required**:
+Only after the GitHub Release and package tags exist should a human run one human-run publication command per configured package. Run every command printed
+by `/release`, including packages whose only change is the lockstep version:
 
 ```bash
-# core, globally (one time)
+cd packages/prism-core
+npm publish --access public
+```
+
+```bash
+cd packages/prism-php-web
+npm publish --access public
+```
+
+Scoped packages require public access on first publication. The manifests also
+set `publishConfig.access` to `public`. npm may request a current one-time code
+when two-factor authentication protects writes.
+
+Repository release tags use `vX.Y.Z`. Package tags use
+`prism-core@X.Y.Z` and `prism-php-web@X.Y.Z`. Do not create, move, or replace
+these tags manually.
+
+## Consumer installation and updates
+
+Install Core globally:
+
+```bash
 pi install npm:@kyaulabs/prism-core
-# adapter, inside a PHP project
-cd /path/to/php-project && pi install -l npm:@kyaulabs/prism-php-web
 ```
 
-Updating (see `pi help install`):
+Install the adapter inside a PHP project:
+
+```bash
+pi install -l npm:@kyaulabs/prism-php-web
+```
+
+Update commands:
 
 | Command | Effect |
 | --- | --- |
-| `pi update --extensions` | Update **all** non-pinned packages (core + adapters). |
-| `pi update npm:@kyaulabs/prism-core` | Update one package, moving it to the latest compatible ref. |
-| `pi update --all` | Update pi itself + all packages. |
+| `pi update --extensions` | Update all unpinned packages |
+| `pi update npm:@kyaulabs/prism-core` | Update Core |
+| `pi update npm:@kyaulabs/prism-php-web` | Update the adapter |
+| `pi update --all` | Update pi and all unpinned packages |
 
-**Pinning** — a versioned install is frozen and skipped by `pi update`:
+A versioned install is pinned and skipped by normal updates:
 
 ```bash
-pi install npm:@kyaulabs/prism-core@0.2.0   # pinned; updates move it only via re-install
+pi install npm:@kyaulabs/prism-core@0.3.1
 ```
 
-Global package state lives in `~/.pi/agent/settings.json`; project state in
-`.pi/settings.json`. `pi list` shows installed packages.
+Reinstall at a new version to move a pin. Global package state lives in
+`~/.pi/agent/settings.json`; project-local package state lives in
+`.pi/settings.json`. Use `pi list` to inspect installed packages.
 
----
+## Deprecation and recovery
 
-## Licensing
+Use deprecation to retire a broken version or package:
 
-Both packages are `AGPL-3.0-only` (see repo-root [`LICENSE`](LICENSE)).
+```bash
+npm deprecate @kyaulabs/prism-core@0.3.1 "use a later fixed release"
+```
 
-- **Running** the package via `pi install` (i.e. using it as a tool) does not
-  distribute or convey the package, so AGPL obligations are not triggered for
-  end users.
-- Anyone who **redistributes or modifies** the package source must comply with
-  AGPL-3.0 (preserve copyright/notice, disclose source, same license). The
-  `NOTICE` file in each package carries the full attribution chain and must be
-  preserved.
+Unpublish is a narrow mistake-recovery option with npm time and dependency
+limits. Do not use it as the normal release or rollback mechanism. Once a
+version may have consumers, publish a corrected version and deprecate the bad
+one.
 
-If a more permissive dual-license is ever wanted for adoption, that is a
-deliberate policy decision requiring an ADR — do not change `license` silently.
+If publication succeeds for one package and fails for another:
 
----
+1. do not move repository or package tags;
+2. correct the account, OTP, archive, or registry problem;
+3. confirm the unpublished package version and archive again;
+4. publish the remaining package at the same lockstep version;
+5. record any user-facing recovery note in the release.
 
-## Unpublish vs. deprecate
-
-- **Unpublish** is only possible within **72 hours** of publish, and only if
-  no other package depends on the version. Treat it as a mistake-undo window,
-  not a release tool.
-- **Deprecate** is the supported way to retire a version or package:
-  ```bash
-  npm deprecate @kyaulabs/prism-core@0.1.0 "use 0.2.1+ — 0.1.0 has the missing peerDependency"
-  npm deprecate @kyaulabs/prism-core        "deprecated: see <replacement>"
-  ```
-  Deprecation is permanent and version-specific. Always deprecate rather than
-  unpublish once the 72h window closes — unpublished names can break any
-  consumer (or downstream package) that pinned them.
-
----
+If an archive is wrong but not yet published, fix the source and restart the
+release process. Do not modify a release artifact after its signed release
+commit.
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
+| Symptom | Action |
 | --- | --- |
-| `npm ERR! 402 Payment Required` on publish | Scoped package published as private and you have no paid org. Add `--access public` (or `publishConfig.access`). |
-| Extension fails to load in consumer: `Cannot find module '@earendil-works/pi-coding-agent'` | Missing `peerDependencies` in `prism-core` (checklist §1). |
-| `npm publish` asks for OTP | Complete the account's 2FA prompt, or pass the current code with `--otp`. Publication is intentionally human-run. |
-| `npm pack` lists `node_modules/` or tests | Tighten the `files` array (or add `.npmignore`). Only the `files` entries should ship. |
-| Wrong/mismatched tag pushed `v0.2.0` | Use distinct `prism-core@<ver>` / `prism-php-web@<ver>` tags; never bare `v*` for packages. |
-| `pi update` won't move a package | It's version-pinned in settings (`npm:@kyaulabs/prism-core@0.2.0`). Re-install at the new version to move it. |
+| npm reports private scoped-package payment requirements | Confirm `publishConfig.access: public` and publish with `--access public` |
+| Core cannot import pi in a consumer install | Confirm Core's pi peer dependency and test the packed archive |
+| npm requests a one-time code | Complete the account's write-authentication challenge |
+| `npm pack` includes tests or checkout files | Correct the package `files` array before release |
+| `pi update` does not move a package | Inspect whether the package is version-pinned and reinstall it at the intended version |
+| One lockstep package is missing | Publish the missing configured package at the existing release version without moving tags |
 
----
+## First-publication checklist
 
-## Summary checklist (first publish)
+- [ ] Confirm npm organization membership and write-capable two-factor authentication.
+- [ ] Run locked dependency, audit, contract, package, and harness checks.
+- [ ] Inspect `npm pack --dry-run` for both packages.
+- [ ] Test Core and the adapter from local tarballs in clean pi environments.
+- [ ] Run `/release` and merge the release pull request.
+- [ ] Confirm the GitHub Release first and verify both package tags.
+- [ ] Run every human publication command printed by `/release`.
+- [ ] Install both packages by npm name and run readiness in a clean consumer project.
 
-- [ ] `peerDependencies: { "@earendil-works/pi-coding-agent": "*" }` in `packages/prism-core/package.json`
-- [ ] `engines` + `publishConfig` (no `"type": "module"`) in both `package.json`s
-- [ ] Per-package `README.md` (core + php-web)
-- [ ] `npm pack --dry-run` shows the expected files only
-- [ ] Local tarball `pi install` + extension smoke test passes
-- [ ] npm account in `@kyaulabs`, 2FA on, `npm login` works
-- [ ] Run `/release` to author lockstep versions and merge the release PR
-- [ ] Run every human `npm publish --access public` command printed for the configured packages
+Both packages remain under [AGPL-3.0-only](LICENSE). Redistributors must
+preserve the license, corresponding source obligations, copyright, and NOTICE
+attribution.

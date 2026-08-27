@@ -1,179 +1,171 @@
-# prism-core safety extension
+# Prism Core safety extension
 
-The single retained extension of the KYAULabs harness (ADR-0056). It ports the
-opencode-era safety stack — `sensitive-paths` + `pre-tool-use` +
-`denial-circuit-breaker` — to a [pi](https://pi.dev) extension wired to the
-`tool_call` event.
+This is Prism's sole pi extension. It intercepts `tool_call` events to protect
+credential paths, classify destructive shell commands, count blocked Bash
+calls, and enforce the exclusive commit boundary.
 
-This directory is a **port**, not a rewrite. The pure logic is copied verbatim
-from the opencode-era plugins in the source repo; only the opencode wrapper
-became a pi extension. The classifier internals were later restructured by the
-2026-08-16 code-complexity audit remediation (per-policy rule table,
-`judgeToken` predicate, shared `resolvePathToken`, dead tracker removal)
-without changing any behavior or policy (ADRs 0023/0025/0036/0042/0047/0048/0056).
+## Files and responsibilities
 
-## Files
+| File | Responsibility |
+| --- | --- |
+| `sensitive-paths.ts` | Resolve path operands and enforce the credential deny floor |
+| `pre-tool-use.ts` | Classify Bash commands and apply safe-directory policy |
+| `denial-circuit-breaker.ts` | Track blocked Bash calls in a bounded session window |
+| `commit-create-guard.ts` | Recognize the one supported commit operation and reject sibling calls |
+| `fatal-commit-latch.ts` | Retain fatal commit failure state until extension teardown |
+| `index.ts` | Register pi lifecycle handlers and publish redacted diagnostics |
+| `../../safe-dirs.json` | Define Core project-relative `rm -rf` safe zones |
 
-| File | Origin | Change |
-| --- | --- | --- |
-| `sensitive-paths.ts` | opencode-era `sensitive-paths` plugin | **Verbatim port, later restructured.** Pure path/operand classifier + deny floor. The audit remediation extracted the `judgeToken` predicate and the shared `resolvePathToken` resolver (also used by `pre-tool-use.ts`). No opencode imports to strip. |
-| `denial-circuit-breaker.ts` | opencode-era `denial-circuit-breaker` plugin | **Verbatim, later restructured.** Pure `DenialCircuitBreaker` state machine. The audit remediation exported `DEFAULT_THRESHOLD` (no behavior change). The 2026-08-17 security audit remediation replaced consecutive counting with the bounded-window policy (ADR-0068). The opencode-era `DenialOutcomeTracker` correlator was deleted (dead code — the pi wrapper uses the breaker directly, see below). |
-| `pre-tool-use.ts` | opencode-era `pre-tool-use` plugin (classifier half) | **Near-verbatim, later restructured.** `ClassifyOptions` gained `safeRelDirs?: readonly string[]` so the safe zones are adapter-driven (ADR-0056 step 5). The audit remediation split `classifyCommandImpl` into a per-policy rule table (`SEGMENT_RULES`/`COMMAND_RULES`) and made `resolveTarget`/`MAX_UNWRAP_DEPTH` delegate to the shared `sensitive-paths.ts` resolver. The opencode `Plugin`/`Hooks` wrapper, `escalate()`, and the compile-time SDK guards were dropped (replaced by `index.ts`). |
-| `commit-create-guard.ts` | **new** | Pure recognition of the sole supported atomic commit operation and fail-closed assistant-batch sibling counting (ADR-0074). |
-| `fatal-commit-latch.ts` | **new** | Pure per-session fatal state and pending commit-call correlation. It stores only session and tool-call IDs, never command or result data. |
-| `index.ts` | **new** | The pi wrapper. Replaces the opencode `tool.execute.before` / `event` / `tool.execute.after` hook shape with `pi.on("tool_call" \| "tool_execution_end" \| "agent_end" \| "session_start" \| "session_shutdown")`. |
-| `../safe-dirs.json` | **new** | Core default `rm -rf` safe zones. |
+## Sensitive paths
 
-## What it enforces
+The extension blocks `read`, `grep`, `find`, `ls`, and Bash operands that
+resolve into the deny floor. The protected set includes:
 
-1. **Sensitive-path deny floor (ADR-0047 / ADR-0048).** `read` / `grep` /
-   `find` / `ls` are blocked when a path argument (or glob/include pattern)
-   resolves into the deny floor: `.env` / `.env.*` (except `.env.example`),
-   `auth.json` / `mcp-auth.json`, `~/.ssh/`, `~/.aws/`, `~/.netrc`,
-   `~/.git-credentials`, `/etc/ssl/private/`, and the historical opencode
-   auth/manifest paths. `bash` operands resolving into the floor are blocked
-   too. A leading `@` (pi/curl file-ref) is stripped before resolution.
-2. **Destructive-command classifier (ADR-0023 / ADR-0036).** `bash` commands
-   are classified: `rm -rf` outside safe zones, `find -delete` /
-   `find -exec rm`, `git push --force`, and `--no-verify` / scoped `-n` are
-   **blocked**; `DROP DATABASE/TABLE/SCHEMA`, `git reset --hard`, and
-   `git push --delete` are **warned**.
-   Commands containing constructs the flat tokenizer cannot model —
-   command/process substitution (`$(...)`, backticks, `<(...)`), ANSI-C
-   quoting (`$'…'`), here-strings (`<<<`) — **fail closed** (blocked), as do
-   shell-wrapper payloads (`bash -c …` at any token position, e.g. under
-   `sudo`/`timeout`). Benign substitution (`echo $(date)`) is blocked too —
-   an accepted fail-closed cost (ADR-0036). The WARN gates (`DROP …`,
-   `git reset --hard`, `git push --delete`) are **best-effort nudges, not a
-   security boundary**: deliberate obfuscation (e.g. `git reset$IFS--hard`)
-   can skip them.
-3. **Windowed-bash-denial circuit breaker (ADR-0068).** Three blocked bash
-   calls within the last ten bash calls in one session trip the breaker.
-   Once tripped, **every** subsequent `tool_call` is blocked (fail closed)
-   through the current agent run. The user may run `/reload` for an immediate
-   reset while preserving the current conversation. The escalation message is redacted —
-   no command text, args, output, or metadata; only identity and count.
-4. **Fatal commit-failure latch (ADR-0074).** `prism-tool commit create` is
-   allowed only as one standalone Bash tool call with no sibling calls or
-   compound shell syntax. Unsafe, ambiguous, policy-blocked, or failed commit
-   creation trips a separate per-session latch, calls `ctx.abort()`, and blocks
-   every subsequent tool until `/reload` tears down the extension. `agent_end`
-   does not clear this latch. Fatal messages contain no command text,
-   arguments, output, path, branch, provider, or session metadata.
+- `.env` and `.env.*`, except `.env.example`;
+- `auth.json` and `mcp-auth.json`;
+- `~/intelephense/licen?e.txt`;
+- `~/.ssh/` and `~/.aws/`;
+- `~/.netrc` and `~/.git-credentials`;
+- `/etc/ssl/private/`;
+- retained historical authentication and manifest locations needed for
+  compatibility checks.
 
-## ADR-0042 simplification (pi vs opencode)
+Option prefixes, glued arguments, assignment-shaped tokens, and a leading `@`
+do not bypass path resolution. Present-but-malformed path or command arguments
+fail closed.
 
-In opencode, a denial was detected by correlating `message.part.updated`
-tool-part states (`error` with no matching `after`) with `tool.execute.after`
-hooks — the "Probe-3" structural predicate. pi collapses this: **returning
-`{ block: true, reason }` from a `tool_call` handler is unambiguously a
-denial.** So the wrapper drives the pure `DenialCircuitBreaker` directly:
+Projects may append newline-delimited absolute or `~/` paths through
+`PRISM_SENSITIVE_PATHS`. Invalid entries are reported with a redacted error.
+The built-in deny floor remains active.
 
-| Event | Denial breaker | Fatal commit latch |
-| --- | --- | --- |
-| `tool_call` (blocked bash) | `observe(sid, true)` | Tracked commit blocks trip and abort; unsafe/non-exclusive attempts trip before execution |
-| `tool_call` (allowed exclusive commit) | unchanged | Track only tool-call ID → session ID |
-| `tool_execution_end` (bash executed) | `observe(sid, false)` | Complete tracked call; `isError` trips and aborts |
-| `agent_end` | `reset(sid)` | unchanged — remains latched |
-| `session_shutdown` | `clearAll()` | `clearAll()` — `/reload` recovery |
+## Destructive commands
 
-Blocked bash calls never reach `tool_execution_end` (the tool did not run), so
-only successful executions feed the window. Windowed semantics supersede
-ADR-0042's reset-on-success wording (ADR-0068): interleaved benign commands
-no longer erase the denial count. The opencode-era
-`DenialOutcomeTracker` (the part/`after` correlator) was deleted as dead code
-— the pi wrapper drives the breaker directly.
+The Bash classifier blocks:
 
-## Known limits (documented threat model)
+- `rm -rf` outside approved safe directories;
+- `find -delete` and `find -exec rm`;
+- forced Git pushes;
+- Git hook bypass through `--no-verify` or the scoped `-n` form;
+- command or process substitution, backticks, ANSI-C quoting, here-strings, and
+  recursive shell-wrapper payloads that the tokenizer cannot model safely.
 
-- **Remote/container executors** (`ssh host "rm …"`, `docker exec`,
-  `kubectl exec`, `nsenter`, `chroot`, `systemd-run`) are not modeled:
-  their payloads execute in a different trust domain than the local
-  safe-zone model, and enumerating executors is unbounded. They are
-  deliberately out of scope.
-- **WARN gates are advisory.** See the enforcement list above.
-- **Commit recognition is deliberately narrow.** Shell wrappers, environment
-  prefixes, malformed controls, redirections, compound commands, and sibling
-  tool calls are fatal unsafe attempts rather than supported alternatives.
-  The latch is process-local extension state, not a session entry; teardown is
-  the recovery boundary.
-- **Benign command substitution is blocked** by the fail-closed guard —
-  the agent computes such values in separate steps. `$()` and backtick spellings
-  also block inside single-quoted literals because shell builtins can evaluate
-  those strings recursively. Other syntax-like single-quoted text, including a
-  here-string marker, remains inert. Numeric-literal arithmetic such as
-  `$((1 + 2))` is accepted. Identifier-based arithmetic, arithmetic commands,
-  nested expansion syntax, and unsupported arithmetic forms remain fail-closed
-  because supported shells can recursively evaluate identifier values.
-  Delayed `eval`/`trap` payloads and parameter-constructed variants in
-  executable command position block. Non-literal indexed assignments and
-  expanded indexed parameter reads also block because nested subscripts create
-  recursive arithmetic evaluation seams. Recursive evaluator wrappers are
-  reclassified before execution. Indexed assignments block only in shell
-  assignment/evaluator positions; builtin-shaped ordinary arguments and
-  single-quoted indexed-reference text stay inert.
+It warns on `DROP DATABASE`, `DROP TABLE`, `DROP SCHEMA`, `git reset --hard`,
+and branch or tag deletion pushes. Warnings are advisory and are not a security
+boundary.
 
-## Fail-closed invariants (ADR-0036)
+Numeric literal arithmetic is accepted. Identifier-based arithmetic, nested
+expansion, delayed evaluator payloads, unsafe indexed reads or assignments, and
+parameter-constructed recursive evaluation fail closed.
 
-Preserved verbatim from the opencode plugins:
+Remote and container executors such as SSH, Docker, Kubernetes, `nsenter`,
+`chroot`, and `systemd-run` are outside the local safe-zone model. Their remote
+payloads are not treated as safely classified local commands.
 
-- `classifyCommand` wraps its body in `try/catch` → a classifier internal
-  error returns a **BLOCK** finding (never an allow).
-- Present-but-malformed tool args (non-string command/path) **block**.
-- The sensitive-path deny floor cannot be bypassed by option-prefixed,
-  assignment-shaped, glued, or `@`-prefixed tokens (see the ADR-0048 review
-  follow-up notes in `sensitive-paths.ts`).
+## Commit latch
 
-## Adapter `safe-dirs.json` contract
+The only supported ordinary commit form is one standalone Bash call to
+`prism-tool commit create`. Environment prefixes, wrappers, redirections,
+compound commands, malformed controls, and sibling tool calls are fatal unsafe
+attempts.
 
-The `rm -rf` safe zones are **adapter-driven** (ADR-0056 step 5). The wrapper
-resolves them per session (`session_start`), in this order:
+An allowed commit call is tracked until `tool_execution_end`. A failed,
+policy-blocked, ambiguous, or unresolved call trips the fatal latch, calls
+`ctx.abort()`, and blocks every later tool. `agent_end` does not clear the
+latch. `/reload` tears down the extension and resets the process-local state.
 
-1. **Project-local adapter drop point** `<cwd>/.pi/safe-dirs.json` — when a
-   stack adapter (e.g. `@kyaulabs/prism-php-web`) is installed
-   project-locally, it links/drops its `safe-dirs.json` here. Present → used
-   (it **replaces** the core default).
-2. **Core default** `packages/prism-core/safe-dirs.json` (next to this
-   extension), shape `{ "safe_rm_dirs": ["node_modules", ".git", ".pi/npm",
-   ".pi/git", ".pi/prism-tool/work"] }`. The candidate workspace is the
-   only safe Prism setup path; its parent remains outside the cleanup zone.
-3. **Fail-closed default** — no project-relative safe zones when neither
-   JSON source resolves (every `rm -rf` is blocked).
+Fatal diagnostics never include command text, arguments, output, paths,
+branches, providers, or session metadata.
 
-OS temp dirs (`/tmp`, `/var/tmp`, `os.tmpdir()`) are hardcoded in
-`pre-tool-use.ts` (`SAFE_ABS_DIRS`) and are not adapter-driven.
+## Denial circuit breaker
 
-An adapter's `safe-dirs.json` has the same shape, e.g.
-`packages/prism-php-web/safe-dirs.json`:
+Three blocked Bash calls within the last ten Bash calls trip the denial circuit
+breaker. Once tripped, every later tool call is blocked for the current agent
+run. Successful Bash calls age the window but do not immediately erase earlier
+denials. `/reload` resets the extension while preserving the conversation.
+
+The denial diagnostic reports only the redacted category and count. It does not
+include commands, arguments, output, or repository data.
+
+## Safe-directory data
+
+At `session_start`, the extension selects project-relative `rm -rf` safe zones
+in this order:
+
+1. `<project>/.pi/safe-dirs.json` from the active project-local adapter;
+2. Core's packaged `safe-dirs.json`;
+3. no project-relative safe zones when neither source is valid.
+
+The data shape is:
 
 ```json
-{ "safe_rm_dirs": ["vendor", "cdn/css", "cdn/javascript", "node_modules", ".pi/npm", ".pi/git"] }
+{
+  "safe_rm_dirs": [
+    "node_modules",
+    ".git",
+    ".pi/npm",
+    ".pi/git",
+    ".pi/prism-tool/work"
+  ]
+}
 ```
 
-## Sensitive-path extension surface
+An adapter file replaces the Core default rather than extending it. Entries
+must be contained project-relative directories. The candidate workspace is the
+only Core setup cleanup zone; its parent is not safe. OS temporary directories
+remain hardcoded absolute safe zones.
 
-The deny floor is user/project-extensible via environment variables
-(`loadAdditionalSensitivePaths`, verbatim from opencode):
+## Redacted diagnostics
 
-- `PRISM_SENSITIVE_PATHS` — newline-joined `~/`-prefixed or absolute paths.
+The extension exposes stable categories instead of raw tool content. Current
+categories distinguish sensitive-path matches, malformed inputs, unsupported
+shell constructs, destructive-command blocks, denial-breaker trips, and fatal
+commit state.
 
-Entries are concatenated onto the core deny floor. A malformed entry throws inside
-`loadAdditionalSensitivePaths` (fail closed, ADR-0047); the wrapper surfaces
-it loudly and keeps the core `DEFAULT_PATTERNS` deny floor active rather than
-aborting every session over a bad env var.
+An internal classifier exception returns BLOCK. Unsafe or unreadable
+`safe-dirs.json` data removes project-relative cleanup permission. Unsafe
+additional sensitive-path data leaves the Core deny floor active. The extension
+never falls back to allow on parser or policy failure.
 
-## Smoke tests (Stage 1 verification gate)
+## Known limits
+
+- Advisory Git and SQL warnings can be bypassed by deliberate obfuscation.
+- Remote executor payloads are not classified as local operations.
+- The tokenizer rejects some benign shell syntax because it cannot prove the
+  syntax inert across supported shells.
+- The denial breaker and commit latch are process-local extension state, not
+  durable session records.
+- The extension does not replace Git protections, operating-system permissions,
+  repository review, or credential rotation.
+
+## Port provenance
+
+The sensitive-path classifier, destructive-command classifier, and original
+denial state machine were ported from Prism's OpenCode-era plugins. The live
+compatibility rule is structural: pi returns `{ block: true, reason }` directly
+from `tool_call`, so denial detection no longer needs the old tool-part and
+post-execution correlator. The pure classifiers retained their fail-closed
+semantics; later refactors changed structure and windowing without weakening
+the policy.
+
+## Smoke tests
+
+Use disposable canary data. Never test with a real credential file.
 
 ```bash
-# Sensitive read is blocked (use a canary .env if ~/.ssh is absent):
 pi -e packages/prism-core/extensions/safety --no-session -p "read /home/you/tmp/canary/.env"
-
-# rm -rf outside safe zones is blocked:
-pi -e packages/prism-core/extensions/safety --no-session -p 'run: rm -rf /etc'
-
-# rm -rf inside a safe zone is allowed:
-pi -e packages/prism-core/extensions/safety --no-session -p 'run: rm -rf node_modules'
-
-# --no-verify / scoped -n is blocked:
-pi -e packages/prism-core/extensions/safety --no-session -p 'run: git commit -n -m "x"'
 ```
+
+```bash
+pi -e packages/prism-core/extensions/safety --no-session -p "run: rm -rf /etc"
+```
+
+```bash
+pi -e packages/prism-core/extensions/safety --no-session -p "run: rm -rf node_modules"
+```
+
+```bash
+pi -e packages/prism-core/extensions/safety --no-session -p "run: git commit -n -m x"
+```
+
+The first, second, and fourth commands should be blocked. The third should be
+allowed only when `node_modules` is in the active safe-directory data.
