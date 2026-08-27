@@ -323,7 +323,7 @@ export class WebAccessError extends Error {
 }
 ```
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Cover public IPv4/IPv6, `localhost`, every blocked IPv4/IPv6 class from ADR-0091, IPv4-mapped IPv6, mixed public/private answers, empty answers, credentials, fragments, non-HTTP(S), IDN normalization, loopback-only SearXNG, and AbortSignal propagation.
 
@@ -339,7 +339,7 @@ await assert.rejects(
 );
 ```
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -349,13 +349,13 @@ node --test tests/Node/web-access-network.test.ts
 
 Expected: FAIL because the policy module is missing.
 
-- [ ] **Step 3: Implement the policy with Node `net.BlockList`**
+- [x] **Step 3: Implement the policy with Node `net.BlockList`**
 
 Build immutable IPv4 and IPv6 block lists. Reject any literal or resolved address matched by the lists. Use `dns.promises.lookup(hostname, {all:true, verbatim:true, signal})` through an injected lookup seam. Reject mixed answers rather than selecting a public one. For public URLs, choose the first validated address and return the original normalized URL plus address/family. For loopback URLs, require every answer to be loopback and allow HTTP only there.
 
 Add `packages/prism-core/extensions/web-access/**/*.ts` to `tsconfig.json`.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run:
 
