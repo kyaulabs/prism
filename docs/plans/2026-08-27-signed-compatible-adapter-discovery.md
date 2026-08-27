@@ -51,7 +51,7 @@ attestation without becoming an adapter-provider input.
 - Consumes: raw envelope `Buffer`, Core root, injected current time.
 - Produces: `CatalogueError`, `loadCatalogueTrust({coreRoot})`, and `verifyCatalogueEnvelope({bytes, coreRoot, now})` returning `{envelopeBytes, envelopeDigest, payloadBytes, payloadDigest, keyId, catalogue}`.
 
-- [ ] **Step 1: Write the failing envelope and trust-root tests**
+- [x] **Step 1: Write the failing envelope and trust-root tests**
 
 ```javascript
 const assert = require('node:assert/strict');
@@ -125,13 +125,13 @@ test('rejects unknown keys, changed payloads, and unsupported algorithms', () =>
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js`
 
 Expected: FAIL because `adapter-catalogue-validation.js` does not exist.
 
-- [ ] **Step 3: Implement strict envelope verification and the production trust root**
+- [x] **Step 3: Implement strict envelope verification and the production trust root**
 
 ```json
 {
@@ -247,13 +247,13 @@ module.exports = {CatalogueError, loadCatalogueTrust, verifyCatalogueEnvelope};
 Add exact-key, canonical-base64, strict-UTF-8, trust fingerprint, size-bound,
 and malformed-signature cases to the same test file before Green.
 
-- [ ] **Step 4: Run the focused test and verify Green**
+- [x] **Step 4: Run the focused test and verify Green**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js`
 
 Expected: PASS for every envelope and trust-root case.
 
-- [ ] **Step 5: Commit the trust boundary**
+- [x] **Step 5: Commit the trust boundary**
 
 ```bash
 git add packages/prism-core/config/adapter-catalogue-trust.json packages/prism-core/scripts/prism-tool/adapter-catalogue-validation.js tests/Node/prism-tool-adapter-catalogue.test.js
