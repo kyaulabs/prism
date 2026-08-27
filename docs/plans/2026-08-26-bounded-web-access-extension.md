@@ -396,11 +396,11 @@ export interface TextResponse {
 }
 ```
 
-- [ ] **Step 1: Write failing transport tests**
+- [x] **Step 1: Write failing transport tests**
 
 Use injected request and resolver seams to assert: the original hostname remains in request options, custom `lookup` returns the pinned address, TLS `servername` remains the original host, redirects are manual and revalidated, origin changes drop metadata, proxy environment is ignored, gzip/br/deflate decoding is bounded, compressed and decompressed caps are independent, textual MIME types pass, binary MIME types fail, connect/total timeout and cancellation destroy the request, and errors contain no body/path/command data.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -410,13 +410,13 @@ node --test tests/Node/web-access-http.test.ts
 
 Expected: FAIL because the HTTP client is missing.
 
-- [ ] **Step 3: Implement the pinned client**
+- [x] **Step 3: Implement the pinned client**
 
 Use `node:http` and `node:https` request functions, not global `fetch()`. Build request options with the original hostname and a custom `lookup` callback that returns only the validated address/family. Set `servername` for HTTPS. Set `redirect: manual` behavior in code by handling 301, 302, 303, 307, and 308 responses and recursing at most five times through a fresh policy resolution.
 
 Collect at most 5 MiB compressed bytes. Decode `gzip`, `deflate`, or `br` with Node zlib and `maxOutputLength` 5 MiB. Accept `text/*`, `application/json`, `application/xml`, `application/xhtml+xml`, and `application/*+json`/`*+xml`. Decode UTF-8 and reject malformed text. Do not read proxy variables or accept request headers from callers.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run:
 
