@@ -671,11 +671,11 @@ prism-tool commit create --type feat --scope web-access --subject "confine brows
 - Consumes: launcher-owned consent/config/browser modules and the three search backends.
 - Produces: `requireStandingWebAccess()`, `loadWebAccessConfig()`, and `searchWeb(params, deps)`.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Assert consent is checked immediately before each possible effect. Assert fixed order browser → configured SearXNG → direct DuckDuckGo. Assert missing browser and approved backend failures fall through; invalid input/configuration, cancellation, consent failure, and security rejection stop. Assert aggregate errors name only `browser`, `searxng`, and `direct` categories.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -685,13 +685,13 @@ node --test tests/Node/web-access-router.test.ts
 
 Expected: FAIL because adapters and router are missing.
 
-- [ ] **Step 3: Implement adapters and route classification**
+- [x] **Step 3: Implement adapters and route classification**
 
 Use `createRequire(import.meta.url)` only inside the small adapters to import the packaged CommonJS launcher modules. Convert their closed results into typed extension values. Do not expose managed paths or record contents.
 
 Implement route attempts as named functions returning results or typed `WebAccessError`. Re-run the consent gate before each backend effect so consent revoked between fallbacks stops the chain. Cache only browser capability, never consent/config/search/page content.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run:
 
