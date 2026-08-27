@@ -424,7 +424,7 @@ prism-tool commit create --type fix --scope setup --subject "select compatible a
 - Consumes: fixed fetch implementation, managed-record context, Core root, clock.
 - Produces: `requestCatalogueEnvelope({fetchImpl})`, `inspectCatalogueCache(context)`, `publishCatalogueCache({context, detail, verified})`, `acquireVerifiedCatalogue({fetchImpl, context, coreRoot, now})`.
 
-- [ ] **Step 1: Write failing fixed-origin, fallback, rollback, and cache-safety tests**
+- [x] **Step 1: Write failing fixed-origin, fallback, rollback, and cache-safety tests**
 
 ```javascript
 const {
@@ -493,13 +493,13 @@ test('uses an unexpired cache only for transport unavailability', async (t) => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js`
 
 Expected: FAIL because HTTP and cache modules do not exist.
 
-- [ ] **Step 3: Implement bounded transport and four-entry managed cache**
+- [x] **Step 3: Implement bounded transport and four-entry managed cache**
 
 Use this public constant and request contract:
 
@@ -543,14 +543,14 @@ every entry on read, keep at most four entries sorted by sequence descending,
 reject lower sequence and equal-sequence/different-digest responses, and use
 cache fallback only for timeout/network/HTTP 500–599 unavailability.
 
-- [ ] **Step 4: Run focused and managed-record tests**
+- [x] **Step 4: Run focused and managed-record tests**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js tests/Node/prism-tool-consent.test.js`
 
 Expected: PASS for fixed-origin, fallback, atomic mode, unsafe state, eviction,
 expiry, rollback, and equivocation.
 
-- [ ] **Step 5: Commit the retrieval boundary**
+- [x] **Step 5: Commit the retrieval boundary**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/adapter-catalogue-http.js packages/prism-core/scripts/prism-tool/adapter-catalogue-cache.js tests/Node/prism-tool-adapter-catalogue.test.js tests/Node/prism-tool-consent.test.js

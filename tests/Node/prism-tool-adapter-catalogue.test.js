@@ -4,6 +4,7 @@
 
 const assert = require('node:assert/strict');
 const {createHash, generateKeyPairSync, sign} = require('node:crypto');
+const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {
@@ -13,6 +14,12 @@ const {
     validateCataloguePayload,
     verifyCatalogueEnvelope,
 } = require('../../packages/prism-core/scripts/prism-tool/adapter-catalogue-validation');
+const {
+    acquireVerifiedCatalogue,
+    CATALOGUE_URL,
+    inspectCatalogueCache,
+} = require('../../packages/prism-core/scripts/prism-tool/adapter-catalogue-cache');
+const {makeTempDir} = require('./helpers');
 
 function signedEnvelope(payload, options = {}) {
     const pair = options.pair ?? generateKeyPairSync('ed25519');
@@ -39,6 +46,13 @@ function signedEnvelope(payload, options = {}) {
     };
 }
 
+function response(bytes, status = 200) {
+    return new Response(bytes, {
+        status,
+        headers: {'content-type': 'application/json'},
+    });
+}
+
 function validCatalogue() {
     return {
         schemaVersion: 1,
@@ -59,6 +73,191 @@ function validCatalogue() {
         }],
     };
 }
+
+test('fetches only the fixed catalogue URL and publishes verified evidence', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const fixture = signedEnvelope(validCatalogue());
+    const calls = [];
+    const result = await acquireVerifiedCatalogue({
+        fetchImpl: async (url, options) => {
+            calls.push({url, options});
+            return response(fixture.bytes);
+        },
+        context: {catalogueCachePath: path.join(root, 'cache.json')},
+        trust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+
+    assert.equal(calls[0].url, CATALOGUE_URL);
+    assert.equal(calls[0].options.redirect, 'manual');
+    assert.equal(calls[0].options.credentials, 'omit');
+    assert.equal(result.source, 'NETWORK');
+    assert.equal(fs.statSync(path.join(root, 'cache.json')).mode & 0o777, 0o600);
+});
+
+test('uses an unexpired cache only for transport unavailability', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const fixture = signedEnvelope(validCatalogue());
+    const context = {catalogueCachePath: path.join(root, 'cache.json')};
+
+    await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(fixture.bytes),
+        context,
+        trust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    const cached = await acquireVerifiedCatalogue({
+        fetchImpl: async () => { throw new Error('offline'); },
+        context,
+        trust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    assert.equal(cached.source, 'CACHE');
+    const unavailable = await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(Buffer.from('unavailable'), 503),
+        context,
+        trust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    assert.equal(unavailable.source, 'CACHE');
+
+    await assert.rejects(
+        acquireVerifiedCatalogue({
+            fetchImpl: async () => response(Buffer.from('{}')),
+            context,
+            trust: fixture.trust,
+            now: new Date('2026-08-27T12:00:00Z'),
+        }),
+        CatalogueError
+    );
+});
+
+test('never rolls cache fallback back after the highest sequence expires', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const pair = generateKeyPairSync('ed25519');
+    const context = {catalogueCachePath: path.join(root, 'cache.json')};
+    const older = signedEnvelope({...validCatalogue(), sequence: 1}, {pair});
+    const newer = signedEnvelope({
+        ...validCatalogue(),
+        sequence: 2,
+        expiresAt: '2026-08-28T00:00:00Z',
+    }, {pair});
+
+    await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(older.bytes),
+        context,
+        trust: older.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(newer.bytes),
+        context,
+        trust: older.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+
+    await assert.rejects(
+        acquireVerifiedCatalogue({
+            fetchImpl: async () => { throw new Error('offline'); },
+            context,
+            trust: older.trust,
+            now: new Date('2026-08-29T00:00:00Z'),
+        }),
+        CatalogueError
+    );
+});
+
+test('rejects network rollback and equal-sequence equivocation', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const pair = generateKeyPairSync('ed25519');
+    const context = {catalogueCachePath: path.join(root, 'cache.json')};
+    const accepted = signedEnvelope({...validCatalogue(), sequence: 7}, {pair});
+
+    await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(accepted.bytes),
+        context,
+        trust: accepted.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    const rejected = [
+        signedEnvelope({...validCatalogue(), sequence: 6}, {pair}),
+        signedEnvelope({
+            ...validCatalogue(),
+            adapters: [{...validCatalogue().adapters[0], displayName: 'Changed'}],
+        }, {pair}),
+    ];
+
+    for (const fixture of rejected) {
+        await assert.rejects(
+            acquireVerifiedCatalogue({
+                fetchImpl: async () => response(fixture.bytes),
+                context,
+                trust: accepted.trust,
+                now: new Date('2026-08-27T12:00:00Z'),
+            }),
+            CatalogueError
+        );
+    }
+    assert.equal(inspectCatalogueCache({
+        ...context,
+        catalogueTrust: accepted.trust,
+    }).record.entries[0].digest, createHash('sha256').update(accepted.bytes).digest('hex'));
+});
+
+test('retains the four highest verified catalogue sequences', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const pair = generateKeyPairSync('ed25519');
+    const context = {catalogueCachePath: path.join(root, 'cache.json')};
+    let trust;
+
+    for (let sequence = 1; sequence <= 5; sequence += 1) {
+        const fixture = signedEnvelope({...validCatalogue(), sequence}, {pair});
+        trust = fixture.trust;
+        await acquireVerifiedCatalogue({
+            fetchImpl: async () => response(fixture.bytes),
+            context,
+            trust,
+            now: new Date('2026-08-27T12:00:00Z'),
+        });
+    }
+
+    const detail = inspectCatalogueCache({...context, catalogueTrust: trust});
+    assert.deepEqual(detail.record.entries.map((entry) => entry.sequence), [5, 4, 3, 2]);
+});
+
+test('preserves an unsafe cache without consulting the network', async (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const cachePath = path.join(root, 'cache.json');
+    const fixture = signedEnvelope(validCatalogue());
+    const context = {catalogueCachePath: cachePath};
+    await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(fixture.bytes),
+        context,
+        trust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    const retained = fs.readFileSync(cachePath);
+    fs.chmodSync(cachePath, 0o644);
+    let fetched = false;
+
+    await assert.rejects(
+        acquireVerifiedCatalogue({
+            fetchImpl: async () => { fetched = true; return response(fixture.bytes); },
+            context,
+            trust: fixture.trust,
+            now: new Date('2026-08-27T12:00:00Z'),
+        }),
+        CatalogueError
+    );
+    assert.equal(fetched, false);
+    assert.deepEqual(fs.readFileSync(cachePath), retained);
+});
 
 test('selects the highest stable active Core-compatible release', () => {
     const catalogue = validateCataloguePayload({
