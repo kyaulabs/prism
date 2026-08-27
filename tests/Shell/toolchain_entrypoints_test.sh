@@ -49,7 +49,13 @@ assert_file_contains "$CORE_PROMPTS/setup.md" '--network-approved=yes' 'setup re
 assert_file_contains "$CORE_PROMPTS/setup.md" '--approval=yes' 'setup requires literal yes mutation approval'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent status --json' 'setup inspects standing OCR consent'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-ocr --approval=yes' 'setup grants standing OCR consent once'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 'setup documents standing consent revocation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 'setup documents standing OCR consent revocation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-web --approval=yes' 'setup grants standing web-access consent'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-web' 'setup documents standing web-access consent revocation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool web-access status --json' 'setup inspects managed web-access configuration'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool web-access configure' 'setup applies approved web-access configuration'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool web-access remove --approval=yes --json' 'setup removes approved web-access configuration'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'standing web-access consent' 'setup explains standing web-access consent'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --json' 'setup classifies the canonical root before established setup'
@@ -213,11 +219,46 @@ fi
 echo "── /doctor standing-consent readiness ──"
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool doctor' 'full doctor uses the launcher without an approval flag'
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'standing-consent|standing consent' 'full doctor requires standing OCR consent'
+assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool consent status --json' 'doctor inspects independent standing consent'
+assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool web-access status --json' 'doctor inspects web-access readiness without a live search'
+assert_file_contains "$CORE_PROMPTS/doctor.md" 'web_search|fetch_content' 'doctor names the bounded web-access tools'
 assert_file_not_contains "$CORE_PROMPTS/doctor.md" '--ocr-test-approved' 'doctor has no per-run OCR approval flag'
 assert_file_not_contains "$CORE_PROMPTS/doctor.md" '\(yes/no\)' 'doctor never asks for OCR consent'
 assert_file_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'doctor --local-only' 'installer performs local-only readiness'
 assert_file_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'Run /setup' 'installer directs the human to /setup'
 assert_file_not_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'grant-ocr|--ocr-test-approved' 'installer neither grants nor requests OCR consent'
+
+LEGACY_DEEPSEEK_KEY='DEEPSEEK_API''_KEY'
+LEGACY_WEBSEARCH_PREFIX='WEBSEARCH''_'
+LEGACY_SEARXNG_URL='SEARXNG''_URL'
+LEGACY_SEARXNG_PREFIX='SEARXNG''_'
+LEGACY_WEBSEARCH_SKILL='skills/web''search'
+LEGACY_SEARXNG_SKILL='skills/sea''rxng'
+STALE_EXTENSION_CLAIM='sole exten''sion|only Pi exten''sion|single retained exten''sion'
+LIVE_WEB_PATHS=(
+	"$REPO_ROOT/AGENTS.md"
+	"$REPO_ROOT/README.md"
+	"$REPO_ROOT/CODING_HARNESS.md"
+	"$REPO_ROOT/packages/prism-core/AGENTS.md"
+	"$REPO_ROOT/packages/prism-core/README.md"
+	"$REPO_ROOT/packages/prism-core/extensions/safety"
+	"$REPO_ROOT/packages/prism-core/prompts"
+	"$REPO_ROOT/packages/prism-core/skills"
+	"$REPO_ROOT/packages/prism-core/docs"
+	"$REPO_ROOT/packages/prism-core/NOTICE"
+)
+for pattern in \
+	"$LEGACY_DEEPSEEK_KEY" "$LEGACY_WEBSEARCH_PREFIX" \
+	"$LEGACY_SEARXNG_URL" "$LEGACY_SEARXNG_PREFIX" \
+	"$LEGACY_WEBSEARCH_SKILL" "$LEGACY_SEARXNG_SKILL" \
+	"$STALE_EXTENSION_CLAIM"; do
+	if grep -RqiE -- "$pattern" "${LIVE_WEB_PATHS[@]}"; then
+		fail "legacy web-access trace remains in maintained live surfaces"
+		failures=$((failures + 1))
+	else
+		pass "maintained live surfaces omit one legacy web-access trace class"
+	fi
+done
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'

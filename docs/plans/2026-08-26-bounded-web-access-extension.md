@@ -800,7 +800,7 @@ prism-tool commit create --type feat --scope web-access --subject "register boun
 - Consumes: live extension, launcher consent/config/status commands, ADR-0091.
 - Produces: one maintained web-access contract with no live DeepSeek search or CLI SearXNG path.
 
-- [ ] **Step 1: Write failing live-surface contract assertions**
+- [x] **Step 1: Write failing live-surface contract assertions**
 
 Extend shell/package tests to require:
 
@@ -815,7 +815,7 @@ standing web-access consent
 
 Add negative assertions for `DEEPSEEK_API_KEY`, `WEBSEARCH_`, `SEARXNG_URL`, `SEARXNG_`, `skills/websearch`, `skills/searxng`, and the “sole extension” claim across maintained live surfaces. Keep historical ADR and changelog paths excluded.
 
-- [ ] **Step 2: Run focused contracts to verify Red**
+- [x] **Step 2: Run focused contracts to verify Red**
 
 Run:
 
@@ -827,17 +827,17 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL on legacy references and missing new setup/doctor contracts.
 
-- [ ] **Step 3: Rewrite setup and doctor**
+- [x] **Step 3: Rewrite setup and doctor**
 
 In `/setup`, retain one-question-at-a-time behavior. Inspect combined consent status, manage OCR and web grants independently, and explain the exact web scope before the web question. Replace optional environment checks with `prism-tool web-access status --json`; offer loopback SearXNG URL and browser `auto|disabled`, preview the closed config, then call the narrow configure/remove operation only after literal approval.
 
 In `/doctor`, report web consent, validated config, and optional browser family/status without performing a live public search. Missing web consent or optional browser/SearXNG is not mandatory Core toolchain failure; unsafe managed state is NO-GO for web access and is reported distinctly.
 
-- [ ] **Step 4: Remove legacy files and rewrite all live prose**
+- [x] **Step 4: Remove legacy files and rewrite all live prose**
 
 Delete the five legacy implementation files and shell suite. Replace skill-loading instructions with direct use of `web_search` and `fetch_content`. Replace sole-extension prose with the safety/web-access non-orchestration rule. Update NOTICE so old derived-file entries disappear and current dependency/design-reference attribution remains. Remove the model-agnostic DeepSeek-search exemption.
 
-- [ ] **Step 5: Run contracts and create the terminal implementation commit**
+- [x] **Step 5: Run contracts and create the terminal implementation commit**
 
 Run:
 

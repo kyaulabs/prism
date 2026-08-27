@@ -188,7 +188,8 @@ Every ticket is either HITL â€” worked with a human who speaks for themselves â€
 or AFK, driven by the agent alone.
 
 - **Research** (`wayfinder:research`, AFK): read docs, APIs, or local resources;
-  link a markdown summary. Load `websearch` or `searxng` for external knowledge.
+  link a markdown summary. Use bounded `web_search` and `fetch_content` under
+  standing web-access consent for external knowledge.
 - **Prototype** (`wayfinder:prototype`, HITL): build a cheap concrete artifact
   through `prototype`, then link it for reaction.
 - **Grilling** (`wayfinder:grilling`, HITL): use `grilling`, one substantive

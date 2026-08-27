@@ -2,7 +2,8 @@
 
 Prism Core is the language-independent half of the Prism coding harness for
 [pi](https://pi.dev). Install it globally so its instructions, skills, prompts,
-safety extension, and launcher are available in every trusted project.
+safety and bounded web-access extensions, and launcher are available in every
+trusted project.
 
 ## Package responsibility
 
@@ -11,7 +12,7 @@ Core owns:
 - the engineering workflow and language-independent skills;
 - Core prompt templates such as `/setup`, `/check`, `/pr`, and `/release`;
 - global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
-- the sole safety extension;
+- the safety enforcement and bounded web-access extensions;
 - the `prism-tool` launcher and Core toolchain contract;
 - strict-empty setup orchestration and generic project-provider composition;
 - repository creation, canonical hooks, root-seed preparation, and recovery;
@@ -53,14 +54,16 @@ overwrite an unrelated launcher. Remove a Prism-owned launcher with:
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
 ```
 
-Installation runs `doctor --local-only`, does not create standing OCR consent,
-and does not run a live provider test. A readiness failure leaves the package,
-launcher, and context resources installed for remediation.
+Installation runs `doctor --local-only`, creates neither standing OCR nor
+web-access consent, and makes no live provider or public-web request. A
+readiness failure leaves the package, launcher, and context resources installed
+for remediation.
 
-After installation, run `/setup` to inspect or grant standing OCR consent and
-to write optional pi session defaults. Revoke consent through `/setup` with
-`prism-tool consent revoke-ocr`. Provider login and model selection remain pi
-operations; Prism does not prescribe them.
+After installation, run `/setup` to manage independent standing OCR and
+web-access consent, optional closed web-access configuration, and optional pi
+session defaults. Revoke either consent through `/setup` with
+`prism-tool consent revoke-ocr` or `prism-tool consent revoke-web`. Provider
+login and model selection remain pi operations; Prism does not prescribe them.
 
 Install a stack adapter in the consumer project. For PHP/web:
 
@@ -81,10 +84,11 @@ Run offline readiness with:
 prism-tool doctor --local-only
 ```
 
-Full `/doctor` validates standing OCR consent before one connectivity test.
-Reviewed-code egress is available only through the dedicated
-`prism-tool code-review ocr` operation. CI provisions compatible tools in its
-ephemeral environment but creates no consent and runs no OCR review.
+Full `/doctor` validates standing OCR consent before one connectivity test and
+reports web-access readiness without a live request. Reviewed-code egress is
+available only through the dedicated `prism-tool code-review ocr` operation.
+CI provisions compatible tools in its ephemeral environment but creates no
+consent and runs neither OCR review nor web access.
 
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:
@@ -98,6 +102,22 @@ The checker reads staged or committed Git blobs, uses the packaged
 configuration, and never loads project-local Markdown configuration, plugins,
 or custom rules. Skills, prompts, agent instructions, generated history, legal
 text, and unrelated templates require separate format-aware treatment.
+
+## Bounded web access
+
+The web-access extension exposes only `web_search` and `fetch_content`. Both
+require independent standing web-access consent managed by `/setup`. Search
+routes through a confined supported Chromium-family browser when available,
+optional credential-free loopback SearXNG second, and guarded DuckDuckGo HTML
+last. Public content fetching is browser-free and returns bounded readable or
+raw textual pages.
+
+The extension rejects private or mixed DNS answers, pins connections, validates
+redirects, enforces textual MIME and decompression limits, accepts no
+credentials or caller headers, and keeps no persistent search state. Optional
+configuration is a private closed record containing only browser `auto` or
+`disabled` and an optional loopback SearXNG URL. See
+[`extensions/web-access/README.md`](extensions/web-access/README.md).
 
 ## Established and strict-empty setup
 
@@ -229,10 +249,10 @@ Pre-durable failures restore strict emptiness when ownership remains provable.
 Post-durable failures retain one exact resume action. Operational state is
 private beneath `.pi/prism-tool/` and is never staged into the root seed.
 
-Registry access, consumer mutation, standing OCR consent, reviewed-code egress,
-hook activation, and complete project-plan application are distinct approval
-boundaries. Local readiness, installation checks, hooks, and CI do not create
-consent.
+Registry access, consumer mutation, standing OCR consent, standing web-access
+consent, reviewed-code egress, hook activation, and complete project-plan
+application are distinct approval boundaries. Local readiness, installation
+checks, hooks, and CI do not create consent.
 
 Ordinary commits use one standalone `prism-tool commit create` call. The
 launcher owns attribution, commitlint, hooks, signing, and `HEAD` verification.

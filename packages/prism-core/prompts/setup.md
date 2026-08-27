@@ -420,7 +420,7 @@ instead because it also deploys the global `AGENTS.md` and
 later to make those two context files always-on. Never overwrite an existing
 global context file by hand.
 
-## 3. Mandatory toolchain readiness and standing OCR consent
+## 3. Mandatory toolchain readiness and independent standing consent
 
 Run the fail-closed local doctor before any setup stage that depends on
 declared tools:
@@ -434,50 +434,72 @@ If Semgrep or OCR is missing or out of range (ADR-0063: Semgrep
 never install, configure, or authenticate either tool and never ask for or
 accept an API key.
 
-Inspect standing consent without reading the record directly:
+Inspect both standing-consent capabilities without reading the managed record
+directly:
 
 ```bash
 prism-tool consent status --json
 ```
 
-- `GRANTED`: ask no OCR question and continue. Report that the human can
-  explicitly revoke this global consent through `/setup`; only after such a
-  request run:
+Require schema version 2 and boolean `ocr` and `webAccess` fields. If the
+status is `UNSAFE`, stop and report that the managed consent record requires
+human remediation. Never overwrite, chmod, revoke, or remove it automatically.
 
-  ```bash
-  prism-tool consent revoke-ocr
-  ```
+Manage OCR consent first:
 
-  Revocation makes full doctor and OCR review NO-GO until consent is granted
-  again. Never revoke automatically.
-- `ABSENT`: ask exactly one question:
+- When `ocr` is `true`, ask no OCR question. If the human explicitly requests
+  revocation, run `prism-tool consent revoke-ocr`. Never revoke automatically.
+- When `ocr` is `false`, explain that this global consent authorizes only
+  `ocr llm test` connectivity and transmission of code selected by Prism's
+  dedicated OCR review operation. It does not authorize registry access,
+  package mutation, credential access, pushes, PR creation, or merges. Then
+  ask exactly one question:
 
   ```text
   Grant standing OCR consent for connectivity checks and reviewed-code egress? (yes/no)
   ```
 
-  Explain before the question that this global consent authorizes only
-  `ocr llm test` connectivity and transmission of code selected by Prism's
-  dedicated OCR review operation. It does not authorize registry access,
-  package mutation, credential access, pushes, PR creation, or merges. Accept
-  only literal `yes`; on approval run:
+  Accept only literal `yes`; on approval run:
 
   ```bash
   prism-tool consent grant-ocr --approval=yes
   ```
 
-  A decline makes the toolchain NO-GO for this setup.
-- `UNSAFE`: stop and report that `~/.pi/agent/prism-consent.json` requires
-  human remediation. Never overwrite, chmod, revoke, or remove it
-  automatically.
+  A decline makes the mandatory toolchain NO-GO for this setup.
 
-After consent is `GRANTED`, run the full doctor without another question:
+Manage standing web-access consent independently and in a separate turn:
+
+- When `webAccess` is `true`, ask no web question. If the human explicitly
+  requests revocation, run `prism-tool consent revoke-web`. Never revoke it
+  automatically.
+- When `webAccess` is `false`, explain that standing web-access consent covers
+  only the Core `web_search` and `fetch_content` tools: fixed keyless search,
+  optional loopback SearXNG, and guarded public textual fetches. It does not
+  authorize API-key providers, authentication, cookies, arbitrary browser use,
+  uploads, writes, package access, OCR, or other tools. Then ask exactly:
+
+  ```text
+  Grant standing web-access consent for bounded search and public textual fetches? (yes/no)
+  ```
+
+  Accept only literal `yes`; on approval run:
+
+  ```bash
+  prism-tool consent grant-web --approval=yes
+  ```
+
+  A decline leaves web access disabled but does not make the mandatory Core
+  toolchain fail.
+
+After OCR consent is granted, run the full doctor without another OCR
+question:
 
 ```bash
 prism-tool doctor
 ```
 
-A failed live test makes the toolchain NO-GO for this setup.
+A failed OCR connectivity test makes the mandatory toolchain NO-GO. Web-access
+readiness remains a separately reported optional capability.
 
 ## 4. Optional: your model preferences
 
@@ -686,18 +708,47 @@ Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
 that its project quality surface must provide the hooks installer; do not
 invent a path.
 
-## 9. Optional search skills
+## 9. Optional web-access configuration
 
-Check presence only; never print values:
+Inspect the managed configuration and optional browser capability without a
+live search:
 
 ```bash
-[ -n "${DEEPSEEK_API_KEY:-}" ] && echo "websearch: configured" || echo "websearch: DEEPSEEK_API_KEY missing"
-[ -n "${SEARXNG_URL:-}" ] && echo "searxng: configured" || echo "searxng: SEARXNG_URL missing"
+prism-tool web-access status --json
 ```
 
-Explain that both integrations are CLI-shell skills, not MCP servers. Missing
-variables are non-blocking. The user sets them in their shell environment;
-Prism never stores them.
+Require schema version 1 and the closed `config` and `browser` fields. An
+`UNSAFE` status is NO-GO for web access and requires human remediation; never
+overwrite or remove the record automatically. `ABSENT` is valid and means
+browser auto-detection, no loopback SearXNG route, and guarded direct fallback.
+An unavailable browser is optional.
+
+If the human wants non-default settings, ask one question per turn:
+
+1. Ask whether to configure optional web-access settings.
+2. Ask for browser mode `auto` or `disabled`.
+3. Ask for an optional credential-free loopback SearXNG base URL; blank means
+   none. Do not read or migrate environment variables.
+4. Preview exactly the closed configuration containing only `searxngUrl` and
+   `browser`.
+5. Ask `Apply the displayed web-access configuration? (yes/no)`.
+
+Only after literal `yes`, run one of:
+
+```bash
+prism-tool web-access configure --browser=MODE --approval=yes --json
+prism-tool web-access configure --searxng-url=LOOPBACK_URL --browser=MODE --approval=yes --json
+```
+
+The launcher validates the URL and private managed record. Do not accept
+credentials, fragments, public or remote hosts, caller headers, or redirects
+as configuration. If the human requests default settings, preview removal,
+ask `Remove the managed web-access configuration? (yes/no)`, and only after
+literal `yes` run:
+
+```bash
+prism-tool web-access remove --approval=yes --json
+```
 
 ## 10. Optional GitHub setup
 
@@ -736,8 +787,11 @@ DeepSeek judge        global          known / missing
 package releases      project         enabled / current / declined / conflict / no candidates
 stack adapter         project-local   installed / declined / not detected
 Git hooks             project         installed / declined / unavailable
-websearch             environment     configured / optional missing
-searxng               environment     configured / optional missing
+OCR consent           global          granted / declined / unsafe
+web consent           global          granted / declined / unsafe
+web config            global          absent / configured / unsafe
+browser search        global          available FAMILY / disabled / optional unavailable
+loopback SearXNG      global          configured / optional absent
 harness validation    source checkout PASS / FAIL / SKIPPED
 ```
 

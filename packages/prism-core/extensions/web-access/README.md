@@ -36,8 +36,8 @@ The optional private managed record supports only:
 - `browser`: `auto` or `disabled`.
 
 Absence means automatic browser discovery, no SearXNG route, and direct
-keyless fallback. Prism does not read legacy DeepSeek, `WEBSEARCH_*`, or
-`SEARXNG_*` environment variables.
+keyless fallback. Prism does not read or migrate legacy provider environment
+variables.
 
 ```text
 prism-tool web-access status --json

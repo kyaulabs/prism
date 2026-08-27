@@ -37,10 +37,12 @@ prerequisites that Prism verifies but never installs (Semgrep
 `>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
 adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
 Registry access and consumer mutation remain separate operation-specific
-approvals. `/setup` manages one global standing OCR consent covering only
-connectivity and reviewed-code egress through the dedicated review operation;
-full `/doctor` validates it without asking again. Installation, hooks, and CI
-use local-only readiness and never establish consent (ADR-0074).
+approvals. `/setup` solely manages independent standing OCR and web-access
+consent. OCR consent covers connectivity and reviewed-code egress through the
+dedicated review operation; web consent covers only bounded `web_search` and
+`fetch_content`. Full `/doctor` validates readiness without granting consent.
+Installation, hooks, and CI use local-only readiness and never establish
+consent (ADR-0074, ADR-0091).
 
 Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
 `prism-tool resolve skills`) in one tool call, retain the returned absolute
@@ -252,8 +254,9 @@ prism ships as two pi packages (ADR-0058):
 - **`@kyaulabs/prism-core`** (this package) — language-agnostic. Installed
   **globally** (`pi install npm:@kyaulabs/prism-core`, or
   `pi install ./packages/prism-core` for local dev), so its skills, prompts,
-  and the **safety extension** load in every trusted project. Its `AGENTS.md`
-  deploys to `~/.pi/agent/AGENTS.md` (via `install-global.sh`) and
+  and the **safety** and **bounded web-access** extensions load in every trusted
+  project. Its `AGENTS.md` deploys to `~/.pi/agent/AGENTS.md` (via
+  `install-global.sh`) and
   concatenates into every session's system prompt — the core is "always
   running".
 - **`@kyaulabs/prism-php-web`** — the PHP/web stack adapter. Installed
@@ -323,11 +326,11 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
 | `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command for a verified work branch; never creates the PR |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, skill, or fast-path) |
-| `/research` | Cited research via the `websearch`/`searxng` skills + web |
+| `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; global consent is explicitly revocable |
+| `/setup` | Interactive project configurator and sole manager of independent standing OCR and web-access consent |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |

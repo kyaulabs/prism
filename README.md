@@ -58,8 +58,8 @@ bash ~/.pi/agent/npm/@kyaulabs/prism-core/scripts/install-global.sh
 ```
 
 The installer deploys the global
-`AGENTS.md` and anti-drift prompt, then runs local-only readiness. It does not
-create OCR consent or contact an OCR provider.
+`AGENTS.md` and anti-drift prompt, then runs local-only readiness. It creates
+neither OCR nor web-access consent and makes no provider or public-web request.
 
 ### Install the PHP/web adapter
 
@@ -84,7 +84,8 @@ Open pi in the project and run `/setup`.
 
 Established projects keep their existing files and enter the established setup
 path. Setup inspects the active adapter, optional capabilities, package-release
-state, and global OCR consent before proposing any mutation.
+state, and independent global OCR and web-access consent before proposing any
+mutation.
 
 Strict-empty `/setup` offers Template, Blank, or Cancel before adapter
 selection. Template is the recommended source. You may choose Core-only or the
@@ -99,9 +100,11 @@ signed root seed. Setup creates no hosted repository or remote. The human
 creates or configures the hosted repository, adds the remote, pushes `develop`,
 and configures post-push rulesets.
 
-`/setup` is also the only standing OCR consent prompt. Consent covers one OCR
-connectivity test and reviewed-code egress through the dedicated review
-operation. Revoke it through `/setup` with `prism-tool consent revoke-ocr`.
+`/setup` solely manages independent standing OCR and web-access consent. OCR
+consent covers one connectivity test and reviewed-code egress through the
+dedicated review operation. Web consent covers only bounded `web_search` and
+`fetch_content`. Revoke either through `/setup` with
+`prism-tool consent revoke-ocr` or `prism-tool consent revoke-web`.
 
 ## Daily development
 
@@ -136,14 +139,14 @@ or create pull requests.
 
 | Command | Purpose |
 | --- | --- |
-| `/setup` | Configure an established or strict-empty project and manage standing OCR consent |
+| `/setup` | Configure a project and manage independent standing OCR and web-access consent |
 | `/doctor` | Run full readiness and the consented OCR connectivity test |
 | `/prime` | Draft or refresh `CONTEXT.md` |
 | `/router` | Route free-form work to the correct on-ramp or fast path |
 | `/issue` | Create one issue or decompose an approved spec or plan |
 | `/check` | Run the language-independent gate and the active adapter gate |
 | `/security` | Run Semgrep and locked-dependency audits |
-| `/research` | Produce cited research through the search skills |
+| `/research` | Produce cited research through bounded web-access tools |
 | `/improve-architecture` | Report structural improvement opportunities |
 | `/release` | Prepare a release branch, changelog, and human publication steps |
 | `/pr` | Prepare a conventional title, complete body, and human-run `gh pr create` command |
@@ -180,9 +183,10 @@ work:
 prism-tool doctor --local-only
 ```
 
-Full `/doctor` also validates standing OCR consent and runs one connectivity
-test. CI provisions compatible Semgrep and OCR versions only inside its
-ephemeral environment. It does not create consent or perform an OCR review.
+Full `/doctor` validates standing OCR consent, runs one OCR connectivity test,
+and reports web-access readiness without a live request. CI provisions
+compatible Semgrep and OCR versions only inside its ephemeral environment. It
+creates no consent and performs neither OCR review nor web access.
 
 Declared tools run through `prism-tool`. Core bundles commitlint, git-cliff,
 and `markdownlint-cli2`; the PHP/web adapter resolves its development tools
