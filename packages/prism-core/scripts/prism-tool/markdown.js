@@ -122,14 +122,14 @@ function parseObjectListing(output, expectedPath, source) {
 
 function indexObject(run, projectRoot, filePath) {
     const listing = requireSuccess(git(run, projectRoot, [
-        'ls-files', '--stage', '-z', '--', filePath,
+        '--literal-pathspecs', 'ls-files', '--stage', '-z', '--', filePath,
     ], {encoding: null}));
     return parseObjectListing(listing, filePath, 'index');
 }
 
 function headObject(run, projectRoot, filePath) {
     const listing = requireSuccess(git(run, projectRoot, [
-        'ls-tree', '-z', 'HEAD', '--', filePath,
+        '--literal-pathspecs', 'ls-tree', '-z', 'HEAD', '--', filePath,
     ], {encoding: null}));
     return parseObjectListing(listing, filePath, 'tree');
 }

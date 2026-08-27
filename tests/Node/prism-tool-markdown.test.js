@@ -175,6 +175,21 @@ test('reports an eligible path containing spaces project-relative', (t) => {
     assert.doesNotMatch(result.stdout + result.stderr, /prism-markdown-/);
 });
 
+test('treats Git pathspec metacharacters in Markdown filenames literally', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    initializeRepository(projectRoot);
+    fs.mkdirSync(path.join(projectRoot, 'docs'), {recursive: true});
+    fs.writeFileSync(path.join(projectRoot, 'docs', 'bad*.md'), invalidMarkdown());
+    fs.writeFileSync(path.join(projectRoot, 'docs', 'bad-other.md'), '# Guide\n\n## Valid\n');
+    git(projectRoot, ['add', '--all']);
+
+    const result = runMarkdown(projectRoot, ['--cached']);
+
+    assert.equal(result.status, 4, result.stderr);
+    assert.match(result.stdout + result.stderr, /docs\/bad\*\.md:3.*MD001/);
+});
+
 test('does not load project-local executable Markdown configuration', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
