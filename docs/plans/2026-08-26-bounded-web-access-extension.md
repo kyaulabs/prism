@@ -554,11 +554,11 @@ export interface SearchResult {
 }
 ```
 
-- [ ] **Step 1: Write failing backend tests**
+- [x] **Step 1: Write failing backend tests**
 
 Use inert HTML and JSON fixtures. Assert query limits, recency mapping, include/exclude hostname semantics, redirect-link decoding, malformed/block-page detection, result deduplication, HTTP(S)-only URLs, local post-filtering, SearXNG `/search` JSON construction, no redirects, byte/result caps, and untrusted snippets preserved as text.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -568,13 +568,13 @@ node --test tests/Node/web-access-search.test.ts
 
 Expected: FAIL because the search modules are missing.
 
-- [ ] **Step 3: Implement normalized backends**
+- [x] **Step 3: Implement normalized backends**
 
 Use the fixed origin `https://html.duckduckgo.com`. Build one query with validated recency/domain terms and parse `.result` entries through `linkedom`. Detect challenge/block pages by missing result structure plus known challenge markers; throw a fallback-eligible backend error.
 
 For SearXNG, append only `/search`, `q`, `format=json`, bounded `time_range`, and result language/safesearch defaults selected by the implementation. Use `requestLoopbackJson` with redirects disabled. Normalize, deduplicate, and locally filter all URLs.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run:
 
