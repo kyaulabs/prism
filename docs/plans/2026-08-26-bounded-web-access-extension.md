@@ -725,11 +725,11 @@ prism-tool commit create --type feat --scope web-access --subject "route consent
 - Consumes: `searchWeb`, `fetchContent`, Pi `Type`, `StringEnum`, `truncateHead`, `DEFAULT_MAX_BYTES`, and `DEFAULT_MAX_LINES`.
 - Produces: registered `web_search` and `fetch_content` tools.
 
-- [ ] **Step 1: Write failing registration tests**
+- [x] **Step 1: Write failing registration tests**
 
 Fixture `registerTool` and execute both captured definitions. Assert exact names, labels, prompt snippets/guidelines, schema bounds, AbortSignal flow, progress updates, success details, `isError` behavior through thrown errors, no load-time process/timer/socket activity, and final 50 KiB/2000-line truncation.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -739,13 +739,13 @@ node --test tests/Node/web-access-extension.test.ts
 
 Expected: FAIL because the extension entry point is missing.
 
-- [ ] **Step 3: Implement thin synchronous registration**
+- [x] **Step 3: Implement thin synchronous registration**
 
 Register `web_search` with query, limit 1–10, `StringEnum` recency, and bounded domain array. Register `fetch_content` with HTTP(S) URL, `StringEnum(["readable","raw"])`, non-negative offset, and bounded limit. Name each tool in every prompt guideline. Return text plus structured details; do not add custom UI, commands, shortcuts, session entries, or persistent files.
 
 Document configuration, consent, browser allowlist including Brave, routing, SSRF limits, content limits, setup commands, and optional smoke procedure in the extension README.
 
-- [ ] **Step 4: Run registration and package tests**
+- [x] **Step 4: Run registration and package tests**
 
 Run:
 

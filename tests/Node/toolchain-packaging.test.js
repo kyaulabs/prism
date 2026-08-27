@@ -153,6 +153,17 @@ test('packs the core package with every owned resource and executable modes', ()
     for (const module of ['commit-create-guard.ts', 'fatal-commit-latch.ts']) {
         assert.equal(packed.files.has(`extensions/safety/${module}`), true, module);
     }
+    for (const resource of [
+        'README.md', 'authorization.ts', 'browser.ts', 'cdp.ts', 'config.ts',
+        'duckduckgo.ts', 'errors.ts', 'extract.ts', 'fetch.ts', 'http.ts', 'index.ts',
+        'network.ts', 'router.ts', 'search-filters.ts', 'search-types.ts', 'searxng.ts',
+    ]) {
+        assert.equal(
+            packed.files.has(`extensions/web-access/${resource}`),
+            true,
+            `web-access ${resource}`
+        );
+    }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 15, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 35, true, 'skills present');
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
