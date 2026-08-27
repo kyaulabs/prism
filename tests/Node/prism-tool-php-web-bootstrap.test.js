@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -20,6 +20,9 @@ const {renderBootstrapScaffold} = require(
 );
 
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
+).version;
 const CONTRACT = JSON.parse(fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8'));
 const TEMPLATE_SOURCE = Object.freeze({
     mode: 'TEMPLATE',
@@ -39,6 +42,25 @@ const TEMPLATE_SOURCE = Object.freeze({
         classificationSha256: 'e'.repeat(64),
     }),
 });
+
+function processExists(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        if (error.code === 'ESRCH') return false;
+        throw error;
+    }
+}
+
+function waitForProcessExit(pid, timeout = 1000) {
+    const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    const deadline = Date.now() + timeout;
+    while (processExists(pid) && Date.now() < deadline) {
+        Atomics.wait(signal, 0, 0, 10);
+    }
+    return !processExists(pid);
+}
 
 function successfulResult(command, args) {
     if (command === 'composer' && args[0] === 'audit') {
@@ -113,7 +135,7 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
             adapter: {
                 id: 'php-web',
                 packageName: '@kyaulabs/prism-php-web',
-                packageVersion: '0.3.1',
+                packageVersion: ADAPTER_VERSION,
                 bootstrapProtocol: 1,
             },
         },
@@ -128,7 +150,7 @@ test('renders the complete blank PHP/web scaffold through the adapter provider',
     assert.deepEqual(report.provider, {
         id: 'php-web-scaffold',
         packageName: '@kyaulabs/prism-php-web',
-        packageVersion: '0.3.1',
+        packageVersion: ADAPTER_VERSION,
         protocolVersion: 1,
     });
     assert.deepEqual(report.effects.map(({id}) => id), [
@@ -161,7 +183,7 @@ test('renders identical PHP/web scaffold bytes for Blank and Template requests',
         adapter: {
             id: 'php-web',
             packageName: '@kyaulabs/prism-php-web',
-            packageVersion: '0.3.1',
+            packageVersion: ADAPTER_VERSION,
             bootstrapProtocol: 1,
         },
     };
@@ -203,7 +225,7 @@ test('keeps PHP/web ownership and bytes independent of Core governance profiles'
         adapter: {
             id: 'php-web',
             packageName: '@kyaulabs/prism-php-web',
-            packageVersion: '0.3.1',
+            packageVersion: ADAPTER_VERSION,
             bootstrapProtocol: 1,
         },
     };
@@ -303,7 +325,7 @@ test('renders canonical dependency manifests from the adapter contract', (t) => 
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'example-project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const output = (name) => report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath;
@@ -331,7 +353,7 @@ test('renders an application-free PHP and Pest readiness surface', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const read = (name) => fs.readFileSync(
@@ -374,7 +396,7 @@ test('renders first-source-ready lint and application-free directory policy', (t
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
@@ -402,7 +424,7 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
@@ -439,7 +461,7 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const workflow = fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === '.github/workflows/ci.yml').candidatePath, 'utf8');
@@ -454,8 +476,8 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
     assert.match(workflow, /composer install .*--no-scripts/);
     assert.match(workflow, /npm ci --ignore-scripts/);
     assert.match(workflow, /pi-coding-agent@0\.84\.1/);
-    assert.match(workflow, /prism-core@0\.3\.1/);
-    assert.match(workflow, /prism-php-web@0\.3\.1/);
+    assert.equal(workflow.includes(`prism-core@${ADAPTER_VERSION}`), true);
+    assert.equal(workflow.includes(`prism-php-web@${ADAPTER_VERSION}`), true);
     assert.match(workflow, /semgrep>=1\.173\.0,<2\.0\.0/);
     assert.match(workflow, /open-code-review@>=1\.9\.1 <2\.0\.0/);
     assert.match(workflow, /doctor --local-only/);
@@ -479,7 +501,7 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     fs.mkdirSync(fakeBin);
@@ -504,7 +526,7 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
     }));
     assert.match(fs.readFileSync(invocationFile, 'utf8'), /^run pest -- --coverage --min=80$/m);
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
-    assert.throws(() => process.kill(pid, 0));
+    assert.equal(waitForProcessExit(pid), true);
 });
 
 test('renders syntactically valid PHP readiness files', (t) => {
@@ -518,7 +540,7 @@ test('renders syntactically valid PHP readiness files', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     for (const output of report.outputs.filter(({path: outputPath}) => outputPath.endsWith('.php'))) {
@@ -547,7 +569,7 @@ test('resolves candidate locks with lifecycle scripts disabled', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
         run(command, args, options) {
             invocations.push({command, args, cwd: options.cwd});
@@ -574,7 +596,7 @@ test('binds provider digests to package-manager lock output', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
         run(command, args, options) {
             if (command === 'composer') fs.writeFileSync(path.join(options.cwd, 'composer.lock'), '{"packages":[],"packages-dev":[]}\n');
@@ -601,7 +623,7 @@ test('rejects a candidate dependency graph with any advisory', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
         run(command, args) {
             if (command === 'composer' && args[0] === 'audit') {
@@ -630,7 +652,7 @@ test('validates the PHP web report through the generic Core provider contract', 
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const core = loadTrustedProviderRegistry({coreRoot: path.resolve(__dirname, '../../packages/prism-core')});
@@ -640,7 +662,7 @@ test('validates the PHP web report through the generic Core provider contract', 
             registration: {
                 packageRoot: ADAPTER_ROOT,
                 packageName: CONTRACT.package,
-                packageVersion: '0.3.1',
+                packageVersion: ADAPTER_VERSION,
                 bootstrapProtocol: 1,
             },
         })],
@@ -666,7 +688,7 @@ test('reads the trusted adapter manifest through one held file identity', (t) =>
     fs.mkdirSync(path.join(packageRoot, 'config', 'bootstrap'), {recursive: true});
     fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
         name: CONTRACT.package,
-        version: '0.3.1',
+        version: ADAPTER_VERSION,
     }));
     const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
     const originalManifest = fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'scaffold.json'));
@@ -699,7 +721,7 @@ test('reads the trusted adapter manifest through one held file identity', (t) =>
             registration: {
                 packageRoot: fs.realpathSync(packageRoot),
                 packageName: CONTRACT.package,
-                packageVersion: '0.3.1',
+                packageVersion: ADAPTER_VERSION,
                 bootstrapProtocol: 1,
             },
         }), /adapter provider manifest changed/);
@@ -716,7 +738,7 @@ test('rejects an in-place trusted manifest write during a held read', (t) => {
     fs.mkdirSync(path.join(packageRoot, 'config', 'bootstrap'), {recursive: true});
     fs.writeFileSync(path.join(packageRoot, 'package.json'), JSON.stringify({
         name: CONTRACT.package,
-        version: '0.3.1',
+        version: ADAPTER_VERSION,
     }));
     const manifestPath = path.join(packageRoot, 'config', 'bootstrap', 'scaffold.json');
     const originalManifest = fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'scaffold.json'));
@@ -748,7 +770,7 @@ test('rejects an in-place trusted manifest write during a held read', (t) => {
             registration: {
                 packageRoot: fs.realpathSync(packageRoot),
                 packageName: CONTRACT.package,
-                packageVersion: '0.3.1',
+                packageVersion: ADAPTER_VERSION,
                 bootstrapProtocol: 1,
             },
         }), /adapter provider manifest changed/);
@@ -770,7 +792,7 @@ test('verifies the applied scaffold inventory and rejects changed bytes', (t) =>
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
 
@@ -801,7 +823,7 @@ test('renders every scaffold source with one RCS header and final modeline', (t)
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const sources = report.outputs.filter(({path: outputPath}) =>
@@ -829,7 +851,7 @@ test('rejects an applied scaffold reached through a substituted parent', (t) => 
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     });
     const github = path.join(candidateRoot, '.github');
@@ -864,7 +886,7 @@ test('rejects scaffold manifest paths that escape the candidate root', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     }), /manifest|path/);
     assert.equal(fs.existsSync(escapedPath), false);
@@ -898,7 +920,7 @@ test('rejects non-string Template evidence without coercing untrusted values', (
             adapter: {
                 id: 'php-web',
                 packageName: CONTRACT.package,
-                packageVersion: '0.3.1',
+                packageVersion: ADAPTER_VERSION,
                 bootstrapProtocol: 1,
             },
         },
@@ -918,7 +940,7 @@ test('rejects unknown bootstrap provider request fields', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
             command: 'untrusted',
         },
     }), /request/);
@@ -946,7 +968,7 @@ test('rejects unknown scaffold manifest fields', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     }), /manifest/);
 });
@@ -992,7 +1014,7 @@ test('does not render through a symlinked candidate parent', (t) => {
             source: {mode: 'BLANK', evidence: null},
             capabilities: [],
             metadata: {schemaVersion: 1, displayName: 'Project', summary: 'One sentence.', suggestedDisplayName: 'project'},
-            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: '0.3.1', bootstrapProtocol: 1},
+            adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     }), /candidate|parent/);
     assert.deepEqual(fs.readdirSync(outside), []);

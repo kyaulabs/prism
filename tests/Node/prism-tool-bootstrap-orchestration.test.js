@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -12,6 +12,9 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
+).version;
 
 function captureWrites(action) {
     let stdout = '';
@@ -123,7 +126,7 @@ test('active bootstrap status reports one provisioned adapter without mutation',
             id: 'php-web',
             displayName: 'PHP/web',
             packageName: '@kyaulabs/prism-php-web',
-            packageVersion: '0.3.1',
+            packageVersion: ADAPTER_VERSION,
             bootstrapProtocol: 1,
         },
         planDigest: null,

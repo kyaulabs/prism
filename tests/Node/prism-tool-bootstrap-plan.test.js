@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -26,7 +26,13 @@ const {renderCoreBaseline} = require(
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(CORE_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_CONTRACT = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
 );
@@ -827,7 +833,7 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     assert.deepEqual(report.adapter, {
         id: 'php-web',
         packageName: '@kyaulabs/prism-php-web',
-        packageVersion: '0.3.1',
+        packageVersion: ADAPTER_VERSION,
         bootstrapProtocol: 1,
     });
     assert.deepEqual(report.providers.map(({id}) => id), [
@@ -3803,7 +3809,7 @@ test('validates provider identity and candidate bytes before composition', (t) =
     assert.deepEqual(outputs[0].provider, {
         id: 'core-baseline',
         packageName: '@kyaulabs/prism-core',
-        packageVersion: '0.3.1',
+        packageVersion: CORE_VERSION,
         protocolVersion: 1,
     });
     assert.equal(outputs.every(({kind}) => kind === 'file'), true);
