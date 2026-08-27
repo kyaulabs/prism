@@ -18,10 +18,10 @@ conventions, tools, and gates for their ecosystem. This repository ships the
 PHP/web adapter and retains PHP/Aurora heritage as test infrastructure; it is
 not itself a deployable web application.
 
-The former OpenCode runtime and manifest architecture is retired. OpenCode-era
-ADRs remain frozen historical records, while Pi-era decisions begin at
-ADR-0055. The former eval framework is deferred pending a separate Pi-native
-design.
+Prism ran on OpenCode before its Pi migration. ADRs 0001–0054 are frozen
+pre-Pi records, not current runtime guidance; ADR-0055 begins the Pi-era
+architecture. Eval execution remains deferred until a separate Pi-native design
+is approved.
 
 ## Domain Glossary
 
@@ -140,6 +140,9 @@ The declaration that connects Prism resources to executable capabilities.
 - Declares each tool as bundled, external, or consumer-development scope.
 - Contains no credentials, secret-bearing URLs, or arbitrary shell source.
 - Has mechanical parity with package manifests and active lockfile scopes.
+- Keeps Core Markdown execution behind the dedicated changed-file checker and
+  packaged configuration; consumer rules, plugins, and generic tool dispatch
+  cannot alter the gate.
 - Fails closed on malformed data, unsupported schemas, duplicate IDs, drift,
   or ambiguous adapter registration.
 
@@ -406,8 +409,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   responsibilities.
 - **No model fine-tuning or hosting** — Pi and upstream providers own model
   execution and authentication.
-- **No Pi-native eval execution yet** — the former OpenCode eval suite remains
-  deferred until a separate specification defines a Pi SDK/RPC design.
+- **No Pi-native eval execution yet** — evals remain deferred until a separate
+  specification defines their Pi SDK or RPC design.
 - **No rewriting frozen ADRs** — ADRs 0001–0054 remain historical records and
   are superseded only by new Pi-era decisions.
 

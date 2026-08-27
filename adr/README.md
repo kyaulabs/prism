@@ -1,54 +1,70 @@
 # Architecture Decision Records
 
-An ADR captures a single architectural decision: the context, the choice, and
-its consequences. ADRs are immutable once accepted — supersede, don't edit.
+Prism uses Nygard-style Architecture Decision Records for durable,
+cross-cutting choices. Each ADR records the context, one decision, and its
+consequences.
 
-## Two eras
+## Historical boundary
 
-The ADR sequence spans two harness generations:
+The sequence spans two architectures:
 
-- **0001–0054 — opencode-era (frozen).** Records from the opencode harness.
-  They are retained as historical context; each carries a banner noting it is
-  an opencode-era record superseded where moot by the pi migration
-  (ADR-0055). They are not edited — bodies stand as written.
-- **0055+ — pi-era.** Records from the pi harness begin at ADR-0055 (the
-  single-agent conversion philosophy) and continue the numbering.
+- **0001–0054 are frozen OpenCode-era records.** They remain immutable history.
+  Their bodies are not rewritten to match Pi, even when later decisions make
+  their runtime details obsolete.
+- **0055 and later are Pi-era records.** ADR-0055 establishes the current
+  single-agent, skill-and-prompt architecture.
 
-## Format (Nygard)
+A historical ADR remains useful as evidence of what the project decided at the
+time. Current work follows the latest accepted or superseding Pi-era decision.
 
-Each record: `adr/NNNN-kebab-case-title.md` where `NNNN` is the next sequence
-number (zero-padded). Start at `0001`.
+## File and format
 
-## Statuses
+Name records `adr/NNNN-kebab-case-title.md`, using the next zero-padded number.
+Start from [`0000-template.md`](0000-template.md).
+
+Every ADR contains:
+
+- title and status;
+- context;
+- decision;
+- consequences;
+- supersession links when applicable.
+
+## Status
 
 | Status | Meaning |
 | --- | --- |
-| `Proposed` | Drafted, not yet ratified. Open for discussion. |
-| `Accepted` | Ratified and in effect. |
-| `Deprecated` | No longer in effect; no replacement. |
-| `Superseded` | Replaced by a later ADR. Add `Superseded by ADR-NNNN`. |
+| `Proposed` | Draft awaiting a decision |
+| `Accepted` | Ratified and currently authoritative unless superseded |
+| `Deprecated` | No longer authoritative and has no replacement |
+| `Superseded` | Replaced by a named later ADR |
 
-When superseding: leave the original file unchanged, change its status to
-`Superseded` with a pointer to the new one, and create the new ADR.
+Accepted decision bodies are immutable. Correct or replace a decision with a
+new ADR. When superseding, update only the prior record's status metadata and
+pointer, leaving its context, decision, and consequences as written.
 
 ## When to write an ADR
 
-- A decision is hard to reverse or expensive to change (data model, auth
-  strategy, framework adoption, deployment topology).
-- A choice forecloses other options (e.g., "we use MariaDB, not Postgres").
-- A decision affects more than one module or has cross-cutting consequences.
+Write one when a decision:
 
-## When NOT to write an ADR
+- is expensive or risky to reverse;
+- closes off credible alternatives;
+- changes a system, trust, ownership, data, or deployment boundary;
+- affects several modules or packages;
+- establishes policy that future work must consult.
 
-- Routine implementation choices (naming, refactor extractions).
-- Decisions fully covered by an existing ADR or `AGENTS.md` rule.
-- Anything that fits in a commit message or PR description.
+Routine naming, local extraction, formatting, and implementation details belong
+in code, a specification, a plan, or a pull request.
 
 ## Workflow
 
-1. Copy `0000-template.md` to `adr/NNNN-title.md`.
-2. Fill in the sections.
-3. Set status `Proposed`.
-4. On acceptance, set status `Accepted` and add a one-liner to `CONTEXT.md`.
+1. Load the on-demand `adr` skill.
+2. Read `CONTEXT.md` and accepted ADRs that govern the boundary.
+3. Copy `0000-template.md` to the next numbered path.
+4. Write one decision and its concrete consequences.
+5. Set the record to `Proposed` until ratified.
+6. On acceptance, set `Accepted` and add the current decision to `CONTEXT.md`.
+7. Supersede rather than rewriting accepted history.
 
-See the `adr` skill (`.opencode/skills/adr/SKILL.md`) for the rules summary.
+ADR-0027 controls temporary specifications and plans. Those artifacts may be
+removed at branch completion; ADRs are durable architecture history.
