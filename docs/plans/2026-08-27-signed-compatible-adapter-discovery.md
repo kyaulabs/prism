@@ -278,7 +278,7 @@ prism-tool commit create --type fix --scope setup --subject "verify signed adapt
 - Consumes: verified payload JSON, running Core version, supported bootstrap protocol.
 - Produces: `validateCataloguePayload({verified, now})` and `selectCompatibleAdapters({catalogue, coreVersion, bootstrapProtocol})` returning normalized exact adapter selections.
 
-- [ ] **Step 1: Write failing schema, freshness, rollback-input, and SemVer selection tests**
+- [x] **Step 1: Write failing schema, freshness, rollback-input, and SemVer selection tests**
 
 ```javascript
 const {
@@ -337,13 +337,13 @@ test('rejects expired, overlong, duplicate, and malformed catalogues', () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify Red**
+- [x] **Step 2: Run the focused test and verify Red**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js`
 
 Expected: FAIL because payload and compatible-release functions are not exported.
 
-- [ ] **Step 3: Add exact `semver` and implement normalized selection**
+- [x] **Step 3: Add exact `semver` and implement normalized selection**
 
 After explicit registry authorization, add `"semver": "7.8.5"` to Core
 runtime dependencies and root development dependencies. Regenerate both root
@@ -393,7 +393,7 @@ unique adapter IDs/package names/release versions; `@kyaulabs/` package names;
 positive safe sequence; RFC 3339 UTC timestamps; five-minute issue skew; seven-
 day maximum validity; bounded counts; and `ACTIVE|REVOKED` status.
 
-- [ ] **Step 4: Run focused tests and dependency audit**
+- [x] **Step 4: Run focused tests and dependency audit**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js`
 
@@ -401,7 +401,7 @@ Run: `npm run test:node`
 
 Expected: PASS, with lockfiles containing exact `semver` 7.8.5 and no test regressions.
 
-- [ ] **Step 5: Commit selection and dependency state**
+- [x] **Step 5: Commit selection and dependency state**
 
 ```bash
 git add packages/prism-core/package.json package.json package-lock.json pnpm-lock.yaml packages/prism-core/scripts/prism-tool/adapter-catalogue-validation.js tests/Node/prism-tool-adapter-catalogue.test.js

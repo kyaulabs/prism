@@ -9,6 +9,8 @@ const test = require('node:test');
 const {
     CatalogueError,
     loadCatalogueTrust,
+    selectCompatibleAdapters,
+    validateCataloguePayload,
     verifyCatalogueEnvelope,
 } = require('../../packages/prism-core/scripts/prism-tool/adapter-catalogue-validation');
 
@@ -36,6 +38,77 @@ function signedEnvelope(payload, options = {}) {
         },
     };
 }
+
+function validCatalogue() {
+    return {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [
+                {version: '2.0.0', coreRange: '>=2.0.0 <3.0.0', bootstrapProtocol: 1, integrity: 'sha512-AAAA', publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.2', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-BBBB', publishedAt: '2026-08-26T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.9.0-beta.1', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-CCCC', publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.3', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-DDDD', publishedAt: '2026-08-27T00:00:00Z', status: 'REVOKED'},
+            ],
+        }],
+    };
+}
+
+test('selects the highest stable active Core-compatible release', () => {
+    const catalogue = validateCataloguePayload({
+        catalogue: validCatalogue(),
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+
+    assert.deepEqual(selectCompatibleAdapters({
+        catalogue,
+        coreVersion: '1.4.0',
+        bootstrapProtocol: 1,
+    }), [{
+        id: 'php-web',
+        displayName: 'PHP/web',
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '1.8.2',
+        bootstrapProtocol: 1,
+        integrity: 'sha512-BBBB',
+    }]);
+});
+
+test('rejects expired, overlong, duplicate, and malformed catalogue payloads', () => {
+    const catalogue = validCatalogue();
+    const duplicateRelease = structuredClone(catalogue);
+    duplicateRelease.adapters[0].releases.push(structuredClone(duplicateRelease.adapters[0].releases[0]));
+    const invalidCases = [
+        {...catalogue, expiresAt: '2026-08-26T00:00:00Z'},
+        {...catalogue, expiresAt: '2026-09-03T00:00:01Z'},
+        {...catalogue, issuedAt: '2026-08-27T12:05:01Z', expiresAt: '2026-09-03T12:05:01Z'},
+        {...catalogue, adapters: [catalogue.adapters[0], catalogue.adapters[0]]},
+        {...catalogue, sequence: -1},
+        {...catalogue, unexpected: true},
+        duplicateRelease,
+        {...catalogue, adapters: [{...catalogue.adapters[0], packageName: '@example/prism-php-web'}]},
+        {...catalogue, adapters: [{...catalogue.adapters[0], releases: [{
+            ...catalogue.adapters[0].releases[0],
+            coreRange: 'not-semver',
+        }]}]},
+    ];
+
+    for (const value of invalidCases) {
+        assert.throws(
+            () => validateCataloguePayload({
+                catalogue: value,
+                now: new Date('2026-08-27T12:00:00Z'),
+            }),
+            CatalogueError
+        );
+    }
+});
 
 test('verifies an Ed25519 envelope before parsing its payload', () => {
     const fixture = signedEnvelope({schemaVersion: 1, catalogueId: 'test'});
