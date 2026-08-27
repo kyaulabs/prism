@@ -2150,6 +2150,8 @@ test('applies the combined selected-adapter scaffold durably', (t) => {
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
     assert.equal(report.disposition, 'PROJECT_DURABLE');
+    const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
+    assert.deepEqual(journal.adapterEvidence, plan.adapterEvidence);
     for (const output of plan.outputs) {
         const outputPath = path.join(projectRoot, ...output.path.split('/'));
         assert.equal(fs.statSync(outputPath).mode & 0o777, output.mode);

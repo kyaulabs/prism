@@ -893,7 +893,7 @@ prism-tool commit create --type fix --scope setup --subject "bind adapter eviden
 - Consumes: schema-2 receipts, schema-1 legacy receipts, current journal phase.
 - Produces: resumable signed attempts, safe legacy pre-durable cleanup guidance, manual preservation for durable/ambiguous legacy state.
 
-- [ ] **Step 1: Write failing status and legacy recovery tests**
+- [x] **Step 1: Write failing status and legacy recovery tests**
 
 ```javascript
 test('resumes a signed adapter attempt after the global cache expires', async (t) => {
@@ -924,13 +924,13 @@ test('preserves durable or ambiguous legacy state for manual recovery', (t) => {
 });
 ```
 
-- [ ] **Step 2: Run orchestration tests and verify Red**
+- [x] **Step 2: Run orchestration tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because status has no adapter evidence or legacy classification.
 
-- [ ] **Step 3: Add explicit schema dispatch and recovery rules**
+- [x] **Step 3: Add explicit schema dispatch and recovery rules**
 
 Parse receipt schema 2 through signed validation. Recognize schema 1 only as
 legacy evidence. For an adapter-only pre-durable schema-1 attempt, return
@@ -944,13 +944,13 @@ automatically. Return manual recovery and preserve every artifact. Signed
 schema-2 attempts include `adapterEvidence` in status reports and resume from
 embedded receipt evidence even when the global cache is absent or expired.
 
-- [ ] **Step 4: Run status, transaction, and plan tests**
+- [x] **Step 4: Run status, transaction, and plan tests**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: PASS with safe legacy cleanup and no automatic durable deletion.
 
-- [ ] **Step 5: Commit recovery behavior**
+- [x] **Step 5: Commit recovery behavior**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-adapter.js packages/prism-core/scripts/prism-tool/bootstrap-status.js packages/prism-core/scripts/prism-tool/bootstrap-transaction.js tests/Node/prism-tool-bootstrap-orchestration.test.js tests/Node/prism-tool-bootstrap-plan.test.js

@@ -28,6 +28,9 @@ const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 const RECEIPT_SCHEMA_VERSION = 2;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const ADAPTER_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const PACKAGE_NAME = /^@kyaulabs\/[a-z0-9](?:[a-z0-9._-]{0,212}[a-z0-9])?$/;
 const UTC_TIMESTAMP = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 
 function isRecord(value) {
@@ -685,6 +688,55 @@ function validateReceiptEvidence(receipt, coreRoot) {
     return adapter;
 }
 
+function validateLegacyReceipt(receipt, projectRoot, attemptId) {
+    if (!exactKeys(receipt, [
+        'schemaVersion', 'attemptId', 'projectRoot', 'phase', 'source', 'adapter',
+        'acquisition', 'settings', 'npmInventory', 'registration',
+    ]) || receipt.schemaVersion !== 1 || receipt.attemptId !== attemptId ||
+        receipt.projectRoot !== projectRoot || receipt.phase !== 'PROVISIONED' ||
+        !['BLANK', 'TEMPLATE'].includes(receipt.source) || !isRecord(receipt.adapter) ||
+        !exactKeys(receipt.adapter, [
+            'id', 'displayName', 'packageName', 'packageVersion', 'bootstrapProtocol',
+        ]) || !ADAPTER_ID.test(receipt.adapter.id) ||
+        typeof receipt.adapter.displayName !== 'string' ||
+        receipt.adapter.displayName.length === 0 || receipt.adapter.displayName.length > 80 ||
+        !PACKAGE_NAME.test(receipt.adapter.packageName) ||
+        !EXACT_VERSION.test(receipt.adapter.packageVersion) ||
+        !Number.isSafeInteger(receipt.adapter.bootstrapProtocol) ||
+        receipt.adapter.bootstrapProtocol <= 0 || !isRecord(receipt.acquisition) ||
+        !exactKeys(receipt.acquisition, ['kind', 'installSource']) ||
+        !['LOCAL', 'NPM'].includes(receipt.acquisition.kind) ||
+        typeof receipt.acquisition.installSource !== 'string' ||
+        receipt.acquisition.installSource.length === 0 || !isRecord(receipt.settings) ||
+        !exactKeys(receipt.settings, ['sha256', 'packageSource']) ||
+        !SHA256.test(receipt.settings.sha256) ||
+        receipt.settings.packageSource !== receipt.acquisition.installSource ||
+        !isRecord(receipt.registration) || !exactKeys(receipt.registration, [
+            'packageName', 'packageVersion', 'bootstrapProtocol', 'packageRoot',
+            'contractPath', 'handlerPath',
+        ]) || receipt.registration.packageName !== receipt.adapter.packageName ||
+        receipt.registration.packageVersion !== receipt.adapter.packageVersion ||
+        receipt.registration.bootstrapProtocol !== receipt.adapter.bootstrapProtocol ||
+        !['packageRoot', 'contractPath', 'handlerPath'].every((key) =>
+            typeof receipt.registration[key] === 'string' &&
+            path.isAbsolute(receipt.registration[key])
+        )) {
+        throw new Error('legacy bootstrap receipt is invalid');
+    }
+    if (receipt.acquisition.kind === 'NPM') {
+        if (!isRecord(receipt.npmInventory) ||
+            !exactKeys(receipt.npmInventory, ['entries', 'bytes', 'sha256']) ||
+            !Array.isArray(receipt.npmInventory.entries) ||
+            !Number.isSafeInteger(receipt.npmInventory.bytes) ||
+            receipt.npmInventory.bytes < 0 || !SHA256.test(receipt.npmInventory.sha256)) {
+            throw new Error('legacy bootstrap receipt is invalid');
+        }
+    } else if (receipt.npmInventory !== null) {
+        throw new Error('legacy bootstrap receipt is invalid');
+    }
+    return receipt.adapter;
+}
+
 function validateReceipt(receipt, projectRoot, attemptId, coreRoot) {
     if (!exactKeys(receipt, [
         'schemaVersion', 'attemptId', 'projectRoot', 'phase', 'source', 'adapter',
@@ -791,6 +843,54 @@ function inspectProvisionedBootstrapAttempt({projectRoot, coreRoot, attemptId}) 
     });
 }
 
+function inspectBootstrapAdapterReceipt({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    allowAppliedProject = false,
+}) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const canonicalRoot = fs.realpathSync(projectRoot);
+    const receipt = readJson(attemptPaths(canonicalRoot, attemptId).receiptPath);
+    if (receipt.schemaVersion === RECEIPT_SCHEMA_VERSION) {
+        const adapter = validateReceipt(receipt, canonicalRoot, attemptId, coreRoot);
+        const selected = inspectProvisionedBootstrapAdapter({
+            projectRoot: canonicalRoot,
+            coreRoot,
+            attemptId,
+            packageName: adapter.packageName,
+            expectedSource: receipt.source,
+            allowAppliedProject,
+        });
+        return Object.freeze({
+            kind: 'SIGNED',
+            adapter: Object.freeze({
+                id: selected.adapter.id,
+                packageName: selected.adapter.packageName,
+                packageVersion: selected.adapter.packageVersion,
+                bootstrapProtocol: selected.adapter.bootstrapProtocol,
+            }),
+            adapterEvidence: Object.freeze({...selected.receipt.catalogueEvidence}),
+            receipt: selected.receipt,
+        });
+    }
+    if (receipt.schemaVersion === 1) {
+        const adapter = validateLegacyReceipt(receipt, canonicalRoot, attemptId);
+        return Object.freeze({
+            kind: 'LEGACY_UNSIGNED',
+            adapter: Object.freeze({
+                id: adapter.id,
+                packageName: adapter.packageName,
+                packageVersion: adapter.packageVersion,
+                bootstrapProtocol: adapter.bootstrapProtocol,
+            }),
+            adapterEvidence: null,
+            receipt: Object.freeze(receipt),
+        });
+    }
+    throw new Error('bootstrap receipt is unsupported');
+}
+
 function loadActiveBootstrapAdapter({projectRoot, identity}) {
     const registration = discoverAdapter({projectRoot});
     if (
@@ -814,11 +914,29 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, coreRoot, attemptI
     let receipt;
     try {
         receipt = readJson(paths.receiptPath);
-        validateReceipt(receipt, projectRoot, attemptId, coreRoot);
+        if (receipt.schemaVersion === RECEIPT_SCHEMA_VERSION) {
+            validateReceipt(receipt, projectRoot, attemptId, coreRoot);
+        } else if (receipt.schemaVersion === 1) {
+            validateLegacyReceipt(receipt, projectRoot, attemptId);
+        } else {
+            throw new Error('bootstrap receipt is unsupported');
+        }
+        if (fs.readdirSync(paths.attemptRoot).join(',') !== 'adapter.json') {
+            return recoveryReport(
+                projectRoot,
+                attemptId,
+                paths.receiptPath,
+                receipt.schemaVersion === 1
+                    ? 'DURABLE_OR_AMBIGUOUS_LEGACY_STATE'
+                    : 'STATE_CHANGED'
+            );
+        }
     } catch {
         return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'INVALID_RECEIPT');
     }
-    const expectedPi = ['npm', 'prism-tool', 'settings.json'];
+    const expectedPi = receipt.acquisition.kind === 'NPM'
+        ? ['npm', 'prism-tool', 'settings.json']
+        : ['prism-tool', 'settings.json'];
     try {
         if (
             !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
@@ -836,14 +954,18 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, coreRoot, attemptI
         settingsIdentity = pathIdentity(settingsPath);
         const settings = settingsEvidence(projectRoot, receipt.acquisition);
         if (settings.sha256 !== receipt.settings.sha256) throw new Error('settings changed');
-        const npmRoot = path.join(projectRoot, '.pi', 'npm');
-        npmIdentity = pathIdentity(npmRoot);
-        const inventory = inventoryDirectory(npmRoot);
-        if (
-            inventory.sha256 !== receipt.npmInventory.sha256 ||
-            inventory.bytes !== receipt.npmInventory.bytes
-        ) {
-            throw new Error('npm inventory changed');
+        if (receipt.acquisition.kind === 'NPM') {
+            const npmRoot = path.join(projectRoot, '.pi', 'npm');
+            npmIdentity = pathIdentity(npmRoot);
+            const inventory = inventoryDirectory(npmRoot);
+            if (
+                inventory.sha256 !== receipt.npmInventory.sha256 ||
+                inventory.bytes !== receipt.npmInventory.bytes
+            ) {
+                throw new Error('npm inventory changed');
+            }
+        } else if (receipt.npmInventory !== null || fs.existsSync(path.join(projectRoot, '.pi', 'npm'))) {
+            throw new Error('local acquisition state changed');
         }
     } catch {
         return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'STATE_CHANGED');
@@ -868,21 +990,23 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, coreRoot, attemptI
                 cleanupRoot
             );
         }
-        const quarantinedNpm = path.join(cleanupRoot, 'npm');
-        fs.renameSync(npmRoot, quarantinedNpm);
-        const inventory = inventoryDirectory(quarantinedNpm);
-        if (
-            !sameIdentity(npmIdentity, pathIdentity(quarantinedNpm)) ||
-            inventory.sha256 !== receipt.npmInventory.sha256 ||
-            inventory.bytes !== receipt.npmInventory.bytes
-        ) {
-            return recoveryReport(
-                projectRoot,
-                attemptId,
-                paths.receiptPath,
-                'STATE_CHANGED_AFTER_QUARANTINE',
-                cleanupRoot
-            );
+        if (receipt.acquisition.kind === 'NPM') {
+            const quarantinedNpm = path.join(cleanupRoot, 'npm');
+            fs.renameSync(npmRoot, quarantinedNpm);
+            const inventory = inventoryDirectory(quarantinedNpm);
+            if (
+                !sameIdentity(npmIdentity, pathIdentity(quarantinedNpm)) ||
+                inventory.sha256 !== receipt.npmInventory.sha256 ||
+                inventory.bytes !== receipt.npmInventory.bytes
+            ) {
+                return recoveryReport(
+                    projectRoot,
+                    attemptId,
+                    paths.receiptPath,
+                    'STATE_CHANGED_AFTER_QUARANTINE',
+                    cleanupRoot
+                );
+            }
         }
         if (!equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
             return recoveryReport(
@@ -934,6 +1058,7 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, coreRoot, attemptI
 
 module.exports = {
     cleanupBootstrapAdapter,
+    inspectBootstrapAdapterReceipt,
     inspectProvisionedBootstrapAdapter,
     inspectProvisionedBootstrapAttempt,
     loadActiveBootstrapAdapter,
