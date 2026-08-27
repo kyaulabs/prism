@@ -1,4 +1,4 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import {
     DEFAULT_MAX_BYTES,
@@ -193,7 +193,6 @@ export function registerWebAccessTools(
     pi: ToolRegistrar,
     deps: WebAccessExtensionDependencies = {},
 ): void {
-    const search = deps.searchWeb ?? defaultSearchWeb;
     const fetch = deps.fetchContent ?? defaultFetchContent;
     const requireConsent = deps.requireStandingWebAccess ?? defaultRequireStandingWebAccess;
 
@@ -218,7 +217,13 @@ export function registerWebAccessTools(
                 ...(raw.recency ? {recency: raw.recency} : {}),
                 domains: raw.domains ?? [],
             };
-            const result = await search(params, {signal});
+            let result: SearchBackendResult;
+            if (deps.searchWeb) {
+                await requireConsent();
+                result = await deps.searchWeb(params, {signal});
+            } else {
+                result = await defaultSearchWeb(params, {signal, requireConsent});
+            }
             const output = truncate(renderSearch(result));
             const details: SearchDetails = {
                 backend: result.backend,

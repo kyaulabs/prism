@@ -1,4 +1,4 @@
-// $KYAULabs: web-access-extension.test.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: web-access-extension.test.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
@@ -104,6 +104,33 @@ test('registers only the bounded web_search and fetch_content schemas', () => {
     assert.deepEqual(fetch.parameters.required, ['url']);
 });
 
+test('web_search checks standing consent before an injected backend effect', async () => {
+    let searches = 0;
+    const tools = captureTools({
+        requireStandingWebAccess: () => {
+            throw new WebAccessError(
+                'WEB_ACCESS_CONSENT_REQUIRED',
+                'standing web-access consent is required',
+            );
+        },
+        searchWeb: async () => {
+            searches += 1;
+            return {backend: 'direct', results: []};
+        },
+    });
+
+    await assert.rejects(
+        () => (tools.get('web_search') as ToolDefinition).execute(
+            'call-consent',
+            {query: 'bounded search'},
+            new AbortController().signal,
+        ),
+        (error: unknown) => error instanceof WebAccessError &&
+            error.code === 'WEB_ACCESS_CONSENT_REQUIRED',
+    );
+    assert.equal(searches, 0);
+});
+
 test('web_search reports progress, passes AbortSignal, and returns structured details', async () => {
     const controller = new AbortController();
     const updates: ToolResult[] = [];
@@ -113,6 +140,7 @@ test('web_search reports progress, passes AbortSignal, and returns structured de
         results: [{title: 'Title', url: 'https://example.com/', snippet: 'Snippet'}],
     };
     const tools = captureTools({
+        requireStandingWebAccess: () => undefined,
         searchWeb: async (_params: unknown, deps: {signal?: AbortSignal}) => {
             receivedSignal = deps.signal;
             return backend;
