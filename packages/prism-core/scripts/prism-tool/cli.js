@@ -838,6 +838,7 @@ function setup(args, context) {
                 try {
                     cleanup = cleanupBootstrapAdapter({
                         projectRoot: route.projectRoot,
+                        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
                         attemptId: attempts[0].slice('--attempt='.length),
                     });
                 } catch {
@@ -1149,6 +1150,7 @@ function setup(args, context) {
         try {
             report = cleanupBootstrapAdapter({
                 projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
                 attemptId: attempts[0].slice('--attempt='.length),
             });
         } catch {
@@ -1168,6 +1170,7 @@ function setup(args, context) {
     if (args[0] === 'adapter' && args[1] === 'select') {
         const controls = args.slice(2);
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const digests = controls.filter((argument) => argument.startsWith('--catalogue-digest='));
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
@@ -1182,24 +1185,31 @@ function setup(args, context) {
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--catalogue-digest=') &&
                 !argument.startsWith('--source=') &&
                 !argument.startsWith('--network-approved=')
             )
         ) {
             process.stderr.write(
-                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                'usage: prism-tool setup adapter select --adapter=ID ' +
+                '[--catalogue-digest=SHA256] --source=template|blank ' +
                 '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
         }
         const adapterId = adapters[0].slice('--adapter='.length);
         if (
-            !['core-only', 'php-web'].includes(adapterId) ||
-            (adapterId === 'core-only' && networks.length !== 0) ||
-            (adapterId === 'php-web' && networks.length !== 1)
+            !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(adapterId) ||
+            (adapterId === 'core-only' && (networks.length !== 0 || digests.length !== 0)) ||
+            (adapterId !== 'core-only' && (
+                networks.length !== 1 ||
+                digests.length !== 1 ||
+                !/^[0-9a-f]{64}$/.test(digests[0].slice('--catalogue-digest='.length))
+            ))
         ) {
             process.stderr.write(
-                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                'usage: prism-tool setup adapter select --adapter=ID ' +
+                '[--catalogue-digest=SHA256] --source=template|blank ' +
                 '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
@@ -1211,17 +1221,21 @@ function setup(args, context) {
                 report = selectCoreOnlyAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                    catalogue: context.adapterCatalogue,
                     source,
                 });
             } else {
                 report = provisionBootstrapAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                    catalogue: context.adapterCatalogue,
+                    catalogueDigest: digests[0].slice('--catalogue-digest='.length),
                     adapterId,
                     source,
                     networkApproved: networks[0] === '--network-approved=yes',
+                    catalogueCachePath: context.catalogueCachePath,
+                    catalogueTrust: context.catalogueTrust,
+                    catalogueContext: context,
+                    now: context.now,
+                    env: context.env ?? process.env,
                     piExecutable: context.piExecutable ?? resolveExecutable(
                         'pi',
                         context.env ?? process.env

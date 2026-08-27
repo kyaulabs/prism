@@ -698,7 +698,7 @@ prism-tool commit create --type fix --scope setup --subject "expose signed adapt
 - Consumes: source mode, adapter ID, retained catalogue digest, verified cache entry, Pi executable.
 - Produces: receipt schema 2 with embedded envelope and normalized `catalogueEvidence`; exact NPM-only acquisition.
 
-- [ ] **Step 1: Write failing NPM-only, exact-save, integrity, and receipt tests**
+- [x] **Step 1: Write failing NPM-only, exact-save, integrity, and receipt tests**
 
 Add a local `provisionContext(t, options = {})` fixture to the existing adapter
 test. It must create a strict-empty root, Core manifest, signed catalogue cache,
@@ -736,13 +736,13 @@ test('rejects an installed lockfile integrity mismatch and restores strict empti
 });
 ```
 
-- [ ] **Step 2: Run the adapter tests and verify Red**
+- [x] **Step 2: Run the adapter tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: FAIL because selection accepts no digest and receipt schema 1 has no signed evidence.
 
-- [ ] **Step 3: Remove LOCAL acquisition and implement schema-2 validation**
+- [x] **Step 3: Remove LOCAL acquisition and implement schema-2 validation**
 
 Make `resolveBootstrapAcquisition({adapter})` return only:
 
@@ -772,7 +772,7 @@ the embedded envelope and adapter selection, but compare expiry against
 `selectedAt`, not the current clock. Remove local settings and local package
 branches from production code and update cleanup allowlists to NPM state only.
 
-- [ ] **Step 4: Run adapter tests and the original sandbox reproduction**
+- [x] **Step 4: Run adapter tests and the original sandbox reproduction**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-adapter.test.js`
 
@@ -782,7 +782,11 @@ updated launcher and a fixture cache containing a valid signed catalogue.
 Expected: focused tests PASS; post-install validation reaches
 `ADAPTER_PROVISIONED`; exact package/settings state remains when successful.
 
-- [ ] **Step 5: Commit exact signed acquisition**
+The focused reproduction passes. The referenced diagnostic report and its exact
+Bubblewrap command are not present in this checkout; the specification classifies
+that sandboxed real-Pi reproduction as optional manual diagnostic evidence.
+
+- [x] **Step 5: Commit exact signed acquisition**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-adapter.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-adapter.test.js
