@@ -27,6 +27,12 @@ function isOwned(stat, context) {
     return uid === undefined || stat.uid === uid;
 }
 
+function matchesManagedRecord(stat, expected, context) {
+    return expected !== undefined && stat.isFile() && !stat.isSymbolicLink() &&
+        isOwned(stat, context) && (stat.mode & 0o777) === 0o600 &&
+        stat.dev === expected.dev && stat.ino === expected.ino;
+}
+
 function isTrustedAncestor(stat, context) {
     const uid = currentUid(context);
     const trustedOwner = uid === undefined || stat.uid === uid || stat.uid === 0;
@@ -241,6 +247,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
     const temporary = path.join(parent, `.prism-managed-${nonce}.tmp`);
     const backup = path.join(parent, `.prism-managed-${nonce}.bak`);
     const serialized = `${JSON.stringify(record)}\n`;
+    let backupStat;
     let descriptor;
     let priorRemoved = false;
     let temporaryStat;
@@ -262,8 +269,10 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
         descriptor = undefined;
         if (detail.record) {
             io.linkSync(managedPath, backup);
-            removeManagedRecord({context, detail});
+            backupStat = io.lstatSync(backup);
+            if (!matchesManagedRecord(backupStat, detail.stat, context)) throw new Error();
             priorRemoved = true;
+            removeManagedRecord({context, detail});
         }
         io.linkSync(temporary, managedPath);
         fsyncDirectory(context, parent);
@@ -286,7 +295,22 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
             } catch (error) {
                 if (error?.code === 'ENOENT') {
                     try {
+                        const currentBackup = io.lstatSync(backup);
+                        if (!matchesManagedRecord(currentBackup, detail.stat, context) ||
+                            !matchesManagedRecord(currentBackup, backupStat, context)) {
+                            throw new Error();
+                        }
                         io.linkSync(backup, managedPath);
+                        const restored = io.lstatSync(managedPath);
+                        const backupAfter = io.lstatSync(backup);
+                        if (!matchesManagedRecord(restored, detail.stat, context) ||
+                            !matchesManagedRecord(backupAfter, detail.stat, context)) {
+                            if (restored.isFile() && !restored.isSymbolicLink() &&
+                                restored.dev === backupAfter.dev && restored.ino === backupAfter.ino) {
+                                io.unlinkSync(managedPath);
+                            }
+                            throw new Error();
+                        }
                         fsyncDirectory(context, parent);
                     } catch { }
                 }

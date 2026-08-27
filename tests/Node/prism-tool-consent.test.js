@@ -368,6 +368,76 @@ test('replacement publication failure preserves the previous valid consent recor
     );
 });
 
+test('replacement restores the previous record after a post-unlink sync failure', (t) => {
+    const target = fixture(t);
+    assert.equal(capture(() => main([
+        'consent', 'grant-ocr', '--approval=yes',
+    ], {consentPath: target.consentPath})).status, 0);
+    const previous = fs.readFileSync(target.consentPath);
+    let previousUnlinked = false;
+    const failingFs = {
+        ...fs,
+        unlinkSync(file) {
+            fs.unlinkSync(file);
+            if (file === target.consentPath) previousUnlinked = true;
+        },
+        fsyncSync(descriptor) {
+            if (previousUnlinked && fs.fstatSync(descriptor).isDirectory()) {
+                throw new Error('sync CANARY');
+            }
+            return fs.fsyncSync(descriptor);
+        },
+    };
+
+    const result = capture(() => main([
+        'consent', 'grant-web', '--approval=yes',
+    ], {consentPath: target.consentPath, fs: failingFs}));
+
+    assert.equal(result.status, 5);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.deepEqual(fs.readFileSync(target.consentPath), previous);
+});
+
+test('replacement never restores a substituted backup entry', (t) => {
+    const target = fixture(t);
+    assert.equal(capture(() => main([
+        'consent', 'grant-ocr', '--approval=yes',
+    ], {consentPath: target.consentPath})).status, 0);
+    let backup = '';
+    let targetLinks = 0;
+    const racingFs = {
+        ...fs,
+        linkSync(source, destination) {
+            if (destination.endsWith('.bak')) {
+                backup = destination;
+                return fs.linkSync(source, destination);
+            }
+            if (destination === target.consentPath) {
+                targetLinks += 1;
+                if (targetLinks === 1) {
+                    fs.unlinkSync(backup);
+                    fs.writeFileSync(
+                        backup,
+                        '{"schemaVersion":2,"ocr":true,"webAccess":true}\n',
+                        {mode: 0o600}
+                    );
+                    throw new Error('publish CANARY');
+                }
+            }
+            return fs.linkSync(source, destination);
+        },
+    };
+
+    const result = capture(() => main([
+        'consent', 'grant-web', '--approval=yes',
+    ], {consentPath: target.consentPath, fs: racingFs}));
+
+    assert.equal(result.status, 5);
+    assert.doesNotMatch(result.stderr, /CANARY/);
+    assert.equal(fs.existsSync(target.consentPath), false);
+    assert.deepEqual(fs.readdirSync(target.parent), []);
+});
+
 test('grant never overwrites a final path created during publication', (t) => {
     const target = fixture(t);
     const racingFs = {
