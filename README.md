@@ -1,4 +1,4 @@
-# <img src=".github/media/prism-icon.svg" alt="Prism Icon" height="38" align="absmiddle"/> Prism
+# <img src=".github/media/prism-dark-panel.png" alt="Prism" />
 
 [https://kyaulabs.com/](https://kyaulabs.com/)
 

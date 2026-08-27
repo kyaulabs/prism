@@ -1,4 +1,6 @@
-# @kyaulabs/prism-core
+# <img src="https://raw.githubusercontent.com/kyaulabs/prism/main/.github/media/prism-dark-panel.png" alt="Prism" />
+
+## @kyaulabs/prism-core
 
 Prism Core is the language-independent half of the Prism coding harness for
 [pi](https://pi.dev). Install it globally so its instructions, skills, prompts,

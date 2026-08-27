@@ -1,4 +1,6 @@
-# @kyaulabs/prism-php-web
+# <img src="https://raw.githubusercontent.com/kyaulabs/prism/main/.github/media/prism-dark-panel.png" alt="Prism" />
+
+## @kyaulabs/prism-php-web
 
 Prism's PHP/web adapter adds stack-specific instructions, skills, prompts,
 project providers, and toolchain contracts to globally installed Prism Core.
