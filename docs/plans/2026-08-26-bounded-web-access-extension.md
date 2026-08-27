@@ -467,11 +467,11 @@ export interface FetchContentResult {
 }
 ```
 
-- [ ] **Step 1: Write failing extraction and paging tests**
+- [x] **Step 1: Write failing extraction and paging tests**
 
 Fixture HTML with navigation, script, article, title, links, and prompt-injection-shaped text. Assert readable mode returns Markdown article content without script execution or raw HTML. Assert raw mode returns textual body. Assert offset/limit paging, next offset, empty tail, malformed HTML handling, title extraction, and stable sanitized errors.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -481,7 +481,7 @@ node --test tests/Node/web-access-fetch.test.ts
 
 Expected: FAIL because extraction modules and dependencies are missing.
 
-- [ ] **Step 3: Obtain explicit registry authorization and add exact dependencies**
+- [x] **Step 3: Obtain explicit registry authorization and add exact dependencies**
 
 After the human explicitly authorizes this registry attempt, run:
 
@@ -493,13 +493,19 @@ npm install --package-lock-only --ignore-scripts
 
 Expected: Core runtime dependencies and both committed npm lock surfaces update; no lifecycle scripts run.
 
-- [ ] **Step 4: Implement extraction and fetch paging**
+> Execution note: this checkout's `pnpm-workspace.yaml` has no package globs, so
+> the approved filtered command matched no projects. After a second explicit
+> authorization, the same exact dependencies were added to Core and the root
+> test manifest, followed by root `pnpm install --ignore-scripts` and npm's
+> lockfile-only update.
+
+- [x] **Step 4: Implement extraction and fetch paging**
 
 Use `parseHTML`, `Readability`, and `TurndownService`. Remove scripts/styles before Readability. Resolve links against the final URL. Slice extracted Unicode text by validated character offset and a maximum limit below Pi's 50 KiB tool ceiling. Keep the full extracted value only in call-local memory and return no cache identifier or path.
 
 Credit `pi-web-access` as a design reference and add licenses for the three runtime dependencies to NOTICE. Do not list upstream files as copied unless implementation actually adapts source.
 
-- [ ] **Step 5: Run tests, audit, and create the commit**
+- [x] **Step 5: Run tests, audit, and create the commit**
 
 Run:
 

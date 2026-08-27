@@ -5,9 +5,9 @@ This project is licensed under the GNU Affero General Public License
 v3.0 (AGPL-3.0). A copy of the license is available in the LICENSE
 file at the root of this repository.
 
-This project includes and adapts material from the following
-third-party open-source projects. The original copyright notices and
-license terms are preserved here as required by those licenses.
+This project includes dependencies and references or adapts material from
+third-party open-source projects. The original copyright notices and license
+terms are preserved here as required by those licenses.
 
 ---
 
@@ -134,9 +134,66 @@ cursor/plugins pstack
     - Applied as the packaging model for all resources under
       packages/prism-core/ and packages/prism-php-web/
 
+Nico Bailon/pi-web-access
+  URL: https://github.com/nicobailon/pi-web-access
+  License: MIT
+  What was referenced: The keyless browser, local SearXNG, guarded fetch,
+    extraction, and deterministic test-seam concepts were reviewed as
+    untrusted design material. Prism's implementation is independently
+    written and uses a smaller interface and stricter trust boundary.
+  Used in:
+    - adr/0091-bounded-core-web-access-extension.md (design reference)
+    - packages/prism-core/extensions/web-access/ (independent implementation)
+
+@mozilla/readability
+  URL: https://github.com/mozilla/readability
+  Copyright: Copyright (c) 2010 Arc90 Inc
+  License: Apache-2.0
+  Use: Runtime dependency for readable article extraction.
+
+linkedom
+  URL: https://github.com/WebReflection/linkedom
+  Copyright: Copyright (c) 2021 Andrea Giammarchi, @WebReflection
+  License: ISC
+  Use: Runtime dependency for inert in-process HTML parsing.
+
+turndown
+  URL: https://github.com/mixmark-io/turndown
+  Copyright: Copyright (c) 2017 Dom Christie
+  License: MIT
+  Use: Runtime dependency for HTML-to-Markdown conversion.
+
 ---
 
-The MIT license terms applicable to the above projects:
+The Apache License 2.0 notice applicable to @mozilla/readability:
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+The ISC license terms applicable to linkedom:
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+
+The MIT license terms applicable to the above MIT-licensed projects:
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
