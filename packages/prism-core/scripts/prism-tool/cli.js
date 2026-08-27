@@ -52,6 +52,7 @@ const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
 const {markdownCommand} = require('./markdown');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
+const {webAccessCommand} = require('./web-access-config');
 const {codeReviewCommand} = require('./code-review');
 const {
     applyReleaseCapability,
@@ -1878,6 +1879,7 @@ function main(argv, context = {}) {
     if (command === 'hook') return hookCommand(args, context);
     if (command === 'markdown') return markdownCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
+    if (command === 'web-access') return webAccessCommand(args, context);
     if (command === 'code-review') return codeReviewCommand(args, context);
     if (command === 'package-release') return packageReleaseCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');

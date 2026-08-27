@@ -142,8 +142,9 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
         'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
-        'consent', 'contract', 'discovery', 'markdown',
+        'consent', 'contract', 'discovery', 'managed-record', 'markdown',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'web-access-browser', 'web-access-config',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',
     ]) {

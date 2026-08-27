@@ -214,7 +214,7 @@ prism-tool commit create --type feat --scope consent --subject "add standing web
 - Consumes: managed-record primitive and `resolveExecutable(name, env)`.
 - Produces: `inspectWebAccessConfig(context)`, `webAccessCommand(args, context)`, and `resolveWebAccessBrowser(context)`.
 
-- [ ] **Step 1: Write failing launcher and resolver tests**
+- [x] **Step 1: Write failing launcher and resolver tests**
 
 Test this closed configuration and command grammar:
 
@@ -237,7 +237,7 @@ assert.equal(configured, 0);
 
 Cover absent config, `browser=disabled`, remove, unknown keys, unsafe files, non-loopback hosts, credentials, fragments, redirects not being part of configuration, literal approval, Linux gating, realpath resolution, fixed command priority, and Brave names `brave`, `brave-browser`, `brave-browser-stable`.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -247,7 +247,7 @@ node --test tests/Node/prism-tool-web-access.test.js
 
 Expected: FAIL because the command and modules do not exist.
 
-- [ ] **Step 3: Implement the closed config and optional resolver**
+- [x] **Step 3: Implement the closed config and optional resolver**
 
 Use this config shape only:
 
@@ -275,7 +275,7 @@ const BROWSERS = [
 
 Return `{status:'UNAVAILABLE'}` outside Linux or when disabled/missing. Return only a real absolute executable and family when available. Register `web-access` in `cli.js` and add both modules to tarball assertions.
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run:
 
