@@ -19,7 +19,11 @@ const {
     CATALOGUE_URL,
     inspectCatalogueCache,
 } = require('../../packages/prism-core/scripts/prism-tool/adapter-catalogue-cache');
-const {makeTempDir} = require('./helpers');
+const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {loadSelectedAdapter} = require(
+    '../../packages/prism-core/scripts/prism-tool/supported-adapters'
+);
+const {makeTempDir, writeJson} = require('./helpers');
 
 function signedEnvelope(payload, options = {}) {
     const pair = options.pair ?? generateKeyPairSync('ed25519');
@@ -44,6 +48,21 @@ function signedEnvelope(payload, options = {}) {
             }],
         },
     };
+}
+
+async function captureAsyncWrites(action) {
+    let stdout = '';
+    let stderr = '';
+    const stdoutWrite = process.stdout.write;
+    const stderrWrite = process.stderr.write;
+    process.stdout.write = (chunk) => { stdout += chunk; return true; };
+    process.stderr.write = (chunk) => { stderr += chunk; return true; };
+    try {
+        return {status: await action(), stdout, stderr};
+    } finally {
+        process.stdout.write = stdoutWrite;
+        process.stderr.write = stderrWrite;
+    }
 }
 
 function response(bytes, status = 200) {
@@ -73,6 +92,109 @@ function validCatalogue() {
         }],
     };
 }
+
+test('reports signed compatible choices and immutable catalogue evidence', async (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const cacheRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(cacheRoot, {recursive: true, force: true}));
+    writeJson(path.join(coreRoot, 'package.json'), {
+        name: '@kyaulabs/prism-core',
+        version: '1.4.0',
+    });
+    const fixture = signedEnvelope(validCatalogue());
+    const result = await captureAsyncWrites(() => main([
+        'setup', 'adapter', 'catalogue', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        fetch: async () => response(fixture.bytes),
+        catalogueCachePath: path.join(cacheRoot, 'cache.json'),
+        catalogueTrust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    }));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0);
+    assert.equal(report.disposition, 'ADAPTER_SELECTION_REQUIRED');
+    assert.equal(report.data.catalogueEvidence.source, 'NETWORK');
+    assert.match(report.data.catalogueEvidence.digest, /^[0-9a-f]{64}$/);
+    assert.equal(report.data.adapters[0].packageVersion, '1.8.2');
+    assert.equal(report.data.adapters[0].integrity, 'sha512-BBBB');
+});
+
+test('accepts no caller package, version, integrity, or URL authority', async (t) => {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    writeJson(path.join(coreRoot, 'package.json'), {
+        name: '@kyaulabs/prism-core',
+        version: '1.4.0',
+    });
+
+    for (const control of [
+        '--package=x', '--version=1.0.0', '--integrity=x', '--url=https://example.com',
+    ]) {
+        const result = await captureAsyncWrites(() => main([
+            'setup', 'adapter', 'catalogue', '--network-approved=yes', control, '--json',
+        ], {projectRoot, coreRoot}));
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+    }
+});
+
+test('reloads an exact still-valid digest-bound adapter selection', async (t) => {
+    const coreRoot = makeTempDir();
+    const cacheRoot = makeTempDir();
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(cacheRoot, {recursive: true, force: true}));
+    writeJson(path.join(coreRoot, 'package.json'), {
+        name: '@kyaulabs/prism-core',
+        version: '1.4.0',
+    });
+    const fixture = signedEnvelope(validCatalogue());
+    const context = {
+        catalogueCachePath: path.join(cacheRoot, 'cache.json'),
+        catalogueTrust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+    };
+    const verified = await acquireVerifiedCatalogue({
+        fetchImpl: async () => response(fixture.bytes),
+        context,
+        coreRoot,
+        trust: fixture.trust,
+        now: context.now,
+    });
+
+    assert.deepEqual(loadSelectedAdapter({
+        digest: verified.envelopeDigest,
+        adapterId: 'php-web',
+        coreRoot,
+        context,
+    }), {
+        id: 'php-web',
+        displayName: 'PHP/web',
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: '1.8.2',
+        bootstrapProtocol: 1,
+        integrity: 'sha512-BBBB',
+    });
+    assert.throws(() => loadSelectedAdapter({
+        digest: '0'.repeat(64),
+        adapterId: 'php-web',
+        coreRoot,
+        context,
+    }), CatalogueError);
+    assert.throws(() => loadSelectedAdapter({
+        digest: verified.envelopeDigest,
+        adapterId: 'php-web',
+        coreRoot,
+        context: {...context, now: new Date('2026-09-04T00:00:00Z')},
+    }), CatalogueError);
+});
 
 test('fetches only the fixed catalogue URL and publishes verified evidence', async (t) => {
     const root = makeTempDir();

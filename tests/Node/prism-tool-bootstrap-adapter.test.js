@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -92,37 +92,23 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
     );
 }
 
-test('reports one exact supported adapter and explicit Core-only selection', (t) => {
+test('catalogue discovery requires exact network approval and JSON controls', (t) => {
     const projectRoot = makeTempDir();
     const coreRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
     writeCorePackage(coreRoot, '0.3.1');
 
-    const result = captureWrites(() => main(
+    for (const args of [
+        ['setup', 'adapter', 'catalogue'],
         ['setup', 'adapter', 'catalogue', '--json'],
-        {projectRoot, coreRoot}
-    ));
-    const report = JSON.parse(result.stdout);
-
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, '');
-    assert.equal(report.schemaVersion, 1);
-    assert.equal(report.command, 'setup adapter catalogue');
-    assert.equal(report.status, 'GO');
-    assert.equal(report.disposition, 'ADAPTER_SELECTION_REQUIRED');
-    assert.deepEqual(report.data.coreOnly, {
-        id: 'core-only',
-        displayName: 'Core only',
-        adapter: null,
-    });
-    assert.deepEqual(report.data.adapters, [{
-        id: 'php-web',
-        displayName: 'PHP/web',
-        packageName: '@kyaulabs/prism-php-web',
-        packageVersion: '0.3.1',
-        bootstrapProtocol: 1,
-    }]);
+        ['setup', 'adapter', 'catalogue', '--network-approved=no', '--json'],
+        ['setup', 'adapter', 'catalogue', '--network-approved=yes'],
+    ]) {
+        const result = captureWrites(() => main(args, {projectRoot, coreRoot}));
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+    }
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -153,57 +139,6 @@ test('selects Core-only without package, handler, or filesystem effects', (t) =>
     assert.equal(report.data.attempt, null);
     assert.equal(invocations, 0);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
-});
-
-test('rejects unsupported or ambiguous adapter catalogues', (t) => {
-    const projectRoot = makeTempDir();
-    const coreRoot = makeTempDir();
-    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
-    writeCorePackage(coreRoot);
-    const valid = {
-        schemaVersion: 1,
-        coreOnly: {id: 'core-only', displayName: 'Core only', adapter: null},
-        adapters: [{
-            id: 'php-web',
-            displayName: 'PHP/web',
-            packageName: '@kyaulabs/prism-php-web',
-            packageVersion: '0.3.1',
-            bootstrapProtocol: 1,
-        }],
-    };
-    const cases = [
-        {...valid, unknown: true},
-        {...valid, schemaVersion: 2},
-        {...valid, coreOnly: {id: 'core-only', displayName: 'Core only', adapter: {}}},
-        {...valid, adapters: []},
-        {...valid, adapters: [valid.adapters[0], {...valid.adapters[0]}]},
-        {...valid, adapters: [{...valid.adapters[0], packageName: '@other/adapter'}]},
-        {...valid, adapters: [{...valid.adapters[0], packageName: '@kyaulabs/prism-other'}]},
-        {...valid, adapters: [{...valid.adapters[0], packageVersion: '^0.3.1'}]},
-        {...valid, adapters: [{...valid.adapters[0], bootstrapProtocol: 2}]},
-        {...valid, adapters: [{...valid.adapters[0], displayName: ''}]},
-        {...valid, adapters: [{...valid.adapters[0], unknown: true}]},
-    ];
-
-    for (const adapterCatalogue of cases) {
-        let invocations = 0;
-        const result = captureWrites(() => main(
-            ['setup', 'adapter', 'catalogue', '--json'],
-            {
-                projectRoot,
-                coreRoot,
-                adapterCatalogue,
-                run: () => { invocations += 1; },
-            }
-        ));
-
-        assert.equal(result.status, 5);
-        assert.equal(result.stdout, '');
-        assert.match(result.stderr, /supported adapter catalogue is invalid/);
-        assert.equal(invocations, 0);
-        assert.deepEqual(fs.readdirSync(projectRoot), []);
-    }
 });
 
 test('resolves only a co-shipped checkout adapter or the exact pinned npm source', (t) => {

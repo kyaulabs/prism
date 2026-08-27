@@ -573,7 +573,7 @@ prism-tool commit create --type fix --scope setup --subject "cache verified adap
 - Consumes: verified catalogue acquisition, Core manifest version, protocol 1.
 - Produces: asynchronous `inspectSupportedAdapters(...)` report containing `catalogueEvidence`, Core-only, and normalized selected releases; `loadSelectedAdapter({digest, adapterId, ...})` for later installation.
 
-- [ ] **Step 1: Write failing CLI catalogue and digest-binding tests**
+- [x] **Step 1: Write failing CLI catalogue and digest-binding tests**
 
 ```javascript
 async function captureAsyncWrites(action) {
@@ -634,13 +634,13 @@ test('accepts no caller package, version, integrity, or URL authority', async (t
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: FAIL because the catalogue command is synchronous and has no network or digest contract.
 
-- [ ] **Step 3: Replace the static lockstep catalogue orchestration**
+- [x] **Step 3: Replace the static lockstep catalogue orchestration**
 
 Keep Core-only static, remove `defaultCatalogue(coreRoot)`, and make
 `inspectSupportedAdapters` acquire/verify/cache the signed envelope, normalize
@@ -668,7 +668,7 @@ Update CLI parsing so catalogue discovery requires exactly
 clock context, and safely awaits the promise through the existing async main
 boundary.
 
-- [ ] **Step 4: Run focused and full Node tests**
+- [x] **Step 4: Run focused and full Node tests**
 
 Run: `node --test tests/Node/prism-tool-adapter-catalogue.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
@@ -676,7 +676,7 @@ Run: `npm run test:node`
 
 Expected: PASS with no static Core-version adapter assumption remaining.
 
-- [ ] **Step 5: Commit signed choice discovery**
+- [x] **Step 5: Commit signed choice discovery**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/supported-adapters.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-bootstrap-adapter.test.js tests/Node/prism-tool-adapter-catalogue.test.js
