@@ -8,7 +8,7 @@
 Prism is a coding harness for [Pi](https://pi.dev) that codifies a disciplined,
 test-driven engineering pipeline: brainstorm → specify → plan → implement →
 verify → review. The harness itself is the primary deliverable: Pi packages,
-skills, prompt templates, one safety extension, git hooks, quality gates,
+skills, prompt templates, two non-orchestration extensions, git hooks, quality gates,
 documentation, and architecture records.
 
 Prism separates language-agnostic policy from stack-specific practice. The
@@ -31,7 +31,7 @@ documentation, and conversation.
 | Term | Definition |
 | --- | --- |
 | Pi package | A distributable collection of Pi skills, prompt templates, extensions, themes, and supporting package files. Prism ships a global core package and project-local stack adapters. |
-| Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, and the sole safety extension. It must not contain stack-specific behavior. |
+| Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, the safety extension, and the web-access extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
@@ -40,9 +40,10 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent jointly covers OCR connectivity and reviewed-code egress until revoked and never transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent covers OCR connectivity and reviewed-code egress. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
 | standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
+| standing web-access consent | A global, explicit, persistent, and revocable Prism authorization for the web-access extension's loopback SearXNG search, fixed-origin keyless search, and guarded public textual fetching. It contains no credentials or project data and does not authorize other tools or network effects. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
@@ -62,7 +63,8 @@ documentation, and conversation.
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
 | sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
 | script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via a separate `prism-tool resolve` call, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0073, superseding ADR-0065's invocation syntax). |
-| safety extension | Prism core's sole Pi extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, bounded-window denial circuit breaker, and fatal commit-failure latch. |
+| safety extension | Prism core's fail-closed enforcement extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, bounded-window denial circuit breaker, and fatal commit-failure latch. |
+| web-access extension | Prism core's bounded read-only web capability. It registers native search and content-fetch tools, enforces standing web-access consent, confines optional browser search, and guards public HTTP(S) and loopback SearXNG boundaries. |
 | fatal commit-failure latch | Per-session safety state set by any failed or unsafe agent commit attempt. It aborts the active operation and blocks every later tool call until the human reloads or otherwise tears down the extension instance. |
 | oversized request | Work too large for one specification in one session because it spans multiple independent subsystems or contains unknowns that cannot be reduced to sharp questions. It routes to wayfinder before detailed design. |
 | strict greenfield | A repository with no commits, design artifacts, or application source, as determined by the fail-closed classifier. It may receive one walking-skeleton bootstrap before wayfinding. |
@@ -88,7 +90,7 @@ The globally installed, language-agnostic harness package.
 
 - Contains no PHP, Pest, Aurora, SCSS, nginx, MariaDB, Composer, `vendor`, or
   `cdn` behavior.
-- Owns the single-agent engineering pipeline and the sole Pi extension.
+- Owns the single-agent engineering pipeline, safety extension, and web-access extension; neither extension orchestrates agents or workflows.
 - Deploys merge-safe global instructions without replacing user-owned content.
 - Exposes generic tooling through stable interfaces rather than consumer
   working-directory assumptions.
@@ -159,6 +161,9 @@ The measured state required before a toolchain entry point proceeds.
 - Standing OCR consent authorizes only OCR connectivity and reviewed-code
   egress; it never transfers to registry, mutation, Git, GitHub, or other
   external effects.
+- Standing web-access consent separately authorizes only the web-access
+  extension's loopback SearXNG search, confined keyless search, and guarded
+  public textual fetching; browser and SearXNG readiness remain optional.
 - `/setup` invocation separately authorizes only the bounded fixed public-
   template reads, exact selected adapter acquisition, registry, audit, locked-
   population, and declared browser-download effects disclosed for that attempt.
@@ -337,8 +342,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 ### Prism owns
 
 - The global language-agnostic core package and project-local stack adapters.
-- Skills, prompt templates, global instruction blocks, and the sole safety
-  extension.
+- Skills, prompt templates, global instruction blocks, the safety extension,
+  and the web-access extension.
 - Toolchain declarations, generic launcher behavior, adapter handoff, and
   consent/readiness semantics.
 - Strict-empty classification, fixed template-source validation, supported-
@@ -383,9 +388,10 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - Human authorization at each mutation, connectivity, and code-egress boundary:
   invocation-scoped setup acquisition under ADR-0083, separately approved
   project and hook mutations, workflow-scoped tracker authorization under
-  ADR-0085, or narrowly scoped standing OCR consent under ADR-0074. Read-only
-  GitHub repository and tracker metadata is the bounded standing-read exception
-  under ADR-0086.
+  ADR-0085, narrowly scoped standing OCR consent under ADR-0074, or narrowly
+  scoped standing web-access consent under ADR-0091. Read-only GitHub
+  repository and tracker metadata is the bounded standing-read exception under
+  ADR-0086.
 
 ## Non-Goals
 
@@ -395,7 +401,7 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   ORM, or replacement for Aurora.
 - **No orchestration layer** — Prism does not recreate tabs, subagents, modes,
   automatic model tiers, or background agents inside Pi.
-- **No additional extension** — safety remains the one extension.
+- **No orchestration extensions** — Core extensions may enforce or expose a bounded Pi runtime capability only through an accepted ADR; they do not recreate tabs, subagents, modes, model routing, or background agents.
 - **No autonomous external-tool administration** — Prism does not install,
   authenticate, configure, upgrade, or downgrade Semgrep or OCR.
 - **No general-purpose package manager** — adapter provisioning is restricted
@@ -440,7 +446,7 @@ cross-era constraints most relevant to current work are:
 Pi-era decisions:
 
 - `adr/0055-pi-migration-embrace-single-agent.md` — express Prism through Pi's single-agent skills and prompt-template model.
-- `adr/0056-safety-extension-sole-extension.md` — retain exactly one fail-closed safety extension.
+- `adr/0056-safety-extension-sole-extension.md` — superseded sole-extension rule retained as historical context through ADR-0091.
 - `adr/0057-single-model-manual-cycling-manifest-deleted.md` — superseded by ADR-0067; retained as historical context.
 - `adr/0058-core-adapter-package-split.md` — split the global language-agnostic core from project-local stack adapters.
 - `adr/0059-conversion-scope-deferred-evals-mcp-to-cli-skills.md` — bound the Pi port, defer evals, and replace MCP integrations with CLI skills.
@@ -472,6 +478,7 @@ Pi-era decisions:
 - `adr/0088-user-authored-frontend-design-and-visual-review.md` — keep project aesthetics user-authored and provide adapter-owned reusable visual review tooling with local-by-default evidence and explicit trust boundaries.
 - `adr/0089-progressive-output-style-guidance.md` — apply a compact global prose baseline and load detailed Distill guidance only for durable or substantial writing while preserving technical precision and pstack attribution.
 - `adr/0090-core-markdown-lint-gate.md` — bundle exact Markdown linting in Core and validate changed maintained documentation through one packaged, changed-file-only checker.
+- `adr/0091-bounded-core-web-access-extension.md` — add a non-orchestration Core web-access extension with separately revocable standing consent, confined browser-first keyless search, loopback SearXNG, and guarded public textual fetching.
 
 ## When to update this file
 
