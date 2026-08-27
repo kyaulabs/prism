@@ -88,7 +88,7 @@ prism-tool commit create --type docs --scope web-access --subject "record bounde
 - Consumes: existing ownership, symlink, mode, bounded-read, atomic-link, directory-sync, and unsafe-state behavior from `consent.js`.
 - Produces: `inspectManagedRecord(options)`, `publishManagedRecord(options)`, `removeManagedRecord(options)`, `requireWebConsent(context)`, consent schema v2, and `grant-web`/`revoke-web` launcher commands.
 
-- [ ] **Step 1: Write failing consent-schema tests**
+- [x] **Step 1: Write failing consent-schema tests**
 
 Add tests that assert these exact public results:
 
@@ -115,7 +115,7 @@ assert.deepEqual(requireWebConsent({consentPath: target.consentPath}), {
 
 Cover: safe schema-v1 OCR migration, `grant-web --approval=yes`, independent OCR/web revocation, removal only when both booleans are false, unsafe v2 records, literal approval grammar, and sanitized errors.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -125,7 +125,7 @@ node --test tests/Node/prism-tool-consent.test.js
 
 Expected: FAIL because schema v2, `requireWebConsent`, `grant-web`, and `revoke-web` do not exist.
 
-- [ ] **Step 3: Extract the managed-record primitive and implement schema v2**
+- [x] **Step 3: Extract the managed-record primitive and implement schema v2**
 
 Create a generic CommonJS module with this closed interface:
 
@@ -180,7 +180,7 @@ prism-tool consent grant-web --approval=yes
 prism-tool consent revoke-web
 ```
 
-- [ ] **Step 4: Run the focused tests to verify Green**
+- [x] **Step 4: Run the focused tests to verify Green**
 
 Run:
 

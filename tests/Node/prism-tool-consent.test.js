@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-consent.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-consent.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -9,7 +9,12 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
-const {inspectConsent, requireOcrConsent, resolveConsentPath} = require('../../packages/prism-core/scripts/prism-tool/consent');
+const {
+    inspectConsent,
+    requireOcrConsent,
+    requireWebConsent,
+    resolveConsentPath,
+} = require('../../packages/prism-core/scripts/prism-tool/consent');
 
 function capture(callback) {
     let stdout = '';
@@ -68,8 +73,9 @@ test('grant writes the exact private schema and status reports granted', (t) => 
     assert.equal(granted.status, 0);
     assert.equal(granted.stderr, '');
     assert.deepEqual(JSON.parse(fs.readFileSync(target.consentPath, 'utf8')), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         ocr: true,
+        webAccess: false,
     });
     assert.equal(fs.statSync(target.parent).mode & 0o777, 0o700);
     assert.equal(fs.statSync(target.consentPath).mode & 0o777, 0o600);
@@ -78,10 +84,74 @@ test('grant writes the exact private schema and status reports granted', (t) => 
     ], {consentPath: target.consentPath}));
     assert.equal(status.status, 0);
     assert.deepEqual(JSON.parse(status.stdout), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         command: 'consent status',
         status: 'GRANTED',
         ocr: true,
+        webAccess: false,
+    });
+});
+
+test('web consent can be granted without changing OCR consent', (t) => {
+    const target = fixture(t);
+    writeRecord(target.consentPath, '{"schemaVersion":1,"ocr":true}\n');
+
+    const granted = capture(() => main([
+        'consent', 'grant-web', '--approval=yes',
+    ], {consentPath: target.consentPath}));
+
+    assert.equal(granted.status, 0);
+    assert.deepEqual(JSON.parse(fs.readFileSync(target.consentPath, 'utf8')), {
+        schemaVersion: 2,
+        ocr: true,
+        webAccess: true,
+    });
+});
+
+test('OCR consent can be revoked without changing web consent', (t) => {
+    const target = fixture(t);
+    writeRecord(target.consentPath, '{"schemaVersion":2,"ocr":true,"webAccess":true}\n');
+
+    const revoked = capture(() => main([
+        'consent', 'revoke-ocr',
+    ], {consentPath: target.consentPath}));
+
+    assert.equal(revoked.status, 0);
+    assert.deepEqual(JSON.parse(fs.readFileSync(target.consentPath, 'utf8')), {
+        schemaVersion: 2,
+        ocr: false,
+        webAccess: true,
+    });
+    assert.equal(inspectConsent({consentPath: target.consentPath}).state, 'ABSENT');
+    assert.deepEqual(requireWebConsent({consentPath: target.consentPath}), {
+        state: 'GRANTED',
+        path: target.consentPath,
+    });
+    const status = capture(() => main([
+        'consent', 'status', '--json',
+    ], {consentPath: target.consentPath}));
+    assert.deepEqual(JSON.parse(status.stdout), {
+        schemaVersion: 2,
+        command: 'consent status',
+        status: 'GRANTED',
+        ocr: false,
+        webAccess: true,
+    });
+});
+
+test('web consent can be revoked without changing OCR consent', (t) => {
+    const target = fixture(t);
+    writeRecord(target.consentPath, '{"schemaVersion":2,"ocr":true,"webAccess":true}\n');
+
+    const revoked = capture(() => main([
+        'consent', 'revoke-web',
+    ], {consentPath: target.consentPath}));
+
+    assert.equal(revoked.status, 0);
+    assert.deepEqual(JSON.parse(fs.readFileSync(target.consentPath, 'utf8')), {
+        schemaVersion: 2,
+        ocr: true,
+        webAccess: false,
     });
 });
 
@@ -91,14 +161,25 @@ test('status distinguishes absent consent from unsafe consent', (t) => {
         'consent', 'status', '--json',
     ], {consentPath: target.consentPath}));
     assert.deepEqual(JSON.parse(absent.stdout), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         command: 'consent status',
         status: 'ABSENT',
         ocr: false,
+        webAccess: false,
     });
 
     writeRecord(target.consentPath, '{"schemaVersion":1,"ocr":false}\n');
     assert.equal(inspectConsent({consentPath: target.consentPath}).state, 'ABSENT');
+    const migrated = capture(() => main([
+        'consent', 'status', '--json',
+    ], {consentPath: target.consentPath}));
+    assert.deepEqual(JSON.parse(migrated.stdout), {
+        schemaVersion: 2,
+        command: 'consent status',
+        status: 'ABSENT',
+        ocr: false,
+        webAccess: false,
+    });
 });
 
 test('grant requires one literal approval control', (t) => {
@@ -108,6 +189,10 @@ test('grant requires one literal approval control', (t) => {
         ['consent', 'grant-ocr', '--approval=no'],
         ['consent', 'grant-ocr', '--approval=yes', '--approval=yes'],
         ['consent', 'grant-ocr', '--approval=yes', '--other=value'],
+        ['consent', 'grant-web'],
+        ['consent', 'grant-web', '--approval=no'],
+        ['consent', 'grant-web', '--approval=yes', '--approval=yes'],
+        ['consent', 'grant-web', '--approval=yes', '--other=value'],
     ]) {
         const result = capture(() => main(args, {consentPath: target.consentPath}));
         assert.equal(result.status, 2, args.join(' '));
@@ -118,6 +203,7 @@ test('grant requires one literal approval control', (t) => {
 test('exact schema, private mode, ownership, and no-follow rules fail closed', (t) => {
     const cases = [
         ['unknown key', '{"schemaVersion":1,"ocr":true,"extra":true}\n', 0o600, {}],
+        ['unknown v2 key', '{"schemaVersion":2,"ocr":true,"webAccess":false,"extra":true}\n', 0o600, {}],
         ['bad schema', '{"schemaVersion":2,"ocr":true}\n', 0o600, {}],
         ['malformed json', '{CANARY-CONTENT', 0o600, {}],
         ['oversized', ' '.repeat(4097), 0o600, {}],
@@ -268,6 +354,21 @@ test('grant never overwrites a final path created during publication', (t) => {
         raced: true,
     });
     assert.deepEqual(fs.readdirSync(target.parent), ['prism-consent.json']);
+});
+
+test('requireWebConsent fails closed until web access is granted', (t) => {
+    const target = fixture(t);
+    assert.throws(
+        () => requireWebConsent({consentPath: target.consentPath}),
+        /standing web-access consent/
+    );
+    assert.equal(capture(() => main([
+        'consent', 'grant-web', '--approval=yes',
+    ], {consentPath: target.consentPath})).status, 0);
+    assert.deepEqual(requireWebConsent({consentPath: target.consentPath}), {
+        state: 'GRANTED',
+        path: target.consentPath,
+    });
 });
 
 test('path resolution and requireOcrConsent expose only the supported contract', (t) => {
