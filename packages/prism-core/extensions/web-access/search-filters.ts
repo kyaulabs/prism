@@ -1,4 +1,4 @@
-// $KYAULabs: search-filters.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: search-filters.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import net from 'node:net';
 import {WebAccessError} from './errors.ts';
@@ -49,7 +49,10 @@ export function validateSearchParams(input: SearchParams): SearchParams {
 }
 
 function hostnameMatches(hostname: string, domain: string): boolean {
-    return hostname === domain || hostname.endsWith(`.${domain}`);
+    const canonicalHostname = hostname.replace(/\.$/, '');
+    const canonicalDomain = domain.replace(/\.$/, '');
+    return canonicalHostname === canonicalDomain ||
+        canonicalHostname.endsWith(`.${canonicalDomain}`);
 }
 
 function normalizeText(value: string): string {

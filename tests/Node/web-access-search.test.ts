@@ -1,4 +1,4 @@
-// $KYAULabs: web-access-search.test.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: web-access-search.test.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -93,6 +93,14 @@ test('local domain filtering includes subdomains excludes matches and drops unsa
         {title: 'one', url: 'https://example.com/one', snippet: 'one'},
         {title: 'two', url: 'https://sub.example.com/two', snippet: 'two'},
     ]);
+});
+
+test('domain exclusions canonicalize an equivalent trailing-dot hostname', () => {
+    assert.deepEqual(filterResults([{
+        title: 'blocked',
+        url: 'https://blocked.example.com./result',
+        snippet: 'blocked',
+    }], ['-example.com'], 10), []);
 });
 
 test('result normalization removes terminal control characters from untrusted text', () => {
