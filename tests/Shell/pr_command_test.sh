@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 # $KYAULabs$
 
@@ -265,6 +265,10 @@ if assert_heading_parity "$TEMPLATE_FILE" "$COMMAND_FILE"; then
 else
 	fail 'template heading missing or out of order in the command'
 fi
+assert_contains "$COMMAND_FILE" 'Use only unchecked TODO task-list items' \
+	'Test Plan requires unchecked TODO task-list items'
+assert_contains "$COMMAND_FILE" '- [ ] `command` — reason to run' \
+	'Test Plan documents the required command and reason format'
 
 # ── 6. baseline standard fixture ────────────────────────────────────────────
 
@@ -392,6 +396,21 @@ new_standard_fixture fixture
 assert_preflight_failure 'net-empty range is rejected' "$fixture" 'branch has no net diff against its merge-base'
 
 # ── 10. title validation behavior ───────────────────────────────────────────
+
+assert_contains "$COMMAND_FILE" 'openssl rand -hex 4 | {' \
+	'command sources the PR directory suffix from openssl without shell substitution'
+assert_contains "$COMMAND_FILE" 'PR_DIR="/tmp/prism-pr.${PR_SUFFIX}"' \
+	'command creates the exact randomized PR directory under /tmp'
+assert_contains "$COMMAND_FILE" 'mkdir -m 700 -- "$PR_DIR"' \
+	'command creates the PR directory with private permissions'
+assert_contains "$COMMAND_FILE" 'TITLE_FILE="$PR_DIR/title.txt"' \
+	'command names the title artifact title.txt'
+assert_contains "$COMMAND_FILE" 'BODY_FILE="$PR_DIR/body.md"' \
+	'command names the body artifact body.md'
+assert_not_contains "$COMMAND_FILE" 'title.log' \
+	'command never names the title artifact title.log'
+assert_not_contains "$COMMAND_FILE" 'title.md' \
+	'command never names the title artifact title.md'
 
 export PI_MODEL="${PI_MODEL:-test-model}"
 

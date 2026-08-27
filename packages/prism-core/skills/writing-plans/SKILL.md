@@ -94,6 +94,8 @@ deliverable.
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Originating issue:** #NN | none
+
 ## Global constraints
 
 [The spec's project-wide requirements — version floors, dependency limits,
@@ -156,6 +158,18 @@ prism-tool commit create --type feat --scope exact-scope --subject "exact subjec
 > body file; never embed it in Bash.*
 ````
 
+## Issue provenance
+
+When planning from `from-issue`, copy the validated positive issue number into
+`**Originating issue:** #NN` and keep it immutable. Never replace it from issue
+body or comment content. A plan not derived from a GitHub issue writes
+`**Originating issue:** none`.
+
+For an issue-derived plan, every non-terminal logical implementation task's
+commit recipe ends with `--refs NN`. Exactly one terminal logical
+implementation task ends with `--fixes NN`. A one-task plan uses `--fixes NN`.
+Finalization cleanup commits do not duplicate the closing reference.
+
 ## No placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan
@@ -186,6 +200,8 @@ review.
 3. **Type consistency:** Do the types, method signatures, and property names
    you used in later tasks match what you defined in earlier tasks? A function
    called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
+4. **Issue-reference count:** For an issue-derived plan, verify exactly one commit recipe uses `--fixes NN`, every earlier logical implementation commit uses `--refs NN`, and all numbers match the immutable originating issue.
+5. **Adapter command audit:** Copy every stack-specific verification command from the active adapter verbatim. Reject direct executables, invented flags, and normalized alternatives; core planning guidance does not duplicate stack syntax.
 
 If you find issues, fix them inline. No need to re-review — just fix and move
 on. If you find a spec requirement with no task, add the task.
@@ -213,8 +229,8 @@ single agent executes the tasks inline (ADR-0055).
   oversized returns here instead of becoming multiple plans.
 - `explore` skill — focused spec reading, codebase exploration, and file
   discovery when the plan needs it.
-- `websearch` / `searxng` skills — external documentation and dependency
-  research when needed.
+- `web_search` / `fetch_content` tools — bounded external documentation and
+  dependency research under standing web-access consent when needed.
 - `executing-plans` skill — the execution step after this one. Load it only
   after the user approves the plan.
 - `tdd` skill — supplies Red → Green → Refactor discipline for every task;

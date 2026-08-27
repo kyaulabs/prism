@@ -63,9 +63,10 @@ argument-hint: "<optional arguments>"
 
 Extensions default-export a factory receiving pi's `ExtensionAPI`. Read the
 `pi-docs` skill and the installed `docs/extensions.md` plus relevant examples
-before changing extension code. Keep orchestration out of extensions: Prism's
-sole extension is the safety gate (ADR-0056). A proposal for another extension
-requires a fresh ADR rather than an opportunistic implementation.
+before changing extension code. Keep orchestration out of extensions. Core's
+accepted extensions are the safety gate and bounded web-access tools
+(ADR-0091); any additional extension requires a fresh ADR rather than an
+opportunistic implementation.
 
 ## Body structure
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
-# docs/, CHANGELOG.md, NOTICE), tests/ (OCR fixtures are arbitrary test data),
-# and the websearch skill's DeepSeek backend (functional tool dependency).
+# docs/, CHANGELOG.md, NOTICE) and tests/ (OCR fixtures are arbitrary test data).
 #
 # Limitation (deliberate): the banned-token list is tailored to the known
 # offenders — DeepSeek model IDs, the four pi config keys, and judge/primary
@@ -26,8 +25,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
 setup_result_file
 
-# Banned tokens: model-prescription surfaces. "DeepSeek API" (websearch
-# backend) and DEEPSEEK_API_KEY (its env contract) are NOT banned.
+# Banned tokens: model-prescription surfaces.
 # Deliberate asymmetry: the four pi config keys match camelCase/kebab/snake
 # forms only — spaced prose ("default model") is ordinary English and is
 # intentionally exempt; the (judge|primary) branch allows a space because
@@ -110,7 +108,6 @@ find "${SCAN_ROOTS[@]}" \
 	-o -path '*/aurora' -o -path "$REPO_ROOT/adr" -o -path "$REPO_ROOT/docs" -o -path "$REPO_ROOT/audits" \
 	-o -path "$REPO_ROOT/prototypes" -o -path "$REPO_ROOT/build" -o -path "$REPO_ROOT/graphify-out" \) -prune -o \
 	-type f \
-	-not -path '*/skills/websearch/search.sh' -not -path '*/skills/websearch/SKILL.md' \
 	-not -path "$REPO_ROOT/CHANGELOG.md" \
 	-not -name '*.lock' -not -name 'package-lock.json' -not -name 'pnpm-lock.yaml' -not -name 'composer.lock' \
 	-not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' \

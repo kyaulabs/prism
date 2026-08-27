@@ -1,191 +1,227 @@
 # Coding Harness
 
-Orientation guide for the KYAULabs coding-agent harness. This is a human
-reference — the agent loads `AGENTS.md` (authoritative) every session, so this
-file carries no per-session token cost.
+This guide explains how Prism turns a pi session into a controlled engineering
+workflow. The agent loads `AGENTS.md` as the authoritative instruction set;
+this file is for contributors and maintainers.
 
-## How the pieces fit together
+## Pi-native architecture
 
-Prism runs on [pi](https://pi.dev). Under pi there are **no tabs, no
-sub-agents, no plan mode, and no MCP** — a single agent runs the whole
-engineering pipeline by loading **skills** on demand (ADR-0055). Slash
-commands are **prompt templates**; the opencode permission matrix and three
-TypeScript plugins collapsed into **one safety extension** (ADR-0056); the
-six-tier model system collapsed to **no prescribed model at all** — model and
-thinking selection is yours at any time (ADR-0067).
+Prism uses one pi agent. Skills load on demand and prompt templates provide
+slash commands. One safety extension enforces sensitive-path rules, destructive
+command policy, the denial circuit breaker, and the fatal commit latch.
 
-New ideas enter through the **brainstorming** skill front door. Pre-spec work
-that is oversized — multiple independent subsystems, or unknowns that cannot
-be expressed as sharp questions — branches to `wayfinder` before detailed
-grilling; the sole exception is the strict-greenfield walking-skeleton
-bootstrap, which precedes wayfinding (ADR-0050).
+There are no harness-selected models. Use Ctrl+P to change models and Shift+Tab
+to change thinking. `/setup` can write your preferred provider, default model,
+model pool, and thinking level to pi configuration. Each question is skippable
+and configuration writes require consent.
 
-The full engineering pipeline, end to end — a single agent loading skills:
+Core installs globally and supplies language-independent workflow and safety.
+Adapters install per project and supply stack conventions, tools, tests, and
+quality gates. A project with `composer.json` or `aurora/` activates the
+PHP/web adapter.
+
+## Work on-ramps
+
+Choose the on-ramp before exploring or editing:
+
+| Request | On-ramp |
+| --- | --- |
+| New behavior, component, or capability | `brainstorming` |
+| Existing issue | `from-issue` |
+| Bug or regression | `debug` |
+| Project question or domain exploration | `consult` |
+| Focused read-only code question | `explore` |
+| Oversized or poorly bounded work | `wayfinder` |
+| Approved spec ready for implementation | `writing-plans` |
+
+A fast path is available only for work with no behavior delta: typos,
+documentation-only edits, RCS header changes, style-only edits, patch dependency
+updates, and test-only corrections. Fast-path work still requires verification,
+`/check`, review, and a conventional commit.
+
+Strict-empty `/setup` and established-project setup remain separate. A strict-empty
+project chooses Template, Blank, or Cancel, then an adapter and optional
+capabilities. An established project is inspected in place and never receives
+strict-empty source or bootstrap-transaction prompts.
+
+## Design and planning
+
+New behavior follows this sequence:
 
 ```text
-brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → /check → code-review
+brainstorming or to-spec -> prototype when needed -> architect when cross-cutting -> issue slicing or writing-plans
 ```
 
-1. **Brainstorm** the change (load the `brainstorming` skill) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
-2. **Prototype** (if technical viability is uncertain) → throwaway code to answer the question, then delete (`prototype` skill).
-3. **Plan** the implementation (`writing-plans` skill) → plan in `docs/plans/`.
-4. **Execute** the plan (`executing-plans` skill) → implement each task inline using the `tdd` skill, review between tasks.
-5. **Implement** each task via the `tdd` skill (Red → Green → Refactor, vertical slices).
-6. **Verify** completion (`verification-before-completion` skill).
-7. **Commit** verified slices through one standalone `prism-tool commit create`; launcher-owned signing, hooks, and attribution remain mandatory, and failure blocks tools until `/reload`.
-8. **Finalize** with `finishing-a-development-branch`: after cleanup, one accepted attempt synchronizes, attests, runs `/check`, completes all four review axes, revalidates SHAs, and invokes preparation-only `/pr`. One complete initial review starts the bounded chain; subsequent accepted repairs review only the continuous repair delta and retain Advisory findings for disclosure. Base or history changes, discontinuity, incomplete axes, or a HEAD mismatch require a new initial review. Humans still push and create or merge pull requests.
+`brainstorming` asks one question at a time, separates codebase facts from human
+decisions, presents alternatives, and stops until the design is approved. It
+writes the approved design to `docs/specs/`.
 
-For non-trivial or cross-cutting changes, run the `architect` skill after the
-spec and before ticketing/planning — it returns a go/no-go plus a parseable
-`ADR-required:` line. The ticketing skill (`/issue`) checks this line before
-slicing a spec into tasks.
-For bugs, use the `debug` skill (disciplined 6-phase loop) before `tdd` on the
-fix.
+Use `to-spec` when the design is already settled in the conversation. Use
+`prototype` only to answer a technical viability question; delete the
+throwaway code after recording the result.
 
-## Where things live
+Run `architect` for non-trivial or cross-cutting work. It checks `CONTEXT.md`
+and accepted ADRs, returns a go/no-go decision, and states whether an ADR is
+required. It is read-only.
 
-| Path | Purpose |
-| --- | --- |
-| `packages/prism-core/AGENTS.md` | Global core instructions — hard boundaries, conventions, pipeline, skills/commands index (deploys to `~/.pi/agent/AGENTS.md`) |
-| `packages/prism-core/APPEND_SYSTEM.md` | Anti-drift bootstrap — appended to the system prompt every turn (deploys to `~/.pi/agent/APPEND_SYSTEM.md`) |
-| `packages/prism-core/skills/` | Language-agnostic skills (loaded on demand via `/skill:name` or auto-invoked) |
-| `packages/prism-core/prompts/` | Core slash commands (pi prompt templates) |
-| `packages/prism-core/extensions/safety/` | The **one** safety extension — sensitive-path + `rm -rf` + `--no-verify` classifier, denial circuit breaker, and independent fatal commit latch (ADRs 0056, 0074) |
-| `packages/prism-core/scripts/` | Language-agnostic helper scripts (`new-branch.sh`, `resolve-identity.sh`, `install-global.sh`, …) |
-| `packages/prism-php-web/` | The PHP/web adapter — `php-web-stack`, `tdd-php`, `rcs-header`, `aurora-page`, `/check-php`, `safe-dirs.json` |
-| `CONTEXT.md` | Domain glossary, entities, invariants, non-goals |
-| `adr/` | Architecture Decision Records (Nygard format) |
-| `AGENTS.md` (repo root) | Repo-level project instructions (concatenates with the global core `AGENTS.md`) |
-| `.pi/settings.json` | This repo's own project settings — dogfoods both packages from disk |
+`writing-plans` turns an approved spec into small vertical tasks with exact
+paths, interfaces, tests, and verification commands. Active plans live in
+`docs/plans/`. Completed plan and spec files are removed before branch
+finalization because Git history preserves them.
 
-## Toolchain
+## TDD execution
 
-Declared tools resolve through the `prism-tool` launcher, never from a
-consumer's `node_modules`/`vendor`/PATH. Scope is owned by the versioned
-package toolchain contracts (`packages/prism-core/toolchain.json`,
-`packages/prism-php-web/toolchain.json`) and ADR-0063:
+`executing-plans` runs approved tasks inline. Each task loads `tdd` and the
+active adapter's language-specific TDD skill.
 
-- **Bundled core tools** — commitlint and git-cliff ship as exact core
-dependencies and run via `prism-tool run <id>` from any project.
-- **Mandatory external prerequisites** — Semgrep `>=1.173.0 <2.0.0` and OCR
-`>=1.9.1 <2.0.0` are verified by every entry point but never installed,
-configured, or authenticated by Prism.
-- **Consumer-development adapter tools** — Pest 5 on PHPUnit 13,
-php-cs-fixer, Playwright (Chromium only), sass, uglify-js, eslint, and
-stylelint are provisioned into the consumer project's native manifests and
-lockfiles through `prism-tool setup`.
+Every behavior slice follows Red, Green, Refactor:
 
-Registry access and consumer mutation remain separate operation-specific
-approvals. `/setup` is the sole prompt for global standing OCR consent, which
-covers only `ocr llm test` connectivity and reviewed-code egress through the
-dedicated `prism-tool code-review ocr` operation. Full `/doctor` validates the
-record and runs one connectivity test without asking again; installer and hook
-readiness use offline `doctor --local-only`. Consent is revocable through
-`/setup` with `prism-tool consent revoke-ocr`, while unsafe records require
-human remediation. CI provisions compatible Semgrep/OCR releases only to
-construct its ephemeral verification
-environment and never creates consent or performs review. A candidate
-workspace under `.pi/prism-tool/work/` is ownership-marked and recovered or
-cleaned safely after interruption; the managed launcher refuses to overwrite
-or remove unrelated executables.
+1. Write one test through a public interface.
+2. Run it and confirm a meaningful failure.
+3. Write the smallest implementation that passes.
+4. Run the focused test.
+5. Refactor without changing behavior.
+6. Run the focused and applicable regression suites.
+7. Apply `verification-before-completion` before committing.
 
-## pi mapping
+The PHP/web adapter uses Pest 5 on PHPUnit 13 and measures at least 80% line
+coverage on changed PHP files. Browser tests are reserved for critical user
+flows. Frontend slices also apply accessibility, mobile-first SCSS, and
+`visual-review` when rendered behavior changes.
 
-| opencode concept | prism-on-pi destination |
-| --- | --- |
-| `AGENTS.md` (always loaded) | `packages/prism-core/AGENTS.md` → `~/.pi/agent/AGENTS.md` (global, concatenates into every session) |
-| `opencode.jsonc` config | `~/.pi/agent/settings.json` + built-in DeepSeek provider |
-| `.envrc` / direnv / `prism.jsonc` / six-tier models | **deleted** — model-agnostic; selection is the human's (ADR-0067) |
-| Primary tabs (build/plan/design/chat) | **collapsed** → pipeline skills |
-| Fifteen `@subagents` | **collapsed** → skills |
-| `.opencode/skills/*/SKILL.md` | `packages/*/skills/*/SKILL.md` |
-| `.opencode/commands/*.md` | `packages/*/prompts/*.md` (pi prompt templates) |
-| per-tool permission matrix | AGENTS.md hard-boundary prose + the one safety extension |
-| `sensitive-paths` + `pre-tool-use` + `denial-circuit-breaker` plugins | `packages/prism-core/extensions/safety/` (ADR-0056) |
-| `session-bootstrap` plugin | `~/.pi/agent/APPEND_SYSTEM.md` (pi-native) |
-| MCP servers (deepseek-websearch, searxng) | `websearch` + `searxng` CLI-shell skills |
+## Per-task verification and commits
 
-## The pipeline (skills you load)
+Verification requires current evidence:
 
-Under pi there are **no primary tabs and no sub-agents** (ADR-0055). One agent
-runs everything; you load a skill when the task calls for it. The
-opencode-era "Build / Plan / Design" tabs and fifteen `@subagents` collapsed
-into skills whose bodies are the former agent prompts. The authoritative
-skills index is in `packages/prism-core/AGENTS.md`.
+- focused and applicable full tests pass;
+- changed-file coverage passes when the adapter defines it;
+- the original reproduction no longer fails for bug fixes;
+- no debug instrumentation or scratch files remain;
+- linters and harness validation pass;
+- source headers, modelines, generated-file rules, and lockfiles are correct;
+- no credentials or secret material entered the diff.
 
-**Accepted trade-offs** (consequences of the single-agent decision — ADR-0055,
-do not re-fix):
+Stage only the intended files. Create each ordinary commit with one standalone
+launcher call:
 
-- **Plan-read-only and skill-gating are now instruction-only.** There is no
-  tool-level gate preventing edits during planning and no per-skill deny
-  matrix. Mitigations: the `brainstorming` skill keeps its own hard gate (no
-  implementation before an approved spec); pi session branching (`/tree`,
-  `/fork`) gives cheap rollback; `verification-before-completion` and
-  `code-review` catch slips.
-- **Model and thinking selection is the human's.** The harness prescribes
-  nothing (ADR-0067): no primary/judge roles, no suggestions, no
-  restrictions. Ctrl+P cycles models and Shift+Tab sets thinking at any time.
-- **Sub-agent context isolation is gone.** Long plans that once dispatched
-  `@tdd` per task now run inline. `executing-plans` keeps inline-only mode and
-  relies on proactive compaction (`/compact`) and `/handoff` for context
-  management.
+```bash
+prism-tool commit create --type feat --scope example --subject "add verified behavior"
+```
 
-## Model strategy
+The launcher writes attribution, validates the message, runs hooks, creates a
+signed commit, and verifies that `HEAD` advanced. Do not combine this command
+with staging, cleanup, inspection, or shell control operators. Failure blocks
+all tools until `/reload`.
 
-There is **no manifest/env tier layer** (ADR-0067). The harness prescribes,
-names, restricts, and suggests no model:
+## Finalization and pull requests
 
-- **Model:** cycle with **Ctrl+P** at any time.
-- **Thinking:** raise/lower with **Shift+Tab**.
-- **Auth:** `/login` for your provider or export the provider's API key.
-- **Session defaults:** run `/setup` to write your preferred provider,
-  default model, Ctrl+P pool, and thinking level to your pi config — every
-  question is skippable and the write is consent-gated.
+After all plan tasks pass, `finishing-a-development-branch` owns branch
+completion:
 
-## Search (replaces MCP)
+1. Remove matching plan and spec artifacts.
+2. Obtain finalization acceptance.
+3. Synchronize the target branch.
+4. Record exact base and `HEAD` attestations.
+5. Run `/check` until green.
+6. Complete all four `code-review` axes.
+7. Revalidate the branch and review chain.
+8. Invoke preparation-only `/pr`.
 
-The two former MCP servers are CLI-shell skills (pi: "No MCP — build CLI
-tools with READMEs"):
+One complete initial review starts the bounded chain. After a Blocking repair, a fresh finalization acceptance authorizes review of only the continuous repair delta. Advisory findings remain in the pull request disclosure and do not
+block preparation. A base or history change, discontinuity, incomplete axis,
+dirty tree, or mismatched `HEAD` invalidates the chain and requires a new
+complete initial review.
 
-| Skill | Backed by | Env |
-| --- | --- | --- |
-| `websearch` | DeepSeek web-search API | `DEEPSEEK_API_KEY` |
-| `searxng` | a SearXNG instance | `SEARXNG_URL` |
+`/pr` prepares a conventional title, a body containing every pull request
+template section, and a human-run `gh pr create` command. It never pushes or
+creates the pull request. Humans push work branches and create or merge pull
+requests.
 
-Both fail clearly (never silently) when their env var is unset and never log
-the key.
+## The `/check` gate
 
-## pi built-in commands
+`/check` runs the language-independent gates, then delegates stack checks to
+the active adapter. It covers:
 
-pi's own commands are always available (`/hotkeys` for the full list):
+- local tool readiness;
+- current verification evidence;
+- clean repository state and conflict markers;
+- changed Markdown through the Core packaged policy;
+- debug-artifact inspection;
+- Core harness validation when package sources are present;
+- adapter lint, tests, coverage, syntax, and generated-asset checks.
+
+The PHP/web adapter expands `/check-php`. Do not duplicate stack commands in
+Core prompts.
+
+## Review axes
+
+`code-review` records four separate results:
+
+1. tooling and style;
+2. structural smells;
+3. requirement coverage;
+4. static security analysis.
+
+Blocking findings stop finalization. Advisory findings do not block `/pr` and
+need no waiver. Suggested findings must be resolved or explicitly handled by
+the active review workflow.
+
+OpenCodeReview (`ocr`) is available only through the dedicated review
+operation. `/setup` solely manages standing OCR consent and separate standing
+web-access consent. Revoke them with `prism-tool consent revoke-ocr` and
+`prism-tool consent revoke-web`. Local installation, hooks, and CI use
+local-only readiness and establish neither consent nor outbound operation.
+
+## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `/login`, `/logout` | Manage provider credentials |
-| `/model`, `/scoped-models` | Switch model; manage Ctrl+P cycling set |
-| `/settings` | Thinking level, theme, delivery, transport |
-| `/tree`, `/fork`, `/clone` | Session branching (cheap rollback — replaces plan-mode safety) |
-| `/compact [prompt]` | Manually compact context (lossy; full history kept in the JSONL) |
-| `/skill:name` | Load and execute a skill |
-| `/trust` | Save project trust for future sessions |
-| `/config` | Enable/disable package resources |
-| `/help`, `/hotkeys` | Help and keyboard shortcuts |
+| `/router` | Select the correct on-ramp |
+| `/prime` | Draft or refresh `CONTEXT.md` |
+| `/setup` | Configure the project and manage independent OCR and web consent |
+| `/doctor` | Run full readiness and one consented OCR connectivity test |
+| `/issue` | Create an issue or decompose a spec or plan |
+| `/check` | Run the pre-push gates |
+| `/security` | Run SAST and locked-dependency audits |
+| `/research` | Produce cited research |
+| `/improve-architecture` | Report architecture improvement candidates |
+| `/release` | Prepare a release branch and publication instructions |
+| `/pr` | Prepare pull request title, body, and human command |
+| `/handoff` | Save continuation context |
+| `/teach` | Explain completed work |
 
-## Harness commands and skills
+The PHP/web adapter adds `/check-php`, `/build-assets`, and `/deploy`.
 
-Custom prompt templates live under `packages/*/prompts/` (the slash commands
-in `AGENTS.md` § Commands); custom skills under `packages/*/skills/` (the
-index in `AGENTS.md` § Skills Available). The `writing-skills` skill governs
-authoring new ones.
+## Research and tool integrations
 
-The ordinary branch-completion path removes committed plan/spec artifacts,
-requires a clean tree, then pauses once for finalization acceptance. One
-acceptance authorizes one attempt in strict order: target synchronization,
-exact attestation, full `/check`, all four `code-review` axes, SHA
-revalidation, and automatic `/pr`. Any conflict, failed gate, incomplete axis,
-Blocking finding, unresolved Suggested finding, or stale attestation stops
-before `/pr` and requires fresh finalization acceptance after repair. `/pr`
-displays a conventional title, a body containing every pull request template
-section, and a human-run GitHub CLI command; it never pushes or creates the
-pull request.
-`/release` retains its separate release and back-merge PR procedure.
+Core exposes only bounded `web_search` and `fetch_content` tools for public web
+research. They require standing web-access consent, accept no credentials, and
+treat every result as untrusted data. Search routes through an available
+confined Chromium-family browser, optional loopback SearXNG, then guarded
+direct fallback. Public content fetching is browser-free.
+
+Declared tools resolve through `prism-tool` according to the Core and adapter
+toolchain contracts. Core bundles commitlint, git-cliff, and
+`markdownlint-cli2`. Semgrep and OCR are mandatory compatible external tools.
+The PHP/web adapter owns project-local development tools such as Pest,
+php-cs-fixer, Playwright, Sass, ESLint, Stylelint, and UglifyJS.
+
+## Project records
+
+| Path | Purpose |
+| --- | --- |
+| `packages/prism-core/AGENTS.md` | Global instructions and command or skill index |
+| `packages/prism-core/APPEND_SYSTEM.md` | Anti-drift session reminder |
+| `packages/prism-core/extensions/safety/` | Safety enforcement extension |
+| `packages/prism-core/extensions/web-access/` | Bounded web-access extension |
+| `packages/prism-core/skills/` | Core skills |
+| `packages/prism-core/prompts/` | Core prompt templates |
+| `packages/prism-php-web/` | PHP/web adapter |
+| `CONTEXT.md` | Domain glossary, invariants, boundaries, and non-goals |
+| `adr/` | Accepted architecture decisions |
+| `docs/specs/` | Active specifications |
+| `docs/plans/` | Active implementation plans |
+
+Durable, rewritten, tone-sensitive, or substantial prose loads the `distill`
+skill. Distill removes filler and machine-written habits without changing exact
+commands, identifiers, quotations, templates, or domain terms.

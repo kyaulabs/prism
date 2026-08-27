@@ -95,18 +95,20 @@ or sub-agent orchestration (ADR-0055).
 - Installed docs are authoritative for the installed runtime version.
 - Never copy examples blindly; adapt them to the stated architecture and
   security invariants.
-- Do not add orchestration extensions to Prism. ADR-0056 permits only the
-  safety extension.
+- Do not add orchestration extensions to Prism. ADR-0091 permits the safety
+  and bounded web-access extensions; any further extension needs a fresh ADR.
 - When docs and observed runtime behavior disagree, halt and surface the
   mismatch with the installed version and a minimal reproduction.
 
 ## Cross-refs
 
 - `writing-skills` skill — Prism's pi-native resource conventions.
-- `packages/prism-core/extensions/safety/README.md` — the retained extension's
-  local contract.
+- `packages/prism-core/extensions/safety/README.md` — safety enforcement
+  contract.
+- `packages/prism-core/extensions/web-access/README.md` — bounded web tool
+  contract.
 - ADR-0055 — single-agent pi architecture.
-- ADR-0056 — safety extension is the sole extension.
+- ADR-0091 — accepted safety and bounded web-access extension boundary.
 
 ## Gotchas
 

@@ -1,7 +1,7 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 /**
- * prism-core safety extension — the single retained extension (ADR-0056).
+ * prism-core safety enforcement extension (ADR-0056, superseded by ADR-0091).
  *
  * Ports the opencode-era safety stack (`sensitive-paths` + `pre-tool-use` +
  * `denial-circuit-breaker` plugins) to a pi extension wired to the

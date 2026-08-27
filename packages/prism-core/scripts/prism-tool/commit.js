@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -6,6 +6,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {TextDecoder} = require('node:util');
+const {
+    completeBootstrapSeed,
+    validateActiveBootstrapSeed,
+} = require('./bootstrap-seed');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4, TRANSACTION: 5});
 const USAGE = 'usage: prism-tool commit create --type TYPE [--scope SCOPE] --subject SUBJECT ' +
@@ -390,10 +394,45 @@ function createPrivateMessage(context, repository, message) {
     };
 }
 
+function validateReservedIgnore(parsed) {
+    if (parsed.type !== 'ignore') return;
+    if (
+        parsed.scope !== undefined ||
+        parsed.bodyfile !== undefined ||
+        parsed.fixes !== undefined ||
+        parsed.refs !== undefined ||
+        parsed.subject !== 'bootstrap prism project'
+    ) {
+        throw new CommitError(EXIT.USAGE, 'reserved ignore arguments are invalid');
+    }
+}
+
+function activeSeed(context, coreRoot, env = context.env ?? process.env) {
+    const validate = context.validateActiveBootstrapSeed ?? validateActiveBootstrapSeed;
+    try {
+        return validate({
+            projectRoot: context.cwd ?? process.cwd(),
+            coreRoot,
+            runGit: context.run,
+            env,
+        });
+    } catch {
+        throw new CommitError(EXIT.TRANSACTION, 'root seed attestation is unavailable');
+    }
+}
+
+function sameSeed(left, right) {
+    return left.attemptId === right.attemptId &&
+        left.stagedIndexDigest === right.stagedIndexDigest &&
+        JSON.stringify(left.attestation) === JSON.stringify(right.attestation);
+}
+
 function create(args, context) {
     const parsed = parseCreate(args);
     const header = validateStructured(parsed);
+    validateReservedIgnore(parsed);
     const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+    const reserved = parsed.type === 'ignore' ? activeSeed(context, coreRoot) : null;
     const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
     requireSuccess(
         invoke(context, process.execPath, [launcher, 'doctor', '--local-only']),
@@ -401,6 +440,9 @@ function create(args, context) {
         'local readiness failed'
     );
     const state = repositoryState(context, coreRoot);
+    if (reserved !== null && !sameSeed(reserved, activeSeed(context, coreRoot))) {
+        throw new CommitError(EXIT.TRANSACTION, 'root seed attestation changed');
+    }
     const body = parsed.bodyfile === undefined ? '' : readBodyFile(parsed.bodyfile, state.repository);
     const attribution = resolveAttribution(context, coreRoot);
     const message = buildMessage(header, parsed, attribution, body);
@@ -432,6 +474,9 @@ function create(args, context) {
             'locked index is invalid'
         );
         if (lockedTree !== state.tree) throw new CommitError(EXIT.TRANSACTION, 'repository state changed');
+        if (reserved !== null && !sameSeed(reserved, activeSeed(context, coreRoot, commitEnv))) {
+            throw new CommitError(EXIT.TRANSACTION, 'root seed attestation changed');
+        }
         const commitResult = invoke(context, 'git', ['commit', '-S', '-F', owned.file], {
             env: commitEnv,
             timeout: COMMIT_EXECUTION_TIMEOUT_MS,
@@ -467,6 +512,23 @@ function create(args, context) {
             'committed HEAD is invalid'
         );
         if (newHead === state.head) throw new CommitError(EXIT.TOOL, 'HEAD did not advance');
+        if (reserved !== null) {
+            const complete = context.completeBootstrapSeed ?? completeBootstrapSeed;
+            try {
+                complete({
+                    projectRoot: state.repository,
+                    coreRoot,
+                    attestation: reserved,
+                    previousHead: state.head,
+                    newHead,
+                    runGit: context.run,
+                    env: context.env ?? process.env,
+                    fault: context.bootstrapSeedCompletionFault,
+                });
+            } catch {
+                throw new CommitError(EXIT.TRANSACTION, 'root seed completion failed');
+            }
+        }
     } catch (error) {
         operationError = error;
     }

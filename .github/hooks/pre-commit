@@ -32,6 +32,10 @@ if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
 	exit 1
 fi
 
+# ── Markdown (staged blobs, Core-owned policy) ───────────────────────────────
+echo "→ Markdown lint"
+"$PRISM_TOOL_PATH" markdown lint --cached
+
 # ── Temp directory for index-based linting ───────────────────────────────────
 # Staged (index) blobs are checked out to a temp directory so linters read
 # exactly what will be committed, not the working tree. See ADR-0015.

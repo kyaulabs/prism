@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 # ── Repro-first tests for pre-commit index-based linting ──────────────────────
 # Bug under test (#77):
@@ -568,6 +568,33 @@ PHPEOF
 		fi
 	)
 fi
+
+# ==============================================================================
+# Test 12: False negative — Markdown
+# ==============================================================================
+
+echo "── Test 12: False negative — Markdown ──"
+T12=$(mktemp -d)
+register_temp_dir "$T12"
+setup_linter_repo "$T12"
+(
+	cd "$T12"
+	mkdir -p docs
+	printf '# Guide\n\n### Broken jump\n' > docs/guide.md
+	git add docs/guide.md
+	printf '# Guide\n\n## Fixed\n' > docs/guide.md
+
+	set +e
+	HOOK_OUT=$(bash "$PRE_COMMIT" 2>&1)
+	ret=$?
+	set -e
+
+	if [ "$ret" -ne 0 ] && echo "$HOOK_OUT" | grep -qF "MD001"; then
+		pass "Hook blocked for staged Markdown heading jump (exit $ret, MD001 found)"
+	else
+		fail "False negative: staged Markdown violation not caught (exit $ret, no MD001 in output)"
+	fi
+)
 
 # ── Summary ────────────────────────────────────────────────────────────
 

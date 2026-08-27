@@ -94,11 +94,36 @@ scope. Write a lower-case imperative subject grounded in plan intent when
 available, the branch description, and commit subjects. Maximum title length
 is 100 characters; no trailing period and no unsupported claim.
 
-Set umask 077 and create a private directory with mktemp -d. Record concrete
-TITLE_FILE, VALIDATION_FILE, and BODY_FILE paths. Generate a fresh random
-literal delimiter for each payload write, verify no payload line equals it,
-quote it, and fail rather than using a colliding delimiter. Do not embed
-payload text in an argument or evaluate it.
+Create every temporary PR artifact under the exact private directory pattern
+below. Run this block exactly and stop if any command fails:
+
+```bash
+set -euo pipefail
+umask 077
+openssl rand -hex 4 | {
+    IFS= read -r PR_SUFFIX
+    case "$PR_SUFFIX" in
+        ????????) ;;
+        *) exit 1 ;;
+    esac
+    case "$PR_SUFFIX" in
+        *[!0-9a-f]*) exit 1 ;;
+    esac
+    PR_DIR="/tmp/prism-pr.${PR_SUFFIX}"
+    mkdir -m 700 -- "$PR_DIR"
+    TITLE_FILE="$PR_DIR/title.txt"
+    VALIDATION_FILE="$PR_DIR/validation.txt"
+    BODY_FILE="$PR_DIR/body.md"
+    printf 'PR_DIR\t%s\nTITLE_FILE\t%s\nVALIDATION_FILE\t%s\nBODY_FILE\t%s\n' \
+        "$PR_DIR" "$TITLE_FILE" "$VALIDATION_FILE" "$BODY_FILE"
+}
+```
+
+Record the four concrete paths from the block output. Do not use `mktemp`, a
+repository-local path, or alternative artifact names.
+Generate a fresh random literal delimiter for each payload write, verify no
+payload line equals it, quote it, and fail rather than using a colliding
+delimiter. Do not embed payload text in an argument or evaluate it.
 
 Run the marked validation block after TITLE_FILE exists:
 
@@ -145,6 +170,10 @@ SHAs and subjects.
 ## 🧪 Test Plan
 Use concrete commands from the recovered plan plus changed test surfaces. When
 no plan exists, include only commands justified by the diff.
+Use only unchecked TODO task-list items. Put one command per line in this exact
+form:
+
+- [ ] `command` — reason to run
 
 Do not copy template comments, delete a section, leave an angle-bracket marker,
 or invent PASS, clean, coverage, count, signature, or architect claims.

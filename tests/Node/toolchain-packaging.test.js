@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 'use strict';
 
@@ -84,7 +84,25 @@ test('packs the core package with every owned resource and executable modes', ()
     const packed = packPackage(CORE_PKG);
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('config/commitlint.config.cjs'), true);
+    assert.equal(
+        packed.files.has('config/markdownlint-cli2.json'),
+        true,
+        'packaged Markdown policy present'
+    );
     assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
+    assert.equal(packed.files.has('config/bootstrap/licenses/AGPL-3.0-only.txt'), true);
+    assert.equal(packed.files.has('config/bootstrap/licenses/MIT.txt'), true);
+    assert.equal(packed.files.has('config/bootstrap/community/contributor-covenant-2.1.md'), true);
+    assert.equal(
+        packed.files.has('config/bootstrap/release/cliff.toml'),
+        true,
+        'release-management cliff template packaged'
+    );
+    for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
+        const hookPath = `config/bootstrap/hooks/${hook}`;
+        assert.equal(packed.files.has(hookPath), true, `${hook} bootstrap hook packaged`);
+        assert.notEqual(packed.files.get(hookPath) & 0o111, 0, `${hook} bootstrap hook is executable`);
+    }
     assert.equal(
         packed.files.has('scripts/prism-tool/package-release.js'),
         true,
@@ -98,25 +116,167 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
+    assert.equal(packed.files.has('skills/distill/SKILL.md'), true, 'Distill skill packaged');
+    assert.equal(
+        packed.files.has('skills/distill/references/patterns.md'),
+        true,
+        'Distill pattern reference packaged'
+    );
+    assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
+    const coreNotice = execFileSync('tar', ['-xOzf', packed.tarball, 'package/NOTICE'], {
+        encoding: 'utf8',
+    });
+    assert.match(coreNotice, /https:\/\/github\.com\/cursor\/plugins\/tree\/main\/pstack/);
+    assert.match(coreNotice, /Copyright \(c\) 2026 Lauren Tan/);
+    assert.match(coreNotice, /License: MIT/);
+    assert.match(coreNotice, /packages\/prism-core\/skills\/distill\/SKILL\.md/);
     assert.notEqual(packed.files.get('scripts/prism-tool.js') & 0o111, 0, 'bin is executable');
     assert.notEqual(packed.files.get('scripts/install-global.sh') & 0o111, 0, 'installer is executable');
     assert.notEqual(packed.files.get('scripts/install-hooks.sh') & 0o111, 0, 'hook installer is executable');
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
-        'cli', 'code-review', 'commit', 'consent', 'contract', 'discovery',
-        'preflight', 'process', 'review-chain',
+        'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
+        'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
+        'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
+        'bootstrap-source',
+        'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
+        'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
+        'consent', 'contract', 'discovery', 'managed-record', 'markdown',
+        'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'web-access-browser', 'web-access-config',
+        'supported-adapters', 'template-source', 'template-source-http',
+        'template-source-validation',
     ]) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }
     for (const module of ['commit-create-guard.ts', 'fatal-commit-latch.ts']) {
         assert.equal(packed.files.has(`extensions/safety/${module}`), true, module);
     }
+    for (const resource of [
+        'README.md', 'authorization.ts', 'browser.ts', 'cdp.ts', 'config.ts',
+        'duckduckgo.ts', 'errors.ts', 'extract.ts', 'fetch.ts', 'http.ts', 'index.ts',
+        'network.ts', 'router.ts', 'search-filters.ts', 'search-types.ts', 'searxng.ts',
+    ]) {
+        assert.equal(
+            packed.files.has(`extensions/web-access/${resource}`),
+            true,
+            `web-access ${resource}`
+        );
+    }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 15, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 35, true, 'skills present');
+    for (const removed of [
+        'package/skills/websearch/SKILL.md',
+        'package/skills/websearch/search.sh',
+        'package/skills/searxng/SKILL.md',
+        'package/skills/searxng/search.sh',
+        'package/skills/lib/search_common.sh',
+    ]) {
+        assert.equal(packed.listing.includes(removed), false, `${removed} removed`);
+    }
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+});
+
+test('documents Blank Core-only application and recovery boundaries', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /PLAN_READY.*PREPARED/s);
+    assert.match(coreReadme, /APPLYING.*PROJECT_DURABLE/s);
+    assert.match(coreReadme, /ROOT_RESTORED|RECOVERY_REQUIRED/);
+    assert.match(coreReadme, /REPOSITORY_BOOTSTRAP/);
+    assert.match(coreReadme, /does not initialize Git/i);
+    assert.match(coreReadme, /does not.*network/is);
+});
+
+test('documents provider-composed Blank and Template PHP web bootstrap boundaries', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const adapterReadme = fs.readFileSync(path.join(ADAPTER_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /Provider-composed Blank and Template projects/i);
+    assert.match(coreReadme, /strict-empty setup.*select.*PHP\/web/is);
+    assert.match(coreReadme, /immutable, untrusted catalogue evidence/i);
+    assert.match(coreReadme, /durable project\s+bytes.*trusted installed Core and adapter providers/is);
+    assert.match(coreReadme, /digest-bound.*plan.*journal.*project manifest.*root-seed attestation/is);
+    assert.match(coreReadme, /generic\s+provider reports/i);
+    assert.match(coreReadme, /stack-agnostic/i);
+    assert.match(coreReadme, /before.*durable.*strict\s+emptiness/is);
+    assert.match(coreReadme, /after.*durable.*resume\s+evidence/is);
+    assert.match(coreReadme, /apply\.recovery\.lock.*confirming no setup process.*remove only/is);
+    assert.match(coreReadme, /no remote.*publication.*push/is);
+    assert.match(adapterReadme, /Blank and Template project bootstrap/i);
+    assert.match(adapterReadme, /same generic.*preparation.*provider report.*quality contracts/is);
+    assert.match(adapterReadme, /byte-identical trusted scaffold content/is);
+    assert.match(adapterReadme, /application-free.*testing-ready scaffold/is);
+    assert.match(adapterReadme, /lifecycle scripts.*disabled/is);
+    assert.match(adapterReadme, /every advisory blocks/i);
+    assert.match(adapterReadme, /only.*Chromium/is);
+    assert.match(adapterReadme, /adapter activation.*report digest/is);
+    assert.match(adapterReadme, /inspect.*resolve.*apply.*verify/is);
+});
+
+test('documents every optional project capability and its owned outputs', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+
+    assert.match(coreReadme, /Optional project capabilities/i);
+    for (const capability of [
+        'licensing', 'community-governance', 'github-collaboration',
+        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+        'release-management',
+    ]) {
+        assert.equal(coreReadme.includes(`\`${capability}\``), true, capability);
+    }
+    for (const output of [
+        'LICENSE', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md',
+        '.github/ISSUE_TEMPLATE/bug_report.yml',
+        '.github/ISSUE_TEMPLATE/feature_request.yml',
+        '.github/pull_request_template.md',
+        'SECURITY.md', '.github/CODEOWNERS',
+        '.github/ISSUE_TEMPLATE/config.yml', '.github/FUNDING.yml',
+        'CHANGELOG.md', 'cliff.toml', '.github/workflows/release.yml',
+        '.prism/release.json',
+    ]) {
+        assert.equal(coreReadme.includes(`\`${output}\``), true, output);
+    }
+    assert.match(coreReadme, /independent and disabled by default/i);
+    assert.match(coreReadme, /current-development.*latest-release.*latest-major-line.*custom/is);
+    assert.match(coreReadme, /acknowledgement.*1.*8760/is);
+    assert.match(coreReadme, /CODEOWNERS.*default.*\*/is);
+    assert.match(coreReadme, /Support.*Get help with this project/is);
+    assert.match(coreReadme, /blank_issues_enabled.*false.*github-collaboration/is);
+    assert.match(coreReadme, /funding.*15.*github.*custom.*four.*other.*one/is);
+    assert.match(coreReadme, /identity preview.*required fields.*publication targets/is);
+    assert.match(coreReadme, /Template manifests may\s+advertise.*never select/is);
+    assert.match(coreReadme, /Blank performs no Template\s+lookup/i);
+    assert.match(coreReadme, /owner\/repository.*live GitHub lookup.*no\s+initial version/is);
+    assert.match(coreReadme, /publishable root.*declared-workspace npm\s+package/is);
+    assert.match(coreReadme, /Core-only.*no npm package.*PHP\/web.*private-only/is);
+    assert.match(coreReadme, /creates no repository.*remote.*tag.*GitHub Release.*push.*npm\s+publication/is);
+    assert.doesNotMatch(coreReadme, /deferred to task 12/i);
+});
+
+test('publishes the complete strict-empty setup orchestration contract', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const adapterReadme = fs.readFileSync(path.join(ADAPTER_PKG, 'README.md'), 'utf8');
+    const publicReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+    const harnessDocs = fs.readFileSync(path.join(root, 'CODING_HARNESS.md'), 'utf8');
+    const combined = [coreReadme, adapterReadme, publicReadme, harnessDocs].join('\n');
+
+    assert.match(coreReadme, /Template.*Blank.*Cancel/is);
+    assert.match(coreReadme, /Core-only.*PHP\/web/is);
+    assert.match(coreReadme, /capabilit(?:y|ies).*disabled by default/is);
+    assert.match(coreReadme, /identity preview.*complete project plan/is);
+    assert.match(coreReadme, /pre-durable.*strict emptiness.*post-durable.*retained/is);
+    assert.match(coreReadme, /separate hook approval.*signed root seed/is);
+    assert.match(coreReadme, /established projects.*existing.*setup/is);
+    assert.match(adapterReadme, /selection.*installation authorization/is);
+    assert.match(adapterReadme, /separate hook approval.*signed root seed/is);
+    assert.match(publicReadme, /strict-empty.*\/setup.*Template.*Blank.*Cancel/is);
+    assert.match(harnessDocs, /strict-empty.*\/setup.*established-project/is);
+    assert.match(combined, /hosted repository.*remote.*push `develop`.*rulesets/is);
+    assert.doesNotMatch(combined, /deferred to task 12/i);
 });
 
 test('documents human npm publication for managed lockstep package releases', () => {
@@ -146,13 +306,37 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });
 
+test('declares one compatible empty-project bootstrap protocol in the adapter package', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(ADAPTER_PKG, 'package.json'), 'utf8'));
+    const handler = require(path.join(ADAPTER_PKG, 'scripts', 'prism-tool-adapter.js'));
+
+    assert.equal(manifest.prism.bootstrapProtocol, 1);
+    assert.equal(handler.bootstrapProtocol, manifest.prism.bootstrapProtocol);
+});
+
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {
     const packed = packPackage(ADAPTER_PKG);
     assert.equal(packed.files.has('toolchain.json'), true);
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
-    for (const module of ['audit', 'project', 'transaction', 'workspace']) {
+    for (const module of [
+        'audit', 'bootstrap-scaffold', 'project', 'transaction', 'visual-review-files', 'workspace',
+    ]) {
         assert.equal(packed.files.has(`scripts/toolchain/${module}.js`), true, module);
+    }
+    assert.equal(packed.files.has('config/bootstrap/scaffold.json'), true, 'bootstrap scaffold manifest packaged');
+    for (const visualReviewResource of [
+        'config/bootstrap/visual-review/visual_review.mjs',
+        'config/bootstrap/visual-review/visual_review.spec.mjs',
+        'config/bootstrap/visual-review/visual_review.example.json',
+        'skills/visual-review/SKILL.md',
+        'docs/visual-review.md',
+    ]) {
+        assert.equal(
+            packed.files.has(visualReviewResource),
+            true,
+            `${visualReviewResource} packaged`
+        );
     }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 3, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 10, true, 'skills present');

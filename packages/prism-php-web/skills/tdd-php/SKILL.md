@@ -86,12 +86,20 @@ responsive, progressive-enhancement, or accessibility work:
 
 1. Detect the frontend surface and plan a narrow slice.
 2. Load `frontend-design`, `frontend-architecture`, `scss-mobile-first`, and
-   `accessibility` as applicable BEFORE writing the failing test.
-3. Use their standards checklist to select the observable behavior; write and
-   verify Red yourself.
-4. Implement the selected behavior inline within the approved permitted-file
-   list.
-5. Rerun the tests, verify Green, then own refactoring checks and coverage.
+   `accessibility` as applicable before writing the failing test.
+3. Use their standards to select observable behavior, verify Red, implement the
+   approved slice, rerun tests, and reach Green.
+4. Load `visual-review` after Green for every changed visual slice.
+5. Run:
+
+   ```bash
+   prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
+   ```
+
+6. Read every generated PNG, repair visual failures, rerun behavior tests, and
+   recapture the complete affected evidence set.
+7. Present the configured mobile and desktop milestone set and wait for user
+   confirmation before declaring visual completion.
 
 ## Test quality rules
 
@@ -128,10 +136,13 @@ mock.
 Run:
 
 ```bash
-prism-tool run pest -- --coverage
+PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
 ```
 
-Report coverage for the files you touched. Minimum 80% line coverage on
+Use this exact coverage invocation even when the current suite has no browser
+tests. The environment variable is inert for non-browser tests and keeps TDD,
+CI, aggregate checks, and generated plans on one adapter-owned command. Report
+coverage for the files you touched. Minimum 80% line coverage on
 changed files is enforced by
 `packages/prism-php-web/scripts/coverage-gate.php`. Feed it the Clover report:
 
@@ -153,7 +164,7 @@ Run the adapter gate `/check-php`, which covers:
 prism-tool run php-cs-fixer -- fix --dry-run --diff
 prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
 prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
-prism-tool run pest -- --coverage
+PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
 ```
 
 - PSR-12 code style is enforced by `php-cs-fixer`.

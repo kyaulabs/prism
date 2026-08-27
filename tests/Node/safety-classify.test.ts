@@ -1,4 +1,4 @@
-// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: safety-classify.test.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -107,8 +107,12 @@ test("fail-closed: substitution/ANSI-C/here-string constructs block", () => {
     assert.equal(classifyCommand("bash <<< 'rm -rf /home/u/x'", OPTS)?.severity, "block");
 });
 
-test("fail-closed: benign substitution also blocks (accepted cost)", () => {
-    assert.equal(classifyCommand("echo $(date)", OPTS)?.severity, "block");
+test("fail-closed: benign substitution reports the shared redacted diagnostic", () => {
+    const finding = classifyCommand("echo $(date)", OPTS);
+    assert.equal(finding?.severity, "block");
+    assert.match(finding?.reason ?? "", /PRISM-SHELL-001/);
+    assert.match(finding?.reason ?? "", /category=command-substitution/);
+    assert.doesNotMatch(finding?.reason ?? "", /date/);
 });
 
 test("wrapper-anywhere: sudo/timeout/xargs/find-wrapped payloads reclassify", () => {

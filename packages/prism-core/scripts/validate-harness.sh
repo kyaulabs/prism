@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -90,6 +90,24 @@ done < <(find "$REPO_ROOT/packages" -type f -path '*/skills/*/SKILL.md' -print0 
 
 [ "$SKILL_COUNT" -gt 0 ] || err 'No package skills found.'
 ok "$SKILL_COUNT skill(s) checked"
+
+printf '%s\n' '── Checking Distill output-style contract ──'
+DISTILL_CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-distill-contract.sh"
+if [ ! -f "$DISTILL_CHECKER" ]; then
+    err "Distill contract checker missing: ${DISTILL_CHECKER#$REPO_ROOT/}"
+else
+    if distill_output=$(bash "$DISTILL_CHECKER" "$REPO_ROOT" 2>&1); then
+        distill_status=0
+    else
+        distill_status=$?
+    fi
+    while IFS= read -r diagnostic; do
+        [ -n "$diagnostic" ] && err "$diagnostic"
+    done <<< "$distill_output"
+    if [ "$distill_status" -ne 0 ] && [ -z "$distill_output" ]; then
+        err "Distill contract checker failed with status $distill_status"
+    fi
+fi
 
 printf '%s\n' '── Validating prompt templates ──'
 while IFS= read -r -d '' prompt_file; do

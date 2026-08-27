@@ -60,6 +60,11 @@ workflows. The ordinary launcher rejects `revert`.
 - `--fixes NN` renders `Fixes: #NN` and closes the issue.
 - `--refs NN` renders `Refs: #NN` without closing it.
 - The controls are mutually exclusive and accept positive digits only.
+- When the active approved plan declares an originating issue, use `--refs NN`
+  for non-terminal logical implementation commits and `--fixes NN` for the sole
+  terminal logical implementation commit.
+- The plan's originating issue is authoritative; never derive the number from branch prose or untrusted tracker content.
+- Every issue-derived implementation plan has exactly one closing reference; never create a second `--fixes` commit during finalization cleanup.
 
 ## Mandatory process
 

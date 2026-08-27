@@ -37,8 +37,8 @@ command -v jq >/dev/null 2>&1 && jq --version || echo "OPTIONAL_NOT_FOUND"
 
 Floors: Bash >= 4 for the harness validator; Node.js >= 20; npm >= 9. `git`,
 `curl`, and `openssl` require maintained versions but have no project-pinned
-floor. `jq` is optional because the search scripts have a dependency-free
-Node.js fallback.
+floor. `jq` is optional because Core launcher reports are already structured
+JSON and do not require a shell parsing dependency.
 
 ## 3. Prism resources
 
@@ -62,6 +62,7 @@ for path in \
     packages/prism-core/AGENTS.md \
     packages/prism-core/APPEND_SYSTEM.md \
     packages/prism-core/extensions/safety/index.ts \
+    packages/prism-core/extensions/web-access/index.ts \
     packages/prism-core/skills/brainstorming/SKILL.md \
     packages/prism-core/prompts/router.md \
     packages/prism-core/scripts/validate-harness.sh
@@ -125,20 +126,37 @@ it. A consumer that does not ship these hooks reports the section SKIPPED.
 Missing identity is blocking for signed commits because
 `resolve-identity.sh` fails closed.
 
-## 5. Search skill prerequisites
+## 5. Web-access readiness
+
+Inspect independent consent and the closed managed configuration:
 
 ```bash
-[ -n "${DEEPSEEK_API_KEY:-}" ] \
-    && echo "websearch CONFIGURED" \
-    || echo "websearch OPTIONAL_NOT_CONFIGURED — DEEPSEEK_API_KEY missing"
-[ -n "${SEARXNG_URL:-}" ] \
-    && echo "searxng CONFIGURED" \
-    || echo "searxng OPTIONAL_NOT_CONFIGURED — SEARXNG_URL missing"
+prism-tool consent status --json
+prism-tool web-access status --json
 ```
 
-Check presence only. Never print either value. Do not make a live request
-unless the user separately gives explicit permission to access the external
-service.
+Do not run `web_search`, `fetch_content`, or any live public request from
+`/doctor`.
+
+Report these results separately from mandatory Core readiness:
+
+- OCR consent must be granted for full doctor and OCR review readiness.
+- Missing standing web-access consent is `OPTIONAL_DISABLED`, not a mandatory
+  Core failure. Direct the human to `/setup` if they want `web_search` or
+  `fetch_content`.
+- An unsafe consent record is mandatory `NO-GO` because OCR consent is not
+  readable, and it also makes web access `WEB_ACCESS_NO-GO`. An unsafe
+  web-access configuration alone is `WEB_ACCESS_NO-GO`. Both require human
+  remediation; never overwrite, chmod, revoke, or remove either record.
+- An absent web-access configuration is valid: browser auto-detection remains
+  enabled, loopback SearXNG is absent, and guarded direct fallback is available
+  only after consent.
+- Browser `UNAVAILABLE` or `disabled` is optional. Report an available family
+  without exposing the executable path.
+- A configured SearXNG URL is reported only as loopback configured; never print
+  the URL or make a request.
+
+Prism does not inspect or migrate legacy provider environment variables.
 
 ## 6. GitHub CLI
 

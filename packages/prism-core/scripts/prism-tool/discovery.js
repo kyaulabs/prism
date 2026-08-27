@@ -1,4 +1,4 @@
-// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const path = require('node:path');
 const {loadContract} = require('./contract');
 
 const MAX_JSON_BYTES = 1048576;
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 function readJson(filePath, label) {
     const stat = fs.lstatSync(filePath);
@@ -55,8 +56,23 @@ function registrationFor(packageRoot, expectedName) {
     ) {
         return null;
     }
-    if (Object.keys(prism).some((key) => !['adapter', 'handler', 'toolchain'].includes(key))) {
+    if (Object.keys(prism).some((key) => ![
+        'adapter', 'bootstrapProtocol', 'handler', 'toolchain',
+    ].includes(key))) {
         throw new Error('adapter package metadata is unsupported');
+    }
+    if (
+        typeof manifest.version !== 'string' ||
+        !EXACT_VERSION.test(manifest.version) ||
+        /[\r\n]/.test(manifest.version)
+    ) {
+        throw new Error('adapter package version is invalid');
+    }
+    if (
+        prism.bootstrapProtocol !== undefined &&
+        (!Number.isSafeInteger(prism.bootstrapProtocol) || prism.bootstrapProtocol < 1)
+    ) {
+        throw new Error('adapter bootstrap protocol is invalid');
     }
     const contractPath = resolveOwnedFile(canonicalRoot, prism.toolchain, 'adapter contract');
     const handlerPath = resolveOwnedFile(canonicalRoot, prism.handler, 'adapter handler');
@@ -66,7 +82,9 @@ function registrationFor(packageRoot, expectedName) {
     }
     return {
         packageName: manifest.name,
+        packageVersion: manifest.version,
         packageRoot: canonicalRoot,
+        bootstrapProtocol: prism.bootstrapProtocol ?? null,
         contractPath,
         handlerPath,
         contract,
@@ -159,7 +177,28 @@ function managedCandidates(piDir) {
     return registrations;
 }
 
-function loadAdapterHandler(registration) {
+function validateBootstrapRegistration(registration, expected, coreRoot) {
+    if (registration.packageName !== expected.packageName) {
+        throw new Error('bootstrap adapter package identity mismatch');
+    }
+    if (registration.packageVersion !== expected.packageVersion) {
+        throw new Error('bootstrap adapter package version mismatch');
+    }
+    if (registration.bootstrapProtocol !== expected.bootstrapProtocol) {
+        throw new Error('bootstrap adapter protocol mismatch');
+    }
+    if (registration.contract.role !== 'adapter' || registration.contract.package !== expected.packageName) {
+        throw new Error('bootstrap adapter contract identity mismatch');
+    }
+    const coreContract = loadContract(path.join(coreRoot, 'toolchain.json'));
+    const coreIds = new Set(coreContract.components.map(({id}) => id));
+    for (const {id} of registration.contract.components) {
+        if (coreIds.has(id)) throw new Error(`adapter component collides with core component ${id}`);
+    }
+    return registration;
+}
+
+function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
     if (registration === null || typeof registration !== 'object') {
         throw new Error('adapter registration is invalid');
     }
@@ -176,6 +215,19 @@ function loadAdapterHandler(registration) {
         typeof handler.resolveTool !== 'function'
     ) {
         throw new Error('adapter handler interface is invalid');
+    }
+    if (expectedBootstrapProtocol !== null) {
+        if (handler.bootstrapProtocol !== expectedBootstrapProtocol) {
+            throw new Error('adapter handler bootstrap protocol mismatch');
+        }
+        if (
+            typeof handler.prepareBootstrapProject !== 'function' ||
+            typeof handler.installBootstrapDependencies !== 'function' ||
+            typeof handler.runBootstrapQuality !== 'function' ||
+            typeof handler.verifyBootstrapProject !== 'function'
+        ) {
+            throw new Error('adapter handler bootstrap interface is invalid');
+        }
     }
     return handler;
 }
@@ -196,6 +248,11 @@ function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
     return registration;
 }
 
-module.exports = {discoverAdapter, loadAdapterHandler};
+module.exports = {
+    discoverAdapter,
+    loadAdapterHandler,
+    registrationFor,
+    validateBootstrapRegistration,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

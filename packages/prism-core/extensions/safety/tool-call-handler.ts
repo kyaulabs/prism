@@ -1,4 +1,4 @@
-// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/21 -0700 Exp $
+// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { classifyCommand } from "./pre-tool-use.ts";
@@ -7,6 +7,7 @@ import {
     sensitiveOperandCheck,
     sensitivePathMatch,
     sensitivePatternCheck,
+    type SafetyDiagnostic,
     type SensitiveMatch,
     type SensitivePathOptions,
 } from "./sensitive-paths.ts";
@@ -15,12 +16,25 @@ import { WINDOW_SIZE } from "./denial-circuit-breaker.ts";
 import type { FatalCommitLatch } from "./fatal-commit-latch.ts";
 
 const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
-const UNRESOLVABLE_REASON =
-    "command could not be analyzed for sensitive-path safety — failing closed per ADR-0047";
 const MALFORMED_REASON = "malformed path or pattern argument — failing closed per ADR-0047";
+const INTERNAL_DIAGNOSTIC: SafetyDiagnostic = {
+    code: "PRISM-SHELL-012",
+    stage: "classifier",
+    category: "internal-classifier",
+    retry: "Split the operation into separate simple literal commands and report this diagnostic code if it persists.",
+};
+
+function diagnosticReason(diagnostic: SafetyDiagnostic): string {
+    return "command could not be analyzed for sensitive-path safety — " +
+        `failing closed per ADR-0047; code=${diagnostic.code}; ` +
+        `stage=${diagnostic.stage}; category=${diagnostic.category}; ` +
+        `safe retry: ${diagnostic.retry}`;
+}
 
 function blockReasonFor(match: SensitiveMatch): string {
-    if (match.className === "unresolvable") return UNRESOLVABLE_REASON;
+    if (match.className === "unresolvable") {
+        return diagnosticReason(match.diagnostic ?? INTERNAL_DIAGNOSTIC);
+    }
     if (match.className === "malformed") return MALFORMED_REASON;
     return SENSITIVE_REASON;
 }
@@ -65,15 +79,16 @@ export type ToolCallResult = { block: true; reason: string; terminate?: true } |
 export function resolveExtraPaths(envValue: string | undefined, log: (msg: string) => void = console.error): string[] {
     if (envValue === undefined || envValue === "") return [];
     const paths: string[] = [];
-    for (const line of envValue.split("\n")) {
+    const lines = envValue.split("\n");
+    for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
         if (line.trim() === "") continue;
         try {
             paths.push(...loadAdditionalSensitivePaths(line));
-        } catch (err) {
+        } catch {
             log(
-                `[prism safety] ignoring malformed sensitive-paths entry ` +
-                `${JSON.stringify(line)} — ${err instanceof Error ? err.message : String(err)}. ` +
-                `Other entries and the core deny floor remain active (ADR-0047).`,
+                `[prism safety] ignoring malformed sensitive-paths entry at line ${index + 1} — ` +
+                `invalid entry shape. Other entries and the core deny floor remain active (ADR-0047).`,
             );
         }
     }
@@ -231,12 +246,13 @@ export function handleToolCall(toolName: string, input: unknown, deps: ToolCallD
                 );
         }
         return;
-    } catch (err) {
+    } catch {
         return {
             block: true,
             reason:
-                `[prism safety] BLOCKED: safety handler internal error — ` +
-                `failing closed per ADR-0036 (${err instanceof Error ? err.message : String(err)})`,
+                `[prism safety] BLOCKED: safety handler internal error — failing closed per ADR-0036; ` +
+                `code=${INTERNAL_DIAGNOSTIC.code}; stage=${INTERNAL_DIAGNOSTIC.stage}; ` +
+                `category=${INTERNAL_DIAGNOSTIC.category}; safe retry: ${INTERNAL_DIAGNOSTIC.retry}`,
         };
     }
 }

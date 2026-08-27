@@ -1,180 +1,145 @@
-# Deferred Learning Pipeline Interventions
+# Deferred learning pipeline interventions
 
-> **Status:** Deferred for separate review. This document is a classification
-> record, not an approved design or implementation specification.
+> **Current status:** ADR-0071 and Prism's explicit `/learn`, `learning`, and
+> `/teach` surfaces own implemented learning behavior. The automatic and
+> mandatory interventions classified here remain rejected or deferred evidence,
+> not approved design or implementation work.
 
-## Sources and authority
+## Source and authority
 
-This record classifies proposals from these untrusted, point-in-time audits:
+This record classifies proposals from two untrusted, point-in-time audits:
 
-- `audits/2026-08-18-develop-skill-capability-roadmap.md`
-- `audits/prism-learning-integration-report.md`
+- `audits/2026-08-18-develop-skill-capability-roadmap.md`;
+- `audits/prism-learning-integration-report.md`.
 
-The second report describes the retired OpenCode architecture and relies on a
-study that was not supplied with the request. Its agents, plugins, permission
-model, eval framework, model tiers, paths, and implementation details are not
-current Prism evidence. `CONTEXT.md`, accepted ADRs, installed Pi documentation,
-and the resolved tickets under the
-[non-blocking learning roadmap](https://github.com/kyaulabs/prism/issues/337)
-are authoritative.
+The second audit describes retired OpenCode architecture and cites research that
+was not supplied with the request. Its runtime details are not current Prism
+evidence. `CONTEXT.md`, ADR-0071, later accepted ADRs, installed Pi
+documentation, and resolved learning-roadmap decisions are authoritative.
 
 ## Governing boundary
 
-Normal Prism development must not gain mandatory educational questions,
-pauses, comprehension checks, reflection steps, adaptive interventions, state
-writes, or automation stops. Learning remains explicitly invoked and must not
-weaken or bypass existing engineering, safety, verification, or review gates.
+Normal development does not gain educational questions, comprehension gates,
+reflection pauses, adaptive interruption, learning-state writes, or readiness
+conditions. Learning starts only through an explicit learning or teaching
+action and cannot weaken TDD, verification, `/check`, review, safety, approval,
+or commit requirements.
 
-This boundary preserves:
+Learning state is private, worktree-local, privacy-minimal, and written only by
+explicit learning actions. Normal workflows neither read nor update it.
 
-- ADR-0055's single-agent, skill-and-prompt architecture;
-- ADR-0056's sole safety extension;
-- ADR-0058's language-agnostic core and project-local adapter split;
-- ADR-0059's deferred Pi-native eval redesign; and
-- ADR-0067's model-agnostic behavior.
+## Mandatory pipeline proposals
 
-## Classified intervention proposals
+These proposals alter required development phases and remain deferred in their
+audited form.
 
-### Mandatory pipeline interactions
-
-These proposals directly add a question, pause, or educational condition to a
-normal development phase. They must not enter the non-blocking learning
-specifications in their audited form.
-
-| Proposal | Normal-path effect | Current disposition |
+| Proposal | Why it is not on the normal path | Current disposition |
 | --- | --- | --- |
-| Post-TDD comprehension gate | Requires the user to explain generated code before verification or the next plan task; adaptive frequency would also profile prior performance. | Defer the gate. Explicit `/teach explain <target>` and curriculum assessments may provide the educational value without changing TDD execution. |
-| Pre-implementation Socratic gate | Requires one to three user answers before the Red phase begins. | Defer the gate. Use existing design grilling only when requirements need a human decision; use an explicitly invoked lesson for education. |
-| Debug-understanding gate | Prevents the fix phase until the user states an acceptable hypothesis; the proposed opt-out is itself logged. | Defer the gate and skip logging. `/teach explain` or `/teach why` may explain the recorded debug evidence without changing the six-phase debug contract. |
-| Review-engagement checkpoint | Requires recall of a review finding before commit or pipeline completion. | Defer the checkpoint. `/teach explain <review target>` may provide a separately invoked review lens without changing review verdicts or commit readiness. |
-| Automatic verification explanations | Adds teaching prompts or narration to required verification activity. | Keep verification evidence-only. Explanations belong behind explicit `/teach` invocation. |
-| Mandatory teaching-mode TDD narration | Adds educational narration or questions to each Red-Green-Refactor cycle. | Do not place it on the normal TDD path. The accepted roadmap keeps `/teach` as the sole standalone teaching surface. |
+| Post-TDD comprehension gate | Blocks verification or the next plan task until the user explains generated code | Use explicit teaching or curriculum assessment without changing TDD |
+| Pre-implementation Socratic gate | Adds educational answers before Red | Use design grilling only for real product decisions; teach separately |
+| Debug-understanding gate | Blocks a fix until the user states an accepted hypothesis | Keep the six-phase debug contract; explain evidence only on request |
+| Review-engagement checkpoint | Adds recall before commit or completion | Keep review verdicts independent; teach from a selected finding |
+| Automatic verification explanation | Adds narration to required evidence collection | Keep verification evidence-focused |
+| Teaching-mode TDD narration | Adds questions or lessons to every Red-Green-Refactor cycle | Keep teaching behind explicit invocation |
 
-A future proposal may reuse the subject matter of these interventions only after
-removing their mandatory pipeline placement.
+The subject matter may be reused only after removing mandatory pipeline
+placement.
 
-### Automatic monitoring and interruption
+## Automatic monitoring proposals
 
-These proposals inspect ordinary conversations or development behavior and
-intervene without an explicit learning invocation.
+These proposals infer educational needs from ordinary work and intervene
+without an explicit request.
 
-| Proposal | Normal-path effect | Current disposition |
+| Proposal | Risk | Current disposition |
 | --- | --- | --- |
-| Prompt-flailing detector | Monitors repeated prompts, infers dissatisfaction or semantic similarity, and pauses work for a four-question reflection. | Automatic detection is deferred. User-selected prompt reflection is covered by `/teach reflect <target>`. |
-| Delegation-awareness system | Tracks delegated work, infers what a user "should know," checks `/router` and TDD dispatches, and emits graduated nudges. | Out of scope for the current roadmap. Do not specify delegation surveillance, learned-helplessness scoring, or inferred capability profiles. |
-| Automatic devil's-advocate intervention | Inserts an implementation challenge based on inferred confirmation bias. The audited agent topology is also obsolete. | Out of scope. Existing brainstorming and architecture review remain explicitly routed workflows. |
-| Adaptive intervention frequency or depth | Changes future interruptions based on inferred competence, prior passes, failures, or opt-outs. | Do not infer a durable learner category from ordinary development. Explicit curriculum performance may adjust only the active learning interaction under the approved assessment contract. |
+| Prompt-flailing detector | Monitors repeated prompts and interrupts work | Deferred; prompt reflection remains user-selected |
+| Delegation-awareness system | Infers what a user should know from workflow activity | Rejected; no delegation surveillance or capability profile |
+| Automatic devil's advocate | Inserts challenges based on inferred bias | Rejected; brainstorming and architecture review remain explicit workflows |
+| Adaptive intervention frequency | Changes future interruptions from inferred competence or opt-outs | Rejected for normal work; explicit assessments may adapt only the active lesson |
 
-False-positive tuning does not make automatic monitoring non-blocking. The
-trigger itself changes normal development and therefore requires a separate
-architecture and privacy decision before specification.
+False-positive tuning does not make monitoring non-blocking. The trigger itself
+changes normal development and would require a new privacy and architecture
+decision.
 
-### Automatic learning state and analytics
+## Automatic state and analytics proposals
 
-These proposals persist or derive educational judgments from normal development
-rather than from an explicitly invoked curriculum assessment.
-
-| Proposal | Normal-path effect | Current disposition |
+| Proposal | Risk | Current disposition |
 | --- | --- | --- |
-| Cross-workflow learning tracker | Writes comprehension, delegation, prompt, review, debug, and Socratic-event histories after ordinary workflow activity. | Out of scope. Normal Prism development must neither read nor update learning state. |
-| Strengths, weaknesses, trends, streaks, or engagement scores | Profiles the user from ordinary interactions and stores derived judgments or gamified aggregates. | Out of scope. The approved dashboard derives only evidence-minimal curriculum status and excludes streaks, confidence scores, rankings, time metrics, and learner profiling. |
-| Session analytics | Reads transcripts to detect retries, token waste, or stuck points and may persist excerpts or metrics. | Out of scope for this roadmap. Any reconsideration needs a separate privacy and redaction design and must remain explicitly invoked. |
-| Logged educational opt-outs | Records that a user skipped a comprehension, debug, or other intervention. | Reject for normal workflows. An opt-out from an unrequested intervention is not learning evidence. |
+| Cross-workflow learning tracker | Writes educational judgments from ordinary development | Rejected; normal workflows do not touch learning state |
+| Strengths, weaknesses, streaks, or engagement scores | Builds a durable learner profile or gamified ranking | Rejected; explicit learning stores only evidence-minimal topic status |
+| Session analytics | Reads transcripts for retries, waste, or stuck points | Deferred pending a separate, explicitly invoked privacy design |
+| Logged educational opt-outs | Treats refusal of an unrequested intervention as evidence | Rejected |
 
-The portable learning-state contract permits state mutation only inside an
-explicit learning workflow. It stores privacy-minimal assessment evidence under
-ignored `docs/learning/.local/`; it does not store raw answers, prompts,
-transcripts, identities, paths, model data, or behavioral surveillance.
+Learning state does not store raw answers, prompts, transcripts, identities,
+paths, model data, or behavioral surveillance.
 
-### Pipeline adaptation
+## Pipeline adaptation remains prohibited
 
-The audits also suggest graduated exposure or intervention based on a user's
-observed level. No learning specification may:
+No learning design may:
 
 - skip, soften, reorder, or condition TDD, verification, `/check`, review,
-  approval, or commit requirements on learner state;
-- make the fast path available or unavailable based on assessed competence;
-- block ordinary work until a curriculum topic is learned;
-- automatically run `/prime`, a curriculum, a quiz, `/teach`, or reflection;
-  or
-- use learning data to route, halt, or alter an engineering workflow.
+  approval, or commit requirements on learning state;
+- change fast-path eligibility from assessed competence;
+- block development until a topic is learned;
+- start `/prime`, `/learn`, `/teach`, a curriculum, a quiz, or reflection
+  automatically;
+- use learning data to route, halt, or otherwise alter engineering work.
 
-Learning prerequisites remain soft inside an explicitly invoked curriculum and
-have no authority over development readiness.
+Curriculum prerequisites guide only an explicitly invoked curriculum. They do
+not determine development readiness.
 
-## Proposals that do not require this deferral
+## Explicit capabilities outside this deferral
 
-The following audit ideas are non-blocking when kept explicitly invoked. Their
-current roadmap decisions belong in the learning specifications rather than in
-this intervention record:
+The following are valid when the user invokes them directly and their current
+contracts permit them:
 
-- project curriculum generation and orientation, with preview-before-write and
-  no automatic `/prime` mutation;
-- `/teach explain`, `/teach why`, and `/teach reflect` against an explicit or
-  recent target;
-- curriculum lessons, knowledge checks, bounded remediation, and dashboards;
-- the technical-only Prism contributor curriculum;
-- skill-authoring education through contributor curriculum material; and
-- native worktree guidance invoked separately from normal development.
+- project curriculum generation and orientation;
+- `/teach explain`, `/teach why`, and `/teach reflect` for a selected target;
+- lessons, knowledge checks, bounded remediation, and progress views;
+- the technical Prism contributor curriculum;
+- skill-authoring education in contributor material;
+- separately invoked worktree guidance.
 
-Embedding any of these into the normal pipeline would move that variant back
-into the deferred classifications above.
+Embedding one of these in normal development would return it to the deferred
+classification.
 
-## Constraints before a deferred proposal can enter a specification
+## Entry conditions for reconsideration
 
-A separate review must establish all of the following:
+A future proposal must establish:
 
-1. **Explicit invocation:** the user starts the educational interaction by a
-   named command or curriculum action; normal workflow events cannot trigger it.
-2. **Normal-path parity:** when learning is not invoked, workflow questions,
-   sequence, loaded resources, state, output, and halt conditions remain
-   unchanged.
-3. **No gate substitution:** educational checks neither replace required
-   engineering evidence nor create a second readiness verdict.
-4. **No surveillance:** no continuous transcript analysis, delegation scoring,
-   inferred helplessness, hidden failure detection, or capability profiling.
-5. **Minimal private state:** any persistence follows the portable state
-   contract, is worktree-local and ignored, and is written only by explicit
-   learning actions.
-6. **Read-only teaching:** explanation or reflection does not retry prompts,
-   resume implementation, apply fixes, rerun gates, or mutate development
-   artifacts.
-7. **Pi-native topology:** one agent, on-demand skills, explicit prompt
-   templates, no orchestration extension, subagent, automatic model selection,
-   or revival of the OpenCode eval system.
-8. **Core/adapter ownership:** generic learning mechanics remain in core;
-   stack-specific subject matter comes from an active adapter.
-9. **Bounded token cost:** no always-loaded teaching prose or normal-workflow
-   skill expansion solely for an uninvoked capability.
-10. **Independent verification:** tests must demonstrate unchanged normal
-    development, no unrequested state writes, explicit invocation, and clean
-    cancellation or exit.
-11. **Reversibility:** removal of the educational capability leaves no
-    pipeline dependency, mandatory migration, or stranded readiness state.
+1. **Explicit invocation:** a named user action starts and ends learning.
+2. **Normal-path parity:** without that action, workflow questions, state,
+   sequence, output, and verdicts are unchanged.
+3. **No gate substitution:** educational checks neither replace engineering
+   evidence nor create another readiness verdict.
+4. **No surveillance:** ordinary work is not continuously analyzed or scored.
+5. **Minimal private state:** persistence follows ADR-0071 and is written only
+   by explicit learning actions.
+6. **Read-only teaching:** explanation and reflection do not resume work, apply
+   fixes, retry prompts, or mutate development artifacts.
+7. **Pi-native ownership:** Core owns generic learning mechanics; an active
+   adapter supplies stack-specific subject matter.
+8. **Bounded cost:** no always-loaded teaching prose or unrequested workflow
+   expansion.
+9. **Independent verification:** tests prove explicit invocation, clean exit,
+   no unrequested state writes, and normal-path parity.
+10. **Reversibility:** removal leaves no pipeline dependency or stranded
+    readiness state.
 
-## Required review questions
+## Review questions
 
-Before approving a specification, answer:
+Before approving a related specification, answer:
 
-1. What exact user invocation starts and ends the interaction?
-2. What educational outcome is not already served by `/teach` or the explicit
-   curriculum workflow?
-3. Can the feature be absent without changing any normal development transcript
-   or verdict?
-4. Does it read or infer anything from ordinary work that the user did not
-   explicitly select for teaching?
-5. What data is written, why is each field necessary, and how is it reset,
-   exported, or purged?
-6. Could a mistaken assessment delay work, pressure the user, weaken a gate, or
-   create a misleading readiness signal?
-7. Does the design introduce monitoring, an extension, orchestration, a model
-   preference, or OpenCode-era machinery?
-8. Which behavior-level Pi-native tests prove opt-in isolation and normal-path
-   parity?
-9. Is the proposal a standalone learning capability, or is it attempting to
-   alter the engineering pipeline under an educational label?
-10. What evidence would justify retaining the feature, and how can it be
-    removed without affecting normal development?
+1. What exact action starts and ends the interaction?
+2. What outcome is not already served by current explicit learning surfaces?
+3. Can the capability be absent without changing normal development?
+4. What ordinary-work data, if any, does it read or infer?
+5. What data is written, why is each field necessary, and how is it reset or
+   removed?
+6. Could a mistaken assessment delay work, weaken a gate, or misstate
+   readiness?
+7. Which tests prove opt-in isolation and normal-path parity?
+8. What evidence would justify retention, and how can the feature be removed?
 
-Until these questions have approved answers, the proposals remain follow-up
-material and must not be sliced into implementation tickets.
+Until those questions have approved answers, these proposals remain retained
+follow-up evidence and must not become implementation tickets.

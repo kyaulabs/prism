@@ -1,0 +1,28 @@
+{
+  "config": {
+    "default": true,
+    "MD004": {"style": "dash"},
+    "MD013": false,
+    "MD024": {"siblings_only": true},
+    "MD033": {
+      "allowed_elements": [
+        "br",
+        "details",
+        "div",
+        "img",
+        "kbd",
+        "picture",
+        "source",
+        "sub",
+        "summary",
+        "sup"
+      ]
+    }
+  },
+  "fix": false,
+  "gitignore": false,
+  "noBanner": true,
+  "noInlineConfig": true,
+  "noProgress": true,
+  "showFound": false
+}

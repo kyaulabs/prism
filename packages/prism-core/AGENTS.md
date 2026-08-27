@@ -11,6 +11,16 @@
 - `CONTEXT.md` (root) — domain glossary, entities, invariants, boundaries, non-goals. Read before domain-coupled work (see `domain-context` skill). Draft or refresh it via `/prime`.
 - `adr/` — Architecture Decision Records (Nygard format). Write one for hard-to-reverse or cross-cutting decisions (see `adr` skill).
 
+## Output style
+
+Write natural-language prose directly and concretely. Cut filler, flattery,
+puffery, vague attribution, unsupported claims, and canned chatbot phrases.
+Prefer plain words and varied sentence rhythm. Preserve exact syntax,
+quotations, required formats, and established domain terms. Never invent
+feelings or experience to sound human. Before responding, ask what sounds
+machine-written and fix it. Load the `distill` skill for durable, rewritten,
+tone-sensitive, or substantial prose.
+
 ## Labels
 
 Issue labels use a two-axis vocabulary — **type** (GitHub issue-type field)
@@ -27,10 +37,12 @@ prerequisites that Prism verifies but never installs (Semgrep
 `>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
 adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
 Registry access and consumer mutation remain separate operation-specific
-approvals. `/setup` manages one global standing OCR consent covering only
-connectivity and reviewed-code egress through the dedicated review operation;
-full `/doctor` validates it without asking again. Installation, hooks, and CI
-use local-only readiness and never establish consent (ADR-0074).
+approvals. `/setup` solely manages independent standing OCR and web-access
+consent. OCR consent covers connectivity and reviewed-code egress through the
+dedicated review operation; web consent covers only bounded `web_search` and
+`fetch_content`. Full `/doctor` validates readiness without granting consent.
+Installation, hooks, and CI use local-only readiness and never establish
+consent (ADR-0074, ADR-0091).
 
 Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
 `prism-tool resolve skills`) in one tool call, retain the returned absolute
@@ -47,7 +59,10 @@ from the repository root.
 >
 > - NEVER edit generated minified assets (`*.min.css`, `*.min.js`) — these are generated (edit the SCSS/JS sources; see the active adapter's stack skill for details)
 > - NEVER commit `.env` files — use `.env.example` only
-> - Do not access external APIs without explicit permission
+> - External API mutations and non-GitHub network access require the explicit
+  authorization defined by their active workflow.
+  Read-only GitHub repository and tracker metadata accessed by an active Prism workflow is standing-authorized
+  and does not require another permission prompt (ADR-0086).
 > - Do not modify files outside the project directory
 > - New dependencies must be explicitly noted
 > - When glob/grep returns unexpected empty results, verify with `ls` before concluding a file does not exist
@@ -109,7 +124,7 @@ unknowns that cannot be expressed as sharp questions — branches to `wayfinder`
 before detailed grilling; brainstorming does not decompose it here. The sole
 exception is strict greenfield: a walking-skeleton bootstrap (scaffold plus
 one thin vertical slice) whose approved spec rides the human-pushed
-single-root seed (ADR-0044) before a fresh wayfinder session maps the
+single-root seed (ADR-0044) before a later wayfinder continuation maps the
 remainder (ADR-0050). The design cycle ends at the committed spec and feature
 branch and hands off to planning; bootstrap branches also require `/check`
 and the `code-review` skill plus the wayfinder map's immutable bootstrap-spec
@@ -239,14 +254,15 @@ prism ships as two pi packages (ADR-0058):
 - **`@kyaulabs/prism-core`** (this package) — language-agnostic. Installed
   **globally** (`pi install npm:@kyaulabs/prism-core`, or
   `pi install ./packages/prism-core` for local dev), so its skills, prompts,
-  and the **safety extension** load in every trusted project. Its `AGENTS.md`
-  deploys to `~/.pi/agent/AGENTS.md` (via `install-global.sh`) and
+  and the **safety** and **bounded web-access** extensions load in every trusted
+  project. Its `AGENTS.md` deploys to `~/.pi/agent/AGENTS.md` (via
+  `install-global.sh`) and
   concatenates into every session's system prompt — the core is "always
   running".
 - **`@kyaulabs/prism-php-web`** — the PHP/web stack adapter. Installed
   **project-locally** (`pi install -l ./packages/prism-php-web`) inside a PHP
   project. It contributes the `php-web-stack`, `tdd-php`, `rcs-header`,
-  `aurora-page`, and other stack skills, plus the adapter `safe-dirs.json`
+  `aurora-page`, `visual-review`, and other stack skills, plus the adapter `safe-dirs.json`
   the safety extension reads for `rm -rf` safe zones.
 
 **Adapter activation:** when a project contains `composer.json` or `aurora/`,
@@ -258,8 +274,8 @@ say: if no stack skill is loaded, ask the user which adapter applies.
 
 Load these on demand when the task requires them. Core skills (below) are
 global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
-`aurora-page`, `pest-browser`, `scss-mobile-first`, `accessibility`,
-`frontend-design`, `frontend-architecture`, `database`, `security-coding-php`,
+`aurora-page`, `pest-browser`, `visual-review`, `scss-mobile-first`,
+`accessibility`, `frontend-design`, `frontend-architecture`, `database`, `security-coding-php`,
 …) are documented in the active adapter and available once it is installed.
 
 | Skill | When to use |
@@ -275,7 +291,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
 | `finishing-a-development-branch` | When a feature branch is complete — consume plan approval for cleanup, synchronization, unlimited `/check`, one four-axis review, revalidation, and automatic preparation-only `/pr`; require fresh approval for additional reviews |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
-| `wayfinder` | Work too big or too foggy for one session — chart it as a shared map of investigation tickets on GitHub Issues, resolve one at a time, merge to `to-spec` |
+| `wayfinder` | Work too big for one specification or too foggy for sharp questions — chart a shared GitHub issue map, process eligible frontiers continuously, and merge to `to-spec` |
 | `receiving-code-review` | Triaging and responding to `code-review` findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
 | `domain-context` | Before domain-coupled work — read/update `CONTEXT.md` |
 | `adr` | Writing, reviewing, or superseding an Architecture Decision Record |
@@ -286,6 +302,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `conventional-commits` | Writing or reviewing commit messages |
 | `audit-deps` | Scanning dependencies for known CVEs |
 | `writing-skills` | Authoring new skills, prompts, or docs in the harness packages |
+| `distill` | Writing or editing durable, rewritten, tone-sensitive, or substantial prose. Removes machine-written habits while preserving meaning and technical precision |
 | `architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation; returns go/no-go + `ADR-required:` line |
 | `code-review` | Reviewing staged changes before push |
 | `spec-review` | Read-only review that checks requirement coverage against the branch's spec |
@@ -296,7 +313,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `consult` | Conversational project exploration — runs grilling, writes glossary terms + ADRs, never enters the engineering pipeline |
 | `from-issue` | Issue on-ramp — fetches an existing GitHub issue, classifies type, grills one-at-a-time, applies labels, analyzes, plans, halts for approval, creates the branch, and hands off; routes bugs to `debug` and chores to the fast-path |
 | `resolve-merge-conflicts` | Resolving in-progress git merge/rebase conflicts |
-| `tracker-operator` | Executes the ticketing workflow's GitHub operations (`/issue`-family, `/setup-labels`) — least-privilege issues/labels/fields scope (ADR-0052) |
+| `tracker-operator` | Executes bounded GitHub tracker operations for ticketing and Wayfinder — least-privilege, workflow-authorized issues/labels/fields scope (ADR-0085) |
 | `docs-writer` | Generating docblocks, RCS headers, and documentation |
 | `pi-docs` | Pointer to pi's installed docs/examples on disk — read instead of guessing |
 
@@ -309,11 +326,11 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
 | `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command for a verified work branch; never creates the PR |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, skill, or fast-path) |
-| `/research` | Cited research via the `websearch`/`searxng` skills + web |
+| `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
 | `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator and sole standing OCR-consent prompt; global consent is explicitly revocable |
+| `/setup` | Interactive project configurator and sole manager of independent standing OCR and web-access consent |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
 | `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |

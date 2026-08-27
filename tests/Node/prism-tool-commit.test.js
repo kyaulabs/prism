@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
 
 'use strict';
 
@@ -153,6 +153,82 @@ test('commit command exposes only create', () => {
         assert.equal(calls, 0, args.join(' '));
         assert.match(result.stderr, /^usage: prism-tool commit create/);
     }
+});
+
+test('reserved ignore commits require one eligible root-seed attestation', (t) => {
+    const unavailable = makeCommitContext(t);
+    unavailable.context.validateActiveBootstrapSeed = () => {
+        throw new Error('no active seed');
+    };
+    const rejected = captureWrites(() => main([
+        'commit', 'create', '--type', 'ignore', '--subject', 'bootstrap prism project',
+    ], unavailable.context));
+    assert.equal(rejected.status, 5);
+    assert.equal(unavailable.calls.some(({command, args}) => command === 'git' && args[0] === 'commit'), false);
+
+    for (const controls of [
+        ['--scope', 'setup'],
+        ['--refs', '386'],
+        ['--fixes', '386'],
+    ]) {
+        const invalid = makeCommitContext(t);
+        invalid.context.validateActiveBootstrapSeed = () => ({attestation: {}});
+        const result = captureWrites(() => main([
+            'commit', 'create', '--type', 'ignore',
+            ...(controls[0] === '--scope' ? controls : []),
+            '--subject', 'bootstrap prism project',
+            ...(controls[0] === '--scope' ? [] : controls),
+        ], invalid.context));
+        assert.equal(result.status, 2, controls.join(' '));
+        assert.equal(invalid.calls.length, 0);
+    }
+});
+
+test('reserved ignore commits consume attestation after signed HEAD advance', (t) => {
+    const fixture = makeCommitContext(t, {unborn: true, branch: 'develop', branchStatus: 3});
+    const seed = {attemptId: '12345678-1234-4123-8123-123456789abc', attestation: {schemaVersion: 1}};
+    let validations = 0;
+    let completion;
+    fixture.context.validateActiveBootstrapSeed = () => {
+        validations += 1;
+        return seed;
+    };
+    fixture.context.completeBootstrapSeed = (input) => {
+        completion = input;
+    };
+
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'ignore', '--subject', 'bootstrap prism project',
+    ], fixture.context));
+
+    assert.equal(result.status, 0);
+    assert.equal(validations >= 3, true);
+    assert.equal(completion.attestation, seed);
+    assert.equal(completion.previousHead, 'unborn');
+    assert.equal(completion.newHead, '3'.repeat(40));
+    assert.match(fixture.observed.message, /^ignore: bootstrap prism project\n/);
+    assert.match(fixture.observed.message, /Implemented-by:/);
+    assert.match(fixture.observed.message, /Tested-by:/);
+    assert.match(fixture.observed.message, /Signed-off-by:/);
+});
+
+test('reserved ignore completion failure remains a transaction failure', (t) => {
+    const fixture = makeCommitContext(t, {unborn: true, branch: 'develop', branchStatus: 3});
+    const seed = {attemptId: '12345678-1234-4123-8123-123456789abc', attestation: {schemaVersion: 1}};
+    fixture.context.validateActiveBootstrapSeed = () => seed;
+    fixture.context.completeBootstrapSeed = () => {
+        throw new Error('completion interrupted');
+    };
+
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'ignore', '--subject', 'bootstrap prism project',
+    ], fixture.context));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.equal(fixture.calls.some(({command, args}) =>
+        command === 'git' && args.join(' ') === 'rev-parse --verify HEAD'
+    ), true);
 });
 
 test('commit create renders the canonical message and creates one signed commit', (t) => {

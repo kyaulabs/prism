@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -20,6 +20,13 @@ const {
     resolveCandidate,
 } = require('../../packages/prism-php-web/scripts/toolchain/transaction');
 const {makeTempDir, sha256, writeExecutable, writeJson} = require('./helpers');
+
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const VISUAL_REVIEW_FILES = [
+    'visual_review.example.json',
+    'visual_review.mjs',
+    'visual_review.spec.mjs',
+];
 
 function captureWrites(action) {
     let stdout = '';
@@ -43,9 +50,8 @@ function captureWrites(action) {
 }
 
 function configureSourceAdapter(projectRoot) {
-    const adapterRoot = path.resolve(__dirname, '../../packages/prism-php-web');
     writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
-        skills: [path.join(adapterRoot, 'skills')],
+        skills: [path.join(ADAPTER_ROOT, 'skills')],
     });
 }
 
@@ -115,16 +121,25 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
         '../../packages/prism-php-web/toolchain.json'
     ));
 
-    const result = resolveCandidate({contract, projectRoot, run});
+    const result = resolveCandidate({contract, packageRoot: ADAPTER_ROOT, projectRoot, run});
 
     assert.equal(result.status, 'GO');
-    assert.equal(result.data.diff, 'diff fixture\n'.repeat(4));
+    assert.equal(result.data.diff, 'diff fixture\n'.repeat(7));
     const plan = JSON.parse(fs.readFileSync(result.data.planPath, 'utf8'));
     assert.equal(plan.schemaVersion, 1);
     assert.equal(plan.adapter, '@kyaulabs/prism-php-web');
     assert.equal(plan.projectRoot, fs.realpathSync(projectRoot));
     assert.deepEqual(plan.audit, {critical: 0, high: 0, moderate: 0, low: 0});
     assert.deepEqual(plan.browserTargets, ['chromium']);
+    assert.deepEqual(Object.keys(plan.scaffold).sort(), VISUAL_REVIEW_FILES);
+    for (const name of VISUAL_REVIEW_FILES) {
+        assert.deepEqual(plan.scaffold[name], {
+            disposition: 'CREATE',
+            original: 'absent',
+            candidate: sha256(fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name))),
+            mode: 0o644,
+        });
+    }
     for (const [name, content] of Object.entries(sourceFiles)) {
         assert.equal(fs.readFileSync(path.join(projectRoot, name), 'utf8'), content);
         assert.equal(plan.original[name], sha256(content));
@@ -138,11 +153,99 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
         {command: 'composer', args: ['audit', '--locked', '--format=json']},
         {command: 'npm', args: ['audit', '--package-lock-only', '--json']},
     ]);
-    assert.equal(invocations.slice(5).length, 4);
+    assert.equal(invocations.slice(5).length, 7);
     for (const invocation of invocations.slice(5)) {
         assert.equal(invocation.command, 'git');
         assert.deepEqual(invocation.args.slice(0, 3), ['diff', '--no-index', '--']);
         assert.equal(invocation.args.length, 5);
+    }
+});
+
+test('preserves exact canonical visual review files without rewriting them', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+    for (const name of ['composer.json', 'composer.lock', 'package.json', 'package-lock.json']) {
+        fs.writeFileSync(path.join(projectRoot, name), '{}\n');
+    }
+    const identities = new Map();
+    for (const name of VISUAL_REVIEW_FILES) {
+        const target = path.join(projectRoot, name);
+        fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name), target);
+        fs.chmodSync(target, 0o644);
+        const stat = fs.statSync(target, {bigint: true});
+        identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
+    }
+    const run = (command, args, options) => {
+        if (command === 'composer' && args[0] === 'update') {
+            writeJson(path.join(options.cwd, 'composer.lock'), {});
+        }
+        if (command === 'npm' && args[0] === 'install') {
+            writeJson(path.join(options.cwd, 'package-lock.json'), {});
+        }
+        if (command === 'composer' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
+        }
+        if (command === 'npm' && args[0] === 'audit') {
+            return {status: 0, stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}', stderr: '', error: undefined};
+        }
+        if (command === 'git') return {status: 0, stdout: '', stderr: '', error: undefined};
+        return {status: 0, stdout: '', stderr: '', error: undefined};
+    };
+    const contract = loadContract(path.join(ADAPTER_ROOT, 'toolchain.json'));
+
+    const result = resolveCandidate({contract, packageRoot: ADAPTER_ROOT, projectRoot, run});
+
+    assert.equal(result.status, 'GO');
+    const plan = JSON.parse(fs.readFileSync(result.data.planPath, 'utf8'));
+    for (const name of VISUAL_REVIEW_FILES) {
+        assert.equal(plan.scaffold[name].disposition, 'PRESERVE');
+        const stat = fs.statSync(path.join(projectRoot, name), {bigint: true});
+        assert.deepEqual({ino: stat.ino, mtimeNs: stat.mtimeNs}, identities.get(name));
+    }
+});
+
+test('rejects conflicting visual review files before dependency commands', (t) => {
+    const roots = [];
+    t.after(() => {
+        for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
+    });
+    const contract = loadContract(path.join(ADAPTER_ROOT, 'toolchain.json'));
+    for (const scenario of ['bytes', 'mode', 'symlink', 'directory']) {
+        const projectRoot = makeTempDir();
+        roots.push(projectRoot);
+        fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+        fs.writeFileSync(path.join(projectRoot, 'composer.json'), '{}\n');
+        fs.writeFileSync(path.join(projectRoot, 'package.json'), '{}\n');
+        const target = path.join(projectRoot, VISUAL_REVIEW_FILES[0]);
+        if (scenario === 'bytes') {
+            fs.writeFileSync(target, 'different\n', {mode: 0o644});
+        } else if (scenario === 'mode') {
+            fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', VISUAL_REVIEW_FILES[0]), target);
+            fs.chmodSync(target, 0o600);
+        } else if (scenario === 'symlink') {
+            const outside = path.join(projectRoot, 'outside');
+            fs.writeFileSync(outside, 'different\n');
+            fs.symlinkSync(outside, target);
+        } else {
+            fs.mkdirSync(target);
+        }
+        let runCount = 0;
+
+        const result = resolveCandidate({
+            contract,
+            packageRoot: ADAPTER_ROOT,
+            projectRoot,
+            run() {
+                runCount += 1;
+                throw new Error('dependency command must not run');
+            },
+        });
+
+        assert.equal(result.status, 'NO-GO', scenario);
+        assert.equal(result.data.stage, 'managed-file-conflict', scenario);
+        assert.equal(runCount, 0, scenario);
+        assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'prism-tool', 'work')), false, scenario);
     }
 });
 

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/22 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
 
 'use strict';
 
@@ -9,8 +9,39 @@ const test = require('node:test');
 const {
     discoverReleasePackages,
     loadReleaseConfiguration,
+    renderReleaseCapabilityFiles,
 } = require('../../packages/prism-core/scripts/prism-tool/package-release');
 const {makeTempDir, writeJson, writePackageJson} = require('./helpers');
+
+const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+
+test('renders package release candidate files without mutating the project', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {
+        name: '@fixture/root',
+        version: '1.2.3',
+    });
+
+    const rendered = renderReleaseCapabilityFiles({projectRoot, coreRoot: CORE_ROOT});
+
+    assert.deepEqual(rendered.candidates, [
+        {name: '@fixture/root', path: '.', version: '1.2.3', tagPrefix: 'root'},
+    ]);
+    assert.equal(rendered.files['.prism/release.json'].toString('utf8'), `${JSON.stringify({
+        schemaVersion: 1,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+    }, null, 2)}\n`);
+    assert.equal(
+        rendered.files['.github/workflows/release.yml'].equals(
+            fs.readFileSync(path.join(CORE_ROOT, 'config', 'release.yml'))
+        ),
+        true
+    );
+    assert.deepEqual(fs.readdirSync(projectRoot), ['package.json']);
+});
 
 test('discovers the publishable root first and declared workspaces lexically', (t) => {
     const projectRoot = makeTempDir();

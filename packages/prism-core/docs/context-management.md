@@ -1,86 +1,95 @@
-# Context Management
+# Context management
 
-Loaded when context usage grows. The `executing-plans` skill references this
-doc when a session approaches degradation thresholds.
+Use this guide when a long pi session starts losing focus, repeating work, or
+burying the current task under old output. Prism runs planning, implementation,
+tests, and review in one agent context, so context management is part of
+execution discipline.
 
-## The problem
+## Observable thresholds
 
-Models degrade as context fills. The degradation is not linear — it
-accelerates past ~40% context usage. A session that was sharp at 20% becomes
-unreliable at 60%. This is a major cause of poor agent output.
+Treat these as operating thresholds, not measurements of model capacity:
 
-Under Prism's single-agent pi architecture, the same context carries planning,
-implementation, test output, and review. There is no worker-context isolation,
-so proactive compaction and handoff are load-bearing.
+| Context use | Action |
+| --- | --- |
+| 0-30% | Continue normally and keep reads focused |
+| 30-40% | Prepare a compaction note and persist current evidence |
+| 40-50% | Compact with a task-specific prompt |
+| 50-60% | Compact immediately or write a handoff |
+| Above 60% | Write a handoff and continue in a new session |
 
-## Thresholds
+Act earlier for architecture work, debugging, or large refactors. Warning signs
+matter more than the percentage: repeated questions, forgotten constraints,
+contradictory edits, broad rereads, or difficulty naming the next test all mean
+the active context is degrading.
 
-| Context usage | What to do |
-|---|---|
-| 0–30% | Sweet spot. Full intelligence. |
-| 30–40% | Still good. Prepare a focused compaction note; avoid unrelated reads. |
-| 40–50% | Early degradation. Compact now with a task-specific hint. |
-| 50–60% | Noticeable degradation. Compact immediately or prepare `/handoff`. |
-| 60%+ | Severe degradation. Run `/handoff` and start a fresh session. |
+## Choose the recovery action
 
-These are approximate. Simple tasks tolerate higher context; complex reasoning
-and large refactors degrade sooner.
+| Situation | Action |
+| --- | --- |
+| A recent attempt was wrong | Rewind with `/tree` and retry from before it |
+| The task is clear but history is noisy | Run `/compact` with a focused prompt |
+| State must survive compaction | Update the plan, task list, or durable note first |
+| The session is long but continuation is well-defined | Run `/handoff` |
+| The next task is unrelated | Start a new session |
+| Only one code question remains | Use a focused read or `explore` |
 
-## Techniques
+## Rewind
 
-### Rewind > correct
+Prefer rewind to layering corrections over a failed attempt. Use `/tree` to
+return to the point before the wrong action, then retry with the new fact. This
+removes failed reasoning and tool output from the active branch of the
+conversation.
 
-When an attempt fails, **rewind** with `/tree` to before the failed attempt and
-re-prompt with what you learned — do not leave failed attempts and corrections
-polluting active context. A clean re-prompt with the lesson learned produces
-better output than a correction layered on top of a failure.
+Do not rewind past durable repository mutations unless the workflow explicitly
+permits it. Git history, plans, issue state, and transaction journals remain the
+source of truth.
 
-### Compact with a hint
+## Compact
 
-`/compact` with a focus hint beats letting autocompact fire:
+Compact before automatic overflow. State the active task and what must survive:
 
 ```text
-/compact focus on executing plan <filename>; preserve open task, interfaces, test evidence, and unchecked task numbers; drop completed task detail
+/compact preserve the active plan task, interfaces, open decisions, failing or passing test evidence, exact paths, and the next unchecked step; drop completed-task detail and broad exploration output
 ```
 
-The model is at its least reliable when overflow compaction fires. Compact
-proactively before that wall.
+A compaction prompt should preserve:
 
-### Persist execution state
+- the current task and acceptance criteria;
+- exact interfaces and paths;
+- the last Red or Green command and result;
+- unresolved decisions or blockers;
+- the next action;
+- commit and branch state when relevant.
 
-After every completed task:
+## Persist execution state
 
-- check off the task in the plan
-- record the last verified command/evidence
-- keep interface names and the next unchecked task explicit
+Before compaction or handoff:
 
-Compaction and handoff are only safe when durable state says where to resume.
+1. update task status;
+2. record the last verified command and result;
+3. keep current interface names and invariants explicit;
+4. identify the next unchecked task;
+5. note staged, committed, or untracked repository state.
 
-### New task = new session
+Do not rely on conversation memory for facts that another session must use.
+Write durable facts to the approved plan, issue, ADR, `CONTEXT.md`, or handoff
+surface owned by the workflow.
 
-Related tasks can reuse context for efficiency. Genuinely new tasks deserve a
-fresh session — old context is noise, not signal.
+## Handoff and new session
 
-### Use focused reads
+Use `/handoff` when compaction would remove important constraints or when the
+session is already degraded. A handoff should contain the goal, decisions,
+completed work, active task, blockers, verification evidence, repository state,
+and exact next steps.
 
-Ask: "will I need this tool output again, or just the conclusion?" Read the
-smallest useful file/range, summarize durable conclusions into the plan or
-handoff, and avoid repeatedly loading broad outputs. The `explore` skill keeps
-investigation scoped but runs in the same agent context.
-
-### Use `/handoff` for long sessions
-
-When a session approaches 60%, shows degraded reasoning, or cannot compact
-without losing active constraints, run `/handoff` to save state to a structured
-document. Start a fresh session and tell it:
-
-> Read `docs/handoffs/<filename>` and continue executing the plan.
+Start a fresh session for unrelated work. Old context is useful only when it
+reduces rereading without importing obsolete assumptions.
 
 ## Rules
 
-- During plan execution, check context after every three tasks.
-- Prefer proactive compaction with a hint over reactive autocompact.
-- At the first sign of degradation, hand off rather than pushing through.
-- Keep plan checkboxes and current interface/test evidence durable.
-- When in doubt, start fresh. A new session with a good handoff beats a
-  degraded session with full context.
+- Check context after every three plan tasks and before a large new slice.
+- Prefer the smallest useful read range.
+- Keep test evidence and task status durable.
+- Rewind failed attempts instead of narrating over them.
+- Compact before overflow.
+- Use a handoff rather than pushing through visible degradation.

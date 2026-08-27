@@ -1,6 +1,6 @@
 {
   "name": "@kyaulabs/prism-php-web",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "KYAULabs coding harness — PHP/web stack adapter (pi)",
   "license": "AGPL-3.0-only",
   "keywords": [
@@ -11,6 +11,7 @@
     "skills",
     "prompts",
     "scripts",
+    "config",
     "docs",
     "toolchain.json",
     "safe-dirs.json",
@@ -26,6 +27,7 @@
   },
   "prism": {
     "adapter": true,
+    "bootstrapProtocol": 1,
     "toolchain": "./toolchain.json",
     "handler": "./scripts/prism-tool-adapter.js"
   },

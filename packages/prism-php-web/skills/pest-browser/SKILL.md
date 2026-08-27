@@ -8,6 +8,10 @@ description: Use when writing browser tests with Pest 5. Covers plugin installat
 Reserve for critical UI flows only: login, checkout, critical forms.
 Not for every page. Unit and Feature tests cover everything else.
 
+Visual design iteration belongs to `visual-review`. Pest Browser asserts
+functional behavior; it does not own subjective screenshot inspection,
+iterative visual evidence, or milestone approval.
+
 ## Installation
 
 Adapter dependencies are provisioned through the toolchain contract, never
