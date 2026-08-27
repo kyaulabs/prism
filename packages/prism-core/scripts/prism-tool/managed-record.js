@@ -1,4 +1,4 @@
-// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -234,25 +234,37 @@ function removeManagedRecord({context = {}, detail}) {
 function publishManagedRecord({context = {}, detail, filename, record, parse, limit = 4096}) {
     const managedPath = detail.path || resolveManagedPath(filename, context);
     const parent = ensureParent(context, managedPath);
-    if (detail.record) removeManagedRecord({context, detail});
     const io = context.fs ?? fs;
     const random = context.randomBytes ?? crypto.randomBytes;
     const nonce = random(16).toString('hex');
     if (!/^[0-9a-f]{32}$/.test(nonce)) throw new Error('managed record temporary name failed');
     const temporary = path.join(parent, `.prism-managed-${nonce}.tmp`);
+    const backup = path.join(parent, `.prism-managed-${nonce}.bak`);
+    const serialized = `${JSON.stringify(record)}\n`;
     let descriptor;
+    let priorRemoved = false;
+    let temporaryStat;
     try {
-        if (typeof io.constants.O_NOFOLLOW !== 'number') throw new Error();
+        if (Buffer.byteLength(serialized, 'utf8') > limit ||
+            typeof io.constants.O_NOFOLLOW !== 'number') {
+            throw new Error();
+        }
         descriptor = io.openSync(
             temporary,
             io.constants.O_CREAT | io.constants.O_EXCL | io.constants.O_WRONLY | io.constants.O_NOFOLLOW,
             0o600
         );
-        io.writeFileSync(descriptor, `${JSON.stringify(record)}\n`);
+        io.writeFileSync(descriptor, serialized);
         io.fchmodSync(descriptor, 0o600);
         io.fsyncSync(descriptor);
+        temporaryStat = io.fstatSync(descriptor);
         io.closeSync(descriptor);
         descriptor = undefined;
+        if (detail.record) {
+            io.linkSync(managedPath, backup);
+            removeManagedRecord({context, detail});
+            priorRemoved = true;
+        }
         io.linkSync(temporary, managedPath);
         fsyncDirectory(context, parent);
         const published = inspectManagedRecord({context, filename, limit, parse});
@@ -261,10 +273,30 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
             throw new Error();
         }
     } catch {
+        if (priorRemoved) {
+            try {
+                const current = io.lstatSync(managedPath);
+                if (temporaryStat && current.isFile() && !current.isSymbolicLink() &&
+                    current.dev === temporaryStat.dev && current.ino === temporaryStat.ino) {
+                    io.unlinkSync(managedPath);
+                }
+            } catch { }
+            try {
+                io.lstatSync(managedPath);
+            } catch (error) {
+                if (error?.code === 'ENOENT') {
+                    try {
+                        io.linkSync(backup, managedPath);
+                        fsyncDirectory(context, parent);
+                    } catch { }
+                }
+            }
+        }
         throw new Error('managed record publication failed');
     } finally {
         if (descriptor !== undefined) closeQuietly(io, descriptor);
         unlinkQuietly(io, temporary);
+        unlinkQuietly(io, backup);
     }
 }
 
