@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -535,6 +535,18 @@ function validateRequest(request) {
     }
 }
 
+function createProviderRequest({source, capabilities, metadata, adapter}) {
+    const request = {
+        schemaVersion: 1,
+        source,
+        capabilities,
+        metadata,
+        adapter,
+    };
+    validateRequest(request);
+    return Object.freeze(request);
+}
+
 function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     validateRequest(request);
     const canonicalCore = fs.realpathSync(coreRoot);
@@ -595,6 +607,7 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
 }
 
 module.exports = {
+    createProviderRequest,
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
     readCoreManifest,

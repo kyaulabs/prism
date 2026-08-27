@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-composer.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-composer.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DIGEST = /^[0-9a-f]{64}$/;
+const KEY_ID = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,79})$/;
+const INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
+const UTC_TIMESTAMP = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 const MAX_FILE_BYTES = 1048576;
 
 function isRecord(value) {
@@ -29,6 +32,36 @@ function containsControl(value) {
         const code = character.charCodeAt(0);
         return code <= 0x1f || code >= 0x7f && code <= 0x9f;
     });
+}
+
+function validUtcTimestamp(value) {
+    if (typeof value !== 'string' || !UTC_TIMESTAMP.test(value)) return false;
+    const parsed = new Date(value);
+    const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString() === canonical;
+}
+
+function validateAdapterEvidence(value) {
+    if (value === null) return null;
+    if (!isRecord(value) || !hasExactKeys(value, [
+        'catalogueId', 'sequence', 'keyId', 'issuedAt', 'expiresAt',
+        'envelopeDigest', 'payloadDigest', 'selectedAt', 'integrity',
+    ]) || value.catalogueId !== 'kyaulabs/prism-adapters' ||
+        !Number.isSafeInteger(value.sequence) || value.sequence <= 0 ||
+        typeof value.keyId !== 'string' || !KEY_ID.test(value.keyId) ||
+        !validUtcTimestamp(value.issuedAt) || !validUtcTimestamp(value.expiresAt) ||
+        !validUtcTimestamp(value.selectedAt) || !DIGEST.test(value.envelopeDigest) ||
+        !DIGEST.test(value.payloadDigest) || typeof value.integrity !== 'string' ||
+        value.integrity.length > 256 || !INTEGRITY.test(value.integrity)) {
+        throw new Error('bootstrap adapter evidence is invalid');
+    }
+    const issuedAt = new Date(value.issuedAt).getTime();
+    const expiresAt = new Date(value.expiresAt).getTime();
+    const selectedAt = new Date(value.selectedAt).getTime();
+    if (issuedAt >= expiresAt || selectedAt < issuedAt || selectedAt >= expiresAt) {
+        throw new Error('bootstrap adapter evidence is invalid');
+    }
+    return Object.freeze({...value});
 }
 
 function validateTargetPath(value) {
@@ -278,6 +311,6 @@ function composeProviderReports({reports}) {
     return Object.freeze(outputs.map((output) => Object.freeze(output)));
 }
 
-module.exports = {composeProviderReports, validateProviderReport};
+module.exports = {composeProviderReports, validateAdapterEvidence, validateProviderReport};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

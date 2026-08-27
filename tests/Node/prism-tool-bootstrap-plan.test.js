@@ -25,9 +25,9 @@ const {renderCoreBaseline} = require(
 );
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
-const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_SOURCE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
 const CORE_VERSION = JSON.parse(
-    fs.readFileSync(path.join(CORE_ROOT, 'package.json'), 'utf8')
+    fs.readFileSync(path.join(CORE_SOURCE_ROOT, 'package.json'), 'utf8')
 ).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_VERSION = JSON.parse(
@@ -54,6 +54,114 @@ const TEMPLATE_SOURCE = Object.freeze({
         classificationSha256: 'e'.repeat(64),
     }),
 });
+const ADAPTER_INTEGRITY = 'sha512-BBBB';
+const projectCoreRoots = new Map();
+let signedAdapterFixture;
+
+function writeJson(filePath, value) {
+    fs.mkdirSync(path.dirname(filePath), {recursive: true});
+    fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function signedEnvelope(payload) {
+    const pair = crypto.generateKeyPairSync('ed25519');
+    const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
+    const publicKeyBytes = pair.publicKey.export({type: 'spki', format: 'der'});
+    const keyId = 'test-key';
+    return {
+        bytes: Buffer.from(JSON.stringify({
+            schemaVersion: 1,
+            keyId,
+            algorithm: 'Ed25519',
+            payload: payloadBytes.toString('base64'),
+            signature: crypto.sign(null, payloadBytes, pair.privateKey).toString('base64'),
+        }), 'utf8'),
+        payloadBytes,
+        trust: {
+            schemaVersion: 1,
+            keys: [{
+                id: keyId,
+                algorithm: 'Ed25519',
+                publicKeySpki: publicKeyBytes.toString('base64'),
+                sha256: crypto.createHash('sha256').update(publicKeyBytes).digest('hex'),
+            }],
+        },
+    };
+}
+
+function loadSignedAdapterFixture() {
+    if (signedAdapterFixture !== undefined) return signedAdapterFixture;
+    const coreRoot = makeTempDir();
+    fs.cpSync(CORE_SOURCE_ROOT, coreRoot, {recursive: true});
+    for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
+        fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', hook), 0o755);
+    }
+    const catalogue = {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [{
+                version: ADAPTER_VERSION,
+                coreRange: CORE_VERSION,
+                bootstrapProtocol: 1,
+                integrity: ADAPTER_INTEGRITY,
+                publishedAt: '2026-08-26T00:00:00Z',
+                status: 'ACTIVE',
+            }],
+        }],
+    };
+    const envelope = signedEnvelope(catalogue);
+    const envelopeDigest = crypto.createHash('sha256').update(envelope.bytes).digest('hex');
+    const payloadDigest = crypto.createHash('sha256').update(envelope.payloadBytes).digest('hex');
+    const catalogueCachePath = path.join(coreRoot, '.adapter-catalogue-cache.json');
+    writeJson(path.join(coreRoot, 'config', 'adapter-catalogue-trust.json'), envelope.trust);
+    writeJson(catalogueCachePath, {
+        schemaVersion: 1,
+        entries: [{
+            digest: envelopeDigest,
+            sequence: catalogue.sequence,
+            envelope: envelope.bytes.toString('base64'),
+            cachedAt: '2026-08-27T12:00:00.000Z',
+        }],
+    });
+    fs.chmodSync(catalogueCachePath, 0o600);
+    signedAdapterFixture = Object.freeze({
+        coreRoot,
+        catalogueCachePath,
+        trust: envelope.trust,
+        digest: envelopeDigest,
+        evidence: Object.freeze({
+            catalogueId: catalogue.catalogueId,
+            sequence: catalogue.sequence,
+            keyId: envelope.trust.keys[0].id,
+            issuedAt: catalogue.issuedAt,
+            expiresAt: catalogue.expiresAt,
+            envelopeDigest,
+            payloadDigest,
+            selectedAt: '2026-08-27T12:00:00.000Z',
+            integrity: ADAPTER_INTEGRITY,
+        }),
+    });
+    return signedAdapterFixture;
+}
+
+const CORE_ROOT = loadSignedAdapterFixture().coreRoot;
+
+test.after(() => {
+    if (signedAdapterFixture !== undefined) {
+        fs.rmSync(signedAdapterFixture.coreRoot, {recursive: true, force: true});
+    }
+});
+
+function coreRootFor(projectRoot, fallback = CORE_ROOT) {
+    return projectCoreRoots.get(path.resolve(projectRoot)) ?? fallback;
+}
 
 function captureWrites(action) {
     let stdout = '';
@@ -128,9 +236,45 @@ function planTemplateCoreProject(projectRoot, fixture, context = {}) {
 function bootstrapRunner(projectRoot) {
     return (command, args) => {
         if (command === '/usr/bin/pi') {
+            assert.deepEqual(args, [
+                'install',
+                `npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`,
+                '-l',
+                '--approve',
+            ]);
+            const npmRoot = path.join(projectRoot, '.pi', 'npm');
+            const packageRoot = path.join(
+                npmRoot,
+                'node_modules',
+                '@kyaulabs',
+                'prism-php-web'
+            );
+            writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+                packages: [`npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`],
+            });
+            writeJson(path.join(npmRoot, 'package.json'), {
+                name: 'pi-extensions',
+                private: true,
+                dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION},
+            });
+            writeJson(path.join(npmRoot, 'package-lock.json'), {
+                name: 'pi-extensions',
+                lockfileVersion: 3,
+                packages: {
+                    '': {dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION}},
+                    'node_modules/@kyaulabs/prism-php-web': {
+                        version: ADAPTER_VERSION,
+                        integrity: ADAPTER_INTEGRITY,
+                    },
+                },
+            });
+            fs.writeFileSync(path.join(npmRoot, '.gitignore'), '*\n!.gitignore\n');
+            fs.cpSync(ADAPTER_ROOT, packageRoot, {recursive: true});
             fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+                path.join(packageRoot, 'scripts', 'prism-tool-adapter.js'),
+                `'use strict';\nmodule.exports = require(${JSON.stringify(
+                    path.join(ADAPTER_ROOT, 'scripts', 'prism-tool-adapter.js')
+                )});\n`
             );
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
@@ -223,12 +367,18 @@ function installedGraphRunner(projectRoot, operations) {
 }
 
 function provisionPhpWebAdapter(projectRoot, source = 'blank') {
+    const fixture = loadSignedAdapterFixture();
+    projectCoreRoots.set(path.resolve(projectRoot), fixture.coreRoot);
     return captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', `--source=${source}`,
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${fixture.digest}`, `--source=${source}`,
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
-        coreRoot: CORE_ROOT,
+        coreRoot: fixture.coreRoot,
+        catalogueCachePath: fixture.catalogueCachePath,
+        catalogueTrust: fixture.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
         piExecutable: '/usr/bin/pi',
         randomUUID: () => ATTEMPT_ID,
         run: bootstrapRunner(projectRoot),
@@ -241,7 +391,7 @@ function planPhpWebProject(projectRoot, run = bootstrapRunner(projectRoot)) {
         '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`, '--json',
     ], {
         projectRoot,
-        coreRoot: CORE_ROOT,
+        coreRoot: coreRootFor(projectRoot),
         input: JSON.stringify({
             schemaVersion: 1,
             displayName: 'Blank PHP Project',
@@ -258,7 +408,7 @@ function planTemplatePhpWebProject(projectRoot, fixture, run = bootstrapRunner(p
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
-        coreRoot: CORE_ROOT,
+        coreRoot: coreRootFor(projectRoot),
         fetch: fixture.fetch,
         input: JSON.stringify({
             schemaVersion: 1,
@@ -269,24 +419,31 @@ function planTemplatePhpWebProject(projectRoot, fixture, run = bootstrapRunner(p
     }));
 }
 
+function validationContext(projectRoot, context) {
+    const selectedCoreRoot = projectCoreRoots.get(path.resolve(projectRoot));
+    return selectedCoreRoot === undefined
+        ? {projectRoot, ...context}
+        : {projectRoot, ...context, coreRoot: selectedCoreRoot};
+}
+
 function validatePlan(projectRoot, attemptId, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'validate', `--attempt=${attemptId}`, `--digest=${planDigest}`, '--json',
-    ], {projectRoot, ...context}));
+    ], validationContext(projectRoot, context)));
 }
 
 function recoverProject(projectRoot, attemptId, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'recover', `--attempt=${attemptId}`,
         `--digest=${planDigest}`, '--json',
-    ], {projectRoot, ...context}));
+    ], validationContext(projectRoot, context)));
 }
 
 function applyProject(projectRoot, attemptId, planDigest, context = {}) {
     return captureWrites(() => main([
         'setup', 'project', 'apply', `--attempt=${attemptId}`,
         `--digest=${planDigest}`, '--approval=yes', '--json',
-    ], {projectRoot, ...context}));
+    ], validationContext(projectRoot, context)));
 }
 
 function gitBlobSha(bytes) {
@@ -520,6 +677,7 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
         metadataDigest: report.metadataDigest,
         source: {mode: 'BLANK', evidence: null},
         adapter: null,
+        adapterEvidence: null,
         phase: 'PREPARED',
         status: 'ACTIVE',
         reason: null,
@@ -823,11 +981,11 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     const selected = provisionPhpWebAdapter(projectRoot);
-    assert.equal(selected.status, 0);
+    assert.equal(selected.status, 0, selected.stderr || selected.stdout);
 
     const result = planPhpWebProject(projectRoot);
 
-    assert.equal(result.status, 0);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.adapter, {
@@ -1641,6 +1799,73 @@ test('composes explicitly advertised release management into a Template adapter 
     ), true);
 });
 
+test('carries immutable adapter evidence without exposing it to providers', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(projectRoot).status, 0);
+    const prepare = phpWebHandler.prepareBootstrapProject;
+    let providerRequest;
+    t.after(() => { phpWebHandler.prepareBootstrapProject = prepare; });
+    phpWebHandler.prepareBootstrapProject = (options) => {
+        providerRequest = options.request;
+        return prepare(options);
+    };
+
+    const planned = planPhpWebProject(projectRoot);
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const plan = JSON.parse(planned.stdout);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const journal = JSON.parse(fs.readFileSync(path.join(attemptRoot, 'journal.json'), 'utf8'));
+
+    assert.deepEqual(plan.adapterEvidence, loadSignedAdapterFixture().evidence);
+    assert.deepEqual(journal.adapterEvidence, loadSignedAdapterFixture().evidence);
+    assert.equal('adapterEvidence' in providerRequest, false);
+    assert.deepEqual(Object.keys(providerRequest.adapter).sort(), [
+        'bootstrapProtocol', 'id', 'packageName', 'packageVersion',
+    ]);
+});
+
+test('uses null adapter evidence for Core-only and rejects changed evidence', (t) => {
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    const coreOnly = planProject(coreRoot, {
+        schemaVersion: 1,
+        displayName: 'Core Project',
+        summary: 'A Core-only project.',
+    }, {
+        coreRoot: CORE_ROOT,
+        randomUUID: () => ATTEMPT_ID,
+    });
+    assert.equal(coreOnly.status, 0, coreOnly.stderr || coreOnly.stdout);
+    const corePlan = JSON.parse(coreOnly.stdout);
+    const coreAttemptRoot = path.dirname(path.dirname(corePlan.data.planPath));
+    const coreJournal = JSON.parse(fs.readFileSync(
+        path.join(coreAttemptRoot, 'journal.json'),
+        'utf8'
+    ));
+    assert.equal(corePlan.adapterEvidence, null);
+    assert.equal(coreJournal.adapterEvidence, null);
+
+    const selectedRoot = makeTempDir();
+    t.after(() => fs.rmSync(selectedRoot, {recursive: true, force: true}));
+    assert.equal(provisionPhpWebAdapter(selectedRoot).status, 0);
+    const selected = planPhpWebProject(selectedRoot);
+    assert.equal(selected.status, 0, selected.stderr || selected.stdout);
+    const selectedPlan = JSON.parse(selected.stdout);
+    const selectedAttemptRoot = path.dirname(path.dirname(selectedPlan.data.planPath));
+    const journalPath = path.join(selectedAttemptRoot, 'journal.json');
+    const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
+    journal.adapterEvidence.envelopeDigest = '0'.repeat(64);
+    fs.writeFileSync(journalPath, `${JSON.stringify(journal, null, 2)}\n`, {mode: 0o600});
+
+    assert.throws(() => validateBootstrapProjectPlan({
+        projectRoot: selectedRoot,
+        coreRoot: coreRootFor(selectedRoot),
+        attemptId: ATTEMPT_ID,
+        planDigest: selectedPlan.planDigest,
+    }), /source|evidence/);
+});
+
 test('persists and validates the selected-adapter project plan', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -1748,6 +1973,7 @@ test('normalizes the pre-sourceDigest schema-1 journal shape for recovery', (t) 
     const journalPath = path.join(attemptRoot, 'journal.json');
     const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
     delete journal.sourceDigest;
+    delete journal.adapterEvidence;
     delete journal.repository;
     delete journal.hooks;
     delete journal.seed;

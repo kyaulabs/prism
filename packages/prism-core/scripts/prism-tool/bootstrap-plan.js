@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -10,8 +10,13 @@ const {
     normalizeProjectMetadata,
     validateNormalizedProjectMetadata,
 } = require('./bootstrap-metadata');
-const {composeProviderReports, validateProviderReport} = require('./bootstrap-composer');
 const {
+    composeProviderReports,
+    validateAdapterEvidence,
+    validateProviderReport,
+} = require('./bootstrap-composer');
+const {
+    createProviderRequest,
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
     renderCoreBaseline,
@@ -228,13 +233,12 @@ function planCoreOnlyProject({
     let attempt;
     try {
         attempt = createAttempt(projectRoot, randomUUID);
-        const request = {
-            schemaVersion: 1,
+        const request = createProviderRequest({
             source: normalizedSource.source,
             capabilities,
             metadata: normalized,
             adapter: null,
-        };
+        });
         const coreReport = renderCoreBaseline({
             coreRoot,
             candidateRoot: attempt.candidateRoot,
@@ -278,6 +282,7 @@ function planCoreOnlyProject({
             source: normalizedSource.source,
             sourceDigest: sha256(sourceContents),
             adapter: null,
+            adapterEvidence: null,
             adapterReportDigest: null,
             activation: null,
             capabilities: Object.freeze([...capabilities]),
@@ -379,6 +384,7 @@ function openSelectedAttempt({
         planRoot,
         planPath: path.join(planRoot, 'project.json'),
         adapter: selectedAdapterIdentity(inspection.adapter),
+        adapterEvidence: validateAdapterEvidence(inspection.receipt.catalogueEvidence),
         registration: inspection.registration,
         handler: inspection.handler,
         receipt: inspection.receipt,
@@ -423,13 +429,12 @@ function buildAdapterProjectPlan({
         capabilities,
         adapter: attempt.adapter,
     });
-    const request = {
-        schemaVersion: 1,
+    const request = createProviderRequest({
         source: normalizedSource.source,
         capabilities,
         metadata: normalized,
         adapter: attempt.adapter,
-    };
+    });
     const coreReport = renderCoreBaseline({
         coreRoot,
         candidateRoot: attempt.candidateRoot,
@@ -511,6 +516,7 @@ function buildAdapterProjectPlan({
         source: normalizedSource.source,
         sourceDigest: sha256(sourceContents),
         adapter: attempt.adapter,
+        adapterEvidence: attempt.adapterEvidence,
         adapterReportDigest: sha256(adapterReportContents),
         activation,
         capabilities: Object.freeze([...capabilities]),
@@ -567,7 +573,7 @@ function buildAdapterProjectPlan({
     });
 }
 
-function cleanupSelectedPlanningAttempt(projectRoot, attemptId) {
+function cleanupSelectedPlanningAttempt(projectRoot, coreRoot, attemptId) {
     if (!ATTEMPT_ID.test(attemptId)) return false;
     const attemptRoot = path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', attemptId);
     try {
@@ -588,7 +594,7 @@ function cleanupSelectedPlanningAttempt(projectRoot, attemptId) {
             if (journal.isSymbolicLink() || !journal.isFile()) return false;
             fs.unlinkSync(journalPath);
         }
-        const report = cleanupBootstrapAdapter({projectRoot, attemptId});
+        const report = cleanupBootstrapAdapter({projectRoot, coreRoot, attemptId});
         return report.status === 'GO' && fs.readdirSync(projectRoot).length === 0;
     } catch {
         return false;
@@ -605,7 +611,7 @@ function planAdapterProject(options) {
         } catch {
             throw error;
         }
-        if (!cleanupSelectedPlanningAttempt(projectRoot, options.attemptId)) {
+        if (!cleanupSelectedPlanningAttempt(projectRoot, options.coreRoot, options.attemptId)) {
             error.recoveryRequired = true;
             error.recoveryPath = path.join(
                 projectRoot,
@@ -811,7 +817,7 @@ function validProviderIdentity(value) {
 
 function validatePlanShape(plan) {
     if (!isRecord(plan) || !hasExactKeys(plan, [
-        'schemaVersion', 'source', 'sourceDigest', 'adapter', 'adapterReportDigest', 'activation', 'capabilities',
+        'schemaVersion', 'source', 'sourceDigest', 'adapter', 'adapterEvidence', 'adapterReportDigest', 'activation', 'capabilities',
         'metadata', 'metadataDigest',
         'providers', 'outputs', 'effects', 'checks', 'verification', 'recovery', 'filesystem',
     ])) {
@@ -829,6 +835,7 @@ function validatePlanShape(plan) {
     const providerCount = 1 + plan.capabilities.length + (plan.adapter === null ? 0 : 1);
     try {
         validateBootstrapSource(plan.source);
+        validateAdapterEvidence(plan.adapterEvidence);
         validateNormalizedProjectMetadata({
             metadata: plan.metadata,
             capabilities: plan.capabilities,
@@ -841,6 +848,7 @@ function validatePlanShape(plan) {
         typeof plan.sourceDigest !== 'string' ||
         !/^[0-9a-f]{64}$/.test(plan.sourceDigest) ||
         !validAdapterIdentity(plan.adapter) ||
+        (plan.adapter === null) !== (plan.adapterEvidence === null) ||
         (
             plan.adapter === null
                 ? plan.adapterReportDigest !== null
@@ -980,12 +988,18 @@ function validateHeldProjectPlan({
     const journal = readBootstrapJournal({projectRoot, attemptId});
     if (
         sha256(sourceFile.contents) !== envelope.plan.sourceDigest ||
-        JSON.stringify(sourceState.source) !== JSON.stringify(envelope.plan.source) ||
-        journal.planDigest !== planDigest ||
-        journal.sourceDigest !== envelope.plan.sourceDigest ||
-        JSON.stringify(journal.source) !== JSON.stringify(envelope.plan.source)
+        JSON.stringify(sourceState.source) !== JSON.stringify(envelope.plan.source)
     ) {
         throw new Error('bootstrap project source is stale');
+    }
+    if (
+        journal.planDigest !== planDigest ||
+        journal.sourceDigest !== envelope.plan.sourceDigest ||
+        JSON.stringify(journal.source) !== JSON.stringify(envelope.plan.source) ||
+        JSON.stringify(journal.adapter) !== JSON.stringify(envelope.plan.adapter) ||
+        JSON.stringify(journal.adapterEvidence) !== JSON.stringify(envelope.plan.adapterEvidence)
+    ) {
+        throw new Error('bootstrap project journal evidence is stale');
     }
     const metadataFile = readJsonFile(path.join(paths.reportsAnchor, 'metadata.json'));
     if (
@@ -1026,6 +1040,8 @@ function validateHeldProjectPlan({
         });
         if (
             JSON.stringify(state.adapter) !== JSON.stringify(envelope.plan.adapter) ||
+            JSON.stringify(state.receipt.catalogueEvidence) !==
+                JSON.stringify(envelope.plan.adapterEvidence) ||
             envelope.plan.activation.sha256 !== state.receipt.settings.sha256
         ) {
             throw new Error('bootstrap adapter selection is stale');
@@ -1066,13 +1082,12 @@ function validateHeldProjectPlan({
             packageRoot: envelope.plan.adapter === null
                 ? paths.candidateRoot
                 : path.join(paths.candidateRoot, 'adapter'),
-            request: {
-                schemaVersion: 1,
+            request: createProviderRequest({
                 source: envelope.plan.source,
                 capabilities: envelope.plan.capabilities,
                 metadata: envelope.plan.metadata,
                 adapter: envelope.plan.adapter,
-            },
+            }),
             report: profileReports.find(({provider}) => provider.id === 'release-management'),
         });
     }

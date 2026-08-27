@@ -810,7 +810,7 @@ prism-tool commit create --type fix --scope setup --subject "install digest-boun
 - Consumes: inspected schema-2 receipt and existing four-field adapter identity.
 - Produces: nullable `adapterEvidence` on plan and journal; provider requests remain unchanged.
 
-- [ ] **Step 1: Write failing plan, journal, Core-only, and tamper tests**
+- [x] **Step 1: Write failing plan, journal, Core-only, and tamper tests**
 
 ```javascript
 test('carries immutable adapter evidence without exposing it to providers', async (t) => {
@@ -832,13 +832,13 @@ test('uses null adapter evidence for Core-only and rejects changed evidence', as
 });
 ```
 
-- [ ] **Step 2: Run plan tests and verify Red**
+- [x] **Step 2: Run plan tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js`
 
 Expected: FAIL because plan and journal schemas do not contain `adapterEvidence`.
 
-- [ ] **Step 3: Add one closed evidence validator and propagate it**
+- [x] **Step 3: Add one closed evidence validator and propagate it**
 
 Define one shared exact-key validator for:
 
@@ -858,13 +858,18 @@ Do not add catalogue fields to adapter provider requests, trusted provider
 identity, or adapter handler inputs. Providers continue receiving only ID,
 package name, exact package version, and bootstrap protocol.
 
-- [ ] **Step 4: Run plan and provider tests**
+- [x] **Step 4: Run plan and provider tests**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-plan.test.js tests/Node/prism-tool-bootstrap-adapter.test.js`
 
 Expected: PASS for selected adapter, Core-only, digest binding, and provider isolation.
 
-- [ ] **Step 5: Commit durable plan evidence**
+The Task 6 evidence cases and all adapter tests pass. The complete plan file is
+90/93; the remaining three pre-durable selected-adapter cleanup failures require
+the schema-2 cleanup context assigned to Task 7 and are retained as the planned
+transition baseline.
+
+- [x] **Step 5: Commit durable plan evidence**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-plan.js packages/prism-core/scripts/prism-tool/bootstrap-journal.js packages/prism-core/scripts/prism-tool/bootstrap-composer.js packages/prism-core/scripts/prism-tool/bootstrap-providers.js tests/Node/prism-tool-bootstrap-plan.test.js

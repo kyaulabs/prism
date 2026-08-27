@@ -1,10 +1,11 @@
-// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-journal.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {validateAdapterEvidence} = require('./bootstrap-composer');
 const {blankBootstrapSource, validateBootstrapSource} = require('./bootstrap-source');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -132,8 +133,10 @@ function validAdapter(value) {
 }
 
 function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
+    let adapterEvidence;
     try {
         validateBootstrapSource(plan?.source);
+        adapterEvidence = validateAdapterEvidence(plan?.adapterEvidence);
     } catch {
         throw new Error('bootstrap journal input is invalid');
     }
@@ -144,7 +147,8 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         !isRecord(plan) ||
         !SHA256.test(plan.sourceDigest) ||
         !SHA256.test(plan.metadataDigest) ||
-        !validAdapter(plan.adapter)
+        !validAdapter(plan.adapter) ||
+        (plan.adapter === null) !== (adapterEvidence === null)
     ) {
         throw new Error('bootstrap journal input is invalid');
     }
@@ -157,6 +161,7 @@ function preparedJournal({projectRoot, attemptId, planDigest, plan}) {
         metadataDigest: plan.metadataDigest,
         source: plan.source,
         adapter: plan.adapter,
+        adapterEvidence,
         phase: 'PREPARED',
         status: 'ACTIVE',
         reason: null,
@@ -366,6 +371,7 @@ function normalizeLegacyJournal(value) {
     if (
         !isRecord(value) ||
         value.schemaVersion !== 1 ||
+        value.adapter !== null ||
         !['PREPARED', 'APPLYING', 'DURABLE'].includes(value.phase) ||
         (!hasExactKeys(value, legacyKeys) && !hasExactKeys(value, sourceBoundLegacyKeys))
     ) {
@@ -386,13 +392,22 @@ function normalizeLegacyJournal(value) {
             `${JSON.stringify(sourceState, null, 2)}\n`
         ).digest('hex');
     }
-    return {...value, sourceDigest, repository: null, hooks: null, seed: null};
+    return {
+        ...value,
+        sourceDigest,
+        adapterEvidence: null,
+        repository: null,
+        hooks: null,
+        seed: null,
+    };
 }
 
 function validateJournal(input, projectRoot, attemptId) {
     const value = normalizeLegacyJournal(input);
+    let adapterEvidence;
     try {
         validateBootstrapSource(value?.source);
+        adapterEvidence = validateAdapterEvidence(value?.adapterEvidence);
     } catch {
         throw new Error('bootstrap journal is invalid');
     }
@@ -400,7 +415,7 @@ function validateJournal(input, projectRoot, attemptId) {
         !isRecord(value) ||
         !hasExactKeys(value, [
             'schemaVersion', 'attemptId', 'projectRoot', 'planDigest', 'sourceDigest', 'metadataDigest',
-            'source', 'adapter', 'phase', 'status', 'reason', 'resumePhase', 'applied',
+            'source', 'adapter', 'adapterEvidence', 'phase', 'status', 'reason', 'resumePhase', 'applied',
             'createdDirectories', 'appliedInventoryDigest', 'repository', 'hooks', 'seed',
         ]) ||
         value.schemaVersion !== 1 ||
@@ -410,6 +425,7 @@ function validateJournal(input, projectRoot, attemptId) {
         !SHA256.test(value.sourceDigest) ||
         !SHA256.test(value.metadataDigest) ||
         !validAdapter(value.adapter) ||
+        (value.adapter === null) !== (adapterEvidence === null) ||
         !Array.isArray(value.applied) ||
         value.applied.length > 1024 ||
         value.applied.some((entry) => !validAppliedEntry(entry)) ||
@@ -476,6 +492,12 @@ function transitionBootstrapJournal({
     const current = readBootstrapJournal({projectRoot, attemptId});
     if (current.phase !== expectedPhase) throw new Error('bootstrap journal phase changed');
     const value = validateJournal(next, projectRoot, attemptId);
+    if (
+        JSON.stringify(value.adapter) !== JSON.stringify(current.adapter) ||
+        JSON.stringify(value.adapterEvidence) !== JSON.stringify(current.adapterEvidence)
+    ) {
+        throw new Error('bootstrap journal adapter evidence changed');
+    }
     const filePath = journalPath(projectRoot, attemptId);
     const temporaryPath = path.join(path.dirname(filePath), 'journal.next');
     const original = fs.lstatSync(filePath);
