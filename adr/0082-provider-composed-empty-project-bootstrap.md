@@ -4,7 +4,7 @@ Date: 2026-08-23
 
 ## Status
 
-Accepted
+Superseded by ADR-0092.
 
 Extends ADR-0058, ADR-0060, ADR-0070, ADR-0073, ADR-0075, ADR-0078, and
 ADR-0079.

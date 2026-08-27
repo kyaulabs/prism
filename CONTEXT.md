@@ -52,7 +52,8 @@ documentation, and conversation.
 | bootstrap workspace | The Core-owned ephemeral operational area for one empty-project bootstrap transaction. An adapter may receive a bounded attempt subdirectory without gaining ownership of the outer transaction. |
 | project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
 | trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
-| supported-adapter catalogue | The Core-shipped schema-versioned closed list of adapters eligible for strict-empty setup, including exact project-local package identities, versions, and bootstrap protocol compatibility. |
+| supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
+| adapter selection evidence | Immutable evidence binding a strict-empty setup attempt to the verified supported-adapter catalogue digest, signing key, sequence, selected release identity, compatibility, and package integrity. It remains Core-owned and is not an adapter-provider input. |
 | template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
 | testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
 | user-authored visual brief | The versioned project record of approved visual intent, inspiration references, viewport priorities, and aesthetic decisions supplied by the user; Prism contributes no fallback palette, theme type, or design movement. |
@@ -94,9 +95,10 @@ The globally installed, language-agnostic harness package.
 - Deploys merge-safe global instructions without replacing user-owned content.
 - Exposes generic tooling through stable interfaces rather than consumer
   working-directory assumptions.
-- Owns strict-empty routing, fixed public-template acquisition, the supported-
-  adapter and trusted-provider catalogues, provider composition, the empty-
-  project bootstrap transaction, and durable-application recovery.
+- Owns strict-empty routing, fixed public-template acquisition, signed
+  supported-adapter discovery, trusted-provider catalogues, provider
+  composition, the empty-project bootstrap transaction, and durable-application
+  recovery.
 - Owns deterministic post-application Git initialization, canonical hook
   distribution, bounded repository-seed attestation, and signed root-commit
   orchestration.
@@ -116,7 +118,7 @@ A project-local specialization of the Prism core.
 - Owns all conventions and tools tied to its language or framework.
 - Is opt-in and must not change language-agnostic core semantics.
 - Is selected from project evidence for established projects or explicitly
-  from Core's supported-adapter catalogue for strict-empty projects.
+  from the signed supported-adapter catalogue for strict-empty projects.
 - Contributes data to the core safety boundary rather than loading another
   extension.
 - Provisions ecosystem dependencies and complete testing-ready scaffolds only
@@ -165,8 +167,9 @@ The measured state required before a toolchain entry point proceeds.
   extension's loopback SearXNG search, confined keyless search, and guarded
   public textual fetching; browser and SearXNG readiness remain optional.
 - `/setup` invocation separately authorizes only the bounded fixed public-
-  template reads, exact selected adapter acquisition, registry, audit, locked-
-  population, and declared browser-download effects disclosed for that attempt.
+  template reads, signed adapter-catalogue retrieval, exact selected adapter
+  acquisition, registry, audit, locked-population, and declared browser-download
+  effects disclosed for that attempt.
 - A known dependency advisory at any severity prevents GO status.
 - Required tools are never silently skipped.
 
@@ -202,6 +205,9 @@ The Core-owned outer project-composition lifecycle for a strictly empty root.
 - Trusted Core, optional-profile, and selected-adapter reports use closed
   schemas and non-overlapping bounded ownership before one digest-bound plan is
   displayed.
+- Adapter-selected attempts bind immutable adapter selection evidence into
+  provisional acquisition, the combined plan, durable recovery, and repository
+  seed; later phases do not depend on the newest global catalogue.
 - Pre-durable decline or failure restores only proven transaction-owned state
   and proves strict emptiness; ambiguous concurrent state is preserved.
 - Durable application establishes the complete approved project tree before
@@ -219,8 +225,8 @@ The Core-owned local Git and root-seed lifecycle selected through `/setup`.
   root-seed attestation.
 - The attestation binds the canonical root, source evidence, capabilities,
   provider identities and versions, approved metadata, nullable adapter,
-  combined plan, applied inventory, durable journal, hook inventory, and final
-  staged-index digest.
+  adapter selection evidence when present, combined plan, applied inventory,
+  durable journal, hook inventory, and final staged-index digest.
 - The seed stages no unrelated or operational paths and passes the applicable
   shared Core and adapter local/CI quality implementation before commit
   creation.
@@ -346,9 +352,9 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   and the web-access extension.
 - Toolchain declarations, generic launcher behavior, adapter handoff, and
   consent/readiness semantics.
-- Strict-empty classification, fixed template-source validation, supported-
-  adapter and trusted-provider catalogues, project metadata, provider
-  composition, durable application, rollback, and recovery.
+- Strict-empty classification, fixed template-source validation, signed
+  supported-adapter discovery, trusted-provider catalogues, project metadata,
+  provider composition, durable application, rollback, and recovery.
 - Git hooks, local quality gates, CI-equivalent validation, and release/PR
   preparation procedures.
 - The PHP/web adapter's conventions, dependency contract, and changed-file
@@ -384,10 +390,13 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   combined project plans.
 - Fixed unauthenticated public-template object responses and immutable template
   source attestations.
+- One fixed unauthenticated signed adapter-catalogue response, a Core-bundled
+  public-key trust root, and bounded managed global cache records.
 - Adapter safe-directory data consumed by the core safety extension.
 - Human authorization at each mutation, connectivity, and code-egress boundary:
-  invocation-scoped setup acquisition under ADR-0083, separately approved
-  project and hook mutations, workflow-scoped tracker authorization under
+  invocation-scoped setup acquisition under ADR-0083 and signed compatible
+  adapter discovery under ADR-0092, separately approved project and hook
+  mutations, workflow-scoped tracker authorization under
   ADR-0085, narrowly scoped standing OCR consent under ADR-0074, or narrowly
   scoped standing web-access consent under ADR-0091. Read-only GitHub
   repository and tracker metadata is the bounded standing-read exception under
@@ -469,8 +478,8 @@ Pi-era decisions:
 - `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
 - `adr/0080-bounded-diff-causal-review-chains.md` — preserve one complete initial review and append repair-delta evidence while blocking finalization only on concrete diff-caused defects.
 - `adr/0081-plan-approved-automatic-finalization.md` — let approved plans continue automatically through cleanup, synchronization, unlimited local checks, one four-axis review, and preparation-only `/pr`; require fresh approval only for additional review attempts.
-- `adr/0082-provider-composed-empty-project-bootstrap.md` — compose strict-empty Template, Blank, Core-only, adapter, metadata, and optional-capability outputs through one Core-owned durable project transaction.
-- `adr/0083-strict-empty-setup-acquisition-authorization.md` — bound setup acquisition to fixed public-template object reads, exact selected adapter installation, and previously accepted dependency effects without broadening external authority.
+- `adr/0082-provider-composed-empty-project-bootstrap.md` — superseded adapter-catalogue rules retained as historical context; its Core-owned provider-composition and durable project-transaction boundaries continue through ADR-0092.
+- `adr/0083-strict-empty-setup-acquisition-authorization.md` — superseded strict-empty adapter-discovery authorization retained as historical context; its remaining invocation-scoped setup-network boundaries continue through ADR-0092.
 - `adr/0084-post-application-repository-bootstrap-and-root-seed.md` — initialize Git only after durable project application and bind the signed root seed to source, provider, metadata, nullable-adapter, plan, and journal evidence.
 - `adr/0085-workflow-authorized-tracker-operations.md` — authorize bounded tracker mutation batches and continuous Wayfinder map lifecycles without per-command or per-frontier approval.
 - `adr/0086-standing-readonly-github-and-graphql-first-tracker-operations.md` — standing-authorize read-only GitHub metadata and use GraphQL as the canonical tracker mutation transport.
@@ -479,6 +488,7 @@ Pi-era decisions:
 - `adr/0089-progressive-output-style-guidance.md` — apply a compact global prose baseline and load detailed Distill guidance only for durable or substantial writing while preserving technical precision and pstack attribution.
 - `adr/0090-core-markdown-lint-gate.md` — bundle exact Markdown linting in Core and validate changed maintained documentation through one packaged, changed-file-only checker.
 - `adr/0091-bounded-core-web-access-extension.md` — add a non-orchestration Core web-access extension with separately revocable standing consent, confined browser-first keyless search, loopback SearXNG, and guarded public textual fetching.
+- `adr/0092-signed-compatible-adapter-discovery.md` — discover approved adapters through a signed, freshness-bounded catalogue, select the highest Core-compatible release, verify its integrity, and pin the exact selected version.
 
 ## When to update this file
 
