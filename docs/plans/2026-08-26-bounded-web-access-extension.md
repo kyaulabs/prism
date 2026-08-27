@@ -607,7 +607,7 @@ prism-tool commit create --type feat --scope web-access --subject "add keyless a
 - Consumes: `resolveWebAccessBrowser`, public DNS policy, DuckDuckGo parser, and `SearchParams`.
 - Produces: `CdpPipe`, `searchWithBrowser(params, deps)`, and session-local `BrowserCapabilityCache`.
 
-- [ ] **Step 1: Write failing browser tests**
+- [x] **Step 1: Write failing browser tests**
 
 Use a fake spawned process with fd3/fd4 null-delimited CDP messages. Assert:
 
@@ -621,7 +621,7 @@ Use a fake spawned process with fd3/fd4 null-delimited CDP messages. Assert:
 - runtime failure invalidates cached capability; and
 - unavailable confinement becomes fallback-eligible rather than weakening flags.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run:
 
@@ -631,13 +631,13 @@ node --test tests/Node/web-access-browser.test.ts
 
 Expected: FAIL because CDP and browser modules are missing.
 
-- [ ] **Step 3: Implement the validated prototype pattern**
+- [x] **Step 3: Implement the validated prototype pattern**
 
 Implement a null-delimited CDP pipe over child descriptors 3 and 4. Support `Browser.getVersion`, `Target.createTarget`, `Target.attachToTarget(flatten:true)`, `Page.enable`, `Fetch.enable`, `Page.navigate`, `Runtime.evaluate`, and `Browser.close`. Track pending IDs, session IDs, load completion, deadline, abort, and bounded stderr without reflecting it to tool errors.
 
 Spawn with the fixed isolation flags proven by the prototype and a `--host-resolver-rules` mapping from `html.duckduckgo.com` to the already validated public address. Continue only same-origin document GET requests; fail everything else with `Aborted`. Parse returned DOM through the shared DuckDuckGo parser. Always terminate and clean up in `finally`.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run:
 
