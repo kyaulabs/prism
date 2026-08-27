@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -19,11 +19,114 @@ const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/proce
 const phpWebHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
-const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_SOURCE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(CORE_SOURCE_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
+const ADAPTER_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_CONTRACT = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
 );
+const ADAPTER_INTEGRITY = 'sha512-BBBB';
+
+function writeJson(filePath, value) {
+    fs.mkdirSync(path.dirname(filePath), {recursive: true});
+    fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function signedEnvelope(payload) {
+    const pair = crypto.generateKeyPairSync('ed25519');
+    const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
+    const publicKeyBytes = pair.publicKey.export({type: 'spki', format: 'der'});
+    const keyId = 'test-key';
+    return {
+        bytes: Buffer.from(JSON.stringify({
+            schemaVersion: 1,
+            keyId,
+            algorithm: 'Ed25519',
+            payload: payloadBytes.toString('base64'),
+            signature: crypto.sign(null, payloadBytes, pair.privateKey).toString('base64'),
+        }), 'utf8'),
+        payloadBytes,
+        trust: {
+            schemaVersion: 1,
+            keys: [{
+                id: keyId,
+                algorithm: 'Ed25519',
+                publicKeySpki: publicKeyBytes.toString('base64'),
+                sha256: crypto.createHash('sha256').update(publicKeyBytes).digest('hex'),
+            }],
+        },
+    };
+}
+
+function createSignedAdapterFixture() {
+    const coreRoot = makeTempDir();
+    fs.cpSync(CORE_SOURCE_ROOT, coreRoot, {recursive: true});
+    for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
+        fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', hook), 0o755);
+    }
+    const catalogue = {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [{
+                version: ADAPTER_VERSION,
+                coreRange: CORE_VERSION,
+                bootstrapProtocol: 1,
+                integrity: ADAPTER_INTEGRITY,
+                publishedAt: '2026-08-26T00:00:00Z',
+                status: 'ACTIVE',
+            }],
+        }],
+    };
+    const envelope = signedEnvelope(catalogue);
+    const envelopeDigest = crypto.createHash('sha256').update(envelope.bytes).digest('hex');
+    const payloadDigest = crypto.createHash('sha256').update(envelope.payloadBytes).digest('hex');
+    const catalogueCachePath = path.join(coreRoot, 'adapter-catalogue-cache.json');
+    writeJson(path.join(coreRoot, 'config', 'adapter-catalogue-trust.json'), envelope.trust);
+    writeJson(catalogueCachePath, {
+        schemaVersion: 1,
+        entries: [{
+            digest: envelopeDigest,
+            sequence: catalogue.sequence,
+            envelope: envelope.bytes.toString('base64'),
+            cachedAt: '2026-08-27T12:00:00.000Z',
+        }],
+    });
+    fs.chmodSync(catalogueCachePath, 0o600);
+    return Object.freeze({
+        coreRoot,
+        catalogueCachePath,
+        trust: envelope.trust,
+        digest: envelopeDigest,
+        evidence: Object.freeze({
+            catalogueId: catalogue.catalogueId,
+            sequence: catalogue.sequence,
+            keyId: envelope.trust.keys[0].id,
+            issuedAt: catalogue.issuedAt,
+            expiresAt: catalogue.expiresAt,
+            envelopeDigest,
+            payloadDigest,
+            selectedAt: '2026-08-27T12:00:00.000Z',
+            integrity: ADAPTER_INTEGRITY,
+        }),
+    });
+}
+
+const SIGNED_ADAPTER = createSignedAdapterFixture();
+const CORE_ROOT = SIGNED_ADAPTER.coreRoot;
+
+test.after(() => fs.rmSync(CORE_ROOT, {recursive: true, force: true}));
 
 function captureWrites(action) {
     let stdout = '';
@@ -160,9 +263,39 @@ function planTemplateProject(projectRoot, fixture, capabilities = []) {
 function bootstrapRunner(projectRoot) {
     return (command, args, options) => {
         if (command === '/usr/bin/pi') {
+            assert.deepEqual(args, [
+                'install', `npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`, '-l', '--approve',
+            ]);
+            const npmRoot = path.join(projectRoot, '.pi', 'npm');
+            const packageRoot = path.join(
+                npmRoot, 'node_modules', '@kyaulabs', 'prism-php-web'
+            );
+            writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+                packages: [`npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`],
+            });
+            writeJson(path.join(npmRoot, 'package.json'), {
+                name: 'pi-extensions',
+                private: true,
+                dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION},
+            });
+            writeJson(path.join(npmRoot, 'package-lock.json'), {
+                name: 'pi-extensions',
+                lockfileVersion: 3,
+                packages: {
+                    '': {dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION}},
+                    'node_modules/@kyaulabs/prism-php-web': {
+                        version: ADAPTER_VERSION,
+                        integrity: ADAPTER_INTEGRITY,
+                    },
+                },
+            });
+            fs.writeFileSync(path.join(npmRoot, '.gitignore'), '*\n!.gitignore\n');
+            fs.cpSync(ADAPTER_ROOT, packageRoot, {recursive: true});
             fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
+                path.join(packageRoot, 'scripts', 'prism-tool-adapter.js'),
+                `'use strict';\nmodule.exports = require(${JSON.stringify(
+                    path.join(ADAPTER_ROOT, 'scripts', 'prism-tool-adapter.js')
+                )});\n`
             );
         }
         if (command === 'composer' && args[0] === 'update') {
@@ -279,11 +412,15 @@ function planSelectedProject(projectRoot, context = {}, capabilities = []) {
         : [`--capabilities=${capabilities.join(',')}`];
     const capabilityMetadata = projectCapabilityMetadata();
     const selected = captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${SIGNED_ADAPTER.digest}`, '--source=blank',
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
         coreRoot: CORE_ROOT,
+        catalogueCachePath: SIGNED_ADAPTER.catalogueCachePath,
+        catalogueTrust: SIGNED_ADAPTER.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
         piExecutable: '/usr/bin/pi',
         randomUUID: () => ATTEMPT_ID,
         run,
@@ -314,11 +451,15 @@ function planSelectedProject(projectRoot, context = {}, capabilities = []) {
 function planSelectedTemplateProject(projectRoot, fixture, context = {}) {
     const run = context.run ?? bootstrapRunner(projectRoot);
     const selected = captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=template',
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${SIGNED_ADAPTER.digest}`, '--source=template',
         '--network-approved=yes', '--json',
     ], {
         projectRoot,
         coreRoot: CORE_ROOT,
+        catalogueCachePath: SIGNED_ADAPTER.catalogueCachePath,
+        catalogueTrust: SIGNED_ADAPTER.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
         piExecutable: '/usr/bin/pi',
         randomUUID: () => ATTEMPT_ID,
         run,
@@ -607,7 +748,10 @@ test('creates a repository after durable selected-adapter dependency state', (t)
     const result = createRepository(projectRoot, plan.planDigest);
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).data.resumePhase, 'HOOK_ACTIVATION');
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.data.resumePhase, 'HOOK_ACTIVATION');
+    assert.deepEqual(report.data.adapter, plan.adapter);
+    assert.deepEqual(report.data.adapterEvidence, plan.adapterEvidence);
     assert.equal(fs.existsSync(path.join(projectRoot, 'vendor')), true);
     assert.equal(fs.existsSync(path.join(projectRoot, 'node_modules')), true);
 });
@@ -1036,6 +1180,7 @@ test('stages and attests the exact Core-only seed', (t) => {
     assert.equal(attestation.attemptId, ATTEMPT_ID);
     assert.equal(attestation.source.mode, 'BLANK');
     assert.equal(attestation.adapter, null);
+    assert.equal(attestation.adapterEvidence, null);
     assert.equal(attestation.planDigest, plan.planDigest);
     assert.equal(attestation.repository.branch, 'develop');
     assert.equal(typeof attestation.hookInventoryDigest, 'string');
@@ -1254,6 +1399,7 @@ test('stages and attests all seven profiles with selected-adapter evidence', (t)
         ...plan.adapter,
         reportDigest: plan.adapterReportDigest,
     });
+    assert.deepEqual(attestation.adapterEvidence, plan.adapterEvidence);
     assert.doesNotThrow(() => validateActiveBootstrapSeed({
         projectRoot,
         coreRoot: CORE_ROOT,
@@ -1434,9 +1580,16 @@ test('stages and attests immutable Template evidence for a selected-adapter seed
     ], {projectRoot, coreRoot: CORE_ROOT}));
     assert.equal(routed.status, 0, routed.stderr || routed.stdout);
     assert.equal(JSON.parse(routed.stdout).route, 'BOOTSTRAP_TEMPLATE');
-    const catalogue = captureWrites(() => main([
-        'setup', 'adapter', 'catalogue', '--json',
-    ], {projectRoot, coreRoot: CORE_ROOT}));
+    const catalogue = await captureAsyncWrites(() => main([
+        'setup', 'adapter', 'catalogue', '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        catalogueCachePath: SIGNED_ADAPTER.catalogueCachePath,
+        catalogueTrust: SIGNED_ADAPTER.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+        fetch: async () => { throw new Error('offline'); },
+    }));
     assert.equal(catalogue.status, 0, catalogue.stderr || catalogue.stdout);
     const prepareRun = bootstrapRunner(projectRoot);
     const planned = await planSelectedTemplateProject(projectRoot, fixture, {
@@ -1568,6 +1721,26 @@ test('rejects substituted selected-adapter seed evidence without changing the st
         projectRoot,
         coreRoot: CORE_ROOT,
     }), /bootstrap attempt state is (?:invalid|stale)|seed attestation/);
+    assert.deepEqual(stagedNames(projectRoot), expectedStaging);
+});
+
+test('rejects substituted signed adapter evidence without changing the staged index', (t) => {
+    const {projectRoot, plan} = readySelectedHooks(t);
+    const result = prepareSeed(projectRoot, plan.planDigest, {
+        bootstrapSeedToolRun: selectedSeedToolRunner(),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const expectedStaging = stagedNames(projectRoot);
+    const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
+    const attestationPath = path.join(attemptRoot, 'seed-attestation.json');
+    const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+    attestation.adapterEvidence.envelopeDigest = 'f'.repeat(64);
+    fs.writeFileSync(attestationPath, `${JSON.stringify(attestation)}\n`, {mode: 0o600});
+
+    assert.throws(() => validateActiveBootstrapSeed({
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }), /seed attestation changed|active bootstrap seed changed/);
     assert.deepEqual(stagedNames(projectRoot), expectedStaging);
 });
 
@@ -1969,6 +2142,9 @@ test('dispatches selected-adapter quality through the pre-commit hook', (t) => {
         hookRun: hookRunWithReadiness(),
         loadHookAdapter(identity) {
             assert.deepEqual(identity, plan.adapter);
+            assert.deepEqual(Object.keys(identity).sort(), [
+                'bootstrapProtocol', 'id', 'packageName', 'packageVersion',
+            ]);
             return {
                 runBootstrapQuality(options) {
                     qualityCalls.push(options.projectRoot);

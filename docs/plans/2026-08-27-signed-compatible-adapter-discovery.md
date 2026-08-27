@@ -972,7 +972,7 @@ prism-tool commit create --type fix --scope setup --subject "preserve signed evi
 - Consumes: durable journal with nullable adapter and adapter evidence.
 - Produces: seed attestation that binds matching nullable adapter evidence; hook dispatch remains identity-only.
 
-- [ ] **Step 1: Write failing seed and hook-isolation tests**
+- [x] **Step 1: Write failing seed and hook-isolation tests**
 
 ```javascript
 test('binds selected adapter evidence into the root seed attestation', async (t) => {
@@ -992,13 +992,13 @@ test('uses null evidence for Core-only and keeps hook identity unchanged', async
 });
 ```
 
-- [ ] **Step 2: Run seed tests and verify Red**
+- [x] **Step 2: Run seed tests and verify Red**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js`
 
 Expected: FAIL because the seed attestation does not include adapter evidence.
 
-- [ ] **Step 3: Extend repository and seed attestation schemas**
+- [x] **Step 3: Extend repository and seed attestation schemas**
 
 Add nullable `adapterEvidence` beside nullable `adapter` in repository creation
 and seed preparation evidence. Validate equality against the journal and plan,
@@ -1006,13 +1006,13 @@ include it in attestation digests, reject substitution, and require null parity.
 Do not alter hook adapter identity or pass signed catalogue data to adapter
 commands.
 
-- [ ] **Step 4: Run seed and orchestration tests**
+- [x] **Step 4: Run seed and orchestration tests**
 
 Run: `node --test tests/Node/prism-tool-bootstrap-seed.test.js tests/Node/prism-tool-bootstrap-orchestration.test.js`
 
 Expected: PASS for selected adapters, Core-only, tampering, and hook isolation.
 
-- [ ] **Step 5: Commit root-seed evidence**
+- [x] **Step 5: Commit root-seed evidence**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/bootstrap-repository.js packages/prism-core/scripts/prism-tool/bootstrap-seed.js tests/Node/prism-tool-bootstrap-seed.test.js
