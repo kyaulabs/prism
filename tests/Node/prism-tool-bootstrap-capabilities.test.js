@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -12,6 +12,9 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(CORE_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const {
     normalizeProjectMetadata,
@@ -809,7 +812,7 @@ test('renders a trusted MIT licensing provider report', (t) => {
     assert.deepEqual(reports[0].provider, {
         id: 'licensing',
         packageName: '@kyaulabs/prism-core',
-        packageVersion: '0.3.1',
+        packageVersion: CORE_VERSION,
         protocolVersion: 1,
     });
     assert.deepEqual(reports[0].outputs.map(({path: outputPath, mode}) => ({
@@ -1278,7 +1281,7 @@ test('declares exact trusted ownership for selected profile providers', () => {
     ]);
     for (const descriptor of descriptors) {
         assert.equal(descriptor.packageName, '@kyaulabs/prism-core');
-        assert.equal(descriptor.packageVersion, '0.3.1');
+        assert.equal(descriptor.packageVersion, CORE_VERSION);
         assert.equal(descriptor.protocolVersion, 1);
         assert.deepEqual(descriptor.effects, []);
         assert.equal(descriptor.checks.length, 1);
