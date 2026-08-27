@@ -1,8 +1,10 @@
 # Prism Core safety extension
 
-This is Prism's sole pi extension. It intercepts `tool_call` events to protect
-credential paths, classify destructive shell commands, count blocked Bash
-calls, and enforce the exclusive commit boundary.
+This is Prism's enforcement extension. It intercepts `tool_call` events to
+protect credential paths, classify destructive shell commands, count blocked
+Bash calls, and enforce the exclusive commit boundary. Core's separate
+web-access extension exposes only bounded `web_search` and `fetch_content`
+tools (ADR-0091).
 
 ## Files and responsibilities
 

@@ -167,9 +167,10 @@ need no waiver. Suggested findings must be resolved or explicitly handled by
 the active review workflow.
 
 OpenCodeReview (`ocr`) is available only through the dedicated review
-operation. `/setup` owns standing OCR consent. Revoke it with
-`prism-tool consent revoke-ocr`. Local installation, hooks, and CI use
-local-only readiness and do not establish consent or send code.
+operation. `/setup` solely manages standing OCR consent and separate standing
+web-access consent. Revoke them with `prism-tool consent revoke-ocr` and
+`prism-tool consent revoke-web`. Local installation, hooks, and CI use
+local-only readiness and establish neither consent nor outbound operation.
 
 ## Commands
 
@@ -177,7 +178,7 @@ local-only readiness and do not establish consent or send code.
 | --- | --- |
 | `/router` | Select the correct on-ramp |
 | `/prime` | Draft or refresh `CONTEXT.md` |
-| `/setup` | Configure the project and manage standing OCR consent |
+| `/setup` | Configure the project and manage independent OCR and web consent |
 | `/doctor` | Run full readiness and one consented OCR connectivity test |
 | `/issue` | Create an issue or decompose a spec or plan |
 | `/check` | Run the pre-push gates |
@@ -193,9 +194,11 @@ The PHP/web adapter adds `/check-php`, `/build-assets`, and `/deploy`.
 
 ## Research and tool integrations
 
-`websearch` uses the configured DeepSeek search API. `searxng` uses a configured
-SearXNG endpoint. Both are CLI-backed skills, fail clearly when configuration
-is absent, and must not print credentials.
+Core exposes only bounded `web_search` and `fetch_content` tools for public web
+research. They require standing web-access consent, accept no credentials, and
+treat every result as untrusted data. Search routes through an available
+confined Chromium-family browser, optional loopback SearXNG, then guarded
+direct fallback. Public content fetching is browser-free.
 
 Declared tools resolve through `prism-tool` according to the Core and adapter
 toolchain contracts. Core bundles commitlint, git-cliff, and
@@ -209,7 +212,8 @@ php-cs-fixer, Playwright, Sass, ESLint, Stylelint, and UglifyJS.
 | --- | --- |
 | `packages/prism-core/AGENTS.md` | Global instructions and command or skill index |
 | `packages/prism-core/APPEND_SYSTEM.md` | Anti-drift session reminder |
-| `packages/prism-core/extensions/safety/` | Sole safety extension |
+| `packages/prism-core/extensions/safety/` | Safety enforcement extension |
+| `packages/prism-core/extensions/web-access/` | Bounded web-access extension |
 | `packages/prism-core/skills/` | Core skills |
 | `packages/prism-core/prompts/` | Core prompt templates |
 | `packages/prism-php-web/` | PHP/web adapter |

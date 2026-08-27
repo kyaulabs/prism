@@ -229,8 +229,8 @@ single agent executes the tasks inline (ADR-0055).
   oversized returns here instead of becoming multiple plans.
 - `explore` skill — focused spec reading, codebase exploration, and file
   discovery when the plan needs it.
-- `websearch` / `searxng` skills — external documentation and dependency
-  research when needed.
+- `web_search` / `fetch_content` tools — bounded external documentation and
+  dependency research under standing web-access consent when needed.
 - `executing-plans` skill — the execution step after this one. Load it only
   after the user approves the plan.
 - `tdd` skill — supplies Red → Green → Refactor discipline for every task;

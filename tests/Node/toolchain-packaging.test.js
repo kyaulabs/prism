@@ -142,8 +142,9 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
         'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
-        'consent', 'contract', 'discovery', 'markdown',
+        'consent', 'contract', 'discovery', 'managed-record', 'markdown',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'web-access-browser', 'web-access-config',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',
     ]) {
@@ -152,8 +153,28 @@ test('packs the core package with every owned resource and executable modes', ()
     for (const module of ['commit-create-guard.ts', 'fatal-commit-latch.ts']) {
         assert.equal(packed.files.has(`extensions/safety/${module}`), true, module);
     }
+    for (const resource of [
+        'README.md', 'authorization.ts', 'browser.ts', 'cdp.ts', 'config.ts',
+        'duckduckgo.ts', 'errors.ts', 'extract.ts', 'fetch.ts', 'http.ts', 'index.ts',
+        'network.ts', 'router.ts', 'search-filters.ts', 'search-types.ts', 'searxng.ts',
+    ]) {
+        assert.equal(
+            packed.files.has(`extensions/web-access/${resource}`),
+            true,
+            `web-access ${resource}`
+        );
+    }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 15, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 35, true, 'skills present');
+    for (const removed of [
+        'package/skills/websearch/SKILL.md',
+        'package/skills/websearch/search.sh',
+        'package/skills/searxng/SKILL.md',
+        'package/skills/searxng/search.sh',
+        'package/skills/lib/search_common.sh',
+    ]) {
+        assert.equal(packed.listing.includes(removed), false, `${removed} removed`);
+    }
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');

@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 ## Status
 
-Accepted
+Superseded by ADR-0091
 
 Depends on ADR-0055. The safety extension's fail-closed invariant is inherited
 from ADR-0036, and the consecutive-denial circuit breaker from ADR-0042.

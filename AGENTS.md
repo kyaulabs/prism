@@ -16,8 +16,11 @@
 under `packages/` and **dogfooded** from this same checkout:
 
 - **`packages/prism-core`** — language-agnostic core (global: skills, prompts,
-  the safety extension, `AGENTS.md`, `APPEND_SYSTEM.md`).
+  safety and bounded web-access extensions, `AGENTS.md`, `APPEND_SYSTEM.md`).
 - **`packages/prism-php-web`** — PHP/web stack adapter (project-local).
+
+The bounded web-access extension exposes only `web_search` and `fetch_content`
+under independent standing consent managed by `/setup`.
 
 The repo also carries **PHP/Aurora project heritage** (`aurora/` submodule,
 `backend/`, `cdn/`, `tests/`), so it is itself a PHP project — the
@@ -42,8 +45,9 @@ JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP. The adapter's
 [`.pi/settings.json`](.pi/settings.json) loads `prism-core` + `prism-php-web`
 skills/prompts/extension **from disk** (`../packages/...`), so a `pi` session
 opened here has the full harness + adapter available with no install step. The
-**safety extension** (from `prism-core`) is live and enforces the
-credential-path deny floor (ADR-0047) and the `rm -rf` safe-zone policy.
+Core's **safety extension** is live and enforces the credential-path deny floor
+(ADR-0047) and the `rm -rf` safe-zone policy. Its **web-access extension**
+provides bounded public textual search and retrieval under standing consent.
 
 ## Repo-specific operations
 
