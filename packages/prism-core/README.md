@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/kyaulabs/prism/main/.github/media/prism-dark-panel.png" alt="Prism" />
+# <img src="https://raw.githubusercontent.com/kyaulabs/prism/main/.github/media/prism-dark-panel.png" alt="Prism" width="45%" />
 
 ## @kyaulabs/prism-core
 
