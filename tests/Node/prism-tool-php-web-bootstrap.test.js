@@ -43,6 +43,25 @@ const TEMPLATE_SOURCE = Object.freeze({
     }),
 });
 
+function processExists(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        if (error.code === 'ESRCH') return false;
+        throw error;
+    }
+}
+
+function waitForProcessExit(pid, timeout = 1000) {
+    const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    const deadline = Date.now() + timeout;
+    while (processExists(pid) && Date.now() < deadline) {
+        Atomics.wait(signal, 0, 0, 10);
+    }
+    return !processExists(pid);
+}
+
 function successfulResult(command, args) {
     if (command === 'composer' && args[0] === 'audit') {
         return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
@@ -507,7 +526,7 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
     }));
     assert.match(fs.readFileSync(invocationFile, 'utf8'), /^run pest -- --coverage --min=80$/m);
     const pid = Number(fs.readFileSync(pidFile, 'utf8'));
-    assert.throws(() => process.kill(pid, 0));
+    assert.equal(waitForProcessExit(pid), true);
 });
 
 test('renders syntactically valid PHP readiness files', (t) => {
