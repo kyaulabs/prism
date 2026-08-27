@@ -247,6 +247,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
     const temporary = path.join(parent, `.prism-managed-${nonce}.tmp`);
     const backup = path.join(parent, `.prism-managed-${nonce}.bak`);
     const serialized = `${JSON.stringify(record)}\n`;
+    let backupDescriptor;
     let backupStat;
     let descriptor;
     let priorRemoved = false;
@@ -269,8 +270,13 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
         descriptor = undefined;
         if (detail.record) {
             io.linkSync(managedPath, backup);
-            backupStat = io.lstatSync(backup);
-            if (!matchesManagedRecord(backupStat, detail.stat, context)) throw new Error();
+            backupDescriptor = io.openSync(backup, io.constants.O_RDONLY | io.constants.O_NOFOLLOW);
+            backupStat = io.fstatSync(backupDescriptor);
+            const backupPathStat = io.lstatSync(backup);
+            if (!matchesManagedRecord(backupStat, detail.stat, context) ||
+                !matchesManagedRecord(backupPathStat, backupStat, context)) {
+                throw new Error();
+            }
             priorRemoved = true;
             removeManagedRecord({context, detail});
         }
@@ -295,16 +301,17 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
             } catch (error) {
                 if (error?.code === 'ENOENT') {
                     try {
+                        const pinnedBackup = io.fstatSync(backupDescriptor);
                         const currentBackup = io.lstatSync(backup);
-                        if (!matchesManagedRecord(currentBackup, detail.stat, context) ||
-                            !matchesManagedRecord(currentBackup, backupStat, context)) {
+                        if (!matchesManagedRecord(pinnedBackup, backupStat, context) ||
+                            !matchesManagedRecord(currentBackup, pinnedBackup, context)) {
                             throw new Error();
                         }
                         io.linkSync(backup, managedPath);
                         const restored = io.lstatSync(managedPath);
                         const backupAfter = io.lstatSync(backup);
-                        if (!matchesManagedRecord(restored, detail.stat, context) ||
-                            !matchesManagedRecord(backupAfter, detail.stat, context)) {
+                        if (!matchesManagedRecord(restored, pinnedBackup, context) ||
+                            !matchesManagedRecord(backupAfter, pinnedBackup, context)) {
                             if (restored.isFile() && !restored.isSymbolicLink() &&
                                 restored.dev === backupAfter.dev && restored.ino === backupAfter.ino) {
                                 io.unlinkSync(managedPath);
@@ -319,6 +326,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
         throw new Error('managed record publication failed');
     } finally {
         if (descriptor !== undefined) closeQuietly(io, descriptor);
+        if (backupDescriptor !== undefined) closeQuietly(io, backupDescriptor);
         unlinkQuietly(io, temporary);
         unlinkQuietly(io, backup);
     }
