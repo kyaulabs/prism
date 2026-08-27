@@ -1,4 +1,4 @@
-// $KYAULabs: web-access-browser.test.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: web-access-browser.test.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
@@ -13,6 +13,7 @@ import {
     type BrowserProcess,
     type BrowserSpawnOptions,
 } from '../../packages/prism-core/extensions/web-access/browser.ts';
+import {CdpPipe} from '../../packages/prism-core/extensions/web-access/cdp.ts';
 import {WebAccessError} from '../../packages/prism-core/extensions/web-access/errors.ts';
 import type {PinnedTarget} from '../../packages/prism-core/extensions/web-access/network.ts';
 import type {SearchParams} from '../../packages/prism-core/extensions/web-access/search-types.ts';
@@ -138,6 +139,37 @@ function fixture(t: {after(callback: () => void): void}) {
 function publicTarget(url: URL): Promise<PinnedTarget> {
     return Promise.resolve({url, address: '93.184.216.34', family: 4});
 }
+
+test('malformed primitive CDP frames reject pending commands without escaping', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const cdp = new CdpPipe(input, output);
+    const pending = cdp.send('Browser.getVersion');
+
+    output.write('null\u0000');
+
+    await assert.rejects(pending, (error: unknown) => {
+        assert.equal(error instanceof WebAccessError, true);
+        assert.equal((error as WebAccessError).code, 'WEB_ACCESS_BROWSER_PROTOCOL');
+        return true;
+    });
+});
+
+test('writable CDP pipe failures reject pending commands through the protocol error', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const cdp = new CdpPipe(input, output);
+    const pending = cdp.send('Browser.getVersion');
+
+    assert.doesNotThrow(() => input.emit('error', new Error('PRIVATE_CDP_CANARY')));
+
+    await assert.rejects(pending, (error: unknown) => {
+        assert.equal(error instanceof WebAccessError, true);
+        assert.equal((error as WebAccessError).code, 'WEB_ACCESS_BROWSER_PROTOCOL');
+        assert.doesNotMatch((error as Error).message, /CANARY/);
+        return true;
+    });
+});
 
 test('browser search spawns Brave directly with confinement and disposable state', async (t) => {
     const target = fixture(t);

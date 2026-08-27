@@ -1,4 +1,4 @@
-// $KYAULabs: cdp.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: cdp.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 import type {Readable, Writable} from 'node:stream';
 import {WebAccessError} from './errors.ts';
@@ -29,6 +29,8 @@ export class CdpPipe {
         output.on('data', (chunk: Buffer | string) => this.receive(chunk));
         output.once('error', () => this.close());
         output.once('end', () => this.close());
+        input.once('error', () => this.close());
+        input.once('close', () => this.close());
     }
 
     on(method: string, handler: (event: CdpEvent) => void | Promise<void>): () => void {
@@ -102,7 +104,11 @@ export class CdpPipe {
         let message: Record<string, unknown>;
         try {
             if (raw.length > MAX_MESSAGE_BYTES) throw new Error();
-            message = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
+            const parsed: unknown = JSON.parse(raw.toString('utf8'));
+            if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                throw new Error();
+            }
+            message = parsed as Record<string, unknown>;
         } catch {
             this.close();
             return;
