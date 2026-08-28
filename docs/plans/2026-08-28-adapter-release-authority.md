@@ -206,7 +206,7 @@ prism-tool commit create --type fix --scope security --subject "validate adapter
 - Consumes: normalized configuration from Task 2.
 - Produces: create/update/migrate plans that atomically install schema 2 and canonical workflow 2 without discarding valid declarations.
 
-- [ ] **Step 1: Write failing transaction tests**
+- [x] **Step 1: Write failing transaction tests**
 
 Add Red cases proving:
 
@@ -219,7 +219,7 @@ Add Red cases proving:
 - rollback and recovery preserve pre-transaction schema-1 or schema-2 bytes exactly on failure;
 - bootstrap capability, combined plan, and root-seed inventories include the updated canonical files without changing provider boundaries.
 
-- [ ] **Step 2: Run focused tests to verify Red**
+- [x] **Step 2: Run focused tests to verify Red**
 
 Run:
 
@@ -229,7 +229,7 @@ node --test tests/Node/prism-tool-package-release-transaction.test.js tests/Node
 
 Expected: FAIL on schema marker/config expectations and declaration preservation.
 
-- [ ] **Step 3: Implement preservation and migration**
+- [x] **Step 3: Implement preservation and migration**
 
 Change inspection/rendering so:
 
@@ -243,13 +243,13 @@ schema 2 canonical     -> UNCHANGED only when config and workflow match
 
 Pass `configuration.adapterReleases` into desired rendering after package candidate reconciliation. Fail closed instead of dropping declarations whose package is no longer release-managed. Keep plan files, digest checks, atomic publication, rollback ownership, and durable recovery unchanged.
 
-- [ ] **Step 4: Run focused tests to verify Green**
+- [x] **Step 4: Run focused tests to verify Green**
 
 Run the same four-file `node --test` command.
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the transaction commit**
+- [x] **Step 5: Create the transaction commit**
 
 Load `conventional-commits`, stage the five listed paths, and run this as the only tool call in its assistant batch:
 

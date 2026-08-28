@@ -16,7 +16,7 @@ const RELEASE_SCHEMA_VERSION = 2;
 const CONFIG_PATH = '.prism/release.json';
 const WORKFLOW_PATH = '.github/workflows/release.yml';
 const WORKFLOW_MARKER = '# prism-managed: @kyaulabs/prism-core';
-const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 1';
+const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 2';
 const LEGACY_WORKFLOW_SHA256 = 'dd4cd0fdf362e4243117e620c906a7bfe42b8b52c011759a2a6ea8f1850f0ef6';
 const OPERATION_ROOT = path.join('.pi', 'prism-tool', 'package-release');
 const OPERATION_MARKER = '.prism-package-release.json';
@@ -385,12 +385,13 @@ function readCanonicalWorkflow(coreRoot) {
     }
 }
 
-function conflictResult(candidates, configuredPackages = []) {
+function conflictResult(candidates, configuredPackages = [], adapterReleases = []) {
     return {
         status: 'NO-GO',
         disposition: 'CONFLICT',
         candidates,
         configuredPackages,
+        adapterReleases,
         checks: [
             {id: 'package-release-ownership', status: 'FAIL', message: 'managed release files conflict'},
         ],
@@ -419,6 +420,7 @@ function inspectReleaseCapability({
             disposition: 'CREATE',
             candidates,
             configuredPackages: [],
+            adapterReleases: [],
             checks: [
                 {
                     id: 'package-release-ownership',
@@ -440,7 +442,11 @@ function inspectReleaseCapability({
     try {
         workflowContent = readManagedFile(canonicalProject, WORKFLOW_PATH, 'release workflow');
     } catch {
-        return conflictResult(candidates, configuration.packages);
+        return conflictResult(
+            candidates,
+            configuration.packages,
+            configuration.adapterReleases
+        );
     }
     const workflowState = workflowOwnership(workflowContent, canonicalWorkflow, legacyWorkflowSha256);
     if (configuration.kind === 'LEGACY' && workflowState === 'LEGACY') {
@@ -449,22 +455,41 @@ function inspectReleaseCapability({
             disposition: 'MIGRATE',
             candidates,
             configuredPackages: configuration.packages,
+            adapterReleases: [],
             checks: [
                 {id: 'package-release-ownership', status: 'PASS', message: 'legacy release files can be migrated'},
             ],
         };
     }
     if (configuration.kind !== 'MANAGED' || !workflowState.startsWith('OWNED_')) {
-        return conflictResult(candidates, configuration.packages);
+        return conflictResult(
+            candidates,
+            configuration.packages,
+            configuration.adapterReleases
+        );
+    }
+    const candidatePackages = new Set(candidates.map(({path: packagePath}) => packagePath));
+    if (configuration.adapterReleases.some(({package: packagePath}) =>
+        !candidatePackages.has(packagePath)
+    )) {
+        return conflictResult(
+            candidates,
+            configuration.packages,
+            configuration.adapterReleases
+        );
     }
     const configContent = readManagedFile(canonicalProject, CONFIG_PATH, 'release configuration');
-    const desiredConfig = Buffer.from(renderManagedConfiguration(candidates));
+    const desiredConfig = Buffer.from(renderManagedConfiguration(
+        candidates,
+        configuration.adapterReleases
+    ));
     const unchanged = configContent.equals(desiredConfig) && workflowState === 'OWNED_CANONICAL';
     return {
         status: 'GO',
         disposition: unchanged ? 'UNCHANGED' : 'UPDATE',
         candidates,
         configuredPackages: configuration.packages,
+        adapterReleases: configuration.adapterReleases,
         checks: [
             {
                 id: 'package-release-ownership',
@@ -896,13 +921,13 @@ function readPlanFile(operation, area, relativePath) {
     }
 }
 
-function renderReleaseCapabilityFiles({projectRoot, coreRoot}) {
+function renderReleaseCapabilityFiles({projectRoot, coreRoot, adapterReleases = []}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const candidates = discoverReleasePackages({projectRoot: canonicalProject});
     return Object.freeze({
         candidates: Object.freeze(candidates.map((candidate) => Object.freeze({...candidate}))),
         files: Object.freeze({
-            [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(candidates)),
+            [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(candidates, adapterReleases)),
             [WORKFLOW_PATH]: readCanonicalWorkflow(coreRoot),
         }),
     });
@@ -929,7 +954,8 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         if (
             lockedInspection.disposition !== inspection.disposition ||
             JSON.stringify(lockedInspection.candidates) !== JSON.stringify(inspection.candidates) ||
-            JSON.stringify(lockedInspection.configuredPackages) !== JSON.stringify(inspection.configuredPackages)
+            JSON.stringify(lockedInspection.configuredPackages) !== JSON.stringify(inspection.configuredPackages) ||
+            JSON.stringify(lockedInspection.adapterReleases) !== JSON.stringify(inspection.adapterReleases)
         ) {
             throw new Error('package-release ownership changed while planning');
         }
@@ -938,6 +964,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
         const rendered = renderReleaseCapabilityFiles({
             projectRoot: canonicalProject,
             coreRoot,
+            adapterReleases: inspection.adapterReleases,
         });
         if (JSON.stringify(rendered.candidates) !== JSON.stringify(inspection.candidates)) {
             throw new Error('package-release ownership changed while planning');
@@ -980,6 +1007,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             disposition: inspection.disposition,
             candidates: inspection.candidates,
             configuredPackages: inspection.configuredPackages,
+            adapterReleases: inspection.adapterReleases,
             checks: inspection.checks,
             planPath,
             diff,
@@ -1405,7 +1433,10 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             checks: [
                 {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
             ],
-            data: {disposition: plan.disposition},
+            data: {
+                disposition: plan.disposition,
+                adapterReleases: verification.adapterReleases,
+            },
         };
     } catch (error) {
         let recoveryFailed = error.recoveryFailed === true;
@@ -1504,7 +1535,10 @@ function verifyReleaseCapability({projectRoot, coreRoot}) {
             checks: [
                 {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
             ],
-            data: {packages: inspection.configuredPackages},
+            data: {
+                packages: inspection.configuredPackages,
+                adapterReleases: inspection.adapterReleases,
+            },
         };
     } catch {
         return {
