@@ -222,7 +222,7 @@ function selectCompatibleAdapters({catalogue, coreVersion, bootstrapProtocol}) {
             bootstrapProtocol: selected.bootstrapProtocol,
             integrity: selected.integrity,
         })];
-    }).sort((left, right) => left.id.localeCompare(right.id));
+    }).sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
 }
 
 function verifyCatalogueEnvelope({bytes, coreRoot, trust, now}) {

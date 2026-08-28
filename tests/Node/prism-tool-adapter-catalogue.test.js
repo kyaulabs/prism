@@ -403,6 +403,31 @@ test('selects the highest stable active Core-compatible release', () => {
     }]);
 });
 
+test('orders compatible adapters independently of host locale collation', (t) => {
+    const catalogue = validCatalogue();
+    catalogue.adapters.push({
+        ...structuredClone(catalogue.adapters[0]),
+        id: 'alpha',
+        displayName: 'Alpha',
+        packageName: '@kyaulabs/prism-alpha',
+    });
+    const normalized = validateCataloguePayload({
+        catalogue,
+        now: new Date('2026-08-27T12:00:00Z'),
+    });
+    const localeCompare = String.prototype.localeCompare;
+    t.after(() => { String.prototype.localeCompare = localeCompare; });
+    String.prototype.localeCompare = function reverseLocaleOrder(other) {
+        return this < other ? 1 : this > other ? -1 : 0;
+    };
+
+    assert.deepEqual(selectCompatibleAdapters({
+        catalogue: normalized,
+        coreVersion: '1.4.0',
+        bootstrapProtocol: 1,
+    }).map(({id}) => id), ['alpha', 'php-web']);
+});
+
 test('rejects expired, overlong, duplicate, and malformed catalogue payloads', () => {
     const catalogue = validCatalogue();
     const duplicateRelease = structuredClone(catalogue);
