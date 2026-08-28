@@ -1,10 +1,10 @@
-// $KYAULabs: bootstrap-status.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-status.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {inspectProvisionedBootstrapAttempt} = require('./bootstrap-adapter');
+const {inspectBootstrapAdapterReceipt} = require('./bootstrap-adapter');
 const {readBootstrapJournal} = require('./bootstrap-journal');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -47,12 +47,47 @@ function recoveryRequired(projectRoot) {
             attempt: null,
             source: null,
             adapter: null,
+            adapterEvidence: null,
             planDigest: null,
             phase: 'UNKNOWN',
             resumePhase: 'MANUAL_RECOVERY',
             retainedState: 'ambiguous bootstrap operational state',
             blockingCondition: 'ACTIVE_BOOTSTRAP_STATE_INVALID',
             nextAction: 'Inspect the retained .pi/prism-tool/bootstrap state before rerunning setup.',
+        },
+    };
+}
+
+function legacyRecoveryReport({projectRoot, attemptId, inspected, manual}) {
+    return {
+        schemaVersion: 1,
+        command: 'setup project status',
+        status: 'NO-GO',
+        disposition: 'RECOVERY_REQUIRED',
+        reason: 'LEGACY_UNSIGNED_ADAPTER_EVIDENCE',
+        projectRoot,
+        checks: [{
+            id: 'bootstrap-status',
+            status: 'FAIL',
+            message: manual
+                ? 'legacy unsigned bootstrap state requires manual recovery'
+                : 'legacy unsigned provisional adapter state requires cleanup',
+        }],
+        data: {
+            attempt: {id: attemptId},
+            source: inspected.receipt.source,
+            adapter: inspected.adapter,
+            adapterEvidence: null,
+            planDigest: null,
+            phase: manual ? 'UNKNOWN' : 'PROVISIONED',
+            resumePhase: manual ? 'MANUAL_RECOVERY' : 'ADAPTER_CLEANUP',
+            retainedState: manual
+                ? 'legacy unsigned adapter and durable or ambiguous bootstrap state'
+                : 'legacy unsigned provisional adapter package and activation state',
+            blockingCondition: 'LEGACY_UNSIGNED_ADAPTER_EVIDENCE',
+            nextAction: manual
+                ? 'Inspect the retained legacy bootstrap state manually; do not clean it automatically.'
+                : `prism-tool setup adapter cleanup --attempt=${attemptId} --json`,
         },
     };
 }
@@ -106,11 +141,19 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
         const attemptRoot = path.join(bootstrapRoot, attemptId);
         const entries = fs.readdirSync(attemptRoot).sort();
         if (entries.join(',') === 'adapter.json') {
-            const selected = inspectProvisionedBootstrapAttempt({
+            const selected = inspectBootstrapAdapterReceipt({
                 projectRoot,
                 coreRoot,
                 attemptId,
             });
+            if (selected.kind === 'LEGACY_UNSIGNED') {
+                return legacyRecoveryReport({
+                    projectRoot,
+                    attemptId,
+                    inspected: selected,
+                    manual: false,
+                });
+            }
             return activeReport({
                 projectRoot,
                 disposition: 'ADAPTER_PROVISIONED',
@@ -119,6 +162,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: selected.receipt.source,
                     adapter: selected.adapter,
+                    adapterEvidence: selected.adapterEvidence,
                     planDigest: null,
                     phase: 'PROVISIONED',
                     resumePhase: 'SOURCE_INSPECTION',
@@ -130,6 +174,22 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
         }
         if (!entries.includes('journal.json')) {
             throw new Error('bootstrap status attempt is unsupported');
+        }
+        if (entries.includes('adapter.json')) {
+            const inspected = inspectBootstrapAdapterReceipt({
+                projectRoot,
+                coreRoot,
+                attemptId,
+                allowAppliedProject: true,
+            });
+            if (inspected.kind === 'LEGACY_UNSIGNED') {
+                return legacyRecoveryReport({
+                    projectRoot,
+                    attemptId,
+                    inspected,
+                    manual: true,
+                });
+            }
         }
         const journal = readBootstrapJournal({projectRoot, attemptId});
         const expectedEntries = new Map(Object.entries(BASE_ATTEMPT_ENTRY_TYPES));
@@ -167,6 +227,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -189,6 +250,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -218,6 +280,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -240,6 +303,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -262,6 +326,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -284,6 +349,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,
@@ -306,6 +372,7 @@ function inspectBootstrapStatus({projectRoot: requestedRoot, coreRoot}) {
                     attempt: {id: attemptId},
                     source: journal.source.mode,
                     adapter: journal.adapter,
+                    adapterEvidence: journal.adapterEvidence,
                     planDigest: journal.planDigest,
                     phase: journal.phase,
                     resumePhase: journal.resumePhase,

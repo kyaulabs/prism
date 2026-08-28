@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const {makeTempDir} = require('./helpers');
+const {createSignedAdapterSelection, makeTempDir} = require('./helpers');
 const {createTemplateFixture} = require('./fixtures/template-source');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
@@ -124,33 +124,29 @@ test('resolves Template catalogue after exact adapter provisioning', async (t) =
     const projectRoot = makeTempDir();
     const fixture = createTemplateFixture();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    const provisioned = await captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=template',
-        '--network-approved=yes', '--json',
-    ], {
+    const selection = createSignedAdapterSelection({
+        t,
         projectRoot,
         coreRoot: CORE_ROOT,
-        piExecutable: '/usr/bin/pi',
-        randomUUID: () => ATTEMPT_ID,
-        run() {
-            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
-            fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
-            );
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        },
-    }));
+        adapterRoot: ADAPTER_ROOT,
+        attemptId: ATTEMPT_ID,
+    });
+    const provisioned = await captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${selection.digest}`, '--source=template',
+        '--network-approved=yes', '--json',
+    ], selection.context));
     assert.equal(provisioned.status, 0, provisioned.stderr);
 
-    const result = await source(
+    const result = await captureWrites(() => main([
+        'setup', 'source', '--json', '--source=template',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+        '--network-approved=yes',
+    ], {
         projectRoot,
-        fixture.fetch,
-        '--source=template',
-        '--adapter=@kyaulabs/prism-php-web',
-        `--attempt=${ATTEMPT_ID}`,
-        '--network-approved=yes'
-    );
+        coreRoot: selection.context.coreRoot,
+        fetch: fixture.fetch,
+    }));
 
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
@@ -165,29 +161,31 @@ test('returns Blank source evidence after exact adapter provisioning without fet
     const projectRoot = makeTempDir();
     let fetches = 0;
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    const provisioned = await captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
-        '--network-approved=yes', '--json',
-    ], {
+    const selection = createSignedAdapterSelection({
+        t,
         projectRoot,
         coreRoot: CORE_ROOT,
-        piExecutable: '/usr/bin/pi',
-        randomUUID: () => ATTEMPT_ID,
-        run() {
-            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
-            fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
-            );
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        },
-    }));
+        adapterRoot: ADAPTER_ROOT,
+        attemptId: ATTEMPT_ID,
+    });
+    const provisioned = await captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${selection.digest}`, '--source=blank',
+        '--network-approved=yes', '--json',
+    ], selection.context));
     assert.equal(provisioned.status, 0, provisioned.stderr);
 
-    const result = await source(projectRoot, async () => {
-        fetches += 1;
-        throw new Error('Blank must not fetch');
-    }, '--source=blank', '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`);
+    const result = await captureWrites(() => main([
+        'setup', 'source', '--json', '--source=blank',
+        '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
+    ], {
+        projectRoot,
+        coreRoot: selection.context.coreRoot,
+        fetch: async () => {
+            fetches += 1;
+            throw new Error('Blank must not fetch');
+        },
+    }));
 
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);

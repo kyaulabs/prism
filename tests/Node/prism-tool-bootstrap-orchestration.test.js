@@ -3,6 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -10,11 +11,180 @@ const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
-const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_SOURCE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(CORE_SOURCE_ROOT, 'package.json'), 'utf8')
+).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_VERSION = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
 ).version;
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
+
+function writeJson(filePath, value) {
+    fs.mkdirSync(path.dirname(filePath), {recursive: true});
+    fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function signedEnvelope(payload) {
+    const pair = crypto.generateKeyPairSync('ed25519');
+    const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
+    const publicKeyBytes = pair.publicKey.export({type: 'spki', format: 'der'});
+    const keyId = 'test-key';
+    return {
+        bytes: Buffer.from(JSON.stringify({
+            schemaVersion: 1,
+            keyId,
+            algorithm: 'Ed25519',
+            payload: payloadBytes.toString('base64'),
+            signature: crypto.sign(null, payloadBytes, pair.privateKey).toString('base64'),
+        }), 'utf8'),
+        payloadBytes,
+        trust: {
+            schemaVersion: 1,
+            keys: [{
+                id: keyId,
+                algorithm: 'Ed25519',
+                publicKeySpki: publicKeyBytes.toString('base64'),
+                sha256: crypto.createHash('sha256').update(publicKeyBytes).digest('hex'),
+            }],
+        },
+    };
+}
+
+function createSignedAdapterFixture() {
+    const coreRoot = makeTempDir();
+    fs.cpSync(CORE_SOURCE_ROOT, coreRoot, {recursive: true});
+    for (const hook of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
+        fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', hook), 0o755);
+    }
+    const catalogue = {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [{
+                version: ADAPTER_VERSION,
+                coreRange: CORE_VERSION,
+                bootstrapProtocol: 1,
+                integrity: ADAPTER_INTEGRITY,
+                publishedAt: '2026-08-26T00:00:00Z',
+                status: 'ACTIVE',
+            }],
+        }],
+    };
+    const envelope = signedEnvelope(catalogue);
+    const envelopeDigest = crypto.createHash('sha256').update(envelope.bytes).digest('hex');
+    const payloadDigest = crypto.createHash('sha256').update(envelope.payloadBytes).digest('hex');
+    writeJson(path.join(coreRoot, 'config', 'adapter-catalogue-trust.json'), envelope.trust);
+    return Object.freeze({
+        coreRoot,
+        catalogue,
+        envelope,
+        digest: envelopeDigest,
+        evidence: Object.freeze({
+            catalogueId: catalogue.catalogueId,
+            sequence: catalogue.sequence,
+            keyId: envelope.trust.keys[0].id,
+            issuedAt: catalogue.issuedAt,
+            expiresAt: catalogue.expiresAt,
+            envelopeDigest,
+            payloadDigest,
+            selectedAt: '2026-08-27T12:00:00.000Z',
+            integrity: ADAPTER_INTEGRITY,
+        }),
+    });
+}
+
+const SIGNED_ADAPTER = createSignedAdapterFixture();
+const CORE_ROOT = SIGNED_ADAPTER.coreRoot;
+
+test.after(() => fs.rmSync(CORE_ROOT, {recursive: true, force: true}));
+
+function provisionSignedAdapter(projectRoot, source = 'blank') {
+    const catalogueCachePath = path.join(
+        CORE_ROOT,
+        `${path.basename(projectRoot)}-adapter-catalogue-cache.json`
+    );
+    writeJson(catalogueCachePath, {
+        schemaVersion: 1,
+        entries: [{
+            digest: SIGNED_ADAPTER.digest,
+            sequence: SIGNED_ADAPTER.catalogue.sequence,
+            envelope: SIGNED_ADAPTER.envelope.bytes.toString('base64'),
+            cachedAt: '2026-08-27T12:00:00.000Z',
+        }],
+    });
+    fs.chmodSync(catalogueCachePath, 0o600);
+    const result = captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${SIGNED_ADAPTER.digest}`, `--source=${source}`,
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+        catalogueCachePath,
+        catalogueTrust: SIGNED_ADAPTER.envelope.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+        piExecutable: '/usr/bin/pi',
+        randomUUID: () => ATTEMPT_ID,
+        run(command, args) {
+            assert.equal(command, '/usr/bin/pi');
+            assert.deepEqual(args, [
+                'install', `npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`, '-l', '--approve',
+            ]);
+            const npmRoot = path.join(projectRoot, '.pi', 'npm');
+            writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+                packages: [`npm:@kyaulabs/prism-php-web@${ADAPTER_VERSION}`],
+            });
+            writeJson(path.join(npmRoot, 'package.json'), {
+                name: 'pi-extensions',
+                private: true,
+                dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION},
+            });
+            writeJson(path.join(npmRoot, 'package-lock.json'), {
+                name: 'pi-extensions',
+                lockfileVersion: 3,
+                packages: {
+                    '': {dependencies: {'@kyaulabs/prism-php-web': ADAPTER_VERSION}},
+                    'node_modules/@kyaulabs/prism-php-web': {
+                        version: ADAPTER_VERSION,
+                        integrity: ADAPTER_INTEGRITY,
+                    },
+                },
+            });
+            fs.writeFileSync(path.join(npmRoot, '.gitignore'), '*\n!.gitignore\n');
+            fs.cpSync(
+                ADAPTER_ROOT,
+                path.join(npmRoot, 'node_modules', '@kyaulabs', 'prism-php-web'),
+                {recursive: true}
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    }));
+    return {
+        result,
+        catalogueCachePath,
+        receiptPath: path.join(
+            projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json'
+        ),
+    };
+}
+
+function rewriteAsLegacyReceipt(receiptPath) {
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+    delete receipt.adapter.integrity;
+    delete receipt.catalogueEnvelope;
+    delete receipt.catalogueEvidence;
+    receipt.schemaVersion = 1;
+    fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, {mode: 0o600});
+    return receipt;
+}
 
 function captureWrites(action) {
     let stdout = '';
@@ -86,28 +256,9 @@ test('active bootstrap status reports no retained attempt without mutation', (t)
 test('active bootstrap status reports one provisioned adapter without mutation', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    const provisioned = captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
-        '--network-approved=yes', '--json',
-    ], {
-        projectRoot,
-        coreRoot: CORE_ROOT,
-        piExecutable: '/usr/bin/pi',
-        randomUUID: () => ATTEMPT_ID,
-        run(command) {
-            assert.equal(command, '/usr/bin/pi');
-            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
-            fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
-            );
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        },
-    }));
-    assert.equal(provisioned.status, 0, provisioned.stderr);
-    const before = fs.readFileSync(
-        path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json')
-    );
+    const provisioned = provisionSignedAdapter(projectRoot);
+    assert.equal(provisioned.result.status, 0, provisioned.result.stderr);
+    const before = fs.readFileSync(provisioned.receiptPath);
 
     const result = captureWrites(() => main([
         'setup', 'project', 'status', '--json',
@@ -124,11 +275,11 @@ test('active bootstrap status reports one provisioned adapter without mutation',
         source: 'BLANK',
         adapter: {
             id: 'php-web',
-            displayName: 'PHP/web',
             packageName: '@kyaulabs/prism-php-web',
             packageVersion: ADAPTER_VERSION,
             bootstrapProtocol: 1,
         },
+        adapterEvidence: SIGNED_ADAPTER.evidence,
         planDigest: null,
         phase: 'PROVISIONED',
         resumePhase: 'SOURCE_INSPECTION',
@@ -136,12 +287,85 @@ test('active bootstrap status reports one provisioned adapter without mutation',
         blockingCondition: null,
         nextAction: 'Continue strict-empty source and metadata selection.',
     });
-    assert.deepEqual(
-        fs.readFileSync(
-            path.join(projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json')
-        ),
-        before
+    assert.deepEqual(fs.readFileSync(provisioned.receiptPath), before);
+});
+
+test('active bootstrap status resumes signed evidence without the global cache', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = provisionSignedAdapter(projectRoot);
+    assert.equal(provisioned.result.status, 0, provisioned.result.stderr);
+    fs.unlinkSync(provisioned.catalogueCachePath);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(report.disposition, 'ADAPTER_PROVISIONED');
+    assert.deepEqual(report.data.adapterEvidence, SIGNED_ADAPTER.evidence);
+});
+
+test('active bootstrap status classifies legacy unsigned pre-durable state', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = provisionSignedAdapter(projectRoot);
+    assert.equal(provisioned.result.status, 0, provisioned.result.stderr);
+    rewriteAsLegacyReceipt(provisioned.receiptPath);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.reason, 'LEGACY_UNSIGNED_ADAPTER_EVIDENCE');
+    assert.equal(report.data.resumePhase, 'ADAPTER_CLEANUP');
+    assert.equal(
+        report.data.nextAction,
+        `prism-tool setup adapter cleanup --attempt=${ATTEMPT_ID} --json`
     );
+
+    const cleanup = captureWrites(() => main([
+        'setup', 'adapter', 'cleanup', `--attempt=${ATTEMPT_ID}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(cleanup.status, 0, cleanup.stderr || cleanup.stdout);
+    assert.deepEqual(fs.readdirSync(projectRoot), []);
+});
+
+test('active bootstrap status preserves ambiguous legacy state for manual recovery', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const provisioned = provisionSignedAdapter(projectRoot);
+    assert.equal(provisioned.result.status, 0, provisioned.result.stderr);
+    const legacy = rewriteAsLegacyReceipt(provisioned.receiptPath);
+    const attemptRoot = path.dirname(provisioned.receiptPath);
+    fs.writeFileSync(path.join(attemptRoot, 'journal.json'), '{}\n', {mode: 0o600});
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'status', '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    const report = JSON.parse(result.stdout);
+
+    assert.equal(result.status, 5);
+    assert.equal(report.disposition, 'RECOVERY_REQUIRED');
+    assert.equal(report.reason, 'LEGACY_UNSIGNED_ADAPTER_EVIDENCE');
+    assert.deepEqual(report.data.adapter, {
+        id: legacy.adapter.id,
+        packageName: legacy.adapter.packageName,
+        packageVersion: legacy.adapter.packageVersion,
+        bootstrapProtocol: legacy.adapter.bootstrapProtocol,
+    });
+    assert.equal(report.data.resumePhase, 'MANUAL_RECOVERY');
+    assert.equal(fs.existsSync(attemptRoot), true);
+
+    const cleanup = captureWrites(() => main([
+        'setup', 'adapter', 'cleanup', `--attempt=${ATTEMPT_ID}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+    assert.equal(cleanup.status, 5);
+    assert.equal(fs.existsSync(attemptRoot), true);
 });
 
 test('active bootstrap status preserves a dangling bootstrap root for manual recovery', (t) => {
@@ -195,6 +419,7 @@ test('active bootstrap status preserves ambiguous attempts for manual recovery',
             attempt: null,
             source: null,
             adapter: null,
+            adapterEvidence: null,
             planDigest: null,
             phase: 'UNKNOWN',
             resumePhase: 'MANUAL_RECOVERY',
@@ -238,6 +463,7 @@ test('active bootstrap status reports a retained plan ready for approval', (t) =
         attempt: {id: ATTEMPT_ID},
         source: 'BLANK',
         adapter: null,
+        adapterEvidence: null,
         planDigest: plan.planDigest,
         phase: 'PREPARED',
         resumePhase: 'PROJECT_APPLICATION',
@@ -369,6 +595,7 @@ test('active bootstrap status reports a durable project ready for repository cre
         attempt: {id: ATTEMPT_ID},
         source: 'BLANK',
         adapter: null,
+        adapterEvidence: null,
         planDigest: plan.planDigest,
         phase: 'DURABLE',
         resumePhase: 'REPOSITORY_BOOTSTRAP',

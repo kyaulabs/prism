@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-transaction.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-transaction.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -121,7 +121,7 @@ function assertOwnedDirectory(directoryPath, expectedMode = 0o700) {
     return {dev: stat.dev, ino: stat.ino};
 }
 
-function removePreparedAttempt(projectRoot, attemptId, adapter = null) {
+function removePreparedAttempt(projectRoot, coreRoot, attemptId, adapter = null) {
     const piRoot = path.join(projectRoot, '.pi');
     const prismRoot = path.join(piRoot, 'prism-tool');
     const bootstrapRoot = path.join(prismRoot, 'bootstrap');
@@ -151,7 +151,7 @@ function removePreparedAttempt(projectRoot, attemptId, adapter = null) {
             if (stat.isDirectory()) fs.rmSync(entryPath, {recursive: true});
             else fs.unlinkSync(entryPath);
         }
-        const cleanup = cleanupBootstrapAdapter({projectRoot, attemptId});
+        const cleanup = cleanupBootstrapAdapter({projectRoot, coreRoot, attemptId});
         if (cleanup.status !== 'GO' || fs.readdirSync(projectRoot).length !== 0) {
             throw new Error('bootstrap adapter cleanup failed');
         }
@@ -1135,7 +1135,7 @@ function applyBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
+        removePreparedAttempt(projectRoot, coreRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (recoveryError) {
         if (project !== undefined) project.close();
@@ -1209,7 +1209,7 @@ function recoverApplyingBootstrapProject({
         project.close();
         project = undefined;
         releaseApplyLock(lock);
-        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
+        removePreparedAttempt(projectRoot, coreRoot, attemptId, journal.adapter);
         return rootRestoredReport(attemptId);
     } catch (error) {
         if (project !== undefined) project.close();
@@ -1260,7 +1260,7 @@ function recoverBootstrapProject({projectRoot: requestedRoot, coreRoot, attemptI
     try {
         const plan = validateBootstrapProjectPlan({projectRoot, coreRoot, attemptId, planDigest});
         validateSourceContinuity(journal, plan);
-        removePreparedAttempt(projectRoot, attemptId, journal.adapter);
+        removePreparedAttempt(projectRoot, coreRoot, attemptId, journal.adapter);
     } catch (error) {
         transitionBootstrapJournal({
             projectRoot,
