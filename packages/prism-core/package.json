@@ -1,6 +1,6 @@
 {
   "name": "@kyaulabs/prism-core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "KYAULabs coding harness — language-agnostic core (pi)",
   "license": "AGPL-3.0-only",
   "keywords": [
@@ -29,6 +29,7 @@
     "git-cliff": "2.13.1",
     "linkedom": "0.16.11",
     "markdownlint-cli2": "0.23.2",
+    "semver": "7.8.5",
     "turndown": "7.2.4"
   },
   "peerDependencies": {

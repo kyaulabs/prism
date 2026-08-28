@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-seed.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-seed.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -198,6 +198,13 @@ function prepareBootstrapSeed({
     if (journal.metadataDigest !== durable.plan.metadataDigest) {
         throw new Error('bootstrap seed metadata is stale');
     }
+    if (
+        JSON.stringify(journal.adapter) !== JSON.stringify(durable.plan.adapter) ||
+        JSON.stringify(journal.adapterEvidence) !==
+            JSON.stringify(durable.plan.adapterEvidence)
+    ) {
+        throw new Error('bootstrap seed adapter evidence is stale');
+    }
     const hooks = inspectBootstrapHooks({
         projectRoot,
         coreRoot,
@@ -264,6 +271,9 @@ function prepareBootstrapSeed({
                 ...durable.plan.adapter,
                 reportDigest: durable.plan.adapterReportDigest,
             }),
+            adapterEvidence: durable.plan.adapterEvidence === null
+                ? null
+                : Object.freeze({...durable.plan.adapterEvidence}),
             planDigest,
             appliedInventoryDigest: journal.appliedInventoryDigest,
             durableJournalDigest: journalDigest(journal),
@@ -434,7 +444,7 @@ function validateActiveBootstrapSeed({
     if (
         !exactKeys(value, [
             'schemaVersion', 'projectRoot', 'attemptId', 'source', 'capabilities', 'providers',
-            'metadataDigest', 'adapter', 'planDigest', 'appliedInventoryDigest',
+            'metadataDigest', 'adapter', 'adapterEvidence', 'planDigest', 'appliedInventoryDigest',
             'durableJournalDigest', 'repository', 'hookInventoryDigest',
             'stagedIndexDigest', 'commit',
         ]) ||
@@ -453,6 +463,8 @@ function validateActiveBootstrapSeed({
                 reportDigest: durable.plan.adapterReportDigest,
             }
         ) ||
+        JSON.stringify(value.adapterEvidence) !== JSON.stringify(journal.adapterEvidence) ||
+        JSON.stringify(value.adapterEvidence) !== JSON.stringify(durable.plan.adapterEvidence) ||
         value.planDigest !== journal.planDigest ||
         value.appliedInventoryDigest !== journal.appliedInventoryDigest ||
         value.durableJournalDigest !== expectedJournalDigest ||

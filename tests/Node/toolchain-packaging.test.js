@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -90,6 +90,11 @@ test('packs the core package with every owned resource and executable modes', ()
         'packaged Markdown policy present'
     );
     assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
+    assert.equal(
+        packed.files.has('config/adapter-catalogue-trust.json'),
+        true,
+        'adapter catalogue trust root packaged'
+    );
     assert.equal(packed.files.has('config/bootstrap/licenses/AGPL-3.0-only.txt'), true);
     assert.equal(packed.files.has('config/bootstrap/licenses/MIT.txt'), true);
     assert.equal(packed.files.has('config/bootstrap/community/contributor-covenant-2.1.md'), true);
@@ -123,6 +128,11 @@ test('packs the core package with every owned resource and executable modes', ()
         'Distill pattern reference packaged'
     );
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
+    assert.equal(
+        packed.files.has('docs/adapter-catalogue.md'),
+        true,
+        'adapter catalogue publisher contract packaged'
+    );
     const coreNotice = execFileSync('tar', ['-xOzf', packed.tarball, 'package/NOTICE'], {
         encoding: 'utf8',
     });
@@ -136,6 +146,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
+        'adapter-catalogue-cache', 'adapter-catalogue-http', 'adapter-catalogue-validation',
         'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
         'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',

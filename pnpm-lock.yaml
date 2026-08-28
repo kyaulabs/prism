@@ -50,6 +50,9 @@ importers:
       sass:
         specifier: 1.102.0
         version: 1.102.0
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
       stylelint:
         specifier: 17.14.1
         version: 17.14.1(typescript@7.0.2)

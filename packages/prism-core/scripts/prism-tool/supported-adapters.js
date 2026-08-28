@@ -1,15 +1,24 @@
-// $KYAULabs: supported-adapters.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: supported-adapters.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {acquireVerifiedCatalogue, inspectCatalogueCache} = require('./adapter-catalogue-cache');
+const {
+    CatalogueError,
+    selectCompatibleAdapters,
+    validateCataloguePayload,
+} = require('./adapter-catalogue-validation');
 const {inspectSetupRoute} = require('./setup-route');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const ADAPTER_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const PACKAGE_NAME = /^@kyaulabs\/[a-z0-9][a-z0-9._-]*$/;
 const MAX_JSON_BYTES = 1048576;
+const BOOTSTRAP_PROTOCOL = 1;
+const SHA256 = /^[0-9a-f]{64}$/;
+const CORE_ONLY = Object.freeze({id: 'core-only', displayName: 'Core only', adapter: null});
 
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -120,7 +129,7 @@ function loadSupportedAdapterCatalogue({coreRoot, catalogue}) {
     });
 }
 
-function selectCoreOnlyAdapter({projectRoot, coreRoot, catalogue, source}) {
+function selectCoreOnlyAdapter({projectRoot, source}) {
     if (!['TEMPLATE', 'BLANK'].includes(source)) throw new Error('setup source is invalid');
     const route = inspectSetupRoute({projectRoot, source});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
@@ -140,7 +149,6 @@ function selectCoreOnlyAdapter({projectRoot, coreRoot, catalogue, source}) {
             data: null,
         };
     }
-    const supported = loadSupportedAdapterCatalogue({coreRoot, catalogue});
     return {
         schemaVersion: 1,
         command: 'setup adapter select',
@@ -155,7 +163,7 @@ function selectCoreOnlyAdapter({projectRoot, coreRoot, catalogue, source}) {
             message: 'Core-only bootstrap selected',
         }],
         data: {
-            selection: supported.coreOnly,
+            selection: CORE_ONLY,
             adapter: null,
             acquisition: null,
             attempt: null,
@@ -163,8 +171,31 @@ function selectCoreOnlyAdapter({projectRoot, coreRoot, catalogue, source}) {
     };
 }
 
-function inspectSupportedAdapters({projectRoot, coreRoot, catalogue}) {
-    const route = inspectSetupRoute({projectRoot});
+function cacheContext(options) {
+    return {
+        ...(options.context ?? {}),
+        coreRoot: options.coreRoot,
+        catalogueCachePath: options.catalogueCachePath ?? options.context?.catalogueCachePath,
+        catalogueTrust: options.catalogueTrust ?? options.context?.catalogueTrust,
+        now: options.now ?? options.context?.now,
+    };
+}
+
+function catalogueEvidence(verified) {
+    return Object.freeze({
+        source: verified.source,
+        catalogueId: verified.catalogue.catalogueId,
+        sequence: verified.catalogue.sequence,
+        digest: verified.envelopeDigest,
+        payloadDigest: verified.payloadDigest,
+        keyId: verified.keyId,
+        issuedAt: verified.catalogue.issuedAt,
+        expiresAt: verified.catalogue.expiresAt,
+    });
+}
+
+async function inspectSupportedAdapters(options) {
+    const route = inspectSetupRoute({projectRoot: options.projectRoot});
     if (route.status !== 'GO' || route.disposition !== 'STRICT_EMPTY') {
         return {
             schemaVersion: 1,
@@ -181,7 +212,20 @@ function inspectSupportedAdapters({projectRoot, coreRoot, catalogue}) {
             data: null,
         };
     }
-    const supported = loadSupportedAdapterCatalogue({coreRoot, catalogue});
+    const manifest = readCoreManifest(options.coreRoot);
+    const verified = await acquireVerifiedCatalogue({
+        fetchImpl: options.fetchImpl,
+        context: cacheContext(options),
+        coreRoot: options.coreRoot,
+        trust: options.catalogueTrust ?? options.context?.catalogueTrust,
+        now: options.now ?? options.context?.now,
+    });
+    const adapters = selectCompatibleAdapters({
+        catalogue: verified.catalogue,
+        coreVersion: manifest.version,
+        bootstrapProtocol: BOOTSTRAP_PROTOCOL,
+    });
+    if (adapters.length === 0) throw new CatalogueError('NO_COMPATIBLE_ADAPTER');
     return {
         schemaVersion: 1,
         command: 'setup adapter catalogue',
@@ -192,14 +236,43 @@ function inspectSupportedAdapters({projectRoot, coreRoot, catalogue}) {
         checks: [{
             id: 'bootstrap-adapter-catalogue',
             status: 'PASS',
-            message: 'supported adapter catalogue is valid',
+            message: 'signed supported adapter catalogue is valid',
         }],
-        data: supported,
+        data: {
+            schemaVersion: 1,
+            coreOnly: CORE_ONLY,
+            catalogueEvidence: catalogueEvidence(verified),
+            adapters,
+        },
     };
+}
+
+function loadSelectedAdapter(options) {
+    if (!SHA256.test(options.digest) || !ADAPTER_ID.test(options.adapterId)) {
+        throw new CatalogueError('CATALOGUE_SELECTION_INVALID');
+    }
+    const context = cacheContext(options);
+    const detail = inspectCatalogueCache(context);
+    if (detail.state !== 'GRANTED') throw new CatalogueError('CATALOGUE_SELECTION_UNAVAILABLE');
+    const verified = detail.verifiedEntries.get(options.digest);
+    if (!verified) throw new CatalogueError('CATALOGUE_SELECTION_UNAVAILABLE');
+    const catalogue = validateCataloguePayload({
+        catalogue: verified.catalogue,
+        now: options.now ?? options.context?.now,
+    });
+    const manifest = readCoreManifest(options.coreRoot);
+    const selected = selectCompatibleAdapters({
+        catalogue,
+        coreVersion: manifest.version,
+        bootstrapProtocol: options.bootstrapProtocol ?? BOOTSTRAP_PROTOCOL,
+    }).find((adapter) => adapter.id === options.adapterId);
+    if (!selected) throw new CatalogueError('CATALOGUE_SELECTION_UNAVAILABLE');
+    return selected;
 }
 
 module.exports = {
     inspectSupportedAdapters,
+    loadSelectedAdapter,
     loadSupportedAdapterCatalogue,
     selectCoreOnlyAdapter,
 };

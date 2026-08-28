@@ -1,17 +1,20 @@
-// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
 const assert = require('node:assert/strict');
 const {spawnSync} = require('node:child_process');
+const {createHash, generateKeyPairSync, sign} = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir, writeJson} = require('./helpers');
-const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {main: cliMain} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     inspectProvisionedBootstrapAdapter,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-adapter');
+
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
 
 function captureWrites(action) {
     let stdout = '';
@@ -43,6 +46,111 @@ function writeCorePackage(coreRoot, version = '0.3.1') {
         path.resolve(__dirname, '../../packages/prism-core/toolchain.json'),
         path.join(coreRoot, 'toolchain.json')
     );
+}
+
+function signedEnvelope(payload) {
+    const pair = generateKeyPairSync('ed25519');
+    const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
+    const publicKeyBytes = pair.publicKey.export({type: 'spki', format: 'der'});
+    const keyId = 'test-key';
+    return {
+        bytes: Buffer.from(JSON.stringify({
+            schemaVersion: 1,
+            keyId,
+            algorithm: 'Ed25519',
+            payload: payloadBytes.toString('base64'),
+            signature: sign(null, payloadBytes, pair.privateKey).toString('base64'),
+        }), 'utf8'),
+        trust: {
+            schemaVersion: 1,
+            keys: [{
+                id: keyId,
+                algorithm: 'Ed25519',
+                publicKeySpki: publicKeyBytes.toString('base64'),
+                sha256: createHash('sha256').update(publicKeyBytes).digest('hex'),
+            }],
+        },
+    };
+}
+
+const projectCoreRoots = new Map();
+
+function signedSelectionContext(context) {
+    const coreRoot = context.coreRoot;
+    const manifest = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
+    const catalogue = {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [{
+                version: manifest.version,
+                coreRange: manifest.version,
+                bootstrapProtocol: 1,
+                integrity: ADAPTER_INTEGRITY,
+                publishedAt: '2026-08-26T00:00:00Z',
+                status: 'ACTIVE',
+            }],
+        }],
+    };
+    const envelope = signedEnvelope(catalogue);
+    const digest = createHash('sha256').update(envelope.bytes).digest('hex');
+    const catalogueCachePath = path.join(coreRoot, '.adapter-catalogue-cache.json');
+    writeJson(path.join(coreRoot, 'config', 'adapter-catalogue-trust.json'), envelope.trust);
+    writeJson(catalogueCachePath, {
+        schemaVersion: 1,
+        entries: [{
+            digest,
+            sequence: catalogue.sequence,
+            envelope: envelope.bytes.toString('base64'),
+            cachedAt: '2026-08-27T12:00:00.000Z',
+        }],
+    });
+    fs.chmodSync(catalogueCachePath, 0o600);
+    return {
+        digest,
+        context: {
+            ...context,
+            catalogueCachePath,
+            catalogueTrust: envelope.trust,
+            now: new Date('2026-08-27T12:00:00Z'),
+        },
+    };
+}
+
+function main(args, context = {}) {
+    let effectiveArgs = args;
+    let effectiveContext = context;
+    if (args[0] === 'setup' && args[1] === 'adapter' && args[2] === 'select') {
+        const adapter = args.find((argument) => argument.startsWith('--adapter='));
+        if (adapter !== '--adapter=core-only' && !args.some((argument) =>
+            argument.startsWith('--catalogue-digest=')) && context.rawSelectionControls !== true) {
+            const signed = signedSelectionContext(context);
+            const sourceIndex = args.findIndex((argument) => argument.startsWith('--source='));
+            effectiveArgs = [
+                ...args.slice(0, sourceIndex),
+                `--catalogue-digest=${signed.digest}`,
+                ...args.slice(sourceIndex),
+            ];
+            effectiveContext = signed.context;
+        }
+        if (effectiveContext.projectRoot && effectiveContext.coreRoot) {
+            projectCoreRoots.set(path.resolve(effectiveContext.projectRoot), effectiveContext.coreRoot);
+        }
+    }
+    if (args[0] === 'setup' && args[1] === 'adapter' && args[2] === 'cleanup' &&
+        effectiveContext.coreRoot === undefined && effectiveContext.projectRoot !== undefined) {
+        effectiveContext = {
+            ...effectiveContext,
+            coreRoot: projectCoreRoots.get(path.resolve(effectiveContext.projectRoot)),
+        };
+    }
+    return cliMain(effectiveArgs, effectiveContext);
 }
 
 function writeBootstrapAdapterPackage(packageRoot, options = {}) {
@@ -92,37 +200,191 @@ function writeBootstrapAdapterPackage(packageRoot, options = {}) {
     );
 }
 
-test('reports one exact supported adapter and explicit Core-only selection', (t) => {
+function provisionContext(t, options = {}) {
+    const projectRoot = makeTempDir();
+    const coreRoot = makeTempDir();
+    const cacheRoot = makeTempDir();
+    const attemptId = options.attemptId ?? '11111111-1111-4111-8111-111111111111';
+    const installedIntegrity = options.installedIntegrity ?? ADAPTER_INTEGRITY;
+    const childEnv = {};
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(cacheRoot, {recursive: true, force: true}));
+    writeCorePackage(coreRoot, '1.4.0');
+    const catalogue = {
+        schemaVersion: 1,
+        catalogueId: 'kyaulabs/prism-adapters',
+        sequence: 7,
+        issuedAt: '2026-08-27T00:00:00Z',
+        expiresAt: '2026-09-03T00:00:00Z',
+        adapters: [{
+            id: 'php-web',
+            displayName: 'PHP/web',
+            packageName: '@kyaulabs/prism-php-web',
+            releases: [{
+                version: '1.8.2',
+                coreRange: '^1.3.0',
+                bootstrapProtocol: 1,
+                integrity: ADAPTER_INTEGRITY,
+                publishedAt: '2026-08-26T00:00:00Z',
+                status: 'ACTIVE',
+            }],
+        }],
+    };
+    const envelope = signedEnvelope(catalogue);
+    const digest = createHash('sha256').update(envelope.bytes).digest('hex');
+    const catalogueCachePath = path.join(cacheRoot, 'cache.json');
+    writeJson(path.join(coreRoot, 'config', 'adapter-catalogue-trust.json'), envelope.trust);
+    writeJson(catalogueCachePath, {
+        schemaVersion: 1,
+        entries: [{
+            digest,
+            sequence: catalogue.sequence,
+            envelope: envelope.bytes.toString('base64'),
+            cachedAt: '2026-08-27T12:00:00.000Z',
+        }],
+    });
+    fs.chmodSync(catalogueCachePath, 0o600);
+    const args = [
+        'setup', 'adapter', 'select',
+        '--adapter=php-web',
+        `--catalogue-digest=${digest}`,
+        '--source=blank',
+        '--network-approved=yes',
+        '--json',
+    ];
+    const context = {
+        projectRoot,
+        coreRoot,
+        catalogueCachePath,
+        catalogueTrust: envelope.trust,
+        now: new Date('2026-08-27T12:00:00Z'),
+        piExecutable: '/fixture/bin/pi',
+        randomUUID: () => attemptId,
+        run: (command, runArgs, runOptions) => {
+            Object.assign(childEnv, runOptions.env);
+            assert.equal(command, '/fixture/bin/pi');
+            assert.deepEqual(runArgs, [
+                'install',
+                'npm:@kyaulabs/prism-php-web@1.8.2',
+                '-l',
+                '--approve',
+            ]);
+            writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+                packages: ['npm:@kyaulabs/prism-php-web@1.8.2'],
+            });
+            writeJson(path.join(projectRoot, '.pi', 'npm', 'package.json'), {
+                name: 'pi-extensions',
+                private: true,
+                dependencies: {'@kyaulabs/prism-php-web': '1.8.2'},
+            });
+            writeJson(path.join(projectRoot, '.pi', 'npm', 'package-lock.json'), {
+                name: 'pi-extensions',
+                lockfileVersion: 3,
+                packages: {
+                    '': {dependencies: {'@kyaulabs/prism-php-web': '1.8.2'}},
+                    'node_modules/@kyaulabs/prism-php-web': {
+                        version: '1.8.2',
+                        integrity: installedIntegrity,
+                    },
+                },
+            });
+            fs.writeFileSync(path.join(projectRoot, '.pi', 'npm', '.gitignore'), '*\n!.gitignore\n');
+            writeBootstrapAdapterPackage(
+                path.join(projectRoot, '.pi', 'npm', 'node_modules', '@kyaulabs', 'prism-php-web'),
+                {packageVersion: '1.8.2'}
+            );
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        },
+    };
+    return {args, context, digest, projectRoot, childEnv};
+}
+
+test('installs the digest-bound signed npm release and records schema 2', (t) => {
+    const fixture = provisionContext(t);
+    const result = captureWrites(() => main(fixture.args, fixture.context));
+    const report = JSON.parse(result.stdout);
+    const receipt = JSON.parse(fs.readFileSync(report.data.attempt.receiptPath, 'utf8'));
+
+    assert.equal(result.status, 0);
+    assert.equal(report.data.acquisition.kind, 'NPM');
+    assert.equal(report.data.acquisition.installSource, 'npm:@kyaulabs/prism-php-web@1.8.2');
+    assert.equal(fixture.childEnv.npm_config_save_exact, 'true');
+    assert.equal(fixture.childEnv.NPM_CONFIG_SAVE_EXACT, 'true');
+    assert.equal(receipt.schemaVersion, 2);
+    assert.deepEqual(Object.keys(receipt.catalogueEvidence).sort(), [
+        'catalogueId', 'envelopeDigest', 'expiresAt', 'integrity', 'issuedAt',
+        'keyId', 'payloadDigest', 'selectedAt', 'sequence',
+    ]);
+    assert.equal(receipt.catalogueEvidence.envelopeDigest, fixture.digest);
+    assert.equal(receipt.catalogueEvidence.selectedAt, '2026-08-27T12:00:00.000Z');
+    assert.equal(receipt.catalogueEvidence.integrity, ADAPTER_INTEGRITY);
+    assert.equal(
+        createHash('sha256').update(Buffer.from(receipt.catalogueEnvelope, 'base64')).digest('hex'),
+        fixture.digest
+    );
+});
+
+test('rejects an installed lockfile integrity mismatch and restores strict emptiness', (t) => {
+    const fixture = provisionContext(t, {installedIntegrity: 'sha512-WRONG'});
+    const result = captureWrites(() => main(fixture.args, fixture.context));
+
+    assert.equal(JSON.parse(result.stdout).reason, 'POSTINSTALL_VALIDATION_FAILED');
+    assert.deepEqual(fs.readdirSync(fixture.projectRoot), []);
+});
+
+test('reverifies embedded signed evidence against selectedAt after catalogue expiry', (t) => {
+    const fixture = provisionContext(t);
+    const result = captureWrites(() => main(fixture.args, fixture.context));
+    const report = JSON.parse(result.stdout);
+    const inspected = inspectProvisionedBootstrapAdapter({
+        projectRoot: fixture.projectRoot,
+        coreRoot: fixture.context.coreRoot,
+        attemptId: report.data.attempt.id,
+        packageName: '@kyaulabs/prism-php-web',
+        expectedSource: 'BLANK',
+        now: new Date('2026-09-10T00:00:00Z'),
+    });
+
+    assert.equal(inspected.receipt.catalogueEvidence.envelopeDigest, fixture.digest);
+    assert.equal(inspected.adapter.packageVersion, '1.8.2');
+});
+
+test('rejects receipt evidence whose selectedAt falls outside signed validity', (t) => {
+    const fixture = provisionContext(t);
+    const result = captureWrites(() => main(fixture.args, fixture.context));
+    const report = JSON.parse(result.stdout);
+    const receipt = JSON.parse(fs.readFileSync(report.data.attempt.receiptPath, 'utf8'));
+    receipt.catalogueEvidence.selectedAt = '2026-09-03T00:00:00.000Z';
+    writeJson(report.data.attempt.receiptPath, receipt);
+    fs.chmodSync(report.data.attempt.receiptPath, 0o600);
+
+    assert.throws(() => inspectProvisionedBootstrapAdapter({
+        projectRoot: fixture.projectRoot,
+        coreRoot: fixture.context.coreRoot,
+        attemptId: report.data.attempt.id,
+        packageName: '@kyaulabs/prism-php-web',
+        expectedSource: 'BLANK',
+    }));
+});
+
+test('catalogue discovery requires exact network approval and JSON controls', (t) => {
     const projectRoot = makeTempDir();
     const coreRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
     writeCorePackage(coreRoot, '0.3.1');
 
-    const result = captureWrites(() => main(
+    for (const args of [
+        ['setup', 'adapter', 'catalogue'],
         ['setup', 'adapter', 'catalogue', '--json'],
-        {projectRoot, coreRoot}
-    ));
-    const report = JSON.parse(result.stdout);
-
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, '');
-    assert.equal(report.schemaVersion, 1);
-    assert.equal(report.command, 'setup adapter catalogue');
-    assert.equal(report.status, 'GO');
-    assert.equal(report.disposition, 'ADAPTER_SELECTION_REQUIRED');
-    assert.deepEqual(report.data.coreOnly, {
-        id: 'core-only',
-        displayName: 'Core only',
-        adapter: null,
-    });
-    assert.deepEqual(report.data.adapters, [{
-        id: 'php-web',
-        displayName: 'PHP/web',
-        packageName: '@kyaulabs/prism-php-web',
-        packageVersion: '0.3.1',
-        bootstrapProtocol: 1,
-    }]);
+        ['setup', 'adapter', 'catalogue', '--network-approved=no', '--json'],
+        ['setup', 'adapter', 'catalogue', '--network-approved=yes'],
+    ]) {
+        const result = captureWrites(() => main(args, {projectRoot, coreRoot}));
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+    }
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
@@ -155,103 +417,30 @@ test('selects Core-only without package, handler, or filesystem effects', (t) =>
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
-test('rejects unsupported or ambiguous adapter catalogues', (t) => {
-    const projectRoot = makeTempDir();
-    const coreRoot = makeTempDir();
-    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
-    writeCorePackage(coreRoot);
-    const valid = {
-        schemaVersion: 1,
-        coreOnly: {id: 'core-only', displayName: 'Core only', adapter: null},
-        adapters: [{
-            id: 'php-web',
-            displayName: 'PHP/web',
-            packageName: '@kyaulabs/prism-php-web',
-            packageVersion: '0.3.1',
-            bootstrapProtocol: 1,
-        }],
-    };
-    const cases = [
-        {...valid, unknown: true},
-        {...valid, schemaVersion: 2},
-        {...valid, coreOnly: {id: 'core-only', displayName: 'Core only', adapter: {}}},
-        {...valid, adapters: []},
-        {...valid, adapters: [valid.adapters[0], {...valid.adapters[0]}]},
-        {...valid, adapters: [{...valid.adapters[0], packageName: '@other/adapter'}]},
-        {...valid, adapters: [{...valid.adapters[0], packageName: '@kyaulabs/prism-other'}]},
-        {...valid, adapters: [{...valid.adapters[0], packageVersion: '^0.3.1'}]},
-        {...valid, adapters: [{...valid.adapters[0], bootstrapProtocol: 2}]},
-        {...valid, adapters: [{...valid.adapters[0], displayName: ''}]},
-        {...valid, adapters: [{...valid.adapters[0], unknown: true}]},
-    ];
-
-    for (const adapterCatalogue of cases) {
-        let invocations = 0;
-        const result = captureWrites(() => main(
-            ['setup', 'adapter', 'catalogue', '--json'],
-            {
-                projectRoot,
-                coreRoot,
-                adapterCatalogue,
-                run: () => { invocations += 1; },
-            }
-        ));
-
-        assert.equal(result.status, 5);
-        assert.equal(result.stdout, '');
-        assert.match(result.stderr, /supported adapter catalogue is invalid/);
-        assert.equal(invocations, 0);
-        assert.deepEqual(fs.readdirSync(projectRoot), []);
-    }
-});
-
-test('resolves only a co-shipped checkout adapter or the exact pinned npm source', (t) => {
+test('resolves the exact signed npm source even from a source checkout', (t) => {
     const checkoutRoot = makeTempDir();
-    const installedCoreRoot = makeTempDir();
     t.after(() => fs.rmSync(checkoutRoot, {recursive: true, force: true}));
-    t.after(() => fs.rmSync(installedCoreRoot, {recursive: true, force: true}));
     const coreRoot = path.join(checkoutRoot, 'packages', 'prism-core');
     const adapterRoot = path.join(checkoutRoot, 'packages', 'prism-php-web');
     writeCorePackage(coreRoot);
     writeBootstrapAdapterPackage(adapterRoot);
-    writeCorePackage(installedCoreRoot);
     const adapter = {
         id: 'php-web',
         displayName: 'PHP/web',
         packageName: '@kyaulabs/prism-php-web',
         packageVersion: '0.3.1',
         bootstrapProtocol: 1,
+        integrity: ADAPTER_INTEGRITY,
     };
     const {resolveBootstrapAcquisition} = require(
         '../../packages/prism-core/scripts/prism-tool/bootstrap-adapter'
     );
 
     assert.deepEqual(resolveBootstrapAcquisition({coreRoot, adapter}), {
-        kind: 'LOCAL',
-        installSource: fs.realpathSync(adapterRoot),
-        packageRoot: fs.realpathSync(adapterRoot),
-    });
-    assert.deepEqual(resolveBootstrapAcquisition({coreRoot: installedCoreRoot, adapter}), {
         kind: 'NPM',
         installSource: 'npm:@kyaulabs/prism-php-web@0.3.1',
         packageRoot: null,
     });
-
-    writeJson(path.join(adapterRoot, 'package.json'), {
-        name: '@kyaulabs/prism-php-web',
-        version: '0.3.2',
-        prism: {
-            adapter: true,
-            bootstrapProtocol: 1,
-            handler: './scripts/prism-tool-adapter.js',
-            toolchain: './toolchain.json',
-        },
-    });
-    assert.throws(
-        () => resolveBootstrapAcquisition({coreRoot, adapter}),
-        /co-shipped adapter is incompatible/
-    );
 });
 
 function installFixture({
@@ -262,6 +451,7 @@ function installFixture({
     installSource = `npm:${packageName}@${packageVersion}`,
     lifecycleMarker,
     loadMarker,
+    integrity = ADAPTER_INTEGRITY,
 }) {
     return (command, args, options) => {
         assert.equal(command, '/fixture/bin/pi');
@@ -274,6 +464,8 @@ function installFixture({
         assert.equal(options.cwd, fs.realpathSync(projectRoot));
         assert.equal(options.env.npm_config_ignore_scripts, 'true');
         assert.equal(options.env.NPM_CONFIG_IGNORE_SCRIPTS, 'true');
+        assert.equal(options.env.npm_config_save_exact, 'true');
+        assert.equal(options.env.NPM_CONFIG_SAVE_EXACT, 'true');
         writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
             packages: [installSource],
         });
@@ -288,7 +480,7 @@ function installFixture({
                 lockfileVersion: 3,
                 packages: {
                     '': {dependencies: {[packageName]: packageVersion}},
-                    [`node_modules/${packageName}`]: {version: packageVersion},
+                    [`node_modules/${packageName}`]: {version: packageVersion, integrity},
                 },
             });
             fs.writeFileSync(path.join(projectRoot, '.pi', 'npm', '.gitignore'), '*\n!.gitignore\n');
@@ -368,7 +560,7 @@ test('provisions the exact pinned npm adapter through Pi and records the attempt
     assert.equal(receipt.registration.bootstrapProtocol, 1);
 });
 
-test('provisions a validated co-shipped adapter by exact local path', (t) => {
+test('provisions the signed npm adapter when Core runs from a checkout', (t) => {
     const checkoutRoot = makeTempDir();
     const projectRoot = makeTempDir();
     const attemptId = '22222222-2222-4222-8222-222222222222';
@@ -394,7 +586,6 @@ test('provisions a validated co-shipped adapter by exact local path', (t) => {
             projectRoot,
             packageName: '@kyaulabs/prism-php-web',
             packageVersion: '0.3.1',
-            installSource: fs.realpathSync(adapterRoot),
         }),
     }));
     const report = JSON.parse(result.stdout);
@@ -402,14 +593,14 @@ test('provisions a validated co-shipped adapter by exact local path', (t) => {
     assert.equal(result.status, 0);
     assert.equal(report.disposition, 'ADAPTER_PROVISIONED');
     assert.deepEqual(report.data.acquisition, {
-        kind: 'LOCAL',
-        installSource: fs.realpathSync(adapterRoot),
+        kind: 'NPM',
+        installSource: 'npm:@kyaulabs/prism-php-web@0.3.1',
     });
     assert.deepEqual(
         JSON.parse(fs.readFileSync(path.join(projectRoot, '.pi', 'settings.json'), 'utf8')).packages,
-        [fs.realpathSync(adapterRoot)]
+        ['npm:@kyaulabs/prism-php-web@0.3.1']
     );
-    assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'npm')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, '.pi', 'npm')), true);
     const receipt = JSON.parse(fs.readFileSync(report.data.attempt.receiptPath, 'utf8'));
     assert.equal(receipt.source, 'TEMPLATE');
     const inspected = inspectProvisionedBootstrapAdapter({
@@ -1032,13 +1223,14 @@ test('rejects unsupported selection and cleanup controls before mutation', (t) =
             '--network-approved=yes', '--network-approved=yes', '--json',
         ],
         [
-            'setup', 'adapter', 'select', '--adapter=unknown', '--source=blank',
+            'setup', 'adapter', 'select', '--adapter=UNKNOWN', '--source=blank',
             '--network-approved=yes', '--json',
         ],
-        [
+        ...['--package=other', '--version=1.0.0', '--integrity=sha512-AAAA',
+            '--url=https://example.com'].map((control) => [
             'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
-            '--network-approved=yes', '--package=other', '--json',
-        ],
+            '--network-approved=yes', control, '--json',
+        ]),
         [
             'setup', 'adapter', 'select', '--adapter=php-web', '--source=other',
             '--network-approved=yes', '--json',
@@ -1064,6 +1256,17 @@ test('rejects unsupported selection and cleanup controls before mutation', (t) =
         assert.equal(result.stdout, '');
         assert.deepEqual(fs.readdirSync(projectRoot), []);
     }
+    const missingDigest = captureWrites(() => cliMain([
+        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
+        '--network-approved=yes', '--json',
+    ], {
+        projectRoot,
+        coreRoot,
+        piExecutable: '/fixture/bin/pi',
+        run: () => { invocations += 1; },
+    }));
+    assert.equal(missingDigest.status, 2);
+    assert.equal(missingDigest.stdout, '');
     assert.equal(invocations, 0);
 });
 

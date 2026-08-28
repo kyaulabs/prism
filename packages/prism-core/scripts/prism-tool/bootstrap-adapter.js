@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -11,15 +11,27 @@ const {
     registrationFor,
     validateBootstrapRegistration,
 } = require('./discovery');
+const {inspectCatalogueCache} = require('./adapter-catalogue-cache');
+const {
+    selectCompatibleAdapters,
+    validateCataloguePayload,
+    verifyCatalogueEnvelope,
+} = require('./adapter-catalogue-validation');
 const {inspectSetupRoute} = require('./setup-route');
-const {loadSupportedAdapterCatalogue} = require('./supported-adapters');
+const {loadSelectedAdapter} = require('./supported-adapters');
 
 const ATTEMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const INSTALL_TIMEOUT_MS = 300000;
 const MAX_INVENTORY_BYTES = 268435456;
 const MAX_INVENTORY_ENTRIES = 20000;
-const MAX_RECEIPT_BYTES = 1048576;
-const RECEIPT_SCHEMA_VERSION = 1;
+const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
+const RECEIPT_SCHEMA_VERSION = 2;
+const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const ADAPTER_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const PACKAGE_NAME = /^@kyaulabs\/[a-z0-9](?:[a-z0-9._-]{0,212}[a-z0-9])?$/;
+const UTC_TIMESTAMP = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -126,39 +138,64 @@ function writeReceipt(receiptPath, receipt, exclusive = false) {
     fs.chmodSync(receiptPath, 0o600);
 }
 
-function checkoutAdapterRoot(coreRoot) {
-    const canonicalCore = fs.realpathSync(coreRoot);
-    const packagesRoot = path.dirname(canonicalCore);
-    if (path.basename(canonicalCore) !== 'prism-core' || path.basename(packagesRoot) !== 'packages') {
-        return null;
-    }
-    return path.join(packagesRoot, 'prism-php-web');
-}
-
-function resolveBootstrapAcquisition({coreRoot, adapter}) {
-    const localRoot = checkoutAdapterRoot(coreRoot);
-    if (localRoot && fs.existsSync(localRoot)) {
-        try {
-            const registration = registrationFor(localRoot, adapter.packageName);
-            if (
-                registration.packageVersion !== adapter.packageVersion ||
-                registration.bootstrapProtocol !== adapter.bootstrapProtocol
-            ) {
-                throw new Error('co-shipped adapter registration mismatch');
-            }
-            return {
-                kind: 'LOCAL',
-                installSource: fs.realpathSync(localRoot),
-                packageRoot: fs.realpathSync(localRoot),
-            };
-        } catch {
-            throw new Error('co-shipped adapter is incompatible');
-        }
-    }
+function resolveBootstrapAcquisition({adapter}) {
     return {
         kind: 'NPM',
         installSource: `npm:${adapter.packageName}@${adapter.packageVersion}`,
         packageRoot: null,
+    };
+}
+
+function selectedAt(now) {
+    const value = new Date(now ?? Date.now());
+    if (!Number.isFinite(value.getTime())) throw new Error('adapter selection time is invalid');
+    return value.toISOString();
+}
+
+function loadSignedAdapterSelection(options) {
+    const selectionOptions = {
+        adapterId: options.adapterId,
+        digest: options.catalogueDigest,
+        coreRoot: options.coreRoot,
+        context: options.catalogueContext,
+        catalogueCachePath: options.catalogueCachePath,
+        catalogueTrust: options.catalogueTrust,
+        now: options.now,
+    };
+    const adapter = loadSelectedAdapter(selectionOptions);
+    const cache = inspectCatalogueCache({
+        ...(options.catalogueContext ?? {}),
+        coreRoot: options.coreRoot,
+        catalogueCachePath: options.catalogueCachePath ??
+            options.catalogueContext?.catalogueCachePath,
+        catalogueTrust: options.catalogueTrust ?? options.catalogueContext?.catalogueTrust,
+        now: options.now ?? options.catalogueContext?.now,
+    });
+    const verified = cache.verifiedEntries.get(options.catalogueDigest);
+    if (cache.state !== 'GRANTED' || verified === undefined) {
+        throw new Error('signed adapter selection is unavailable');
+    }
+    const time = selectedAt(options.now ?? options.catalogueContext?.now);
+    if (
+        new Date(time).getTime() < new Date(verified.catalogue.issuedAt).getTime() ||
+        new Date(time).getTime() >= new Date(verified.catalogue.expiresAt).getTime()
+    ) {
+        throw new Error('signed adapter selection is outside catalogue validity');
+    }
+    return {
+        adapter,
+        catalogueEnvelope: verified.envelopeBytes.toString('base64'),
+        catalogueEvidence: {
+            catalogueId: verified.catalogue.catalogueId,
+            sequence: verified.catalogue.sequence,
+            keyId: verified.keyId,
+            issuedAt: verified.catalogue.issuedAt,
+            expiresAt: verified.catalogue.expiresAt,
+            envelopeDigest: verified.envelopeDigest,
+            payloadDigest: verified.payloadDigest,
+            selectedAt: time,
+            integrity: adapter.integrity,
+        },
     };
 }
 
@@ -225,9 +262,7 @@ function cleanupFailedProvision(projectRoot, attemptId, acquisition) {
     } catch {
         return false;
     }
-    const allowedPi = acquisition.kind === 'NPM'
-        ? ['npm', 'prism-tool', 'settings.json']
-        : ['prism-tool', 'settings.json'];
+    const allowedPi = ['npm', 'prism-tool', 'settings.json'];
     if (!equalsEntries(roots, ['.pi']) || !hasOnlyEntries(pi, allowedPi)) {
         return false;
     }
@@ -274,7 +309,15 @@ function attemptPaths(projectRoot, attemptId) {
     };
 }
 
-function createAttempt(projectRoot, randomUUID, adapter, acquisition, source) {
+function createAttempt(
+    projectRoot,
+    randomUUID,
+    adapter,
+    acquisition,
+    source,
+    catalogueEnvelope,
+    catalogueEvidence
+) {
     const id = randomUUID();
     if (!ATTEMPT_ID.test(id)) throw new Error('bootstrap attempt ID is invalid');
     const paths = attemptPaths(projectRoot, id);
@@ -293,6 +336,8 @@ function createAttempt(projectRoot, randomUUID, adapter, acquisition, source) {
             kind: acquisition.kind,
             installSource: acquisition.installSource,
         },
+        catalogueEnvelope,
+        catalogueEvidence,
         settings: null,
         npmInventory: null,
         registration: null,
@@ -335,7 +380,8 @@ function assertNpmState(projectRoot, adapter) {
         !Number.isSafeInteger(lock.lockfileVersion) ||
         lock.lockfileVersion < 1 ||
         lock.packages?.['']?.dependencies?.[adapter.packageName] !== adapter.packageVersion ||
-        lock.packages?.[`node_modules/${adapter.packageName}`]?.version !== adapter.packageVersion
+        lock.packages?.[`node_modules/${adapter.packageName}`]?.version !== adapter.packageVersion ||
+        lock.packages?.[`node_modules/${adapter.packageName}`]?.integrity !== adapter.integrity
     ) {
         throw new Error('Pi npm lockfile is invalid');
     }
@@ -406,20 +452,24 @@ function provisionBootstrapAdapter(options) {
             data: null,
         };
     }
-    const supported = loadSupportedAdapterCatalogue({
-        coreRoot: options.coreRoot,
-        catalogue: options.catalogue,
-    });
-    const adapter = supported.adapters.find(({id}) => id === options.adapterId);
-    if (!adapter) throw new Error('bootstrap adapter selection is unsupported');
-    const acquisition = resolveBootstrapAcquisition({coreRoot: options.coreRoot, adapter});
+    const selection = loadSignedAdapterSelection(options);
+    const adapter = selection.adapter;
+    const acquisition = resolveBootstrapAcquisition({adapter});
     if (typeof options.piExecutable !== 'string' || !path.isAbsolute(options.piExecutable)) {
         throw new Error('authoritative Pi executable is unavailable');
     }
-    if (acquisition.kind === 'NPM' && options.networkApproved !== true) {
+    if (options.networkApproved !== true) {
         throw new Error('network approval is required for npm adapter acquisition');
     }
-    const attempt = createAttempt(projectRoot, options.randomUUID, adapter, acquisition, options.source);
+    const attempt = createAttempt(
+        projectRoot,
+        options.randomUUID,
+        adapter,
+        acquisition,
+        options.source,
+        selection.catalogueEnvelope,
+        selection.catalogueEvidence
+    );
     if (!equalsEntries(rootEntries(projectRoot), ['.pi']) || !equalsEntries(piEntries(projectRoot), ['prism-tool'])) {
         return reportFailure(projectRoot, options.source, attempt, 'PREINSTALL_STATE_CHANGED', false);
     }
@@ -435,6 +485,8 @@ function provisionBootstrapAdapter(options) {
                     ...options.env,
                     npm_config_ignore_scripts: 'true',
                     NPM_CONFIG_IGNORE_SCRIPTS: 'true',
+                    npm_config_save_exact: 'true',
+                    NPM_CONFIG_SAVE_EXACT: 'true',
                 },
                 maxBuffer: 1048576,
                 timeout: INSTALL_TIMEOUT_MS,
@@ -458,9 +510,7 @@ function provisionBootstrapAdapter(options) {
             cleanupFailedProvision(projectRoot, attempt.id, acquisition)
         );
     }
-    const expectedPi = acquisition.kind === 'NPM'
-        ? ['npm', 'prism-tool', 'settings.json']
-        : ['prism-tool', 'settings.json'];
+    const expectedPi = ['npm', 'prism-tool', 'settings.json'];
     try {
         if (
             !equalsEntries(rootEntries(projectRoot), ['.pi']) ||
@@ -473,21 +523,14 @@ function provisionBootstrapAdapter(options) {
     }
     try {
         const settings = settingsEvidence(projectRoot, acquisition);
-        const npmInventory = acquisition.kind === 'NPM'
-            ? assertNpmState(projectRoot, adapter)
-            : null;
-        if (acquisition.kind === 'LOCAL' && fs.existsSync(path.join(projectRoot, '.pi', 'npm'))) {
-            throw new Error('local adapter acquisition created unexpected npm state');
-        }
-        const packageRoot = acquisition.kind === 'LOCAL'
-            ? acquisition.packageRoot
-            : path.join(
-                projectRoot,
-                '.pi',
-                'npm',
-                'node_modules',
-                ...adapter.packageName.split('/')
-            );
+        const npmInventory = assertNpmState(projectRoot, adapter);
+        const packageRoot = path.join(
+            projectRoot,
+            '.pi',
+            'npm',
+            'node_modules',
+            ...adapter.packageName.split('/')
+        );
         const registration = registrationFor(packageRoot, adapter.packageName);
         validateBootstrapRegistration(registration, adapter, options.coreRoot);
         loadAdapterHandler(registration, adapter.bootstrapProtocol);
@@ -561,26 +604,158 @@ function recoveryReport(projectRoot, attemptId, receiptPath, reason, recoveryPat
     };
 }
 
-function validateReceipt(receipt, projectRoot, attemptId) {
-    const expectedKeys = [
+function exactKeys(value, expected) {
+    if (!isRecord(value)) return false;
+    const actual = Object.keys(value).sort();
+    const sorted = [...expected].sort();
+    return actual.length === sorted.length && actual.every((key, index) => key === sorted[index]);
+}
+
+function parseTimestamp(value) {
+    if (typeof value !== 'string' || !UTC_TIMESTAMP.test(value)) {
+        throw new Error('bootstrap receipt timestamp is invalid');
+    }
+    const parsed = new Date(value);
+    const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== canonical) {
+        throw new Error('bootstrap receipt timestamp is invalid');
+    }
+    return parsed;
+}
+
+function readCoreVersion(coreRoot) {
+    const manifest = readJson(path.join(fs.realpathSync(coreRoot), 'package.json'));
+    if (manifest.name !== '@kyaulabs/prism-core' || typeof manifest.version !== 'string') {
+        throw new Error('core package manifest is invalid');
+    }
+    return manifest.version;
+}
+
+function validateReceiptEvidence(receipt, coreRoot) {
+    const evidence = receipt.catalogueEvidence;
+    if (!exactKeys(evidence, [
+        'catalogueId', 'sequence', 'keyId', 'issuedAt', 'expiresAt',
+        'envelopeDigest', 'payloadDigest', 'selectedAt', 'integrity',
+    ]) || typeof receipt.catalogueEnvelope !== 'string' ||
+        !BASE64.test(receipt.catalogueEnvelope) || !SHA256.test(evidence.envelopeDigest) ||
+        !SHA256.test(evidence.payloadDigest) || !Number.isSafeInteger(evidence.sequence) ||
+        evidence.sequence <= 0 || typeof evidence.integrity !== 'string' ||
+        evidence.integrity.length === 0) {
+        throw new Error('bootstrap receipt catalogue evidence is invalid');
+    }
+    const envelopeBytes = Buffer.from(receipt.catalogueEnvelope, 'base64');
+    if (envelopeBytes.toString('base64') !== receipt.catalogueEnvelope) {
+        throw new Error('bootstrap receipt catalogue evidence is invalid');
+    }
+    const selectionTime = parseTimestamp(evidence.selectedAt);
+    const verified = verifyCatalogueEnvelope({
+        bytes: envelopeBytes,
+        coreRoot,
+        now: selectionTime,
+    });
+    const catalogue = validateCataloguePayload({
+        catalogue: verified.catalogue,
+        now: selectionTime,
+    });
+    const issuedAt = parseTimestamp(catalogue.issuedAt);
+    const expiresAt = parseTimestamp(catalogue.expiresAt);
+    if (selectionTime.getTime() < issuedAt.getTime() || selectionTime.getTime() >= expiresAt.getTime()) {
+        throw new Error('bootstrap receipt selection time is invalid');
+    }
+    if (
+        evidence.catalogueId !== catalogue.catalogueId ||
+        evidence.sequence !== catalogue.sequence ||
+        evidence.keyId !== verified.keyId ||
+        evidence.issuedAt !== catalogue.issuedAt ||
+        evidence.expiresAt !== catalogue.expiresAt ||
+        evidence.envelopeDigest !== verified.envelopeDigest ||
+        evidence.payloadDigest !== verified.payloadDigest
+    ) {
+        throw new Error('bootstrap receipt catalogue evidence is stale');
+    }
+    const adapter = selectCompatibleAdapters({
+        catalogue,
+        coreVersion: readCoreVersion(coreRoot),
+        bootstrapProtocol: 1,
+    }).find((candidate) => candidate.id === receipt.adapter.id);
+    if (
+        adapter === undefined ||
+        JSON.stringify(adapter) !== JSON.stringify(receipt.adapter) ||
+        evidence.integrity !== adapter.integrity
+    ) {
+        throw new Error('bootstrap receipt adapter evidence is stale');
+    }
+    return adapter;
+}
+
+function validateLegacyReceipt(receipt, projectRoot, attemptId) {
+    if (!exactKeys(receipt, [
         'schemaVersion', 'attemptId', 'projectRoot', 'phase', 'source', 'adapter',
         'acquisition', 'settings', 'npmInventory', 'registration',
-    ].sort();
-    const actualKeys = Object.keys(receipt).sort();
-    if (
-        actualKeys.length !== expectedKeys.length ||
-        !actualKeys.every((key, index) => key === expectedKeys[index]) ||
-        receipt.schemaVersion !== RECEIPT_SCHEMA_VERSION ||
-        receipt.attemptId !== attemptId ||
-        receipt.projectRoot !== projectRoot ||
-        receipt.phase !== 'PROVISIONED' ||
-        !isRecord(receipt.adapter) ||
-        !isRecord(receipt.acquisition) ||
-        !isRecord(receipt.settings) ||
-        !isRecord(receipt.registration)
-    ) {
+    ]) || receipt.schemaVersion !== 1 || receipt.attemptId !== attemptId ||
+        receipt.projectRoot !== projectRoot || receipt.phase !== 'PROVISIONED' ||
+        !['BLANK', 'TEMPLATE'].includes(receipt.source) || !isRecord(receipt.adapter) ||
+        !exactKeys(receipt.adapter, [
+            'id', 'displayName', 'packageName', 'packageVersion', 'bootstrapProtocol',
+        ]) || !ADAPTER_ID.test(receipt.adapter.id) ||
+        typeof receipt.adapter.displayName !== 'string' ||
+        receipt.adapter.displayName.length === 0 || receipt.adapter.displayName.length > 80 ||
+        !PACKAGE_NAME.test(receipt.adapter.packageName) ||
+        !EXACT_VERSION.test(receipt.adapter.packageVersion) ||
+        !Number.isSafeInteger(receipt.adapter.bootstrapProtocol) ||
+        receipt.adapter.bootstrapProtocol <= 0 || !isRecord(receipt.acquisition) ||
+        !exactKeys(receipt.acquisition, ['kind', 'installSource']) ||
+        !['LOCAL', 'NPM'].includes(receipt.acquisition.kind) ||
+        typeof receipt.acquisition.installSource !== 'string' ||
+        receipt.acquisition.installSource.length === 0 || !isRecord(receipt.settings) ||
+        !exactKeys(receipt.settings, ['sha256', 'packageSource']) ||
+        !SHA256.test(receipt.settings.sha256) ||
+        receipt.settings.packageSource !== receipt.acquisition.installSource ||
+        !isRecord(receipt.registration) || !exactKeys(receipt.registration, [
+            'packageName', 'packageVersion', 'bootstrapProtocol', 'packageRoot',
+            'contractPath', 'handlerPath',
+        ]) || receipt.registration.packageName !== receipt.adapter.packageName ||
+        receipt.registration.packageVersion !== receipt.adapter.packageVersion ||
+        receipt.registration.bootstrapProtocol !== receipt.adapter.bootstrapProtocol ||
+        !['packageRoot', 'contractPath', 'handlerPath'].every((key) =>
+            typeof receipt.registration[key] === 'string' &&
+            path.isAbsolute(receipt.registration[key])
+        )) {
+        throw new Error('legacy bootstrap receipt is invalid');
+    }
+    if (receipt.acquisition.kind === 'NPM') {
+        if (!isRecord(receipt.npmInventory) ||
+            !exactKeys(receipt.npmInventory, ['entries', 'bytes', 'sha256']) ||
+            !Array.isArray(receipt.npmInventory.entries) ||
+            !Number.isSafeInteger(receipt.npmInventory.bytes) ||
+            receipt.npmInventory.bytes < 0 || !SHA256.test(receipt.npmInventory.sha256)) {
+            throw new Error('legacy bootstrap receipt is invalid');
+        }
+    } else if (receipt.npmInventory !== null) {
+        throw new Error('legacy bootstrap receipt is invalid');
+    }
+    return receipt.adapter;
+}
+
+function validateReceipt(receipt, projectRoot, attemptId, coreRoot) {
+    if (!exactKeys(receipt, [
+        'schemaVersion', 'attemptId', 'projectRoot', 'phase', 'source', 'adapter',
+        'acquisition', 'catalogueEnvelope', 'catalogueEvidence', 'settings',
+        'npmInventory', 'registration',
+    ]) || receipt.schemaVersion !== RECEIPT_SCHEMA_VERSION ||
+        receipt.attemptId !== attemptId || receipt.projectRoot !== projectRoot ||
+        receipt.phase !== 'PROVISIONED' || !['BLANK', 'TEMPLATE'].includes(receipt.source) ||
+        !isRecord(receipt.adapter) || !exactKeys(receipt.acquisition, ['kind', 'installSource']) ||
+        receipt.acquisition.kind !== 'NPM' || !isRecord(receipt.settings) ||
+        !isRecord(receipt.npmInventory) || !isRecord(receipt.registration)) {
         throw new Error('bootstrap receipt is invalid');
     }
+    const adapter = validateReceiptEvidence(receipt, coreRoot);
+    if (receipt.acquisition.installSource !==
+        `npm:${adapter.packageName}@${adapter.packageVersion}`) {
+        throw new Error('bootstrap receipt acquisition is stale');
+    }
+    return adapter;
 }
 
 function inspectProvisionedBootstrapAdapter({
@@ -598,30 +773,17 @@ function inspectProvisionedBootstrapAdapter({
     const projectRoot = fs.realpathSync(requestedRoot);
     const paths = attemptPaths(projectRoot, attemptId);
     const receipt = readJson(paths.receiptPath);
-    validateReceipt(receipt, projectRoot, attemptId);
-    const catalogue = loadSupportedAdapterCatalogue({coreRoot});
-    const adapter = catalogue.adapters.find((candidate) => candidate.packageName === packageName);
-    if (
-        !adapter ||
-        receipt.source !== expectedSource ||
-        !isRecord(receipt.acquisition) ||
-        Object.keys(receipt.acquisition).sort().join(',') !== 'installSource,kind' ||
-        !['LOCAL', 'NPM'].includes(receipt.acquisition.kind) ||
-        typeof receipt.acquisition.installSource !== 'string' ||
-        JSON.stringify(receipt.adapter) !== JSON.stringify(adapter)
-    ) {
+    const adapter = validateReceipt(receipt, projectRoot, attemptId, coreRoot);
+    if (receipt.source !== expectedSource || adapter.packageName !== packageName) {
         throw new Error('bootstrap adapter receipt is stale');
     }
-    const expectedPi = receipt.acquisition.kind === 'NPM'
-        ? ['npm', 'prism-tool', 'settings.json']
-        : ['prism-tool', 'settings.json'];
     if (
         (
             allowAppliedProject
                 ? !rootEntries(projectRoot).includes('.pi')
                 : !equalsEntries(rootEntries(projectRoot), ['.pi'])
         ) ||
-        !equalsEntries(piEntries(projectRoot), expectedPi)
+        !equalsEntries(piEntries(projectRoot), ['npm', 'prism-tool', 'settings.json'])
     ) {
         throw new Error('bootstrap adapter state is stale');
     }
@@ -629,22 +791,24 @@ function inspectProvisionedBootstrapAdapter({
     if (settings.sha256 !== receipt.settings.sha256) {
         throw new Error('bootstrap adapter settings are stale');
     }
-    if (receipt.acquisition.kind === 'NPM') {
-        const inventory = assertNpmState(projectRoot, adapter);
-        if (
-            !isRecord(receipt.npmInventory) ||
-            inventory.sha256 !== receipt.npmInventory.sha256 ||
-            inventory.bytes !== receipt.npmInventory.bytes
-        ) {
-            throw new Error('bootstrap adapter npm state is stale');
-        }
-    } else if (
-        receipt.npmInventory !== null ||
-        fs.existsSync(path.join(projectRoot, '.pi', 'npm'))
+    const inventory = assertNpmState(projectRoot, adapter);
+    if (
+        inventory.sha256 !== receipt.npmInventory.sha256 ||
+        inventory.bytes !== receipt.npmInventory.bytes
     ) {
-        throw new Error('bootstrap adapter acquisition state is stale');
+        throw new Error('bootstrap adapter npm state is stale');
     }
-    const registration = registrationFor(receipt.registration.packageRoot, adapter.packageName);
+    const expectedPackageRoot = fs.realpathSync(path.join(
+        projectRoot,
+        '.pi',
+        'npm',
+        'node_modules',
+        ...adapter.packageName.split('/')
+    ));
+    if (receipt.registration.packageRoot !== expectedPackageRoot) {
+        throw new Error('bootstrap adapter registration is stale');
+    }
+    const registration = registrationFor(expectedPackageRoot, adapter.packageName);
     validateBootstrapRegistration(registration, adapter, coreRoot);
     const registrationReceipt = {
         packageName: registration.packageName,
@@ -669,14 +833,7 @@ function inspectProvisionedBootstrapAttempt({projectRoot, coreRoot, attemptId}) 
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const canonicalRoot = fs.realpathSync(projectRoot);
     const receipt = readJson(attemptPaths(canonicalRoot, attemptId).receiptPath);
-    validateReceipt(receipt, canonicalRoot, attemptId);
-    const catalogue = loadSupportedAdapterCatalogue({coreRoot});
-    const adapter = catalogue.adapters.find((candidate) =>
-        JSON.stringify(candidate) === JSON.stringify(receipt.adapter)
-    );
-    if (adapter === undefined || !['BLANK', 'TEMPLATE'].includes(receipt.source)) {
-        throw new Error('bootstrap adapter receipt is stale');
-    }
+    const adapter = validateReceipt(receipt, canonicalRoot, attemptId, coreRoot);
     return inspectProvisionedBootstrapAdapter({
         projectRoot: canonicalRoot,
         coreRoot,
@@ -686,23 +843,61 @@ function inspectProvisionedBootstrapAttempt({projectRoot, coreRoot, attemptId}) 
     });
 }
 
-function loadActiveBootstrapAdapter({projectRoot, coreRoot, identity}) {
-    const supported = loadSupportedAdapterCatalogue({coreRoot});
-    const adapter = supported.adapters.find(({packageName}) =>
-        packageName === identity?.packageName
-    );
+function inspectBootstrapAdapterReceipt({
+    projectRoot,
+    coreRoot,
+    attemptId,
+    allowAppliedProject = false,
+}) {
+    if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
+    const canonicalRoot = fs.realpathSync(projectRoot);
+    const receipt = readJson(attemptPaths(canonicalRoot, attemptId).receiptPath);
+    if (receipt.schemaVersion === RECEIPT_SCHEMA_VERSION) {
+        const adapter = validateReceipt(receipt, canonicalRoot, attemptId, coreRoot);
+        const selected = inspectProvisionedBootstrapAdapter({
+            projectRoot: canonicalRoot,
+            coreRoot,
+            attemptId,
+            packageName: adapter.packageName,
+            expectedSource: receipt.source,
+            allowAppliedProject,
+        });
+        return Object.freeze({
+            kind: 'SIGNED',
+            adapter: Object.freeze({
+                id: selected.adapter.id,
+                packageName: selected.adapter.packageName,
+                packageVersion: selected.adapter.packageVersion,
+                bootstrapProtocol: selected.adapter.bootstrapProtocol,
+            }),
+            adapterEvidence: Object.freeze({...selected.receipt.catalogueEvidence}),
+            receipt: selected.receipt,
+        });
+    }
+    if (receipt.schemaVersion === 1) {
+        const adapter = validateLegacyReceipt(receipt, canonicalRoot, attemptId);
+        return Object.freeze({
+            kind: 'LEGACY_UNSIGNED',
+            adapter: Object.freeze({
+                id: adapter.id,
+                packageName: adapter.packageName,
+                packageVersion: adapter.packageVersion,
+                bootstrapProtocol: adapter.bootstrapProtocol,
+            }),
+            adapterEvidence: null,
+            receipt: Object.freeze(receipt),
+        });
+    }
+    throw new Error('bootstrap receipt is unsupported');
+}
+
+function loadActiveBootstrapAdapter({projectRoot, identity}) {
     const registration = discoverAdapter({projectRoot});
     if (
-        adapter === undefined ||
-        JSON.stringify({
-            id: adapter.id,
-            packageName: adapter.packageName,
-            packageVersion: adapter.packageVersion,
-            bootstrapProtocol: adapter.bootstrapProtocol,
-        }) !== JSON.stringify(identity) ||
+        !exactKeys(identity, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) ||
         registration.packageName !== identity.packageName ||
-        registration.packageVersion !== identity?.packageVersion ||
-        registration.bootstrapProtocol !== identity?.bootstrapProtocol
+        registration.packageVersion !== identity.packageVersion ||
+        registration.bootstrapProtocol !== identity.bootstrapProtocol
     ) {
         throw new Error('active adapter does not match bootstrap evidence');
     }
@@ -712,14 +907,30 @@ function loadActiveBootstrapAdapter({projectRoot, coreRoot, identity}) {
     });
 }
 
-function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
+function cleanupBootstrapAdapter({projectRoot: requestedRoot, coreRoot, attemptId}) {
     if (!ATTEMPT_ID.test(attemptId)) throw new Error('bootstrap attempt ID is invalid');
     const projectRoot = fs.realpathSync(requestedRoot);
     const paths = attemptPaths(projectRoot, attemptId);
     let receipt;
     try {
         receipt = readJson(paths.receiptPath);
-        validateReceipt(receipt, projectRoot, attemptId);
+        if (receipt.schemaVersion === RECEIPT_SCHEMA_VERSION) {
+            validateReceipt(receipt, projectRoot, attemptId, coreRoot);
+        } else if (receipt.schemaVersion === 1) {
+            validateLegacyReceipt(receipt, projectRoot, attemptId);
+        } else {
+            throw new Error('bootstrap receipt is unsupported');
+        }
+        if (fs.readdirSync(paths.attemptRoot).join(',') !== 'adapter.json') {
+            return recoveryReport(
+                projectRoot,
+                attemptId,
+                paths.receiptPath,
+                receipt.schemaVersion === 1
+                    ? 'DURABLE_OR_AMBIGUOUS_LEGACY_STATE'
+                    : 'STATE_CHANGED'
+            );
+        }
     } catch {
         return recoveryReport(projectRoot, attemptId, paths.receiptPath, 'INVALID_RECEIPT');
     }
@@ -748,7 +959,6 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
             npmIdentity = pathIdentity(npmRoot);
             const inventory = inventoryDirectory(npmRoot);
             if (
-                !isRecord(receipt.npmInventory) ||
                 inventory.sha256 !== receipt.npmInventory.sha256 ||
                 inventory.bytes !== receipt.npmInventory.bytes
             ) {
@@ -848,6 +1058,7 @@ function cleanupBootstrapAdapter({projectRoot: requestedRoot, attemptId}) {
 
 module.exports = {
     cleanupBootstrapAdapter,
+    inspectBootstrapAdapterReceipt,
     inspectProvisionedBootstrapAdapter,
     inspectProvisionedBootstrapAttempt,
     loadActiveBootstrapAdapter,

@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -838,6 +838,7 @@ function setup(args, context) {
                 try {
                     cleanup = cleanupBootstrapAdapter({
                         projectRoot: route.projectRoot,
+                        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
                         attemptId: attempts[0].slice('--attempt='.length),
                     });
                 } catch {
@@ -1108,31 +1109,25 @@ function setup(args, context) {
     }
     if (args[0] === 'adapter' && args[1] === 'catalogue') {
         const controls = args.slice(2);
-        const jsonCount = controls.filter((argument) => argument === '--json').length;
-        if (jsonCount > 1 || controls.some((argument) => argument !== '--json')) {
-            process.stderr.write('usage: prism-tool setup adapter catalogue [--json]\n');
+        if (controls.length !== 2 || !controls.includes('--network-approved=yes') ||
+            !controls.includes('--json')) {
+            process.stderr.write(
+                'usage: prism-tool setup adapter catalogue --network-approved=yes --json\n'
+            );
             return EXIT.USAGE;
         }
-        let report;
-        try {
-            report = inspectSupportedAdapters({
-                projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
-                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                catalogue: context.adapterCatalogue,
-            });
-        } catch {
-            process.stderr.write('prism-tool: supported adapter catalogue is invalid\n');
+        return inspectSupportedAdapters({
+            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+            fetchImpl: context.fetch,
+            context,
+        }).then((report) => {
+            process.stdout.write(`${JSON.stringify(report)}\n`);
+            return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+        }).catch(() => {
+            process.stderr.write('prism-tool: supported adapter catalogue is unavailable\n');
             return EXIT.TRANSACTION;
-        }
-        if (jsonCount === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
-        else {
-            for (const check of report.checks) {
-                process.stdout.write(`${check.id}\t${check.status}\t${check.message}\n`);
-            }
-            process.stdout.write(`disposition\t${report.disposition}\n`);
-            process.stdout.write(`${report.status}\n`);
-        }
-        return report.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+        });
     }
     if (args[0] === 'adapter' && args[1] === 'cleanup') {
         const controls = args.slice(2);
@@ -1155,6 +1150,7 @@ function setup(args, context) {
         try {
             report = cleanupBootstrapAdapter({
                 projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
                 attemptId: attempts[0].slice('--attempt='.length),
             });
         } catch {
@@ -1174,6 +1170,7 @@ function setup(args, context) {
     if (args[0] === 'adapter' && args[1] === 'select') {
         const controls = args.slice(2);
         const adapters = controls.filter((argument) => argument.startsWith('--adapter='));
+        const digests = controls.filter((argument) => argument.startsWith('--catalogue-digest='));
         const sources = controls.filter((argument) => argument.startsWith('--source='));
         const networks = controls.filter((argument) => argument.startsWith('--network-approved='));
         const jsonCount = controls.filter((argument) => argument === '--json').length;
@@ -1188,24 +1185,31 @@ function setup(args, context) {
             controls.some((argument) =>
                 argument !== '--json' &&
                 !argument.startsWith('--adapter=') &&
+                !argument.startsWith('--catalogue-digest=') &&
                 !argument.startsWith('--source=') &&
                 !argument.startsWith('--network-approved=')
             )
         ) {
             process.stderr.write(
-                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                'usage: prism-tool setup adapter select --adapter=ID ' +
+                '[--catalogue-digest=SHA256] --source=template|blank ' +
                 '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
         }
         const adapterId = adapters[0].slice('--adapter='.length);
         if (
-            !['core-only', 'php-web'].includes(adapterId) ||
-            (adapterId === 'core-only' && networks.length !== 0) ||
-            (adapterId === 'php-web' && networks.length !== 1)
+            !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(adapterId) ||
+            (adapterId === 'core-only' && (networks.length !== 0 || digests.length !== 0)) ||
+            (adapterId !== 'core-only' && (
+                networks.length !== 1 ||
+                digests.length !== 1 ||
+                !/^[0-9a-f]{64}$/.test(digests[0].slice('--catalogue-digest='.length))
+            ))
         ) {
             process.stderr.write(
-                'usage: prism-tool setup adapter select --adapter=ID --source=template|blank ' +
+                'usage: prism-tool setup adapter select --adapter=ID ' +
+                '[--catalogue-digest=SHA256] --source=template|blank ' +
                 '[--network-approved=yes] [--json]\n'
             );
             return EXIT.USAGE;
@@ -1217,17 +1221,21 @@ function setup(args, context) {
                 report = selectCoreOnlyAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                    catalogue: context.adapterCatalogue,
                     source,
                 });
             } else {
                 report = provisionBootstrapAdapter({
                     projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
                     coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-                    catalogue: context.adapterCatalogue,
+                    catalogueDigest: digests[0].slice('--catalogue-digest='.length),
                     adapterId,
                     source,
                     networkApproved: networks[0] === '--network-approved=yes',
+                    catalogueCachePath: context.catalogueCachePath,
+                    catalogueTrust: context.catalogueTrust,
+                    catalogueContext: context,
+                    now: context.now,
+                    env: context.env ?? process.env,
                     piExecutable: context.piExecutable ?? resolveExecutable(
                         'pi',
                         context.env ?? process.env

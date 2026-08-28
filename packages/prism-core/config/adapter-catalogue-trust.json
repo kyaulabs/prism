@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "keys": [
+    {
+      "id": "kyaulabs-prism-adapters-2026-01",
+      "algorithm": "Ed25519",
+      "publicKeySpki": "MCowBQYDK2VwAyEA+DVF3+MsLiezlKiBQeWFO1N7Q23ZhdevEfZoWJrtww4=",
+      "sha256": "74679d283825c4e6048efdfd1c96cdcd688ce5e12915fcc13a8547c3443c1e34"
+    }
+  ]
+}

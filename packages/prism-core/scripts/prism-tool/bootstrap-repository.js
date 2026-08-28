@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-repository.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-repository.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -15,6 +15,10 @@ function sha256(value) {
 
 function output(result) {
     return Buffer.isBuffer(result.stdout) ? result.stdout.toString('utf8') : result.stdout ?? '';
+}
+
+function nullableRecord(value) {
+    return value === null ? null : Object.freeze({...value});
 }
 
 function invoke(runGit, projectRoot, env, args) {
@@ -228,6 +232,8 @@ function createBootstrapRepository({
             })]),
             data: Object.freeze({
                 attempt: Object.freeze({id: attemptId}),
+                adapter: nullableRecord(journal.adapter),
+                adapterEvidence: nullableRecord(journal.adapterEvidence),
                 planDigest,
                 repository,
                 resumePhase: journal.resumePhase,
@@ -305,6 +311,8 @@ function createBootstrapRepository({
             })]),
             data: Object.freeze({
                 attempt: Object.freeze({id: attemptId}),
+                adapter: nullableRecord(journal.adapter),
+                adapterEvidence: nullableRecord(journal.adapterEvidence),
                 planDigest,
                 repository,
                 resumePhase: 'HOOK_ACTIVATION',
@@ -369,6 +377,8 @@ function createBootstrapRepository({
             })]),
             data: Object.freeze({
                 attempt: Object.freeze({id: attemptId}),
+                adapter: nullableRecord(journal.adapter),
+                adapterEvidence: nullableRecord(journal.adapterEvidence),
                 planDigest,
                 repository,
                 resumePhase: 'HOOK_ACTIVATION',

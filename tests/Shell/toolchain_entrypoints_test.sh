@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -67,16 +67,19 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=b
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --source=cancel --json' 'setup validates Cancel routing through the launcher'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*schema|unknown.*disposition|fail closed' 'setup fails closed on unknown route reports'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel.*no template access|Cancel.*template access.*package acquisition.*project mutation' 'Cancel forbids bootstrap effects'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter catalogue --json' 'strict-empty setup reads the Core adapter catalogue'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose the bootstrap adapter: Core only, PHP/web, or Cancel[?]' 'strict-empty setup offers Core-only'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'setup adapter catalogue --network-approved=yes --json' 'strict-empty setup authorizes signed catalogue retrieval'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'catalogue-digest=' 'strict-empty adapter selection binds the displayed catalogue'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'raw.githubusercontent.com/kyaulabs/prism-adapters/main/catalogue.json' 'setup discloses the fixed catalogue origin'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'verified global cache' 'setup discloses its persistent cache effect'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose the bootstrap adapter: Core only, .*or Cancel[?]' 'strict-empty setup asks one question over all signed choices'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'PHP/web' 'strict-empty setup offers the PHP/web adapter'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=core-only --source=' 'strict-empty setup records Core-only without acquisition'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=php-web --source=.*--network-approved=yes' 'strict-empty setup obtains explicit registry approval for adapter acquisition'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter select --adapter=<id> --catalogue-digest=.*--source=.*--network-approved=yes' 'strict-empty setup obtains explicit registry approval for adapter acquisition'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'unknown.*adapter.*schema|unknown.*adapter.*disposition|adapter.*fail closed' 'strict-empty setup fails closed on unknown adapter reports'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'exact displayed package.*version|displayed.*exact package.*version' 'strict-empty setup displays the exact package and version'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'exact compatible releases|compatible adapter.*exact selected release|exact displayed package.*version|displayed.*exact package.*version' 'strict-empty setup displays every exact compatible release'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'No second adapter-installation question|no redundant.*install' 'strict-empty adapter selection is the installation authorization'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup adapter cleanup --attempt=' 'strict-empty setup cleans provisional adapter state on stop'
-assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--package=|setup adapter select.*--version=|setup adapter select.*--url=' 'strict-empty setup accepts no caller package authority'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'setup adapter select.*--package=|setup adapter select.*--version=|setup adapter select.*--integrity=|setup adapter select.*--url=' 'strict-empty setup accepts no caller release authority'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup source --source=.*--adapter=' 'strict-empty setup inspects the selected source after adapter selection'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Choose optional project capabilities.*none' 'strict-empty setup leaves every optional capability disabled by default'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project metadata --source=' 'strict-empty setup obtains selected metadata fields from the launcher'
@@ -110,7 +113,7 @@ awk '/^## Strict-empty continuation and recovery$/ { active=1 } /^## 1[.] Pre-fl
     "$CORE_PROMPTS/setup.md" > "$SETUP_CONTINUATION_SECTION"
 
 setup_source_choice_line=$({ grep -niF 'Choose the strict-empty setup source' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
-setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --json' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
+setup_adapter_catalogue_line=$({ grep -niF 'prism-tool setup adapter catalogue --network-approved=yes --json' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
 setup_adapter_question_line=$({ grep -niF 'Choose the bootstrap adapter' "$SETUP_ENTRY_SECTION" || true; } | cut -d: -f1 | head -1)
 if [ -n "$setup_source_choice_line" ] && [ -n "$setup_adapter_catalogue_line" ] \
     && [ -n "$setup_adapter_question_line" ] \
