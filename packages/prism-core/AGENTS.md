@@ -162,6 +162,11 @@ discontinuity, malformed state, incomplete axes, or mismatched HEAD invalidate
 the chain and require the next approved review to be a new complete initial
 review. `/pr` remains preparation-only; humans push and mutate GitHub.
 
+A standalone `/pr` invocation may authorize one complete initial review only
+when deterministic preflight classifies the review chain as absent. Invalid
+review chain evidence continues to fail closed. A failed or second review
+requires fresh explicit approval. `/pr` remains preparation-only.
+
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
 `ADR-required:` line. The ticketing skill (`/issue`) checks this line before
@@ -324,7 +329,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/prime` | Draft or regenerate `CONTEXT.md` from the codebase |
 | `/check` | Pre-push gate — language-agnostic checks, then delegates to the active adapter's stack gate (e.g. `/check-php`) |
 | `/release` | Prepare a git-cliff changelog and release-branch PR; CI tags, publishes the GitHub Release, and opens the back-merge PR |
-| `/pr` | Prepare a conventional title, template-complete body, and human-run `gh pr create` command for a verified work branch; never creates the PR |
+| `/pr` | Recover an absent initial review chain, then prepare a conventional title, template-complete body, and human-run `gh pr create` command; never creates the PR |
 | `/router` | Route free-form user intent to the right entry point (on-ramp, skill, or fast-path) |
 | `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |

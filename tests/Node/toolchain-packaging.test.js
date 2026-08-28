@@ -306,6 +306,9 @@ test('documents human npm publication for managed lockstep package releases', ()
 
 test('documents bounded diff-causal review chains', () => {
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const publicReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+    const harnessDocs = fs.readFileSync(path.join(root, 'CODING_HARNESS.md'), 'utf8');
+    const agents = fs.readFileSync(path.join(CORE_PKG, 'AGENTS.md'), 'utf8');
     const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 
     assert.match(coreReadme, /review chain/i);
@@ -314,6 +317,11 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /all four axes/i);
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
+    for (const document of [coreReadme, publicReadme, harnessDocs, agents]) {
+        assert.match(document, /standalone `?\/pr`?.*one complete initial review.*absent/is);
+        assert.match(document, /invalid.*review chain.*fail closed/is);
+        assert.match(document, /second review.*fresh explicit approval/is);
+    }
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });
 

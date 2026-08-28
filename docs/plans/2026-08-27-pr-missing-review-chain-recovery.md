@@ -357,7 +357,7 @@ prism-tool commit create --type fix --scope pr --subject "recover missing review
 - Consumes: ADR-0093 and the Task 2 prompt behavior
 - Produces: one consistent absent-only recovery contract across maintained guidance
 
-- [ ] **Step 1: Add the failing documentation test**
+- [x] **Step 1: Add the failing documentation test**
 
 Extend `documents bounded diff-causal review chains` in `tests/Node/toolchain-packaging.test.js` while preserving its existing assertions:
 
@@ -375,13 +375,13 @@ Extend `documents bounded diff-causal review chains` in `tests/Node/toolchain-pa
     }
 ```
 
-- [ ] **Step 2: Run the documentation test to verify Red**
+- [x] **Step 2: Run the documentation test to verify Red**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because maintained guidance lacks ADR-0093 behavior.
 
-- [ ] **Step 3: Update maintained guidance**
+- [x] **Step 3: Update maintained guidance**
 
 Add this policy, adapted to each document's surrounding prose without changing its meaning:
 
@@ -396,7 +396,7 @@ Update the `/pr` command-table descriptions in `README.md` and
 `packages/prism-core/AGENTS.md` to mention absent-chain recovery without
 implying publication or GitHub mutation.
 
-- [ ] **Step 4: Run the focused documentation and workflow tests**
+- [x] **Step 4: Run the focused documentation and workflow tests**
 
 Run: `node --test tests/Node/toolchain-packaging.test.js`
 
@@ -414,7 +414,7 @@ Run: `node --test tests/Node/prism-tool-pr.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 Stage the four documents and `tests/Node/toolchain-packaging.test.js`, then load `conventional-commits` and run this as a standalone tool call:
 

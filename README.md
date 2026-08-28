@@ -149,7 +149,7 @@ or create pull requests.
 | `/research` | Produce cited research through bounded web-access tools |
 | `/improve-architecture` | Report structural improvement opportunities |
 | `/release` | Prepare a release branch, changelog, and human publication steps |
-| `/pr` | Prepare a conventional title, complete body, and human-run `gh pr create` command |
+| `/pr` | Recover an absent initial review chain, then prepare a conventional title, complete body, and human-run `gh pr create` command |
 | `/handoff` | Save bounded continuation context for another session |
 | `/teach` | Explain completed work at the requested level |
 
@@ -223,6 +223,11 @@ after repair. The next review covers only the continuous repair delta when the
 review chain remains valid. Advisory findings do not block `/pr`; they remain
 visible for disclosure. Blocking findings, missing axes, a dirty tree, a HEAD
 mismatch, or base or history changes stop preparation.
+
+A standalone `/pr` invocation may authorize one complete initial review only
+when deterministic preflight classifies the review chain as absent. Invalid
+review chain evidence continues to fail closed. A failed or second review
+requires fresh explicit approval. `/pr` remains preparation-only.
 
 `/release` authors the release branch and changelog. After the release PR merges,
 CI creates the repository tag and GitHub Release, reconciles package tags, and
