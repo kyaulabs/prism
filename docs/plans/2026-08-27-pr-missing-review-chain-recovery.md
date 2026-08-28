@@ -37,7 +37,7 @@
 - Produces: existing attestation fields plus `REVIEW_CHAIN\tVALID` or `REVIEW_CHAIN\tABSENT`
 - Preserves: strict `prism-tool pr preflight`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add these complete observable cases to `tests/Node/prism-tool-pr.test.js`:
 
@@ -105,13 +105,13 @@ test('pr review-preflight rejects unusable present review-chain evidence', () =>
 
 Keep the existing strict-preflight rejection test to prove that absent or invalid evidence remains fatal there.
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js`
 
 Expected: FAIL because `review-preflight` is not a supported command.
 
-- [ ] **Step 3: Implement the shared preflight mode**
+- [x] **Step 3: Implement the shared preflight mode**
 
 Update the review-chain imports and command dispatch in `packages/prism-core/scripts/prism-tool/pr.js`:
 
@@ -194,13 +194,13 @@ Replace the output field tail with:
     }
 ```
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 Stage `packages/prism-core/scripts/prism-tool/pr.js` and `tests/Node/prism-tool-pr.test.js`, then load `conventional-commits` and run this as a standalone tool call:
 
