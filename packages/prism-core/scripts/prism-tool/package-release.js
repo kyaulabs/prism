@@ -1,16 +1,18 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const semver = require('semver');
 
+const ADAPTER_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const PACKAGE_NAME = /^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\/)?[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
 const RELEASE_VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)(?:\.(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const MAX_JSON_BYTES = 1048576;
 const MANAGED_BY = '@kyaulabs/prism-core';
-const RELEASE_SCHEMA_VERSION = 1;
+const RELEASE_SCHEMA_VERSION = 2;
 const CONFIG_PATH = '.prism/release.json';
 const WORKFLOW_PATH = '.github/workflows/release.yml';
 const WORKFLOW_MARKER = '# prism-managed: @kyaulabs/prism-core';
@@ -165,7 +167,7 @@ function normalizePackageDirectory(projectRoot, value) {
     return {directory: lexical, identity: fs.lstatSync(lexical), normalized};
 }
 
-function packageRecord(projectRoot, relativeDirectory, rejectPrivate = false) {
+function packageRecord(projectRoot, relativeDirectory, rejectPrivate = false, includeAdapter = false) {
     const {directory, identity, normalized} = normalizePackageDirectory(projectRoot, relativeDirectory);
     const held = holdAnchoredDirectory(projectRoot, directory, directory, identity);
     let manifest;
@@ -193,12 +195,18 @@ function packageRecord(projectRoot, relativeDirectory, rejectPrivate = false) {
     if (typeof manifest.version !== 'string' || !RELEASE_VERSION.test(manifest.version)) {
         throw new Error(`package ${relativeDirectory} has an invalid version`);
     }
-    return {
+    const record = {
         name: manifest.name,
         path: normalized,
         version: manifest.version,
         tagPrefix: packageTagPrefix(manifest.name),
     };
+    if (includeAdapter) {
+        record.adapter = manifest.prism?.adapter === true
+            ? {bootstrapProtocol: manifest.prism.bootstrapProtocol}
+            : null;
+    }
+    return record;
 }
 
 function workspacePatterns(rootManifest) {
@@ -237,10 +245,60 @@ function validateConfiguredPackages({projectRoot, packagePaths}) {
     );
 }
 
+function validateAdapterReleases({projectRoot, records, value}) {
+    if (!Array.isArray(value) || value.length > 64) {
+        throw new Error('adapter release declarations are invalid');
+    }
+    const packages = new Map(records.map((record) => [record.path, record]));
+    const declaredPackages = new Set();
+    const identifiers = new Set();
+    return value.map((entry) => {
+        if (
+            entry === null ||
+            typeof entry !== 'object' ||
+            Array.isArray(entry) ||
+            Object.keys(entry).sort().join(',') !==
+                'bootstrapProtocol,coreRange,displayName,id,package,status' ||
+            !packages.has(entry.package) ||
+            declaredPackages.has(entry.package) ||
+            typeof entry.id !== 'string' ||
+            !ADAPTER_ID.test(entry.id) ||
+            identifiers.has(entry.id) ||
+            typeof entry.displayName !== 'string' ||
+            entry.displayName.length === 0 ||
+            entry.displayName.length > 120 ||
+            entry.displayName !== entry.displayName.trim() ||
+            hasControl(entry.displayName) ||
+            typeof entry.coreRange !== 'string' ||
+            semver.validRange(entry.coreRange) !== entry.coreRange ||
+            !Number.isSafeInteger(entry.bootstrapProtocol) ||
+            entry.bootstrapProtocol <= 0 ||
+            !['ACTIVE', 'REVOKED'].includes(entry.status)
+        ) {
+            throw new Error('adapter release declarations are invalid');
+        }
+        const packageRecordWithAdapter = packageRecord(
+            fs.realpathSync(projectRoot),
+            entry.package,
+            true,
+            true
+        );
+        if (
+            packageRecordWithAdapter.adapter === null ||
+            packageRecordWithAdapter.adapter.bootstrapProtocol !== entry.bootstrapProtocol
+        ) {
+            throw new Error('adapter release declarations are invalid');
+        }
+        declaredPackages.add(entry.package);
+        identifiers.add(entry.id);
+        return {...entry};
+    });
+}
+
 function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     if (managedFileEntry(canonicalProject, CONFIG_PATH) === undefined) {
-        return {kind: 'ABSENT', packages: []};
+        return {kind: 'ABSENT', packages: [], adapterReleases: []};
     }
     const value = parseJsonObject(
         readManagedFile(canonicalProject, CONFIG_PATH, 'release configuration'),
@@ -248,28 +306,50 @@ function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
     );
     const keys = Object.keys(value).sort();
     let kind;
+    let adapterReleases = [];
     if (
-        keys.join(',') === 'managedBy,packages,schemaVersion,versionPolicy' &&
+        keys.join(',') ===
+            'adapterReleases,managedBy,packages,schemaVersion,versionPolicy' &&
         value.schemaVersion === RELEASE_SCHEMA_VERSION &&
         value.managedBy === MANAGED_BY &&
         value.versionPolicy === 'lockstep'
     ) {
         kind = 'MANAGED';
+    } else if (
+        allowLegacy &&
+        keys.join(',') === 'managedBy,packages,schemaVersion,versionPolicy' &&
+        value.schemaVersion === 1 &&
+        value.managedBy === MANAGED_BY &&
+        value.versionPolicy === 'lockstep'
+    ) {
+        kind = 'LEGACY';
     } else if (allowLegacy && keys.join(',') === 'packages') {
         kind = 'LEGACY';
     } else {
         throw new Error('release configuration schema is invalid');
     }
     const records = validateConfiguredPackages({projectRoot, packagePaths: value.packages});
-    return {kind, packages: records.map(({path: packagePath}) => packagePath)};
+    if (kind === 'MANAGED') {
+        adapterReleases = validateAdapterReleases({
+            projectRoot,
+            records,
+            value: value.adapterReleases,
+        });
+    }
+    return {
+        kind,
+        packages: records.map(({path: packagePath}) => packagePath),
+        adapterReleases,
+    };
 }
 
-function renderManagedConfiguration(candidates) {
+function renderManagedConfiguration(candidates, adapterReleases = []) {
     return `${JSON.stringify({
         schemaVersion: RELEASE_SCHEMA_VERSION,
         managedBy: MANAGED_BY,
         versionPolicy: 'lockstep',
         packages: candidates.map(({path: packagePath}) => packagePath),
+        adapterReleases,
     }, null, 2)}\n`;
 }
 

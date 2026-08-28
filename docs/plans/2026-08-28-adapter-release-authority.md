@@ -95,7 +95,7 @@ Expected: one signed commit containing no implementation code.
 - Consumes: package candidates from `discoverReleasePackages({projectRoot})` and managed release JSON.
 - Produces: `loadReleaseConfiguration({projectRoot, allowLegacy}) -> {kind, packages, adapterReleases}` and `renderManagedConfiguration(candidates, adapterReleases = []) -> string`.
 
-- [ ] **Step 1: Write failing parser and renderer tests**
+- [x] **Step 1: Write failing parser and renderer tests**
 
 Add focused tests asserting:
 
@@ -113,7 +113,7 @@ const declaration = {
 The Red assertions must cover:
 
 1. schema 2 loads and returns the frozen/normalized declaration;
-2. rendering emits root keys in canonical JSON order with `adapterReleases` first;
+2. rendering emits root keys in canonical JSON order with `adapterReleases` after `packages`;
 3. package name/version are absent from rendered declaration data;
 4. schema 1 is rejected normally but accepted as migration input when `allowLegacy` is true, returning `adapterReleases: []`;
 5. exact packages-only recovery remains accepted only with `allowLegacy`;
@@ -132,7 +132,7 @@ Use a fixture adapter manifest containing:
 }
 ```
 
-- [ ] **Step 2: Run the focused test to verify Red**
+- [x] **Step 2: Run the focused test to verify Red**
 
 Run:
 
@@ -142,7 +142,7 @@ node --test tests/Node/prism-tool-package-release-discovery.test.js
 
 Expected: FAIL because schema version 2 and `adapterReleases` are unsupported.
 
-- [ ] **Step 3: Implement the minimal closed schema**
+- [x] **Step 3: Implement the minimal closed schema**
 
 In `package-release.js`:
 
@@ -171,7 +171,7 @@ The normalized entry interface is exactly:
 
 Do not add package name, version, URL, integrity, timestamp, command, credential, sequence, or signing fields.
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run:
 
@@ -181,7 +181,7 @@ node --test tests/Node/prism-tool-package-release-discovery.test.js
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the schema commit**
+- [x] **Step 5: Create the schema commit**
 
 Load `conventional-commits`, stage the two listed paths, and run this as the only tool call in its assistant batch:
 
