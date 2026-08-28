@@ -272,7 +272,7 @@ prism-tool commit create --type fix --scope setup --subject "preserve adapter re
 - Consumes: confirmed repository release version and schema-2 configuration.
 - Produces: a reviewed release commit whose PHP/web declaration remains structurally valid and whose package version equals the repository version.
 
-- [ ] **Step 1: Write failing release-authoring contract tests**
+- [x] **Step 1: Write failing release-authoring contract tests**
 
 Update the shell drift guard to require this repository declaration:
 
@@ -289,7 +289,7 @@ Update the shell drift guard to require this repository declaration:
 
 Add extracted authoring-contract cases that reject unknown declaration fields, unmanaged packages, package protocol disagreement, malformed ranges, and declaration/package version disagreement after lockstep version authoring.
 
-- [ ] **Step 2: Run the shell test to verify Red**
+- [x] **Step 2: Run the shell test to verify Red**
 
 Run:
 
@@ -299,13 +299,13 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: FAIL because the repository configuration and release prompt still require schema 1.
 
-- [ ] **Step 3: Update repository policy and release authoring**
+- [x] **Step 3: Update repository policy and release authoring**
 
 Change `.prism/release.json` to schema 2 with the exact declaration above.
 
 Update `/release` guidance to require the closed schema-2 shape before package mutation, validate every declaration against its package manifest, and revalidate after lockstep version updates. The release command must not rewrite compatibility, infer a range, or add registry/signing evidence. It stages the already reviewed configuration only when the release branch changes it deliberately.
 
-- [ ] **Step 4: Run focused tests to verify Green**
+- [x] **Step 4: Run focused tests to verify Green**
 
 Run:
 
@@ -315,7 +315,7 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the authoring commit**
+- [x] **Step 5: Create the authoring commit**
 
 Load `conventional-commits`, stage the three listed paths, and run this as the only tool call in its assistant batch:
 

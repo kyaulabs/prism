@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -558,11 +558,25 @@ fi
 
 PKG_CONFIG="$REPO_ROOT/.prism/release.json"
 if [ -f "$PKG_CONFIG" ] && \
-   jq -e '.schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and .packages == ["packages/prism-core", "packages/prism-php-web"]' "$PKG_CONFIG" >/dev/null && \
-   [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "managedBy,packages,schemaVersion,versionPolicy" ]; then
-	pass "9c: .prism/release.json is the exact owned lockstep configuration"
+   jq -e '
+	.schemaVersion == 2 and
+	.managedBy == "@kyaulabs/prism-core" and
+	.versionPolicy == "lockstep" and
+	.packages == ["packages/prism-core", "packages/prism-php-web"] and
+	.adapterReleases == [{
+		"package": "packages/prism-php-web",
+		"id": "php-web",
+		"displayName": "PHP/web",
+		"coreRange": ">=0.4.1 <0.5.0",
+		"bootstrapProtocol": 1,
+		"status": "ACTIVE"
+	}]
+   ' "$PKG_CONFIG" >/dev/null && \
+   [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "adapterReleases,managedBy,packages,schemaVersion,versionPolicy" ] && \
+   [ "$(jq -r '.adapterReleases[0] | keys | sort | join(",")' "$PKG_CONFIG")" = "bootstrapProtocol,coreRange,displayName,id,package,status" ]; then
+	pass "9c: .prism/release.json is the exact owned schema-2 lockstep configuration"
 else
-	fail "9c: .prism/release.json is not the exact owned lockstep configuration"
+	fail "9c: .prism/release.json is not the exact owned schema-2 lockstep configuration"
 fi
 
 prepare_line=$(grep -nF -- '- name: Prepare package release metadata' "$RELEASE_FILE" | cut -d: -f1)
@@ -1308,6 +1322,32 @@ if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
 	pass "P23: /release authors every configured package at the repository version"
 else
 	fail "P23: /release retains independent package versions or lacks lockstep authoring"
+fi
+
+# ── P23a. Adapter declarations remain reviewed release authority ───────────
+
+release_authoring_section=$(awk '
+	/^## Author configured package versions in lockstep$/ { capture = 1 }
+	/^## Commit the changelog$/ { capture = 0 }
+	capture
+' "$RELEASE_CMD")
+if grep -qF '"schemaVersion": 2' <<< "$release_authoring_section" && \
+   grep -qF '"adapterReleases"' <<< "$release_authoring_section" && \
+   grep -qF 'unknown declaration fields' <<< "$release_authoring_section" && \
+   grep -qF 'release-managed public package' <<< "$release_authoring_section" && \
+   grep -qF 'malformed ranges' <<< "$release_authoring_section" && \
+   grep -qF 'unmanaged declaration packages' <<< "$release_authoring_section" && \
+   grep -qF 'protocol disagreement' <<< "$release_authoring_section" && \
+   grep -qF 'declaration/package version disagreement' <<< "$release_authoring_section" && \
+   grep -qF 'prism.adapter' <<< "$release_authoring_section" && \
+   grep -qF 'bootstrapProtocol' <<< "$release_authoring_section" && \
+   grep -qF 'coreRange' <<< "$release_authoring_section" && \
+   grep -qF 'revalidate' <<< "$release_authoring_section" && \
+   grep -qF 'must not rewrite compatibility' <<< "$release_authoring_section" && \
+   grep -qF 'version to equal the exact confirmed `X.Y.Z`' <<< "$release_authoring_section"; then
+	pass "P23a: /release validates closed reviewed adapter declarations before and after lockstep authoring"
+else
+	fail "P23a: /release does not preserve reviewed adapter declaration authority"
 fi
 
 # ── P24. Every configured package gets one inert human publish command ───────
