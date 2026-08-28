@@ -340,7 +340,7 @@ prism-tool commit create --type fix --scope release --subject "author reviewed a
 - Consumes: immutable checked-out release merge, schema-2 release config, validated package manifests, and repository release version.
 - Produces: bounded inert adapter release evidence for Task #464's later dispatch work; this task performs no cross-repository dispatch.
 
-- [ ] **Step 1: Write failing workflow tests**
+- [x] **Step 1: Write failing workflow tests**
 
 Extend workflow tests to require:
 
@@ -354,7 +354,7 @@ Extend workflow tests to require:
 - malformed/unknown/duplicate declaration cases fail before repository publication;
 - packaged workflow bytes remain exact.
 
-- [ ] **Step 2: Run focused tests to verify Red**
+- [x] **Step 2: Run focused tests to verify Red**
 
 Run:
 
@@ -370,19 +370,19 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL because workflow 1 neither accepts nor emits declaration evidence.
 
-- [ ] **Step 3: Implement immutable-merge revalidation**
+- [x] **Step 3: Implement immutable-merge revalidation**
 
 In the canonical workflow, extend package metadata preparation to parse schema 2, validate the closed declaration against the already validated package TSV/manifests, and write one bounded local JSON evidence document. Preserve repository-first release publication, package-tag reconciliation, independent back-merge behavior, permissions, no npm publication, and no cross-repository call.
 
 Copy canonical workflow bytes to the repository-owned workflow through the normal Core-owned parity update. Update catalogue documentation to identify the release declaration as compatibility authority while preserving publisher verification and signing ownership.
 
-- [ ] **Step 4: Run focused tests to verify Green**
+- [x] **Step 4: Run focused tests to verify Green**
 
 Run both focused commands from Step 2.
 
 Expected: PASS.
 
-- [ ] **Step 5: Run issue-level verification**
+- [x] **Step 5: Run issue-level verification**
 
 Load `verification-before-completion`, then run the semantic feedback loop from the investigation. Expected: `PASS: adapter compatibility declaration is present`.
 
@@ -400,7 +400,7 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: all focused tests pass.
 
-- [ ] **Step 6: Create the terminal implementation commit**
+- [x] **Step 6: Create the terminal implementation commit**
 
 Load `conventional-commits`, stage the five listed paths, and run this as the only tool call in its assistant batch:
 
