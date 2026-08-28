@@ -277,6 +277,7 @@ module.exports = {
     CatalogueError,
     loadCatalogueTrust,
     selectCompatibleAdapters,
+    validIntegrity,
     validateCataloguePayload,
     verifyCatalogueEnvelope,
 };

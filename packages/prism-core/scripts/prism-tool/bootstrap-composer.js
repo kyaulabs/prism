@@ -5,10 +5,10 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {validIntegrity} = require('./adapter-catalogue-validation');
 
 const DIGEST = /^[0-9a-f]{64}$/;
 const KEY_ID = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,79})$/;
-const INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const UTC_TIMESTAMP = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z$/;
 const MAX_FILE_BYTES = 1048576;
 
@@ -51,8 +51,7 @@ function validateAdapterEvidence(value) {
         typeof value.keyId !== 'string' || !KEY_ID.test(value.keyId) ||
         !validUtcTimestamp(value.issuedAt) || !validUtcTimestamp(value.expiresAt) ||
         !validUtcTimestamp(value.selectedAt) || !DIGEST.test(value.envelopeDigest) ||
-        !DIGEST.test(value.payloadDigest) || typeof value.integrity !== 'string' ||
-        value.integrity.length > 256 || !INTEGRITY.test(value.integrity)) {
+        !DIGEST.test(value.payloadDigest) || !validIntegrity(value.integrity)) {
         throw new Error('bootstrap adapter evidence is invalid');
     }
     const issuedAt = new Date(value.issuedAt).getTime();

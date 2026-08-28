@@ -18,6 +18,9 @@ const {
     validateBootstrapProjectPlan,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-plan');
 const {
+    validateAdapterEvidence,
+} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-composer');
+const {
     applyBootstrapProject,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-transaction');
 const {renderCoreBaseline} = require(
@@ -157,6 +160,16 @@ test.after(() => {
     if (signedAdapterFixture !== undefined) {
         fs.rmSync(signedAdapterFixture.coreRoot, {recursive: true, force: true});
     }
+});
+
+test('rejects durable adapter evidence without an exact SHA-512 digest', () => {
+    assert.throws(
+        () => validateAdapterEvidence({
+            ...loadSignedAdapterFixture().evidence,
+            integrity: 'sha512-A',
+        }),
+        /bootstrap adapter evidence is invalid/
+    );
 });
 
 function coreRootFor(projectRoot, fallback = CORE_ROOT) {
