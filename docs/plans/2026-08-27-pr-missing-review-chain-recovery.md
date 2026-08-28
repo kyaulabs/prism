@@ -224,7 +224,7 @@ prism-tool commit create --type fix --scope pr --subject "distinguish absent rev
 - Consumes: existing `code-review` skill
 - Produces: strict post-review `prism-tool pr preflight`
 
-- [ ] **Step 1: Add failing prompt-contract tests**
+- [x] **Step 1: Add failing prompt-contract tests**
 
 Add these assertions to `tests/Shell/pr_command_test.sh`:
 
@@ -250,7 +250,7 @@ assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr review-preflight' \
     'pr delegates review readiness to the launcher'
 ```
 
-- [ ] **Step 2: Run the contract tests to verify Red**
+- [x] **Step 2: Run the contract tests to verify Red**
 
 Run: `bash tests/Shell/pr_command_test.sh`
 
@@ -260,7 +260,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: FAIL because the prompt does not call `review-preflight`.
 
-- [ ] **Step 3: Implement the prompt recovery flow**
+- [x] **Step 3: Implement the prompt recovery flow**
 
 Replace the initial strict-only preflight section of `packages/prism-core/prompts/pr.md` with these stages:
 
@@ -322,7 +322,7 @@ Move the existing authorized-finalization checks beneath that strict gate,
 renumber later workflow sections, and retain the final strict-preflight rerun
 immediately before artifact output.
 
-- [ ] **Step 4: Run the contract tests to verify Green**
+- [x] **Step 4: Run the contract tests to verify Green**
 
 Run: `bash tests/Shell/pr_command_test.sh`
 
@@ -332,7 +332,7 @@ Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
 Expected: PASS.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 Stage the prompt and both shell tests, then load `conventional-commits` and run this as a standalone tool call:
 

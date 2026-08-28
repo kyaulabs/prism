@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 # $KYAULabs$
 
@@ -20,6 +20,7 @@ TEST_BIN="$WORK_DIR/bin"
 mkdir -p "$TEST_BIN"
 ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" "$TEST_BIN/prism-tool"
 TOOLCHAIN_PATH="$TEST_BIN:$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
+REVIEW_PREFLIGHT_SCRIPT="$WORK_DIR/review_preflight.sh"
 PREFLIGHT_SCRIPT="$WORK_DIR/preflight.sh"
 TITLE_SCRIPT="$WORK_DIR/title_validation.sh"
 
@@ -245,6 +246,12 @@ assert_contains "$COMMAND_FILE" 'Never push' 'command is preparation-only'
 
 # ── 4. marked blocks extract to non-empty executable scripts ────────────────
 
+extract_marked_block "$COMMAND_FILE" '<!-- pr-review-preflight:start -->' '<!-- pr-review-preflight:end -->' "$REVIEW_PREFLIGHT_SCRIPT"
+if [ -s "$REVIEW_PREFLIGHT_SCRIPT" ] && [ -x "$REVIEW_PREFLIGHT_SCRIPT" ] && bash -n "$REVIEW_PREFLIGHT_SCRIPT" 2>/dev/null; then
+	pass 'review-preflight block extracts to a non-empty executable script'
+else
+	fail 'review-preflight block did not extract to a valid script'
+fi
 extract_marked_block "$COMMAND_FILE" '<!-- pr-preflight:start -->' '<!-- pr-preflight:end -->' "$PREFLIGHT_SCRIPT"
 if [ -s "$PREFLIGHT_SCRIPT" ] && [ -x "$PREFLIGHT_SCRIPT" ] && bash -n "$PREFLIGHT_SCRIPT" 2>/dev/null; then
 	pass 'preflight block extracts to a non-empty executable script'
@@ -600,6 +607,25 @@ fi
 
 # ── 15. accepted-finalization evidence contract ─────────────────────────────
 
+assert_contains "$COMMAND_FILE" 'prism-tool pr review-preflight' \
+	'pr probes review-chain state before strict preflight'
+review_probe_line=$(grep -nF 'prism-tool pr review-preflight' "$COMMAND_FILE" | head -1 | cut -d: -f1)
+strict_preflight_line=$(grep -nF 'prism-tool pr preflight' "$COMMAND_FILE" | head -1 | cut -d: -f1)
+if [ "$review_probe_line" -lt "$strict_preflight_line" ]; then
+	pass 'review-chain probe precedes strict preflight'
+else
+	fail 'review-chain probe does not precede strict preflight'
+fi
+assert_contains "$COMMAND_FILE" 'authorizes one complete initial four-axis review' \
+	'pr invocation authorizes one absent-chain review'
+assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN=ABSENT' \
+	'pr recognizes only an absent chain as recoverable'
+assert_contains "$COMMAND_FILE" 'Load the `code-review` skill' \
+	'pr delegates missing-chain review to code-review'
+assert_contains "$COMMAND_FILE" 'does not authorize repairs or a second review' \
+	'pr forbids automatic review retries'
+assert_contains "$COMMAND_FILE" 'Strict `prism-tool pr preflight`' \
+	'pr reruns strict preflight after review'
 assert_contains "$COMMAND_FILE" 'active finalization authorization' \
 	'command requires evidence from the active authorized finalization path'
 assert_contains "$COMMAND_FILE" 'valid review chain ending at the attested HEAD' \
