@@ -7,7 +7,7 @@ const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const {makeTempDir} = require('./helpers');
+const {createSignedAdapterSelection, makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
@@ -60,23 +60,18 @@ test('keeps every optional capability disabled by default', (t) => {
 test('reports selected adapter metadata fields without changing provisional state', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    const provisioned = captureWrites(() => main([
-        'setup', 'adapter', 'select', '--adapter=php-web', '--source=blank',
-        '--network-approved=yes', '--json',
-    ], {
+    const selection = createSignedAdapterSelection({
+        t,
         projectRoot,
         coreRoot: CORE_ROOT,
-        piExecutable: '/usr/bin/pi',
-        randomUUID: () => ATTEMPT_ID,
-        run() {
-            fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
-            fs.writeFileSync(
-                path.join(projectRoot, '.pi', 'settings.json'),
-                `${JSON.stringify({packages: [ADAPTER_ROOT]}, null, 2)}\n`
-            );
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        },
-    }));
+        adapterRoot: ADAPTER_ROOT,
+        attemptId: ATTEMPT_ID,
+    });
+    const provisioned = captureWrites(() => main([
+        'setup', 'adapter', 'select', '--adapter=php-web',
+        `--catalogue-digest=${selection.digest}`, '--source=blank',
+        '--network-approved=yes', '--json',
+    ], selection.context));
     assert.equal(provisioned.status, 0, provisioned.stderr);
     const adapterPath = path.join(
         projectRoot, '.pi', 'prism-tool', 'bootstrap', ATTEMPT_ID, 'adapter.json'
@@ -87,7 +82,7 @@ test('reports selected adapter metadata fields without changing provisional stat
         'setup', 'project', 'metadata', '--source=blank',
         '--adapter=@kyaulabs/prism-php-web', `--attempt=${ATTEMPT_ID}`,
         '--capabilities=licensing', '--json',
-    ], {projectRoot, coreRoot: CORE_ROOT}));
+    ], {projectRoot, coreRoot: selection.context.coreRoot}));
 
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);

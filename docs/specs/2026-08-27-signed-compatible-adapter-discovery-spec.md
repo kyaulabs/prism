@@ -1,7 +1,7 @@
 # Spec: Signed Compatible Adapter Discovery
 
 **Date:** 2026-08-27
-**Status:** Draft
+**Status:** Implemented
 
 ## Problem Statement
 
@@ -26,11 +26,11 @@ version and bootstrap protocol, display the exact selection, install the exact
 npm coordinate, verify its identity and integrity, and pin it in project-local
 Pi settings.
 
-The selected release and signed catalogue evidence will enter the
-empty-project bootstrap transaction before adapter code loads. That immutable
-evidence will remain bound to provisional acquisition, project planning,
-durable application, recovery, and repository-seed attestation. Later phases
-will not depend on whichever catalogue happens to be newest at resume time.
+The selected release and receipt-local `catalogueEvidence` will enter the
+empty-project bootstrap transaction before adapter code loads. Its normalized
+nullable `adapterEvidence` subset will remain bound to project planning, durable
+application, recovery, and repository-seed attestation. Later phases will not
+depend on whichever catalogue happens to be newest at resume time.
 
 ## User Stories
 
@@ -174,17 +174,18 @@ it does not choose the release.
 ### Bootstrap evidence and recovery
 
 The provisional adapter receipt advances to schema version 2. It embeds the
-exact signed envelope and normalized selected release evidence. Selection time
-must fall within the envelope's signed validity period. Catalogue expiry after
-successful selection does not invalidate the attempt: resume reverifies the
-embedded signature and evidence instead of consulting the newest global cache.
+exact signed envelope and normalized receipt-local `catalogueEvidence`.
+Selection time must fall within the envelope's signed validity period.
+Catalogue expiry after successful selection does not invalidate the attempt:
+resume reverifies the embedded signature and evidence instead of consulting the
+newest global cache.
 
 The existing four-field adapter identity remains the interface supplied to
-adapter providers. A separate nullable adapter-evidence object carries the
+adapter providers. A separate nullable `adapterEvidence` object carries the
 catalogue identity, sequence, key ID, signed timestamps, envelope and payload
 digests, and selected npm integrity through the combined plan, journal, status,
 durable validation, and repository-seed attestation. Core-only uses null
-adapter evidence.
+`adapterEvidence`.
 
 Failures before adapter selection leave the strict-empty project root untouched.
 Failures after attempt creation use the existing ownership-proven cleanup of
@@ -254,7 +255,7 @@ script-suppression controls, exact settings and lock state, integrity mismatch,
 registration and handler mismatch, schema-2 receipts, tampering, cleanup, and
 resume after global-cache expiry. A Core checkout must still choose npm.
 
-Transaction tests cover nullable adapter evidence across planning, journaling,
+Transaction tests cover nullable `adapterEvidence` across planning, journaling,
 status, durable application, recovery, and seed attestation. They also cover
 legacy pre-durable cleanup, durable or ambiguous legacy preservation, and the
 rule that project rollback does not mutate the global cache.

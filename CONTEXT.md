@@ -53,7 +53,8 @@ documentation, and conversation.
 | project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
 | trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
 | supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
-| adapter selection evidence | Immutable evidence binding a strict-empty setup attempt to the verified supported-adapter catalogue digest, signing key, sequence, selected release identity, compatibility, and package integrity. It remains Core-owned and is not an adapter-provider input. |
+| catalogue evidence | Receipt-local signed evidence (`catalogueEvidence`) that binds a strict-empty adapter selection to the exact verified catalogue envelope, signing key, sequence, validity window, selected release, and package integrity. |
+| adapter evidence | The normalized nullable durable subset (`adapterEvidence`) carried through project plans, journals, status, recovery, and repository-seed attestation. It remains Core-owned and is never an adapter-provider or hook input. |
 | template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
 | testing-ready scaffold | An application-free, adapter-owned desired state containing audited native manifests and locks, canonical lint and test configuration, executable quality probes, local/CI parity, generated CI, and required empty source/test structure. |
 | user-authored visual brief | The versioned project record of approved visual intent, inspiration references, viewport priorities, and aesthetic decisions supplied by the user; Prism contributes no fallback palette, theme type, or design movement. |
@@ -205,9 +206,10 @@ The Core-owned outer project-composition lifecycle for a strictly empty root.
 - Trusted Core, optional-profile, and selected-adapter reports use closed
   schemas and non-overlapping bounded ownership before one digest-bound plan is
   displayed.
-- Adapter-selected attempts bind immutable adapter selection evidence into
-  provisional acquisition, the combined plan, durable recovery, and repository
-  seed; later phases do not depend on the newest global catalogue.
+- Adapter-selected attempts bind receipt-local catalogue evidence and durable
+  adapter evidence into provisional acquisition, the combined plan, recovery,
+  and the repository seed; later phases do not depend on the newest global
+  catalogue.
 - Pre-durable decline or failure restores only proven transaction-owned state
   and proves strict emptiness; ambiguous concurrent state is preserved.
 - Durable application establishes the complete approved project tree before
@@ -225,7 +227,7 @@ The Core-owned local Git and root-seed lifecycle selected through `/setup`.
   root-seed attestation.
 - The attestation binds the canonical root, source evidence, capabilities,
   provider identities and versions, approved metadata, nullable adapter,
-  adapter selection evidence when present, combined plan, applied inventory,
+  adapter evidence when present, combined plan, applied inventory,
   durable journal, hook inventory, and final staged-index digest.
 - The seed stages no unrelated or operational paths and passes the applicable
   shared Core and adapter local/CI quality implementation before commit

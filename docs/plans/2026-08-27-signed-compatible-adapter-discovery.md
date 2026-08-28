@@ -1037,7 +1037,7 @@ prism-tool commit create --type fix --scope setup --subject "attest adapter evid
 - Consumes: completed catalogue and selection launcher reports.
 - Produces: one strict-empty setup protocol, packaged public trust root, publisher-facing public contract, and full verification evidence.
 
-- [ ] **Step 1: Write failing prompt and package contract assertions**
+- [x] **Step 1: Write failing prompt and package contract assertions**
 
 Add exact shell assertions for:
 
@@ -1052,7 +1052,7 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'verified global cache' 'setup dis
 Add a package archive test that requires the trust-root JSON and all three new
 catalogue modules in the packed Core tarball.
 
-- [ ] **Step 2: Run shell and packaging tests and verify Red**
+- [x] **Step 2: Run shell and packaging tests and verify Red**
 
 Run: `bash tests/Shell/toolchain_entrypoints_test.sh`
 
@@ -1060,7 +1060,7 @@ Run: `node --test tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because setup prose and archive expectations still describe the static lockstep catalogue.
 
-- [ ] **Step 3: Update the public setup and catalogue contracts**
+- [x] **Step 3: Update the public setup and catalogue contracts**
 
 Rewrite strict-empty adapter discovery to:
 
@@ -1078,7 +1078,7 @@ fingerprint, cache rules, publisher boundary, and private-key prohibition in
 `Implemented` only after all verification below passes. Keep CONTEXT.md aligned
 with final field names.
 
-- [ ] **Step 4: Run complete verification and repair only causal failures**
+- [x] **Step 4: Run complete verification and repair only causal failures**
 
 Run: `prism-tool doctor --local-only`
 
@@ -1097,7 +1097,7 @@ no private key; the original setup reproduction reaches a signed selection or a
 deterministic catalogue-unavailable NO-GO rather than post-install validation
 failure.
 
-- [ ] **Step 5: Create the terminal implementation commit**
+- [x] **Step 5: Create the terminal implementation commit**
 
 ```bash
 git add packages/prism-core/prompts/setup.md tests/Shell/toolchain_entrypoints_test.sh tests/Node/toolchain-packaging.test.js packages/prism-core/docs/adapter-catalogue.md CONTEXT.md docs/specs/2026-08-27-signed-compatible-adapter-discovery-spec.md

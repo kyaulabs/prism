@@ -79,32 +79,53 @@ or additional key fails closed and stops setup.
   strict-empty routes and must never fall through to the established-project
   sections below.
 
-  For Template or Blank, inspect Core's closed bootstrap-adapter catalogue
-  before any Template access, scaffold planning, package acquisition, or
-  adapter code loading:
+  For Template or Blank, disclose the adapter-catalogue effects before any
+  Template access, scaffold planning, package acquisition, or adapter code
+  loading. This setup attempt reads only
+  `https://raw.githubusercontent.com/kyaulabs/prism-adapters/main/catalogue.json`
+  and may write the verified global cache under Pi's agent directory. The cache
+  is a persistent Core-owned operational effect: it can remain after Cancel or
+  project rollback, and it grants no standing web or registry authority. Then
+  run:
 
   ```bash
-  prism-tool setup adapter catalogue --json
+  prism-tool setup adapter catalogue --network-approved=yes --json
   ```
 
   Require exactly schema version `1`, command `setup adapter catalogue`, status
   `GO`, disposition `ADAPTER_SELECTION_REQUIRED`, reason `CATALOGUE_VALID`, the
-  same canonical project root, one passing known check, the exact Core-only
-  entry, and one PHP/web entry for `@kyaulabs/prism-php-web` at the exact Core
-  version with bootstrap protocol `1`. Any unknown adapter schema, field,
-  disposition, reason, status, package, version, protocol, choice, or
-  additional key must fail closed and stop setup.
+  same canonical project root, and one passing known check. Require data schema
+  version `1`, the exact Core-only entry, one closed `catalogueEvidence` object,
+  and a non-empty adapter list. Catalogue evidence must contain only source
+  `NETWORK` or `CACHE`, catalogue ID `kyaulabs/prism-adapters`, a positive
+  sequence, lowercase SHA-256 envelope digest, lowercase SHA-256 payload digest,
+  key ID `kyaulabs-prism-adapters-2026-01`, and valid issue and expiry
+  timestamps. Each adapter choice must contain only its validated ID, display
+  name, `@kyaulabs/` package name, exact selected package version, bootstrap
+  protocol `1`, and npm integrity. Reject duplicate or ambiguous displayed
+  choices. Any unknown schema, field, disposition, reason, status, evidence,
+  source, digest, identity, package, version, protocol, integrity, choice, or
+  additional key fails closed and stops setup.
 
-  Display Core only and the PHP/web adapter's exact displayed package and version,
-  plus its bootstrap protocol. Ask exactly one question:
+  Display the catalogue source, sequence, digest, key ID, and expiry. Then
+  display Core only and every compatible adapter's exact selected release,
+  including its ID, display name, package, version, bootstrap protocol, and
+  integrity. Do not require an adapter version to equal the Core version. Ask
+  exactly one question, rendering every validated adapter in report order:
 
   ```text
-  Choose the bootstrap adapter: Core only, PHP/web, or Cancel? [PHP/web]
+  Choose the bootstrap adapter: Core only, <displayed name (id) choices>, or Cancel? [<first displayed adapter>]
   ```
 
-  An empty answer selects PHP/web. Accept only `Core only`, `PHP/web`, or
-  `Cancel`, case-insensitively. Cancel is terminal and performs no package
-  operation or persistent write.
+  An empty answer selects the first displayed adapter. Accept only `Core only`,
+  one exact displayed adapter choice, or `Cancel`, case-insensitively. Map the
+  chosen display value to its validated adapter ID without accepting caller
+  package, version, integrity, range, registry, or URL authority. Cancel is
+  terminal and performs no package operation or project mutation; the verified
+  global cache may remain.
+
+  Retain the validated adapter ID and catalogue digest as inert values before
+  selection. Never accept replacements supplied later by the caller.
 
   - Core-only is a real no-adapter result. Run the matching command for the
     already validated source (`template` or `blank`):
@@ -114,22 +135,23 @@ or additional key fails closed and stops setup.
     ```
 
     Require disposition `CORE_ONLY`, with adapter, acquisition, and attempt all
-    `null`. Do not acquire a package, load a handler, or ask for registry
-    approval.
-  - PHP/web selection authorizes provisional project-local installation of the
-    exact displayed package and version through the bounded setup attempt. No
-    second adapter-installation question and no redundant install approval are
-    permitted on the strict-empty route. Run:
+    `null`. Do not pass `--catalogue-digest`, acquire a package, load a handler,
+    or ask for registry approval.
+  - A displayed adapter selection authorizes provisional project-local
+    installation of that exact signed npm release through the bounded setup
+    attempt. No second adapter-installation question and no redundant install
+    approval are permitted on the strict-empty route. Render only the retained
+    ID, digest, and source:
 
     ```bash
-    prism-tool setup adapter select --adapter=php-web --source=<source> --network-approved=yes --json
+    prism-tool setup adapter select --adapter=<id> --catalogue-digest=<digest> --source=<source> --network-approved=yes --json
     ```
 
     Require disposition `ADAPTER_PROVISIONED`, the exact selected adapter,
-    acquisition kind `LOCAL` with the validated sibling path or `NPM` with the
-    exact pinned npm source, and one private attempt receipt beneath
-    `.pi/prism-tool/bootstrap/`. Any mismatch or unknown adapter report must
-    fail closed.
+    acquisition kind `NPM` with install source
+    `npm:<exact-package>@<exact-version>`, and one private attempt receipt
+    beneath `.pi/prism-tool/bootstrap/`. Any mismatch or unknown adapter report
+    must fail closed.
 
   Adapter selection is complete before Template access or scaffold planning.
   Retain the validated source, nullable adapter identity, and provisional
