@@ -25,6 +25,8 @@ const {loadSelectedAdapter} = require(
 );
 const {makeTempDir, writeJson} = require('./helpers');
 
+const VALID_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
+
 function signedEnvelope(payload, options = {}) {
     const pair = options.pair ?? generateKeyPairSync('ed25519');
     const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
@@ -84,10 +86,10 @@ function validCatalogue() {
             displayName: 'PHP/web',
             packageName: '@kyaulabs/prism-php-web',
             releases: [
-                {version: '2.0.0', coreRange: '>=2.0.0 <3.0.0', bootstrapProtocol: 1, integrity: 'sha512-AAAA', publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.8.2', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-BBBB', publishedAt: '2026-08-26T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.9.0-beta.1', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-CCCC', publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.8.3', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: 'sha512-DDDD', publishedAt: '2026-08-27T00:00:00Z', status: 'REVOKED'},
+                {version: '2.0.0', coreRange: '>=2.0.0 <3.0.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.2', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-26T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.9.0-beta.1', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.3', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'REVOKED'},
             ],
         }],
     };
@@ -122,7 +124,7 @@ test('reports signed compatible choices and immutable catalogue evidence', async
     assert.equal(report.data.catalogueEvidence.source, 'NETWORK');
     assert.match(report.data.catalogueEvidence.digest, /^[0-9a-f]{64}$/);
     assert.equal(report.data.adapters[0].packageVersion, '1.8.2');
-    assert.equal(report.data.adapters[0].integrity, 'sha512-BBBB');
+    assert.equal(report.data.adapters[0].integrity, VALID_INTEGRITY);
 });
 
 test('accepts no caller package, version, integrity, or URL authority', async (t) => {
@@ -180,7 +182,7 @@ test('reloads an exact still-valid digest-bound adapter selection', async (t) =>
         packageName: '@kyaulabs/prism-php-web',
         packageVersion: '1.8.2',
         bootstrapProtocol: 1,
-        integrity: 'sha512-BBBB',
+        integrity: VALID_INTEGRITY,
     });
     assert.throws(() => loadSelectedAdapter({
         digest: '0'.repeat(64),
@@ -397,7 +399,7 @@ test('selects the highest stable active Core-compatible release', () => {
         packageName: '@kyaulabs/prism-php-web',
         packageVersion: '1.8.2',
         bootstrapProtocol: 1,
-        integrity: 'sha512-BBBB',
+        integrity: VALID_INTEGRITY,
     }]);
 });
 
@@ -429,6 +431,19 @@ test('rejects expired, overlong, duplicate, and malformed catalogue payloads', (
             CatalogueError
         );
     }
+});
+
+test('rejects integrity values without an exact SHA-512 digest', () => {
+    const catalogue = validCatalogue();
+    catalogue.adapters[0].releases[0].integrity = 'sha512-AAAA';
+
+    assert.throws(
+        () => validateCataloguePayload({
+            catalogue,
+            now: new Date('2026-08-27T12:00:00Z'),
+        }),
+        CatalogueError
+    );
 });
 
 test('verifies an Ed25519 envelope before parsing its payload', () => {

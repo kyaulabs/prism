@@ -109,6 +109,13 @@ function boundedString(value, maximum) {
         value === value.trim() && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+function validIntegrity(value) {
+    if (!boundedString(value, 256) || !INTEGRITY.test(value)) return false;
+    const encoded = value.slice('sha512-'.length);
+    const digest = Buffer.from(encoded, 'base64');
+    return digest.length === 64 && digest.toString('base64') === encoded;
+}
+
 function validateRelease(release, versions) {
     if (!exactKeys(release, [
         'version', 'coreRange', 'bootstrapProtocol', 'integrity', 'publishedAt', 'status',
@@ -116,8 +123,7 @@ function validateRelease(release, versions) {
         versions.has(release.version) || !boundedString(release.coreRange, 256) ||
         semver.validRange(release.coreRange) === null ||
         !Number.isSafeInteger(release.bootstrapProtocol) || release.bootstrapProtocol <= 0 ||
-        !boundedString(release.integrity, 256) || !INTEGRITY.test(release.integrity) ||
-        !['ACTIVE', 'REVOKED'].includes(release.status)) {
+        !validIntegrity(release.integrity) || !['ACTIVE', 'REVOKED'].includes(release.status)) {
         throw new CatalogueError('PAYLOAD_INVALID');
     }
     parseUtcTimestamp(release.publishedAt);

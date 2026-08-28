@@ -39,7 +39,7 @@ function createSignedAdapterSelection({
     coreRoot,
     adapterRoot,
     attemptId,
-    integrity = 'sha512-BBBB',
+    integrity = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==',
 }) {
     const coreVersion = JSON.parse(
         fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8')

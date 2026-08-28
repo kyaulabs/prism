@@ -19,7 +19,7 @@ const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_VERSION = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
 ).version;
-const ADAPTER_INTEGRITY = 'sha512-BBBB';
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
 
 function writeJson(filePath, value) {
     fs.mkdirSync(path.dirname(filePath), {recursive: true});

@@ -30,7 +30,7 @@ const ADAPTER_VERSION = JSON.parse(
 const ADAPTER_CONTRACT = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'toolchain.json'), 'utf8')
 );
-const ADAPTER_INTEGRITY = 'sha512-BBBB';
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
 
 function writeJson(filePath, value) {
     fs.mkdirSync(path.dirname(filePath), {recursive: true});

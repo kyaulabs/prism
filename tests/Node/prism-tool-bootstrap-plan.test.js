@@ -54,7 +54,7 @@ const TEMPLATE_SOURCE = Object.freeze({
         classificationSha256: 'e'.repeat(64),
     }),
 });
-const ADAPTER_INTEGRITY = 'sha512-BBBB';
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
 const projectCoreRoots = new Map();
 let signedAdapterFixture;
 

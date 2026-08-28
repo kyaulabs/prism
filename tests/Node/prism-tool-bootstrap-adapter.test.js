@@ -14,6 +14,8 @@ const {
     inspectProvisionedBootstrapAdapter,
 } = require('../../packages/prism-core/scripts/prism-tool/bootstrap-adapter');
 
+const ADAPTER_INTEGRITY = 'sha512-QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQg==';
+
 function captureWrites(action) {
     let stdout = '';
     let stderr = '';
@@ -90,7 +92,7 @@ function signedSelectionContext(context) {
                 version: manifest.version,
                 coreRange: manifest.version,
                 bootstrapProtocol: 1,
-                integrity: 'sha512-BBBB',
+                integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',
                 status: 'ACTIVE',
             }],
@@ -203,7 +205,7 @@ function provisionContext(t, options = {}) {
     const coreRoot = makeTempDir();
     const cacheRoot = makeTempDir();
     const attemptId = options.attemptId ?? '11111111-1111-4111-8111-111111111111';
-    const installedIntegrity = options.installedIntegrity ?? 'sha512-BBBB';
+    const installedIntegrity = options.installedIntegrity ?? ADAPTER_INTEGRITY;
     const childEnv = {};
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
@@ -223,7 +225,7 @@ function provisionContext(t, options = {}) {
                 version: '1.8.2',
                 coreRange: '^1.3.0',
                 bootstrapProtocol: 1,
-                integrity: 'sha512-BBBB',
+                integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',
                 status: 'ACTIVE',
             }],
@@ -316,7 +318,7 @@ test('installs the digest-bound signed npm release and records schema 2', (t) =>
     ]);
     assert.equal(receipt.catalogueEvidence.envelopeDigest, fixture.digest);
     assert.equal(receipt.catalogueEvidence.selectedAt, '2026-08-27T12:00:00.000Z');
-    assert.equal(receipt.catalogueEvidence.integrity, 'sha512-BBBB');
+    assert.equal(receipt.catalogueEvidence.integrity, ADAPTER_INTEGRITY);
     assert.equal(
         createHash('sha256').update(Buffer.from(receipt.catalogueEnvelope, 'base64')).digest('hex'),
         fixture.digest
@@ -428,7 +430,7 @@ test('resolves the exact signed npm source even from a source checkout', (t) => 
         packageName: '@kyaulabs/prism-php-web',
         packageVersion: '0.3.1',
         bootstrapProtocol: 1,
-        integrity: 'sha512-BBBB',
+        integrity: ADAPTER_INTEGRITY,
     };
     const {resolveBootstrapAcquisition} = require(
         '../../packages/prism-core/scripts/prism-tool/bootstrap-adapter'
@@ -449,7 +451,7 @@ function installFixture({
     installSource = `npm:${packageName}@${packageVersion}`,
     lifecycleMarker,
     loadMarker,
-    integrity = 'sha512-BBBB',
+    integrity = ADAPTER_INTEGRITY,
 }) {
     return (command, args, options) => {
         assert.equal(command, '/fixture/bin/pi');
