@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -706,7 +706,13 @@ test('renders a trusted release management provider from publishable candidate p
     assert.deepEqual(JSON.parse(fs.readFileSync(
         path.join(candidateRoot, '.prism', 'release.json'),
         'utf8'
-    )).packages, ['.']);
+    )), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+        adapterReleases: [],
+    });
     assert.equal(fs.existsSync(path.join(packageRoot, '.pi')), false);
 });
 

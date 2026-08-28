@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -1753,7 +1753,13 @@ test('composes release management after a publishable adapter candidate is rende
         'candidate',
         '.prism',
         'release.json'
-    ), 'utf8')).packages, ['.']);
+    ), 'utf8')), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+        adapterReleases: [],
+    });
     assert.equal(validatePlan(
         projectRoot,
         ATTEMPT_ID,

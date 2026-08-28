@@ -53,6 +53,8 @@ documentation, and conversation.
 | project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
 | trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
 | supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
+| adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, compatibility range, bootstrap protocol, and publication status without supplying registry or signing authority. |
+| catalogue publication transaction | The serialized cross-repository workflow that validates immutable Prism release and npm evidence, signs the next catalogue sequence in the protected publisher environment, and opens a human-merged publication pull request. |
 | catalogue evidence | Receipt-local signed evidence (`catalogueEvidence`) that binds a strict-empty adapter selection to the exact verified catalogue envelope, signing key, sequence, validity window, selected release, and package integrity. |
 | adapter evidence | The normalized nullable durable subset (`adapterEvidence`) carried through project plans, journals, status, recovery, and repository-seed attestation. It remains Core-owned and is never an adapter-provider or hook input. |
 | template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
@@ -109,8 +111,11 @@ The globally installed, language-agnostic harness package.
   managed release-file transaction, and lockstep npm package semantics.
 - Owns changed-file Markdown validation through an exact bundled tool, a
   packaged non-executable policy, and one staged/branch checker interface.
-- Never configures a remote, pushes a branch, merges a pull request, or
-  accesses credentials.
+- Local and agent-run Core operations never configure a remote, push a branch,
+  merge a pull request, or access credentials. The canonical release workflow
+  may consume protected GitHub App authentication only for ADR-0095's bounded
+  catalogue dispatch; it receives no signing, npm, merge, or administration
+  authority.
 
 ### Stack Adapter
 
@@ -252,6 +257,9 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   including prereleases, in the reviewed merge commit.
 - CI publishes or recovers the repository tag and GitHub Release before it
   creates or verifies package tags at the immutable merge SHA.
+- A stable release with reconciled package tags and a valid adapter release
+  declaration may emit ADR-0095's minimal catalogue dispatch; the publisher
+  independently revalidates release, package-tag, declaration, and npm evidence.
 - Validated release merges remain eligible for a human-merged back-merge PR
   even when publication or package-tag reconciliation fails.
 - npm authentication, OTP handling, and publication remain human-owned; agents
@@ -418,11 +426,16 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   authenticate, configure, upgrade, or downgrade Semgrep or OCR.
 - **No general-purpose package manager** — adapter provisioning is restricted
   to tools declared by validated active contracts.
-- **No credential handling** — Prism never reads, stores, displays, or
-  transmits credentials.
-- **No push or merge automation** — humans push branches and merge pull
-  requests. Release CI alone creates validated tags/Releases and opens the
-  human-merged back-merge PR.
+- **No agent or local credential handling** — Prism agents and local workflows
+  never read, store, display, or transmit credentials. ADR-0094 and ADR-0095
+  permit only protected default-branch GitHub Actions jobs to consume isolated
+  signing and GitHub App credentials for catalogue publication.
+- **No general push or merge automation** — humans push ordinary work branches
+  and merge every pull request. Release CI creates validated tags/Releases and
+  opens the human-merged back-merge PR; ADR-0095 additionally permits trusted
+  publisher CI to create one sequence-specific non-protected branch and open
+  its human-merged catalogue publication PR. No workflow pushes a protected
+  branch or merges a pull request.
 - **No bundled LSP servers** — language servers remain system/project
   responsibilities.
 - **No model fine-tuning or hosting** — Pi and upstream providers own model
@@ -493,6 +506,8 @@ Pi-era decisions:
 - `adr/0091-bounded-core-web-access-extension.md` — add a non-orchestration Core web-access extension with separately revocable standing consent, confined browser-first keyless search, loopback SearXNG, and guarded public textual fetching.
 - `adr/0092-signed-compatible-adapter-discovery.md` — discover approved adapters through a signed, freshness-bounded catalogue, select the highest Core-compatible release, verify its integrity, and pin the exact selected version.
 - `adr/0093-pr-invocation-missing-review-chain-recovery.md` — let standalone `/pr` authorize one initial review only when deterministic preflight classifies the review chain as absent.
+- `adr/0094-protected-actions-catalogue-signing-custody.md` — permit unattended catalogue signing only in an isolated protected default-branch Actions job with separate encrypted-key and passphrase secrets.
+- `adr/0095-cross-repository-catalogue-publication-transaction.md` — connect stable Prism releases and three-day renewal to one serialized publisher transaction that creates a non-protected branch and human-merged catalogue PR.
 
 ## When to update this file
 

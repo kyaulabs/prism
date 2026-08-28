@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -18,9 +18,23 @@ const {
 const {makeTempDir, writeJson, writePackageJson} = require('./helpers');
 
 const CANONICAL_WORKFLOW = `# prism-managed: @kyaulabs/prism-core
+# prism-release-schema: 2
+name: Release
+`;
+
+const LEGACY_WORKFLOW = `# prism-managed: @kyaulabs/prism-core
 # prism-release-schema: 1
 name: Release
 `;
+
+const ADAPTER_RELEASE = Object.freeze({
+    package: 'packages/adapter',
+    id: 'fixture-adapter',
+    displayName: 'Fixture adapter',
+    coreRange: '>=1.2.3 <2.0.0',
+    bootstrapProtocol: 1,
+    status: 'ACTIVE',
+});
 
 function captureWrites(action) {
     let stdout = '';
@@ -78,16 +92,45 @@ function loadPackageReleaseWithConstants(constants) {
     return module.exports;
 }
 
-function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW) {
+function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW, adapterReleases = []) {
     writeJson(path.join(projectRoot, '.prism', 'release.json'), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         managedBy: '@kyaulabs/prism-core',
         versionPolicy: 'lockstep',
-        packages: ['.'],
+        packages: adapterReleases.length === 0 ? ['.'] : ['.', 'packages/adapter'],
+        adapterReleases,
     });
     const workflowPath = path.join(projectRoot, '.github', 'workflows', 'release.yml');
     fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
     fs.writeFileSync(workflowPath, workflow);
+}
+
+function installLegacyManagedFiles(projectRoot, packagesOnly = false) {
+    writeJson(
+        path.join(projectRoot, '.prism', 'release.json'),
+        packagesOnly ? {packages: ['.']} : {
+            schemaVersion: 1,
+            managedBy: '@kyaulabs/prism-core',
+            versionPolicy: 'lockstep',
+            packages: ['.'],
+        }
+    );
+    const workflowPath = path.join(projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.writeFileSync(workflowPath, LEGACY_WORKFLOW);
+}
+
+function addAdapterPackage(projectRoot) {
+    writePackageJson(projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+        workspaces: ['packages/*'],
+    });
+    writePackageJson(projectRoot, 'packages/adapter', {
+        name: '@fixture/adapter',
+        version: '1.2.3',
+        prism: {adapter: true, bootstrapProtocol: 1},
+    });
 }
 
 function heldDescriptorFor(filePath) {
@@ -138,6 +181,7 @@ test('classifies two absent managed release files as CREATE', (t) => {
             {name: 'fixture-root', path: '.', version: '1.2.3', tagPrefix: 'fixture-root'},
         ],
         configuredPackages: [],
+        adapterReleases: [],
         checks: [
             {id: 'package-release-ownership', status: 'PASS', message: 'managed release files can be created'},
         ],
@@ -214,10 +258,175 @@ test('classifies owned outdated, legacy, and mixed ownership states', (t) => {
             {name: 'fixture-root', path: '.', version: '1.2.3', tagPrefix: 'fixture-root'},
         ],
         configuredPackages: [],
+        adapterReleases: [],
         checks: [
             {id: 'package-release-ownership', status: 'FAIL', message: 'managed release files conflict'},
         ],
     });
+});
+
+test('migrates schema-1 managed files to schema 2 without inferring declarations', (t) => {
+    const fixture = makeFixture(t);
+    installLegacyManagedFiles(fixture.projectRoot);
+
+    const plan = planReleaseCapability({
+        ...fixture,
+        legacyWorkflowSha256: sha256(Buffer.from(LEGACY_WORKFLOW)),
+    });
+
+    assert.equal(plan.disposition, 'MIGRATE');
+    assert.equal(applyReleaseCapability({...fixture, planPath: plan.planPath}).status, 'GO');
+    assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'), 'utf8')),
+        {
+            schemaVersion: 2,
+            managedBy: '@kyaulabs/prism-core',
+            versionPolicy: 'lockstep',
+            packages: ['.'],
+            adapterReleases: [],
+        }
+    );
+    assert.equal(
+        fs.readFileSync(path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml'), 'utf8'),
+        CANONICAL_WORKFLOW
+    );
+});
+
+test('migrates packages-only recovery state without inferring declarations', (t) => {
+    const fixture = makeFixture(t);
+    installLegacyManagedFiles(fixture.projectRoot, true);
+
+    const plan = planReleaseCapability({
+        ...fixture,
+        legacyWorkflowSha256: sha256(Buffer.from(LEGACY_WORKFLOW)),
+    });
+
+    assert.equal(plan.disposition, 'MIGRATE');
+    assert.equal(applyReleaseCapability({...fixture, planPath: plan.planPath}).status, 'GO');
+    assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'), 'utf8'))
+            .adapterReleases,
+        []
+    );
+});
+
+test('preserves schema-2 declarations while updating, applying, and verifying owned files', (t) => {
+    const fixture = makeFixture(t);
+    addAdapterPackage(fixture.projectRoot);
+    installManagedFiles(
+        fixture.projectRoot,
+        `${CANONICAL_WORKFLOW}# outdated\n`,
+        [ADAPTER_RELEASE]
+    );
+
+    const inspection = inspectReleaseCapability(fixture);
+    const plan = planReleaseCapability(fixture);
+    const plannedConfig = JSON.parse(fs.readFileSync(
+        path.join(path.dirname(plan.planPath), 'after', '.prism', 'release.json'),
+        'utf8'
+    ));
+
+    assert.equal(inspection.disposition, 'UPDATE');
+    assert.deepEqual(inspection.adapterReleases, [ADAPTER_RELEASE]);
+    assert.deepEqual(plan.adapterReleases, [ADAPTER_RELEASE]);
+    assert.deepEqual(plannedConfig.adapterReleases, [ADAPTER_RELEASE]);
+    assert.deepEqual(applyReleaseCapability({...fixture, planPath: plan.planPath}).data, {
+        disposition: 'UPDATE',
+        adapterReleases: [ADAPTER_RELEASE],
+    });
+    assert.deepEqual(verifyReleaseCapability(fixture).data, {
+        packages: ['.', 'packages/adapter'],
+        adapterReleases: [ADAPTER_RELEASE],
+    });
+});
+
+test('preserves declarations while adding discovered release-managed packages', (t) => {
+    const fixture = makeFixture(t);
+    addAdapterPackage(fixture.projectRoot);
+    installManagedFiles(fixture.projectRoot, CANONICAL_WORKFLOW, [ADAPTER_RELEASE]);
+    writePackageJson(fixture.projectRoot, 'packages/added', {
+        name: '@fixture/added',
+        version: '1.2.3',
+    });
+
+    const plan = planReleaseCapability(fixture);
+    const plannedConfig = JSON.parse(fs.readFileSync(
+        path.join(path.dirname(plan.planPath), 'after', '.prism', 'release.json'),
+        'utf8'
+    ));
+
+    assert.equal(plan.disposition, 'UPDATE');
+    assert.deepEqual(plannedConfig.packages, ['.', 'packages/adapter', 'packages/added']);
+    assert.deepEqual(plannedConfig.adapterReleases, [ADAPTER_RELEASE]);
+});
+
+test('fails closed when package reconciliation would orphan a declaration', (t) => {
+    const fixture = makeFixture(t);
+    addAdapterPackage(fixture.projectRoot);
+    installManagedFiles(fixture.projectRoot, CANONICAL_WORKFLOW, [ADAPTER_RELEASE]);
+    writePackageJson(fixture.projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+    });
+
+    const inspection = inspectReleaseCapability(fixture);
+    const plan = planReleaseCapability(fixture);
+
+    assert.equal(inspection.status, 'NO-GO');
+    assert.equal(inspection.disposition, 'CONFLICT');
+    assert.deepEqual(inspection.adapterReleases, [ADAPTER_RELEASE]);
+    assert.equal(plan.planPath, null);
+});
+
+test('restores schema-1 and schema-2 declaration bytes after failed publication', async (t) => {
+    const scenarios = [
+        {
+            name: 'schema 1',
+            arrange(fixture) {
+                installLegacyManagedFiles(fixture.projectRoot);
+                return {legacyWorkflowSha256: sha256(Buffer.from(LEGACY_WORKFLOW))};
+            },
+        },
+        {
+            name: 'schema 2 declarations',
+            arrange(fixture) {
+                addAdapterPackage(fixture.projectRoot);
+                installManagedFiles(
+                    fixture.projectRoot,
+                    `${CANONICAL_WORKFLOW}# outdated\n`,
+                    [ADAPTER_RELEASE]
+                );
+                return {};
+            },
+        },
+    ];
+
+    for (const scenario of scenarios) {
+        await t.test(scenario.name, () => {
+            const fixture = makeFixture(t);
+            const context = scenario.arrange(fixture);
+            const configPath = path.join(fixture.projectRoot, '.prism', 'release.json');
+            const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+            const beforeConfig = fs.readFileSync(configPath);
+            const beforeWorkflow = fs.readFileSync(workflowPath);
+            const plan = planReleaseCapability({...fixture, ...context});
+            let renameCount = 0;
+
+            const result = applyReleaseCapability({
+                ...fixture,
+                planPath: plan.planPath,
+                rename(source, destination) {
+                    renameCount += 1;
+                    if (renameCount === 2) throw new Error('fixture publication failure');
+                    fs.renameSync(source, destination);
+                },
+            });
+
+            assert.equal(result.status, 'NO-GO');
+            assert.deepEqual(fs.readFileSync(configPath), beforeConfig);
+            assert.deepEqual(fs.readFileSync(workflowPath), beforeWorkflow);
+        });
+    }
 });
 
 test('classifies owned canonical release files as UNCHANGED', (t) => {
@@ -264,7 +473,9 @@ test('creates a bounded CREATE plan with exact before and after digests', (t) =>
     assert.equal(result.status, 'GO');
     assert.equal(result.disposition, 'CREATE');
     assert.match(result.planPath, /[.]pi\/prism-tool\/package-release\/plan-[a-f0-9]{64}[.]json$/);
-    assert.match(result.diff, /[+] {2}"schemaVersion": 1/);
+    assert.match(result.diff, /[+] {2}"schemaVersion": 2/);
+    assert.match(result.diff, /[+] {2}"adapterReleases": \[\]/);
+    assert.match(result.diff, /[+]# prism-release-schema: 2/);
     const plan = JSON.parse(fs.readFileSync(result.planPath, 'utf8'));
     assert.equal(plan.schemaVersion, 1);
     assert.equal(plan.managedBy, '@kyaulabs/prism-core');
@@ -559,10 +770,11 @@ test('applies a CREATE plan and installs both canonical owned files', (t) => {
     assert.deepEqual(
         JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'), 'utf8')),
         {
-            schemaVersion: 1,
+            schemaVersion: 2,
             managedBy: '@kyaulabs/prism-core',
             versionPolicy: 'lockstep',
             packages: ['.'],
+            adapterReleases: [],
         }
     );
     assert.equal(
@@ -1000,7 +1212,7 @@ test('verifies the installed owned configuration and canonical workflow', (t) =>
         checks: [
             {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
         ],
-        data: {packages: ['.']},
+        data: {packages: ['.'], adapterReleases: []},
     });
 });
 
@@ -1017,6 +1229,7 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
             {name: 'fixture-root', path: '.', version: '1.2.3', tagPrefix: 'fixture-root'},
         ],
         configuredPackages: [],
+        adapterReleases: [],
         checks: [
             {id: 'package-release-ownership', status: 'PASS', message: 'managed release files can be created'},
         ],
@@ -1044,7 +1257,7 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
         checks: [
             {id: 'package-release-application', status: 'PASS', message: 'managed release files applied'},
         ],
-        data: {disposition: 'CREATE'},
+        data: {disposition: 'CREATE', adapterReleases: []},
     });
 
     const verified = captureWrites(() => main(['package-release', 'verify', '--json'], fixture));
@@ -1056,7 +1269,7 @@ test('dispatches inspect, plan, approved apply, and verify as stable JSON report
         checks: [
             {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
         ],
-        data: {packages: ['.']},
+        data: {packages: ['.'], adapterReleases: []},
     });
 });
 

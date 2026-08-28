@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -117,7 +117,12 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 1$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 2$/m);
+    assert.equal(
+        releaseWorkflow,
+        fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),
+        'packaged canonical workflow bytes remain exact'
+    );
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
@@ -189,6 +194,20 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+});
+
+test('documents reviewed adapter release authority and publisher ownership', () => {
+    const catalogueDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'adapter-catalogue.md'),
+        'utf8'
+    );
+
+    assert.match(catalogueDocs, /adapter release declaration.*compatibility authority/is);
+    assert.match(catalogueDocs, /package name.*version.*derived.*manifest/is);
+    assert.match(catalogueDocs, /publisher.*independently revalidates/is);
+    assert.match(catalogueDocs, /protected.*Actions.*signing/is);
+    assert.match(catalogueDocs, /human-merged.*pull request/is);
+    assert.doesNotMatch(catalogueDocs, /production private signing key.*human-owned/is);
 });
 
 test('documents Blank Core-only application and recovery boundaries', () => {

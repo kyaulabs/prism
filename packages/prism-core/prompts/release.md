@@ -223,23 +223,54 @@ Release-managed packages are declared only by `.prism/release.json` at the
 repository root. When the file is absent, state explicitly that this is a
 repository-only release and run no npm command.
 
-When present, require the exact owned configuration shape before changing any
-manifest:
+When present, require schema 2 with exactly these root fields before changing
+any manifest:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "managedBy": "@kyaulabs/prism-core",
   "versionPolicy": "lockstep",
-  "packages": ["relative/package/directory"]
+  "packages": ["relative/package/directory"],
+  "adapterReleases": [
+    {
+      "package": "relative/adapter/directory",
+      "id": "adapter-id",
+      "displayName": "Adapter name",
+      "coreRange": ">=1.2.3 <2.0.0",
+      "bootstrapProtocol": 1,
+      "status": "ACTIVE"
+    }
+  ]
 }
 ```
 
-Reject unknown keys, an empty package list, duplicate paths or tag prefixes,
-absolute or escaping paths, whitespace, symlinks, private packages, missing
-or malformed `package.json` files, unusable package names, and any path that
-resolves outside the repository. Validate every configured package before
-running the first npm command; partial package-version mutation is forbidden.
+`adapterReleases` may be empty. Reject unknown declaration fields and unknown
+root keys. Reject an empty package list, duplicate package paths, duplicate
+adapter IDs, and more than 64 declarations. Keep every declaration closed to
+`package`, `id`, `displayName`, `coreRange`, `bootstrapProtocol`, and `status`.
+
+Reject absolute or escaping package paths, whitespace, control characters,
+symlinks, private packages, missing or malformed `package.json` files,
+unusable package names, duplicate tag prefixes, and paths that resolve outside
+the repository. Each declaration must identify exactly one configured
+release-managed public package. Require that package manifest to declare
+`prism.adapter === true` and the same positive safe-integer
+`bootstrapProtocol`. Require a bounded adapter ID and display name, a canonical
+valid `coreRange` accepted by Core's bundled SemVer implementation, and status
+`ACTIVE` or `REVOKED`.
+
+Reject malformed ranges and unmanaged declaration packages.
+Reject protocol disagreement and any declaration/package version disagreement
+after lockstep version authoring. Validate every configured package and
+declaration before running the first npm command; partial package-version
+mutation is forbidden.
+Run the managed capability verification and require a `GO` report before
+mutation:
+
+```bash
+prism-tool package-release verify --json
+```
 
 After validation, render the confirmed repository version and each validated
 package directory literally. Run this once for every configured package:
@@ -249,9 +280,20 @@ npm --prefix PACKAGE_DIRECTORY version X.Y.Z --no-git-tag-version
 ```
 
 Read each resulting `PACKAGE_DIRECTORY/package.json` separately and require
-its version to equal the exact confirmed `X.Y.Z`. The release commit therefore
-carries every configured package at the repository release version, whether
-or not that package's source changed.
+its version to equal the exact confirmed `X.Y.Z`. For every declaration,
+require its release-managed package version to equal the exact confirmed
+`X.Y.Z`. Then revalidate the complete configuration and manifests:
+
+```bash
+prism-tool package-release verify --json
+```
+
+Require another `GO` report. It must not rewrite compatibility or infer
+`coreRange`. It must not add registry, integrity, publication, credential,
+sequence, branch, command, or signing fields. It preserves the reviewed
+declaration exactly. The release commit carries every configured
+package at the repository release version, whether or not that package's
+source changed.
 
 ## Commit the changelog
 
@@ -269,8 +311,16 @@ separate call:
 git add PACKAGE_DIRECTORY/package.json
 ```
 
+Stage `.prism/release.json` only when the release branch deliberately changes
+its reviewed declarations or package policy:
+
+```bash
+git add .prism/release.json
+```
+
 Do not interpolate the package list into shell source or combine staging with
-commit creation. A repository-only release stages no package manifest.
+commit creation. A repository-only release stages no package manifest. Never
+change or stage compatibility metadata merely to prepare a version bump.
 
 Render the validated version as a literal `vX.Y.Z` subject. Keep
 `RELEASE_ISSUE_DIGITS` only as validated conversation state: when present,
