@@ -292,6 +292,7 @@ The bounded authority for GitHub issue-tracker access and mutations.
 The bounded finalization evidence for one continuously reviewed work-branch history.
 
 - Begins with one complete four-axis review of the attested branch range.
+- A standalone `/pr` invocation may authorize that initial review only when deterministic preflight classifies the chain as absent.
 - Extends through continuous repair-delta reviews rather than rescanning unchanged branch content.
 - Blocks only on unresolved diff-causal findings with concrete workflow impact.
 - Keeps tertiary, speculative, pre-existing, unrelated, and maintainability observations Advisory and visible.
@@ -491,6 +492,7 @@ Pi-era decisions:
 - `adr/0090-core-markdown-lint-gate.md` — bundle exact Markdown linting in Core and validate changed maintained documentation through one packaged, changed-file-only checker.
 - `adr/0091-bounded-core-web-access-extension.md` — add a non-orchestration Core web-access extension with separately revocable standing consent, confined browser-first keyless search, loopback SearXNG, and guarded public textual fetching.
 - `adr/0092-signed-compatible-adapter-discovery.md` — discover approved adapters through a signed, freshness-bounded catalogue, select the highest Core-compatible release, verify its integrity, and pin the exact selected version.
+- `adr/0093-pr-invocation-missing-review-chain-recovery.md` — let standalone `/pr` authorize one initial review only when deterministic preflight classifies the review chain as absent.
 
 ## When to update this file
 
