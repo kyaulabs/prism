@@ -132,6 +132,11 @@ block preparation. A base or history change, discontinuity, incomplete axis,
 dirty tree, or mismatched `HEAD` invalidates the chain and requires a new
 complete initial review.
 
+A standalone `/pr` invocation may authorize one complete initial review only
+when deterministic preflight classifies the review chain as absent. Invalid
+review chain evidence continues to fail closed. A failed or second review
+requires fresh explicit approval. `/pr` remains preparation-only.
+
 `/pr` prepares a conventional title, a body containing every pull request
 template section, and a human-run `gh pr create` command. It never pushes or
 creates the pull request. Humans push work branches and create or merge pull

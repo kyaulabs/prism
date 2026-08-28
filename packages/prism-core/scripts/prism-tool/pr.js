@@ -1,11 +1,15 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 const {runBounded} = require('./process');
-const {verifyReviewChain} = require('./review-chain');
+const {
+    STATE,
+    inspectReviewChain,
+    verifyReviewChain,
+} = require('./review-chain');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -33,10 +37,16 @@ function unlinkQuietly(file) {
 }
 
 function prCommand(args, context = {}) {
-    if (args.length === 1 && args[0] === 'preflight') return preflight(context);
+    if (args.length === 1 && args[0] === 'preflight') {
+        return preflight(context, {allowAbsentReviewChain: false});
+    }
+    if (args.length === 1 && args[0] === 'review-preflight') {
+        return preflight(context, {allowAbsentReviewChain: true});
+    }
     if (args[0] === 'validate-title') return validateTitle(args.slice(1), context);
     process.stderr.write(
-        'usage: prism-tool pr preflight | prism-tool pr validate-title --title-file PATH --validation-file PATH\n'
+        'usage: prism-tool pr preflight | prism-tool pr review-preflight | ' +
+        'prism-tool pr validate-title --title-file PATH --validation-file PATH\n'
     );
     return EXIT.USAGE;
 }
@@ -143,7 +153,8 @@ function validateTitle(args, context) {
     return EXIT.OK;
 }
 
-function preflight(context) {
+function preflight(context, options = {}) {
+    const allowAbsentReviewChain = options.allowAbsentReviewChain === true;
     const run = context.run ?? runBounded;
     const cwd = context.cwd ?? process.cwd();
     const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
@@ -203,12 +214,33 @@ function preflight(context) {
     if (diff.error || (diff.status !== 0 && diff.status !== 1)) return failure('cannot inspect branch net diff');
     if (diff.status === 0) return failure('branch has no net diff against its merge-base');
 
-    const verify = context.verifyReviewChain ?? verifyReviewChain;
-    let review;
-    try {
-        review = verify({branch, baseRef, baseSha, headSha}, {...context, projectRoot: cwd});
-    } catch {
-        return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
+    let reviewChainState = STATE.VALID;
+    let advisoryCount;
+
+    if (allowAbsentReviewChain) {
+        const inspect = context.inspectReviewChain ?? inspectReviewChain;
+        let inspected;
+        try {
+            inspected = inspect({...context, projectRoot: cwd});
+        } catch {
+            return failure('review chain is unsafe or invalid');
+        }
+        if (inspected.state === STATE.ABSENT) {
+            reviewChainState = STATE.ABSENT;
+        } else if (inspected.state !== STATE.VALID) {
+            return failure('review chain is unsafe or invalid');
+        }
+    }
+
+    if (reviewChainState === STATE.VALID) {
+        const verify = context.verifyReviewChain ?? verifyReviewChain;
+        let review;
+        try {
+            review = verify({branch, baseRef, baseSha, headSha}, {...context, projectRoot: cwd});
+        } catch {
+            return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
+        }
+        advisoryCount = String(review.advisoryFindings.length);
     }
 
     const fields = [
@@ -220,9 +252,9 @@ function preflight(context) {
         ['MERGE_BASE', mergeBase],
         ['COMMIT_COUNT', commitCount],
         ['NON_MERGE_COUNT', nonMergeCount],
-        ['REVIEW_CHAIN', 'VALID'],
-        ['ADVISORY_COUNT', String(review.advisoryFindings.length)],
+        ['REVIEW_CHAIN', reviewChainState],
     ];
+    if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
 }

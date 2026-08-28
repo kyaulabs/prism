@@ -270,6 +270,11 @@ a waiver. Base or history changes, discontinuity, incomplete axes, malformed
 state, or a `HEAD` mismatch require a new complete initial review. A failed gate
 requires fresh finalization acceptance after repair.
 
+A standalone `/pr` invocation may authorize one complete initial review only
+when deterministic preflight classifies the review chain as absent. Invalid
+review chain evidence continues to fail closed. A failed or second review
+requires fresh explicit approval. `/pr` remains preparation-only.
+
 `/pr` is preparation-only. Humans push branches, create pull requests, and
 merge.
 
