@@ -29,6 +29,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      merge-sha: ${{ steps.validate.outputs.merge-sha }}
+      stable: ${{ steps.validate.outputs.stable }}
+      publish-outcome: ${{ steps.publish.outcome }}
+      reconcile-outcome: ${{ steps.reconcile.outcome }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -90,7 +96,17 @@ jobs:
             exit 1
           fi
 
+          case "${version%%+*}" in
+            *-*) stable=false ;;
+            *) stable=true ;;
+          esac
+
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          {
+            echo "version=$version"
+            echo "merge-sha=$MERGE_SHA"
+            echo "stable=$stable"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract changelog notes
         run: |
@@ -590,3 +606,66 @@ jobs:
       - name: Fail unsuccessful publication
         if: ${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' && (steps.publish.outcome != 'success' || steps.reconcile.outcome != 'success') }}
         run: exit 1
+
+  notify-publisher:
+    name: Notify adapter catalogue publisher
+    needs: publish
+    if: >-
+      ${{ always()
+       && github.repository == 'kyaulabs/prism'
+       && needs.publish.outputs.stable == 'true'
+       && needs.publish.outputs.publish-outcome == 'success'
+       && needs.publish.outputs.reconcile-outcome == 'success'
+       }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Mint publisher dispatch token
+        id: publisher-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.CATALOGUE_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}
+          owner: kyaulabs
+          repositories: prism-adapters
+          permission-contents: write
+
+      - name: Dispatch validated adapter release
+        env:
+          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          MERGE_SHA: ${{ needs.publish.outputs.merge-sha }}
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "$RELEASE_VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+            echo "::error::publisher dispatch requires a stable release version" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$MERGE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::publisher dispatch requires a validated merge SHA" >&2
+            exit 1
+          fi
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+
+          const payload = {
+            event_type: 'prism_adapter_release',
+            client_payload: {
+              schemaVersion: 1,
+              sourceRepository: 'kyaulabs/prism',
+              version: process.env.RELEASE_VERSION,
+              mergeSha: process.env.MERGE_SHA,
+            },
+          };
+          fs.writeFileSync(
+            '.prism-adapter-release-dispatch.json',
+            `${JSON.stringify(payload)}\n`,
+            {mode: 0o600}
+          );
+          NODE
+
+          gh api --method POST repos/kyaulabs/prism-adapters/dispatches \
+            --input .prism-adapter-release-dispatch.json

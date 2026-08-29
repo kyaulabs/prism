@@ -135,12 +135,12 @@ fi
 perm_blocks=$(grep -cE '^[[:space:]]*permissions:' "$RELEASE_FILE" 2>/dev/null || true)
 perm_entries=$(grep -oE '^[[:space:]]+(actions|attestations|checks|contents|deployments|discussions|id-token|issues|metadata|models|packages|pages|pull-requests|security-events|statuses): (write|read|none)' "$RELEASE_FILE" 2>/dev/null || true)
 perm_count=$(printf '%s\n' "$perm_entries" | grep -c . || true)
-if [ "${perm_blocks:-0}" -eq 1 ] && [ "${perm_count:-0}" -eq 2 ] && \
+if [ "${perm_blocks:-0}" -eq 2 ] && [ "${perm_count:-0}" -eq 2 ] && \
    printf '%s\n' "$perm_entries" | grep -qF 'contents: write' && \
    printf '%s\n' "$perm_entries" | grep -qF 'pull-requests: write'; then
-	pass "job permissions are exactly contents: write and pull-requests: write"
+	pass "publish permissions are unchanged and publisher notification has no GITHUB_TOKEN permissions"
 else
-	fail "permissions are not exactly contents: write + pull-requests: write (blocks=$perm_blocks entries=$perm_count)"
+	fail "release or publisher-notification job permissions exceed the exact contract (blocks=$perm_blocks entries=$perm_count)"
 fi
 
 # ── 6. Pinned actions; checkout pins v7 at the merge SHA with full history ───
@@ -241,9 +241,14 @@ validate_workflow_graph() {
 		const fs = require("node:fs");
 		const yaml = require("js-yaml");
 		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
-		const jobs = Object.values(workflow.jobs);
-		if (jobs.length !== 1) process.exit(1);
-		const job = jobs[0];
+		const publishJob = workflow.jobs.publish;
+		const notifyJob = workflow.jobs["notify-publisher"];
+		if (
+			Object.keys(workflow.jobs).sort().join(",") !== "notify-publisher,publish" ||
+			publishJob === undefined ||
+			notifyJob === undefined
+		) process.exit(1);
+		const job = publishJob;
 		const jobGateTerms = ["workflow_dispatch", "pull_request.merged", "startsWith", "head.repo.full_name"];
 		if (
 			typeof job.if !== "string" ||
@@ -298,8 +303,81 @@ validate_workflow_graph() {
 		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
 			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
 		if (backmerge.if !== expected) process.exit(1);
+
+		const publishPermissionKeys = Object.keys(publishJob.permissions ?? {}).sort();
+		if (
+			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents", "pull-requests"]) ||
+			publishJob.permissions.contents !== "write" ||
+			publishJob.permissions["pull-requests"] !== "write" ||
+			Object.keys(notifyJob.permissions ?? {}).length !== 0
+		) process.exit(1);
+
+		const expectedOutputs = {
+			version: "${{ steps.validate.outputs.version }}",
+			"merge-sha": "${{ steps.validate.outputs.merge-sha }}",
+			stable: "${{ steps.validate.outputs.stable }}",
+			"publish-outcome": "${{ steps.publish.outcome }}",
+			"reconcile-outcome": "${{ steps.reconcile.outcome }}",
+		};
+		if (JSON.stringify(publishJob.outputs) !== JSON.stringify(expectedOutputs)) process.exit(1);
+
+		const expectedNotifyGuard = "${{ always()" +
+			" && github.repository == " + quote + "kyaulabs/prism" + quote +
+			" && needs.publish.outputs.stable == " + quote + "true" + quote +
+			" && needs.publish.outputs.publish-outcome == " + quote + "success" + quote +
+			" && needs.publish.outputs.reconcile-outcome == " + quote + "success" + quote +
+			" }}";
+		const notifyGuard = notifyJob.if.replace(/\s+/g, " ").trim();
+		if (
+			notifyJob.needs !== "publish" ||
+			notifyGuard !== expectedNotifyGuard ||
+			notifyJob["timeout-minutes"] !== 5 ||
+			notifyJob["runs-on"] !== "ubuntu-latest"
+		) process.exit(1);
+
+		const token = notifyJob.steps.find(({name}) => name === "Mint publisher dispatch token");
+		const dispatch = notifyJob.steps.find(({name}) => name === "Dispatch validated adapter release");
+		if (
+			token === undefined ||
+			token.id !== "publisher-token" ||
+			token.uses !== "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349" ||
+			token.with.owner !== "kyaulabs" ||
+			token.with.repositories !== "prism-adapters" ||
+			token.with["permission-contents"] !== "write" ||
+			Object.keys(token.with).sort().join(",") !==
+				"app-id,owner,permission-contents,private-key,repositories" ||
+			dispatch === undefined ||
+			dispatch.env.GH_TOKEN !== "${{ steps.publisher-token.outputs.token }}" ||
+			dispatch.env.RELEASE_VERSION !== "${{ needs.publish.outputs.version }}" ||
+			dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}"
+		) process.exit(1);
+
+		const notificationSource = JSON.stringify(notifyJob);
+		for (const forbidden of [
+			"compatibility",
+			"coreRange",
+			"integrity",
+			"npm",
+			"sequence",
+			"upload-artifact",
+			"actions/cache",
+			"skip-token-revoke",
+		]) {
+			if (notificationSource.includes(forbidden)) process.exit(1);
+		}
 	' "$workflow"
 }
+
+if grep -qF 'stable=$stable' "$RELEASE_FILE" && \
+   grep -qF 'version=$version' "$RELEASE_FILE" && \
+   grep -qF 'merge-sha=$MERGE_SHA' "$RELEASE_FILE" && \
+   grep -qF "github.repository == 'kyaulabs/prism'" "$RELEASE_FILE" && \
+   grep -qF "needs.publish.outputs.publish-outcome == 'success'" "$RELEASE_FILE" && \
+   grep -qF "needs.publish.outputs.reconcile-outcome == 'success'" "$RELEASE_FILE"; then
+	pass "publisher notification consumes only validated stable release outcomes"
+else
+	fail "publisher notification is not gated by exact source, stability, publication, and reconciliation"
+fi
 
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
 # the fixture into a fresh registered temp dir as CHANGELOG.md, execute the
@@ -1007,6 +1085,90 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 	fi
 else
 	fail "could not extract package-tag reconciliation block"
+fi
+
+# ── 9f. Executable validated adapter release dispatch ───────────────────────
+
+dispatch_sim=$(mktemp -d)
+register_temp_dir "$dispatch_sim"
+mkdir -p "$dispatch_sim/bin"
+cat > "$dispatch_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [ "${GH_MODE:-success}" = "failure" ]; then
+	printf '%s\n' 'HTTP 500' >&2
+	exit 1
+fi
+exit 0
+EOF
+chmod +x "$dispatch_sim/bin/gh"
+: > "$dispatch_sim/gh.log"
+
+if dispatch_block=$(extract_run_block "$RELEASE_FILE" "Dispatch validated adapter release"); then
+	stable_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/dispatches --input .prism-adapter-release-dispatch.json' "$dispatch_sim/gh.log" && \
+	   jq -e --arg sha "$stable_sha" '. == {
+		 event_type: "prism_adapter_release",
+		 client_payload: {
+			 schemaVersion: 1,
+			 sourceRepository: "kyaulabs/prism",
+			 version: "1.2.3",
+			 mergeSha: $sha
+		 }
+	   }' "$dispatch_sim/.prism-adapter-release-dispatch.json" >/dev/null; then
+		pass "stable release dispatch sends the exact closed payload to the fixed publisher"
+	else
+		fail "stable release dispatch did not preserve the fixed endpoint and closed payload"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3-rc.1 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "prerelease reached publisher dispatch"
+	elif [ ! -s "$dispatch_sim/gh.log" ]; then
+		pass "prerelease is rejected before publisher API access"
+	else
+		fail "prerelease rejection occurred after publisher API access"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA=wrong \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "malformed merge SHA reached publisher dispatch"
+	elif [ ! -s "$dispatch_sim/gh.log" ]; then
+		pass "malformed merge SHA is rejected before publisher API access"
+	else
+		fail "merge-SHA rejection occurred after publisher API access"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_MODE=failure GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "publisher dispatch API failure was masked"
+	elif grep -qF 'repos/kyaulabs/prism-adapters/dispatches' "$dispatch_sim/gh.log"; then
+		pass "publisher dispatch API failure remains visible for scheduled or manual recovery"
+	else
+		fail "publisher dispatch failure path did not reach the fixed API boundary"
+	fi
+else
+	fail "could not extract validated adapter release dispatch block"
 fi
 
 # The executable sequence must publish the repository Release before it
