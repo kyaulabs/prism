@@ -354,6 +354,8 @@ validate_workflow_graph() {
 			token === undefined ||
 			token.id !== "publisher-token" ||
 			token.uses !== "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349" ||
+			token.with["app-id"] !== "${{ vars.CATALOGUE_DISPATCH_APP_ID }}" ||
+			token.with["private-key"] !== "${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}" ||
 			token.with.owner !== "kyaulabs" ||
 			token.with.repositories !== "prism-adapters" ||
 			token.with["permission-contents"] !== "write" ||
@@ -394,7 +396,38 @@ fi
 
 graph_sim=$(mktemp -d)
 register_temp_dir "$graph_sim"
-sed '/^    permissions: {}$/d' "$RELEASE_FILE" > "$graph_sim/missing-notify-permissions.yml"
+node -e '
+	const fs = require("node:fs");
+	const source = fs.readFileSync(process.argv[1], "utf8");
+	const fixtures = [
+		["${{ vars.CATALOGUE_DISPATCH_APP_ID }}", "${{ vars.WRONG_APP_ID }}", process.argv[2]],
+		["${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}", "${{ secrets.WRONG_PRIVATE_KEY }}", process.argv[3]],
+	];
+	for (const [before, after, output] of fixtures) {
+		if (!source.includes(before)) process.exit(1);
+		fs.writeFileSync(output, source.replace(before, after));
+	}
+' "$RELEASE_FILE" "$graph_sim/wrong-app-id.yml" "$graph_sim/wrong-private-key.yml"
+if ! validate_workflow_graph "$graph_sim/wrong-app-id.yml" && \
+   ! validate_workflow_graph "$graph_sim/wrong-private-key.yml"; then
+	pass "publisher token inputs require the approved variable and secret sources"
+else
+	fail "publisher token inputs accept an unapproved credential source"
+fi
+
+sed 's/^    permissions: {}$/    permissions: { }/' "$RELEASE_FILE" > "$graph_sim/equivalent-notify-permissions.yml"
+if cmp -s "$RELEASE_FILE" "$graph_sim/equivalent-notify-permissions.yml"; then
+	fail "could not create the equivalent publisher permissions fixture"
+fi
+node -e '
+	const fs = require("node:fs");
+	const yaml = require("js-yaml");
+	const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+	const notifyJob = workflow.jobs?.["notify-publisher"];
+	if (notifyJob === undefined || !Object.hasOwn(notifyJob, "permissions")) process.exit(1);
+	delete notifyJob.permissions;
+	fs.writeFileSync(process.argv[2], yaml.dump(workflow, {lineWidth: -1, noRefs: true}));
+' "$graph_sim/equivalent-notify-permissions.yml" "$graph_sim/missing-notify-permissions.yml"
 if validate_workflow_graph "$graph_sim/missing-notify-permissions.yml"; then
 	fail "publisher notification accepts inherited GITHUB_TOKEN permissions"
 else
