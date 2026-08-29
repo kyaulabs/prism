@@ -309,7 +309,11 @@ validate_workflow_graph() {
 			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents", "pull-requests"]) ||
 			publishJob.permissions.contents !== "write" ||
 			publishJob.permissions["pull-requests"] !== "write" ||
-			Object.keys(notifyJob.permissions ?? {}).length !== 0
+			notifyJob.permissions === undefined ||
+			notifyJob.permissions === null ||
+			typeof notifyJob.permissions !== "object" ||
+			Array.isArray(notifyJob.permissions) ||
+			Object.keys(notifyJob.permissions).length !== 0
 		) process.exit(1);
 
 		const expectedOutputs = {
@@ -319,7 +323,16 @@ validate_workflow_graph() {
 			"publish-outcome": "${{ steps.publish.outcome }}",
 			"reconcile-outcome": "${{ steps.reconcile.outcome }}",
 		};
-		if (JSON.stringify(publishJob.outputs) !== JSON.stringify(expectedOutputs)) process.exit(1);
+		const actualOutputs = publishJob.outputs;
+		if (
+			actualOutputs === undefined ||
+			actualOutputs === null ||
+			typeof actualOutputs !== "object" ||
+			Array.isArray(actualOutputs) ||
+			Object.keys(actualOutputs).sort().join(",") !==
+				Object.keys(expectedOutputs).sort().join(",") ||
+			Object.entries(expectedOutputs).some(([key, value]) => actualOutputs[key] !== value)
+		) process.exit(1);
 
 		const expectedNotifyGuard = "${{ always()" +
 			" && github.repository == " + quote + "kyaulabs/prism" + quote +
@@ -377,6 +390,43 @@ if grep -qF 'stable=$stable' "$RELEASE_FILE" && \
 	pass "publisher notification consumes only validated stable release outcomes"
 else
 	fail "publisher notification is not gated by exact source, stability, publication, and reconciliation"
+fi
+
+graph_sim=$(mktemp -d)
+register_temp_dir "$graph_sim"
+sed '/^    permissions: {}$/d' "$RELEASE_FILE" > "$graph_sim/missing-notify-permissions.yml"
+if validate_workflow_graph "$graph_sim/missing-notify-permissions.yml"; then
+	fail "publisher notification accepts inherited GITHUB_TOKEN permissions"
+else
+	pass "publisher notification requires an explicit empty permissions mapping"
+fi
+
+node -e '
+	const fs = require("node:fs");
+	const before = [
+		"    outputs:",
+		"      version: ${{ steps.validate.outputs.version }}",
+		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
+		"      stable: ${{ steps.validate.outputs.stable }}",
+		"      publish-outcome: ${{ steps.publish.outcome }}",
+		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
+	].join("\n");
+	const after = [
+		"    outputs:",
+		"      stable: ${{ steps.validate.outputs.stable }}",
+		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
+		"      version: ${{ steps.validate.outputs.version }}",
+		"      publish-outcome: ${{ steps.publish.outcome }}",
+		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
+	].join("\n");
+	const content = fs.readFileSync(process.argv[1], "utf8");
+	if (!content.includes(before)) process.exit(1);
+	fs.writeFileSync(process.argv[2], content.replace(before, after));
+' "$RELEASE_FILE" "$graph_sim/reordered-publish-outputs.yml"
+if validate_workflow_graph "$graph_sim/reordered-publish-outputs.yml"; then
+	pass "publisher output validation is independent of YAML key order"
+else
+	fail "publisher output validation rejects a behaviorally identical key order"
 fi
 
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
