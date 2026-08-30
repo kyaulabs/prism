@@ -4,7 +4,9 @@ Date: 2026-08-29
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by ADR-0097. ADR-0097 replaces GitHub App authentication with two bot-owned fine-grained PATs while retaining this record's Actions-only workflow-dispatch transport.
 
 Partially supersedes ADR-0095's repository-dispatch transport and dispatch-App authentication clauses. ADR-0095's independent evidence validation, sequence safety, publication authority, protected-branch behavior, and human-only merge decision remain accepted.
 

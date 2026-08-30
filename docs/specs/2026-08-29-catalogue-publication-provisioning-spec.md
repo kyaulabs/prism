@@ -5,102 +5,131 @@
 
 ## Problem Statement
 
-The signed adapter catalogue workflows now exist in Prism and the adapter publisher, but their release-notification contracts do not agree. Prism emits a repository dispatch with one event and field vocabulary, while the publisher accepts another. The current dispatch also requires `Contents: write`, which exceeds the dispatch-only authority required for the Prism release runtime.
+Prism and the adapter publisher need account-owned authentication for catalogue notification and publication. The previously approved GitHub App design does not match the required operating model. Authentication must be owned by `kyaulabs-bot` without exposing credential values to agents, repositories, tests, logs, issues, or readiness evidence.
 
-The repositories are not ready for production publication. The protected signing environment, App credentials, signing secrets, activation control, and short retention policy remain unprovisioned. Maintainers need a precise setup procedure and a read-only readiness check that identifies missing controls without retrieving credential values. Production activation must remain blocked until the corrected workflows are on protected default branches and every manual custody check is complete.
+One credential with Actions, Contents, and Pull Requests write authority would let the Prism release job mutate publisher branches and pull requests. That would collapse the authority separation between release notification and catalogue publication. The design must preserve two independently scoped runtime authorities while using fine-grained personal access tokens.
+
+The two existing fine-grained PATs are non-expiring and have no planned rotation. This increases long-lived credential risk. The system must keep that accepted debt visible without pretending it is a healthy rotating-credential posture.
 
 ## Solution
 
-Prism will notify the existing publisher workflow through `workflow_dispatch`. The dispatch runtime will use a dedicated GitHub App token narrowed to the adapter repository and `Actions: write`; it will not receive repository contents or pull-request authority. The request will target the trusted `main` publisher workflow and carry only release mode, stable version, and immutable merge commit inputs already accepted by the publisher.
+Use two fine-grained PATs owned by `kyaulabs-bot`, with resource owner `kyaulabs` and repository selection limited to `kyaulabs/prism-adapters`.
 
-Dispatch and publication will use separate GitHub App identities. The dispatch App will provide only the publisher-workflow trigger authority used by Prism. The publication App will remain installed only on the adapter repository with repository contents and pull-request write access for its protected publication step. Neither App will receive merge, administration, release, npm, or unrelated repository authority.
+The dispatch PAT grants only Actions write. Prism stores it as protected-environment secret `CATALOGUE_DISPATCH_TOKEN` and uses it only to call the fixed publisher workflow on `main` through `workflow_dispatch`.
 
-Human maintainers will provision two protected environments. Prism's dispatch environment will expose the dispatch App credential only to the trusted release-notification job. The adapter repository's `catalogue-signing` environment will hold the encrypted signing key, its separately protected passphrase, and the publication App credential. Both repositories will retain pull-request-only `main` rules with no workflow bypass actor. Production activation will remain absent or disabled until environment restrictions, App installations, secret scopes, workflow revisions, retention, and recovery custody pass review.
+The publication PAT grants only Contents write and Pull Requests write. The publisher stores it as protected-environment secret `CATALOGUE_PUBLICATION_TOKEN` and uses it only after evidence validation, synthetic-key tests, production signing, and reverification. Publisher code treats the token as opaque and does not mint another token, assume a token prefix, write it to a file, or expose it in diagnostics.
 
-Prism will provide a read-only readiness operation and a detailed operator runbook. The operation will inspect only GitHub administration metadata available to the authenticated maintainer, report each missing or drifted control, and emit no credential values. Controls that GitHub does not expose through the maintainer's read-only API view, including App registration grants and retention settings, will remain explicit manual checks. Readiness output and retained provisioning evidence will contain only non-secret identifiers, permission names, and status.
+Readiness never receives either credential value. Human-supplied non-secret evidence records credential type, credential owner, resource owner, selected repository, exact permission map, null expiration, and the explicitly accepted absence of rotation. Wrong scope or combined authority fails readiness. Non-expiry and no rotation remain visible as `ADVISORY` checks that do not block the explicitly approved design.
+
+`CATALOGUE_SIGNING_ENABLED` remains absent throughout migration and provisioning. Publisher PAT support reaches protected `main` before Prism dispatch PAT support is activated. Issue #469 owns the first credential-bearing production publication.
 
 ## User Stories
 
-1. As a release maintainer, I want Prism to invoke the publisher through one closed workflow-dispatch contract, so that stable release evidence reaches the publisher without schema drift.
-2. As a security maintainer, I want the Prism dispatch token to have Actions authority without repository contents authority, so that the release runtime cannot modify publisher branches.
-3. As a security maintainer, I want dispatch and publication to use separate App identities, so that compromise of one App credential does not grant the other runtime's authority.
-4. As a publisher maintainer, I want production signing secrets available only to trusted `main` workflow code after unprivileged validation passes, so that pull requests and untrusted jobs cannot sign a catalogue.
-5. As a publisher maintainer, I want the encrypted signing key and passphrase stored separately, so that disclosure of one secret does not immediately yield usable signing authority.
-6. As a repository maintainer, I want protected `main` branches with no workflow bypass actors, so that automation cannot push or merge protected branches.
-7. As an operator, I want publication disabled until every workflow, environment, credential scope, App grant, retention setting, and recovery control has been reviewed, so that partial setup cannot activate production signing.
-8. As an operator, I want a read-only readiness check with precise diagnostics, so that I can correct missing administration without exposing credentials.
-9. As an incident responder, I want separate App-credential and catalogue-signing-key procedures, so that exposure response revokes the affected authority without conflating two trust roots.
-10. As a successor maintainer, I want a detailed custody and rotation runbook, so that responsibility can transfer without recording secret values or sensitive locations.
-11. As a reviewer, I want provisioning evidence limited to non-secret IDs, permissions, workflow revisions, and status, so that review does not create another credential copy.
-12. As a new Prism user, I want scheduled catalogue renewal to remain available after one missed run, so that strict-empty adapter discovery does not fail because of an expired catalogue.
+1. As a maintainer, I want catalogue automation credentials owned by `kyaulabs-bot`, so that machine authentication has a clear human-administered account owner.
+2. As a security maintainer, I want dispatch and publication to use separate fine-grained PATs, so that the Prism release runtime cannot mutate publisher contents or pull requests.
+3. As a release maintainer, I want the dispatch PAT restricted to `prism-adapters` and Actions write, so that it can wake the fixed publisher workflow without repository mutation authority.
+4. As a publisher maintainer, I want the publication PAT restricted to `prism-adapters` and Contents/Pull Requests write, so that it can create only the publication branch and pull request operations implemented by trusted publisher code.
+5. As an operator, I want PAT values entered only through protected GitHub environments, so that agents and repository files never receive them.
+6. As a reviewer, I want readiness to validate human-supplied non-secret scope metadata, so that token separation is reviewable without token access.
+7. As a reviewer, I want non-expiring and unrotated credential risk reported explicitly, so that accepted debt remains visible for later refactoring.
+8. As an incident responder, I want independent revocation and replacement procedures, so that exposure of one PAT does not require exposing or replacing the other.
+9. As a repository maintainer, I want protected `main` branches with no workflow bypass actor, so that PAT ownership does not bypass human merge control.
+10. As a successor maintainer, I want an out-of-band account and credential custody handoff, so that repository documentation contains no credential values or storage locations.
 
 ## Implementation Decisions
 
-### Trigger authority
+### Credential profiles
 
-- Prism will call the publisher's existing workflow-dispatch interface rather than repository dispatch.
-- The target is the trusted publisher workflow on `main`; event data cannot choose another workflow or ref.
-- Inputs are closed to release mode, stable release version, and immutable merge commit. Compatibility, package, registry, sequence, branch, and signing data remain forbidden.
-- The dispatch App and publication App are separate identities. Installation tokens are narrowed to one repository and the minimum permission subset granted to each App.
-- Prism's release-notification job uses an environment-scoped App credential. Pull-request jobs, unrelated workflows, and preceding release jobs receive no dispatch credential.
+The dispatch credential metadata is exactly:
 
-### Protected environments and activation
+- type `FINE_GRAINED_PAT`;
+- credential owner `kyaulabs-bot`;
+- resource owner `kyaulabs`;
+- selected repositories: only `kyaulabs/prism-adapters`;
+- repository permissions: Actions write only;
+- no expiration;
+- rotation policy `NONE_ACCEPTED`.
 
-- Prism owns a protected dispatch environment restricted to trusted `main` release execution.
-- The adapter publisher owns the existing `catalogue-signing` environment restricted to trusted `main` publication execution.
-- The publisher environment stores the encrypted PKCS#8 Ed25519 key, passphrase, and publication App credential as separate secrets. App IDs and the activation switch are non-secret variables.
-- Required environment reviewers remain disabled because unattended release notification and renewal are intentional. Repository and environment administrators remain part of the accepted trust base under ADR-0094.
-- The activation switch remains absent or false until the complete readiness procedure passes. Disabling it is the first response to suspected publisher credential exposure.
+The publication credential metadata is exactly:
 
-### Branch, workflow, and retention controls
+- type `FINE_GRAINED_PAT`;
+- credential owner `kyaulabs-bot`;
+- resource owner `kyaulabs`;
+- selected repositories: only `kyaulabs/prism-adapters`;
+- repository permissions: Contents write and Pull Requests write only;
+- no expiration;
+- rotation policy `NONE_ACCEPTED`.
 
-- `main` remains pull-request-only in both repositories, with signed commits, no force pushes or deletion, and no workflow bypass actor.
-- Workflow actions remain pinned to reviewed immutable commits. Actions debug tracing is disabled for credential-bearing jobs.
-- Publisher runs share non-cancelling serialization. The daily schedule retains the publisher's verified three-day renewal gate and six-day catalogue validity model.
-- Actions log retention is seven days for the credential-bearing repositories. No signing or App credential enters logs, outputs, summaries, caches, artifacts, fixtures, issue content, or committed evidence.
+A single credential carrying all three write permissions is invalid. Adding repositories, permissions, or another resource owner is invalid. Changing to one combined credential requires a new explicit security-boundary decision.
+
+### Prism dispatch
+
+Prism keeps the fixed Actions-only workflow-dispatch transport. The release notification job runs in protected environment `catalogue-dispatch` and exposes `CATALOGUE_DISPATCH_TOKEN` only to the dispatch step as `GH_TOKEN`. The job targets the fixed publisher repository, workflow, and `main` ref with the closed release inputs already accepted by the publisher.
+
+The workflow removes GitHub App ID, private-key, and token-minting behavior. Pull requests, preceding release jobs, and unrelated workflows receive no dispatch PAT.
+
+### Publisher publication
+
+The existing `catalogue-signing` environment continues to protect the encrypted Ed25519 signing key and its separate passphrase. It additionally stores `CATALOGUE_PUBLICATION_TOKEN`.
+
+The protected publication command consumes the PAT as an opaque environment value only after signing and reverification. GitHub App JWT construction, installation discovery, App permission responses, App ID configuration, and installation-token minting are removed. Existing publication state validation, immutable sequence branches, no-force behavior, and human-only pull-request merge remain unchanged.
+
+The publisher change is implemented and reviewed in the `prism-adapters` project before the Prism-side credential migration is activated.
 
 ### Readiness and evidence
 
-- The readiness operation is read-only. It checks default-branch workflow presence, trigger contract, protected-environment metadata, expected secret and variable presence, activation state, branch rules, and other API-visible controls.
-- Missing, unauthorized, or ambiguous metadata fails closed with a stable diagnostic. The operation never requests a secret value and does not treat secret presence as proof of correct value.
-- App registration permissions, installation selection, environment administrator access, offline recovery custody, and retention settings receive explicit manual verification where GitHub's read-only repository API cannot prove them.
-- Provisioning evidence records only non-secret App and installation IDs, permission names, repository selection, environment and workflow names, immutable workflow revisions, retention duration, branch-rule status, activation status, and verification time.
-- The runbook separates initial provisioning, activation, routine rotation, suspected exposure, and maintainer succession. It never instructs an agent to receive or operate on production credentials.
+Readiness checks API-visible workflow, ruleset, environment, secret-name, activation, and SHA-pinning metadata. It consumes one fixed ignored local attestation containing only the two closed credential metadata records, retention status, administrator review, and recovery-custody review.
 
-### Security boundaries
+Readiness statuses are:
 
-- Assets are the catalogue signing key, its passphrase, both App credentials, protected-branch integrity, and catalogue authenticity.
-- Trust boundaries are release event data, GitHub API metadata, pull-request code, default-branch workflow code, protected environments, and human administration.
-- Primary abuse cases are confused-deputy dispatch, privilege escalation through broad App grants, credential exposure to untrusted jobs, direct protected-branch mutation, forged activation evidence, and secret leakage through diagnostics.
-- Every readiness or publication ambiguity fails before credential use, signing, dispatch, or repository mutation.
+- `PASS` for proved or exactly attested required controls;
+- `FAIL` for missing, malformed, ambiguous, over-broad, combined, or mismatched authority;
+- `MANUAL` when required human evidence is absent;
+- `ADVISORY` for the explicitly accepted non-expiring and no-rotation posture.
+
+`GO` permits `PASS` and `ADVISORY` only. `FAIL` or `MANUAL` produces `NO-GO`. Output never includes token values, API response bodies, credential-shaped strings, or unrelated metadata.
+
+### Migration and activation
+
+1. Keep `CATALOGUE_SIGNING_ENABLED` absent.
+2. Implement, review, and merge publisher direct-PAT support.
+3. Implement, review, and merge Prism direct-PAT dispatch support.
+4. Verify both PAT metadata profiles in the GitHub UI without sharing values.
+5. Enter each PAT directly into its owning protected environment.
+6. Run pre-activation readiness and one disabled-state release dispatch.
+7. Enable production only after all blocking checks pass.
+8. Leave first production publication and raw-endpoint verification to issue #469.
+
+### Exposure and future migration
+
+Suspected exposure immediately disables catalogue signing and revokes only the affected PAT. Human maintainers review `kyaulabs-bot`, organization access, selected repositories, permission grants, audit events, workflow revisions, and unexpected publication state before replacing the credential and rerunning readiness.
+
+The absence of expiration and rotation is accepted for the current implementation, not established as a preferred credential policy. A future change may adopt expiration, scheduled rotation, or a different machine identity through a new reviewed design.
 
 ## Testing Decisions
 
-The first public seam is the release workflow contract. Existing release workflow tests will verify that stable publication success mints a token with only Actions write authority, targets the fixed adapter repository and trusted workflow on `main`, and sends only the publisher's accepted release inputs. Extracted negative cases will reject alternate workflows, refs, permissions, field names, and extra authority.
+Prism workflow tests verify direct use of `CATALOGUE_DISPATCH_TOKEN`, the fixed Actions workflow dispatch, exact closed inputs, environment isolation, and complete absence of App-token minting and App configuration.
 
-The second public seam is the read-only readiness operation. Shell tests will replace `gh` with deterministic fixtures and cover complete, missing, drifted, unauthorized, malformed, and ambiguous administration states. The tests will assert exact endpoint allowlists, fail-closed exit codes, redacted output, and the absence of any secret-value request or mutation.
+Publisher tests verify direct use of `CATALOGUE_PUBLICATION_TOKEN` at the protected publication boundary, unchanged bounded GitHub mutations, no token persistence or logging, and removal of JWT, App ID, installation discovery, and installation-token minting behavior.
 
-Documentation contract tests will require the complete provisioning, activation, rotation, exposure, recovery, and succession procedure while rejecting credential values and sensitive storage instructions.
+Readiness tests cover both exact credential profiles, secret-name presence, combined-authority rejection, extra repository or permission rejection, owner/resource-owner mismatch, malformed evidence, missing evidence, advisory non-expiry/no-rotation reporting, redacted diagnostics, and active/pre-activation states.
 
-Live acceptance occurs only after a human provisions both repositories. The operator runs the same readiness check, confirms the manual controls, and performs one disabled-state trigger check that cannot enter the protected environment. The operator then enables production and reruns active-state readiness. Issue #469 owns the first credential-bearing production publication. The resulting evidence contains only non-secret identifiers, permissions, immutable revisions, and status.
+Documentation tests require exact human setup, disabled migration order, independent revocation, exposure response, accepted credential debt, and future migration guidance. Tests reject credential values and shell instructions that place PATs in command arguments or repository files.
 
 ## Out of Scope
 
-- Generating, importing, reading, copying, displaying, or validating production credential values.
-- Agent-driven GitHub App, environment, secret, variable, ruleset, or retention mutation.
-- Changing publisher evidence validation, catalogue rendering, signing, sequence allocation, or pull-request publication behavior.
-- Giving Prism repository contents or pull-request authority in the adapter repository.
-- Giving either App merge, administration, release, npm, or unrelated repository authority.
-- Automating npm authentication or publication.
-- Bypassing protected branches, enabling auto-merge, or merging publication pull requests.
-- Recording offline custody locations or other sensitive paths in repository documentation or issue content.
+- Requesting, reading, printing, copying, validating, or storing PAT values in agent context or repository files.
+- One PAT with combined Actions, Contents, and Pull Requests write authority.
+- Adding expiration or rotation to the currently approved PATs.
+- Agent-driven token creation, environment mutation, secret entry, activation, revocation, or account administration.
+- Changing catalogue evidence validation, signing algorithms, sequence allocation, or human-only pull-request merges.
+- First production publication, which remains issue #469.
 
 ## Further Notes
 
 - Originating issue: #468.
-- Parent epic: #462.
-- ADR-0094 defines protected Actions signing custody.
-- ADR-0095 defines the cross-repository publication transaction and must be updated because the notification transport changes from repository dispatch to workflow dispatch while preserving its closed trigger-hint semantics.
-- The adapter publisher already accepts the selected workflow-dispatch input contract; no publisher source change is required for the trigger correction.
+- ADR-0097 supersedes ADR-0096's GitHub App authentication decision while retaining Actions-only workflow dispatch.
+- ADR-0094 continues to govern signing-key and passphrase custody.
+- ADR-0095 continues to govern independent publisher validation, sequence safety, bounded publication, and human merge.
 
 <!-- vim: ft=markdown sts=4 sw=4 ts=4 et : -->
