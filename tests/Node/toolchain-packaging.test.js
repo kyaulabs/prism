@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
 
 'use strict';
 
@@ -157,7 +157,7 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
-        'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
+        'catalogue-publication-readiness', 'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
         'consent', 'contract', 'discovery', 'managed-record', 'markdown',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'web-access-browser', 'web-access-config',

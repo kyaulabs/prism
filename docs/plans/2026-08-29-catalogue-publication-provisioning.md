@@ -284,7 +284,7 @@ repos/kyaulabs/prism-adapters/actions/permissions
 repos/kyaulabs/prism-adapters/actions/variables
 ```
 
-- [ ] **Step 1: Write failing public-command tests**
+- [x] **Step 1: Write failing public-command tests**
 
 Create fixture-driven Node tests that inject `context.projectRoot` and `context.request(endpoint)`. The complete behavior matrix is:
 
@@ -327,7 +327,7 @@ assert.equal(status, 0);
 assert.deepEqual(JSON.parse(output).checks.map(({id}) => id), expectedChecks);
 ```
 
-- [ ] **Step 2: Run the focused Node test to verify Red**
+- [x] **Step 2: Run the focused Node test to verify Red**
 
 Run:
 
@@ -337,7 +337,7 @@ node --test tests/Node/catalogue-publication-readiness.test.js
 
 Expected: FAIL because the module and CLI route do not exist.
 
-- [ ] **Step 3: Implement the minimal readiness module**
+- [x] **Step 3: Implement the minimal readiness module**
 
 Implement and export:
 
@@ -377,7 +377,7 @@ if (command === 'catalogue-publication') {
 }
 ```
 
-- [ ] **Step 4: Verify Green and package ownership**
+- [x] **Step 4: Verify Green and package ownership**
 
 Run:
 
@@ -395,7 +395,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: PASS and the module is present in the packed Core tarball.
 
-- [ ] **Step 5: Create the readiness commit**
+- [x] **Step 5: Create the readiness commit**
 
 Run `git add` for the four listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
