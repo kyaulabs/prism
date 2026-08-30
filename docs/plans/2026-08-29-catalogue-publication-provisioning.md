@@ -1,95 +1,138 @@
 # Catalogue Publication Provisioning Implementation Plan
 
 > **For the executing agent:** Implement this plan task-by-task by loading the
-> `executing-plans`, `tdd`, `security-coding`, `rcs-header`, and `tdd-php`
-> skills. Steps use checkbox (`- [ ]`) syntax for tracking. Each task follows
-> Red → Green → Refactor inline.
+> `executing-plans`, `tdd`, and `security-coding` skills. Steps use checkbox
+> (`- [ ]`) syntax for tracking. Each task follows Red → Green → Refactor
+> inline.
 
-**Goal:** Replace broad, incompatible catalogue release notification with a fixed Actions-only workflow dispatch, then provide tested non-secret readiness checks and detailed human provisioning instructions.
+**Goal:** Replace catalogue GitHub App authentication with two separately scoped fine-grained PATs owned by `kyaulabs-bot`, while preserving dispatch/publication authority separation and providing non-secret readiness evidence plus human setup instructions.
 
-**Architecture:** Prism's stable-release job calls the publisher's existing `workflow_dispatch` release interface with an Actions-write token from a separate dispatch App. A Core readiness module inspects fixed GitHub metadata and one exact local non-secret attestation, while a durable runbook keeps all App, environment, secret, activation, rotation, and exposure mutations human-owned.
+**Architecture:** Prism passes a dispatch-only PAT from protected environment `catalogue-dispatch` directly to one fixed workflow-dispatch API call. The publisher separately consumes a publication-only PAT from `catalogue-signing`; Prism readiness validates exact human-attested credential metadata and reports the accepted non-expiring/no-rotation posture as advisory.
 
-**Tech Stack:** GitHub Actions YAML, `actions/create-github-app-token` v2 pinned by SHA, CommonJS Node.js 22.19+, built-in `node:test`, Bash workflow drift tests, GitHub CLI read-only API calls, Markdown
+**Tech Stack:** GitHub Actions YAML, CommonJS Node.js 22.19+, built-in `node:test`, Bash workflow drift tests, GitHub CLI read-only API calls, Markdown
 
 **Originating issue:** #468
 
 ## Global constraints
 
-- Follow `docs/specs/2026-08-29-catalogue-publication-provisioning-spec.md`, ADR-0094, ADR-0095, and ADR-0096.
-- The publisher target is fixed to `kyaulabs/prism-adapters`, `.github/workflows/catalogue-signing.yml`, and `main`.
-- Dispatch inputs are exactly `mode=release`, stable `version`, and lowercase 40-hex `merge_commit`.
-- The dispatch App token is narrowed to `prism-adapters` and `Actions: write`; it receives no Contents or Pull Requests permission.
-- Dispatch and publication use separate GitHub App identities.
-- Production credential values never enter agent context, commands, source, tests, logs, output, artifacts, caches, summaries, issues, plans, specifications, or readiness evidence.
-- GitHub App, environment, secret, variable, retention, and activation mutations remain human-only web administration.
+- Follow `docs/specs/2026-08-29-catalogue-publication-provisioning-spec.md`, ADR-0094, ADR-0095, and ADR-0097.
+- Never request, read, print, copy, validate, or store either PAT value in agent context, commands, repository files, tests, logs, output, artifacts, caches, summaries, issues, plans, specifications, or readiness evidence.
+- Both credentials are fine-grained PATs owned by `kyaulabs-bot`, with resource owner `kyaulabs` and repository selection limited to `kyaulabs/prism-adapters`.
+- The dispatch PAT grants Actions write only and is stored as `CATALOGUE_DISPATCH_TOKEN` in Prism environment `catalogue-dispatch`.
+- The publication PAT grants Contents write and Pull Requests write only and is stored as `CATALOGUE_PUBLICATION_TOKEN` in publisher environment `catalogue-signing`.
+- A single combined PAT is prohibited.
+- Both PATs are non-expiring and have no planned rotation; readiness reports that accepted debt as `ADVISORY`.
+- `CATALOGUE_SIGNING_ENABLED` remains absent throughout implementation and human setup.
+- The publisher target remains fixed to `kyaulabs/prism-adapters`, `.github/workflows/catalogue-signing.yml`, and `main`.
+- Dispatch inputs remain exactly `mode=release`, stable `version`, and lowercase 40-hex `merge_commit`.
+- GitHub account, PAT, environment, secret, retention, and activation mutations remain human-only web administration.
 - Readiness uses only fixed read-only GitHub API endpoints and the fixed ignored attestation path `.pi/prism-tool/catalogue-publication-readiness.json`.
-- Readiness distinguishes `PASS`, `FAIL`, and `MANUAL`; it never treats secret presence as proof that a secret value is correct.
 - No new dependency is added.
-- Every new or modified `.js` or `.sh` source file retains the RCS header and final vim modeline managed by the hook.
+- Every modified `.js` or `.sh` source file retains its RCS header and final vim modeline.
+
+## Required external prerequisite
+
+This plan cannot modify the sibling `prism-adapters` project. Before Task 1 begins, a separate trusted session in that project must implement and merge direct publication-PAT support to protected `main`:
+
+- `.github/workflows/catalogue-signing.yml` exposes `secrets.CATALOGUE_PUBLICATION_TOKEN` only to the protected publication command;
+- App ID, App private-key, JWT, installation discovery, and installation-token minting are removed;
+- publisher code consumes the PAT as an opaque environment value, never persists or logs it, and keeps existing bounded branch/pull-request mutations;
+- `test/workflow.test.js` and `test/github-publication.test.js` prove the new boundary and reject the retired App flow;
+- `CATALOGUE_SIGNING_ENABLED` remains absent;
+- the publisher's full check and security review pass before human secret entry.
+
+The executor records only the merged publisher workflow revision SHA as non-secret evidence. It does not receive the PAT.
 
 ---
 
-### Task 1: Persist the approved security boundary
+### Task 1: Dispatch with the account-owned Actions PAT
 
 **Files:**
 
-- Modify: `CONTEXT.md`
-- Modify: `adr/0095-cross-repository-catalogue-publication-transaction.md`
-- Create: `adr/0096-actions-only-catalogue-workflow-dispatch.md`
-- Create: `docs/specs/2026-08-29-catalogue-publication-provisioning-spec.md`
-- Create: `docs/plans/2026-08-29-catalogue-publication-provisioning.md`
+- Modify: `tests/Shell/release_workflow_test.sh:352-426`
+- Modify: `packages/prism-core/config/release.yml:610-671`
+- Modify: `.github/workflows/release.yml:610-671`
 
 **Interfaces:**
 
-- Consumes: issue #468, ADR-0094 signing custody, ADR-0095 publication transaction, and the approved test seams.
-- Produces: accepted ADR-0096 and one issue-provenanced plan governing all later tasks.
+- Consumes: protected secret `${{ secrets.CATALOGUE_DISPATCH_TOKEN }}` and validated release outputs `version` and `merge-sha`.
+- Produces: one fixed `workflow_dispatch` request with no App-token minting step.
 
-- [x] **Step 1: Verify the architecture artifacts and provenance**
+- [ ] **Step 1: Change the workflow graph test to require direct PAT use**
+
+Replace the App-token assertions in `validate_workflow_graph()` with:
+
+```javascript
+const dispatch = notifyJob.steps.find(({name}) =>
+    name === "Dispatch validated adapter release"
+);
+if (
+    notifyJob.steps.length !== 1 ||
+    dispatch === undefined ||
+    dispatch.env.GH_TOKEN !== "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}" ||
+    dispatch.env.RELEASE_VERSION !== "${{ needs.publish.outputs.version }}" ||
+    dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}" ||
+    Object.keys(dispatch.env).sort().join(",") !== "GH_TOKEN,MERGE_SHA,RELEASE_VERSION" ||
+    !dispatch.run.includes(
+        "repos/kyaulabs/prism-adapters/actions/workflows/" +
+            "catalogue-signing.yml/dispatches"
+    ) ||
+    !dispatch.run.includes("ref: " + quote + "main" + quote) ||
+    !dispatch.run.includes("mode: " + quote + "release" + quote) ||
+    !dispatch.run.includes("version: process.env.RELEASE_VERSION") ||
+    !dispatch.run.includes("merge_commit: process.env.MERGE_SHA") ||
+    /repository_dispatch|client_payload|event_type|sourceRepository|mergeSha/.test(
+        dispatch.run
+    )
+) process.exit(1);
+
+const notificationSource = JSON.stringify(notifyJob);
+for (const forbidden of [
+    "create-github-app-token",
+    "CATALOGUE_DISPATCH_APP_ID",
+    "CATALOGUE_DISPATCH_APP_PRIVATE_KEY",
+    "publisher-token",
+    "permission-actions",
+    "compatibility",
+    "coreRange",
+    "integrity",
+    "npm",
+    "sequence",
+    "upload-artifact",
+    "actions/cache",
+]) {
+    if (notificationSource.includes(forbidden)) process.exit(1);
+}
+```
+
+Replace the two App-source mutation fixtures with one direct-secret fixture:
+
+```javascript
+const fs = require("node:fs");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const before = "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}";
+if (!source.includes(before)) process.exit(1);
+fs.writeFileSync(process.argv[2], source.replace(
+    before,
+    "${{ secrets.WRONG_DISPATCH_TOKEN }}",
+));
+```
+
+Require `validate_workflow_graph()` to reject that fixture and update the test message to `publisher dispatch requires the approved protected secret source`.
+
+- [ ] **Step 2: Run the focused workflow test to verify Red**
 
 Run:
 
 ```bash
-rg -n "^\*\*Originating issue:\*\* #468$|^# 0096\.|Partially superseded by ADR-0096|adr/0096-actions-only" CONTEXT.md adr/0095-cross-repository-catalogue-publication-transaction.md adr/0096-actions-only-catalogue-workflow-dispatch.md docs/plans/2026-08-29-catalogue-publication-provisioning.md
+bash tests/Shell/release_workflow_test.sh
 ```
 
-Expected: one plan provenance match, ADR-0096 title, ADR-0095 successor pointer, and CONTEXT.md decision entry.
+Expected: FAIL because the workflow still mints an App installation token and does not source `CATALOGUE_DISPATCH_TOKEN` directly.
 
-- [x] **Step 2: Lint the maintained Markdown artifacts**
+- [ ] **Step 3: Replace App token minting with the protected PAT**
 
-Stage only the five listed paths, then run:
-
-```bash
-prism-tool markdown lint --cached
-```
-
-Expected: exit `0` with no Markdown diagnostics.
-
-- [x] **Step 3: Create the architecture commit**
-
-Run `git add` for the five listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
-
-```bash
-prism-tool commit create --type docs --scope architecture --subject "record catalogue provisioning boundary" --refs 468
-```
-
-Expected: one signed documentation commit and a clean index.
-
----
-
-### Task 2: Narrow and align the release notification
-
-**Files:**
-
-- Modify: `tests/Shell/release_workflow_test.sh:320-430`
-- Modify: `packages/prism-core/config/release.yml:611-665`
-- Modify: `.github/workflows/release.yml:611-665`
-
-**Interfaces:**
-
-- Consumes: successful stable publication outputs `version` and `merge-sha`.
-- Produces: one `workflow_dispatch` request to the publisher's existing release interface.
-
-The resulting notification job contract is exactly:
+Replace the canonical `notify-publisher` job with:
 
 ```yaml
   notify-publisher:
@@ -107,19 +150,9 @@ The resulting notification job contract is exactly:
     environment: catalogue-dispatch
     permissions: {}
     steps:
-      - name: Mint publisher dispatch token
-        id: publisher-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.CATALOGUE_DISPATCH_APP_ID }}
-          private-key: ${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}
-          owner: kyaulabs
-          repositories: prism-adapters
-          permission-actions: write
-
       - name: Dispatch validated adapter release
         env:
-          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.CATALOGUE_DISPATCH_TOKEN }}
           RELEASE_VERSION: ${{ needs.publish.outputs.version }}
           MERGE_SHA: ${{ needs.publish.outputs.merge-sha }}
         run: |
@@ -157,32 +190,9 @@ The resulting notification job contract is exactly:
             --input .prism-adapter-release-dispatch.json
 ```
 
-- [x] **Step 1: Change the workflow graph test to require the narrow contract**
+Copy the canonical bytes exactly to `.github/workflows/release.yml`.
 
-Replace the notification assertions in `validate_workflow_graph()` with assertions that:
-
-```javascript
-assert.equal(notifyJob.environment, 'catalogue-dispatch');
-assert.equal(token.with['permission-actions'], 'write');
-assert.equal(token.with['permission-contents'], undefined);
-assert.equal(
-    Object.keys(token.with).sort().join(','),
-    'app-id,owner,permission-actions,private-key,repositories',
-);
-assert.match(
-    dispatch.run,
-    /repos\/kyaulabs\/prism-adapters\/actions\/workflows\/catalogue-signing[.]yml\/dispatches/,
-);
-assert.match(dispatch.run, /ref: 'main'/);
-assert.match(dispatch.run, /mode: 'release'/);
-assert.match(dispatch.run, /version: process[.]env[.]RELEASE_VERSION/);
-assert.match(dispatch.run, /merge_commit: process[.]env[.]MERGE_SHA/);
-assert.doesNotMatch(dispatch.run, /repository_dispatch|client_payload|event_type|sourceRepository|mergeSha/);
-```
-
-Retain the existing exact App variable/secret source assertions, stable publication guard, empty `GITHUB_TOKEN` permissions mapping, forbidden authority words, and reordered-output coverage.
-
-- [x] **Step 2: Run the focused workflow test to verify Red**
+- [ ] **Step 4: Verify the direct-PAT workflow Green**
 
 Run:
 
@@ -190,21 +200,7 @@ Run:
 bash tests/Shell/release_workflow_test.sh
 ```
 
-Expected: FAIL because the job lacks `catalogue-dispatch`, still requests `permission-contents`, and posts repository-dispatch data.
-
-- [x] **Step 3: Implement the canonical workflow contract**
-
-Replace the canonical notification job with the complete YAML above, then copy the canonical bytes exactly to `.github/workflows/release.yml`.
-
-- [x] **Step 4: Run focused tests to verify Green**
-
-Run:
-
-```bash
-bash tests/Shell/release_workflow_test.sh
-```
-
-Expected: PASS, including canonical/repository byte parity and all notification graph checks.
+Expected: PASS, including executable graph simulation and canonical/installed byte parity.
 
 Run:
 
@@ -212,84 +208,53 @@ Run:
 node --test tests/Node/toolchain-packaging.test.js
 ```
 
-Expected: PASS, proving the corrected canonical workflow remains packaged exactly.
+Expected: PASS, proving the corrected canonical workflow remains packaged.
 
-- [x] **Step 5: Create the trigger correction commit**
+- [ ] **Step 5: Commit the dispatch migration**
 
-Run `git add` for the three listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the three listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
-prism-tool commit create --type fix --scope security --subject "narrow catalogue dispatch authority" --refs 468
+prism-tool commit create --type fix --scope security --subject "use bot-owned catalogue dispatch token" --refs 468
 ```
 
 ---
 
-### Task 3: Report non-secret catalogue readiness
+### Task 2: Attest separate PAT authority without credential access
 
 **Files:**
 
-- Create: `packages/prism-core/scripts/prism-tool/catalogue-publication-readiness.js`
-- Modify: `packages/prism-core/scripts/prism-tool/cli.js:45-60,1879-1897`
-- Create: `tests/Node/catalogue-publication-readiness.test.js`
-- Modify: `tests/Node/toolchain-packaging.test.js:145-175`
+- Modify: `tests/Node/catalogue-publication-readiness.test.js`
+- Modify: `packages/prism-core/scripts/prism-tool/catalogue-publication-readiness.js`
 
 **Interfaces:**
 
-- Consumes: `prism-tool catalogue-publication readiness --phase=pre-activation|active --json`, fixed GitHub metadata, and `.pi/prism-tool/catalogue-publication-readiness.json` beneath the detected project root.
-- Produces: `{schemaVersion:1, command:"catalogue-publication readiness", phase, status:"GO"|"NO-GO", checks:[{id,status,message}]}` and exit `0` only when every check is `PASS`.
+- Consumes: attestation schema version `2`, environment secret names, fixed GitHub metadata, and phase `pre-activation|active`.
+- Produces: readiness checks with `PASS`, `FAIL`, `MANUAL`, or `ADVISORY`; `GO` accepts only `PASS` and `ADVISORY`.
 
-The attestation has exactly this non-secret schema:
+The exact credential object is:
 
-```json
+```javascript
 {
-  "schemaVersion": 1,
-  "checkedAt": "2026-08-29T20:00:00Z",
-  "dispatchApp": {
-    "appId": 10001,
-    "installationId": 20001,
-    "repository": "kyaulabs/prism-adapters",
-    "permissions": {"actions": "write"}
-  },
-  "publicationApp": {
-    "appId": 10002,
-    "installationId": 20002,
-    "repository": "kyaulabs/prism-adapters",
-    "permissions": {"contents": "write", "pullRequests": "write"}
-  },
-  "retentionDays": {"prism": 7, "prismAdapters": 7},
-  "administratorAccessReviewed": true,
-  "offlineRecoveryCustodyReviewed": true
+    type: 'FINE_GRAINED_PAT',
+    label: 'prism-catalogue-dispatch',
+    credentialOwner: 'kyaulabs-bot',
+    resourceOwner: 'kyaulabs',
+    repositories: ['kyaulabs/prism-adapters'],
+    permissions: {actions: 'write'},
+    expiresAt: null,
+    rotationPolicy: 'NONE_ACCEPTED',
 }
 ```
 
-The production endpoint allowlist is exactly:
+The publication object differs only by label `prism-adapters-catalogue-publication` and permissions `{contents: 'write', pullRequests: 'write'}`.
 
-```text
-repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main
-repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main
-repos/kyaulabs/prism/rulesets
-repos/kyaulabs/prism/rulesets/<digits-only-id>
-repos/kyaulabs/prism-adapters/rulesets
-repos/kyaulabs/prism-adapters/rulesets/<digits-only-id>
-repos/kyaulabs/prism/environments/catalogue-dispatch
-repos/kyaulabs/prism/environments/catalogue-dispatch/deployment-branch-policies
-repos/kyaulabs/prism/environments/catalogue-dispatch/secrets
-repos/kyaulabs/prism/environments/catalogue-dispatch/variables
-repos/kyaulabs/prism-adapters/environments/catalogue-signing
-repos/kyaulabs/prism-adapters/environments/catalogue-signing/deployment-branch-policies
-repos/kyaulabs/prism-adapters/environments/catalogue-signing/secrets
-repos/kyaulabs/prism-adapters/environments/catalogue-signing/variables
-repos/kyaulabs/prism/actions/permissions
-repos/kyaulabs/prism-adapters/actions/permissions
-repos/kyaulabs/prism-adapters/actions/variables
-```
+- [ ] **Step 1: Rewrite readiness fixtures for the two closed PAT profiles**
 
-- [x] **Step 1: Write failing public-command tests**
-
-Create fixture-driven Node tests that inject `context.projectRoot` and `context.request(endpoint)`. The complete behavior matrix is:
+Change `EXPECTED_CHECKS` to:
 
 ```javascript
-const expectedChecks = [
+const EXPECTED_CHECKS = [
     'prism-workflow',
     'publisher-workflow',
     'prism-main-rules',
@@ -298,86 +263,56 @@ const expectedChecks = [
     'signing-environment',
     'dispatch-secret-presence',
     'signing-secret-presence',
-    'dispatch-app-id',
-    'publication-app-id',
     'activation',
     'sha-pinning',
+    'dispatch-credential-scope',
+    'publication-credential-scope',
+    'credential-separation',
+    'credential-lifecycle',
     'manual-attestation',
 ];
 ```
 
-Tests must assert:
+Use environment secret fixtures containing exactly `CATALOGUE_DISPATCH_TOKEN` and, for the publisher, `CATALOGUE_SIGNING_PRIVATE_KEY`, `CATALOGUE_SIGNING_PASSPHRASE`, and `CATALOGUE_PUBLICATION_TOKEN`. Remove environment App-ID variable fixtures.
 
-1. canonical metadata plus the exact attestation returns `GO`, all checks `PASS`, and exit `0` in each phase;
-2. pre-activation accepts an absent or non-`true` activation variable, while active phase requires exact `true`;
-3. each missing workflow, ruleset, environment, branch policy, expected secret name, expected App-ID variable, or SHA-pinning setting returns `NO-GO` and exit `3`;
-4. duplicate owned rules, unexpected bypass actors, malformed JSON, unauthorized API responses, non-digits rule IDs, unknown attestation keys, symlinked attestation, App-ID mismatch, extra App permissions, retention other than seven days, or false manual review returns `NO-GO`;
-5. secret checks consume names and timestamps only and never accept or render a `value` field;
-6. output contains no fixture credential canary and every requested endpoint is in the exact allowlist above;
-7. unknown command arguments return usage exit `2` without a GitHub request.
-
-Run through the exported command, not private helpers:
+Replace the attestation fixture with:
 
 ```javascript
-const status = cataloguePublicationReadinessCommand(
-    ['readiness', '--phase=pre-activation', '--json'],
-    context,
-);
-assert.equal(status, 0);
-assert.deepEqual(JSON.parse(output).checks.map(({id}) => id), expectedChecks);
-```
-
-- [x] **Step 2: Run the focused Node test to verify Red**
-
-Run:
-
-```bash
-node --test tests/Node/catalogue-publication-readiness.test.js
-```
-
-Expected: FAIL because the module and CLI route do not exist.
-
-- [x] **Step 3: Implement the minimal readiness module**
-
-Implement and export:
-
-```javascript
-function cataloguePublicationReadinessCommand(args, context = {})
-function inspectCataloguePublicationReadiness({phase, attestation, request})
-function validateAttestation(value)
-```
-
-Use `lstatSync` to require one regular, non-symlink attestation at the fixed path. Validate exact object keys, positive safe integer IDs, fixed repository names, exact permission objects, RFC 3339 `checkedAt`, both seven-day retention values, and both review booleans. Do not print the attestation or API bodies.
-
-Production `request(endpoint)` must call:
-
-```javascript
-runBounded('gh', ['api', endpoint], {
-    env: context.env ?? process.env,
-    timeout: 30000,
-    maxBuffer: 1048576,
-});
-```
-
-Reject nonzero status, timeout, malformed JSON, oversized output, and endpoints outside the fixed allowlist. Discover ruleset IDs from list responses, require digits-only IDs before the detail request, and accept a `main` rule only when active with no bypass actors plus deletion, non-fast-forward, signatures, and pull-request rules.
-
-Require each environment to use custom deployment-branch policies containing exactly `main`. Require the expected secret-name sets without inspecting values. Match the environment App-ID variables to attested numeric IDs. Require `sha_pinning_required === true` for both repositories. Render only stable check IDs, statuses, and messages.
-
-Add the CLI route:
-
-```javascript
-const {
-    cataloguePublicationReadinessCommand,
-} = require('./catalogue-publication-readiness');
-```
-
-```javascript
-if (command === 'catalogue-publication') {
-    return cataloguePublicationReadinessCommand(args, context);
+{
+    schemaVersion: 2,
+    checkedAt: '2026-08-29T20:00:00Z',
+    dispatchCredential: {
+        type: 'FINE_GRAINED_PAT',
+        label: 'prism-catalogue-dispatch',
+        credentialOwner: 'kyaulabs-bot',
+        resourceOwner: 'kyaulabs',
+        repositories: ['kyaulabs/prism-adapters'],
+        permissions: {actions: 'write'},
+        expiresAt: null,
+        rotationPolicy: 'NONE_ACCEPTED',
+    },
+    publicationCredential: {
+        type: 'FINE_GRAINED_PAT',
+        label: 'prism-adapters-catalogue-publication',
+        credentialOwner: 'kyaulabs-bot',
+        resourceOwner: 'kyaulabs',
+        repositories: ['kyaulabs/prism-adapters'],
+        permissions: {contents: 'write', pullRequests: 'write'},
+        expiresAt: null,
+        rotationPolicy: 'NONE_ACCEPTED',
+    },
+    credentialSeparationReviewed: true,
+    retentionDays: {prism: 7, prismAdapters: 7},
+    administratorAccessReviewed: true,
+    offlineRecoveryCustodyReviewed: true,
 }
 ```
 
-- [x] **Step 4: Verify Green and package ownership**
+The canonical readiness assertion must require `GO`, exactly one `ADVISORY` check named `credential-lifecycle`, and every other check `PASS`.
+
+Add table-driven failing cases for a classic PAT type, wrong owner, wrong resource owner, another repository, Actions on the publication credential, Contents on the dispatch credential, duplicate labels, false separation review, an expiration string, a rotation policy other than `NONE_ACCEPTED`, old schema version `1`, and unknown keys. Keep credential-canary redaction coverage.
+
+- [ ] **Step 2: Run readiness tests to verify Red**
 
 Run:
 
@@ -385,65 +320,136 @@ Run:
 node --test tests/Node/catalogue-publication-readiness.test.js
 ```
 
-Expected: PASS.
+Expected: FAIL because App-shaped schema version `1`, App-ID variables, and App private-key secret names remain implemented.
 
-Add `catalogue-publication-readiness` to the exact Core module list in `toolchain-packaging.test.js`, then run:
+- [ ] **Step 3: Implement exact PAT metadata validation and advisory reporting**
+
+Replace `validApp()` with:
+
+```javascript
+function validCredential(value, {label, permissions}) {
+    return exactKeys(value, [
+        'type', 'label', 'credentialOwner', 'resourceOwner', 'repositories',
+        'permissions', 'expiresAt', 'rotationPolicy',
+    ]) && value.type === 'FINE_GRAINED_PAT' && value.label === label &&
+        value.credentialOwner === 'kyaulabs-bot' && value.resourceOwner === 'kyaulabs' &&
+        Array.isArray(value.repositories) && value.repositories.length === 1 &&
+        value.repositories[0] === REPOSITORY &&
+        exactKeys(value.permissions, Object.keys(permissions)) &&
+        Object.entries(permissions).every(([name, access]) => value.permissions[name] === access) &&
+        value.expiresAt === null && value.rotationPolicy === 'NONE_ACCEPTED';
+}
+```
+
+Change `validateAttestation()` to require exact root keys:
+
+```javascript
+[
+    'schemaVersion', 'checkedAt', 'dispatchCredential', 'publicationCredential',
+    'credentialSeparationReviewed', 'retentionDays',
+    'administratorAccessReviewed', 'offlineRecoveryCustodyReviewed',
+]
+```
+
+Require schema version `2`, both exact profiles through `validCredential()`, distinct labels, `credentialSeparationReviewed === true`, seven-day retention, and both existing review booleans.
+
+Remove environment-variable endpoints and App-ID checks. Change expected environment secret names to the direct-token names. Add:
+
+```javascript
+function advisory(id, message) {
+    return {id, status: 'ADVISORY', message};
+}
+```
+
+Append successful metadata checks:
+
+```javascript
+pass('dispatch-credential-scope', 'dispatch credential scope is attested'),
+pass('publication-credential-scope', 'publication credential scope is attested'),
+pass('credential-separation', 'separate credential authority is attested'),
+advisory('credential-lifecycle', 'non-expiring credentials have no planned rotation'),
+pass('manual-attestation', 'manual custody and retention controls are attested'),
+```
+
+Compute `GO` with:
+
+```javascript
+const status = checks.every(({status: checkStatus}) =>
+    checkStatus === 'PASS' || checkStatus === 'ADVISORY'
+) ? 'GO' : 'NO-GO';
+```
+
+Never render the attestation or API response bodies.
+
+- [ ] **Step 4: Verify PAT readiness Green**
+
+Run:
+
+```bash
+node --test tests/Node/catalogue-publication-readiness.test.js
+```
+
+Expected: PASS, including exact scope, separation, advisory, malformed evidence, endpoint allowlist, and redaction cases.
+
+Run:
 
 ```bash
 node --test tests/Node/toolchain-packaging.test.js
 ```
 
-Expected: PASS and the module is present in the packed Core tarball.
+Expected: PASS with the readiness module still present in the packed Core tarball.
 
-- [x] **Step 5: Create the readiness commit**
+- [ ] **Step 5: Commit the readiness migration**
 
-Run `git add` for the four listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the two listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
-prism-tool commit create --type fix --scope security --subject "report catalogue provisioning readiness" --refs 468
+prism-tool commit create --type fix --scope security --subject "attest separated catalogue token authority" --refs 468
 ```
 
 ---
 
-### Task 4: Publish the human provisioning and response runbook
+### Task 3: Publish the PAT provisioning and recovery runbook
 
 **Files:**
 
 - Create: `packages/prism-core/docs/catalogue-publication-provisioning.md`
-- Modify: `packages/prism-core/docs/adapter-catalogue.md:187-215`
-- Modify: `tests/Node/toolchain-packaging.test.js:130-220`
+- Modify: `packages/prism-core/docs/adapter-catalogue.md`
+- Modify: `tests/Node/toolchain-packaging.test.js`
 
 **Interfaces:**
 
-- Consumes: ADR-0096, the readiness command, and human-only GitHub administration.
-- Produces: a package-owned procedure for initial setup, pre-activation checking, activation, smoke verification, rotation, exposure response, recovery, and succession.
+- Consumes: ADR-0097, readiness schema version `2`, and human-only GitHub administration.
+- Produces: packaged setup, verification, exposure, recovery, and succession instructions without credential values.
 
 - [ ] **Step 1: Write failing documentation contract tests**
 
-Extend `toolchain-packaging.test.js` to require the new packaged document and these exact contract markers:
+Require the new packaged document, require `adapter-catalogue.md` to link to it, and assert:
 
 ```javascript
+assert.match(runbook, /kyaulabs-bot/);
+assert.match(runbook, /fine-grained personal access token/i);
+assert.match(runbook, /CATALOGUE_DISPATCH_TOKEN/);
+assert.match(runbook, /CATALOGUE_PUBLICATION_TOKEN/);
+assert.match(runbook, /Actions: write/);
+assert.match(runbook, /Contents: write/);
+assert.match(runbook, /Pull requests: write/);
 assert.match(runbook, /catalogue-dispatch/);
 assert.match(runbook, /catalogue-signing/);
-assert.match(runbook, /Actions: write/);
-assert.match(runbook, /Contents: read and write/);
-assert.match(runbook, /Pull requests: read and write/);
-assert.match(runbook, /CATALOGUE_DISPATCH_APP_ID/);
-assert.match(runbook, /CATALOGUE_DISPATCH_APP_PRIVATE_KEY/);
-assert.match(runbook, /CATALOGUE_SIGNING_PRIVATE_KEY/);
-assert.match(runbook, /CATALOGUE_SIGNING_PASSPHRASE/);
-assert.match(runbook, /CATALOGUE_PUBLICATION_APP_ID/);
-assert.match(runbook, /CATALOGUE_PUBLICATION_APP_PRIVATE_KEY/);
+assert.match(runbook, /NONE_ACCEPTED/);
+assert.match(runbook, /non-expiring/i);
+assert.match(runbook, /no planned rotation/i);
 assert.match(runbook, /CATALOGUE_SIGNING_ENABLED/);
-assert.match(runbook, /seven days/);
 assert.match(runbook, /pre-activation/);
 assert.match(runbook, /--phase=active/);
 assert.match(runbook, /suspected exposure/i);
 assert.match(runbook, /succession/i);
-assert.doesNotMatch(runbook, /BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|gh secret set|echo .*PRIVATE_KEY|\.env/);
+assert.match(runbook, /issue #469/i);
+assert.doesNotMatch(
+    runbook,
+    /github_pat_[A-Za-z0-9_]+|gh secret set|echo .*TOKEN|BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|[.]env/,
+);
 ```
-
-Also require `adapter-catalogue.md` to link to the new runbook.
 
 - [ ] **Step 2: Run the documentation test to verify Red**
 
@@ -453,28 +459,28 @@ Run:
 node --test tests/Node/toolchain-packaging.test.js
 ```
 
-Expected: FAIL because the runbook is absent.
+Expected: FAIL because the PAT runbook is absent.
 
-- [ ] **Step 3: Write the complete operator procedure**
+- [ ] **Step 3: Write the complete human procedure**
 
-The runbook must give exact GitHub web UI steps in this order:
+Write these ordered sections:
 
-1. verify corrected `main` workflow revisions and active no-bypass `main` rules in both repositories;
-2. create a dispatch App with webhooks disabled, no event subscriptions, only Actions read/write permission, and selected installation only on `kyaulabs/prism-adapters`;
-3. create Prism environment `catalogue-dispatch`, restrict deployment branches to custom policy `main`, store the App ID as `CATALOGUE_DISPATCH_APP_ID`, and enter the private key as `CATALOGUE_DISPATCH_APP_PRIVATE_KEY` without exposing it to chat or an agent;
-4. create a separate publication App with webhooks disabled, no event subscriptions, only Contents and Pull requests read/write, and selected installation only on `kyaulabs/prism-adapters`;
-5. create adapter environment `catalogue-signing`, restrict it to custom policy `main`, enter the encrypted Ed25519 key, passphrase, and publication App key as three separate environment secrets, and store the publication App ID as an environment variable;
-6. require full-SHA action pinning and set Actions retention to seven days in both repositories;
-7. keep `CATALOGUE_SIGNING_ENABLED` absent, prepare the exact non-secret attestation JSON under `.pi/prism-tool/`, and run `prism-tool catalogue-publication readiness --phase=pre-activation --json`;
-8. stop on any `FAIL` or unresolved `MANUAL`, correct the setting in GitHub, and rerun;
-9. while activation remains absent, perform one human-observed release-mode workflow dispatch and verify that unprivileged trigger validation runs but the protected environment is not entered;
-10. set repository variable `CATALOGUE_SIGNING_ENABLED` to exact `true`, then run `prism-tool catalogue-publication readiness --phase=active --json`; issue #469 owns the first credential-bearing production publication;
-11. record only non-secret App/installation IDs, permissions, repository selections, workflow revisions, environment/ruleset status, retention, activation status, and verification time;
-12. document routine App-key rotation, signing-key Core-first rotation, immediate disablement on suspected exposure, audit review, recovery, and out-of-band succession without naming custody locations.
+1. hard prohibition on placing token values in chat, terminals observed by agents, repository files, logs, issues, or attestation;
+2. publisher-first migration verification and continued absence of `CATALOGUE_SIGNING_ENABLED`;
+3. GitHub UI verification that each token is fine-grained, owned by `kyaulabs-bot`, resource-owned by `kyaulabs`, selected only for `prism-adapters`, and has exactly its approved permission profile;
+4. Prism `catalogue-dispatch` environment restricted to custom branch `main`, with direct browser entry of `CATALOGUE_DISPATCH_TOKEN`;
+5. publisher `catalogue-signing` environment restricted to custom branch `main`, with direct browser entry of `CATALOGUE_PUBLICATION_TOKEN` alongside the two signing secrets;
+6. full-SHA Actions policy and seven-day retention in both repositories;
+7. exact schema-version-2 attestation using only the metadata object from Task 2;
+8. pre-activation readiness, disabled-state dispatch, and stop conditions for `FAIL` or `MANUAL`;
+9. activation deferred to issue #469, followed by active readiness;
+10. independent disable/revoke/replace/reverify procedures for suspected exposure of either PAT;
+11. explicit accepted non-expiring/no-rotation debt and future migration guidance;
+12. out-of-band account access and credential succession without custody locations.
 
-Do not include credential-generation commands, secret-setting shell commands, credential values, private storage paths, or instructions for agents to perform administration.
+Do not include token creation commands, secret-setting commands, token values, private storage paths, or instructions for an agent to perform administration.
 
-- [ ] **Step 4: Verify documentation Green**
+- [ ] **Step 4: Verify the runbook Green**
 
 Run:
 
@@ -484,63 +490,52 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: PASS.
 
-Stage the two Markdown files and run:
+Stage only the runbook and linked catalogue documentation, then run:
 
 ```bash
 prism-tool markdown lint --cached
 ```
 
-Expected: exit `0` with no diagnostics.
+Expected: exit `0` with no Markdown diagnostics.
 
-- [ ] **Step 5: Hold the terminal commit for human readiness**
+- [ ] **Step 5: Stop at the human-administration gate**
 
-Present the completed runbook. Stop while the human performs GitHub administration outside agent tools. Do not request credential values. Resume only when the human confirms the fixed non-secret attestation exists.
+Present the runbook and stop. The human enters each existing PAT through GitHub's web UI and creates the non-secret attestation without providing values to the agent. Do not activate production.
 
-Run:
+After the human confirms setup, run:
 
 ```bash
 prism-tool catalogue-publication readiness --phase=pre-activation --json
 ```
 
-Expected: `status` is `GO` and every check is `PASS`.
+Expected: `GO`, one `ADVISORY` for credential lifecycle, no `FAIL`, and no `MANUAL`.
 
-After the human enables production in GitHub, run:
+Run the focused verification suite:
 
 ```bash
-prism-tool catalogue-publication readiness --phase=active --json
+bash tests/Shell/release_workflow_test.sh
 ```
 
-Expected: `status` is `GO` and every check is `PASS`.
+```bash
+node --test tests/Node/catalogue-publication-readiness.test.js tests/Node/toolchain-packaging.test.js
+```
 
-Run `git add` for the three listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the three listed Task 3 files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
-prism-tool commit create --type docs --scope security --subject "document catalogue publication provisioning" --fixes 468
+prism-tool commit create --type docs --scope security --subject "document bot-owned catalogue provisioning" --fixes 468
 ```
 
 ---
 
 ## Final verification and handoff
 
-After Task 4 is committed:
+After Task 3 is committed:
 
-1. Load `verification-before-completion` and rerun:
-
-   ```bash
-   bash tests/Shell/release_workflow_test.sh
-   ```
-
-   ```bash
-   node --test tests/Node/catalogue-publication-readiness.test.js tests/Node/toolchain-packaging.test.js
-   ```
-
-   ```bash
-   prism-tool catalogue-publication readiness --phase=active --json
-   ```
-
-2. Confirm `git diff --check` passes and no credential canary, private-key block, debug marker, temporary dispatch JSON, or attestation file is tracked.
+1. Load `verification-before-completion` and rerun the focused suite.
+2. Confirm `git diff --check` passes and no PAT-shaped value, private-key block, debug marker, dispatch payload, or attestation is tracked.
 3. Run `/check` until green.
 4. Finalize through `finishing-a-development-branch`, including the authorized four-axis review and preparation-only `/pr`.
-5. The human pushes and merges. Issue #469 owns the first production publication and fixed raw-endpoint verification.
+5. The human pushes and merges. Issue #469 owns activation, first credential-bearing production publication, and fixed raw-endpoint verification.
 
 <!-- vim: ft=markdown sts=4 sw=4 ts=4 et : -->
