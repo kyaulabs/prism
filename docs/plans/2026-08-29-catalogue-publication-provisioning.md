@@ -157,7 +157,7 @@ The resulting notification job contract is exactly:
             --input .prism-adapter-release-dispatch.json
 ```
 
-- [ ] **Step 1: Change the workflow graph test to require the narrow contract**
+- [x] **Step 1: Change the workflow graph test to require the narrow contract**
 
 Replace the notification assertions in `validate_workflow_graph()` with assertions that:
 
@@ -182,7 +182,7 @@ assert.doesNotMatch(dispatch.run, /repository_dispatch|client_payload|event_type
 
 Retain the existing exact App variable/secret source assertions, stable publication guard, empty `GITHUB_TOKEN` permissions mapping, forbidden authority words, and reordered-output coverage.
 
-- [ ] **Step 2: Run the focused workflow test to verify Red**
+- [x] **Step 2: Run the focused workflow test to verify Red**
 
 Run:
 
@@ -192,11 +192,11 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: FAIL because the job lacks `catalogue-dispatch`, still requests `permission-contents`, and posts repository-dispatch data.
 
-- [ ] **Step 3: Implement the canonical workflow contract**
+- [x] **Step 3: Implement the canonical workflow contract**
 
 Replace the canonical notification job with the complete YAML above, then copy the canonical bytes exactly to `.github/workflows/release.yml`.
 
-- [ ] **Step 4: Run focused tests to verify Green**
+- [x] **Step 4: Run focused tests to verify Green**
 
 Run:
 
@@ -214,7 +214,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: PASS, proving the corrected canonical workflow remains packaged exactly.
 
-- [ ] **Step 5: Create the trigger correction commit**
+- [x] **Step 5: Create the trigger correction commit**
 
 Run `git add` for the three listed paths. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
