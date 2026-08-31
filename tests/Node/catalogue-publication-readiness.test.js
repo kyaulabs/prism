@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.test.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -22,10 +22,12 @@ const EXPECTED_CHECKS = [
     'signing-environment',
     'dispatch-secret-presence',
     'signing-secret-presence',
-    'dispatch-app-id',
-    'publication-app-id',
     'activation',
     'sha-pinning',
+    'dispatch-credential-scope',
+    'publication-credential-scope',
+    'credential-separation',
+    'credential-lifecycle',
     'manual-attestation',
 ];
 
@@ -61,10 +63,7 @@ function canonicalResponses() {
         ['repos/kyaulabs/prism/environments/catalogue-dispatch/deployment-branch-policies',
             {branch_policies: [{name: 'main'}]}],
         ['repos/kyaulabs/prism/environments/catalogue-dispatch/secrets', {
-            secrets: [{name: 'CATALOGUE_DISPATCH_APP_PRIVATE_KEY'}],
-        }],
-        ['repos/kyaulabs/prism/environments/catalogue-dispatch/variables', {
-            variables: [{name: 'CATALOGUE_DISPATCH_APP_ID', value: '10001'}],
+            secrets: [{name: 'CATALOGUE_DISPATCH_TOKEN'}],
         }],
         ['repos/kyaulabs/prism-adapters/environments/catalogue-signing', {
             name: 'catalogue-signing',
@@ -76,11 +75,8 @@ function canonicalResponses() {
             secrets: [
                 {name: 'CATALOGUE_SIGNING_PRIVATE_KEY'},
                 {name: 'CATALOGUE_SIGNING_PASSPHRASE'},
-                {name: 'CATALOGUE_PUBLICATION_APP_PRIVATE_KEY'},
+                {name: 'CATALOGUE_PUBLICATION_TOKEN'},
             ],
-        }],
-        ['repos/kyaulabs/prism-adapters/environments/catalogue-signing/variables', {
-            variables: [{name: 'CATALOGUE_PUBLICATION_APP_ID', value: '10002'}],
         }],
         ['repos/kyaulabs/prism/actions/permissions', {sha_pinning_required: true}],
         ['repos/kyaulabs/prism-adapters/actions/permissions', {sha_pinning_required: true}],
@@ -90,20 +86,29 @@ function canonicalResponses() {
 
 function attestation() {
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         checkedAt: '2026-08-29T20:00:00Z',
-        dispatchApp: {
-            appId: 10001,
-            installationId: 20001,
-            repository: 'kyaulabs/prism-adapters',
+        dispatchCredential: {
+            type: 'FINE_GRAINED_PAT',
+            label: 'prism-catalogue-dispatch',
+            credentialOwner: 'kyaulabs-bot',
+            resourceOwner: 'kyaulabs',
+            repositories: ['kyaulabs/prism-adapters'],
             permissions: {actions: 'write'},
+            expiresAt: null,
+            rotationPolicy: 'NONE_ACCEPTED',
         },
-        publicationApp: {
-            appId: 10002,
-            installationId: 20002,
-            repository: 'kyaulabs/prism-adapters',
+        publicationCredential: {
+            type: 'FINE_GRAINED_PAT',
+            label: 'prism-adapters-catalogue-publication',
+            credentialOwner: 'kyaulabs-bot',
+            resourceOwner: 'kyaulabs',
+            repositories: ['kyaulabs/prism-adapters'],
             permissions: {contents: 'write', pullRequests: 'write'},
+            expiresAt: null,
+            rotationPolicy: 'NONE_ACCEPTED',
         },
+        credentialSeparationReviewed: true,
         retentionDays: {prism: 7, prismAdapters: 7},
         administratorAccessReviewed: true,
         offlineRecoveryCustodyReviewed: true,
@@ -151,7 +156,19 @@ test('reports GO for canonical pre-activation metadata and attestation', (t) => 
     assert.equal(status, 0);
     assert.equal(report.status, 'GO');
     assert.deepEqual(report.checks.map(({id}) => id), EXPECTED_CHECKS);
-    assert.equal(report.checks.every(({status: checkStatus}) => checkStatus === 'PASS'), true);
+    assert.deepEqual(
+        report.checks.filter(({status: checkStatus}) => checkStatus === 'ADVISORY'),
+        [{
+            id: 'credential-lifecycle',
+            status: 'ADVISORY',
+            message: 'non-expiring credentials have no planned rotation',
+        }],
+    );
+    assert.equal(
+        report.checks.every(({status: checkStatus}) =>
+            checkStatus === 'PASS' || checkStatus === 'ADVISORY'),
+        true,
+    );
 });
 
 test('requires exact enabled activation only in active phase', (t) => {
@@ -197,12 +214,12 @@ const driftCases = [
     }],
     ['secret value exposure', (state) => {
         state.responses.set('repos/kyaulabs/prism/environments/catalogue-dispatch/secrets', {
-            secrets: [{name: 'CATALOGUE_DISPATCH_APP_PRIVATE_KEY', value: 'credential-canary'}],
+            secrets: [{name: 'CATALOGUE_DISPATCH_TOKEN', value: 'credential-canary'}],
         });
     }],
-    ['App ID mismatch', (state) => {
-        state.responses.set('repos/kyaulabs/prism/environments/catalogue-dispatch/variables', {
-            variables: [{name: 'CATALOGUE_DISPATCH_APP_ID', value: '99999'}],
+    ['missing dispatch secret name', (state) => {
+        state.responses.set('repos/kyaulabs/prism/environments/catalogue-dispatch/secrets', {
+            secrets: [],
         });
     }],
     ['SHA pinning disabled', (state) => {
@@ -274,6 +291,69 @@ test('rejects malformed manual attestation before GitHub access', (t) => {
         status: 'FAIL',
         message: 'manual attestation is invalid',
     }]);
+});
+
+const credentialDriftCases = [
+    ['classic token type', (value) => { value.dispatchCredential.type = 'CLASSIC_PAT'; }],
+    ['wrong credential owner', (value) => {
+        value.dispatchCredential.credentialOwner = 'different-owner';
+    }],
+    ['wrong resource owner', (value) => {
+        value.publicationCredential.resourceOwner = 'different-owner';
+    }],
+    ['additional repository', (value) => {
+        value.dispatchCredential.repositories.push('kyaulabs/prism');
+    }],
+    ['publication Actions authority', (value) => {
+        value.publicationCredential.permissions.actions = 'write';
+    }],
+    ['dispatch Contents authority', (value) => {
+        value.dispatchCredential.permissions.contents = 'write';
+    }],
+    ['duplicate credential labels', (value) => {
+        value.publicationCredential.label = value.dispatchCredential.label;
+    }],
+    ['unreviewed separation', (value) => { value.credentialSeparationReviewed = false; }],
+    ['expiration value', (value) => {
+        value.dispatchCredential.expiresAt = '2026-12-31T00:00:00Z';
+    }],
+    ['different rotation policy', (value) => {
+        value.publicationCredential.rotationPolicy = 'SCHEDULED';
+    }],
+    ['old schema', (value) => { value.schemaVersion = 1; }],
+    ['unknown root key', (value) => { value.unexpected = true; }],
+];
+
+test('rejects credential metadata outside the two approved PAT profiles', (t) => {
+    const roots = [];
+    t.after(() => {
+        for (const root of roots) fs.rmSync(root, {recursive: true, force: true});
+    });
+
+    for (const [name, mutate] of credentialDriftCases) {
+        const state = fixture();
+        roots.push(state.context.projectRoot);
+        const value = attestation();
+        mutate(value);
+        fs.writeFileSync(
+            path.join(
+                state.context.projectRoot,
+                '.pi',
+                'prism-tool',
+                'catalogue-publication-readiness.json',
+            ),
+            `${JSON.stringify(value)}\n`,
+        );
+
+        const status = cataloguePublicationReadinessCommand(
+            ['readiness', '--phase=pre-activation', '--json'],
+            state.context,
+        );
+
+        assert.equal(status, 3, name);
+        assert.deepEqual(state.requests, [], name);
+        assert.equal(JSON.parse(state.output()).checks[0].status, 'FAIL', name);
+    }
 });
 
 test('rejects unknown arguments before filesystem or GitHub access', () => {

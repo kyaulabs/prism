@@ -251,7 +251,7 @@ The exact credential object is:
 
 The publication object differs only by label `prism-adapters-catalogue-publication` and permissions `{contents: 'write', pullRequests: 'write'}`.
 
-- [ ] **Step 1: Rewrite readiness fixtures for the two closed PAT profiles**
+- [x] **Step 1: Rewrite readiness fixtures for the two closed PAT profiles**
 
 Change `EXPECTED_CHECKS` to:
 
@@ -314,7 +314,7 @@ The canonical readiness assertion must require `GO`, exactly one `ADVISORY` chec
 
 Add table-driven failing cases for a classic PAT type, wrong owner, wrong resource owner, another repository, Actions on the publication credential, Contents on the dispatch credential, duplicate labels, false separation review, an expiration string, a rotation policy other than `NONE_ACCEPTED`, old schema version `1`, and unknown keys. Keep credential-canary redaction coverage.
 
-- [ ] **Step 2: Run readiness tests to verify Red**
+- [x] **Step 2: Run readiness tests to verify Red**
 
 Run:
 
@@ -324,7 +324,7 @@ node --test tests/Node/catalogue-publication-readiness.test.js
 
 Expected: FAIL because App-shaped schema version `1`, App-ID variables, and App private-key secret names remain implemented.
 
-- [ ] **Step 3: Implement exact PAT metadata validation and advisory reporting**
+- [x] **Step 3: Implement exact PAT metadata validation and advisory reporting**
 
 Replace `validApp()` with:
 
@@ -383,7 +383,7 @@ const status = checks.every(({status: checkStatus}) =>
 
 Never render the attestation or API response bodies.
 
-- [ ] **Step 4: Verify PAT readiness Green**
+- [x] **Step 4: Verify PAT readiness Green**
 
 Run:
 
@@ -401,9 +401,9 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: PASS with the readiness module still present in the packed Core tarball.
 
-- [ ] **Step 5: Commit the readiness migration**
+- [x] **Step 5: Commit the readiness migration**
 
-Stage the two listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the three listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
 prism-tool commit create --type fix --scope security --subject "attest separated catalogue token authority" --refs 468

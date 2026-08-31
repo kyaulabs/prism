@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -17,11 +17,9 @@ const STATIC_ENDPOINTS = new Set([
     'repos/kyaulabs/prism/environments/catalogue-dispatch',
     'repos/kyaulabs/prism/environments/catalogue-dispatch/deployment-branch-policies',
     'repos/kyaulabs/prism/environments/catalogue-dispatch/secrets',
-    'repos/kyaulabs/prism/environments/catalogue-dispatch/variables',
     'repos/kyaulabs/prism-adapters/environments/catalogue-signing',
     'repos/kyaulabs/prism-adapters/environments/catalogue-signing/deployment-branch-policies',
     'repos/kyaulabs/prism-adapters/environments/catalogue-signing/secrets',
-    'repos/kyaulabs/prism-adapters/environments/catalogue-signing/variables',
     'repos/kyaulabs/prism/actions/permissions',
     'repos/kyaulabs/prism-adapters/actions/permissions',
     'repos/kyaulabs/prism-adapters/actions/variables',
@@ -40,23 +38,38 @@ function positiveInteger(value) {
     return Number.isSafeInteger(value) && value > 0;
 }
 
-function validApp(value, permissions) {
-    return exactKeys(value, ['appId', 'installationId', 'repository', 'permissions']) &&
-        positiveInteger(value.appId) && positiveInteger(value.installationId) &&
-        value.repository === REPOSITORY && exactKeys(value.permissions, Object.keys(permissions)) &&
-        Object.entries(permissions).every(([name, access]) => value.permissions[name] === access);
+function validCredential(value, {label, permissions}) {
+    return exactKeys(value, [
+        'type', 'label', 'credentialOwner', 'resourceOwner', 'repositories',
+        'permissions', 'expiresAt', 'rotationPolicy',
+    ]) && value.type === 'FINE_GRAINED_PAT' && value.label === label &&
+        value.credentialOwner === 'kyaulabs-bot' && value.resourceOwner === 'kyaulabs' &&
+        Array.isArray(value.repositories) && value.repositories.length === 1 &&
+        value.repositories[0] === REPOSITORY &&
+        exactKeys(value.permissions, Object.keys(permissions)) &&
+        Object.entries(permissions).every(([name, access]) => value.permissions[name] === access) &&
+        value.expiresAt === null && value.rotationPolicy === 'NONE_ACCEPTED';
 }
 
 function validateAttestation(value) {
     if (!exactKeys(value, [
-        'schemaVersion', 'checkedAt', 'dispatchApp', 'publicationApp', 'retentionDays',
+        'schemaVersion', 'checkedAt', 'dispatchCredential', 'publicationCredential',
+        'credentialSeparationReviewed', 'retentionDays',
         'administratorAccessReviewed', 'offlineRecoveryCustodyReviewed',
-    ]) || value.schemaVersion !== 1 ||
+    ]) || value.schemaVersion !== 2 ||
         typeof value.checkedAt !== 'string' ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value.checkedAt) ||
         Number.isNaN(Date.parse(value.checkedAt)) ||
-        !validApp(value.dispatchApp, {actions: 'write'}) ||
-        !validApp(value.publicationApp, {contents: 'write', pullRequests: 'write'}) ||
+        !validCredential(value.dispatchCredential, {
+            label: 'prism-catalogue-dispatch',
+            permissions: {actions: 'write'},
+        }) ||
+        !validCredential(value.publicationCredential, {
+            label: 'prism-adapters-catalogue-publication',
+            permissions: {contents: 'write', pullRequests: 'write'},
+        }) ||
+        value.dispatchCredential.label === value.publicationCredential.label ||
+        value.credentialSeparationReviewed !== true ||
         !exactKeys(value.retentionDays, ['prism', 'prismAdapters']) ||
         value.retentionDays.prism !== 7 || value.retentionDays.prismAdapters !== 7 ||
         value.administratorAccessReviewed !== true ||
@@ -102,6 +115,10 @@ function fail(id, message) {
 
 function manual(id, message) {
     return {id, status: 'MANUAL', message};
+}
+
+function advisory(id, message) {
+    return {id, status: 'ADVISORY', message};
 }
 
 function evaluate(id, message, operation) {
@@ -174,19 +191,13 @@ function inspectCataloguePublicationReadiness({phase, attestation, request}) {
             environmentReady(request, 'kyaulabs/prism-adapters', 'catalogue-signing')),
         evaluate('dispatch-secret-presence', 'dispatch credential name is present', () =>
             namesReady(request(`${dispatchPrefix}/secrets`), 'secrets',
-                ['CATALOGUE_DISPATCH_APP_PRIVATE_KEY'])),
+                ['CATALOGUE_DISPATCH_TOKEN'])),
         evaluate('signing-secret-presence', 'signing credential names are present', () =>
             namesReady(request(`${signingPrefix}/secrets`), 'secrets', [
                 'CATALOGUE_SIGNING_PRIVATE_KEY',
                 'CATALOGUE_SIGNING_PASSPHRASE',
-                'CATALOGUE_PUBLICATION_APP_PRIVATE_KEY',
+                'CATALOGUE_PUBLICATION_TOKEN',
             ])),
-        evaluate('dispatch-app-id', 'dispatch App ID matches attestation', () =>
-            variableValue(request(`${dispatchPrefix}/variables`), 'CATALOGUE_DISPATCH_APP_ID') ===
-                String(attestation.dispatchApp.appId)),
-        evaluate('publication-app-id', 'publication App ID matches attestation', () =>
-            variableValue(request(`${signingPrefix}/variables`), 'CATALOGUE_PUBLICATION_APP_ID') ===
-                String(attestation.publicationApp.appId)),
         evaluate('activation', 'activation matches requested phase', () => {
             const actual = variableValue(
                 request('repos/kyaulabs/prism-adapters/actions/variables'),
@@ -197,6 +208,10 @@ function inspectCataloguePublicationReadiness({phase, attestation, request}) {
         evaluate('sha-pinning', 'full action SHA pinning is required', () =>
             request('repos/kyaulabs/prism/actions/permissions')?.sha_pinning_required === true &&
             request('repos/kyaulabs/prism-adapters/actions/permissions')?.sha_pinning_required === true),
+        pass('dispatch-credential-scope', 'dispatch credential scope is attested'),
+        pass('publication-credential-scope', 'publication credential scope is attested'),
+        pass('credential-separation', 'separate credential authority is attested'),
+        advisory('credential-lifecycle', 'non-expiring credentials have no planned rotation'),
         pass('manual-attestation', 'manual custody and retention controls are attested'),
     ];
     return checks;
@@ -234,7 +249,8 @@ function cataloguePublicationReadinessCommand(args, context = {}) {
         attestation,
         request: context.request ?? defaultRequest(context),
     });
-    const status = checks.every((check) => check.status === 'PASS') ? 'GO' : 'NO-GO';
+    const status = checks.every(({status: checkStatus}) =>
+        checkStatus === 'PASS' || checkStatus === 'ADVISORY') ? 'GO' : 'NO-GO';
     const report = {schemaVersion: 1, command: 'catalogue-publication readiness', phase, status, checks};
     (context.stdout ?? process.stdout).write(`${JSON.stringify(report)}\n`);
     return status === 'GO' ? EXIT.OK : EXIT.READINESS;
