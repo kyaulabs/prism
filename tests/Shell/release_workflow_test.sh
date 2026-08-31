@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -36,6 +36,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export NODE_PATH="$REPO_ROOT/node_modules"
 # shellcheck source=tests/Shell/lib/test_helpers.sh
 source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 
@@ -80,7 +81,7 @@ fi
 if [ -f "$CANONICAL_RELEASE_FILE" ] && \
    cmp -s "$RELEASE_FILE" "$CANONICAL_RELEASE_FILE" && \
    head -5 "$RELEASE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
-   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 1'; then
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 2'; then
 	pass "installed workflow is ownership-marked and byte-identical to the Core template"
 else
 	fail "installed workflow is not ownership-marked or differs from the Core template"
@@ -134,12 +135,12 @@ fi
 perm_blocks=$(grep -cE '^[[:space:]]*permissions:' "$RELEASE_FILE" 2>/dev/null || true)
 perm_entries=$(grep -oE '^[[:space:]]+(actions|attestations|checks|contents|deployments|discussions|id-token|issues|metadata|models|packages|pages|pull-requests|security-events|statuses): (write|read|none)' "$RELEASE_FILE" 2>/dev/null || true)
 perm_count=$(printf '%s\n' "$perm_entries" | grep -c . || true)
-if [ "${perm_blocks:-0}" -eq 1 ] && [ "${perm_count:-0}" -eq 2 ] && \
+if [ "${perm_blocks:-0}" -eq 2 ] && [ "${perm_count:-0}" -eq 2 ] && \
    printf '%s\n' "$perm_entries" | grep -qF 'contents: write' && \
    printf '%s\n' "$perm_entries" | grep -qF 'pull-requests: write'; then
-	pass "job permissions are exactly contents: write and pull-requests: write"
+	pass "publish permissions are unchanged and publisher notification has no GITHUB_TOKEN permissions"
 else
-	fail "permissions are not exactly contents: write + pull-requests: write (blocks=$perm_blocks entries=$perm_count)"
+	fail "release or publisher-notification job permissions exceed the exact contract (blocks=$perm_blocks entries=$perm_count)"
 fi
 
 # ── 6. Pinned actions; checkout pins v7 at the merge SHA with full history ───
@@ -215,7 +216,7 @@ extract_run_block() {
 			next
 		}
 		in_target && /^        run: \|/ { capture = 1; next }
-		capture { print }
+		capture { sub(/^          /, ""); print }
 	' "$workflow") || return 1
 	[ -n "$found" ] || return 1
 	printf '%s\n' "$found"
@@ -240,9 +241,14 @@ validate_workflow_graph() {
 		const fs = require("node:fs");
 		const yaml = require("js-yaml");
 		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
-		const jobs = Object.values(workflow.jobs);
-		if (jobs.length !== 1) process.exit(1);
-		const job = jobs[0];
+		const publishJob = workflow.jobs.publish;
+		const notifyJob = workflow.jobs["notify-publisher"];
+		if (
+			Object.keys(workflow.jobs).sort().join(",") !== "notify-publisher,publish" ||
+			publishJob === undefined ||
+			notifyJob === undefined
+		) process.exit(1);
+		const job = publishJob;
 		const jobGateTerms = ["workflow_dispatch", "pull_request.merged", "startsWith", "head.repo.full_name"];
 		if (
 			typeof job.if !== "string" ||
@@ -254,6 +260,7 @@ validate_workflow_graph() {
 		const names = job.steps.map(({name}) => name).filter(Boolean);
 		const ordered = [
 			"Validate merge SHA and release version",
+			"Install release validation dependencies",
 			"Prepare package release metadata",
 			"Publish release",
 			"Reconcile package tags",
@@ -296,8 +303,171 @@ validate_workflow_graph() {
 		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
 			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
 		if (backmerge.if !== expected) process.exit(1);
+
+		const publishPermissionKeys = Object.keys(publishJob.permissions ?? {}).sort();
+		if (
+			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents", "pull-requests"]) ||
+			publishJob.permissions.contents !== "write" ||
+			publishJob.permissions["pull-requests"] !== "write" ||
+			notifyJob.permissions === undefined ||
+			notifyJob.permissions === null ||
+			typeof notifyJob.permissions !== "object" ||
+			Array.isArray(notifyJob.permissions) ||
+			Object.keys(notifyJob.permissions).length !== 0
+		) process.exit(1);
+
+		const expectedOutputs = {
+			version: "${{ steps.validate.outputs.version }}",
+			"merge-sha": "${{ steps.validate.outputs.merge-sha }}",
+			stable: "${{ steps.validate.outputs.stable }}",
+			"publish-outcome": "${{ steps.publish.outcome }}",
+			"reconcile-outcome": "${{ steps.reconcile.outcome }}",
+		};
+		const actualOutputs = publishJob.outputs;
+		if (
+			actualOutputs === undefined ||
+			actualOutputs === null ||
+			typeof actualOutputs !== "object" ||
+			Array.isArray(actualOutputs) ||
+			Object.keys(actualOutputs).sort().join(",") !==
+				Object.keys(expectedOutputs).sort().join(",") ||
+			Object.entries(expectedOutputs).some(([key, value]) => actualOutputs[key] !== value)
+		) process.exit(1);
+
+		const expectedNotifyGuard = "${{ always()" +
+			" && github.repository == " + quote + "kyaulabs/prism" + quote +
+			" && needs.publish.outputs.stable == " + quote + "true" + quote +
+			" && needs.publish.outputs.publish-outcome == " + quote + "success" + quote +
+			" && needs.publish.outputs.reconcile-outcome == " + quote + "success" + quote +
+			" }}";
+		const notifyGuard = notifyJob.if.replace(/\s+/g, " ").trim();
+		if (
+			notifyJob.needs !== "publish" ||
+			notifyGuard !== expectedNotifyGuard ||
+			notifyJob["timeout-minutes"] !== 5 ||
+			notifyJob["runs-on"] !== "ubuntu-latest" ||
+			notifyJob.environment !== "catalogue-dispatch"
+		) process.exit(1);
+
+		const dispatch = notifyJob.steps.find(({name}) =>
+			name === "Dispatch validated adapter release"
+		);
+		if (
+			notifyJob.steps.length !== 1 ||
+			dispatch === undefined ||
+			dispatch.env.GH_TOKEN !== "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}" ||
+			dispatch.env.RELEASE_VERSION !== "${{ needs.publish.outputs.version }}" ||
+			dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}" ||
+			Object.keys(dispatch.env).sort().join(",") !== "GH_TOKEN,MERGE_SHA,RELEASE_VERSION" ||
+			!dispatch.run.includes(
+				"repos/kyaulabs/prism-adapters/actions/workflows/" +
+				"catalogue-signing.yml/dispatches"
+			) ||
+			!dispatch.run.includes("ref: " + quote + "main" + quote) ||
+			!dispatch.run.includes("mode: " + quote + "release" + quote) ||
+			!dispatch.run.includes("version: process.env.RELEASE_VERSION") ||
+			!dispatch.run.includes("merge_commit: process.env.MERGE_SHA") ||
+			/repository_dispatch|client_payload|event_type|sourceRepository|mergeSha/.test(
+				dispatch.run
+			)
+		) process.exit(1);
+
+		const notificationSource = JSON.stringify(notifyJob);
+		for (const forbidden of [
+			"create-github-app-token",
+			"CATALOGUE_DISPATCH_APP_ID",
+			"CATALOGUE_DISPATCH_APP_PRIVATE_KEY",
+			"publisher-token",
+			"permission-actions",
+			"compatibility",
+			"coreRange",
+			"integrity",
+			"npm",
+			"sequence",
+			"upload-artifact",
+			"actions/cache",
+			"skip-token-revoke",
+		]) {
+			if (notificationSource.includes(forbidden)) process.exit(1);
+		}
 	' "$workflow"
 }
+
+if grep -qF 'stable=$stable' "$RELEASE_FILE" && \
+   grep -qF 'version=$version' "$RELEASE_FILE" && \
+   grep -qF 'merge-sha=$MERGE_SHA' "$RELEASE_FILE" && \
+   grep -qF "github.repository == 'kyaulabs/prism'" "$RELEASE_FILE" && \
+   grep -qF "needs.publish.outputs.publish-outcome == 'success'" "$RELEASE_FILE" && \
+   grep -qF "needs.publish.outputs.reconcile-outcome == 'success'" "$RELEASE_FILE"; then
+	pass "publisher notification consumes only validated stable release outcomes"
+else
+	fail "publisher notification is not gated by exact source, stability, publication, and reconciliation"
+fi
+
+graph_sim=$(mktemp -d)
+register_temp_dir "$graph_sim"
+node -e '
+	const fs = require("node:fs");
+	const source = fs.readFileSync(process.argv[1], "utf8");
+	const before = "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}";
+	if (!source.includes(before)) process.exit(1);
+	fs.writeFileSync(process.argv[2], source.replace(
+		before,
+		"${{ secrets.WRONG_DISPATCH_TOKEN }}",
+	));
+' "$RELEASE_FILE" "$graph_sim/wrong-dispatch-token.yml"
+if ! validate_workflow_graph "$graph_sim/wrong-dispatch-token.yml"; then
+	pass "publisher dispatch requires the approved protected secret source"
+else
+	fail "publisher dispatch accepts an unapproved credential source"
+fi
+
+sed 's/^    permissions: {}$/    permissions: { }/' "$RELEASE_FILE" > "$graph_sim/equivalent-notify-permissions.yml"
+if cmp -s "$RELEASE_FILE" "$graph_sim/equivalent-notify-permissions.yml"; then
+	fail "could not create the equivalent publisher permissions fixture"
+fi
+node -e '
+	const fs = require("node:fs");
+	const yaml = require("js-yaml");
+	const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+	const notifyJob = workflow.jobs?.["notify-publisher"];
+	if (notifyJob === undefined || !Object.hasOwn(notifyJob, "permissions")) process.exit(1);
+	delete notifyJob.permissions;
+	fs.writeFileSync(process.argv[2], yaml.dump(workflow, {lineWidth: -1, noRefs: true}));
+' "$graph_sim/equivalent-notify-permissions.yml" "$graph_sim/missing-notify-permissions.yml"
+if validate_workflow_graph "$graph_sim/missing-notify-permissions.yml"; then
+	fail "publisher notification accepts inherited GITHUB_TOKEN permissions"
+else
+	pass "publisher notification requires an explicit empty permissions mapping"
+fi
+
+node -e '
+	const fs = require("node:fs");
+	const before = [
+		"    outputs:",
+		"      version: ${{ steps.validate.outputs.version }}",
+		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
+		"      stable: ${{ steps.validate.outputs.stable }}",
+		"      publish-outcome: ${{ steps.publish.outcome }}",
+		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
+	].join("\n");
+	const after = [
+		"    outputs:",
+		"      stable: ${{ steps.validate.outputs.stable }}",
+		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
+		"      version: ${{ steps.validate.outputs.version }}",
+		"      publish-outcome: ${{ steps.publish.outcome }}",
+		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
+	].join("\n");
+	const content = fs.readFileSync(process.argv[1], "utf8");
+	if (!content.includes(before)) process.exit(1);
+	fs.writeFileSync(process.argv[2], content.replace(before, after));
+' "$RELEASE_FILE" "$graph_sim/reordered-publish-outputs.yml"
+if validate_workflow_graph "$graph_sim/reordered-publish-outputs.yml"; then
+	pass "publisher output validation is independent of YAML key order"
+else
+	fail "publisher output validation rejects a behaviorally identical key order"
+fi
 
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
 # the fixture into a fresh registered temp dir as CHANGELOG.md, execute the
@@ -558,11 +728,25 @@ fi
 
 PKG_CONFIG="$REPO_ROOT/.prism/release.json"
 if [ -f "$PKG_CONFIG" ] && \
-   jq -e '.schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and .packages == ["packages/prism-core", "packages/prism-php-web"]' "$PKG_CONFIG" >/dev/null && \
-   [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "managedBy,packages,schemaVersion,versionPolicy" ]; then
-	pass "9c: .prism/release.json is the exact owned lockstep configuration"
+   jq -e '
+	.schemaVersion == 2 and
+	.managedBy == "@kyaulabs/prism-core" and
+	.versionPolicy == "lockstep" and
+	.packages == ["packages/prism-core", "packages/prism-php-web"] and
+	.adapterReleases == [{
+		"package": "packages/prism-php-web",
+		"id": "php-web",
+		"displayName": "PHP/web",
+		"coreRange": ">=0.4.1 <0.5.0",
+		"bootstrapProtocol": 1,
+		"status": "ACTIVE"
+	}]
+   ' "$PKG_CONFIG" >/dev/null && \
+   [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "adapterReleases,managedBy,packages,schemaVersion,versionPolicy" ] && \
+   [ "$(jq -r '.adapterReleases[0] | keys | sort | join(",")' "$PKG_CONFIG")" = "bootstrapProtocol,coreRange,displayName,id,package,status" ]; then
+	pass "9c: .prism/release.json is the exact owned schema-2 lockstep configuration"
 else
-	fail "9c: .prism/release.json is not the exact owned lockstep configuration"
+	fail "9c: .prism/release.json is not the exact owned schema-2 lockstep configuration"
 fi
 
 prepare_line=$(grep -nF -- '- name: Prepare package release metadata' "$RELEASE_FILE" | cut -d: -f1)
@@ -581,6 +765,19 @@ if grep -qF '.prism/release.json' <<< "$prepare_contract_block" && \
 	pass "package metadata precedes repository publication, which precedes package tags; no npm publish or git push"
 else
 	fail "package preparation/publication/tag ordering contract violated"
+fi
+
+if grep -qF 'npm ci --ignore-scripts --no-audit --no-fund' "$RELEASE_FILE" && \
+   grep -qF 'adapterReleases' <<< "$prepare_contract_block" && \
+   grep -qF 'semver.validRange' <<< "$prepare_contract_block" && \
+   grep -qF 'prism?.adapter === true' <<< "$prepare_contract_block" && \
+   grep -qF '.prism-adapter-release-evidence.json' <<< "$prepare_contract_block" && \
+   grep -qF '65536' <<< "$prepare_contract_block" && \
+   ! grep -qF 'GITHUB_OUTPUT' <<< "$prepare_contract_block" && \
+   ! grep -qF 'upload-artifact' <<< "$prepare_contract_block"; then
+	pass "schema-2 declarations are revalidated into bounded local evidence before publication"
+else
+	fail "release workflow lacks closed adapter declaration revalidation or bounded local evidence"
 fi
 
 reconcile_guard=$(extract_step_if "$RELEASE_FILE" "Reconcile package tags")
@@ -635,7 +832,7 @@ package_sim=$(mktemp -d)
 register_temp_dir "$package_sim"
 mkdir -p "$package_sim/.prism" "$package_sim/packages/example"
 printf 'reviewed notes\n' > "$package_sim/body.md"
-printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 
 if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package release metadata"); then
@@ -644,11 +841,74 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
 	) && grep -qF $'example\t@fixture/example\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv" && \
 	   grep -qF -- '- example@1.2.3' "$package_sim/body.md"; then
-		pass "schema-v1 package metadata validates and prepares inert tags and notes"
+		pass "schema-v2 package metadata validates and prepares inert tags and notes"
 	else
-		fail "schema-v1 package metadata preparation failed"
+		fail "schema-v2 package metadata preparation failed"
 	fi
 
+	cat > "$package_sim/.prism/release-valid.json" <<'EOF'
+{
+  "schemaVersion": 2,
+  "managedBy": "@kyaulabs/prism-core",
+  "versionPolicy": "lockstep",
+  "packages": ["packages/example"],
+  "adapterReleases": [{
+    "package": "packages/example",
+    "id": "fixture-adapter",
+    "displayName": "Fixture adapter",
+    "coreRange": ">=1.2.3 <2.0.0",
+    "bootstrapProtocol": 1,
+    "status": "ACTIVE"
+  }]
+}
+EOF
+	cp "$package_sim/.prism/release-valid.json" "$package_sim/.prism/release.json"
+	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3","prism":{"adapter":true,"bootstrapProtocol":1}}' > "$package_sim/packages/example/package.json"
+	printf 'reviewed notes\n' > "$package_sim/body.md"
+	if (
+		cd "$package_sim" || exit 1
+		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+	) && jq -e '. == {
+		"schemaVersion": 1,
+		"releaseVersion": "1.2.3",
+		"adapterReleases": [{
+			"package": "packages/example",
+			"id": "fixture-adapter",
+			"displayName": "Fixture adapter",
+			"packageName": "@fixture/example",
+			"version": "1.2.3",
+			"coreRange": ">=1.2.3 <2.0.0",
+			"bootstrapProtocol": 1,
+			"status": "ACTIVE"
+		}]
+	}' "$package_sim/.prism-adapter-release-evidence.json" >/dev/null && \
+	   [ "$(wc -c < "$package_sim/.prism-adapter-release-evidence.json")" -le 65536 ]; then
+		pass "closed adapter declarations produce bounded inert local release evidence"
+	else
+		fail "valid adapter declaration did not produce exact bounded release evidence"
+	fi
+
+	reject_adapter_declaration() {
+		local label="$1" filter="$2"
+		jq "$filter" "$package_sim/.prism/release-valid.json" > "$package_sim/.prism/release.json"
+		printf 'reviewed notes\n' > "$package_sim/body.md"
+		if (
+			cd "$package_sim" || exit 1
+			VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
+		); then
+			fail "$label adapter declaration was accepted"
+		else
+			pass "$label adapter declaration is rejected before publication"
+		fi
+	}
+	reject_adapter_declaration "unknown-field" '.adapterReleases[0].unknown = true'
+	reject_adapter_declaration "unmanaged-package" '.adapterReleases[0].package = "packages/missing"'
+	reject_adapter_declaration "protocol-disagreement" '.adapterReleases[0].bootstrapProtocol = 2'
+	reject_adapter_declaration "malformed-range" '.adapterReleases[0].coreRange = "not-a-range"'
+	reject_adapter_declaration "duplicate" '.adapterReleases += [.adapterReleases[0]]'
+
+	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 	printf 'reviewed notes\n' > "$package_sim/body.md"
 	printf '%s\n' '{"name":"-fixture","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 	if (
@@ -675,7 +935,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	mkdir -p "$traversal_sim/project/.prism"
 	printf 'reviewed notes\n' > "$traversal_sim/project/body.md"
 	printf '%s\n' '{"name":"@fixture/outside","version":"1.2.3"}' > "$traversal_sim/package.json"
-	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[".."]}' > "$traversal_sim/project/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[".."],"adapterReleases":[]}' > "$traversal_sim/project/.prism/release.json"
 	if (
 		cd "$traversal_sim/project" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -752,7 +1012,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		pass "pull-request publication rejects legacy package configuration"
 	fi
 
-	printf '%s\n' '{"schemaVersion":1,"managedBy":"other","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":2,"managedBy":"other","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -764,7 +1024,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 
 	mkdir -p "$package_sim/1"
 	printf '%s\n' '{"name":"@fixture/numeric","version":"1.2.3"}' > "$package_sim/1/package.json"
-	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[1]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[1],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -777,7 +1037,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	tab_package=$'packages/tab\tpkg'
 	mkdir -p "$package_sim/$tab_package"
 	printf '%s\n' '{"name":"@fixture/tabbed","version":"1.2.3"}' > "$package_sim/$tab_package/package.json"
-	node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({schemaVersion:1,managedBy:"@kyaulabs/prism-core",versionPolicy:"lockstep",packages:["packages/tab\tpkg"]})+"\n")' "$package_sim/.prism/release.json"
+	node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({schemaVersion:2,managedBy:"@kyaulabs/prism-core",versionPolicy:"lockstep",packages:["packages/tab\tpkg"],adapterReleases:[]})+"\n")' "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -788,7 +1048,7 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 	fi
 
 	printf '%s\n' '{"name":"@fixture/bad..tag","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
-	printf '%s\n' '{"schemaVersion":1,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -915,6 +1175,89 @@ if package_reconcile_block=$(extract_run_block "$RELEASE_FILE" "Reconcile packag
 	fi
 else
 	fail "could not extract package-tag reconciliation block"
+fi
+
+# ── 9f. Executable validated adapter release dispatch ───────────────────────
+
+dispatch_sim=$(mktemp -d)
+register_temp_dir "$dispatch_sim"
+mkdir -p "$dispatch_sim/bin"
+cat > "$dispatch_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [ "${GH_MODE:-success}" = "failure" ]; then
+	printf '%s\n' 'HTTP 500' >&2
+	exit 1
+fi
+exit 0
+EOF
+chmod +x "$dispatch_sim/bin/gh"
+: > "$dispatch_sim/gh.log"
+
+if dispatch_block=$(extract_run_block "$RELEASE_FILE" "Dispatch validated adapter release"); then
+	stable_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches --input .prism-adapter-release-dispatch.json' "$dispatch_sim/gh.log" && \
+	   jq -e --arg sha "$stable_sha" '. == {
+		 ref: "main",
+		 inputs: {
+			 mode: "release",
+			 version: "1.2.3",
+			 merge_commit: $sha
+		 }
+	   }' "$dispatch_sim/.prism-adapter-release-dispatch.json" >/dev/null; then
+		pass "stable release workflow dispatch sends the exact closed inputs to the fixed publisher"
+	else
+		fail "stable release dispatch did not preserve the fixed endpoint and closed payload"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3-rc.1 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "prerelease reached publisher dispatch"
+	elif [ ! -s "$dispatch_sim/gh.log" ]; then
+		pass "prerelease is rejected before publisher API access"
+	else
+		fail "prerelease rejection occurred after publisher API access"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA=wrong \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "malformed merge SHA reached publisher dispatch"
+	elif [ ! -s "$dispatch_sim/gh.log" ]; then
+		pass "malformed merge SHA is rejected before publisher API access"
+	else
+		fail "merge-SHA rejection occurred after publisher API access"
+	fi
+
+	: > "$dispatch_sim/gh.log"
+	if (
+		cd "$dispatch_sim" || exit 1
+		PATH="$dispatch_sim/bin:$PATH" GH_MODE=failure GH_LOG="$dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
+			bash -c "$dispatch_block" >/dev/null 2>&1
+	); then
+		fail "publisher dispatch API failure was masked"
+	elif grep -qF 'repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches' "$dispatch_sim/gh.log"; then
+		pass "publisher dispatch API failure remains visible for scheduled or manual recovery"
+	else
+		fail "publisher dispatch failure path did not reach the fixed API boundary"
+	fi
+else
+	fail "could not extract validated adapter release dispatch block"
 fi
 
 # The executable sequence must publish the repository Release before it
@@ -1119,6 +1462,71 @@ else
 	fail "P14: /release missing develop synchronization or stale-main pre-flight checks"
 fi
 
+release_preflight_verifies_packages() {
+	awk '
+		function backticks(line, count) {
+			count = 0
+			while (substr(line, count + 1, 1) == "`") count++
+			return count
+		}
+		{
+			fence_length = backticks($0)
+			if (fence_length >= 3) {
+				fence_suffix = substr($0, fence_length + 1)
+				if (!in_fence) {
+					in_fence = 1
+					opening_length = fence_length
+					in_bash = in_preflight && fence_suffix == "bash"
+				} else if (fence_length >= opening_length && fence_suffix ~ /^[[:space:]]*$/) {
+					in_fence = 0
+					in_bash = 0
+				}
+				next
+			}
+		}
+		!in_fence && /^## Pre-flight$/ { in_preflight = 1; next }
+		!in_fence && /^## / && in_preflight { exit }
+		in_preflight && in_fence && in_bash &&
+			$0 == "prism-tool package-release verify --json" { found = 1 }
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
+if release_preflight_verifies_packages "$RELEASE_CMD"; then
+	pass "P14b: /release verifies managed packages before creating release state"
+else
+	fail "P14b: /release can create a branch or changelog before managed package verification"
+fi
+
+cat > "$graph_sim/release-order-fixture.md" <<'EOF'
+prism-tool package-release verify --json
+## Pre-flight
+No managed package verification runs here.
+## Propose and confirm the version
+## Create the release branch
+EOF
+if release_preflight_verifies_packages "$graph_sim/release-order-fixture.md"; then
+	fail "P14c: /release ordering validation accepts a command mention outside pre-flight"
+else
+	pass "P14c: /release ordering validation requires executable pre-flight verification"
+fi
+
+cat > "$graph_sim/release-fenced-heading-fixture.md" <<'EOF'
+````text
+```bash
+## Pre-flight
+```bash
+prism-tool package-release verify --json
+```
+````
+## Propose and confirm the version
+EOF
+if release_preflight_verifies_packages "$graph_sim/release-fenced-heading-fixture.md"; then
+	fail "P14d: /release ordering validation accepts a pre-flight heading inside a fence"
+else
+	pass "P14d: /release ordering validation recognizes headings only outside fences"
+fi
+
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
 if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \
@@ -1308,6 +1716,32 @@ if grep -qF '.prism/release.json' "$RELEASE_CMD" && \
 	pass "P23: /release authors every configured package at the repository version"
 else
 	fail "P23: /release retains independent package versions or lacks lockstep authoring"
+fi
+
+# ── P23a. Adapter declarations remain reviewed release authority ───────────
+
+release_authoring_section=$(awk '
+	/^## Author configured package versions in lockstep$/ { capture = 1 }
+	/^## Commit the changelog$/ { capture = 0 }
+	capture
+' "$RELEASE_CMD")
+if grep -qF '"schemaVersion": 2' <<< "$release_authoring_section" && \
+   grep -qF '"adapterReleases"' <<< "$release_authoring_section" && \
+   grep -qF 'unknown declaration fields' <<< "$release_authoring_section" && \
+   grep -qF 'release-managed public package' <<< "$release_authoring_section" && \
+   grep -qF 'malformed ranges' <<< "$release_authoring_section" && \
+   grep -qF 'unmanaged declaration packages' <<< "$release_authoring_section" && \
+   grep -qF 'protocol disagreement' <<< "$release_authoring_section" && \
+   grep -qF 'declaration/package version disagreement' <<< "$release_authoring_section" && \
+   grep -qF 'prism.adapter' <<< "$release_authoring_section" && \
+   grep -qF 'bootstrapProtocol' <<< "$release_authoring_section" && \
+   grep -qF 'coreRange' <<< "$release_authoring_section" && \
+   grep -qF 'revalidate' <<< "$release_authoring_section" && \
+   grep -qF 'must not rewrite compatibility' <<< "$release_authoring_section" && \
+   grep -qF 'version to equal the exact confirmed `X.Y.Z`' <<< "$release_authoring_section"; then
+	pass "P23a: /release validates closed reviewed adapter declarations before and after lockstep authoring"
+else
+	fail "P23a: /release does not preserve reviewed adapter declaration authority"
 fi
 
 # ── P24. Every configured package gets one inert human publish command ───────

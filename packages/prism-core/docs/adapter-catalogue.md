@@ -1,9 +1,9 @@
 # Signed adapter catalogue
 
 The signed adapter catalogue is the public release contract between Prism Core
-and the human-operated `kyaulabs/prism-adapters` publisher. Core uses it only
-for strict-empty setup. Established projects keep the exact adapter already
-recorded in project-local Pi state.
+and the `kyaulabs/prism-adapters` publisher. Core uses it only for strict-empty
+setup. Established projects keep the exact adapter already recorded in
+project-local Pi state.
 
 ## Fixed consumer boundary
 
@@ -165,17 +165,44 @@ Once Core has selected and validated an adapter within the signed validity
 window, recovery reverifies the embedded receipt evidence. It does not depend
 on a newer global catalogue or extend the original selection's authority.
 
+## Release declaration authority
+
+The adapter release declaration in a reviewed Prism release commit is the
+compatibility authority for catalogue publication. It binds a release-managed
+public package path to the adapter ID, display name, Core range, bootstrap
+protocol, and status. Package name and version are derived from the validated
+package manifest; the declaration cannot provide registry, integrity,
+timestamp, command, credential, sequence, branch, or signing data.
+
+Release CI revalidates the closed declaration against the immutable merge and
+package manifests before repository publication. It writes only bounded local
+JSON evidence. That file is neither signing input nor catalogue authority by
+itself, and this workflow does not publish it outside the runner.
+
+The publisher independently revalidates the Prism Release, merge commit,
+package tag, reviewed declaration, and exact npm evidence. Dispatch data only
+identifies evidence to retrieve; it cannot supply compatibility or signing
+input.
+
 ## Publisher responsibilities
 
 The `kyaulabs/prism-adapters` publisher owns:
 
-1. reviewing adapter identity, Core compatibility, bootstrap protocol, npm
-   integrity, release status, and revocations;
-2. serializing the payload deterministically;
-3. assigning a new monotonic sequence for every changed publication;
-4. signing the exact payload bytes with the authorized Ed25519 key;
-5. publishing the complete envelope atomically at the fixed path; and
-6. retaining signing audit and key-custody records outside Prism Core.
+1. independently verifying Prism release, declaration, package-tag, and npm
+   evidence;
+2. preserving verified releases and applying reviewed status changes;
+3. serializing the payload deterministically;
+4. assigning the next monotonic sequence against an attested `main` commit;
+5. signing and verifying the exact payload in protected default-branch Actions;
+6. opening a sequence-specific, human-merged publication pull request; and
+7. retaining signing audit and key-custody records outside Prism Core.
+
+Protected Actions signing uses an encrypted PKCS#8 Ed25519 key and a separate
+passphrase secret. Pull-request code, reusable workflows, tests, local tools,
+and coding agents receive neither secret. The workflow verifies the generated
+envelope against Core's public trust root before it creates a publication
+branch. It never writes protected `main`, enables auto-merge, or merges the pull
+request.
 
 Key rotation requires an overlap period: release Core with the new public key,
 allow that Core version to propagate, then publish envelopes under the new key.
@@ -183,9 +210,15 @@ Emergency revocation requires a Core trust-root release because the catalogue
 cannot revoke the key that authenticates the catalogue itself.
 
 The production private signing key must never enter this repository, a Prism
-package, CI secret, test fixture, setup state, log, issue, or documentation.
-Tests generate ephemeral Ed25519 key pairs in memory and supply matching
-injected test trust roots. Publishing and private-key custody remain human-owned
-operations outside Prism Core.
+package, test fixture, setup state, log, issue, or documentation. Tests generate
+ephemeral Ed25519 key pairs in memory and supply matching injected test trust
+roots. Production key custody belongs only to the protected publisher
+environment defined by ADR-0094.
+
+Human maintainers provision the separate bot-owned dispatch and publication
+credentials through
+[`catalogue-publication-provisioning.md`](catalogue-publication-provisioning.md).
+The procedure keeps credential values outside Prism and preserves disjoint
+runtime authority.
 
 <!-- vim: ft=markdown sts=4 sw=4 ts=4 et : -->

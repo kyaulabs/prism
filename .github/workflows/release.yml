@@ -1,5 +1,5 @@
 # prism-managed: @kyaulabs/prism-core
-# prism-release-schema: 1
+# prism-release-schema: 2
 name: Release
 
 on:
@@ -29,6 +29,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      merge-sha: ${{ steps.validate.outputs.merge-sha }}
+      stable: ${{ steps.validate.outputs.stable }}
+      publish-outcome: ${{ steps.publish.outcome }}
+      reconcile-outcome: ${{ steps.reconcile.outcome }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -90,7 +96,17 @@ jobs:
             exit 1
           fi
 
+          case "${version%%+*}" in
+            *-*) stable=false ;;
+            *) stable=true ;;
+          esac
+
           echo "VERSION=$version" >> "$GITHUB_ENV"
+          {
+            echo "version=$version"
+            echo "merge-sha=$MERGE_SHA"
+            echo "stable=$stable"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract changelog notes
         run: |
@@ -168,6 +184,9 @@ jobs:
             echo "RELEASE_BODY_TRUNCATED=no" >> "${GITHUB_ENV:-/dev/null}"
           fi
 
+      - name: Install release validation dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Prepare package release metadata
         id: package_metadata
         run: |
@@ -187,7 +206,11 @@ jobs:
               echo "::error::$config_file must be a regular non-symlink file" >&2
               exit 1
             fi
-            managed='type == "object" and (keys | sort) == ["managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 1 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0 and all(.[]; type == "string"))'
+            if [ "$(wc -c < "$config_file")" -gt 1048576 ]; then
+              echo "::error::$config_file exceeds the 1 MiB limit" >&2
+              exit 1
+            fi
+            managed='type == "object" and (keys | sort) == ["adapterReleases","managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 2 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0 and all(.[]; type == "string")) and (.adapterReleases | type == "array" and length <= 64)'
             legacy='type == "object" and keys == ["packages"] and (.packages | type == "array" and length > 0 and all(.[]; type == "string"))'
             if jq -e "$managed" "$config_file" >/dev/null 2>&1; then
               :
@@ -258,6 +281,111 @@ jobs:
               packages="${packages}${packages:+$'\n'}- ${prefix}@${ver}"
             done < .prism-package-tags.tsv
           fi
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const semver = require('semver');
+
+          const CONFIG_PATH = '.prism/release.json';
+          const EVIDENCE_PATH = '.prism-adapter-release-evidence.json';
+          const ENTRY_KEYS = [
+            'bootstrapProtocol',
+            'coreRange',
+            'displayName',
+            'id',
+            'package',
+            'status',
+          ];
+          const ROOT_KEYS = [
+            'adapterReleases',
+            'managedBy',
+            'packages',
+            'schemaVersion',
+            'versionPolicy',
+          ];
+          const ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+          const releaseVersion = process.env.VERSION;
+          let declarations = [];
+          let packagePaths = [];
+
+          if (fs.existsSync(CONFIG_PATH)) {
+            const configuration = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            const rootKeys = Object.keys(configuration).sort();
+            const managed =
+              JSON.stringify(rootKeys) === JSON.stringify(ROOT_KEYS) &&
+              configuration.schemaVersion === 2 &&
+              configuration.managedBy === '@kyaulabs/prism-core' &&
+              configuration.versionPolicy === 'lockstep';
+            const legacy =
+              process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+              JSON.stringify(rootKeys) === JSON.stringify(['packages']);
+            if (!managed && !legacy) throw new Error('release configuration is invalid');
+            packagePaths = configuration.packages;
+            declarations = managed ? configuration.adapterReleases : [];
+          }
+
+          const packages = new Set(packagePaths);
+          const declaredPackages = new Set();
+          const identifiers = new Set();
+          const adapterReleases = declarations.map((declaration) => {
+            if (
+              declaration === null ||
+              typeof declaration !== 'object' ||
+              Array.isArray(declaration) ||
+              JSON.stringify(Object.keys(declaration).sort()) !== JSON.stringify(ENTRY_KEYS) ||
+              !packages.has(declaration.package) ||
+              declaredPackages.has(declaration.package) ||
+              typeof declaration.id !== 'string' ||
+              !ID.test(declaration.id) ||
+              identifiers.has(declaration.id) ||
+              typeof declaration.displayName !== 'string' ||
+              declaration.displayName.length === 0 ||
+              declaration.displayName.length > 120 ||
+              declaration.displayName !== declaration.displayName.trim() ||
+              /[\u0000-\u001f\u007f]/u.test(declaration.displayName) ||
+              typeof declaration.coreRange !== 'string' ||
+              semver.validRange(declaration.coreRange) !== declaration.coreRange ||
+              !Number.isSafeInteger(declaration.bootstrapProtocol) ||
+              declaration.bootstrapProtocol <= 0 ||
+              !['ACTIVE', 'REVOKED'].includes(declaration.status)
+            ) {
+              throw new Error('adapter release declaration is invalid');
+            }
+            const manifest = JSON.parse(fs.readFileSync(`${declaration.package}/package.json`, 'utf8'));
+            if (
+              manifest.prism?.adapter === true &&
+              manifest.prism.bootstrapProtocol === declaration.bootstrapProtocol &&
+              typeof manifest.name === 'string' &&
+              typeof manifest.version === 'string' &&
+              manifest.version === releaseVersion
+            ) {
+              declaredPackages.add(declaration.package);
+              identifiers.add(declaration.id);
+              return {
+                package: declaration.package,
+                id: declaration.id,
+                displayName: declaration.displayName,
+                packageName: manifest.name,
+                version: manifest.version,
+                coreRange: declaration.coreRange,
+                bootstrapProtocol: declaration.bootstrapProtocol,
+                status: declaration.status,
+              };
+            }
+            throw new Error('adapter package evidence is invalid');
+          });
+
+          const evidence = {schemaVersion: 1, releaseVersion, adapterReleases};
+          const bytes = Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+          if (bytes.length > 65536) throw new Error('adapter release evidence is too large');
+          const existing = fs.lstatSync(EVIDENCE_PATH, {throwIfNoEntry: false});
+          if (existing?.isSymbolicLink() || (existing !== undefined && !existing.isFile())) {
+            throw new Error('adapter release evidence path is invalid');
+          }
+          fs.writeFileSync(EVIDENCE_PATH, bytes, {mode: 0o600});
+          fs.chmodSync(EVIDENCE_PATH, 0o600);
+          NODE
+
           if [ -n "$packages" ]; then
             printf '\n### 📦 Packages\n\n%s\n' "$packages" > .prism-package-notes.md
             RELEASE_BODY_BUDGET=120000
@@ -478,3 +606,57 @@ jobs:
       - name: Fail unsuccessful publication
         if: ${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' && (steps.publish.outcome != 'success' || steps.reconcile.outcome != 'success') }}
         run: exit 1
+
+  notify-publisher:
+    name: Notify adapter catalogue publisher
+    needs: publish
+    if: >-
+      ${{ always()
+       && github.repository == 'kyaulabs/prism'
+       && needs.publish.outputs.stable == 'true'
+       && needs.publish.outputs.publish-outcome == 'success'
+       && needs.publish.outputs.reconcile-outcome == 'success'
+       }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: catalogue-dispatch
+    permissions: {}
+    steps:
+      - name: Dispatch validated adapter release
+        env:
+          GH_TOKEN: ${{ secrets.CATALOGUE_DISPATCH_TOKEN }}
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+          MERGE_SHA: ${{ needs.publish.outputs.merge-sha }}
+        run: |
+          set -euo pipefail
+
+          if ! printf '%s' "$RELEASE_VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "::error::publisher dispatch requires a stable release version" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$MERGE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::publisher dispatch requires a validated merge SHA" >&2
+            exit 1
+          fi
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+
+          const payload = {
+            ref: 'main',
+            inputs: {
+              mode: 'release',
+              version: process.env.RELEASE_VERSION,
+              merge_commit: process.env.MERGE_SHA,
+            },
+          };
+          fs.writeFileSync(
+            '.prism-adapter-release-dispatch.json',
+            `${JSON.stringify(payload)}\n`,
+            {mode: 0o600}
+          );
+          NODE
+
+          gh api --method POST \
+            repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches \
+            --input .prism-adapter-release-dispatch.json

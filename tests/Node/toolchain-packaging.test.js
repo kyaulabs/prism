@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -117,7 +117,12 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 1$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 2$/m);
+    assert.equal(
+        releaseWorkflow,
+        fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),
+        'packaged canonical workflow bytes remain exact'
+    );
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
@@ -132,6 +137,11 @@ test('packs the core package with every owned resource and executable modes', ()
         packed.files.has('docs/adapter-catalogue.md'),
         true,
         'adapter catalogue publisher contract packaged'
+    );
+    assert.equal(
+        packed.files.has('docs/catalogue-publication-provisioning.md'),
+        true,
+        'catalogue publication provisioning runbook packaged'
     );
     const coreNotice = execFileSync('tar', ['-xOzf', packed.tarball, 'package/NOTICE'], {
         encoding: 'utf8',
@@ -152,7 +162,7 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
-        'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
+        'catalogue-publication-readiness', 'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
         'consent', 'contract', 'discovery', 'managed-record', 'markdown',
         'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
         'web-access-browser', 'web-access-config',
@@ -189,6 +199,55 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+});
+
+test('documents reviewed adapter release authority and publisher ownership', () => {
+    const catalogueDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'adapter-catalogue.md'),
+        'utf8'
+    );
+
+    assert.match(catalogueDocs, /adapter release declaration.*compatibility authority/is);
+    assert.match(catalogueDocs, /package name.*version.*derived.*manifest/is);
+    assert.match(catalogueDocs, /publisher.*independently revalidates/is);
+    assert.match(catalogueDocs, /protected.*Actions.*signing/is);
+    assert.match(catalogueDocs, /human-merged.*pull request/is);
+    assert.doesNotMatch(catalogueDocs, /production private signing key.*human-owned/is);
+});
+
+test('documents human-only bot-owned catalogue publication provisioning', () => {
+    const runbook = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'catalogue-publication-provisioning.md'),
+        'utf8'
+    );
+    const catalogueDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'adapter-catalogue.md'),
+        'utf8'
+    );
+
+    assert.match(catalogueDocs, /catalogue-publication-provisioning[.]md/);
+    assert.match(runbook, /kyaulabs-bot/);
+    assert.match(runbook, /fine-grained personal access token/i);
+    assert.match(runbook, /CATALOGUE_DISPATCH_TOKEN/);
+    assert.match(runbook, /CATALOGUE_PUBLICATION_TOKEN/);
+    assert.match(runbook, /Actions: write/);
+    assert.match(runbook, /Contents: write/);
+    assert.match(runbook, /Pull requests: write/);
+    assert.match(runbook, /catalogue-dispatch/);
+    assert.match(runbook, /catalogue-signing/);
+    assert.match(runbook, /NONE_ACCEPTED/);
+    assert.match(runbook, /non-expiring/i);
+    assert.match(runbook, /no planned rotation/i);
+    assert.match(runbook, /CATALOGUE_SIGNING_ENABLED/);
+    assert.match(runbook, /pre-activation/);
+    assert.match(runbook, /--phase=active/);
+    assert.match(runbook, /suspected exposure/i);
+    assert.match(runbook, /succession/i);
+    assert.match(runbook, /issue #469/i);
+    assert.doesNotMatch(
+        runbook,
+        /github_pat_[A-Za-z0-9_]+|gh secret set|echo .*TOKEN|BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|[.]env/,
+    );
 });
 
 test('documents Blank Core-only application and recovery boundaries', () => {
@@ -306,6 +365,9 @@ test('documents human npm publication for managed lockstep package releases', ()
 
 test('documents bounded diff-causal review chains', () => {
     const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const publicReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+    const harnessDocs = fs.readFileSync(path.join(root, 'CODING_HARNESS.md'), 'utf8');
+    const agents = fs.readFileSync(path.join(CORE_PKG, 'AGENTS.md'), 'utf8');
     const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 
     assert.match(coreReadme, /review chain/i);
@@ -314,6 +376,11 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /all four axes/i);
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
+    for (const document of [coreReadme, publicReadme, harnessDocs, agents]) {
+        assert.match(document, /standalone `?\/pr`?.*one complete initial review.*absent/is);
+        assert.match(document, /invalid.*review chain.*fail closed/is);
+        assert.match(document, /second review.*fresh explicit approval/is);
+    }
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });
 

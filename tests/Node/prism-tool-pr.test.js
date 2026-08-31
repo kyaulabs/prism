@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
 
 'use strict';
 
@@ -92,6 +92,66 @@ test('pr preflight reports the exact branch attestation', () => {
         'ADVISORY_COUNT\t1',
         '',
     ].join('\n'));
+});
+
+test('pr review-preflight reports an absent review chain', () => {
+    const result = captureWrites(() => main(['pr', 'review-preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChain: () => ({state: 'ABSENT'}),
+        verifyReviewChain: () => assert.fail('absent chain must not be verified'),
+    }));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /REVIEW_CHAIN\tABSENT/);
+    assert.doesNotMatch(result.stdout, /ADVISORY_COUNT/);
+});
+
+test('pr review-preflight verifies a present chain', () => {
+    const result = captureWrites(() => main(['pr', 'review-preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChain: () => ({state: 'VALID'}),
+        verifyReviewChain: () => ({
+            advisoryFindings: [{summary: 'follow-up cleanup'}],
+        }),
+    }));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /REVIEW_CHAIN\tVALID/);
+    assert.match(result.stdout, /ADVISORY_COUNT\t1/);
+});
+
+test('pr review-preflight rejects unsafe review-chain state', () => {
+    const result = captureWrites(() => main(['pr', 'review-preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChain: () => ({state: 'UNSAFE'}),
+    }));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /review chain is unsafe or invalid/);
+});
+
+test('pr review-preflight rejects unusable present review-chain evidence', () => {
+    const result = captureWrites(() => main(['pr', 'review-preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChain: () => ({state: 'VALID'}),
+        verifyReviewChain: () => { throw new Error('CANARY'); },
+    }));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /review chain is incomplete, stale, or has unresolved Blocking findings/);
+    assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
 test('pr preflight accepts SHA-256 object ids', () => {

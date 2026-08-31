@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -1425,6 +1425,16 @@ test('stages and attests release management outputs with selected-adapter eviden
     assert.equal(stagedNames(projectRoot).some((name) =>
         name.startsWith('.pi/prism-tool/package-release')
     ), false);
+    assert.deepEqual(JSON.parse(fs.readFileSync(
+        path.join(projectRoot, '.prism', 'release.json'),
+        'utf8'
+    )), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.'],
+        adapterReleases: [],
+    });
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const attestation = JSON.parse(fs.readFileSync(
         path.join(attemptRoot, 'seed-attestation.json'),

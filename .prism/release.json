@@ -1,9 +1,19 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "managedBy": "@kyaulabs/prism-core",
   "versionPolicy": "lockstep",
   "packages": [
     "packages/prism-core",
     "packages/prism-php-web"
+  ],
+  "adapterReleases": [
+    {
+      "package": "packages/prism-php-web",
+      "id": "php-web",
+      "displayName": "PHP/web",
+      "coreRange": ">=0.4.1 <0.5.0",
+      "bootstrapProtocol": 1,
+      "status": "ACTIVE"
+    }
   ]
 }

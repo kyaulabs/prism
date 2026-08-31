@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,7 @@ const test = require('node:test');
 const {
     discoverReleasePackages,
     loadReleaseConfiguration,
+    renderManagedConfiguration,
     renderReleaseCapabilityFiles,
 } = require('../../packages/prism-core/scripts/prism-tool/package-release');
 const {makeTempDir, writeJson, writePackageJson} = require('./helpers');
@@ -29,10 +30,11 @@ test('renders package release candidate files without mutating the project', (t)
         {name: '@fixture/root', path: '.', version: '1.2.3', tagPrefix: 'root'},
     ]);
     assert.equal(rendered.files['.prism/release.json'].toString('utf8'), `${JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         managedBy: '@kyaulabs/prism-core',
         versionPolicy: 'lockstep',
         packages: ['.'],
+        adapterReleases: [],
     }, null, 2)}\n`);
     assert.equal(
         rendered.files['.github/workflows/release.yml'].equals(
@@ -237,6 +239,141 @@ test('rejects symlinked package directories even when the target stays inside th
     assert.throws(() => discoverReleasePackages({projectRoot}), /symlinked or escaping/);
 });
 
+test('renders schema two with canonical adapter release fields', () => {
+    const declaration = {
+        package: 'packages/adapter',
+        id: 'fixture-adapter',
+        displayName: 'Fixture adapter',
+        coreRange: '>=1.2.3 <2.0.0',
+        bootstrapProtocol: 1,
+        status: 'ACTIVE',
+    };
+
+    assert.equal(renderManagedConfiguration([
+        {name: '@fixture/adapter', path: 'packages/adapter', version: '1.2.3'},
+    ], [declaration]), `${JSON.stringify({
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['packages/adapter'],
+        adapterReleases: [declaration],
+    }, null, 2)}\n`);
+});
+
+test('loads a managed adapter release declaration as reviewed authority', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+        private: true,
+        workspaces: ['packages/*'],
+    });
+    writePackageJson(projectRoot, 'packages/adapter', {
+        name: '@fixture/adapter',
+        version: '1.2.3',
+        prism: {adapter: true, bootstrapProtocol: 1},
+    });
+    writeJson(path.join(projectRoot, '.prism', 'release.json'), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['packages/adapter'],
+        adapterReleases: [{
+            package: 'packages/adapter',
+            id: 'fixture-adapter',
+            displayName: 'Fixture adapter',
+            coreRange: '>=1.2.3 <2.0.0',
+            bootstrapProtocol: 1,
+            status: 'ACTIVE',
+        }],
+    });
+
+    assert.deepEqual(loadReleaseConfiguration({projectRoot}), {
+        kind: 'MANAGED',
+        packages: ['packages/adapter'],
+        adapterReleases: [{
+            package: 'packages/adapter',
+            id: 'fixture-adapter',
+            displayName: 'Fixture adapter',
+            coreRange: '>=1.2.3 <2.0.0',
+            bootstrapProtocol: 1,
+            status: 'ACTIVE',
+        }],
+    });
+});
+
+test('rejects malformed or unauthorized adapter release declarations', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+        private: true,
+        workspaces: ['packages/*'],
+    });
+    writePackageJson(projectRoot, 'packages/adapter', {
+        name: '@fixture/adapter',
+        version: '1.2.3',
+        prism: {adapter: true, bootstrapProtocol: 1},
+    });
+    const declaration = {
+        package: 'packages/adapter',
+        id: 'fixture-adapter',
+        displayName: 'Fixture adapter',
+        coreRange: '>=1.2.3 <2.0.0',
+        bootstrapProtocol: 1,
+        status: 'ACTIVE',
+    };
+    const cases = [
+        [{...declaration, packageName: '@fixture/adapter'}, 'unknown field'],
+        [{...declaration, package: 'packages/missing'}, 'unmanaged package'],
+        [{...declaration, id: 'Fixture'}, 'invalid ID'],
+        [{...declaration, displayName: 'Fixture\nadapter'}, 'control character'],
+        [{...declaration, coreRange: 'not-a-range'}, 'invalid Core range'],
+        [{...declaration, bootstrapProtocol: 2}, 'protocol disagreement'],
+        [{...declaration, status: 'UNKNOWN'}, 'invalid status'],
+    ];
+    for (const [candidate, label] of cases) {
+        writeJson(path.join(projectRoot, '.prism', 'release.json'), {
+            schemaVersion: 2,
+            managedBy: '@kyaulabs/prism-core',
+            versionPolicy: 'lockstep',
+            packages: ['packages/adapter'],
+            adapterReleases: [candidate],
+        });
+        assert.throws(
+            () => loadReleaseConfiguration({projectRoot}),
+            /adapter release declarations are invalid/,
+            label
+        );
+    }
+    writeJson(path.join(projectRoot, '.prism', 'release.json'), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['packages/adapter'],
+        adapterReleases: [declaration, declaration],
+    });
+    assert.throws(
+        () => loadReleaseConfiguration({projectRoot}),
+        /adapter release declarations are invalid/,
+        'duplicate package and ID'
+    );
+});
+
+test('returns an empty declaration set when release configuration is absent', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    writePackageJson(projectRoot, '.', {name: 'fixture-root', version: '1.0.0'});
+
+    assert.deepEqual(loadReleaseConfiguration({projectRoot}), {
+        kind: 'ABSENT',
+        packages: [],
+        adapterReleases: [],
+    });
+});
+
 test('loads only exact managed and explicitly allowed legacy configurations', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
@@ -248,13 +385,19 @@ test('loads only exact managed and explicitly allowed legacy configurations', (t
         versionPolicy: 'lockstep',
         packages: ['.'],
     });
-    assert.deepEqual(loadReleaseConfiguration({projectRoot}), {kind: 'MANAGED', packages: ['.']});
+    assert.throws(() => loadReleaseConfiguration({projectRoot}), /schema is invalid/);
+    assert.deepEqual(loadReleaseConfiguration({projectRoot, allowLegacy: true}), {
+        kind: 'LEGACY',
+        packages: ['.'],
+        adapterReleases: [],
+    });
 
     writeJson(configPath, {packages: ['.']});
     assert.throws(() => loadReleaseConfiguration({projectRoot}), /schema is invalid/);
     assert.deepEqual(loadReleaseConfiguration({projectRoot, allowLegacy: true}), {
         kind: 'LEGACY',
         packages: ['.'],
+        adapterReleases: [],
     });
 });
 
@@ -293,10 +436,11 @@ test('excludes private discovery candidates but rejects a configured private pac
         'packages/public',
     ]);
     writeJson(path.join(projectRoot, '.prism', 'release.json'), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         managedBy: '@kyaulabs/prism-core',
         versionPolicy: 'lockstep',
         packages: ['packages/private'],
+        adapterReleases: [],
     });
     assert.throws(() => loadReleaseConfiguration({projectRoot}), /private package/);
 });
