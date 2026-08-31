@@ -60,6 +60,7 @@ function validateAttestation(value) {
         typeof value.checkedAt !== 'string' ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value.checkedAt) ||
         Number.isNaN(Date.parse(value.checkedAt)) ||
+        new Date(Date.parse(value.checkedAt)).toISOString().replace('.000Z', 'Z') !== value.checkedAt ||
         !validCredential(value.dispatchCredential, {
             label: 'prism-catalogue-dispatch',
             permissions: {actions: 'write'},

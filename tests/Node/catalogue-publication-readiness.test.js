@@ -322,6 +322,9 @@ const credentialDriftCases = [
     }],
     ['old schema', (value) => { value.schemaVersion = 1; }],
     ['unknown root key', (value) => { value.unexpected = true; }],
+    ['impossible review date', (value) => {
+        value.checkedAt = '2026-02-31T20:00:00Z';
+    }],
 ];
 
 test('rejects credential metadata outside the two approved PAT profiles', (t) => {
