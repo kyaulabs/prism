@@ -1464,13 +1464,20 @@ fi
 
 release_preflight_verifies_packages() {
 	awk '
-		/^## Pre-flight$/ { in_preflight = 1; next }
-		/^## / && in_preflight { exit }
-		/^```bash$/ && in_preflight { in_bash = 1; next }
-		/^```$/ && in_bash { in_bash = 0; next }
-		in_preflight && in_bash && $0 == "prism-tool package-release verify --json" {
-			found = 1
+		/^```/ {
+			if (in_fence) {
+				in_fence = 0
+				in_bash = 0
+			} else {
+				in_fence = 1
+				in_bash = in_preflight && $0 == "```bash"
+			}
+			next
 		}
+		!in_fence && /^## Pre-flight$/ { in_preflight = 1; next }
+		!in_fence && /^## / && in_preflight { exit }
+		in_preflight && in_fence && in_bash &&
+			$0 == "prism-tool package-release verify --json" { found = 1 }
 		END { exit found ? 0 : 1 }
 	' "$1"
 }
@@ -1492,6 +1499,20 @@ if release_preflight_verifies_packages "$graph_sim/release-order-fixture.md"; th
 	fail "P14c: /release ordering validation accepts a command mention outside pre-flight"
 else
 	pass "P14c: /release ordering validation requires executable pre-flight verification"
+fi
+
+cat > "$graph_sim/release-fenced-heading-fixture.md" <<'EOF'
+```text
+## Pre-flight
+```bash
+prism-tool package-release verify --json
+```
+## Propose and confirm the version
+EOF
+if release_preflight_verifies_packages "$graph_sim/release-fenced-heading-fixture.md"; then
+	fail "P14d: /release ordering validation accepts a pre-flight heading inside a fence"
+else
+	pass "P14d: /release ordering validation recognizes headings only outside fences"
 fi
 
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
