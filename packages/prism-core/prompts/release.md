@@ -71,6 +71,16 @@ Parse the returned version as inert data. Validate that its major component is
 an integer at least 2. If the major component is below 2, stop and direct the
 user to `/doctor`.
 
+Verify managed package ownership before proposing a version, creating a branch,
+or writing the changelog:
+
+```bash
+prism-tool package-release verify --json
+```
+
+Require an exact `GO` report. Any failure stops release preparation while the
+clean synchronized `develop` state is still untouched.
+
 ## Propose and confirm the version
 
 Stop when there are no releasable commits — with none pending, the unreleased

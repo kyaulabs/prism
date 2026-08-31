@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -101,6 +101,32 @@ function installManagedFiles(projectRoot, workflow = CANONICAL_WORKFLOW, adapter
         adapterReleases,
     });
     const workflowPath = path.join(projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.writeFileSync(workflowPath, workflow);
+}
+
+function installPrivateRootManagedPackages(fixture, workflow = CANONICAL_WORKFLOW) {
+    writePackageJson(fixture.projectRoot, '.', {
+        name: 'fixture-root',
+        version: '1.2.3',
+        private: true,
+    });
+    writePackageJson(fixture.projectRoot, 'packages/core', {
+        name: '@fixture/core',
+        version: '1.2.3',
+    });
+    writePackageJson(fixture.projectRoot, 'packages/adapter', {
+        name: '@fixture/adapter',
+        version: '1.2.3',
+    });
+    writeJson(path.join(fixture.projectRoot, '.prism', 'release.json'), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['packages/core', 'packages/adapter'],
+        adapterReleases: [],
+    });
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
     fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
     fs.writeFileSync(workflowPath, workflow);
 }
@@ -427,6 +453,51 @@ test('restores schema-1 and schema-2 declaration bytes after failed publication'
             assert.deepEqual(fs.readFileSync(workflowPath), beforeWorkflow);
         });
     }
+});
+
+test('verifies configured packages outside npm workspaces', (t) => {
+    const fixture = makeFixture(t);
+    installPrivateRootManagedPackages(fixture);
+
+    assert.deepEqual(verifyReleaseCapability(fixture), {
+        status: 'GO',
+        checks: [
+            {id: 'package-release-verification', status: 'PASS', message: 'managed release files are current'},
+        ],
+        data: {
+            packages: ['packages/core', 'packages/adapter'],
+            adapterReleases: [],
+        },
+    });
+});
+
+test('plans managed workflow updates for configured packages outside npm workspaces', (t) => {
+    const fixture = makeFixture(t);
+    installPrivateRootManagedPackages(fixture, `${CANONICAL_WORKFLOW}# outdated\n`);
+
+    const plan = planReleaseCapability(fixture);
+    const plannedConfig = JSON.parse(fs.readFileSync(
+        path.join(path.dirname(plan.planPath), 'after', '.prism', 'release.json'),
+        'utf8'
+    ));
+
+    assert.equal(plan.disposition, 'UPDATE');
+    assert.deepEqual(plan.candidates.map(({path: packagePath}) => packagePath), [
+        'packages/core',
+        'packages/adapter',
+    ]);
+    assert.deepEqual(plannedConfig.packages, ['packages/core', 'packages/adapter']);
+});
+
+test('applies managed workflow updates for configured packages outside npm workspaces', (t) => {
+    const fixture = makeFixture(t);
+    installPrivateRootManagedPackages(fixture, `${CANONICAL_WORKFLOW}# outdated\n`);
+    const plan = planReleaseCapability(fixture);
+
+    const result = applyReleaseCapability({...fixture, planPath: plan.planPath});
+
+    assert.equal(result.status, 'GO');
+    assert.equal(verifyReleaseCapability(fixture).status, 'GO');
 });
 
 test('classifies owned canonical release files as UNCHANGED', (t) => {
