@@ -1462,13 +1462,36 @@ else
 	fail "P14: /release missing develop synchronization or stale-main pre-flight checks"
 fi
 
-release_verify_line=$(grep -nF 'prism-tool package-release verify --json' "$RELEASE_CMD" | head -n 1 | cut -d: -f1 || true)
-release_branch_line=$(grep -nF '## Create the release branch' "$RELEASE_CMD" | cut -d: -f1 || true)
-if [ -n "$release_verify_line" ] && [ -n "$release_branch_line" ] && \
-   [ "$release_verify_line" -lt "$release_branch_line" ]; then
+release_preflight_verifies_packages() {
+	awk '
+		/^## Pre-flight$/ { in_preflight = 1; next }
+		/^## / && in_preflight { exit }
+		/^```bash$/ && in_preflight { in_bash = 1; next }
+		/^```$/ && in_bash { in_bash = 0; next }
+		in_preflight && in_bash && $0 == "prism-tool package-release verify --json" {
+			found = 1
+		}
+		END { exit found ? 0 : 1 }
+	' "$1"
+}
+
+if release_preflight_verifies_packages "$RELEASE_CMD"; then
 	pass "P14b: /release verifies managed packages before creating release state"
 else
 	fail "P14b: /release can create a branch or changelog before managed package verification"
+fi
+
+cat > "$graph_sim/release-order-fixture.md" <<'EOF'
+prism-tool package-release verify --json
+## Pre-flight
+No managed package verification runs here.
+## Propose and confirm the version
+## Create the release branch
+EOF
+if release_preflight_verifies_packages "$graph_sim/release-order-fixture.md"; then
+	fail "P14c: /release ordering validation accepts a command mention outside pre-flight"
+else
+	pass "P14c: /release ordering validation requires executable pre-flight verification"
 fi
 
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
