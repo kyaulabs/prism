@@ -52,13 +52,14 @@ The executor records only the merged publisher workflow revision SHA as non-secr
 - Modify: `tests/Shell/release_workflow_test.sh:352-426`
 - Modify: `packages/prism-core/config/release.yml:610-671`
 - Modify: `.github/workflows/release.yml:610-671`
+- Modify: `docs/plans/2026-08-29-catalogue-publication-provisioning.md`
 
 **Interfaces:**
 
 - Consumes: protected secret `${{ secrets.CATALOGUE_DISPATCH_TOKEN }}` and validated release outputs `version` and `merge-sha`.
 - Produces: one fixed `workflow_dispatch` request with no App-token minting step.
 
-- [ ] **Step 1: Change the workflow graph test to require direct PAT use**
+- [x] **Step 1: Change the workflow graph test to require direct PAT use**
 
 Replace the App-token assertions in `validate_workflow_graph()` with:
 
@@ -120,7 +121,7 @@ fs.writeFileSync(process.argv[2], source.replace(
 
 Require `validate_workflow_graph()` to reject that fixture and update the test message to `publisher dispatch requires the approved protected secret source`.
 
-- [ ] **Step 2: Run the focused workflow test to verify Red**
+- [x] **Step 2: Run the focused workflow test to verify Red**
 
 Run:
 
@@ -130,7 +131,7 @@ bash tests/Shell/release_workflow_test.sh
 
 Expected: FAIL because the workflow still mints an App installation token and does not source `CATALOGUE_DISPATCH_TOKEN` directly.
 
-- [ ] **Step 3: Replace App token minting with the protected PAT**
+- [x] **Step 3: Replace App token minting with the protected PAT**
 
 Replace the canonical `notify-publisher` job with:
 
@@ -192,7 +193,7 @@ Replace the canonical `notify-publisher` job with:
 
 Copy the canonical bytes exactly to `.github/workflows/release.yml`.
 
-- [ ] **Step 4: Verify the direct-PAT workflow Green**
+- [x] **Step 4: Verify the direct-PAT workflow Green**
 
 Run:
 
@@ -210,9 +211,9 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: PASS, proving the corrected canonical workflow remains packaged.
 
-- [ ] **Step 5: Commit the dispatch migration**
+- [x] **Step 5: Commit the dispatch migration**
 
-Stage the three listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the four listed files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
 prism-tool commit create --type fix --scope security --subject "use bot-owned catalogue dispatch token" --refs 468
@@ -226,6 +227,7 @@ prism-tool commit create --type fix --scope security --subject "use bot-owned ca
 
 - Modify: `tests/Node/catalogue-publication-readiness.test.js`
 - Modify: `packages/prism-core/scripts/prism-tool/catalogue-publication-readiness.js`
+- Modify: `docs/plans/2026-08-29-catalogue-publication-provisioning.md`
 
 **Interfaces:**
 
@@ -416,6 +418,7 @@ prism-tool commit create --type fix --scope security --subject "attest separated
 - Create: `packages/prism-core/docs/catalogue-publication-provisioning.md`
 - Modify: `packages/prism-core/docs/adapter-catalogue.md`
 - Modify: `tests/Node/toolchain-packaging.test.js`
+- Modify: `docs/plans/2026-08-29-catalogue-publication-provisioning.md`
 
 **Interfaces:**
 

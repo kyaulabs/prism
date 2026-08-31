@@ -622,19 +622,9 @@ jobs:
     environment: catalogue-dispatch
     permissions: {}
     steps:
-      - name: Mint publisher dispatch token
-        id: publisher-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.CATALOGUE_DISPATCH_APP_ID }}
-          private-key: ${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}
-          owner: kyaulabs
-          repositories: prism-adapters
-          permission-actions: write
-
       - name: Dispatch validated adapter release
         env:
-          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.CATALOGUE_DISPATCH_TOKEN }}
           RELEASE_VERSION: ${{ needs.publish.outputs.version }}
           MERGE_SHA: ${{ needs.publish.outputs.merge-sha }}
         run: |
