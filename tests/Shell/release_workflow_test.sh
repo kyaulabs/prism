@@ -1462,6 +1462,15 @@ else
 	fail "P14: /release missing develop synchronization or stale-main pre-flight checks"
 fi
 
+release_verify_line=$(grep -nF 'prism-tool package-release verify --json' "$RELEASE_CMD" | head -n 1 | cut -d: -f1 || true)
+release_branch_line=$(grep -nF '## Create the release branch' "$RELEASE_CMD" | cut -d: -f1 || true)
+if [ -n "$release_verify_line" ] && [ -n "$release_branch_line" ] && \
+   [ "$release_verify_line" -lt "$release_branch_line" ]; then
+	pass "P14b: /release verifies managed packages before creating release state"
+else
+	fail "P14b: /release can create a branch or changelog before managed package verification"
+fi
+
 # ── P15. git-cliff 2.0+ required; missing tool points to /doctor ─────────────
 
 if grep -qF 'prism-tool run git-cliff -- --version' "$RELEASE_CMD" && \

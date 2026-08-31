@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -405,7 +405,10 @@ function inspectReleaseCapability({
 }) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalWorkflow = readCanonicalWorkflow(coreRoot);
-    const candidates = discoverReleasePackages({projectRoot: canonicalProject});
+    let candidates = discoverReleasePackages({
+        projectRoot: canonicalProject,
+        allowEmpty: true,
+    });
     let configExists;
     let workflowExists;
     try {
@@ -415,6 +418,7 @@ function inspectReleaseCapability({
         return conflictResult(candidates);
     }
     if (!configExists && !workflowExists) {
+        if (candidates.length === 0) throw new Error('no publishable release packages discovered');
         return {
             status: 'GO',
             disposition: 'CREATE',
@@ -438,6 +442,11 @@ function inspectReleaseCapability({
     } catch {
         return conflictResult(candidates);
     }
+    const configuredCandidates = validateConfiguredPackages({
+        projectRoot: canonicalProject,
+        packagePaths: configuration.packages,
+    });
+    if (candidates.length === 0) candidates = configuredCandidates;
     let workflowContent;
     try {
         workflowContent = readManagedFile(canonicalProject, WORKFLOW_PATH, 'release workflow');
@@ -921,13 +930,18 @@ function readPlanFile(operation, area, relativePath) {
     }
 }
 
-function renderReleaseCapabilityFiles({projectRoot, coreRoot, adapterReleases = []}) {
+function renderReleaseCapabilityFiles({
+    projectRoot,
+    coreRoot,
+    adapterReleases = [],
+    candidates = null,
+}) {
     const canonicalProject = fs.realpathSync(projectRoot);
-    const candidates = discoverReleasePackages({projectRoot: canonicalProject});
+    const releaseCandidates = candidates ?? discoverReleasePackages({projectRoot: canonicalProject});
     return Object.freeze({
-        candidates: Object.freeze(candidates.map((candidate) => Object.freeze({...candidate}))),
+        candidates: Object.freeze(releaseCandidates.map((candidate) => Object.freeze({...candidate}))),
         files: Object.freeze({
-            [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(candidates, adapterReleases)),
+            [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(releaseCandidates, adapterReleases)),
             [WORKFLOW_PATH]: readCanonicalWorkflow(coreRoot),
         }),
     });
@@ -965,6 +979,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             projectRoot: canonicalProject,
             coreRoot,
             adapterReleases: inspection.adapterReleases,
+            candidates: inspection.candidates,
         });
         if (JSON.stringify(rendered.candidates) !== JSON.stringify(inspection.candidates)) {
             throw new Error('package-release ownership changed while planning');
@@ -1378,7 +1393,10 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
         operation = readOwnedOperation(canonicalProject);
         if (!operation) throw new Error('package-release operation is missing');
         const plan = readPlan(operation, planPath, canonicalProject);
-        const currentCandidates = discoverReleasePackages({projectRoot: canonicalProject});
+        const currentCandidates = inspectReleaseCapability({
+            projectRoot: canonicalProject,
+            coreRoot,
+        }).candidates;
         const canonicalWorkflow = readCanonicalWorkflow(coreRoot);
         if (
             sha256(JSON.stringify(currentCandidates)) !== plan.inputs.candidates ||
@@ -1551,7 +1569,7 @@ function verifyReleaseCapability({projectRoot, coreRoot}) {
     }
 }
 
-function discoverReleasePackagesOnce({projectRoot, glob}) {
+function discoverReleasePackagesOnce({projectRoot, glob, allowEmpty = false}) {
     const canonicalRoot = fs.realpathSync(projectRoot);
     const rootManifest = readJsonObject(path.join(canonicalRoot, 'package.json'), 'root package manifest');
     const records = [];
@@ -1581,13 +1599,15 @@ function discoverReleasePackagesOnce({projectRoot, glob}) {
         const record = packageRecord(canonicalRoot, directory);
         if (record) records.push(record);
     }
-    if (records.length === 0) throw new Error('no publishable release packages discovered');
+    if (records.length === 0 && !allowEmpty) {
+        throw new Error('no publishable release packages discovered');
+    }
     return assertUniqueRecords(records);
 }
 
-function discoverReleasePackages({projectRoot, glob = fs.globSync}) {
-    const first = discoverReleasePackagesOnce({projectRoot, glob});
-    const second = discoverReleasePackagesOnce({projectRoot, glob});
+function discoverReleasePackages({projectRoot, glob = fs.globSync, allowEmpty = false}) {
+    const first = discoverReleasePackagesOnce({projectRoot, glob, allowEmpty});
+    const second = discoverReleasePackagesOnce({projectRoot, glob, allowEmpty});
     if (JSON.stringify(first) !== JSON.stringify(second)) {
         throw new Error('package discovery inputs changed');
     }
