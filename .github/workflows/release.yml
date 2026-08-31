@@ -619,27 +619,18 @@ jobs:
        }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    environment: catalogue-dispatch
     permissions: {}
     steps:
-      - name: Mint publisher dispatch token
-        id: publisher-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.CATALOGUE_DISPATCH_APP_ID }}
-          private-key: ${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}
-          owner: kyaulabs
-          repositories: prism-adapters
-          permission-contents: write
-
       - name: Dispatch validated adapter release
         env:
-          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.CATALOGUE_DISPATCH_TOKEN }}
           RELEASE_VERSION: ${{ needs.publish.outputs.version }}
           MERGE_SHA: ${{ needs.publish.outputs.merge-sha }}
         run: |
           set -euo pipefail
 
-          if ! printf '%s' "$RELEASE_VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+          if ! printf '%s' "$RELEASE_VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
             echo "::error::publisher dispatch requires a stable release version" >&2
             exit 1
           fi
@@ -652,12 +643,11 @@ jobs:
           const fs = require('node:fs');
 
           const payload = {
-            event_type: 'prism_adapter_release',
-            client_payload: {
-              schemaVersion: 1,
-              sourceRepository: 'kyaulabs/prism',
+            ref: 'main',
+            inputs: {
+              mode: 'release',
               version: process.env.RELEASE_VERSION,
-              mergeSha: process.env.MERGE_SHA,
+              merge_commit: process.env.MERGE_SHA,
             },
           };
           fs.writeFileSync(
@@ -667,5 +657,6 @@ jobs:
           );
           NODE
 
-          gh api --method POST repos/kyaulabs/prism-adapters/dispatches \
+          gh api --method POST \
+            repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches \
             --input .prism-adapter-release-dispatch.json

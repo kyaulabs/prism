@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
 
 'use strict';
 
@@ -54,6 +54,9 @@ const {markdownCommand} = require('./markdown');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {webAccessCommand} = require('./web-access-config');
 const {codeReviewCommand} = require('./code-review');
+const {
+    cataloguePublicationReadinessCommand,
+} = require('./catalogue-publication-readiness');
 const {
     applyReleaseCapability,
     inspectReleaseCapability,
@@ -1889,6 +1892,9 @@ function main(argv, context = {}) {
     if (command === 'consent') return consentCommand(args, context);
     if (command === 'web-access') return webAccessCommand(args, context);
     if (command === 'code-review') return codeReviewCommand(args, context);
+    if (command === 'catalogue-publication') {
+        return cataloguePublicationReadinessCommand(args, context);
+    }
     if (command === 'package-release') return packageReleaseCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;

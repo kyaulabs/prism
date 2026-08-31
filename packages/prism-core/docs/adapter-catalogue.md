@@ -215,4 +215,10 @@ ephemeral Ed25519 key pairs in memory and supply matching injected test trust
 roots. Production key custody belongs only to the protected publisher
 environment defined by ADR-0094.
 
+Human maintainers provision the separate bot-owned dispatch and publication
+credentials through
+[`catalogue-publication-provisioning.md`](catalogue-publication-provisioning.md).
+The procedure keeps credential values outside Prism and preserves disjoint
+runtime authority.
+
 <!-- vim: ft=markdown sts=4 sw=4 ts=4 et : -->

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -345,30 +345,40 @@ validate_workflow_graph() {
 			notifyJob.needs !== "publish" ||
 			notifyGuard !== expectedNotifyGuard ||
 			notifyJob["timeout-minutes"] !== 5 ||
-			notifyJob["runs-on"] !== "ubuntu-latest"
+			notifyJob["runs-on"] !== "ubuntu-latest" ||
+			notifyJob.environment !== "catalogue-dispatch"
 		) process.exit(1);
 
-		const token = notifyJob.steps.find(({name}) => name === "Mint publisher dispatch token");
-		const dispatch = notifyJob.steps.find(({name}) => name === "Dispatch validated adapter release");
+		const dispatch = notifyJob.steps.find(({name}) =>
+			name === "Dispatch validated adapter release"
+		);
 		if (
-			token === undefined ||
-			token.id !== "publisher-token" ||
-			token.uses !== "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349" ||
-			token.with["app-id"] !== "${{ vars.CATALOGUE_DISPATCH_APP_ID }}" ||
-			token.with["private-key"] !== "${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}" ||
-			token.with.owner !== "kyaulabs" ||
-			token.with.repositories !== "prism-adapters" ||
-			token.with["permission-contents"] !== "write" ||
-			Object.keys(token.with).sort().join(",") !==
-				"app-id,owner,permission-contents,private-key,repositories" ||
+			notifyJob.steps.length !== 1 ||
 			dispatch === undefined ||
-			dispatch.env.GH_TOKEN !== "${{ steps.publisher-token.outputs.token }}" ||
+			dispatch.env.GH_TOKEN !== "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}" ||
 			dispatch.env.RELEASE_VERSION !== "${{ needs.publish.outputs.version }}" ||
-			dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}"
+			dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}" ||
+			Object.keys(dispatch.env).sort().join(",") !== "GH_TOKEN,MERGE_SHA,RELEASE_VERSION" ||
+			!dispatch.run.includes(
+				"repos/kyaulabs/prism-adapters/actions/workflows/" +
+				"catalogue-signing.yml/dispatches"
+			) ||
+			!dispatch.run.includes("ref: " + quote + "main" + quote) ||
+			!dispatch.run.includes("mode: " + quote + "release" + quote) ||
+			!dispatch.run.includes("version: process.env.RELEASE_VERSION") ||
+			!dispatch.run.includes("merge_commit: process.env.MERGE_SHA") ||
+			/repository_dispatch|client_payload|event_type|sourceRepository|mergeSha/.test(
+				dispatch.run
+			)
 		) process.exit(1);
 
 		const notificationSource = JSON.stringify(notifyJob);
 		for (const forbidden of [
+			"create-github-app-token",
+			"CATALOGUE_DISPATCH_APP_ID",
+			"CATALOGUE_DISPATCH_APP_PRIVATE_KEY",
+			"publisher-token",
+			"permission-actions",
 			"compatibility",
 			"coreRange",
 			"integrity",
@@ -399,20 +409,17 @@ register_temp_dir "$graph_sim"
 node -e '
 	const fs = require("node:fs");
 	const source = fs.readFileSync(process.argv[1], "utf8");
-	const fixtures = [
-		["${{ vars.CATALOGUE_DISPATCH_APP_ID }}", "${{ vars.WRONG_APP_ID }}", process.argv[2]],
-		["${{ secrets.CATALOGUE_DISPATCH_APP_PRIVATE_KEY }}", "${{ secrets.WRONG_PRIVATE_KEY }}", process.argv[3]],
-	];
-	for (const [before, after, output] of fixtures) {
-		if (!source.includes(before)) process.exit(1);
-		fs.writeFileSync(output, source.replace(before, after));
-	}
-' "$RELEASE_FILE" "$graph_sim/wrong-app-id.yml" "$graph_sim/wrong-private-key.yml"
-if ! validate_workflow_graph "$graph_sim/wrong-app-id.yml" && \
-   ! validate_workflow_graph "$graph_sim/wrong-private-key.yml"; then
-	pass "publisher token inputs require the approved variable and secret sources"
+	const before = "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}";
+	if (!source.includes(before)) process.exit(1);
+	fs.writeFileSync(process.argv[2], source.replace(
+		before,
+		"${{ secrets.WRONG_DISPATCH_TOKEN }}",
+	));
+' "$RELEASE_FILE" "$graph_sim/wrong-dispatch-token.yml"
+if ! validate_workflow_graph "$graph_sim/wrong-dispatch-token.yml"; then
+	pass "publisher dispatch requires the approved protected secret source"
 else
-	fail "publisher token inputs accept an unapproved credential source"
+	fail "publisher dispatch accepts an unapproved credential source"
 fi
 
 sed 's/^    permissions: {}$/    permissions: { }/' "$RELEASE_FILE" > "$graph_sim/equivalent-notify-permissions.yml"
@@ -1194,17 +1201,16 @@ if dispatch_block=$(extract_run_block "$RELEASE_FILE" "Dispatch validated adapte
 		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
 			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
 			bash -c "$dispatch_block" >/dev/null 2>&1
-	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/dispatches --input .prism-adapter-release-dispatch.json' "$dispatch_sim/gh.log" && \
+	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches --input .prism-adapter-release-dispatch.json' "$dispatch_sim/gh.log" && \
 	   jq -e --arg sha "$stable_sha" '. == {
-		 event_type: "prism_adapter_release",
-		 client_payload: {
-			 schemaVersion: 1,
-			 sourceRepository: "kyaulabs/prism",
+		 ref: "main",
+		 inputs: {
+			 mode: "release",
 			 version: "1.2.3",
-			 mergeSha: $sha
+			 merge_commit: $sha
 		 }
 	   }' "$dispatch_sim/.prism-adapter-release-dispatch.json" >/dev/null; then
-		pass "stable release dispatch sends the exact closed payload to the fixed publisher"
+		pass "stable release workflow dispatch sends the exact closed inputs to the fixed publisher"
 	else
 		fail "stable release dispatch did not preserve the fixed endpoint and closed payload"
 	fi
@@ -1245,7 +1251,7 @@ if dispatch_block=$(extract_run_block "$RELEASE_FILE" "Dispatch validated adapte
 			bash -c "$dispatch_block" >/dev/null 2>&1
 	); then
 		fail "publisher dispatch API failure was masked"
-	elif grep -qF 'repos/kyaulabs/prism-adapters/dispatches' "$dispatch_sim/gh.log"; then
+	elif grep -qF 'repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches' "$dispatch_sim/gh.log"; then
 		pass "publisher dispatch API failure remains visible for scheduled or manual recovery"
 	else
 		fail "publisher dispatch failure path did not reach the fixed API boundary"

@@ -508,6 +508,8 @@ Pi-era decisions:
 - `adr/0093-pr-invocation-missing-review-chain-recovery.md` — let standalone `/pr` authorize one initial review only when deterministic preflight classifies the review chain as absent.
 - `adr/0094-protected-actions-catalogue-signing-custody.md` — permit unattended catalogue signing only in an isolated protected default-branch Actions job with separate encrypted-key and passphrase secrets.
 - `adr/0095-cross-repository-catalogue-publication-transaction.md` — connect stable Prism releases and three-day renewal to one serialized publisher transaction that creates a non-protected branch and human-merged catalogue PR.
+- `adr/0096-actions-only-catalogue-workflow-dispatch.md` — superseded Actions-only workflow-dispatch authentication baseline retained through ADR-0097.
+- `adr/0097-bot-owned-catalogue-pat-separation.md` — use separate `kyaulabs-bot` fine-grained PATs for dispatch and publication while keeping their write authority disjoint.
 
 ## When to update this file
 
