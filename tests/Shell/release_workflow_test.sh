@@ -1464,15 +1464,25 @@ fi
 
 release_preflight_verifies_packages() {
 	awk '
-		/^```/ {
-			if (in_fence) {
-				in_fence = 0
-				in_bash = 0
-			} else {
-				in_fence = 1
-				in_bash = in_preflight && $0 == "```bash"
+		function backticks(line, count) {
+			count = 0
+			while (substr(line, count + 1, 1) == "`") count++
+			return count
+		}
+		{
+			fence_length = backticks($0)
+			if (fence_length >= 3) {
+				fence_suffix = substr($0, fence_length + 1)
+				if (!in_fence) {
+					in_fence = 1
+					opening_length = fence_length
+					in_bash = in_preflight && fence_suffix == "bash"
+				} else if (fence_length >= opening_length && fence_suffix ~ /^[[:space:]]*$/) {
+					in_fence = 0
+					in_bash = 0
+				}
+				next
 			}
-			next
 		}
 		!in_fence && /^## Pre-flight$/ { in_preflight = 1; next }
 		!in_fence && /^## / && in_preflight { exit }
@@ -1502,11 +1512,13 @@ else
 fi
 
 cat > "$graph_sim/release-fenced-heading-fixture.md" <<'EOF'
-```text
+````text
+```bash
 ## Pre-flight
 ```bash
 prism-tool package-release verify --json
 ```
+````
 ## Propose and confirm the version
 EOF
 if release_preflight_verifies_packages "$graph_sim/release-fenced-heading-fixture.md"; then
