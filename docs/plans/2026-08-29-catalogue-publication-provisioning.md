@@ -425,7 +425,7 @@ prism-tool commit create --type fix --scope security --subject "attest separated
 - Consumes: ADR-0097, readiness schema version `2`, and human-only GitHub administration.
 - Produces: packaged setup, verification, exposure, recovery, and succession instructions without credential values.
 
-- [ ] **Step 1: Write failing documentation contract tests**
+- [x] **Step 1: Write failing documentation contract tests**
 
 Require the new packaged document, require `adapter-catalogue.md` to link to it, and assert:
 
@@ -454,7 +454,7 @@ assert.doesNotMatch(
 );
 ```
 
-- [ ] **Step 2: Run the documentation test to verify Red**
+- [x] **Step 2: Run the documentation test to verify Red**
 
 Run:
 
@@ -464,7 +464,7 @@ node --test tests/Node/toolchain-packaging.test.js
 
 Expected: FAIL because the PAT runbook is absent.
 
-- [ ] **Step 3: Write the complete human procedure**
+- [x] **Step 3: Write the complete human procedure**
 
 Write these ordered sections:
 
@@ -483,7 +483,7 @@ Write these ordered sections:
 
 Do not include token creation commands, secret-setting commands, token values, private storage paths, or instructions for an agent to perform administration.
 
-- [ ] **Step 4: Verify the runbook Green**
+- [x] **Step 4: Verify the runbook Green**
 
 Run:
 
@@ -501,17 +501,7 @@ prism-tool markdown lint --cached
 
 Expected: exit `0` with no Markdown diagnostics.
 
-- [ ] **Step 5: Stop at the human-administration gate**
-
-Present the runbook and stop. The human enters each existing PAT through GitHub's web UI and creates the non-secret attestation without providing values to the agent. Do not activate production.
-
-After the human confirms setup, run:
-
-```bash
-prism-tool catalogue-publication readiness --phase=pre-activation --json
-```
-
-Expected: `GO`, one `ADVISORY` for credential lifecycle, no `FAIL`, and no `MANUAL`.
+- [x] **Step 5: Commit the terminal implementation**
 
 Run the focused verification suite:
 
@@ -523,7 +513,7 @@ bash tests/Shell/release_workflow_test.sh
 node --test tests/Node/catalogue-publication-readiness.test.js tests/Node/toolchain-packaging.test.js
 ```
 
-Stage the three listed Task 3 files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
+Stage the four listed Task 3 files. Load `conventional-commits`, then run this as the only tool call in its assistant batch:
 
 ```bash
 prism-tool commit create --type docs --scope security --subject "document bot-owned catalogue provisioning" --fixes 468
@@ -539,6 +529,9 @@ After Task 3 is committed:
 2. Confirm `git diff --check` passes and no PAT-shaped value, private-key block, debug marker, dispatch payload, or attestation is tracked.
 3. Run `/check` until green.
 4. Finalize through `finishing-a-development-branch`, including the authorized four-axis review and preparation-only `/pr`.
-5. The human pushes and merges. Issue #469 owns activation, first credential-bearing production publication, and fixed raw-endpoint verification.
+5. The human pushes and merges the Prism pull request.
+6. After corrected Prism code is on protected `main`, the human verifies the two already provisioned environment secrets, creates the non-secret attestation, and runs `prism-tool catalogue-publication readiness --phase=pre-activation --json`.
+7. Pre-activation readiness must report `GO`, one credential-lifecycle `ADVISORY`, no `FAIL`, and no `MANUAL`.
+8. `CATALOGUE_SIGNING_ENABLED` remains absent. Issue #469 owns activation, first credential-bearing production publication, and fixed raw-endpoint verification.
 
 <!-- vim: ft=markdown sts=4 sw=4 ts=4 et : -->

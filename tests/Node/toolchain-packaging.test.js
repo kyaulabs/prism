@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
 
 'use strict';
 
@@ -138,6 +138,11 @@ test('packs the core package with every owned resource and executable modes', ()
         true,
         'adapter catalogue publisher contract packaged'
     );
+    assert.equal(
+        packed.files.has('docs/catalogue-publication-provisioning.md'),
+        true,
+        'catalogue publication provisioning runbook packaged'
+    );
     const coreNotice = execFileSync('tar', ['-xOzf', packed.tarball, 'package/NOTICE'], {
         encoding: 'utf8',
     });
@@ -208,6 +213,41 @@ test('documents reviewed adapter release authority and publisher ownership', () 
     assert.match(catalogueDocs, /protected.*Actions.*signing/is);
     assert.match(catalogueDocs, /human-merged.*pull request/is);
     assert.doesNotMatch(catalogueDocs, /production private signing key.*human-owned/is);
+});
+
+test('documents human-only bot-owned catalogue publication provisioning', () => {
+    const runbook = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'catalogue-publication-provisioning.md'),
+        'utf8'
+    );
+    const catalogueDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'adapter-catalogue.md'),
+        'utf8'
+    );
+
+    assert.match(catalogueDocs, /catalogue-publication-provisioning[.]md/);
+    assert.match(runbook, /kyaulabs-bot/);
+    assert.match(runbook, /fine-grained personal access token/i);
+    assert.match(runbook, /CATALOGUE_DISPATCH_TOKEN/);
+    assert.match(runbook, /CATALOGUE_PUBLICATION_TOKEN/);
+    assert.match(runbook, /Actions: write/);
+    assert.match(runbook, /Contents: write/);
+    assert.match(runbook, /Pull requests: write/);
+    assert.match(runbook, /catalogue-dispatch/);
+    assert.match(runbook, /catalogue-signing/);
+    assert.match(runbook, /NONE_ACCEPTED/);
+    assert.match(runbook, /non-expiring/i);
+    assert.match(runbook, /no planned rotation/i);
+    assert.match(runbook, /CATALOGUE_SIGNING_ENABLED/);
+    assert.match(runbook, /pre-activation/);
+    assert.match(runbook, /--phase=active/);
+    assert.match(runbook, /suspected exposure/i);
+    assert.match(runbook, /succession/i);
+    assert.match(runbook, /issue #469/i);
+    assert.doesNotMatch(
+        runbook,
+        /github_pat_[A-Za-z0-9_]+|gh secret set|echo .*TOKEN|BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|[.]env/,
+    );
 });
 
 test('documents Blank Core-only application and recovery boundaries', () => {
