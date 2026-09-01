@@ -82,6 +82,7 @@ documentation, and conversation.
 | mastery | A topic's evidence state: unseen, in progress, learned against the current content digest, or stale after relevant evidence changes. |
 | contributor curriculum overlay | The technical-only, repository-owned Prism curriculum that extends the project technical graph without adding another learning engine, command, or skill. |
 | package-release capability | The Core-owned, setup-managed combination of owned release configuration, canonical workflow, lockstep package authoring, package tags, recovery behavior, and human-run npm publication handoff. |
+| automation desired state | The provider-composed set of applicable Core- and adapter-owned repository workflows and hooks that `/setup` can inspect, plan, reconcile, verify, and report without claiming human-owned automation. |
 | release-managed package | A publishable npm package whose validated relative directory appears in the owned release configuration and whose version matches the repository release. |
 | owned release file | A release configuration or workflow carrying the supported Prism Core ownership and schema marker, which `/setup` may update only through an approved displayed transaction. |
 | package release | A repository release event that publishes the GitHub Release and gives every release-managed package the same version, including prereleases; `npm publish` remains a human-run step. |
@@ -265,6 +266,18 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   even when publication or package-tag reconciliation fails.
 - npm authentication, OTP handling, and publication remain human-owned; agents
   and CI hold no npm credentials and never run `npm publish`.
+
+### Automation Desired State
+
+The setup-managed repository automation selected from validated Core and active-adapter providers.
+
+- Core owns provider discovery, applicability composition, ownership classification, plan reporting, and route-appropriate reconciliation.
+- Strict-empty setup composes applicable automation inside the empty-project bootstrap transaction; established setup uses a separate journaled reconciliation transaction with preserve-first ownership semantics.
+- Core owns baseline back-merge, capability-based repository release management, and canonical hook policy; the active adapter owns stack-specific testing and linting CI.
+- Package-release metadata extends repository release management and never becomes the sole owner of the canonical release workflow.
+- Absent and exact canonical outputs may be created or preserved; supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Hook activation remains a separate repository-local approval boundary after applicable quality verification.
+- Every Prism-created commit runs an explicit Git-resolved pre-commit proof before the authoritative staged-state snapshot, then retains Git's normal hook execution during commit creation.
 
 ### Safety Policy
 
@@ -515,6 +528,9 @@ Pi-era decisions:
 - `adr/0099-trusted-main-catalogue-notification-handoff.md` — hand validated
   stable-release evidence to a protected-main Prism workflow through a closed
   same-repository event before the Actions-only publisher dispatch.
+- `adr/0100-provider-composed-repository-automation.md` — reconcile applicable
+  Core and adapter workflows and hooks through trusted providers, route-specific
+  transactions, and explicit pre-commit proof.
 
 ## When to update this file
 
