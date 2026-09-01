@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -33,17 +33,50 @@ function completed(status, stdout = '', stderr = '') {
 function makeCommitContext(t, overrides = {}) {
     const repository = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-commit-test-'));
     const gitDir = path.join(repository, '.git');
-    fs.mkdirSync(gitDir);
+    const hooksDir = path.join(gitDir, 'hooks');
+    fs.mkdirSync(hooksDir, {recursive: true});
     fs.writeFileSync(path.join(gitDir, 'index'), 'validated index');
+    const defaultPreCommit = path.join(hooksDir, 'pre-commit');
+    const preCommitPath = overrides.preCommitOutside
+        ? path.join(repository, 'outside-pre-commit')
+        : defaultPreCommit;
+    if (!overrides.preCommitMissing) {
+        if (overrides.preCommitSymlink) {
+            const target = path.join(repository, 'pre-commit-target');
+            fs.writeFileSync(target, '#!/bin/sh\nexit 0\n', {mode: 0o700});
+            fs.symlinkSync(target, preCommitPath);
+        } else {
+            fs.writeFileSync(preCommitPath, '#!/bin/sh\nexit 0\n', {
+                mode: overrides.preCommitNonExecutable ? 0o600 : 0o700,
+            });
+        }
+    }
     t.after(() => fs.rmSync(repository, {recursive: true, force: true}));
     const calls = [];
     const observed = {};
     let currentHead = '1'.repeat(40);
     let treeReads = 0;
+    let preCommitResolutions = 0;
     const run = (command, args, options = {}) => {
         calls.push({command, args, options});
         if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
             return completed(overrides.doctorFailure ? 1 : 0);
+        }
+        if (command === preCommitPath) {
+            if (overrides.preCommitMutatesIndex) {
+                fs.writeFileSync(path.join(gitDir, 'index'), 'proof-mutated index');
+            }
+            if (overrides.preCommitExecutionError) {
+                return {
+                    status: null,
+                    stdout: 'CANARY-PROOF-STDOUT',
+                    stderr: 'CANARY-PROOF-STDERR',
+                    timedOut: overrides.preCommitTimedOut === true,
+                    error: {code: overrides.preCommitTimedOut ? 'ETIMEDOUT' : 'ENOENT'},
+                };
+            }
+            if (overrides.preCommitSignal) return {status: null, stdout: '', stderr: '', error: undefined};
+            return completed(overrides.preCommitFailure ? 1 : 0, 'CANARY-PROOF-STDOUT', 'CANARY-PROOF-STDERR');
         }
         if (command === process.execPath && args.includes('commitlint')) {
             return completed(overrides.commitlintFailure ? 1 : 0);
@@ -89,8 +122,19 @@ function makeCommitContext(t, overrides = {}) {
                 return completed(1);
             }
             treeReads += 1;
+            if (treeReads === 1) observed.firstTreeIndex = fs.readFileSync(path.join(gitDir, 'index'), 'utf8');
             const tree = overrides.indexDrift && treeReads > 1 ? '4'.repeat(40) : '2'.repeat(40);
             return completed(0, `${tree}\n`);
+        }
+        if (command === 'git' && args.join(' ') === 'rev-parse --path-format=absolute --git-path hooks') {
+            return completed(0, `${hooksDir}\n`);
+        }
+        if (command === 'git' && args.join(' ') === 'rev-parse --path-format=absolute --git-path hooks/pre-commit') {
+            preCommitResolutions += 1;
+            const resolved = overrides.preCommitResolutionDrift && preCommitResolutions > 1
+                ? path.join(repository, 'changed-pre-commit')
+                : preCommitPath;
+            return completed(overrides.preCommitResolutionFailure ? 1 : 0, `${resolved}\n`);
         }
         const responses = new Map([
             ['rev-parse --show-toplevel', completed(0, `${repository}\n`)],
@@ -136,6 +180,7 @@ function makeCommitContext(t, overrides = {}) {
         },
         gitDir,
         observed,
+        preCommitPath,
         repository,
     };
 }
@@ -257,6 +302,88 @@ test('commit create renders the canonical message and creates one signed commit'
     assert.equal(fs.existsSync(observed.messageFile), false);
     assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), false);
     assert.equal(fs.existsSync(path.join(gitDir, 'prism-tool', 'commit-plans')), false);
+});
+
+test('commit create proves the effective pre-commit hook before the first staged snapshot', (t) => {
+    const fixture = makeCommitContext(t, {preCommitMutatesIndex: true});
+
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'fix', '--subject', 'prove staged checks first',
+    ], fixture.context));
+
+    assert.equal(result.status, 0);
+    const proof = fixture.calls.findIndex(({command}) => command === fixture.preCommitPath);
+    const firstTree = fixture.calls.findIndex(({command, args}) =>
+        command === 'git' && args.join(' ') === 'write-tree'
+    );
+    const commit = fixture.calls.findIndex(({command, args}) =>
+        command === 'git' && args[0] === 'commit'
+    );
+    assert.equal(proof >= 0, true);
+    assert.equal(proof < firstTree, true);
+    assert.equal(firstTree < commit, true);
+    assert.equal(fixture.calls.filter(({command}) => command === fixture.preCommitPath).length, 1);
+    assert.equal(fixture.observed.firstTreeIndex, 'proof-mutated index');
+    const commitCall = fixture.calls[commit];
+    assert.equal(commitCall.args.includes('--no-verify'), false);
+});
+
+test('commit create fails closed when the effective pre-commit proof is unsafe', (t) => {
+    const cases = [
+        [{preCommitResolutionFailure: true}, /resolution failed/],
+        [{preCommitMissing: true}, /unavailable/],
+        [{preCommitNonExecutable: true}, /unavailable/],
+        [{preCommitSymlink: true}, /unavailable/],
+        [{preCommitOutside: true}, /unavailable/],
+        [{preCommitFailure: true}, /proof failed/],
+        [{preCommitSignal: true}, /proof failed/],
+        [{preCommitExecutionError: true}, /proof failed/],
+        [{preCommitExecutionError: true, preCommitTimedOut: true}, /proof failed/],
+    ];
+
+    for (const [overrides, pattern] of cases) {
+        const fixture = makeCommitContext(t, overrides);
+        const result = captureWrites(() => main([
+            'commit', 'create', '--type', 'fix', '--subject', 'reject unsafe proof',
+        ], fixture.context));
+
+        assert.equal(result.status, 4);
+        assert.match(result.stderr, pattern);
+        assert.doesNotMatch(result.stderr, /CANARY/);
+        assert.equal(fixture.calls.some(({command, args}) =>
+            command === 'git' && args.join(' ') === 'write-tree'
+        ), false);
+        assert.equal(fixture.calls.some(({command, args}) =>
+            command === 'git' && args[0] === 'commit'
+        ), false);
+    }
+});
+
+test('root-seed commits revalidate the proven hook path before staged reads', (t) => {
+    const fixture = makeCommitContext(t, {
+        unborn: true,
+        branch: 'develop',
+        branchStatus: 3,
+        preCommitResolutionDrift: true,
+    });
+    fixture.context.validateActiveBootstrapSeed = () => ({
+        attemptId: '12345678-1234-4123-8123-123456789abc',
+        attestation: {schemaVersion: 1},
+    });
+
+    const result = captureWrites(() => main([
+        'commit', 'create', '--type', 'ignore', '--subject', 'bootstrap prism project',
+    ], fixture.context));
+
+    assert.equal(result.status, 5);
+    assert.match(result.stderr, /pre-commit hook changed/);
+    assert.equal(fixture.calls.filter(({command}) => command === fixture.preCommitPath).length, 1);
+    assert.equal(fixture.calls.some(({command, args}) =>
+        command === 'git' && args.join(' ') === 'write-tree'
+    ), false);
+    assert.equal(fixture.calls.some(({command, args}) =>
+        command === 'git' && args[0] === 'commit'
+    ), false);
 });
 
 test('commit create preserves a normalized body and issue reference', (t) => {
