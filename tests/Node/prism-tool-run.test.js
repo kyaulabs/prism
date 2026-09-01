@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -11,7 +11,7 @@ const {makeTempDir, writeJson} = require('./helpers');
 
 const root = path.resolve(__dirname, '../..');
 const cli = path.join(root, 'packages/prism-core/scripts/prism-tool.js');
-const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {main, runDeclaredTool} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {extractVersion, runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 
 const corePackage = require('../../packages/prism-core/package.json');
@@ -96,6 +96,37 @@ function writeBundledFixture(directory, options) {
     fs.writeFileSync(executable, `#!${process.execPath}\n${options.source}`, {mode: 0o755});
     fs.chmodSync(executable, 0o755);
 }
+
+test('exports the ordinary declared runner without changing run dispatch', async (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    writeBundledFixture(directory, {
+        id: 'fixture',
+        packageName: 'fixture',
+        source: "process.stdout.write('unused');\n",
+    });
+    const calls = [];
+    const context = {
+        coreRoot: directory,
+        input: '',
+        run: (command, args) => {
+            calls.push({args, command});
+            return {status: 0, stdout: 'complete\n', stderr: '', error: undefined};
+        },
+    };
+
+    const direct = await captureWrites(() => runDeclaredTool([
+        'fixture', '--', 'payload',
+    ], context));
+    const dispatched = await captureWrites(() => main([
+        'run', 'fixture', '--', 'payload',
+    ], context));
+
+    assert.deepEqual(direct, dispatched);
+    assert.equal(direct.status, 0);
+    assert.equal(direct.stdout, 'complete\n');
+    assert.deepEqual(calls.map(({args}) => args), [['payload'], ['payload']]);
+});
 
 test('registers the Node test suite in the source checkout', () => {
     assert.equal(rootPackage.scripts?.['test:node'], 'node --test tests/Node/*.test.js tests/Node/*.test.ts');

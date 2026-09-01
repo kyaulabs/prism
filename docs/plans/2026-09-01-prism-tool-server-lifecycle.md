@@ -511,7 +511,7 @@ prism-tool commit create --type feat --scope core --subject "supervise foregroun
 - Consumes: `prism-tool server run PACKAGE:PROFILE --tool TOOL_ID -- ARGUMENTS`, active adapter registration, validated profile, and `runDeclaredTool()`.
 - Produces: `serverCommand(args, context, runTool)` returning `Promise<EXIT>` and CLI dispatch from `main()`.
 
-- [ ] **Step 1: Write failing command-boundary tests**
+- [x] **Step 1: Write failing command-boundary tests**
 
 Create `tests/Node/prism-tool-server.test.js` using the existing temporary adapter helpers from `prism-tool-discovery.test.js` as local copied fixtures. Cover these observable cases:
 
@@ -597,7 +597,7 @@ The `writeServerAdapter()` fixture must create a project-local adapter with a va
 
 In `tests/Node/prism-tool-run.test.js`, add one regression proving ordinary `prism-tool run` behavior remains unchanged after exporting `runDeclaredTool`.
 
-- [ ] **Step 2: Run command tests and verify Red**
+- [x] **Step 2: Run command tests and verify Red**
 
 Run:
 
@@ -607,7 +607,7 @@ node --test tests/Node/prism-tool-server.test.js tests/Node/prism-tool-run.test.
 
 Expected: FAIL because `server` is an unknown command.
 
-- [ ] **Step 3: Implement parsing, discovery, readiness, and dispatch**
+- [x] **Step 3: Implement parsing, discovery, readiness, and dispatch**
 
 Create `packages/prism-core/scripts/prism-tool/server.js` with:
 
@@ -652,7 +652,7 @@ module.exports = {EXIT, doctor, main, resolveBundledComponent, runDeclaredTool};
 
 Preserve all existing `runDeclaredTool()` behavior byte-for-byte except the export.
 
-- [ ] **Step 4: Run command and lifecycle tests and verify Green**
+- [x] **Step 4: Run command and lifecycle tests and verify Green**
 
 Run:
 
@@ -662,7 +662,7 @@ node --test tests/Node/prism-tool-server.test.js tests/Node/prism-tool-server-li
 
 Expected: PASS.
 
-- [ ] **Step 5: Stage and commit the launcher slice**
+- [x] **Step 5: Stage and commit the launcher slice**
 
 Stage:
 

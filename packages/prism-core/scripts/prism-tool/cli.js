@@ -54,6 +54,7 @@ const {
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
+const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
 const {markdownCommand} = require('./markdown');
@@ -1987,6 +1988,7 @@ function packageReleaseCommand(args, context) {
 function main(argv, context = {}) {
     const [command, ...args] = argv;
     if (command === 'run') return runDeclaredTool(args, context);
+    if (command === 'server') return serverCommand(args, context, runDeclaredTool, EXIT);
     if (command === 'doctor') return doctor(args, context);
     if (command === 'setup') return setup(args, context);
     if (command === 'resolve') return resolveKindDir(args, context);
@@ -2006,6 +2008,6 @@ function main(argv, context = {}) {
     return EXIT.USAGE;
 }
 
-module.exports = {EXIT, doctor, main, resolveBundledComponent};
+module.exports = {EXIT, doctor, main, resolveBundledComponent, runDeclaredTool};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
