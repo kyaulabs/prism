@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.3) [0.4.3](https://github.com/kyaulabs/prism/compare/v0.4.2...v0.4.3) - (2026-09-01)
+
+### 🐛 Bug Fixes
+
+- [Security] Enforce commit signing readiness ([415c517](https://github.com/kyaulabs/prism/commit/415c5173df255f7a706343d172def483291b10e7))
+
+### 📝 Documentation
+
+- [Architecture] Attest publication commit signing custody ([b3d5306](https://github.com/kyaulabs/prism/commit/b3d5306a4615b5a329bd62a0662023009806aa27))
+- [Security] Document commit signing recovery ([abeff20](https://github.com/kyaulabs/prism/commit/abeff20ac0a8e7779ca0e6ee07d2a8bd95058c7a))
+
+### 🔮 Misc
+
+- [Docs] Remove completed development artifacts ([542ecfb](https://github.com/kyaulabs/prism/commit/542ecfb4fccdd364b4d7864916277654e9b3d405))
+<!-- Auto-generated on 2026-08-31T19:15:35.375792933-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.2) [0.4.2](https://github.com/kyaulabs/prism/compare/v0.4.1...v0.4.2) - (2026-08-31)
 
 ### ⚗️ Testing
@@ -48,7 +63,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Docs] Remove completed development artifacts ([f1e400a](https://github.com/kyaulabs/prism/commit/f1e400ac0ce5c99bc8454e94b0595bb11ef96d6d))
 - [Docs] Remove completed development artifacts ([bfbb245](https://github.com/kyaulabs/prism/commit/bfbb2451c07206a928ff46a24c746ce48fceddb8))
 - [Docs] Remove completed development artifacts ([2ca5f4e](https://github.com/kyaulabs/prism/commit/2ca5f4e092f83ee2cbcdf0f1c983c0de2cb903a1))
-<!-- Auto-generated on 2026-08-31T01:03:25.985378124-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.379727732-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.1) [0.4.1](https://github.com/kyaulabs/prism/compare/v0.4.0...v0.4.1) - (2026-08-28)
 
 ### 🐛 Bug Fixes
@@ -74,7 +89,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 ### 🔮 Misc
 
 - [Docs] Remove completed development artifacts ([587fad7](https://github.com/kyaulabs/prism/commit/587fad756e5a8aa775f7b0f5e5c2223e06eaed84))
-<!-- Auto-generated on 2026-08-31T01:03:25.987567498-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.381962713-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.0) [0.4.0](https://github.com/kyaulabs/prism/compare/v0.3.1...v0.4.0) - (2026-08-27)
 
 ### ♻️ Refactor
@@ -279,13 +294,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Web-access] Confine browser based keyless search ([9ca5283](https://github.com/kyaulabs/prism/commit/9ca52832587fbfe1deff91a7df9a5caaf2ed7b51))
 - [Web-access] Route consent gated browser first search ([2dd7ef6](https://github.com/kyaulabs/prism/commit/2dd7ef6667d546e26b0c715f70754acd050a9351))
 - [Web-access] Register bounded search and fetch tools ([f5acfba](https://github.com/kyaulabs/prism/commit/f5acfba44a7fea592c08e9f055f430559b06fa0d))
-<!-- Auto-generated on 2026-08-31T01:03:26.005309662-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.400125917-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.3.1) [0.3.1](https://github.com/kyaulabs/prism/compare/v0.3.0...v0.3.1) - (2026-08-24)
 
 ### 🐛 Bug Fixes
 
 - [Adapter] Resolve candidates without consumer manifests ([0bb36c7](https://github.com/kyaulabs/prism/commit/0bb36c7af98081110f161a2f856dc8ddd20a8a7c))
-<!-- Auto-generated on 2026-08-31T01:03:26.006968250-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.401953820-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.3.0) [0.3.0](https://github.com/kyaulabs/prism/compare/v0.2.1...v0.3.0) - (2026-08-23)
 
 ### ♻️ Refactor
@@ -396,7 +411,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Plan managed package release files ([fd07373](https://github.com/kyaulabs/prism/commit/fd07373eda67747eabed7673dc4a81d081fa20ef))
 - [Setup] Apply package release capability atomically ([388c2cd](https://github.com/kyaulabs/prism/commit/388c2cd3f1f8683fd43241682368657beacb5370))
 - [Setup] Manage lockstep package releases ([d46bd43](https://github.com/kyaulabs/prism/commit/d46bd43dd30e330fae58250cfd05cd4955725b03))
-<!-- Auto-generated on 2026-08-31T01:03:26.014510444-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.411182575-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.1) [0.2.1](https://github.com/kyaulabs/prism/compare/v0.2.0...v0.2.1) - (2026-08-21)
 
 ### ⚗️ Testing
@@ -431,7 +446,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Define safe core git initialization ([6ef8ab0](https://github.com/kyaulabs/prism/commit/6ef8ab0a93b32db59c7fdfc38c656337ebd782d8))
 - [Setup] Specify testing-ready project bootstrap ([9ee5deb](https://github.com/kyaulabs/prism/commit/9ee5deb70c9e5f68c9c7cc6f14cbd3faaaf2e79a))
 - [Setup] Accept project bootstrap architecture ([6eea8dc](https://github.com/kyaulabs/prism/commit/6eea8dc4acfe03239e53361e2fcbf0b382a1510c))
-<!-- Auto-generated on 2026-08-31T01:03:26.018072342-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.415543450-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.0) [0.2.0](https://github.com/kyaulabs/prism/compare/v0.1.0...v0.2.0) - (2026-08-20)
 
 ### ♻️ Refactor
@@ -844,7 +859,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Toolchain] Raise OCR execution timeout to 10 minutes ([3285887](https://github.com/kyaulabs/prism/commit/3285887da995f03fe33e8ff5ac7ca57c86364caa))
 - [Toolchain] Add pull request workflow operations ([65d9fa5](https://github.com/kyaulabs/prism/commit/65d9fa5ea0ba5abb3b46cbd8c0101b668950ebe3))
 - [Workflow] Automate accepted branch finalization ([090f6e0](https://github.com/kyaulabs/prism/commit/090f6e0adbb8b54462f4aa7cc31c688b12b058d9))
-<!-- Auto-generated on 2026-08-31T01:03:26.059134318-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.459361104-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.1.0) [0.1.0](https://github.com/kyaulabs/prism/commit/0ad9930922de977092ab9e39a0d8b4895fa5a17c) - (2026-08-13)
 
 ### ⏪ Reverts
@@ -1808,4 +1823,4 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 
 - [Skill] Fix GraphQL shell injection and quoting in skill snippets ([312f371](https://github.com/kyaulabs/prism/commit/312f37126513694ebe6b58108abc8d8d41cf250d))
 - [Tsconfig] Enable strict type-checking ([ced28a7](https://github.com/kyaulabs/prism/commit/ced28a78d791038f58a6e1ac5c1d4af967c44d95))
-<!-- Auto-generated on 2026-08-31T01:03:26.176448226-07:00 -->
+<!-- Auto-generated on 2026-08-31T19:15:35.576517301-07:00 -->
