@@ -678,6 +678,22 @@ function hookRunWithReadiness(invocations = []) {
     };
 }
 
+function testHookLauncher(t) {
+    const launcherRoot = makeTempDir();
+    const logPath = path.join(launcherRoot, 'invocations');
+    t.after(() => fs.rmSync(launcherRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(launcherRoot, 'prism-tool'), [
+        '#!/bin/sh',
+        'if [ "$#" -eq 2 ] && [ "$1" = "hook" ] && [ "$2" = "pre-commit" ]; then',
+        '    printf \'%s\\n\' "$1 $2" > "$PRISM_TEST_HOOK_LOG"',
+        '    exit 0',
+        'fi',
+        'exit 2',
+        '',
+    ].join('\n'), {mode: 0o755});
+    return {launcherRoot, logPath};
+}
+
 function createCommit(projectRoot, parents = [], message = 'test commit', indexTree = false) {
     const tree = git(projectRoot, [indexTree ? 'write-tree' : 'mktree']);
     return execFileSync('git', [
@@ -2011,6 +2027,7 @@ test('rejects unsupported public bootstrap controls before mutation', () => {
 
 test('runs the public Core-only seed sequence without publication', (t) => {
     const projectRoot = makeTempDir();
+    const launcher = testHookLauncher(t);
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     const plan = JSON.parse(planProject(projectRoot).stdout);
     assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
@@ -2061,13 +2078,19 @@ test('runs the public Core-only seed sequence without publication', (t) => {
         projectRoot,
         coreRoot: CORE_ROOT,
         cwd: projectRoot,
-        env: {...process.env, PI_MODEL: 'provider/implementation-model'},
+        env: {
+            ...process.env,
+            PATH: `${launcher.launcherRoot}${path.delimiter}${process.env.PATH ?? ''}`,
+            PI_MODEL: 'provider/implementation-model',
+            PRISM_TEST_HOOK_LOG: launcher.logPath,
+        },
         randomBytes: () => Buffer.from('0123456789abcdef0123456789abcdef', 'hex'),
         run,
     }));
 
     assert.equal(committed.status, 0, committed.stderr);
     assert.match(committed.stdout, /^ignore: bootstrap prism project/m);
+    assert.equal(fs.readFileSync(launcher.logPath, 'utf8'), 'hook pre-commit\n');
     assert.equal(git(projectRoot, ['rev-list', '--count', 'HEAD']), '1');
     assert.equal(git(projectRoot, ['status', '--porcelain=v1']), '');
     assert.equal(git(projectRoot, ['remote']), '');
