@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: bootstrap-plan.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -21,6 +21,7 @@ const {
     loadTrustedProviderRegistry,
     renderCoreBaseline,
 } = require('./bootstrap-providers');
+const {renderCoreAutomationProvider} = require('./automation-providers');
 const {renderCoreProfileProviders} = require('./bootstrap-profile-providers');
 const {
     createPreparedBootstrapJournal,
@@ -244,12 +245,16 @@ function planCoreOnlyProject({
             candidateRoot: attempt.candidateRoot,
             request,
         });
+        const automationReport = renderCoreAutomationProvider({
+            coreRoot,
+            candidateRoot: attempt.candidateRoot,
+        });
         const profileReports = renderCoreProfileProviders({
             coreRoot,
             candidateRoot: attempt.candidateRoot,
             request,
         });
-        const providerReports = [coreReport, ...profileReports];
+        const providerReports = [coreReport, automationReport, ...profileReports];
         const registry = loadTrustedProviderRegistry({coreRoot, capabilities});
         const reports = providerReports.map((report) => ({
             provider: report.provider,
@@ -269,6 +274,10 @@ function planCoreOnlyProject({
         writeExclusive(
             path.join(attempt.reportsRoot, 'core-baseline.json'),
             persistedProviderReport(coreReport, attempt.candidateRoot)
+        );
+        writeExclusive(
+            path.join(attempt.reportsRoot, 'core-automation.json'),
+            persistedProviderReport(automationReport, attempt.candidateRoot)
         );
         for (const report of profileReports) {
             writeExclusive(
@@ -440,6 +449,10 @@ function buildAdapterProjectPlan({
         candidateRoot: attempt.candidateRoot,
         request,
     });
+    const automationReport = renderCoreAutomationProvider({
+        coreRoot,
+        candidateRoot: attempt.candidateRoot,
+    });
     const adapterCandidateRoot = path.join(attempt.candidateRoot, 'adapter');
     fs.mkdirSync(adapterCandidateRoot, {mode: 0o700});
     const adapterReport = attempt.handler.prepareBootstrapProject({
@@ -462,7 +475,7 @@ function buildAdapterProjectPlan({
         schemaVersion: 1,
         providers: [...coreRegistry.providers, adapterDescriptor],
     };
-    const coreProviderReports = [coreReport, ...profileReports];
+    const coreProviderReports = [coreReport, automationReport, ...profileReports];
     const reports = coreProviderReports.map((report) => ({
         provider: report.provider,
         outputs: validateProviderReport({
@@ -488,6 +501,10 @@ function buildAdapterProjectPlan({
     writeExclusive(
         path.join(attempt.reportsRoot, 'core-baseline.json'),
         persistedProviderReport(coreReport, attempt.candidateRoot)
+    );
+    writeExclusive(
+        path.join(attempt.reportsRoot, 'core-automation.json'),
+        persistedProviderReport(automationReport, attempt.candidateRoot)
     );
     for (const report of profileReports) {
         writeExclusive(
@@ -832,7 +849,7 @@ function validatePlanShape(plan) {
     ) {
         throw new Error('bootstrap project plan is invalid');
     }
-    const providerCount = 1 + plan.capabilities.length + (plan.adapter === null ? 0 : 1);
+    const providerCount = 2 + plan.capabilities.length + (plan.adapter === null ? 0 : 1);
     try {
         validateBootstrapSource(plan.source);
         validateAdapterEvidence(plan.adapterEvidence);
@@ -971,6 +988,7 @@ function validateHeldProjectPlan({
         throw new Error('bootstrap project plan is stale');
     }
     const expectedReports = [
+        'core-automation.json',
         'core-baseline.json',
         'metadata.json',
         'source.json',
@@ -1009,6 +1027,7 @@ function validateHeldProjectPlan({
         throw new Error('bootstrap project metadata is stale');
     }
     const coreReport = restoreProviderReport('core-baseline.json', paths);
+    const automationReport = restoreProviderReport('core-automation.json', paths);
     const profileReports = envelope.plan.capabilities.map((capability) =>
         restoreProviderReport(`profile-${capability}.json`, paths)
     );
@@ -1016,7 +1035,7 @@ function validateHeldProjectPlan({
         coreRoot,
         capabilities: envelope.plan.capabilities,
     });
-    const coreProviderReports = [coreReport, ...profileReports];
+    const coreProviderReports = [coreReport, automationReport, ...profileReports];
     const reports = coreProviderReports.map((report) => ({
         provider: report.provider,
         outputs: validateProviderReport({

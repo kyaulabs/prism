@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -1199,6 +1199,17 @@ test('stages and attests the exact Core-only seed', (t) => {
     assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 1);
 });
 
+test('rejects back-merge workflow drift before seed staging', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    const workflowPath = path.join(projectRoot, '.github', 'workflows', 'back-merge.yml');
+    fs.appendFileSync(workflowPath, 'changed\n');
+
+    const result = prepareSeed(projectRoot, plan.planDigest);
+
+    assert.equal(result.status, 5);
+    assert.deepEqual(stagedNames(projectRoot), []);
+});
+
 test('stages and attests all seven selected capability profiles', (t) => {
     const capabilities = [
         'licensing', 'community-governance', 'github-collaboration',
@@ -1239,7 +1250,7 @@ test('stages and attests all seven selected capability profiles', (t) => {
     const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities,
+        'core-baseline', 'core-repository-automation', ...capabilities,
     ]);
     assert.equal(attestation.providers.every(({reportDigest}) =>
         /^[0-9a-f]{64}$/.test(reportDigest)
@@ -1393,7 +1404,8 @@ test('stages and attests all seven profiles with selected-adapter evidence', (t)
     ));
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities, 'php-web-scaffold',
+        'core-baseline', 'core-repository-automation', ...capabilities,
+        'php-web-scaffold',
     ]);
     assert.deepEqual(attestation.adapter, {
         ...plan.adapter,
@@ -1443,6 +1455,7 @@ test('stages and attests release management outputs with selected-adapter eviden
     assert.deepEqual(attestation.capabilities, ['release-management']);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'release-management',
         'php-web-scaffold',
     ]);
@@ -1506,7 +1519,7 @@ test('stages and attests all seven Template capability outputs without remote by
     assert.equal(attestation.source.mode, 'TEMPLATE');
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities,
+        'core-baseline', 'core-repository-automation', ...capabilities,
     ]);
     assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
     assertNoRemoteManifestBytes(projectRoot, plan, fixture);
@@ -1556,8 +1569,13 @@ test('stages and attests immutable Template evidence for a Core-only seed', asyn
         },
         classificationSha256: plan.source.evidence.classificationSha256,
     });
-    assert.equal(attestation.providers.length, 1);
-    assert.match(attestation.providers[0].reportDigest, /^[0-9a-f]{64}$/);
+    assert.deepEqual(attestation.providers.map(({id}) => id), [
+        'core-baseline',
+        'core-repository-automation',
+    ]);
+    assert.equal(attestation.providers.every(({reportDigest}) =>
+        /^[0-9a-f]{64}$/.test(reportDigest)
+    ), true);
     assert.equal(attestation.adapter, null);
     assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
     assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
@@ -1645,6 +1663,7 @@ test('stages and attests immutable Template evidence for a selected-adapter seed
     });
     assert.deepEqual(attestation.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'php-web-scaffold',
     ]);
     assert.equal(attestation.providers.every(({reportDigest}) =>

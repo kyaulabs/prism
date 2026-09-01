@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -248,6 +248,24 @@ function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
             command: 'setup project validate',
         })]),
     });
+    const automation = Object.freeze({
+        id: 'core-repository-automation',
+        displayName: 'Prism Core repository automation',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: manifest.version,
+        protocolVersion: 1,
+        outputs: Object.freeze(['.github/workflows/back-merge.yml']),
+        effects: Object.freeze([]),
+        checks: Object.freeze([Object.freeze({
+            id: 'core-repository-automation-render',
+            status: 'PASS',
+            message: 'Core repository automation candidate files were rendered',
+        })]),
+        verification: Object.freeze([Object.freeze({
+            id: 'core-repository-automation-inventory',
+            command: 'setup project validate',
+        })]),
+    });
     const profiles = capabilities.length === 0
         ? []
         : require('./bootstrap-profile-providers').loadCoreProfileProviderDescriptors({
@@ -256,7 +274,7 @@ function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
         });
     return Object.freeze({
         schemaVersion: 1,
-        providers: Object.freeze([baseline, ...profiles]),
+        providers: Object.freeze([baseline, automation, ...profiles]),
     });
 }
 
