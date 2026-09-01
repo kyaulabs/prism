@@ -1,10 +1,11 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {inspectAutomation} = require('./automation');
 const {MAX_EXECUTION_TIMEOUT_MS} = require('./contract');
 const {loadCoreContract, resolveBundledComponent} = require('./core-toolchain');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
@@ -1799,6 +1800,45 @@ function renderPackageReleaseFailure(operation, json) {
     return EXIT.TOOL;
 }
 
+function automationCommand(args, context) {
+    const [operation, ...controls] = args;
+    const json = controls.length === 1 && controls[0] === '--json';
+    if (
+        operation !== 'inspect' ||
+        controls.some((argument) => argument !== '--json') ||
+        controls.filter((argument) => argument === '--json').length > 1
+    ) {
+        process.stderr.write('usage: prism-tool automation inspect [--json]\n');
+        return EXIT.USAGE;
+    }
+    let result;
+    try {
+        result = inspectAutomation({
+            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+        });
+    } catch {
+        result = {
+            status: 'NO-GO',
+            disposition: 'CONFLICT',
+            providers: [],
+            checks: [{
+                id: 'automation-ownership',
+                status: 'FAIL',
+                message: 'automation inspection failed',
+            }],
+        };
+    }
+    const report = {
+        schemaVersion: 1,
+        command: 'automation inspect',
+        ...result,
+    };
+    if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
+    else process.stdout.write(`${report.status}\n`);
+    return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+}
+
 function packageReleaseRoots(context) {
     return {
         projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
@@ -1896,6 +1936,7 @@ function main(argv, context = {}) {
         return cataloguePublicationReadinessCommand(args, context);
     }
     if (command === 'package-release') return packageReleaseCommand(args, context);
+    if (command === 'automation') return automationCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }
