@@ -234,6 +234,29 @@ test('rejects a stale Git worktree precondition', (t) => {
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 
+test('keeps the automation lock held through retained-state cleanup', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const operationRoot = path.dirname(planned.planPath);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation.lock');
+    const originalRemove = fs.rmSync;
+    let lockHeldDuringCleanup = false;
+    fs.rmSync = function observeCleanup(target, options) {
+        if (target === operationRoot && options?.recursive === true) {
+            lockHeldDuringCleanup = fs.existsSync(lockPath);
+        }
+        return originalRemove.call(this, target, options);
+    };
+
+    try {
+        assert.equal(applyAutomation({...fixture, planPath: planned.planPath}).status, 'GO');
+    } finally {
+        fs.rmSync = originalRemove;
+    }
+    assert.equal(lockHeldDuringCleanup, true);
+    assert.equal(fs.existsSync(lockPath), false);
+});
+
 test('preserves a competing automation lock', (t) => {
     const fixture = makeGitFixture(t);
     const planned = planAutomation(fixture);
@@ -267,6 +290,43 @@ test('rolls back published outputs after a rename failure', (t) => {
         'prism-tool',
         'automation.lock'
     )), false);
+});
+
+test('continues automation rollback and releases the lock after a rollback read failure', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation.lock');
+    const originalStat = fs.lstatSync;
+    const destinations = [];
+    let rollback = false;
+    let failedRollbackRead = false;
+    fs.lstatSync = function failOneRollbackRead(filePath, ...args) {
+        if (rollback && !failedRollbackRead && filePath === destinations[1]) {
+            failedRollbackRead = true;
+            throw new Error('injected rollback read failure');
+        }
+        return originalStat.call(this, filePath, ...args);
+    };
+
+    try {
+        assert.throws(() => applyAutomation({
+            ...fixture,
+            planPath: planned.planPath,
+            rename(source, destination) {
+                if (destinations.length === 2) {
+                    rollback = true;
+                    throw new Error('stop publication');
+                }
+                fs.renameSync(source, destination);
+                destinations.push(destination);
+            },
+        }));
+    } finally {
+        fs.lstatSync = originalStat;
+    }
+    assert.equal(failedRollbackRead, true);
+    assert.equal(fs.existsSync(destinations[0]), false);
+    assert.equal(fs.existsSync(lockPath), false);
 });
 
 test('does not follow a substituted automation destination parent', (t) => {
@@ -313,6 +373,59 @@ test('does not read through a substituted automation candidate', (t) => {
     }
     assert.equal(followed, false);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects oversized retained candidates before reading them', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    const candidatePath = path.join(
+        path.dirname(planned.planPath),
+        ...envelope.plan.outputs[0].candidatePath.split('/')
+    );
+    const originalOpen = fs.openSync;
+    const originalStat = fs.fstatSync;
+    const originalRead = fs.readFileSync;
+    const originalClose = fs.closeSync;
+    let candidateDescriptor;
+    let candidateRead = false;
+    fs.openSync = function observeOpen(filePath, ...args) {
+        const descriptor = originalOpen.call(this, filePath, ...args);
+        if (filePath === candidatePath) candidateDescriptor = descriptor;
+        return descriptor;
+    };
+    fs.fstatSync = function reportOversized(descriptor, ...args) {
+        const stat = originalStat.call(this, descriptor, ...args);
+        if (descriptor !== candidateDescriptor) return stat;
+        return new Proxy(stat, {
+            get(target, property) {
+                if (property === 'size') return 1048577;
+                return Reflect.get(target, property, target);
+            },
+        });
+    };
+    fs.readFileSync = function observeRead(file, ...args) {
+        if (file === candidateDescriptor) candidateRead = true;
+        return originalRead.call(this, file, ...args);
+    };
+    fs.closeSync = function observeClose(descriptor) {
+        const result = originalClose.call(this, descriptor);
+        if (descriptor === candidateDescriptor) candidateDescriptor = undefined;
+        return result;
+    };
+
+    try {
+        assert.throws(
+            () => applyAutomation({...fixture, planPath: planned.planPath}),
+            /candidate changed/
+        );
+    } finally {
+        fs.openSync = originalOpen;
+        fs.fstatSync = originalStat;
+        fs.readFileSync = originalRead;
+        fs.closeSync = originalClose;
+    }
+    assert.equal(candidateRead, false);
 });
 
 test('rejects provider identity drift after planning', (t) => {
@@ -395,6 +508,31 @@ test('preserves concurrently changed output during rollback', (t) => {
         },
     }));
     assert.match(fs.readFileSync(changedPath, 'utf8'), /concurrent change/);
+});
+
+test('rejects unowned retained automation state before publication', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const markerPath = path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation',
+        '.prism-automation-operation'
+    );
+    fs.writeFileSync(markerPath, 'unowned\n', {mode: 0o600});
+    let publications = 0;
+
+    assert.throws(() => applyAutomation({
+        ...fixture,
+        planPath: planned.planPath,
+        rename(source, destination) {
+            publications += 1;
+            fs.renameSync(source, destination);
+        },
+    }), /operation state/);
+    assert.equal(publications, 0);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 
 test('rejects a changed immutable automation plan', (t) => {

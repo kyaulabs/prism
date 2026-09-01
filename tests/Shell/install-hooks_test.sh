@@ -16,11 +16,12 @@ register_temp_dir "$T1"
 git_init_test_repo "$T1"
 (
     cd "$T1"
-    mkdir -p packages/prism-core/scripts .github/hooks
+    mkdir -p packages/prism-core/scripts .github/hooks bin
     cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+    ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
     printf '#!/usr/bin/env bash\nexit 0\n' > .github/hooks/custom-hook
     chmod 0755 .github/hooks/custom-hook
-    if bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
+    if PATH="$T1/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
         for hook in commit-msg pre-commit pre-push prepare-commit-msg; do
             if cmp -s ".github/hooks/$hook" "$CANONICAL_ROOT/$hook" && \
                [ -x ".github/hooks/$hook" ]; then
@@ -49,11 +50,12 @@ register_temp_dir "$T2"
 git_init_test_repo "$T2"
 (
     cd "$T2"
-    mkdir -p packages/prism-core/scripts .github/hooks
+    mkdir -p packages/prism-core/scripts .github/hooks bin
     cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+    ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
     printf '#!/usr/bin/env bash\necho human\n' > .github/hooks/pre-commit
     chmod 0755 .github/hooks/pre-commit
-    if bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
+    if PATH="$T2/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
         fail "install-hooks.sh overwrote an unowned hook"
     elif grep -qF 'echo human' .github/hooks/pre-commit; then
         pass "install-hooks.sh preserves an unowned collision"

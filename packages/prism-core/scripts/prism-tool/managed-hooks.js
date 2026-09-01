@@ -153,8 +153,9 @@ function existingHook(hooksRoot, name) {
 }
 
 function prismOwned(contents) {
-    const text = contents.toString('utf8');
-    return PRISM_HOOK_MARKERS.every((marker) => text.includes(marker)) ||
+    const lines = contents.toString('utf8').split(/\r?\n/);
+    return lines.includes(PRISM_HOOK_MARKERS[0]) &&
+        lines.some((line) => /^exec prism-tool hook (?:commit-msg|pre-commit|pre-push|prepare-commit-msg) "\$@"$/.test(line)) ||
         LEGACY_CANONICAL_DIGESTS.has(sha256(contents));
 }
 
@@ -283,6 +284,27 @@ function semanticPlan(plan) {
     });
 }
 
+function observedHookState(hooksRoot) {
+    return JSON.stringify([...CANONICAL_HOOKS, ...OBSOLETE_MANAGED_HOOKS].map((name) => {
+        const current = existingHook(hooksRoot, name);
+        return current === null ? {name, state: 'ABSENT'} : {
+            name,
+            state: 'PRESENT',
+            mode: current.mode,
+            sha256: sha256(current.contents),
+        };
+    }));
+}
+
+function bestEffort(action) {
+    try {
+        action();
+    } catch {
+        return false;
+    }
+    return true;
+}
+
 function applyManagedHooks({
     projectRoot: requestedRoot,
     coreRoot,
@@ -298,6 +320,7 @@ function applyManagedHooks({
     if (planned.disposition === 'CURRENT') return planned;
     const hooksRoot = path.join(projectRoot, '.github', 'hooks');
     const canonical = new Map(canonicalManagedHooks(coreRoot).map((hook) => [hook.name, hook]));
+    const observed = observedHookState(hooksRoot);
     const originals = new Map();
     const published = [];
     const removed = [];
@@ -305,7 +328,8 @@ function applyManagedHooks({
     let activated = false;
     try {
         const locked = inspectManagedHooks({projectRoot, coreRoot, run, env});
-        if (semanticPlan(locked) !== semanticPlan(planned)) {
+        if (semanticPlan(locked) !== semanticPlan(planned) ||
+            observedHookState(hooksRoot) !== observed) {
             throw new Error('managed hook state changed');
         }
         createdDirectories.push(...ensureHooksRoot(projectRoot));
@@ -342,24 +366,33 @@ function applyManagedHooks({
         return Object.freeze({...verified, disposition: 'APPLIED'});
     } catch {
         if (activated) {
-            invoke(run, projectRoot, [
+            bestEffort(() => invoke(run, projectRoot, [
                 'config', '--local', '--fixed-value', '--unset-all',
                 'core.hooksPath', HOOKS_PATH,
-            ], env);
+            ], env));
         }
         for (const {name, current} of removed.reverse()) {
-            publishHook(path.join(hooksRoot, name), current.contents, current.mode, fs.renameSync);
+            bestEffort(() => publishHook(
+                path.join(hooksRoot, name),
+                current.contents,
+                current.mode,
+                fs.renameSync
+            ));
         }
         for (const name of published.reverse()) {
-            const original = originals.get(name);
-            const destination = path.join(hooksRoot, name);
-            if (original === null) fs.rmSync(destination, {force: true});
-            else publishHook(destination, original.contents, original.mode, fs.renameSync);
+            bestEffort(() => {
+                const original = originals.get(name);
+                const destination = path.join(hooksRoot, name);
+                if (original === null) fs.rmSync(destination, {force: true});
+                else publishHook(destination, original.contents, original.mode, fs.renameSync);
+            });
         }
         for (const directory of createdDirectories.reverse()) {
-            if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
-                fs.rmdirSync(directory);
-            }
+            bestEffort(() => {
+                if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
+                    fs.rmdirSync(directory);
+                }
+            });
         }
         return conflictReport('managed hooks were not reconciled');
     }

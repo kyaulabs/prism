@@ -14,6 +14,7 @@ const {
     planManagedHooks,
     verifyManagedHooks,
 } = require('../../packages/prism-core/scripts/prism-tool/managed-hooks');
+const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 const {makeTempDir} = require('./helpers');
 
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -137,6 +138,33 @@ test('fails closed on unowned canonical and obsolete collisions', (t) => {
     }
 });
 
+test('rejects an owned hook changed during reconciliation', (t) => {
+    const fixture = makeFixture(t);
+    const older = Buffer.concat([
+        canonical('pre-commit'),
+        Buffer.from('\n# older owned wrapper\n'),
+    ]);
+    const changed = Buffer.concat([
+        canonical('pre-commit'),
+        Buffer.from('\n# concurrent owned change\n'),
+    ]);
+    writeHook(fixture.projectRoot, 'pre-commit', older);
+    let gitCalls = 0;
+
+    const result = applyManagedHooks({
+        ...fixture,
+        approval: 'yes',
+        run(command, args, options) {
+            gitCalls += 1;
+            if (gitCalls === 4) writeHook(fixture.projectRoot, 'pre-commit', changed);
+            return runBounded(command, args, options);
+        },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(fs.readFileSync(hookPath(fixture.projectRoot, 'pre-commit')).equals(changed), true);
+});
+
 test('rolls back published hooks when atomic reconciliation fails', (t) => {
     const fixture = makeFixture(t);
     const older = Buffer.concat([
@@ -166,12 +194,70 @@ test('rolls back published hooks when atomic reconciliation fails', (t) => {
     ));
 });
 
+test('continues managed-hook rollback after one restoration fails', (t) => {
+    const fixture = makeFixture(t);
+    const older = Buffer.concat([
+        canonical('pre-commit'),
+        Buffer.from('\n# older owned wrapper\n'),
+    ]);
+    writeHook(fixture.projectRoot, 'pre-commit', older);
+    const originalRename = fs.renameSync;
+    const preCommitPath = hookPath(fixture.projectRoot, 'pre-commit');
+    let publications = 0;
+    let rollback = false;
+    let failedRestore = false;
+    fs.renameSync = function failOneRestore(source, destination) {
+        if (rollback && !failedRestore && destination === preCommitPath) {
+            failedRestore = true;
+            throw new Error('injected restore failure');
+        }
+        return originalRename.call(this, source, destination);
+    };
+
+    let result;
+    try {
+        result = applyManagedHooks({
+            ...fixture,
+            approval: 'yes',
+            rename(source, destination) {
+                publications += 1;
+                if (publications === 3) {
+                    rollback = true;
+                    throw new Error('stop publication');
+                }
+                originalRename(source, destination);
+            },
+        });
+    } finally {
+        fs.renameSync = originalRename;
+    }
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(failedRestore, true);
+    assert.equal(fs.existsSync(hookPath(fixture.projectRoot, 'commit-msg')), false);
+});
+
 test('does not treat an unmarked prism-tool invocation as owned', (t) => {
     const fixture = makeFixture(t);
     writeHook(
         fixture.projectRoot,
         'pre-commit',
         '#!/usr/bin/env bash\nexec prism-tool hook pre-commit "$@"\n'
+    );
+
+    assert.equal(inspectManagedHooks(fixture).status, 'NO-GO');
+});
+
+test('does not infer Prism ownership from embedded marker fragments', (t) => {
+    const fixture = makeFixture(t);
+    writeHook(
+        fixture.projectRoot,
+        'pre-commit',
+        [
+            '#!/usr/bin/env bash',
+            "printf '%s\\n' '# prism-managed: @kyaulabs/prism-core'",
+            "printf '%s\\n' 'prism-tool hook '",
+            '',
+        ].join('\n')
     );
 
     assert.equal(inspectManagedHooks(fixture).status, 'NO-GO');

@@ -506,6 +506,7 @@ function validateRetainedPlan(plan) {
 
 function readPlan(projectRoot, planPath) {
     const paths = operationPaths(projectRoot);
+    validateOwnedOperation(paths);
     const lexicalPlan = path.resolve(planPath);
     const stat = fs.lstatSync(lexicalPlan);
     if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600) {
@@ -555,6 +556,9 @@ function candidateContents(paths, output) {
     );
     try {
         const held = fs.fstatSync(descriptor);
+        if (!held.isFile() || held.size > MAX_OUTPUT_BYTES) {
+            throw new Error('automation candidate changed');
+        }
         const contents = fs.readFileSync(descriptor);
         const current = fs.lstatSync(candidatePath);
         if (
@@ -696,10 +700,10 @@ function applyAutomation({
             }
         }
         validateOwnedOperation(retained.paths);
+        fs.rmSync(retained.paths.operationRoot, {recursive: true});
         const removedLock = releaseHeldLock(retained.paths.lockPath, lock);
         lockOpen = false;
         if (!removedLock) throw new Error('automation lock changed');
-        fs.rmSync(retained.paths.operationRoot, {recursive: true});
         return Object.freeze({
             status: 'GO',
             disposition: 'APPLIED',
@@ -711,27 +715,37 @@ function applyAutomation({
         });
     } catch (error) {
         for (const record of published.reverse()) {
-            const current = readExistingOutput(projectRoot, record.output.path);
-            if (
-                current === null ||
-                current.mode !== record.output.mode ||
-                sha256(current.contents) !== record.output.sha256
-            ) continue;
-            if (record.previous === null) fs.unlinkSync(record.destination);
-            else publishFile(
-                record.destination,
-                record.previous.contents,
-                record.previous.mode,
-                fs.renameSync
-            );
+            try {
+                const current = readExistingOutput(projectRoot, record.output.path);
+                if (
+                    current === null ||
+                    current.mode !== record.output.mode ||
+                    sha256(current.contents) !== record.output.sha256
+                ) continue;
+                if (record.previous === null) fs.unlinkSync(record.destination);
+                else publishFile(
+                    record.destination,
+                    record.previous.contents,
+                    record.previous.mode,
+                    fs.renameSync
+                );
+            } catch {
+                continue;
+            }
         }
         for (const directory of createdDirectories.reverse()) {
-            if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
-                fs.rmdirSync(directory);
+            try {
+                if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
+                    fs.rmdirSync(directory);
+                }
+            } catch {
+                continue;
             }
         }
         if (lockOpen) {
-            releaseHeldLock(retained.paths.lockPath, lock);
+            try {
+                releaseHeldLock(retained.paths.lockPath, lock);
+            } catch {}
             lockOpen = false;
         }
         throw error;
