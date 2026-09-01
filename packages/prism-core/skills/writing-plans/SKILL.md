@@ -23,9 +23,18 @@ an approved spec, or after a wayfinder map has merged to a spec via the
 Read the spec directly and inspect the codebase facts it depends on. Load the
 `explore` skill when a focused exploration pass would help.
 
-**Plan delivery:** Present the plan as text in the conversation for user review.
-When the user wants the plan saved to disk, persist it to
-`docs/plans/YYYY-MM-DD-<topic>.md`. Planning remains instruction-only and
+**Plan delivery:** Write every complete draft directly to
+`docs/plans/YYYY-MM-DD-<topic>.md`. The file is the sole full-plan review
+surface. Run the self-review against the written file, then report its exact
+path and ask the user to request additions or changes, or approve the plan for
+the next pipeline stage. Do not reproduce the plan body in the conversation.
+Do not emit a task-title outline, code excerpt, or partial restatement unless
+the user explicitly asks for one.
+
+Apply requested changes directly to the same plan file. Rerun the applicable
+self-review after each revision, then report the path again without restating
+the plan. If writing or self-review fails, report the failure and do not ask
+for approval of an incomplete plan. Planning remains instruction-only and
 read-only with respect to implementation code (ADR-0055).
 
 **Plan lifecycle:** Plans are development artifacts. After the branch is
@@ -206,9 +215,17 @@ review.
 If you find issues, fix them inline. No need to re-review — just fix and move
 on. If you find a spec requirement with no task, add the task.
 
+After the self-review passes, report only:
+
+> Plan written to `<path>`. Review it there. Request additions or changes, or
+> reply `go` to approve the next pipeline stage.
+
+Do not include plan content in that message unless the user asks for it.
+
 ## Cycle boundary
 
-The planning cycle ENDS at plan approval. Do not implement while authoring or
+The planning cycle ENDS at approval of the plan file. Writing or revising the
+file does not authorize implementation. Do not implement while authoring or
 reviewing the plan. After approval, load `executing-plans` and `tdd`; the
 single agent executes the tasks inline (ADR-0055).
 
@@ -253,3 +270,6 @@ causes a preventable mistake.
 - *Splitting one oversized spec into multiple plans* — if the approved spec is
   still oversized, halt and return it to wayfinder. Creating multiple plans
   here bypasses the shared decision map (ADR-0050).
+- *Rendering the plan twice* — the `docs/plans/` file is the sole full-plan
+  review surface. Report its path; do not copy the plan or an unsolicited
+  outline into the conversation.

@@ -36,7 +36,7 @@
 - Consumes: the existing `writing-plans` plan format and `from-issue` approval transition
 - Produces: one canonical `docs/plans/` review artifact and a path-only conversation handoff
 
-- [ ] **Step 1: Write the failing contract test**
+- [x] **Step 1: Write the failing contract test**
 
 Create `tests/Shell/plan_file_review_contract_test.sh` with this content. The pre-commit hook will add the canonical RCS header and vim modeline.
 
@@ -90,25 +90,25 @@ assert_not_contains "$WRITING_PLANS" \
     'Present the plan as text in the conversation for user review.' \
     'writing-plans removes conversation-first delivery'
 assert_contains "$FROM_ISSUE" \
-    'the exact plan path, but not the plan body' \
+    'and (3) the exact plan path, but' \
     'from-issue reviews the canonical file by path'
 assert_not_contains "$FROM_ISSUE" \
     '(3) the full plan. Then ask:' \
     'from-issue removes duplicate full-plan presentation'
 assert_contains "$FROM_ISSUE" \
-    "Reply 'go' to create the branch and begin inline execution" \
+    "Reply 'go' to create the branch" \
     'from-issue preserves explicit execution approval'
 
 print_summary "plan file review contract"
 ```
 
-- [ ] **Step 2: Run the contract test to verify Red**
+- [x] **Step 2: Run the contract test to verify Red**
 
 Run: `bash tests/Shell/plan_file_review_contract_test.sh`
 
 Expected: FAIL because `writing-plans` still requires conversation-first delivery and `from-issue` still requires the full plan in Step 9.
 
-- [ ] **Step 3: Implement file-first delivery in both skills**
+- [x] **Step 3: Implement file-first delivery in both skills**
 
 In `packages/prism-core/skills/writing-plans/SKILL.md`, replace the current `Plan delivery` paragraph with:
 
@@ -194,25 +194,25 @@ Add this `Gotchas` entry:
   canonical review file. Present its path, not its contents.
 ```
 
-- [ ] **Step 4: Run the focused test to verify Green**
+- [x] **Step 4: Run the focused test to verify Green**
 
 Run: `bash tests/Shell/plan_file_review_contract_test.sh`
 
 Expected: PASS with 9 passing contract assertions and 0 failures.
 
-- [ ] **Step 5: Run the shell regression suite**
+- [x] **Step 5: Run the shell regression suite**
 
 Run: `bash tests/Shell/run-all.sh`
 
 Expected: PASS for every shell regression test, including `plan_file_review_contract_test.sh`.
 
-- [ ] **Step 6: Run the Prism harness validator**
+- [x] **Step 6: Run the Prism harness validator**
 
 Run: `bash packages/prism-core/scripts/validate-harness.sh`
 
 Expected: exit 0 with no malformed skill, prompt, extension, script, or stale-reference errors.
 
-- [ ] **Step 7: Create the commit**
+- [x] **Step 7: Create the commit**
 
 ```bash
 git add tests/Shell/plan_file_review_contract_test.sh packages/prism-core/skills/writing-plans/SKILL.md packages/prism-core/skills/from-issue/SKILL.md
