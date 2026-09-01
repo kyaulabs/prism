@@ -44,7 +44,7 @@
 - Consumes: schema-v1 `toolchain.json` contracts and existing command component IDs.
 - Produces: frozen optional `contract.serverProfiles`; profile shape `{id, host, preferredPort, startupTimeoutMs, server, health?, clients}`.
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 Add this fixture and these behavior tests to `tests/Node/toolchain-contract.test.js`:
 
@@ -142,7 +142,7 @@ test('rejects duplicate server profiles and duplicate clients', () => {
 
 During Green, change the frozen assertion to `true`; it is deliberately Red against direct `validateContract()` until validation returns the established deep-frozen contract shape.
 
-- [ ] **Step 2: Run the contract tests and verify Red**
+- [x] **Step 2: Run the contract tests and verify Red**
 
 Run:
 
@@ -152,7 +152,7 @@ node --test tests/Node/toolchain-contract.test.js
 
 Expected: FAIL because `serverProfiles` is an unknown top-level key and the PHP/web contract does not declare `browser-fixture`.
 
-- [ ] **Step 3: Implement the closed profile schema**
+- [x] **Step 3: Implement the closed profile schema**
 
 In `packages/prism-core/scripts/prism-tool/contract.js`:
 
@@ -224,7 +224,7 @@ Add this exact profile to `packages/prism-php-web/toolchain.json`:
 
 Permit punctuation needed by inert PHP `-r` argv while still rejecting NUL, line breaks, unsupported brace tokens, command substitution tokens, backticks, and shell control operators. No string is passed to a shell.
 
-- [ ] **Step 4: Run the contract tests and verify Green**
+- [x] **Step 4: Run the contract tests and verify Green**
 
 Run:
 
@@ -234,7 +234,7 @@ node --test tests/Node/toolchain-contract.test.js
 
 Expected: PASS.
 
-- [ ] **Step 5: Stage and commit the schema slice**
+- [x] **Step 5: Stage and commit the schema slice**
 
 Stage:
 
