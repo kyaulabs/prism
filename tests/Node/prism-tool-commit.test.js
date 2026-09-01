@@ -91,6 +91,8 @@ function makeCommitContext(t, overrides = {}) {
             return completed(overrides.branchStatus ?? 0);
         }
         if (command === 'git' && args[0] === 'commit') {
+            const normalHook = run(preCommitPath, [], options);
+            if (normalHook.error || normalHook.status !== 0) return normalHook;
             observed.messageFile = args[3];
             observed.messageMode = fs.statSync(args[3]).mode & 0o777;
             observed.message = fs.readFileSync(args[3], 'utf8');
@@ -322,7 +324,7 @@ test('commit create proves the effective pre-commit hook before the first staged
     assert.equal(proof >= 0, true);
     assert.equal(proof < firstTree, true);
     assert.equal(firstTree < commit, true);
-    assert.equal(fixture.calls.filter(({command}) => command === fixture.preCommitPath).length, 1);
+    assert.equal(fixture.calls.filter(({command}) => command === fixture.preCommitPath).length, 2);
     assert.equal(fixture.observed.firstTreeIndex, 'proof-mutated index');
     const commitCall = fixture.calls[commit];
     assert.equal(commitCall.args.includes('--no-verify'), false);

@@ -177,11 +177,20 @@ For architectural entropy, run `/improve-architecture` on a cadence.
 
 ## Linting & Enforcement
 
+The active adapter owns testing/linting CI and its local quality entry point.
+Managed CI runs for pushes to `develop` and `main` and pull requests targeting
+either branch. Core owns the separate `main` to `develop` back-merge PR
+workflow. Core repository release management creates tags and GitHub Releases
+when `release/X.Y.Z` branches merge into `main`; package publication metadata
+extends that capability but does not own it (ADR-0100).
+
 Linting is enforced by `.github/hooks/pre-commit` — it blocks commits on
-failure.
-Commit message format is enforced by `.github/hooks/commit-msg` via commitlint.
-To activate hooks after cloning, run `prism-tool resolve scripts`, retain the
-returned directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`.
+failure. Commit message format is enforced by `.github/hooks/commit-msg` via
+commitlint. The canonical managed set is `pre-commit`, `commit-msg`,
+`prepare-commit-msg`, and `pre-push`. `/setup` reconciles these wrappers without
+overwriting unowned hooks and activates their Git-resolved repository-local
+path only after applicable quality verification. The compatibility installer
+uses the same reconciliation engine.
 
 For linting details and responsive/mobile-first CSS rules, see the active
 adapter's stack skill (e.g. `scss-mobile-first`).
@@ -205,7 +214,10 @@ adapter's stack skill (e.g. `scss-mobile-first`).
   `Signed-off-by:` in that order (ADR-0064). The `prism-tool commit` workflow
   resolves and validates all three values; callers provide only structured
   type, optional scope, subject, optional body, and optional issue reference.
-  Issue-closing references use `Fixes: #NN`; non-closing references use
+  Before its authoritative staged snapshot, the launcher resolves and executes
+  the effective pre-commit hook explicitly; ordinary Git executes it again
+  during commit creation. Issue-closing references use `Fixes: #NN`;
+  non-closing references use
   `Refs: #NN`, immediately above `Implemented-by:`.
 - Model and thinking selection is entirely the human's — see **Model
   strategy** below (ADR-0067). There is no manifest/env tier layer.
@@ -230,9 +242,10 @@ carried by prose instead:
   failed, unsafe, ambiguous, or non-exclusive attempt aborts the agent and
   blocks every tool until `/reload`.
 - **`git push` is denied to the agent.** Only the human pushes work branches
-  and merges pull requests. `release.yml` alone creates release tags and
-  GitHub Releases and opens the back-merge PR (ADR-0046); it never pushes a
-  branch or merges a PR.
+  and merges pull requests. `release.yml` creates release tags and GitHub
+  Releases for merged release branches. The separate `back-merge.yml` opens
+  `main` to `develop` pull requests after successful `main` integration;
+  neither workflow pushes a branch or merges a PR (ADR-0100).
 
 ## Dependency Lockfiles
 

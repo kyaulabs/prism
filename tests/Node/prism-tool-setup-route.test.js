@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-setup-route.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-setup-route.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -43,10 +43,11 @@ test('routes a stable canonical empty root to strict-empty source selection', (t
     assert.equal(result.status, 0);
     assert.equal(result.stderr, '');
     assert.deepEqual(JSON.parse(result.stdout), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         command: 'setup route',
         status: 'GO',
         disposition: 'STRICT_EMPTY',
+        automationApplicability: 'STRICT_EMPTY',
         source: null,
         route: 'SELECT_SOURCE',
         reason: 'EMPTY_ROOT',
@@ -72,9 +73,11 @@ test('routes non-empty roots and existing repositories to established setup', (t
     const repository = JSON.parse(route(repositoryRoot).stdout);
 
     assert.equal(nonEmpty.disposition, 'ESTABLISHED');
+    assert.equal(nonEmpty.automationApplicability, 'SCAFFOLD_ONLY');
     assert.equal(nonEmpty.route, 'ESTABLISHED_SETUP');
     assert.equal(nonEmpty.reason, 'NON_EMPTY_ROOT');
     assert.equal(repository.disposition, 'ESTABLISHED');
+    assert.equal(repository.automationApplicability, 'ESTABLISHED');
     assert.equal(repository.route, 'ESTABLISHED_SETUP');
     assert.equal(repository.reason, 'EXISTING_REPOSITORY');
 });
@@ -91,6 +94,7 @@ test('routes an empty directory inside a containing worktree to established setu
 
     assert.equal(result.status, 0);
     assert.equal(report.disposition, 'ESTABLISHED');
+    assert.equal(report.automationApplicability, 'SCAFFOLD_ONLY');
     assert.equal(report.route, 'ESTABLISHED_SETUP');
     assert.equal(report.reason, 'CONTAINING_WORKTREE');
 });
@@ -133,6 +137,7 @@ test('fails closed for a malformed Gitfile marker', (t) => {
     assert.equal(result.status, 5);
     assert.equal(report.status, 'NO-GO');
     assert.equal(report.disposition, 'CONFLICT');
+    assert.equal(report.automationApplicability, null);
     assert.equal(report.route, 'STOP');
     assert.equal(report.reason, 'UNSAFE_GIT_STATE');
 });
@@ -185,6 +190,7 @@ test('returns closed Template and Blank bootstrap routes only for strict-empty r
 
     assert.equal(template.status, 0);
     assert.equal(JSON.parse(template.stdout).disposition, 'STRICT_EMPTY');
+    assert.equal(JSON.parse(template.stdout).automationApplicability, 'STRICT_EMPTY');
     assert.equal(JSON.parse(template.stdout).source, 'TEMPLATE');
     assert.equal(JSON.parse(template.stdout).route, 'BOOTSTRAP_TEMPLATE');
     assert.equal(blank.status, 0);

@@ -53,9 +53,15 @@ provides bounded public textual search and retrieval under standing consent.
 
 - **Fresh clone:** `git submodule update --init` (`aurora/` is a submodule:
   `kyaulabs/aurora`, branch `main`).
-- **Hooks:** run `prism-tool resolve scripts`, retain the returned absolute
-  directory, then run `bash /absolute/resolved/scripts/install-hooks.sh`
-  (pre-commit, commit-msg, pre-push).
+- **Automation:** the PHP/web adapter owns CI for pushes and pull requests
+  involving `develop` or `main`; Core owns the separate `main` to `develop`
+  back-merge workflow and repository tags/releases for merged release branches.
+- **Hooks:** `/setup` reconciles `pre-commit`, `commit-msg`,
+  `prepare-commit-msg`, and `pre-push` through the shared Core engine. The
+  compatibility installer delegates to that engine.
+- **Commits:** `prism-tool commit create` explicitly runs the effective
+  pre-commit hook before its staged snapshot; Git runs the hook again during
+  commit creation.
 - **Gate:** `/check` → delegates to `/check-php` (php-cs-fixer + stylelint +
   eslint + Pest coverage ≥ 80%).
 - **Assets:** `/build-assets` (adapter command — Dart Sass + uglify-js) when

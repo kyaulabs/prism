@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -59,6 +59,13 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'standing web-access consent' 'set
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --json' 'setup classifies the canonical root before established setup'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation inspect --json' 'setup inspects established automation providers'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation plan --json' 'setup plans established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation apply --plan=.*--approval=yes --json' 'setup applies approved established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation verify --json' 'setup verifies established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool hook reconcile --approval=yes --json' 'setup reconciles canonical established hooks'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'SCAFFOLD_ONLY' 'setup identifies non-Git scaffold-only applicability'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'records repository automation as `NO-GO`' 'setup leaves non-Git scaffolds inapplicable for automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Template.*recommended default|recommended default.*Template' 'strict-empty setup recommends Template by default'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Blank' 'strict-empty setup offers Blank'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel' 'strict-empty setup offers Cancel'
@@ -171,6 +178,30 @@ if [ -n "$setup_validate_line" ] && [ -n "$setup_apply_line" ] \
     pass 'strict-empty setup preserves validation, application, repository, hooks, and seed ordering'
 else
     fail 'strict-empty setup reorders validation, application, repository, hooks, or seed stages'
+    failures=$((failures + 1))
+fi
+
+ESTABLISHED_AUTOMATION_SECTION="${RESULT_FILE}.established-automation"
+register_temp_dir "$ESTABLISHED_AUTOMATION_SECTION"
+awk '/^## Established repository automation$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$ESTABLISHED_AUTOMATION_SECTION"
+established_inspect_line=$({ grep -niF 'prism-tool automation inspect --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_release_line=$({ grep -niF 'Enable repository release management?' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_plan_line=$({ grep -niF 'prism-tool automation plan --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_apply_line=$({ grep -niF 'prism-tool automation apply --plan=' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_verify_line=$({ grep -niF 'prism-tool automation verify --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_hook_line=$({ grep -niF 'prism-tool hook reconcile --approval=yes --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+if [ -n "$established_inspect_line" ] && [ -n "$established_release_line" ] \
+    && [ -n "$established_plan_line" ] && [ -n "$established_apply_line" ] \
+    && [ -n "$established_verify_line" ] && [ -n "$established_hook_line" ] \
+    && [ "$established_inspect_line" -lt "$established_release_line" ] \
+    && [ "$established_release_line" -lt "$established_plan_line" ] \
+    && [ "$established_plan_line" -lt "$established_apply_line" ] \
+    && [ "$established_apply_line" -lt "$established_verify_line" ] \
+    && [ "$established_verify_line" -lt "$established_hook_line" ]; then
+    pass '/setup preserves established inspect, capability, plan, apply, verify, and hook ordering'
+else
+    fail '/setup does not preserve the established automation stage order'
     failures=$((failures + 1))
 fi
 
