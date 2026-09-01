@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
+const {canonicalManagedHooks} = require('./managed-hooks');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const MAX_RESOURCE_BYTES = 1048576;
@@ -585,15 +586,8 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
             'commitlint configuration'
         )],
     ]);
-    for (const event of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
-        contents.set(
-            `.github/hooks/${event}`,
-            readRegular(
-                path.join(canonicalCore, 'config', 'bootstrap', 'hooks', event),
-                `${event} hook`,
-                0o755
-            )
-        );
+    for (const hook of canonicalManagedHooks(canonicalCore)) {
+        contents.set(`.github/hooks/${hook.name}`, hook.contents);
     }
     const outputs = OUTPUTS.map((outputPath) => writeCandidate(
         canonicalCandidate,
