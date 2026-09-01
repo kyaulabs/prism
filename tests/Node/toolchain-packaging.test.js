@@ -415,7 +415,8 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
     for (const module of [
-        'audit', 'bootstrap-scaffold', 'project', 'transaction', 'visual-review-files', 'workspace',
+        'audit', 'automation-provider', 'bootstrap-scaffold', 'project', 'transaction',
+        'visual-review-files', 'workspace',
     ]) {
         assert.equal(packed.files.has(`scripts/toolchain/${module}.js`), true, module);
     }

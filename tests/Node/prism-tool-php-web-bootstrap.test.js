@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -443,11 +443,114 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
     assert.match(check, /visual_review\.json.*visual_review\.spec\.mjs.*--list/s);
     assert.match(check, /seq 1 50/);
     assert.match(check, /file_get_contents/);
+    const coverageGate = read('.github/scripts/coverage-gate.php');
+    assert.match(coverageGate, /^# prism-managed: @kyaulabs\/prism-php-web$/m);
+    assert.match(coverageGate, /^# prism-automation-schema: 1$/m);
     assert.equal(
-        read('.github/scripts/coverage-gate.php'),
+        coverageGate.replace(
+            '\n# prism-managed: @kyaulabs/prism-php-web\n# prism-automation-schema: 1\n',
+            ''
+        ),
         fs.readFileSync(path.join(ADAPTER_ROOT, 'scripts', 'coverage-gate.php'), 'utf8')
     );
     assert.match(read('tests/Shell/run-all.sh'), /\*_test\.sh/);
+});
+
+test('prepares adapter-owned quality automation for established projects', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+
+    const report = handler.prepareAutomation({candidateRoot, contract: CONTRACT});
+
+    assert.equal(report.status, 'GO');
+    assert.equal(report.provider.id, 'php-web-quality');
+    assert.deepEqual(report.outputs.map(({path: outputPath}) => outputPath).sort(), [
+        '.github/scripts/check-php.sh',
+        '.github/scripts/coverage-gate.php',
+        '.github/workflows/ci.yml',
+    ]);
+    const workflow = fs.readFileSync(
+        path.join(candidateRoot, '.github', 'workflows', 'ci.yml'),
+        'utf8'
+    );
+    const parsed = yaml.load(workflow);
+    assert.deepEqual(parsed.on.push.branches, ['develop', 'main']);
+    assert.deepEqual(parsed.on.pull_request.branches, ['develop', 'main']);
+    assert.match(workflow, /^# prism-managed: @kyaulabs\/prism-php-web$/m);
+    assert.match(workflow, /^# prism-automation-schema: 1$/m);
+    assert.match(workflow, /check-php\.sh --ci --base=/);
+});
+
+test('shares quality automation bytes between established and bootstrap providers', (t) => {
+    const automationRoot = makeTempDir();
+    const scaffoldRoot = makeTempDir();
+    t.after(() => fs.rmSync(automationRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(scaffoldRoot, {recursive: true, force: true}));
+    const automation = handler.prepareAutomation({
+        candidateRoot: automationRoot,
+        contract: CONTRACT,
+    });
+    const scaffold = handler.prepareBootstrapProject({
+        candidateRoot: scaffoldRoot,
+        contract: CONTRACT,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: [],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Project',
+                summary: 'One sentence.',
+                suggestedDisplayName: 'project',
+            },
+            adapter: {
+                id: 'php-web',
+                packageName: CONTRACT.package,
+                packageVersion: ADAPTER_VERSION,
+                bootstrapProtocol: 1,
+            },
+        },
+        run: successfulResult,
+    });
+
+    for (const output of automation.outputs) {
+        const scaffoldOutput = scaffold.outputs.find(({path: outputPath}) =>
+            outputPath === output.path
+        );
+        assert.ok(scaffoldOutput, output.path);
+        assert.equal(scaffoldOutput.mode, output.mode);
+        assert.equal(
+            fs.readFileSync(scaffoldOutput.candidatePath).equals(
+                fs.readFileSync(output.candidatePath)
+            ),
+            true,
+            output.path
+        );
+    }
+});
+
+test('verifies quality automation bytes and executable mode', (t) => {
+    const changedRoot = makeTempDir();
+    const modeRoot = makeTempDir();
+    t.after(() => fs.rmSync(changedRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(modeRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: changedRoot, contract: CONTRACT});
+    handler.prepareAutomation({candidateRoot: modeRoot, contract: CONTRACT});
+
+    assert.equal(handler.verifyAutomation({
+        projectRoot: changedRoot,
+        contract: CONTRACT,
+    }).status, 'GO');
+    fs.appendFileSync(path.join(changedRoot, '.github', 'workflows', 'ci.yml'), 'changed\n');
+    assert.equal(handler.verifyAutomation({
+        projectRoot: changedRoot,
+        contract: CONTRACT,
+    }).status, 'NO-GO');
+    fs.chmodSync(path.join(modeRoot, '.github', 'scripts', 'check-php.sh'), 0o644);
+    assert.equal(handler.verifyAutomation({
+        projectRoot: modeRoot,
+        contract: CONTRACT,
+    }).status, 'NO-GO');
 });
 
 test('renders pinned create-only CI that invokes the shared quality gate', (t) => {
