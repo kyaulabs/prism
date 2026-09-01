@@ -692,7 +692,7 @@ prism-tool commit create --type feat --scope core --subject "run declared client
 - Consumes: `@kyaulabs/prism-php-web:browser-fixture`, client tool `pest`, and ordinary Pest arguments.
 - Produces: one canonical quality command in generated checks and Prism CI, without shell-owned server PID state.
 
-- [ ] **Step 1: Replace bootstrap and CI assertions first**
+- [x] **Step 1: Replace bootstrap and CI assertions first**
 
 In `tests/Node/prism-tool-php-web-bootstrap.test.js`:
 
@@ -714,7 +714,7 @@ assert_ci_contains 'prism-tool(\.js)? server run @kyaulabs/prism-php-web:browser
 assert_ci_not_contains 'php -S|PHP_SERVER_PID|PEST_BROWSER_BASE_URL' 'CI has no shell-owned fixed-port server lifecycle'
 ```
 
-- [ ] **Step 2: Run focused automation tests and verify Red**
+- [x] **Step 2: Run focused automation tests and verify Red**
 
 Run:
 
@@ -730,7 +730,7 @@ bash tests/Shell/pi_ci_contract_test.sh
 
 Expected: both FAIL because generated and repository CI still own a fixed `8080` PHP process.
 
-- [ ] **Step 3: Replace generated and repository lifecycle commands**
+- [x] **Step 3: Replace generated and repository lifecycle commands**
 
 In the generated `.github/scripts/check-php.sh` template inside `bootstrap-scaffold.js`:
 
@@ -753,7 +753,7 @@ node packages/prism-core/scripts/prism-tool.js server run @kyaulabs/prism-php-we
 
 Keep the per-changed-file coverage gate in the same step after the supervised command. Do not alter unrelated workflow provisioning, permissions, actions, or Semgrep behavior.
 
-- [ ] **Step 4: Run automation tests and verify Green**
+- [x] **Step 4: Run automation tests and verify Green**
 
 Run:
 
@@ -769,7 +769,7 @@ bash tests/Shell/pi_ci_contract_test.sh
 
 Expected: PASS.
 
-- [ ] **Step 5: Stage and commit the automation slice**
+- [x] **Step 5: Stage and commit the automation slice**
 
 Stage:
 

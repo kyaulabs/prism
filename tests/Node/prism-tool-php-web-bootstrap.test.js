@@ -43,25 +43,6 @@ const TEMPLATE_SOURCE = Object.freeze({
     }),
 });
 
-function processExists(pid) {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch (error) {
-        if (error.code === 'ESRCH') return false;
-        throw error;
-    }
-}
-
-function waitForProcessExit(pid, timeout = 1000) {
-    const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
-    const deadline = Date.now() + timeout;
-    while (processExists(pid) && Date.now() < deadline) {
-        Atomics.wait(signal, 0, 0, 10);
-    }
-    return !processExists(pid);
-}
-
 function successfulResult(command, args) {
     if (command === 'composer' && args[0] === 'audit') {
         return {status: 0, stdout: '{"advisories":[]}', stderr: '', error: undefined};
@@ -429,7 +410,7 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
     });
     const read = (name) => fs.readFileSync(report.outputs.find(({path: outputPath}) => outputPath === name).candidatePath, 'utf8');
     const check = read('.github/scripts/check-php.sh');
-    const ordered = ['doctor --local-only', 'markdown lint', 'php -l', 'run php-cs-fixer', 'run stylelint', 'run eslint', 'php -S', 'run pest', 'coverage-gate.php', 'tests/Shell/run-all.sh'];
+    const ordered = ['doctor --local-only', 'markdown lint', 'php -l', 'run php-cs-fixer', 'run stylelint', 'run eslint', 'server run', 'coverage-gate.php', 'tests/Shell/run-all.sh'];
     let previous = -1;
     for (const marker of ordered) {
         const index = check.indexOf(marker);
@@ -439,10 +420,12 @@ test('renders one shared local and CI PHP web quality implementation', (t) => {
     assert.match(check, /\^\[0-9a-f\]\{40\}\$/);
     assert.match(check, /markdown lint --cached/);
     assert.match(check, /markdown lint --changed-from "\$BASE"/);
-    assert.match(check, /trap .*cleanup/);
+    assert.match(
+        check,
+        /prism-tool server run @kyaulabs\/prism-php-web:browser-fixture --tool pest -- --coverage --min=80/
+    );
+    assert.doesNotMatch(check, /SERVER_PID|php -S|PEST_BROWSER_BASE_URL|\btrap\b/);
     assert.match(check, /visual_review\.json.*visual_review\.spec\.mjs.*--list/s);
-    assert.match(check, /seq 1 50/);
-    assert.match(check, /file_get_contents/);
     const coverageGate = read('.github/scripts/coverage-gate.php');
     assert.match(coverageGate, /^# prism-managed: @kyaulabs\/prism-php-web$/m);
     assert.match(coverageGate, /^# prism-automation-schema: 1$/m);
@@ -590,11 +573,11 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
     assert.doesNotMatch(workflow, /npx|vendor\/bin|ocr (?:review|llm test)|persist-credentials: true/);
 });
 
-test('stops only its browser fixture server when a quality gate fails', (t) => {
+test('propagates a supervised Pest failure without invoking a direct PHP server', (t) => {
     const candidateRoot = makeTempDir();
     const fakeBin = path.join(candidateRoot, 'fake-bin');
     const invocationFile = path.join(candidateRoot, 'prism-tool.invocations');
-    const pidFile = path.join(candidateRoot, 'server.pid');
+    const phpInvocationFile = path.join(candidateRoot, 'php.invocations');
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
     const report = handler.prepareBootstrapProject({
         candidateRoot,
@@ -610,12 +593,17 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
     fs.mkdirSync(fakeBin);
     fs.writeFileSync(
         path.join(fakeBin, 'prism-tool'),
-        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PRISM_INVOCATION_FILE"\ncase "$*" in *pest*) exit 97 ;; esac\nexit 0\n',
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PRISM_INVOCATION_FILE"\ncase "$*" in server\\ run\\ @kyaulabs/prism-php-web:browser-fixture\\ --tool\\ pest*) exit 97 ;; esac\nexit 0\n',
         {mode: 0o755}
     );
-    fs.writeFileSync(path.join(fakeBin, 'git'), '#!/usr/bin/env bash\nexit 0\n', {mode: 0o755});
-    fs.writeFileSync(path.join(fakeBin, 'php'), '#!/usr/bin/env bash\nif [[ "$1" == -S ]]; then echo $$ > "$SERVER_PID_FILE"; while :; do sleep 1; done; fi\nexit 0\n', {mode: 0o755});
-    const check = report.outputs.find(({path: outputPath}) => outputPath === '.github/scripts/check-php.sh').candidatePath;
+    fs.writeFileSync(
+        path.join(fakeBin, 'php'),
+        '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$PHP_INVOCATION_FILE"\nexit 0\n',
+        {mode: 0o755}
+    );
+    const check = report.outputs.find(({path: outputPath}) =>
+        outputPath === '.github/scripts/check-php.sh'
+    ).candidatePath;
 
     assert.throws(() => execFileSync('bash', [check, '--local'], {
         cwd: candidateRoot,
@@ -623,13 +611,18 @@ test('stops only its browser fixture server when a quality gate fails', (t) => {
             ...process.env,
             PATH: `${fakeBin}:/usr/bin:/bin`,
             PRISM_INVOCATION_FILE: invocationFile,
-            SERVER_PID_FILE: pidFile,
+            PHP_INVOCATION_FILE: phpInvocationFile,
         },
         stdio: 'pipe',
-    }));
-    assert.match(fs.readFileSync(invocationFile, 'utf8'), /^run pest -- --coverage --min=80$/m);
-    const pid = Number(fs.readFileSync(pidFile, 'utf8'));
-    assert.equal(waitForProcessExit(pid), true);
+    }), (error) => {
+        assert.equal(error.status, 97);
+        return true;
+    });
+    assert.match(
+        fs.readFileSync(invocationFile, 'utf8'),
+        /^server run @kyaulabs\/prism-php-web:browser-fixture --tool pest -- --coverage --min=80$/m
+    );
+    assert.doesNotMatch(fs.readFileSync(phpInvocationFile, 'utf8'), /(?:^| )-S(?: |$)/m);
 });
 
 test('renders syntactically valid PHP readiness files', (t) => {
