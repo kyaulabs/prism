@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
 
 'use strict';
 
@@ -230,6 +230,18 @@ test('documents human-only bot-owned catalogue publication provisioning', () => 
     assert.match(runbook, /fine-grained personal access token/i);
     assert.match(runbook, /CATALOGUE_DISPATCH_TOKEN/);
     assert.match(runbook, /CATALOGUE_PUBLICATION_TOKEN/);
+    assert.match(runbook, /CATALOGUE_COMMIT_SIGNING_PRIVATE_KEY/);
+    assert.match(runbook, /CATALOGUE_COMMIT_SIGNING_PASSPHRASE/);
+    assert.match(runbook, /"schemaVersion": 3/);
+    assert.match(runbook, /"type": "OPENPGP"/);
+    assert.match(runbook, /kyaulabs-bot <actions@kyaulabs[.]com>/);
+    assert.match(runbook, /privateMaterialOutsideRepositoriesReviewed/);
+    assert.match(runbook, /offlineRecoveryCustodyReviewed/);
+    assert.match(runbook, /separatedFromCatalogueSigningReviewed/);
+    assert.match(runbook, /separatedFromPublicationCredentialReviewed/);
+    assert.match(runbook, /publication commit-signing custody is attested/);
+    assert.match(runbook, /commit-signing.*suspected exposure/is);
+    assert.match(runbook, /commit-signing.*succession/is);
     assert.match(runbook, /Actions: write/);
     assert.match(runbook, /Contents: write/);
     assert.match(runbook, /Pull requests: write/);
