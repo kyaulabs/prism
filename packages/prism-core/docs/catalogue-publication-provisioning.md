@@ -67,7 +67,9 @@ runbook records the public identity and custody boundary only.
 3. In the browser, verify that `kyaulabs-bot` has the publisher-approved public
    OpenPGP key for `kyaulabs-bot <actions@kyaulabs.com>`. Do not copy a
    fingerprint or private material into Core documentation or this session.
-4. Verify that Prism's proposed release workflow uses
+4. Verify that Prism's proposed release workflow emits only the fixed local
+   `prism_adapter_release` event after validated stable publication, and that
+   `.github/workflows/catalogue-notify.yml` uses
    `CATALOGUE_DISPATCH_TOKEN` directly and targets only
    `kyaulabs/prism-adapters`, `catalogue-signing.yml`, and `main`.
 5. In both repositories, open **Settings → Rules → Rulesets**. Confirm the
@@ -130,8 +132,10 @@ In `kyaulabs/prism`:
 8. Confirm the environment contains exactly the one expected secret name and
    no environment variable.
 
-The release workflow exposes this secret only as `GH_TOKEN` on the fixed
-workflow-dispatch step. Its workflow `GITHUB_TOKEN` permissions remain empty.
+The trusted-main catalogue notification workflow exposes this secret only as
+`GH_TOKEN` on the fixed workflow-dispatch step. Its workflow `GITHUB_TOKEN`
+permissions remain empty. The pull-request-triggered release workflow cannot
+request this environment or secret.
 
 ## Provision the publication environment
 
@@ -237,6 +241,9 @@ offline recovery, and separation review, then write schema 3 with a fresh
 `checkedAt` value and no private details.
 
 ## Pre-activation readiness
+
+Readiness requires both Prism workflows — `release.yml` and
+`catalogue-notify.yml` — to exist on protected `main`.
 
 Keep `CATALOGUE_SIGNING_ENABLED` absent and run:
 
