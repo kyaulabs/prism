@@ -66,26 +66,28 @@ prism-tool server run @kyaulabs/prism-php-web:browser-fixture \
 
 The supervisor hides candidate generation, contention handling, process ownership, readiness, environment expansion, signal forwarding, client execution, and cleanup behind this single operation.
 
-The operation is synchronous. It returns the client tool's exit status after cleanup. Startup, profile, readiness, and cleanup failures use distinct non-client failure categories.
+The operation is synchronous. Client success or failure determines operation success after cleanup, while the public command retains Prism's stable launcher exit categories. Startup, profile, readiness, and cleanup failures use distinct non-client failure categories.
 
 ### Trusted server profiles
 
-The trusted adapter handler contract gains an optional server-profile provider. A profile has a closed, schema-versioned shape containing:
+An adapter toolchain contract may contain an optional bounded `serverProfiles` collection. Each profile has a closed, schema-versioned shape containing:
 
-- package identity and profile ID;
+- profile ID, namespaced at invocation by package identity;
 - validated loopback host;
 - preferred port;
 - a foreground server executable and argument-array templates;
-- allowed client tool IDs;
+- allowed client tool IDs from the same contract;
 - environment templates for the client;
 - startup timeout;
-- optional semantic health-command argv.
+- optional semantic health executable and argument-array templates.
 
-Profile references are namespaced by package identity. Duplicate references, unsupported schemas, unknown keys, invalid ports, non-loopback hosts, unsafe templates, unknown client tools, and duplicate allowed tools fail before process creation.
+Server and health commands are validated installed-package contract data available only to the supervisor. Project files and CLI arguments cannot supply or alter them. The active adapter remains responsible for the declared runtime's stack compatibility and readiness; Core checks executable availability without learning product-specific version output.
+
+Duplicate references, unsupported schemas, unknown keys, invalid ports, non-loopback hosts, unsafe templates, unknown client tools, and duplicate allowed tools fail before process creation.
 
 Templates support only documented host and port substitutions. They are expanded as argument-array or environment values and are never evaluated by a shell.
 
-The profile provider is optional. Adapter discovery and existing operations behave as before when the method is absent.
+The collection is optional. Adapter discovery and existing operations behave as before when the contract contains no profiles.
 
 ### Port selection and startup
 
@@ -107,7 +109,7 @@ If every valid candidate is occupied, the operation fails with port-exhaustion d
 
 ### Readiness and client environment
 
-TCP readiness is mandatory and protocol-neutral. After TCP readiness, Core runs the optional trusted health argv with `PRISM_SERVER_HOST` and `PRISM_SERVER_PORT` in its environment.
+TCP readiness is mandatory and protocol-neutral. After TCP readiness, Core runs the optional contract-declared health argv with `PRISM_SERVER_HOST` and `PRISM_SERVER_PORT` in its environment.
 
 A health failure indicates a broken server or fixture, not port contention. Core stops the owned process and fails without trying another port.
 
@@ -129,7 +131,7 @@ Diagnostics identify the profile reference, preferred and selected ports when kn
 
 ## PHP/Web Adapter Integration
 
-The PHP/web adapter registers `@kyaulabs/prism-php-web:browser-fixture` with:
+The PHP/web adapter contract declares `@kyaulabs/prism-php-web:browser-fixture` with:
 
 - loopback host `127.0.0.1`;
 - preferred port `8080`;
@@ -149,7 +151,7 @@ Existing exact Prism-owned automation is eligible for the current setup reconcil
 
 ```text
 CLI request
-  -> discover trusted profile provider
+  -> discover the active adapter contract
   -> validate and resolve namespaced profile
   -> validate permitted toolchain client
   -> generate nearest-port candidates
@@ -180,7 +182,7 @@ The implementation distinguishes at least these externally reportable categories
 - cleanup failed;
 - interrupted.
 
-A client failure preserves the client's exit status unless cleanup itself fails in a way that prevents Prism from proving process termination. Lifecycle failures use stable launcher-owned statuses and concise remediation text.
+A client failure remains authoritative for operation failure and may appear as bounded inert status evidence, but the public command returns Prism's stable launcher tool-failure status. Lifecycle failures use stable launcher-owned statuses and concise remediation text.
 
 ## Testing Strategy
 
@@ -204,7 +206,7 @@ Core tests cover:
 - permitted and forbidden client tools;
 - client exit-status preservation;
 - cleanup after success, failure, timeout, and termination;
-- compatibility with an adapter that exposes no profile provider.
+- compatibility with an adapter contract that declares no server profiles.
 
 Candidate-order and exhaustion tests use deterministic seams rather than the host's incidental port state. Process tests mock only operating-system boundaries. A bounded integration test uses real loopback sockets and child processes to prove startup, selected-port propagation, and cleanup.
 
@@ -226,7 +228,7 @@ Adapter tests cover:
 ## Security and Boundary Constraints
 
 - Core remains language-agnostic and knows no PHP, Pest, browser, HTTP, or port `8080` convention.
-- Concrete server and health commands come only from installed trusted Prism package handlers.
+- Concrete server and health commands come only from validated installed adapter toolchain contracts.
 - Project files cannot turn the operation into an arbitrary process runner.
 - Client execution is limited to profile-permitted commands already declared by a validated toolchain contract.
 - Server and health commands use argv arrays without shell evaluation.
@@ -241,7 +243,7 @@ Implementation introduces **server profile** as the canonical term for a trusted
 
 ## Architecture Decision
 
-This change adds a reusable Core lifecycle primitive and extends the trusted adapter provider boundary. It is cross-cutting and hard to reverse after other adapters depend on it. The post-spec `architect` review must decide the required ADR scope before implementation planning.
+This change adds a reusable Core lifecycle primitive and extends the adapter toolchain contract. It is cross-cutting and hard to reverse after other adapters depend on it. ADR-0101 records the command provenance, lifecycle ownership, readiness, and stable exit semantics required before implementation planning.
 
 ## Non-Goals
 
