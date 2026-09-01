@@ -512,6 +512,9 @@ Pi-era decisions:
 - `adr/0096-actions-only-catalogue-workflow-dispatch.md` — superseded Actions-only workflow-dispatch authentication baseline retained through ADR-0097.
 - `adr/0097-bot-owned-catalogue-pat-separation.md` — use separate `kyaulabs-bot` fine-grained PATs for dispatch and publication while keeping their write authority disjoint.
 - `adr/0098-attested-publication-commit-signing-custody.md` — attest the publisher's separate OpenPGP commit-signing custody through schema-3 readiness and an exact five-secret environment contract.
+- `adr/0099-trusted-main-catalogue-notification-handoff.md` — hand validated
+  stable-release evidence to a protected-main Prism workflow through a closed
+  same-repository event before the Actions-only publisher dispatch.
 
 ## When to update this file
 
