@@ -262,7 +262,7 @@ prism-tool commit create --type feat --scope toolchain --subject "declare superv
 - Consumes: one validated server profile, canonical project root, base environment, and a `runClient(env)` callback.
 - Produces: `candidatePorts(preferredPort)`, `expandServerTemplate(value, host, port)`, `tcpListening(options)`, and `superviseServer(options)` returning the client callback's stable Prism status.
 
-- [ ] **Step 1: Write failing deterministic lifecycle tests**
+- [x] **Step 1: Write failing deterministic lifecycle tests**
 
 Create `tests/Node/prism-tool-server-lifecycle.test.js` with the required RCS header/modeline and tests for:
 
@@ -412,7 +412,7 @@ Add one real loopback integration named `preserves an occupied preferred port an
 
 This test uses production `tcpListening`, spawn, readiness, and process-group cleanup; only the client callback is local to the test.
 
-- [ ] **Step 2: Run the lifecycle tests and verify Red**
+- [x] **Step 2: Run the lifecycle tests and verify Red**
 
 Run:
 
@@ -422,7 +422,7 @@ node --test tests/Node/prism-tool-server-lifecycle.test.js
 
 Expected: FAIL with `MODULE_NOT_FOUND` for `server-lifecycle.js`.
 
-- [ ] **Step 3: Implement the lifecycle deep module**
+- [x] **Step 3: Implement the lifecycle deep module**
 
 Create `packages/prism-core/scripts/prism-tool/server-lifecycle.js` with the required RCS header/modeline and these exports:
 
@@ -471,7 +471,7 @@ Use `net.createConnection()` for `tcpListening()`, resolving `true` on connect a
 
 Use typed internal errors carrying stable codes `PORT_EXHAUSTED`, `SERVER_STARTUP_FAILED`, `SERVER_STARTUP_TIMEOUT`, `HEALTH_FAILED`, and `CLEANUP_FAILED`. Do not include raw argv or subprocess output in messages.
 
-- [ ] **Step 4: Run lifecycle tests and verify Green**
+- [x] **Step 4: Run lifecycle tests and verify Green**
 
 Run:
 
@@ -481,7 +481,7 @@ node --test tests/Node/prism-tool-server-lifecycle.test.js
 
 Expected: PASS.
 
-- [ ] **Step 5: Stage and commit the lifecycle slice**
+- [x] **Step 5: Stage and commit the lifecycle slice**
 
 Stage:
 
