@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-discovery.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -36,12 +36,7 @@ test('renders package release candidate files without mutating the project', (t)
         packages: ['.'],
         adapterReleases: [],
     }, null, 2)}\n`);
-    assert.equal(
-        rendered.files['.github/workflows/release.yml'].equals(
-            fs.readFileSync(path.join(CORE_ROOT, 'config', 'release.yml'))
-        ),
-        true
-    );
+    assert.deepEqual(Object.keys(rendered.files), ['.prism/release.json']);
     assert.deepEqual(fs.readdirSync(projectRoot), ['package.json']);
 });
 

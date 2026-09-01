@@ -1819,14 +1819,34 @@ function automationCommand(args, context) {
     }
     let result;
     if (['inspect', 'plan', 'verify'].includes(operation)) {
-        if (controls.some((argument) => argument !== '--json')) {
-            process.stderr.write(`usage: prism-tool automation ${operation} [--json]\n`);
+        const releaseControls = controls.filter((argument) =>
+            argument.startsWith('--release-repository=')
+        );
+        if (
+            releaseControls.length > 1 ||
+            releaseControls.some((argument) =>
+                argument.length === '--release-repository='.length
+            ) ||
+            controls.some((argument) =>
+                argument !== '--json' && !argument.startsWith('--release-repository=')
+            )
+        ) {
+            process.stderr.write(
+                `usage: prism-tool automation ${operation} ` +
+                '[--release-repository=OWNER/REPOSITORY] [--json]\n'
+            );
             return EXIT.USAGE;
         }
+        const options = {
+            ...roots,
+            releaseRepository: releaseControls.length === 0
+                ? null
+                : releaseControls[0].slice('--release-repository='.length),
+        };
         try {
-            if (operation === 'inspect') result = inspectAutomation(roots);
-            else if (operation === 'plan') result = planAutomation(roots);
-            else result = verifyAutomation(roots);
+            if (operation === 'inspect') result = inspectAutomation(options);
+            else if (operation === 'plan') result = planAutomation(options);
+            else result = verifyAutomation(options);
         } catch {
             result = {
                 status: 'NO-GO',

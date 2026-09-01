@@ -6,7 +6,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {renderCoreAutomationProvider} = require('./automation-providers');
+const {
+    renderCoreAutomationProvider,
+    renderCoreReleaseProvider,
+} = require('./automation-providers');
 const {discoverAutomationAdapter} = require('./discovery');
 const {runBounded} = require('./process');
 
@@ -21,6 +24,9 @@ const KNOWN_CANDIDATE_OUTPUTS = new Set([
     '.github/scripts/coverage-gate.php',
     '.github/workflows/back-merge.yml',
     '.github/workflows/ci.yml',
+    '.github/workflows/release.yml',
+    'CHANGELOG.md',
+    'cliff.toml',
 ]);
 const OWNERSHIP = Object.freeze({
     CREATE: 'CREATE',
@@ -74,11 +80,11 @@ function readExistingOutput(projectRoot, relativePath) {
 }
 
 function managedBy(contents, owner) {
-    const text = contents.toString('utf8');
-    return text.split('\n').includes(`# prism-managed: ${owner}`) &&
-        ['0', '1'].some((schema) =>
-            text.split('\n').includes(`# prism-automation-schema: ${schema}`)
-        );
+    const lines = contents.toString('utf8').split('\n');
+    return lines.includes(`# prism-managed: ${owner}`) && (
+        ['0', '1'].some((schema) => lines.includes(`# prism-automation-schema: ${schema}`)) ||
+        ['2', '3'].some((schema) => lines.includes(`# prism-release-schema: ${schema}`))
+    );
 }
 
 function classifyOutput({projectRoot, output, owner}) {
@@ -160,7 +166,7 @@ function overallDisposition(providers) {
     return OWNERSHIP.CONFLICT;
 }
 
-function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot}) {
+function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot, releaseRepository = null}) {
     const core = renderCoreAutomationProvider({coreRoot, candidateRoot});
     const adapter = discoverAutomationAdapter({projectRoot});
     const quality = adapter.handler.prepareAutomation({
@@ -168,10 +174,18 @@ function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot}) {
         contract: adapter.registration.contract,
     });
     if (quality?.status !== 'GO') throw new Error('adapter automation provider failed');
-    return Object.freeze([core, quality]);
+    const reports = [core, quality];
+    if (releaseRepository !== null) {
+        reports.push(renderCoreReleaseProvider({
+            coreRoot,
+            candidateRoot,
+            repository: releaseRepository,
+        }));
+    }
+    return Object.freeze(reports);
 }
 
-function renderProviders({projectRoot, coreRoot}) {
+function renderProviders({projectRoot, coreRoot, releaseRepository = null}) {
     const candidateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-automation-inspect-'));
     fs.chmodSync(candidateRoot, 0o700);
     try {
@@ -179,15 +193,20 @@ function renderProviders({projectRoot, coreRoot}) {
             projectRoot,
             coreRoot,
             candidateRoot,
+            releaseRepository,
         }).map((report) => providerReport(report, projectRoot)));
     } finally {
         fs.rmSync(candidateRoot, {recursive: true, force: true});
     }
 }
 
-function inspectAutomation({projectRoot: requestedRoot, coreRoot}) {
+function inspectAutomation({projectRoot: requestedRoot, coreRoot, releaseRepository = null}) {
     const projectRoot = fs.realpathSync(requestedRoot);
-    const providers = renderProviders({projectRoot, coreRoot: fs.realpathSync(coreRoot)});
+    const providers = renderProviders({
+        projectRoot,
+        coreRoot: fs.realpathSync(coreRoot),
+        releaseRepository,
+    });
     const overlap = hasOverlap(providers);
     const disposition = overlap ? OWNERSHIP.CONFLICT : overallDisposition(providers);
     const status = disposition === OWNERSHIP.CONFLICT ? 'NO-GO' : 'GO';
@@ -330,7 +349,12 @@ function semanticProviders(reports) {
     })));
 }
 
-function planAutomation({projectRoot: requestedRoot, coreRoot, run = runBounded}) {
+function planAutomation({
+    projectRoot: requestedRoot,
+    coreRoot,
+    releaseRepository = null,
+    run = runBounded,
+}) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const canonicalCore = fs.realpathSync(coreRoot);
     const paths = operationPaths(projectRoot);
@@ -340,6 +364,7 @@ function planAutomation({projectRoot: requestedRoot, coreRoot, run = runBounded}
             projectRoot,
             coreRoot: canonicalCore,
             candidateRoot: paths.candidateRoot,
+            releaseRepository,
         });
         const classified = reports.map((report) => providerReport(report, projectRoot));
         if (hasOverlap(classified) || overallDisposition(classified) === OWNERSHIP.CONFLICT) {
@@ -364,6 +389,7 @@ function planAutomation({projectRoot: requestedRoot, coreRoot, run = runBounded}
         const plan = Object.freeze({
             schemaVersion: 1,
             projectRoot,
+            configuration: Object.freeze({releaseRepository}),
             providers,
             outputs: Object.freeze(outputs),
             preconditions: gitSnapshot(projectRoot, run),
@@ -417,9 +443,17 @@ function validOutputPath(value) {
 function validateRetainedPlan(plan) {
     if (
         !hasExactKeys(plan, [
-            'schemaVersion', 'projectRoot', 'providers', 'outputs', 'preconditions',
+            'schemaVersion', 'projectRoot', 'configuration', 'providers', 'outputs',
+            'preconditions',
         ]) ||
         plan.schemaVersion !== 1 ||
+        !hasExactKeys(plan.configuration, ['releaseRepository']) ||
+        (plan.configuration.releaseRepository !== null &&
+            (typeof plan.configuration.releaseRepository !== 'string' ||
+             !/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?\/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$/.test(
+                 plan.configuration.releaseRepository
+             ) ||
+             plan.configuration.releaseRepository.endsWith('.git'))) ||
         !Array.isArray(plan.providers) ||
         plan.providers.length < 1 ||
         plan.providers.some((provider) =>
@@ -538,7 +572,7 @@ function candidateContents(paths, output) {
     }
 }
 
-function revalidateProviderEvidence(projectRoot, coreRoot, expected) {
+function revalidateProviderEvidence(projectRoot, coreRoot, expected, configuration) {
     const candidateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-automation-revalidate-'));
     fs.chmodSync(candidateRoot, 0o700);
     try {
@@ -546,6 +580,7 @@ function revalidateProviderEvidence(projectRoot, coreRoot, expected) {
             projectRoot,
             coreRoot,
             candidateRoot,
+            releaseRepository: configuration.releaseRepository,
         }));
         if (JSON.stringify(current) !== JSON.stringify(expected)) {
             throw new Error('automation provider identity changed');
@@ -559,7 +594,8 @@ function revalidatePlan(projectRoot, coreRoot, retained, run) {
     revalidateProviderEvidence(
         projectRoot,
         coreRoot,
-        retained.envelope.plan.providers
+        retained.envelope.plan.providers,
+        retained.envelope.plan.configuration
     );
     if (JSON.stringify(gitSnapshot(projectRoot, run)) !==
         JSON.stringify(retained.envelope.plan.preconditions)) {
@@ -702,8 +738,8 @@ function applyAutomation({
     }
 }
 
-function verifyAutomation({projectRoot, coreRoot}) {
-    const inspected = inspectAutomation({projectRoot, coreRoot});
+function verifyAutomation({projectRoot, coreRoot, releaseRepository = null}) {
+    const inspected = inspectAutomation({projectRoot, coreRoot, releaseRepository});
     const current = inspected.status === 'GO' && inspected.providers.every(({outputs}) =>
         outputs.every(({disposition}) => disposition === OWNERSHIP.CURRENT)
     );

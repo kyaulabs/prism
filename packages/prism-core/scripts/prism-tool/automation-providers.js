@@ -3,6 +3,7 @@
 'use strict';
 
 const path = require('node:path');
+const {renderRepositoryReleaseProvider} = require('./bootstrap-release-provider');
 const {
     readCoreManifest,
     readRegular,
@@ -42,6 +43,15 @@ function renderCoreAutomationProvider({coreRoot, candidateRoot}) {
     });
 }
 
-module.exports = {renderCoreAutomationProvider};
+function renderCoreReleaseProvider({coreRoot, candidateRoot, repository}) {
+    return renderRepositoryReleaseProvider({
+        coreRoot,
+        candidateRoot,
+        repository,
+        providerId: 'core-repository-release',
+    });
+}
+
+module.exports = {renderCoreAutomationProvider, renderCoreReleaseProvider};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-profile-providers.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-profile-providers.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -28,7 +28,6 @@ const PROFILE_OUTPUTS = Object.freeze({
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]),
 });
 

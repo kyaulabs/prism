@@ -1430,23 +1430,13 @@ test('stages and attests release management outputs with selected-adapter eviden
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         assert.equal(stagedNames(projectRoot).includes(outputPath), true, outputPath);
     }
     assert.equal(stagedNames(projectRoot).some((name) =>
         name.startsWith('.pi/prism-tool/package-release')
     ), false);
-    assert.deepEqual(JSON.parse(fs.readFileSync(
-        path.join(projectRoot, '.prism', 'release.json'),
-        'utf8'
-    )), {
-        schemaVersion: 2,
-        managedBy: '@kyaulabs/prism-core',
-        versionPolicy: 'lockstep',
-        packages: ['.'],
-        adapterReleases: [],
-    });
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'release.json')), false);
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const attestation = JSON.parse(fs.readFileSync(
         path.join(attemptRoot, 'seed-attestation.json'),
@@ -1471,7 +1461,6 @@ test('rejects release management output drift before seed staging', (t) => {
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         const {projectRoot, plan} = readySelectedHooks(t, ['release-management']);
         fs.appendFileSync(path.join(projectRoot, ...outputPath.split('/')), 'changed\n');

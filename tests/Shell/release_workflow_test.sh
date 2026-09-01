@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -9,7 +9,7 @@
 #      push, no pull_request_target)
 #   3. merged + release/ head + same-repository job gate
 #   4. ubuntu-latest, no sudo, timeout present
-#   5. job permissions exactly contents: write + pull-requests: write
+#   5. job permissions exactly contents: write
 #   6. every uses: is a pinned 40-hex SHA with version comment; checkout
 #      pins v7, the event merge SHA, fetch-depth 0, persist-credentials false
 #   7. branch-derived version regex and 40-hex merge-SHA validation happen
@@ -21,12 +21,10 @@
 #   9. rerun logic distinguishes neither/both/tag-only/bad-tag states, auto-
 #      recovers tag-without-Release at the merge SHA, probes the tag locally
 #      with git rev-parse (lightweight- and annotated-tag safe), verifies it
-#      resolves to the merge SHA, and never exits before back-merge handling
+#      resolves to the merge SHA
 #  10. publication is gh release create with --target/--title/--notes-file;
 #      the workflow runs no git cliff, no git push, no auto-merge
-#  11. back-merge checks an existing open PR and develop...main, then opens
-#      gh pr create --base develop --head main; no || true or
-#      continue-on-error masks API failures
+#  11. release workflow contains no back-merge behavior
 #  12. concurrency is release-specific with cancel-in-progress: false
 #
 # Plus the P13–P22 /release authoring contract (ADR-0046): the local command
@@ -90,7 +88,7 @@ fi
 if [ -f "$CANONICAL_RELEASE_FILE" ] && \
    cmp -s "$RELEASE_FILE" "$CANONICAL_RELEASE_FILE" && \
    head -5 "$RELEASE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
-   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 2'; then
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 3'; then
 	pass "installed workflow is ownership-marked and byte-identical to the Core template"
 else
 	fail "installed workflow is not ownership-marked or differs from the Core template"
@@ -139,15 +137,14 @@ else
 	fail "workflow-source sudo found"
 fi
 
-# ── 5. Job permissions exactly contents: write + pull-requests: write ────────
+# ── 5. Job permissions exactly contents: write ─────────────────────────────
 
 perm_blocks=$(grep -cE '^[[:space:]]*permissions:' "$RELEASE_FILE" 2>/dev/null || true)
 perm_entries=$(grep -oE '^[[:space:]]+(actions|attestations|checks|contents|deployments|discussions|id-token|issues|metadata|models|packages|pages|pull-requests|security-events|statuses): (write|read|none)' "$RELEASE_FILE" 2>/dev/null || true)
 perm_count=$(printf '%s\n' "$perm_entries" | grep -c . || true)
-if [ "${perm_blocks:-0}" -eq 1 ] && [ "${perm_count:-0}" -eq 2 ] && \
-   printf '%s\n' "$perm_entries" | grep -qF 'contents: write' && \
-   printf '%s\n' "$perm_entries" | grep -qF 'pull-requests: write'; then
-	pass "release publish permissions remain exactly contents and pull-requests write"
+if [ "${perm_blocks:-0}" -eq 1 ] && [ "${perm_count:-0}" -eq 1 ] && \
+   printf '%s\n' "$perm_entries" | grep -qF 'contents: write'; then
+	pass "release publish permissions remain exactly contents write"
 else
 	fail "release publish permissions exceed the exact contract (blocks=$perm_blocks entries=$perm_count)"
 fi
@@ -271,7 +268,6 @@ validate_workflow_graph() {
 			"Prepare package release metadata",
 			"Publish release",
 			"Reconcile package tags",
-			"Open back-merge PR",
 			"Schedule trusted catalogue notification",
 			"Fail unsuccessful publication",
 		];
@@ -307,16 +303,12 @@ validate_workflow_graph() {
 			reconcile.if !== reconcileIf ||
 			terminal.if !== terminalIf
 		) process.exit(1);
-		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
-		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
-			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
-		if (backmerge.if !== expected) process.exit(1);
+		if (job.steps.some(({name}) => name === "Open back-merge PR")) process.exit(1);
 
 		const publishPermissionKeys = Object.keys(publishJob.permissions ?? {}).sort();
 		if (
-			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents", "pull-requests"]) ||
+			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents"]) ||
 			publishJob.permissions.contents !== "write" ||
-			publishJob.permissions["pull-requests"] !== "write" ||
 			publishJob.outputs !== undefined
 		) process.exit(1);
 
@@ -671,7 +663,7 @@ if grep -qF 'tag_exists' "$RELEASE_FILE" && \
    grep -qF 'recovering' "$RELEASE_FILE" && \
    ! grep -qF 'git ls-remote' "$RELEASE_FILE" && \
    ! grep -qF 'exit 0' "$RELEASE_FILE"; then
-	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe; no early exit before back-merge"
+	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe"
 else
 	fail "publication-state rerun logic, tag-only recovery, 404 classification, tag-probe, or early-exit contract violated"
 fi
@@ -781,43 +773,12 @@ else
 	fail "package-tag reconciliation can run without a successful repository Release"
 fi
 
-backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
-if [ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] && \
-   grep -qF 'id: validate' "$RELEASE_FILE" && validate_workflow_graph "$RELEASE_FILE"; then
-	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
+if ! grep -qF 'Open back-merge PR' "$RELEASE_FILE" && \
+   ! grep -qF 'develop...main' "$RELEASE_FILE" && \
+   ! grep -qF -- '--base develop --head main' "$RELEASE_FILE"; then
+	pass "release workflow delegates all back-merge behavior to back-merge.yml"
 else
-	fail "back-merge is not guarded by always() and successful merge validation"
-fi
-if [[ "$backmerge_guard" == *"steps.validate.outcome == 'success'"* ]]; then
-	pass "back-merge is not scheduled when merge validation fails"
-else
-	fail "back-merge lacks an explicit successful-validation outcome guard"
-fi
-workflow_schedules_backmerge() {
-	local validate_outcome="$1" metadata_outcome="$2" publish_outcome="$3" reconcile_outcome="$4"
-	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] || return 1
-	[ "$validate_outcome" = "success" ] || return 1
-	[ "$metadata_outcome" = "success" ] || return 1
-	case "$publish_outcome:$reconcile_outcome" in
-		success:success|failure:skipped|success:failure|cancelled:skipped|skipped:skipped) return 0 ;;
-		*) return 1 ;;
-	esac
-}
-if workflow_schedules_backmerge failure skipped skipped skipped; then
-	fail "workflow outcome simulation schedules back-merge after failed validation"
-else
-	pass "workflow outcome simulation blocks back-merge after failed validation"
-fi
-if workflow_schedules_backmerge success failure skipped skipped; then
-	fail "workflow outcome simulation schedules back-merge after failed package metadata"
-else
-	pass "workflow outcome simulation blocks back-merge after failed package metadata"
-fi
-if workflow_schedules_backmerge success success cancelled skipped && \
-   workflow_schedules_backmerge success success skipped skipped; then
-	pass "workflow outcome simulation covers cancelled and skipped publication states"
-else
-	fail "workflow outcome simulation omits cancelled or skipped publication states"
+	fail "release workflow still contains back-merge behavior"
 fi
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
@@ -1344,71 +1305,6 @@ else
 	fail "repository-first fake-gh execution failed"
 fi
 
-# A failed publication or package-tag reconciliation must still execute the
-# back-merge block selected by the workflow's always() guard.
-failure_sim=$(mktemp -d)
-register_temp_dir "$failure_sim"
-git_init_test_repo "$failure_sim"
-printf 'release\n' > "$failure_sim/file.txt"
-git -C "$failure_sim" add file.txt
-git -C "$failure_sim" commit --quiet -m release
-failure_sha=$(git -C "$failure_sim" rev-parse HEAD)
-printf 'notes\n' > "$failure_sim/body.md"
-printf 'notes\n' > "$failure_sim/notes.md"
-mkdir -p "$failure_sim/bin"
-cat > "$failure_sim/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\t%s\n' "$GH_MODE" "$*" >> "$GH_LOG"
-case "$GH_MODE:$*" in
-  publish:api*releases/tags*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
-  tag:api*git/ref/tags*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
-  tag:api*-X\ POST*git/refs*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
-  backmerge:api*compare*) printf '%s\n' '1' ;;
-  backmerge:pr\ list*) exit 0 ;;
-  backmerge:pr\ create*) printf '%s\n' 'https://example.invalid/pr/1' ;;
-  *) exit 127 ;;
-esac
-EOF
-chmod +x "$failure_sim/bin/gh"
-: > "$failure_sim/gh.log"
-
-if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") && \
-   failure_backmerge_block=$(extract_run_block "$RELEASE_FILE" "Open back-merge PR"); then
-	if (
-		cd "$failure_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
-	); then
-		fail "forced repository publication failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success success failure skipped && (
-		cd "$failure_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
-	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
-	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
-		pass "back-merge executes after a forced repository publication failure"
-	else
-		fail "back-merge did not execute after repository publication failure"
-	fi
-
-	: > "$failure_sim/gh.log"
-	git -C "$tag_sim" tag -d example@1.2.3 >/dev/null
-	if (
-		cd "$tag_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
-	); then
-		fail "forced package-tag failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success success success failure && (
-		cd "$tag_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
-	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
-	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
-		pass "back-merge executes after a forced package-tag failure"
-	else
-		fail "back-merge did not execute after package-tag failure"
-	fi
-else
-	fail "could not extract publication and back-merge failure simulation blocks"
-fi
-
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──
 
 if grep -qF 'gh release create' "$RELEASE_FILE" && \
@@ -1424,17 +1320,16 @@ else
 	fail "publication command or forbidden-tool contract violated"
 fi
 
-# ── 11. Back-merge: existing-PR check, develop...main compare, no masking ────
+# ── 11. Release workflow contains no back-merge behavior ────────────────────
 
-if grep -qF 'gh pr list' "$RELEASE_FILE" && \
-   grep -qF 'develop...main' "$RELEASE_FILE" && \
-   grep -qF 'gh pr create' "$RELEASE_FILE" && \
-   grep -qF -- '--base develop --head main' "$RELEASE_FILE" && \
-   ! grep -qF '|| true' "$RELEASE_FILE" && \
+if ! grep -qF 'gh pr list' "$RELEASE_FILE" && \
+   ! grep -qF 'develop...main' "$RELEASE_FILE" && \
+   ! grep -qF 'gh pr create' "$RELEASE_FILE" && \
+   ! grep -qF -- '--base develop --head main' "$RELEASE_FILE" && \
    validate_workflow_graph "$RELEASE_FILE"; then
-	pass "back-merge checks existing PR and develop...main, opens base-develop/head-main PR, no failure masking"
+	pass "release workflow contains no back-merge behavior"
 else
-	fail "back-merge handling or failure-masking contract violated"
+	fail "release workflow retains back-merge behavior"
 fi
 
 # ── 12. Release-specific concurrency, no cancellation ────────────────────────

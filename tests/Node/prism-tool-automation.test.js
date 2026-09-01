@@ -11,6 +11,7 @@ const test = require('node:test');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     applyAutomation,
+    inspectAutomation,
     planAutomation,
     verifyAutomation,
 } = require('../../packages/prism-core/scripts/prism-tool/automation');
@@ -77,6 +78,93 @@ function installCanonicalAutomation(fixture) {
         contract: ADAPTER_CONTRACT,
     });
 }
+
+test('adds repository release management only when enabled', (t) => {
+    const fixture = makeGitFixture(t);
+    const disabled = planAutomation(fixture);
+    assert.equal(disabled.providers.some(({id}) => id === 'core-repository-release'), false);
+    fs.rmSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation'), {
+        recursive: true,
+        force: true,
+    });
+
+    const enabled = planAutomation({...fixture, releaseRepository: 'example/project'});
+    const release = enabled.providers.find(({id}) => id === 'core-repository-release');
+    assert.deepEqual(release.outputs.map(({path: outputPath}) => outputPath), [
+        'CHANGELOG.md',
+        'cliff.toml',
+        '.github/workflows/release.yml',
+    ]);
+    assert.equal(applyAutomation({...fixture, planPath: enabled.planPath}).status, 'GO');
+    assert.equal(verifyAutomation({
+        ...fixture,
+        releaseRepository: 'example/project',
+    }).status, 'GO');
+    assert.match(fs.readFileSync(path.join(fixture.projectRoot, 'cliff.toml'), 'utf8'),
+        /github\.com\/example\/project\/releases/);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'release.json')), false);
+});
+
+test('exposes repository release selection through automation CLI controls', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = captureWrites(() => main([
+        'automation',
+        'plan',
+        '--release-repository=example/project',
+        '--json',
+    ], fixture));
+
+    assert.equal(planned.status, 0, planned.stderr);
+    const report = JSON.parse(planned.stdout);
+    assert.equal(report.providers.some(({id}) => id === 'core-repository-release'), true);
+    const applied = captureWrites(() => main([
+        'automation',
+        'apply',
+        `--plan=${report.planPath}`,
+        '--approval=yes',
+        '--json',
+    ], fixture));
+    assert.equal(applied.status, 0, applied.stderr);
+    const verified = captureWrites(() => main([
+        'automation',
+        'verify',
+        '--release-repository=example/project',
+        '--json',
+    ], fixture));
+    assert.equal(verified.status, 0, verified.stderr);
+});
+
+test('classifies an older owned release workflow as migratable', (t) => {
+    const fixture = makeFixture(t);
+    const workflowPath = path.join(fixture.projectRoot, '.github', 'workflows', 'release.yml');
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.writeFileSync(
+        workflowPath,
+        fs.readFileSync(path.join(CORE_ROOT, 'config', 'release.yml'), 'utf8')
+            .replace('# prism-release-schema: 3', '# prism-release-schema: 2')
+    );
+
+    const inspected = inspectAutomation({
+        ...fixture,
+        releaseRepository: 'example/project',
+    });
+    const release = inspected.providers.find(({id}) => id === 'core-repository-release');
+    assert.equal(release.outputs.find(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ).disposition, 'MIGRATE');
+});
+
+test('rejects an unowned repository release output', (t) => {
+    const fixture = makeGitFixture(t);
+    fs.writeFileSync(path.join(fixture.projectRoot, 'CHANGELOG.md'), '# Human changelog\n');
+
+    assert.throws(() => planAutomation({
+        ...fixture,
+        releaseRepository: 'example/project',
+    }), /ownership conflicts/);
+    assert.equal(fs.readFileSync(path.join(fixture.projectRoot, 'CHANGELOG.md'), 'utf8'),
+        '# Human changelog\n');
+});
 
 test('exposes the approved automation transaction through the CLI', (t) => {
     const fixture = makeGitFixture(t);

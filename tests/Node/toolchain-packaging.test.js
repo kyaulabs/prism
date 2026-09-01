@@ -122,7 +122,8 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 2$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 3$/m);
+    assert.doesNotMatch(releaseWorkflow, /back-merge|--base develop --head main/);
     assert.equal(
         releaseWorkflow,
         fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),

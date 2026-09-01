@@ -1,5 +1,5 @@
 # prism-managed: @kyaulabs/prism-core
-# prism-release-schema: 2
+# prism-release-schema: 3
 name: Release
 
 on:
@@ -23,12 +23,11 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish release tag, Release, and back-merge PR
+    name: Publish release tag and GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
-      pull-requests: write
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -549,53 +548,6 @@ jobs:
               exit 1
             fi
           done < .prism-package-tags.tsv
-
-      # Back-merge preparation is intentionally independent of publication
-      # success so main cannot remain absent from develop (ADR-0079 AC13).
-      - name: Open back-merge PR
-        if: ${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}
-        run: |
-          set -euo pipefail
-
-          # Skip when main has no commits ahead of develop, or when an open
-          # main -> develop PR already exists; otherwise open the PR. The
-          # workflow never pushes a branch and never merges a PR.
-          if ahead_by=$(gh api "repos/$GITHUB_REPOSITORY/compare/develop...main" --jq '.ahead_by'); then
-            if [ "$ahead_by" -gt 0 ]; then
-              if pr_numbers=$(gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head main --state open --json number --jq '.[].number'); then
-                if [ -z "$pr_numbers" ]; then
-                  if create_out=$(gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
-                    --title "Back-merge main into develop" \
-                    --body "Automated back-merge PR opened by release.yml after the v$VERSION release. Human review and merge required." 2>&1); then
-                    printf '%s\n' "$create_out"
-                  else
-                    # A concurrent release run may have created the PR
-                    # between the list check above and this create; that
-                    # race is success, not an error. Anything else fails.
-                    case "$create_out" in
-                      *"already exists"*)
-                        echo "back-merge PR already exists (created concurrently); nothing to do"
-                        ;;
-                      *)
-                        echo "Error: back-merge PR creation failed: $create_out" >&2
-                        exit 1
-                        ;;
-                    esac
-                  fi
-                else
-                  echo "open back-merge PR already exists; nothing to do"
-                fi
-              else
-                echo "::error::gh pr list failed" >&2
-                exit 1
-              fi
-            else
-              echo "develop is up to date with main; no back-merge needed"
-            fi
-          else
-            echo "::error::gh api compare develop...main failed" >&2
-            exit 1
-          fi
 
       - name: Schedule trusted catalogue notification
         if: >-

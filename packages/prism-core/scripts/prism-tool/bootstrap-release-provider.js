@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-release-provider.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-release-provider.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -10,14 +10,11 @@ const {
     writeCandidate,
 } = require('./bootstrap-providers');
 const {validateBootstrapSource} = require('./bootstrap-source');
-const {renderReleaseCapabilityFiles} = require('./package-release');
-
 const REPOSITORY_TOKEN = '{{REPOSITORY_COORDINATE}}';
 const RELEASE_MANAGEMENT_OUTPUTS = Object.freeze([
     'CHANGELOG.md',
     'cliff.toml',
     '.github/workflows/release.yml',
-    '.prism/release.json',
 ]);
 
 function validateRequest(request) {
@@ -59,23 +56,38 @@ function cliffContents(coreRoot, repository) {
     return Buffer.from(template.replaceAll(REPOSITORY_TOKEN, repository), 'utf8');
 }
 
-function releaseManagementContents({coreRoot, packageRoot, request}) {
-    validateRequest(request);
-    const repository = request.metadata.capabilityMetadata['release-management'].repository;
-    const release = renderReleaseCapabilityFiles({projectRoot: packageRoot, coreRoot});
+function validateRepository(repository) {
+    if (
+        typeof repository !== 'string' ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?\/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$/.test(repository) ||
+        repository.endsWith('.git')
+    ) {
+        throw new Error('release repository is invalid');
+    }
+}
+
+function releaseManagementContents({coreRoot, repository}) {
+    validateRepository(repository);
     return new Map([
         ['CHANGELOG.md', changelogContents()],
         ['cliff.toml', cliffContents(coreRoot, repository)],
-        ['.github/workflows/release.yml', release.files['.github/workflows/release.yml']],
-        ['.prism/release.json', release.files['.prism/release.json']],
+        ['.github/workflows/release.yml', readRegular(
+            path.join(coreRoot, 'config', 'release.yml'),
+            'release management workflow'
+        )],
     ]);
 }
 
-function renderReleaseManagementProvider({coreRoot, candidateRoot, packageRoot, request}) {
-    const contents = releaseManagementContents({coreRoot, packageRoot, request});
+function renderRepositoryReleaseProvider({
+    coreRoot,
+    candidateRoot,
+    repository,
+    providerId = 'release-management',
+}) {
+    const contents = releaseManagementContents({coreRoot, repository});
     const coreVersion = readCoreManifest(coreRoot).version;
     const provider = Object.freeze({
-        id: 'release-management',
+        id: providerId,
         packageName: '@kyaulabs/prism-core',
         packageVersion: coreVersion,
         protocolVersion: 1,
@@ -89,19 +101,34 @@ function renderReleaseManagementProvider({coreRoot, candidateRoot, packageRoot, 
         )),
         effects: Object.freeze([]),
         checks: Object.freeze([Object.freeze({
-            id: 'release-management-render',
+            id: `${providerId}-render`,
             status: 'PASS',
-            message: 'Release management candidate files were rendered',
+            message: providerId === 'release-management'
+                ? 'Release management candidate files were rendered'
+                : 'Repository release candidate files were rendered',
         })]),
         verification: Object.freeze([Object.freeze({
-            id: 'release-management-inventory',
+            id: `${providerId}-inventory`,
             command: 'setup project validate',
         })]),
     });
 }
 
-function validateReleaseManagementProvider({coreRoot, packageRoot, request, report}) {
-    const contents = releaseManagementContents({coreRoot, packageRoot, request});
+function renderReleaseManagementProvider({coreRoot, candidateRoot, request}) {
+    validateRequest(request);
+    return renderRepositoryReleaseProvider({
+        coreRoot,
+        candidateRoot,
+        repository: request.metadata.capabilityMetadata['release-management'].repository,
+    });
+}
+
+function validateReleaseManagementProvider({coreRoot, request, report}) {
+    validateRequest(request);
+    const contents = releaseManagementContents({
+        coreRoot,
+        repository: request.metadata.capabilityMetadata['release-management'].repository,
+    });
     if (
         report === null ||
         typeof report !== 'object' ||
@@ -132,6 +159,7 @@ function validateReleaseManagementProvider({coreRoot, packageRoot, request, repo
 module.exports = {
     RELEASE_MANAGEMENT_OUTPUTS,
     renderReleaseManagementProvider,
+    renderRepositoryReleaseProvider,
     validateReleaseManagementProvider,
 };
 

@@ -1667,7 +1667,7 @@ test('rejects adapter report declarations that differ from the package-owned man
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
-test('rejects release management when Core-only and PHP web candidates are not publishable', (t) => {
+test('plans repository release management without publishable packages', (t) => {
     const coreRoot = makeTempDir();
     t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
     const corePlan = captureWrites(() => main([
@@ -1686,8 +1686,14 @@ test('rejects release management when Core-only and PHP web candidates are not p
             },
         }),
     }));
-    assert.equal(corePlan.status, 5);
-    assert.deepEqual(fs.readdirSync(coreRoot), []);
+    assert.equal(corePlan.status, 0, corePlan.stderr);
+    const coreReport = JSON.parse(corePlan.stdout);
+    assert.equal(coreReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ), true);
+    assert.equal(coreReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.prism/release.json'
+    ), false);
 
     const phpRoot = makeTempDir();
     t.after(() => fs.rmSync(phpRoot, {recursive: true, force: true}));
@@ -1709,8 +1715,14 @@ test('rejects release management when Core-only and PHP web candidates are not p
         }),
         run: bootstrapRunner(phpRoot),
     }));
-    assert.equal(phpPlan.status, 5);
-    assert.deepEqual(fs.readdirSync(phpRoot), []);
+    assert.equal(phpPlan.status, 0, phpPlan.stderr);
+    const phpReport = JSON.parse(phpPlan.stdout);
+    assert.equal(phpReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ), true);
+    assert.equal(phpReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.prism/release.json'
+    ), false);
 });
 
 test('composes release management after a publishable adapter candidate is rendered', (t) => {
@@ -1772,22 +1784,12 @@ test('composes release management after a publishable adapter candidate is rende
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         assert.equal(plan.outputs.some(({path: candidatePath}) => candidatePath === outputPath), true);
     }
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(
-        path.dirname(path.dirname(plan.data.planPath)),
-        'candidate',
-        '.prism',
-        'release.json'
-    ), 'utf8')), {
-        schemaVersion: 2,
-        managedBy: '@kyaulabs/prism-core',
-        versionPolicy: 'lockstep',
-        packages: ['.'],
-        adapterReleases: [],
-    });
+    assert.equal(plan.outputs.some(({path: candidatePath}) =>
+        candidatePath === '.prism/release.json'
+    ), false);
     assert.equal(validatePlan(
         projectRoot,
         ATTEMPT_ID,
