@@ -55,6 +55,7 @@ documentation, and conversation.
 | supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
 | adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, compatibility range, bootstrap protocol, and publication status without supplying registry or signing authority. |
 | catalogue publication transaction | The serialized cross-repository workflow that validates immutable Prism release and npm evidence, signs the next catalogue sequence in the protected publisher environment, and opens a human-merged publication pull request. |
+| publication commit-signing authority | The separate OpenPGP authority that signs catalogue publication commits and remains independent from catalogue-envelope signing and PAT authorization. Core attests its public identity and custody boundary; the publisher owns fingerprints, signing mechanics, and private material. |
 | catalogue evidence | Receipt-local signed evidence (`catalogueEvidence`) that binds a strict-empty adapter selection to the exact verified catalogue envelope, signing key, sequence, validity window, selected release, and package integrity. |
 | adapter evidence | The normalized nullable durable subset (`adapterEvidence`) carried through project plans, journals, status, recovery, and repository-seed attestation. It remains Core-owned and is never an adapter-provider or hook input. |
 | template source attestation | Immutable evidence for the fixed public template repository, validated default branch, commit, complete tree, classification manifest, and source-mode decision; template blobs never become project files. |
@@ -510,6 +511,7 @@ Pi-era decisions:
 - `adr/0095-cross-repository-catalogue-publication-transaction.md` — connect stable Prism releases and three-day renewal to one serialized publisher transaction that creates a non-protected branch and human-merged catalogue PR.
 - `adr/0096-actions-only-catalogue-workflow-dispatch.md` — superseded Actions-only workflow-dispatch authentication baseline retained through ADR-0097.
 - `adr/0097-bot-owned-catalogue-pat-separation.md` — use separate `kyaulabs-bot` fine-grained PATs for dispatch and publication while keeping their write authority disjoint.
+- `adr/0098-attested-publication-commit-signing-custody.md` — attest the publisher's separate OpenPGP commit-signing custody through schema-3 readiness and an exact five-secret environment contract.
 
 ## When to update this file
 

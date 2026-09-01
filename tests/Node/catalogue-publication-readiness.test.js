@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.test.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.test.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
 
 'use strict';
 
@@ -12,6 +12,14 @@ const {
     cataloguePublicationReadinessCommand,
 } = require('../../packages/prism-core/scripts/prism-tool/catalogue-publication-readiness');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+
+const SIGNING_SECRET_NAMES = Object.freeze([
+    'CATALOGUE_SIGNING_PRIVATE_KEY',
+    'CATALOGUE_SIGNING_PASSPHRASE',
+    'CATALOGUE_PUBLICATION_TOKEN',
+    'CATALOGUE_COMMIT_SIGNING_PRIVATE_KEY',
+    'CATALOGUE_COMMIT_SIGNING_PASSPHRASE',
+]);
 
 const EXPECTED_CHECKS = [
     'prism-workflow',
@@ -27,6 +35,7 @@ const EXPECTED_CHECKS = [
     'dispatch-credential-scope',
     'publication-credential-scope',
     'credential-separation',
+    'publication-commit-signing-custody',
     'credential-lifecycle',
     'manual-attestation',
 ];
@@ -72,11 +81,7 @@ function canonicalResponses() {
         ['repos/kyaulabs/prism-adapters/environments/catalogue-signing/deployment-branch-policies',
             {branch_policies: [{name: 'main'}]}],
         ['repos/kyaulabs/prism-adapters/environments/catalogue-signing/secrets', {
-            secrets: [
-                {name: 'CATALOGUE_SIGNING_PRIVATE_KEY'},
-                {name: 'CATALOGUE_SIGNING_PASSPHRASE'},
-                {name: 'CATALOGUE_PUBLICATION_TOKEN'},
-            ],
+            secrets: SIGNING_SECRET_NAMES.map((name) => ({name})),
         }],
         ['repos/kyaulabs/prism/actions/permissions', {sha_pinning_required: true}],
         ['repos/kyaulabs/prism-adapters/actions/permissions', {sha_pinning_required: true}],
@@ -86,7 +91,7 @@ function canonicalResponses() {
 
 function attestation() {
     return {
-        schemaVersion: 2,
+        schemaVersion: 3,
         checkedAt: '2026-08-29T20:00:00Z',
         dispatchCredential: {
             type: 'FINE_GRAINED_PAT',
@@ -107,6 +112,14 @@ function attestation() {
             permissions: {contents: 'write', pullRequests: 'write'},
             expiresAt: null,
             rotationPolicy: 'NONE_ACCEPTED',
+        },
+        publicationCommitSigning: {
+            type: 'OPENPGP',
+            identity: 'kyaulabs-bot <actions@kyaulabs.com>',
+            privateMaterialOutsideRepositoriesReviewed: true,
+            offlineRecoveryCustodyReviewed: true,
+            separatedFromCatalogueSigningReviewed: true,
+            separatedFromPublicationCredentialReviewed: true,
         },
         credentialSeparationReviewed: true,
         retentionDays: {prism: 7, prismAdapters: 7},
@@ -163,6 +176,14 @@ test('reports GO for canonical pre-activation metadata and attestation', (t) => 
             status: 'ADVISORY',
             message: 'non-expiring credentials have no planned rotation',
         }],
+    );
+    assert.deepEqual(
+        report.checks.find(({id}) => id === 'publication-commit-signing-custody'),
+        {
+            id: 'publication-commit-signing-custody',
+            status: 'PASS',
+            message: 'publication commit-signing custody is attested',
+        },
     );
     assert.equal(
         report.checks.every(({status: checkStatus}) =>
@@ -245,6 +266,50 @@ for (const [name, mutate] of driftCases) {
     });
 }
 
+const signingSecretDriftCases = [
+    ...SIGNING_SECRET_NAMES.map((missing) => [
+        `missing ${missing}`,
+        (entries) => entries.filter(({name}) => name !== missing),
+    ]),
+    ['retired publication App secret', (entries) => [
+        ...entries,
+        {name: 'CATALOGUE_PUBLICATION_APP_PRIVATE_KEY'},
+    ]],
+    ['duplicate commit-signing secret', (entries) => [
+        ...entries,
+        {name: 'CATALOGUE_COMMIT_SIGNING_PRIVATE_KEY'},
+    ]],
+    ['malformed secret entry', (entries) => [...entries, {}]],
+    ['secret value exposure', (entries) => entries.map((entry, index) =>
+        index === 0 ? {...entry, value: 'credential-canary'} : entry)],
+];
+
+for (const [name, mutate] of signingSecretDriftCases) {
+    test(`fails signing-secret-presence for ${name}`, (t) => {
+        const state = fixture();
+        t.after(() => fs.rmSync(state.context.projectRoot, {recursive: true, force: true}));
+        const endpoint = 'repos/kyaulabs/prism-adapters/environments/catalogue-signing/secrets';
+        const entries = state.responses.get(endpoint).secrets;
+        state.responses.set(endpoint, {secrets: mutate(entries)});
+
+        const status = cataloguePublicationReadinessCommand(
+            ['readiness', '--phase=pre-activation', '--json'],
+            state.context,
+        );
+        const output = state.output();
+        const report = JSON.parse(output);
+
+        assert.equal(status, 3, name);
+        assert.equal(report.status, 'NO-GO', name);
+        assert.equal(
+            report.checks.find(({id}) => id === 'signing-secret-presence').status,
+            'FAIL',
+            name,
+        );
+        assert.doesNotMatch(output, /credential-canary/, name);
+    });
+}
+
 test('reports absent human attestation as unresolved MANUAL work', (t) => {
     const state = fixture();
     t.after(() => fs.rmSync(state.context.projectRoot, {recursive: true, force: true}));
@@ -313,6 +378,27 @@ const credentialDriftCases = [
     ['duplicate credential labels', (value) => {
         value.publicationCredential.label = value.dispatchCredential.label;
     }],
+    ['wrong commit-signing type', (value) => {
+        value.publicationCommitSigning.type = 'SSH';
+    }],
+    ['wrong commit-signing identity', (value) => {
+        value.publicationCommitSigning.identity = 'different-bot <actions@example.com>';
+    }],
+    ['unknown commit-signing key', (value) => {
+        value.publicationCommitSigning.unexpected = true;
+    }],
+    ['repository-held commit-signing material', (value) => {
+        value.publicationCommitSigning.privateMaterialOutsideRepositoriesReviewed = false;
+    }],
+    ['unreviewed commit-signing recovery', (value) => {
+        value.publicationCommitSigning.offlineRecoveryCustodyReviewed = false;
+    }],
+    ['commit signing combined with catalogue signing', (value) => {
+        value.publicationCommitSigning.separatedFromCatalogueSigningReviewed = false;
+    }],
+    ['commit signing combined with publication authorization', (value) => {
+        value.publicationCommitSigning.separatedFromPublicationCredentialReviewed = false;
+    }],
     ['unreviewed separation', (value) => { value.credentialSeparationReviewed = false; }],
     ['expiration value', (value) => {
         value.dispatchCredential.expiresAt = '2026-12-31T00:00:00Z';
@@ -320,7 +406,7 @@ const credentialDriftCases = [
     ['different rotation policy', (value) => {
         value.publicationCredential.rotationPolicy = 'SCHEDULED';
     }],
-    ['old schema', (value) => { value.schemaVersion = 1; }],
+    ['old schema', (value) => { value.schemaVersion = 2; }],
     ['unknown root key', (value) => { value.unexpected = true; }],
     ['impossible review date', (value) => {
         value.checkedAt = '2026-02-31T20:00:00Z';
