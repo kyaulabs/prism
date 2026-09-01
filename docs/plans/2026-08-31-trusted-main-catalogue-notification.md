@@ -545,7 +545,7 @@ prism-tool commit create --type fix --scope release --subject "handoff catalogue
 - Consumes: GitHub Contents API metadata for `.github/workflows/catalogue-notify.yml?ref=main`.
 - Produces: readiness check `prism-notification-workflow`, which passes only when the trusted-main notification workflow exists at the exact path on `main` with a 40-hex blob SHA.
 
-- [ ] **Step 1: Write the failing readiness test**
+- [x] **Step 1: Write the failing readiness test**
 
 Add `prism-notification-workflow` immediately after `prism-workflow` in `EXPECTED_CHECKS`:
 
@@ -576,13 +576,13 @@ Split the existing missing-workflow drift case into exact release and notificati
 }],
 ```
 
-- [ ] **Step 2: Run the readiness test to verify Red**
+- [x] **Step 2: Run the readiness test to verify Red**
 
 Run: `node --test tests/Node/catalogue-publication-readiness.test.js`
 
 Expected: FAIL because readiness neither requests nor reports `prism-notification-workflow`.
 
-- [ ] **Step 3: Implement the readiness check**
+- [x] **Step 3: Implement the readiness check**
 
 Add this endpoint to `STATIC_ENDPOINTS` in `catalogue-publication-readiness.js`:
 
@@ -600,7 +600,7 @@ evaluate('prism-notification-workflow', 'trusted Prism notification workflow is 
     )),
 ```
 
-- [ ] **Step 4: Update the provisioning runbook**
+- [x] **Step 4: Update the provisioning runbook**
 
 In `packages/prism-core/docs/catalogue-publication-provisioning.md`, replace the release-workflow-only verification instruction with:
 
@@ -635,7 +635,7 @@ Readiness requires both Prism workflows — `release.yml` and
 `catalogue-notify.yml` — to exist on protected `main`.
 ```
 
-- [ ] **Step 5: Run focused verification to verify Green**
+- [x] **Step 5: Run focused verification to verify Green**
 
 Run: `node --test tests/Node/catalogue-publication-readiness.test.js`
 
@@ -649,7 +649,7 @@ Run: `git diff --check`
 
 Expected: exit 0 with no output.
 
-- [ ] **Step 6: Stage, lint, and create the terminal implementation commit**
+- [x] **Step 6: Stage, lint, and create the terminal implementation commit**
 
 Stage the task files:
 

@@ -23,6 +23,7 @@ const SIGNING_SECRET_NAMES = Object.freeze([
 
 const EXPECTED_CHECKS = [
     'prism-workflow',
+    'prism-notification-workflow',
     'publisher-workflow',
     'prism-main-rules',
     'publisher-main-rules',
@@ -59,6 +60,8 @@ function canonicalResponses() {
     return new Map([
         ['repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main',
             {path: '.github/workflows/release.yml', sha: 'a'.repeat(40)}],
+        ['repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main',
+            {path: '.github/workflows/catalogue-notify.yml', sha: 'c'.repeat(40)}],
         ['repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main',
             {path: '.github/workflows/catalogue-signing.yml', sha: 'b'.repeat(40)}],
         ['repos/kyaulabs/prism/rulesets', [{id: 11, name: 'main', enforcement: 'active'}]],
@@ -209,8 +212,13 @@ test('requires exact enabled activation only in active phase', (t) => {
 });
 
 const driftCases = [
-    ['missing workflow', (state) => {
+    ['missing release workflow', (state) => {
         state.responses.delete('repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main');
+    }],
+    ['missing notification workflow', (state) => {
+        state.responses.delete(
+            'repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main',
+        );
     }],
     ['duplicate main rules', (state) => {
         state.responses.set('repos/kyaulabs/prism/rulesets', [

@@ -18,6 +18,7 @@ const SIGNING_SECRET_NAMES = Object.freeze([
 const ATTESTATION_PATH = path.join('.pi', 'prism-tool', 'catalogue-publication-readiness.json');
 const STATIC_ENDPOINTS = new Set([
     'repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main',
+    'repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main',
     'repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main',
     'repos/kyaulabs/prism/rulesets',
     'repos/kyaulabs/prism-adapters/rulesets',
@@ -201,6 +202,11 @@ function inspectCataloguePublicationReadiness({phase, attestation, request}) {
         evaluate('prism-workflow', 'trusted Prism release workflow is present', () =>
             workflowReady(request('repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main'),
                 '.github/workflows/release.yml')),
+        evaluate('prism-notification-workflow', 'trusted Prism notification workflow is present', () =>
+            workflowReady(
+                request('repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main'),
+                '.github/workflows/catalogue-notify.yml',
+            )),
         evaluate('publisher-workflow', 'trusted publisher workflow is present', () =>
             workflowReady(request('repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main'),
                 '.github/workflows/catalogue-signing.yml')),
