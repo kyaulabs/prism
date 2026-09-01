@@ -3,10 +3,17 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {execFileSync} = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {
+    applyAutomation,
+    planAutomation,
+    verifyAutomation,
+} = require('../../packages/prism-core/scripts/prism-tool/automation');
 const {renderCoreAutomationProvider} = require(
     '../../packages/prism-core/scripts/prism-tool/automation-providers'
 );
@@ -34,13 +41,30 @@ function captureWrites(action) {
     }
 }
 
-function makeFixture(t) {
+function makeFixture(t, adapterRoot = ADAPTER_ROOT) {
     const projectRoot = makeTempDir();
     writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
-        skills: [path.join(ADAPTER_ROOT, 'skills')],
+        skills: [path.join(adapterRoot, 'skills')],
     });
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     return {projectRoot, coreRoot: CORE_ROOT};
+}
+
+function makeGitFixture(t, adapterRoot = ADAPTER_ROOT) {
+    const fixture = makeFixture(t, adapterRoot);
+    fs.writeFileSync(path.join(fixture.projectRoot, '.gitignore'), '.pi/prism-tool/\n');
+    execFileSync('git', ['init', '-b', 'feat/tester-abcd-automation'], {
+        cwd: fixture.projectRoot,
+        stdio: 'ignore',
+    });
+    execFileSync('git', ['config', 'user.name', 'Test User'], {cwd: fixture.projectRoot});
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], {cwd: fixture.projectRoot});
+    execFileSync('git', ['add', '.'], {cwd: fixture.projectRoot});
+    execFileSync('git', ['commit', '-m', 'test fixture'], {
+        cwd: fixture.projectRoot,
+        stdio: 'ignore',
+    });
+    return fixture;
 }
 
 function installCanonicalAutomation(fixture) {
@@ -53,6 +77,306 @@ function installCanonicalAutomation(fixture) {
         contract: ADAPTER_CONTRACT,
     });
 }
+
+test('exposes the approved automation transaction through the CLI', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = captureWrites(() => main(['automation', 'plan', '--json'], fixture));
+    assert.equal(planned.status, 0, planned.stderr);
+    const plan = JSON.parse(planned.stdout);
+
+    const rejected = captureWrites(() => main([
+        'automation',
+        'apply',
+        `--plan=${plan.planPath}`,
+        '--json',
+    ], fixture));
+    assert.equal(rejected.status, 2);
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.github',
+        'workflows',
+        'back-merge.yml'
+    )), false);
+
+    const applied = captureWrites(() => main([
+        'automation',
+        'apply',
+        `--plan=${plan.planPath}`,
+        '--approval=yes',
+        '--json',
+    ], fixture));
+    assert.equal(applied.status, 0, applied.stderr);
+    assert.equal(JSON.parse(applied.stdout).command, 'automation apply');
+    const verified = captureWrites(() => main(['automation', 'verify', '--json'], fixture));
+    assert.equal(verified.status, 0, verified.stderr);
+    assert.equal(JSON.parse(verified.stdout).disposition, 'CURRENT');
+});
+
+test('rejects stale ownership without changing project automation', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const workflowPath = path.join(
+        fixture.projectRoot,
+        '.github',
+        'workflows',
+        'back-merge.yml'
+    );
+    fs.mkdirSync(path.dirname(workflowPath), {recursive: true});
+    fs.writeFileSync(workflowPath, 'name: Human workflow\n');
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), 'name: Human workflow\n');
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.github',
+        'scripts',
+        'check-php.sh'
+    )), false);
+});
+
+test('rejects a stale Git worktree precondition', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    fs.appendFileSync(path.join(fixture.projectRoot, '.gitignore'), '# changed\n');
+
+    assert.throws(
+        () => applyAutomation({...fixture, planPath: planned.planPath}),
+        /Git precondition changed/
+    );
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('preserves a competing automation lock', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation.lock');
+    fs.writeFileSync(lockPath, 'competing lock\n', {mode: 0o600});
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'competing lock\n');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rolls back published outputs after a rename failure', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    let renames = 0;
+
+    assert.throws(() => applyAutomation({
+        ...fixture,
+        planPath: planned.planPath,
+        rename(source, destination) {
+            renames += 1;
+            if (renames === 2) throw new Error('injected rename failure');
+            fs.renameSync(source, destination);
+        },
+    }), /injected rename failure/);
+    assert.equal(renames, 2);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation.lock'
+    )), false);
+});
+
+test('does not follow a substituted automation destination parent', (t) => {
+    const fixture = makeGitFixture(t);
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    const planned = planAutomation(fixture);
+    fs.symlinkSync(outside, path.join(fixture.projectRoot, '.github'), 'dir');
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.deepEqual(fs.readdirSync(outside), []);
+    assert.equal(fs.lstatSync(path.join(fixture.projectRoot, '.github')).isSymbolicLink(), true);
+});
+
+test('does not read through a substituted automation candidate', (t) => {
+    const fixture = makeGitFixture(t);
+    const outside = path.join(makeTempDir(), 'outside.txt');
+    t.after(() => fs.rmSync(path.dirname(outside), {recursive: true, force: true}));
+    fs.writeFileSync(outside, 'outside\n');
+    const planned = planAutomation(fixture);
+    const candidatePath = path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation',
+        'candidate',
+        '.github',
+        'scripts',
+        'check-php.sh'
+    );
+    fs.unlinkSync(candidatePath);
+    fs.symlinkSync(outside, candidatePath);
+    const originalRead = fs.readFileSync;
+    let followed = false;
+    fs.readFileSync = function observeCandidate(filePath, ...args) {
+        if (filePath === candidatePath) followed = true;
+        return originalRead.call(this, filePath, ...args);
+    };
+
+    try {
+        assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    } finally {
+        fs.readFileSync = originalRead;
+    }
+    assert.equal(followed, false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects provider identity drift after planning', (t) => {
+    const adapterRoot = makeTempDir();
+    fs.cpSync(ADAPTER_ROOT, adapterRoot, {recursive: true});
+    t.after(() => fs.rmSync(adapterRoot, {recursive: true, force: true}));
+    const fixture = makeGitFixture(t, adapterRoot);
+    const planned = planAutomation(fixture);
+    const manifestPath = path.join(adapterRoot, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.version = '9.9.9';
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('refuses to replace a plan while the automation lock is held', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation.lock');
+    fs.writeFileSync(lockPath, 'held\n', {mode: 0o600});
+
+    assert.throws(() => planAutomation(fixture), /locked/);
+    assert.equal(fs.existsSync(planned.planPath), true);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'held\n');
+});
+
+test('preserves unowned automation operation state', (t) => {
+    const fixture = makeGitFixture(t);
+    const operationRoot = path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation'
+    );
+    fs.mkdirSync(operationRoot, {recursive: true});
+    const humanPath = path.join(operationRoot, 'human.txt');
+    fs.writeFileSync(humanPath, 'human state\n');
+
+    assert.throws(() => planAutomation(fixture));
+    assert.equal(fs.readFileSync(humanPath, 'utf8'), 'human state\n');
+});
+
+test('preserves a replacement automation lock during cleanup', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const lockPath = path.join(fixture.projectRoot, '.pi', 'prism-tool', 'automation.lock');
+
+    assert.throws(() => applyAutomation({
+        ...fixture,
+        planPath: planned.planPath,
+        rename() {
+            fs.unlinkSync(lockPath);
+            fs.writeFileSync(lockPath, 'replacement\n', {mode: 0o600});
+            throw new Error('replace lock');
+        },
+    }));
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'replacement\n');
+});
+
+test('preserves concurrently changed output during rollback', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    let renames = 0;
+    let changedPath;
+
+    assert.throws(() => applyAutomation({
+        ...fixture,
+        planPath: planned.planPath,
+        rename(source, destination) {
+            renames += 1;
+            if (renames === 1) {
+                fs.renameSync(source, destination);
+                fs.appendFileSync(destination, 'concurrent change\n');
+                changedPath = destination;
+                return;
+            }
+            throw new Error('stop publication');
+        },
+    }));
+    assert.match(fs.readFileSync(changedPath, 'utf8'), /concurrent change/);
+});
+
+test('rejects a changed immutable automation plan', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    envelope.plan.outputs[0].sha256 = '0'.repeat(64);
+    fs.writeFileSync(planned.planPath, `${JSON.stringify(envelope, null, 2)}\n`);
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects an automation plan output that escapes the project', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const escapedPath = path.join(path.dirname(fixture.projectRoot), 'escaped-automation.txt');
+    t.after(() => fs.rmSync(escapedPath, {force: true}));
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    envelope.plan.outputs[0].path = '../escaped-automation.txt';
+    envelope.planDigest = crypto.createHash('sha256')
+        .update(JSON.stringify(envelope.plan))
+        .digest('hex');
+    const changedPlanPath = path.join(
+        path.dirname(planned.planPath),
+        `plan-${envelope.planDigest}.json`
+    );
+    fs.writeFileSync(changedPlanPath, `${JSON.stringify(envelope, null, 2)}\n`, {mode: 0o600});
+
+    assert.throws(() => applyAutomation({...fixture, planPath: changedPlanPath}));
+    assert.equal(fs.existsSync(escapedPath), false);
+});
+
+test('plans, applies, and verifies established automation atomically', (t) => {
+    const fixture = makeGitFixture(t);
+
+    const planned = planAutomation(fixture);
+
+    assert.equal(planned.status, 'GO');
+    assert.match(
+        planned.planPath,
+        /[.]pi\/prism-tool\/automation\/plan-[a-f0-9]{64}[.]json$/
+    );
+    assert.equal(
+        planned.planDigest,
+        path.basename(planned.planPath).slice('plan-'.length, -'.json'.length)
+    );
+    assert.equal(fs.statSync(planned.planPath).mode & 0o777, 0o600);
+    const applied = applyAutomation({...fixture, planPath: planned.planPath});
+    assert.equal(applied.status, 'GO');
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.github',
+        'workflows',
+        'back-merge.yml'
+    )), true);
+    assert.equal(verifyAutomation(fixture).status, 'GO');
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation'
+    )), false);
+    assert.equal(fs.existsSync(path.join(
+        fixture.projectRoot,
+        '.pi',
+        'prism-tool',
+        'automation.lock'
+    )), false);
+});
 
 test('inspects absent Core and adapter automation as createable', (t) => {
     const fixture = makeFixture(t);
@@ -160,9 +484,9 @@ test('fails closed when no trusted automation adapter is active', (t) => {
         disposition: 'CONFLICT',
         providers: [],
         checks: [{
-            id: 'automation-ownership',
+            id: 'automation-inspect',
             status: 'FAIL',
-            message: 'automation inspection failed',
+            message: 'automation inspect failed',
         }],
     });
 });

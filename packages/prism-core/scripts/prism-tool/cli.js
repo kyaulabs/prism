@@ -5,7 +5,12 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const {inspectAutomation} = require('./automation');
+const {
+    applyAutomation,
+    inspectAutomation,
+    planAutomation,
+    verifyAutomation,
+} = require('./automation');
 const {MAX_EXECUTION_TIMEOUT_MS} = require('./contract');
 const {loadCoreContract, resolveBundledComponent} = require('./core-toolchain');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
@@ -1802,38 +1807,78 @@ function renderPackageReleaseFailure(operation, json) {
 
 function automationCommand(args, context) {
     const [operation, ...controls] = args;
-    const json = controls.length === 1 && controls[0] === '--json';
-    if (
-        operation !== 'inspect' ||
-        controls.some((argument) => argument !== '--json') ||
-        controls.filter((argument) => argument === '--json').length > 1
-    ) {
-        process.stderr.write('usage: prism-tool automation inspect [--json]\n');
+    const jsonControls = controls.filter((argument) => argument === '--json');
+    const json = jsonControls.length === 1;
+    const roots = {
+        projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+    };
+    if (jsonControls.length > 1) {
+        process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
         return EXIT.USAGE;
     }
     let result;
-    try {
-        result = inspectAutomation({
-            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
-            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-        });
-    } catch {
-        result = {
-            status: 'NO-GO',
-            disposition: 'CONFLICT',
-            providers: [],
-            checks: [{
-                id: 'automation-ownership',
-                status: 'FAIL',
-                message: 'automation inspection failed',
-            }],
-        };
+    if (['inspect', 'plan', 'verify'].includes(operation)) {
+        if (controls.some((argument) => argument !== '--json')) {
+            process.stderr.write(`usage: prism-tool automation ${operation} [--json]\n`);
+            return EXIT.USAGE;
+        }
+        try {
+            if (operation === 'inspect') result = inspectAutomation(roots);
+            else if (operation === 'plan') result = planAutomation(roots);
+            else result = verifyAutomation(roots);
+        } catch {
+            result = {
+                status: 'NO-GO',
+                disposition: 'CONFLICT',
+                providers: [],
+                checks: [{
+                    id: `automation-${operation}`,
+                    status: 'FAIL',
+                    message: `automation ${operation} failed`,
+                }],
+            };
+        }
+    } else if (operation === 'apply') {
+        const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+        const plans = controls.filter((argument) => argument.startsWith('--plan='));
+        if (approvals.length !== 1 || approvals[0] !== '--approval=yes') {
+            process.stderr.write('prism-tool: mutation approval required\n');
+            return EXIT.USAGE;
+        }
+        if (
+            plans.length !== 1 ||
+            plans[0].length === '--plan='.length ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--approval=') &&
+                !argument.startsWith('--plan=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool automation apply --plan=PATH [--json] --approval=yes\n'
+            );
+            return EXIT.USAGE;
+        }
+        try {
+            result = applyAutomation({...roots, planPath: plans[0].slice('--plan='.length)});
+        } catch {
+            result = {
+                status: 'NO-GO',
+                disposition: 'CONFLICT',
+                providers: [],
+                checks: [{
+                    id: 'automation-apply',
+                    status: 'FAIL',
+                    message: 'automation apply failed',
+                }],
+            };
+        }
+    } else {
+        process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
+        return EXIT.USAGE;
     }
-    const report = {
-        schemaVersion: 1,
-        command: 'automation inspect',
-        ...result,
-    };
+    const report = {schemaVersion: 1, command: `automation ${operation}`, ...result};
     if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
     else process.stdout.write(`${report.status}\n`);
     return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
