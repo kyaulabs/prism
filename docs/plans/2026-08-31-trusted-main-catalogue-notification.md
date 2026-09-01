@@ -113,7 +113,7 @@ prism-tool commit create --type docs --scope architecture --subject "record trus
 - Produces: local event `prism_adapter_release` with exact client payload `{schemaVersion: 1, sourceRepository: "kyaulabs/prism", version: string, mergeSha: string}`.
 - Produces: publisher workflow dispatch `{ref: "main", inputs: {mode: "release", version: string, merge_commit: string}}`.
 
-- [ ] **Step 1: Write the failing workflow-topology regression**
+- [x] **Step 1: Write the failing workflow-topology regression**
 
 In `tests/Shell/release_workflow_test.sh`, add:
 
@@ -247,7 +247,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: Write the failing boundary simulations**
+- [x] **Step 2: Write the failing boundary simulations**
 
 Replace the current `9f. Executable validated adapter release dispatch` block with two extracted-step simulations. The first executes `Schedule trusted catalogue notification` from `release.yml`:
 
@@ -371,13 +371,13 @@ else
 fi
 ```
 
-- [ ] **Step 3: Run the focused workflow test to verify Red**
+- [x] **Step 3: Run the focused workflow test to verify Red**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
 Expected: FAIL because `catalogue-notify.yml` and `Schedule trusted catalogue notification` do not exist and the credential-bearing job remains in `release.yml`.
 
-- [ ] **Step 4: Implement the release handoff in both managed workflow copies**
+- [x] **Step 4: Implement the release handoff in both managed workflow copies**
 
 Remove the `publish` job's now-unused `outputs` map and remove the complete `notify-publisher` job from both `.github/workflows/release.yml` and `packages/prism-core/config/release.yml`.
 
@@ -423,7 +423,7 @@ Insert this step after `Open back-merge PR` and before `Fail unsuccessful public
 
 Do not duplicate version or SHA validation here; the step consumes outputs produced only by the existing validated release step and is guarded by its stable classification and successful publication outcomes.
 
-- [ ] **Step 5: Create the trusted-main notification workflow**
+- [x] **Step 5: Create the trusted-main notification workflow**
 
 Create `.github/workflows/catalogue-notify.yml` with this complete content:
 
@@ -496,7 +496,7 @@ jobs:
             --input .prism-adapter-release-dispatch.json
 ```
 
-- [ ] **Step 6: Run focused and ownership tests to verify Green**
+- [x] **Step 6: Run focused and ownership tests to verify Green**
 
 Run: `bash tests/Shell/release_workflow_test.sh`
 
@@ -510,7 +510,7 @@ Run: `node --test tests/Node/prism-tool-package-release-transaction.test.js test
 
 Expected: all tests pass; Core still installs and packages the byte-identical canonical release workflow without claiming `catalogue-notify.yml`.
 
-- [ ] **Step 7: Refactor and create the workflow commit**
+- [x] **Step 7: Refactor and create the workflow commit**
 
 Confirm the two workflow blocks each serialize one closed payload and that no validation or credential use has leaked across the boundary:
 
