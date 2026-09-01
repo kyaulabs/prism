@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
+const {canonicalManagedHooks} = require('./managed-hooks');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const MAX_RESOURCE_BYTES = 1048576;
@@ -248,6 +249,24 @@ function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
             command: 'setup project validate',
         })]),
     });
+    const automation = Object.freeze({
+        id: 'core-repository-automation',
+        displayName: 'Prism Core repository automation',
+        packageName: '@kyaulabs/prism-core',
+        packageVersion: manifest.version,
+        protocolVersion: 1,
+        outputs: Object.freeze(['.github/workflows/back-merge.yml']),
+        effects: Object.freeze([]),
+        checks: Object.freeze([Object.freeze({
+            id: 'core-repository-automation-render',
+            status: 'PASS',
+            message: 'Core repository automation candidate files were rendered',
+        })]),
+        verification: Object.freeze([Object.freeze({
+            id: 'core-repository-automation-inventory',
+            command: 'setup project validate',
+        })]),
+    });
     const profiles = capabilities.length === 0
         ? []
         : require('./bootstrap-profile-providers').loadCoreProfileProviderDescriptors({
@@ -256,7 +275,7 @@ function loadTrustedProviderRegistry({coreRoot, capabilities = []}) {
         });
     return Object.freeze({
         schemaVersion: 1,
-        providers: Object.freeze([baseline, ...profiles]),
+        providers: Object.freeze([baseline, automation, ...profiles]),
     });
 }
 
@@ -567,15 +586,8 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
             'commitlint configuration'
         )],
     ]);
-    for (const event of ['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']) {
-        contents.set(
-            `.github/hooks/${event}`,
-            readRegular(
-                path.join(canonicalCore, 'config', 'bootstrap', 'hooks', event),
-                `${event} hook`,
-                0o755
-            )
-        );
+    for (const hook of canonicalManagedHooks(canonicalCore)) {
+        contents.set(`.github/hooks/${hook.name}`, hook.contents);
     }
     const outputs = OUTPUTS.map((outputPath) => writeCandidate(
         canonicalCandidate,

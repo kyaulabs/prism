@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -678,6 +678,22 @@ function hookRunWithReadiness(invocations = []) {
     };
 }
 
+function testHookLauncher(t) {
+    const launcherRoot = makeTempDir();
+    const logPath = path.join(launcherRoot, 'invocations');
+    t.after(() => fs.rmSync(launcherRoot, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(launcherRoot, 'prism-tool'), [
+        '#!/bin/sh',
+        'if [ "$#" -eq 2 ] && [ "$1" = "hook" ] && [ "$2" = "pre-commit" ]; then',
+        '    printf \'%s\\n\' "$1 $2" > "$PRISM_TEST_HOOK_LOG"',
+        '    exit 0',
+        'fi',
+        'exit 2',
+        '',
+    ].join('\n'), {mode: 0o755});
+    return {launcherRoot, logPath};
+}
+
 function createCommit(projectRoot, parents = [], message = 'test commit', indexTree = false) {
     const tree = git(projectRoot, [indexTree ? 'write-tree' : 'mktree']);
     return execFileSync('git', [
@@ -1199,6 +1215,17 @@ test('stages and attests the exact Core-only seed', (t) => {
     assert.equal(runHook(projectRoot, 'pre-commit', [], {hookRun}).status, 1);
 });
 
+test('rejects back-merge workflow drift before seed staging', (t) => {
+    const {projectRoot, plan} = readyHooks(t);
+    const workflowPath = path.join(projectRoot, '.github', 'workflows', 'back-merge.yml');
+    fs.appendFileSync(workflowPath, 'changed\n');
+
+    const result = prepareSeed(projectRoot, plan.planDigest);
+
+    assert.equal(result.status, 5);
+    assert.deepEqual(stagedNames(projectRoot), []);
+});
+
 test('stages and attests all seven selected capability profiles', (t) => {
     const capabilities = [
         'licensing', 'community-governance', 'github-collaboration',
@@ -1239,7 +1266,7 @@ test('stages and attests all seven selected capability profiles', (t) => {
     const attestation = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities,
+        'core-baseline', 'core-repository-automation', ...capabilities,
     ]);
     assert.equal(attestation.providers.every(({reportDigest}) =>
         /^[0-9a-f]{64}$/.test(reportDigest)
@@ -1393,7 +1420,8 @@ test('stages and attests all seven profiles with selected-adapter evidence', (t)
     ));
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities, 'php-web-scaffold',
+        'core-baseline', 'core-repository-automation', ...capabilities,
+        'php-web-scaffold',
     ]);
     assert.deepEqual(attestation.adapter, {
         ...plan.adapter,
@@ -1418,23 +1446,13 @@ test('stages and attests release management outputs with selected-adapter eviden
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         assert.equal(stagedNames(projectRoot).includes(outputPath), true, outputPath);
     }
     assert.equal(stagedNames(projectRoot).some((name) =>
         name.startsWith('.pi/prism-tool/package-release')
     ), false);
-    assert.deepEqual(JSON.parse(fs.readFileSync(
-        path.join(projectRoot, '.prism', 'release.json'),
-        'utf8'
-    )), {
-        schemaVersion: 2,
-        managedBy: '@kyaulabs/prism-core',
-        versionPolicy: 'lockstep',
-        packages: ['.'],
-        adapterReleases: [],
-    });
+    assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'release.json')), false);
     const attemptRoot = path.dirname(path.dirname(plan.data.planPath));
     const attestation = JSON.parse(fs.readFileSync(
         path.join(attemptRoot, 'seed-attestation.json'),
@@ -1443,6 +1461,7 @@ test('stages and attests release management outputs with selected-adapter eviden
     assert.deepEqual(attestation.capabilities, ['release-management']);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'release-management',
         'php-web-scaffold',
     ]);
@@ -1458,7 +1477,6 @@ test('rejects release management output drift before seed staging', (t) => {
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         const {projectRoot, plan} = readySelectedHooks(t, ['release-management']);
         fs.appendFileSync(path.join(projectRoot, ...outputPath.split('/')), 'changed\n');
@@ -1506,7 +1524,7 @@ test('stages and attests all seven Template capability outputs without remote by
     assert.equal(attestation.source.mode, 'TEMPLATE');
     assert.deepEqual(attestation.capabilities, capabilities);
     assert.deepEqual(attestation.providers.map(({id}) => id), [
-        'core-baseline', ...capabilities,
+        'core-baseline', 'core-repository-automation', ...capabilities,
     ]);
     assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
     assertNoRemoteManifestBytes(projectRoot, plan, fixture);
@@ -1556,8 +1574,13 @@ test('stages and attests immutable Template evidence for a Core-only seed', asyn
         },
         classificationSha256: plan.source.evidence.classificationSha256,
     });
-    assert.equal(attestation.providers.length, 1);
-    assert.match(attestation.providers[0].reportDigest, /^[0-9a-f]{64}$/);
+    assert.deepEqual(attestation.providers.map(({id}) => id), [
+        'core-baseline',
+        'core-repository-automation',
+    ]);
+    assert.equal(attestation.providers.every(({reportDigest}) =>
+        /^[0-9a-f]{64}$/.test(reportDigest)
+    ), true);
     assert.equal(attestation.adapter, null);
     assert.deepEqual(stagedNames(projectRoot), plan.outputs.map(({path: name}) => name).sort());
     assert.equal(stagedNames(projectRoot).some((name) => name.startsWith('.pi/prism-tool/')), false);
@@ -1645,6 +1668,7 @@ test('stages and attests immutable Template evidence for a selected-adapter seed
     });
     assert.deepEqual(attestation.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'php-web-scaffold',
     ]);
     assert.equal(attestation.providers.every(({reportDigest}) =>
@@ -2003,6 +2027,7 @@ test('rejects unsupported public bootstrap controls before mutation', () => {
 
 test('runs the public Core-only seed sequence without publication', (t) => {
     const projectRoot = makeTempDir();
+    const launcher = testHookLauncher(t);
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     const plan = JSON.parse(planProject(projectRoot).stdout);
     assert.equal(applyProject(projectRoot, plan.planDigest).status, 0);
@@ -2053,13 +2078,19 @@ test('runs the public Core-only seed sequence without publication', (t) => {
         projectRoot,
         coreRoot: CORE_ROOT,
         cwd: projectRoot,
-        env: {...process.env, PI_MODEL: 'provider/implementation-model'},
+        env: {
+            ...process.env,
+            PATH: `${launcher.launcherRoot}${path.delimiter}${process.env.PATH ?? ''}`,
+            PI_MODEL: 'provider/implementation-model',
+            PRISM_TEST_HOOK_LOG: launcher.logPath,
+        },
         randomBytes: () => Buffer.from('0123456789abcdef0123456789abcdef', 'hex'),
         run,
     }));
 
     assert.equal(committed.status, 0, committed.stderr);
     assert.match(committed.stdout, /^ignore: bootstrap prism project/m);
+    assert.equal(fs.readFileSync(launcher.logPath, 'utf8'), 'hook pre-commit\n');
     assert.equal(git(projectRoot, ['rev-list', '--count', 'HEAD']), '1');
     assert.equal(git(projectRoot, ['status', '--porcelain=v1']), '');
     assert.equal(git(projectRoot, ['remote']), '');

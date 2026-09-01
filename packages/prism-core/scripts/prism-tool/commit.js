@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -202,42 +202,119 @@ function shaValue(result, message) {
     return value;
 }
 
-function repositoryState(context, coreRoot) {
+function resolveRepository(context) {
     const rootResult = requireSuccess(
         invoke(context, 'git', ['rev-parse', '--show-toplevel']), EXIT.TOOL, 'repository is unavailable'
     );
-    let repository;
     try {
-        repository = fs.realpathSync(resultText(rootResult).trim());
+        return fs.realpathSync(resultText(rootResult).trim());
     } catch {
         throw new CommitError(EXIT.TOOL, 'repository is unavailable');
     }
+}
+
+function resolvePreCommitProof(context, repository) {
+    const io = context.fs ?? fs;
+    const hooksResult = requireSuccess(
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-path', 'hooks'], {
+            cwd: repository,
+        }),
+        EXIT.TOOL,
+        'pre-commit hook resolution failed'
+    );
+    const hookResult = requireSuccess(
+        invoke(context, 'git', ['rev-parse', '--path-format=absolute', '--git-path', 'hooks/pre-commit'], {
+            cwd: repository,
+        }),
+        EXIT.TOOL,
+        'pre-commit hook resolution failed'
+    );
+    const hooksDirectory = resultText(hooksResult).trim();
+    const hookPath = resultText(hookResult).trim();
+    try {
+        if (!path.isAbsolute(hooksDirectory) || !path.isAbsolute(hookPath) ||
+            path.resolve(hookPath) !== path.join(path.resolve(hooksDirectory), 'pre-commit')) {
+            throw new Error();
+        }
+        const resolvedHooks = io.realpathSync(hooksDirectory);
+        const resolvedParent = io.realpathSync(path.dirname(hookPath));
+        const identity = io.lstatSync(hookPath);
+        if (resolvedParent !== resolvedHooks || !identity.isFile() || identity.isSymbolicLink() ||
+            (identity.mode & 0o111) === 0) {
+            throw new Error();
+        }
+        return {
+            path: hookPath,
+            dev: identity.dev,
+            ino: identity.ino,
+            mode: identity.mode,
+        };
+    } catch {
+        throw new CommitError(EXIT.TOOL, 'pre-commit hook is unavailable');
+    }
+}
+
+function runPreCommitProof(context, repository) {
+    const identity = resolvePreCommitProof(context, repository);
+    const result = invoke(context, identity.path, [], {
+        cwd: repository,
+        env: context.env ?? process.env,
+    });
+    if (result.error || result.status !== 0) {
+        throw new CommitError(EXIT.TOOL, 'pre-commit proof failed');
+    }
+    return identity;
+}
+
+function revalidatePreCommitProof(context, repository, expected) {
+    let current;
+    try {
+        current = resolvePreCommitProof(context, repository);
+    } catch {
+        throw new CommitError(EXIT.TRANSACTION, 'pre-commit hook changed');
+    }
+    if (current.path !== expected.path || current.dev !== expected.dev ||
+        current.ino !== expected.ino || current.mode !== expected.mode) {
+        throw new CommitError(EXIT.TRANSACTION, 'pre-commit hook changed');
+    }
+}
+
+function repositoryState(context, coreRoot, repository = resolveRepository(context)) {
     const branchResult = requireSuccess(
-        invoke(context, 'git', ['symbolic-ref', '--quiet', '--short', 'HEAD']),
+        invoke(context, 'git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {cwd: repository}),
         EXIT.TOOL,
         'detached HEAD is not supported'
     );
     const branch = resultText(branchResult).trim();
-    const branchCheck = invoke(context, 'bash', [path.join(coreRoot, 'scripts', 'validate-branch-name.sh'), branch]);
-    const headResult = invoke(context, 'git', ['rev-parse', '--verify', 'HEAD']);
+    const branchCheck = invoke(
+        context,
+        'bash',
+        [path.join(coreRoot, 'scripts', 'validate-branch-name.sh'), branch],
+        {cwd: repository}
+    );
+    const headResult = invoke(context, 'git', ['rev-parse', '--verify', 'HEAD'], {cwd: repository});
     const unborn = headResult.status !== 0 && !headResult.error;
     if (branchCheck.error || (branchCheck.status !== 0 && branchCheck.status !== 3)) {
         throw new CommitError(EXIT.TOOL, 'branch is invalid');
     }
     if (branchCheck.status === 3) {
-        const remote = invoke(context, 'git', ['branch', '-r', '--list', `*/${branch}`]);
+        const remote = invoke(context, 'git', ['branch', '-r', '--list', `*/${branch}`], {cwd: repository});
         if (!unborn || remote.error || remote.status !== 0 || resultText(remote).trim() !== '') {
             throw new CommitError(EXIT.TOOL, 'protected branch is not writable');
         }
     }
     const head = unborn ? 'unborn' : shaValue(headResult, 'HEAD is invalid');
-    const staged = invoke(context, 'git', ['diff', '--cached', '--quiet', '--']);
+    const staged = invoke(context, 'git', ['diff', '--cached', '--quiet', '--'], {cwd: repository});
     if (staged.error || (staged.status !== 0 && staged.status !== 1)) {
         throw new CommitError(EXIT.TOOL, 'staged state is unavailable');
     }
     if (staged.status === 0) throw new CommitError(EXIT.TOOL, 'staged changes are required');
     const tree = shaValue(
-        requireSuccess(invoke(context, 'git', ['write-tree']), EXIT.TOOL, 'staged state is unavailable'),
+        requireSuccess(
+            invoke(context, 'git', ['write-tree'], {cwd: repository}),
+            EXIT.TOOL,
+            'staged state is unavailable'
+        ),
         'staged state is invalid'
     );
     return {branch, head, repository, tree};
@@ -432,14 +509,17 @@ function create(args, context) {
     const header = validateStructured(parsed);
     validateReservedIgnore(parsed);
     const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-    const reserved = parsed.type === 'ignore' ? activeSeed(context, coreRoot) : null;
     const launcher = path.join(coreRoot, 'scripts', 'prism-tool.js');
     requireSuccess(
         invoke(context, process.execPath, [launcher, 'doctor', '--local-only']),
         EXIT.READINESS,
         'local readiness failed'
     );
-    const state = repositoryState(context, coreRoot);
+    const repository = resolveRepository(context);
+    const preCommitProof = runPreCommitProof(context, repository);
+    const reserved = parsed.type === 'ignore' ? activeSeed(context, coreRoot) : null;
+    if (reserved !== null) revalidatePreCommitProof(context, repository, preCommitProof);
+    const state = repositoryState(context, coreRoot, repository);
     if (reserved !== null && !sameSeed(reserved, activeSeed(context, coreRoot))) {
         throw new CommitError(EXIT.TRANSACTION, 'root seed attestation changed');
     }

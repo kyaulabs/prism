@@ -189,7 +189,7 @@ The eight profiles are independent and disabled by default:
 | `repository-ownership` | `.github/CODEOWNERS` |
 | `support-routing` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `funding` | `.github/FUNDING.yml` |
-| `release-management` | `CHANGELOG.md`, `cliff.toml`, `.github/workflows/release.yml`, `.prism/release.json` |
+| `release-management` | `CHANGELOG.md`, `cliff.toml`, `.github/workflows/release.yml` |
 
 Licensing supports `AGPL-3.0-only` and `MIT`. Security policy is one of
 `current-development`, `latest-release`, `latest-major-line`, or `custom`.
@@ -200,6 +200,10 @@ bounded from 1 to 8760 hours.
 `Support` and description `Get help with this project.` The
 `blank_issues_enabled` value is `false` when `github-collaboration` is enabled
 and `true` otherwise.
+
+Repository release management does not require a publishable package. The
+separate package-release transaction owns `.prism/release.json` and accepts the
+managed release workflow as a required, read-only dependency.
 
 Funding accepts at most 15 records. The `github` and `custom` providers allow
 four records each; every other provider allows one. Custom destinations must be

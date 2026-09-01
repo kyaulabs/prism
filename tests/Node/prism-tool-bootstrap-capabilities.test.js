@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-capabilities.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -229,7 +229,6 @@ test('reports release management repository metadata and publication targets', (
             'CHANGELOG.md',
             'cliff.toml',
             '.github/workflows/release.yml',
-            '.prism/release.json',
         ],
     }]);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
@@ -699,24 +698,14 @@ test('renders a trusted release management provider from publishable candidate p
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]);
     assert.match(fs.readFileSync(path.join(candidateRoot, 'cliff.toml'), 'utf8'),
         /github\.com\/example\/project\/releases/);
-    assert.deepEqual(JSON.parse(fs.readFileSync(
-        path.join(candidateRoot, '.prism', 'release.json'),
-        'utf8'
-    )), {
-        schemaVersion: 2,
-        managedBy: '@kyaulabs/prism-core',
-        versionPolicy: 'lockstep',
-        packages: ['.'],
-        adapterReleases: [],
-    });
+    assert.equal(fs.existsSync(path.join(candidateRoot, '.prism', 'release.json')), false);
     assert.equal(fs.existsSync(path.join(packageRoot, '.pi')), false);
 });
 
-test('rejects release management when package candidates or trusted resources are invalid', (t) => {
+test('renders release management independently of packages and rejects invalid resources', (t) => {
     const candidateRoot = makeTempDir();
     const packageRoot = makeTempDir();
     const fixtureCore = makeTempDir();
@@ -748,12 +737,12 @@ test('rejects release management when package candidates or trusted resources ar
         private: true,
     }, null, 2)}\n`);
 
-    assert.throws(() => renderReleaseManagementProvider({
+    assert.equal(renderReleaseManagementProvider({
         coreRoot: CORE_ROOT,
         candidateRoot,
         packageRoot,
         request,
-    }), /no publishable release packages/);
+    }).status, 'GO');
 
     fs.writeFileSync(path.join(packageRoot, 'package.json'), `${JSON.stringify({
         name: '@example/public',
@@ -1276,7 +1265,6 @@ test('declares exact trusted ownership for selected profile providers', () => {
                 'CHANGELOG.md',
                 'cliff.toml',
                 '.github/workflows/release.yml',
-                '.prism/release.json',
             ],
         },
     ]);
@@ -1301,7 +1289,7 @@ test('loads selected profiles into the trusted Core provider registry', () => {
     });
 
     assert.deepEqual(registry.providers.map(({id}) => id), [
-        'core-baseline', 'licensing', 'github-collaboration',
+        'core-baseline', 'core-repository-automation', 'licensing', 'github-collaboration',
     ]);
 });
 
@@ -1501,7 +1489,7 @@ test('plans each project capability independently through the public launcher', 
         const report = JSON.parse(result.stdout);
         assert.deepEqual(report.capabilities, [scenario.capability]);
         assert.deepEqual(report.providers.map(({id}) => id), [
-            'core-baseline', scenario.capability,
+            'core-baseline', 'core-repository-automation', scenario.capability,
         ]);
         assert.deepEqual(
             report.outputs
@@ -1540,9 +1528,11 @@ test('composes a selected licensing provider into a Blank Core-only plan', (t) =
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.capabilities, ['licensing']);
-    assert.deepEqual(report.providers.map(({id}) => id), ['core-baseline', 'licensing']);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline', 'core-repository-automation', 'licensing',
+    ]);
     assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
-    assert.equal(report.outputs.length, 8);
+    assert.equal(report.outputs.length, 9);
     assert.deepEqual(report.metadata.capabilityMetadata.licensing, {
         spdxId: 'MIT',
         year: 2026,

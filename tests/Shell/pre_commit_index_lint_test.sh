@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # ── Repro-first tests for pre-commit index-based linting ──────────────────────
 # Bug under test (#77):
@@ -595,6 +595,23 @@ setup_linter_repo "$T12"
 		fail "False negative: staged Markdown violation not caught (exit $ret, no MD001 in output)"
 	fi
 )
+
+# ==============================================================================
+# Test 13: Prism commit creation preserves both pre-commit executions
+# ==============================================================================
+
+echo "── Test 13: Prism commit creation preserves both pre-commit executions ──"
+COMMIT_ENGINE="$REPO_ROOT/packages/prism-core/scripts/prism-tool/commit.js"
+proof_line=$({ grep -nF 'const preCommitProof = runPreCommitProof(context, repository);' "$COMMIT_ENGINE" || true; } | cut -d: -f1)
+snapshot_line=$({ grep -nF 'const state = repositoryState(context, coreRoot, repository);' "$COMMIT_ENGINE" || true; } | cut -d: -f1)
+commit_line=$({ grep -nF "invoke(context, 'git', ['commit', '-S', '-F', owned.file]" "$COMMIT_ENGINE" || true; } | cut -d: -f1)
+if [ -n "$proof_line" ] && [ -n "$snapshot_line" ] && [ -n "$commit_line" ] \
+    && [ "$proof_line" -lt "$snapshot_line" ] && [ "$snapshot_line" -lt "$commit_line" ] \
+    && ! grep -qF -- '--no-verify' "$COMMIT_ENGINE"; then
+    pass "Prism proves pre-commit before snapshot and leaves normal Git hooks enabled"
+else
+    fail "Prism commit creation does not preserve both pre-commit executions"
+fi
 
 # ── Summary ────────────────────────────────────────────────────────────
 

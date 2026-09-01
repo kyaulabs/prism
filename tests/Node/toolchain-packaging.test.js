@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -91,6 +91,11 @@ test('packs the core package with every owned resource and executable modes', ()
     );
     assert.equal(packed.files.has('config/release.yml'), true, 'canonical release workflow packaged');
     assert.equal(
+        packed.files.has('config/automation/back-merge.yml'),
+        true,
+        'canonical back-merge workflow packaged'
+    );
+    assert.equal(
         packed.files.has('config/adapter-catalogue-trust.json'),
         true,
         'adapter catalogue trust root packaged'
@@ -117,7 +122,8 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 2$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 3$/m);
+    assert.doesNotMatch(releaseWorkflow, /back-merge|--base develop --head main/);
     assert.equal(
         releaseWorkflow,
         fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),
@@ -157,7 +163,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
         'adapter-catalogue-cache', 'adapter-catalogue-http', 'adapter-catalogue-validation',
-        'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
+        'automation', 'automation-providers', 'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
         'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
@@ -410,7 +416,8 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
     for (const module of [
-        'audit', 'bootstrap-scaffold', 'project', 'transaction', 'visual-review-files', 'workspace',
+        'audit', 'automation-provider', 'bootstrap-scaffold', 'project', 'transaction',
+        'visual-review-files', 'workspace',
     ]) {
         assert.equal(packed.files.has(`scripts/toolchain/${module}.js`), true, module);
     }

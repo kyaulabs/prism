@@ -1,4 +1,4 @@
-// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -232,6 +232,19 @@ function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
     return handler;
 }
 
+function discoverAutomationAdapter(options) {
+    const registration = discoverAdapter(options);
+    const handler = loadAdapterHandler(registration);
+    if (
+        typeof handler.describeAutomation !== 'function' ||
+        typeof handler.prepareAutomation !== 'function' ||
+        typeof handler.verifyAutomation !== 'function'
+    ) {
+        throw new Error('adapter automation interface is invalid');
+    }
+    return Object.freeze({registration, handler});
+}
+
 function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalPi = fs.realpathSync(piDir);
@@ -250,6 +263,7 @@ function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
 
 module.exports = {
     discoverAdapter,
+    discoverAutomationAdapter,
     loadAdapterHandler,
     registrationFor,
     validateBootstrapRegistration,

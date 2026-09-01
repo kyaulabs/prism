@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
-
-# ── Repro-first tests for install-hooks.sh ─────────────────────────────────────
-# Bugs under test (from Fable 5 audit):
-#   1. Symlink hooks break in worktrees (git worktree add);
-#      core.hooksPath is silently bypassed by user configs.
-#   2. Three hooks are committed as 100644; chmod +x dirties the working tree
-#      and is reverted by git checkout/stash.
-#   3. No nullglob: empty .github/hooks leaves junk * symlink + crashes.
-#   4. Backup logic loses existing symlink hooks with no backup.
-#
-# Fix: Replace the entire symlink-per-hook mechanism with
-#   git config core.hooksPath .github/hooks  (one line, no symlinks, no chmod).
-# All four bugs become moot.
+# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 set -euo pipefail
 
@@ -22,113 +9,78 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 REAL_SCRIPT="$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
+CANONICAL_ROOT="$REPO_ROOT/packages/prism-core/config/bootstrap/hooks"
 
-if [ ! -f "$REAL_SCRIPT" ]; then
-	fail "Cannot find install-hooks.sh at $REAL_SCRIPT"
-	exit 1
-fi
-
-# ── Test 1: core.hooksPath is set, no symlinks, no dirtying ───────────────────
-
-echo ""
-echo "── Test 1: core.hooksPath (no symlinks, no chmod) ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
 git_init_test_repo "$T1"
 (
-	cd "$T1"
-	mkdir -p .github/hooks packages/prism-core/scripts
-	cat > .github/hooks/pre-commit <<'HOOKEOF'
-#!/usr/bin/env bash
-echo "pre-commit ran"
-HOOKEOF
-	chmod +x .github/hooks/pre-commit
-	git add .github/hooks/pre-commit
-	git commit --quiet -m "init"
-	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
-	bash packages/prism-core/scripts/install-hooks.sh > /dev/null 2>&1
-
-	# Assert: core.hooksPath is set
-	hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")
-	if [ "$hooks_path" = ".github/hooks" ]; then
-		pass "core.hooksPath = '.github/hooks'"
-	else
-		fail "core.hooksPath = '$hooks_path' (expected '.github/hooks')"
-	fi
-
-	# Assert: no symlinks in .git/hooks
-	symlink_count=$(find .git/hooks -type l 2>/dev/null | wc -l)
-	if [ "$symlink_count" -eq 0 ]; then
-		pass "0 symlinks found in .git/hooks"
-	else
-		fail "$symlink_count symlink(s) found in .git/hooks (expected 0)"
-	fi
-
-	# Assert: no tracked files modified (ignore untracked files from test setup)
-	modified=$(git diff --name-only 2>/dev/null | wc -l)
-	if [ "$modified" -eq 0 ]; then
-		pass "Working tree is clean (no chmod dirtying)"
-	else
-		fail "Working tree has $modified modified file(s) (chmod dirtying bug)"
-		git diff --name-only
-	fi
+    cd "$T1"
+    mkdir -p packages/prism-core/scripts .github/hooks bin
+    cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+    ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
+    printf '#!/usr/bin/env bash\nexit 0\n' > .github/hooks/custom-hook
+    chmod 0755 .github/hooks/custom-hook
+    if PATH="$T1/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
+        for hook in commit-msg pre-commit pre-push prepare-commit-msg; do
+            if cmp -s ".github/hooks/$hook" "$CANONICAL_ROOT/$hook" && \
+               [ -x ".github/hooks/$hook" ]; then
+                pass "$hook is canonical and executable"
+            else
+                fail "$hook is not canonical and executable"
+            fi
+        done
+        if [ "$(git config --local core.hooksPath)" = ".github/hooks" ]; then
+            pass "core.hooksPath is the canonical repository-local path"
+        else
+            fail "core.hooksPath is not canonical"
+        fi
+        if [ -f .github/hooks/custom-hook ]; then
+            pass "unrelated hooks are preserved"
+        else
+            fail "unrelated hook was removed"
+        fi
+    else
+        fail "install-hooks.sh failed to reconcile an empty repository"
+    fi
 )
 
+T2=$(mktemp -d)
+register_temp_dir "$T2"
+git_init_test_repo "$T2"
+(
+    cd "$T2"
+    mkdir -p packages/prism-core/scripts .github/hooks bin
+    cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
+    ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
+    printf '#!/usr/bin/env bash\necho human\n' > .github/hooks/pre-commit
+    chmod 0755 .github/hooks/pre-commit
+    if PATH="$T2/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
+        fail "install-hooks.sh overwrote an unowned hook"
+    elif grep -qF 'echo human' .github/hooks/pre-commit; then
+        pass "install-hooks.sh preserves an unowned collision"
+    else
+        fail "install-hooks.sh changed an unowned collision"
+    fi
+)
 
-# ── Test 2: All hooks committed as 100755 ─────────────────────────────────────
-
-echo "── Test 2: Hooks committed as 100755 ──"
-for hook in commit-msg post-checkout post-merge pre-commit pre-push prepare-commit-msg; do
-	mode=$(git -C "$REPO_ROOT" ls-files -s ".github/hooks/$hook" 2>/dev/null | awk '{print $1}')
-	if [ "$mode" = "100755" ]; then
-		pass "$hook is 100755"
-	else
-		fail "$hook is $mode (expected 100755)"
-	fi
-done
-
-# ── Test 3: Error on missing hooks directory ──────────────────────────────────
-
-echo "── Test 3: Error on missing hooks directory ──"
 T3=$(mktemp -d)
 register_temp_dir "$T3"
-git_init_test_repo "$T3"
-(
-	cd "$T3"
-	mkdir -p packages/prism-core/scripts
-	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
-	set +e
-	bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1
-	ret=$?
-	set -e
-	if [ "$ret" -ne 0 ]; then
-		pass "Correctly errors when .github/hooks is missing (exit $ret)"
-	else
-		fail "Should error when .github/hooks is missing (exit 0)"
-	fi
-)
-# ── Test 4: Handles empty hooks directory (nullglob bug) ──────────────────────
+mkdir -p "$T3/bin"
+cp "$REAL_SCRIPT" "$T3/install-hooks.sh"
+if PATH="$T3/bin" /bin/bash "$T3/install-hooks.sh" >"$T3/out" 2>"$T3/err"; then
+    fail "install-hooks.sh succeeded without prism-tool"
+elif grep -qF '/setup' "$T3/err"; then
+    pass "missing prism-tool fails closed with setup remediation"
+else
+    fail "missing prism-tool diagnostic is incomplete"
+fi
 
-echo "── Test 4: Empty hooks directory (nullglob) ──"
-T4=$(mktemp -d)
-register_temp_dir "$T4"
-git_init_test_repo "$T4"
-(
-	cd "$T4"
-	mkdir -p .github/hooks packages/prism-core/scripts
-	cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
-	if bash packages/prism-core/scripts/install-hooks.sh > /dev/null 2>&1; then
-		pass "Handles empty .github/hooks without crash"
-	else
-		fail "Crashed on empty .github/hooks (nullglob bug)"
-	fi
-	if [ -f ".git/hooks/*" ]; then
-		fail "Junk '*' file found in .git/hooks (nullglob bug)"
-	else
-		pass "No junk '*' file in .git/hooks"
-	fi
-)
-# ── Summary ────────────────────────────────────────────────────────────
+if ! grep -qE '(^|[[:space:]])(cp|chmod|git config)([[:space:]]|$)' "$REAL_SCRIPT"; then
+    pass "install-hooks.sh delegates reconciliation without copying hooks"
+else
+    fail "install-hooks.sh still mutates hooks directly"
+fi
 
 print_summary "install-hooks"
 exit $?

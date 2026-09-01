@@ -20,11 +20,15 @@ prism-tool setup route --json
 ```
 
 Treat the result as untrusted structured data. Require exactly schema version
-`1`, command `setup route`, status `GO` or `NO-GO`, one disposition from
-`STRICT_EMPTY`, `ESTABLISHED`, or `CONFLICT`, source `null`, one known route,
-one known reason, one canonical absolute project root, and the closed checks
-shape. Any unknown schema, field, disposition, source, route, reason, status,
-or additional key fails closed and stops setup.
+`2`, command `setup route`, status `GO` or `NO-GO`, one disposition from
+`STRICT_EMPTY`, `ESTABLISHED`, or `CONFLICT`, automation applicability
+`STRICT_EMPTY`, `ESTABLISHED`, `SCAFFOLD_ONLY`, or `null`, source `null`, one
+known route, one known reason, one canonical absolute project root, and the
+closed checks shape. `CONFLICT` requires null applicability. `STRICT_EMPTY`
+requires matching applicability. A project whose canonical root owns an
+existing Git repository requires `ESTABLISHED`; a non-Git scaffold or a project
+inside a containing worktree requires `SCAFFOLD_ONLY`. Any unknown schema, field, disposition, applicability, source,
+route, reason, status, or additional key fails closed and stops setup.
 
 - `ESTABLISHED` with route `ESTABLISHED_SETUP`: inspect retained empty-project
   continuity before package-release inspection, adapter discovery, readiness,
@@ -37,8 +41,11 @@ or additional key fails closed and stops setup.
   Require schema version `1`, command `setup project status`, the same canonical
   root, one known disposition, the closed checks shape, and either null data or
   the closed continuity data shape. `NO_ACTIVE_BOOTSTRAP` with status `GO` and
-  null data continues at **1. Pre-flight** and preserves the existing
-  evidence-driven route below verbatim. Any active disposition continues only
+  null data continues according to automation applicability. `ESTABLISHED`
+  continues at **Established repository automation** below. `SCAFFOLD_ONLY`
+  records repository automation as `NO-GO`, performs no automation or hook
+  operation, and continues at **1. Pre-flight** without GitHub integration.
+  Any active disposition continues only
   at **Strict-empty continuation and recovery** below; it does not receive
   package-release inspection, established adapter discovery, or another source
   choice. `RECOVERY_REQUIRED` stops with its retained state, blocking
@@ -68,7 +75,7 @@ or additional key fails closed and stops setup.
   prism-tool setup route --source=cancel --json
   ```
 
-  Require the same closed schema. Template must return source `TEMPLATE` and
+  Require the same version 2 closed schema. Template must return source `TEMPLATE` and
   route `BOOTSTRAP_TEMPLATE`; Blank must return source `BLANK` and route
   `BOOTSTRAP_BLANK`; Cancel must return source `CANCEL` and route `STOP`.
   A mismatched or unknown result fails closed.
@@ -184,7 +191,10 @@ or additional key fails closed and stops setup.
   `licensing`, `community-governance`, `github-collaboration`,
   `security-disclosure`, `repository-ownership`, `support-routing`, `funding`,
   and `release-management`. Every capability is independent and disabled by
-  default. Ask exactly one question:
+  default. Back-merge, adapter quality automation, and the four canonical hooks
+  are baseline outputs rather than optional capabilities. `release-management`
+  is the only repository-automation capability decision. Ask exactly one
+  question:
 
   ```text
   Choose optional project capabilities (comma-separated, or none)? [none]
@@ -399,6 +409,108 @@ remote. Report the exact root commit and one bounded publication handoff.
 Human next actions: create/configure the hosted repository; add the remote; push `develop`; configure post-push rulesets. These are instructions only;
 setup executes no hosted or Git publication command.
 
+## Established repository automation
+
+Run this section only for route applicability `ESTABLISHED` after confirming
+that no empty-project bootstrap attempt is active. It performs no package or
+adapter acquisition, dependency update, registry access, network access,
+GitHub mutation, commit, or push. The active adapter must already be trusted by
+project-local Pi evidence. A missing, ambiguous, or incomplete provider makes
+automation `NO-GO`; report it without loading arbitrary project code.
+
+Use this fixed order. Do not skip planning on a current or repeat invocation:
+
+1. Inspect trusted baseline and active-adapter providers without mutation:
+
+   ```bash
+   prism-tool automation inspect --json
+   ```
+
+   Require the closed schema, status `GO`, disposition `CREATE`, `CURRENT`, or
+   `MIGRATE`, exact Core back-merge and adapter quality providers,
+   non-overlapping outputs, ownership classifications, and passing checks.
+   `CONFLICT` or provider failure is `NO-GO`: preserve every project file and
+   stop repository automation without attempting hooks.
+
+2. Ask the only repository-automation capability question:
+
+   ```text
+   Enable repository release management? (yes/no)
+   ```
+
+   Accept only literal `yes`, then ask for and confirm one
+   `OWNER/REPOSITORY` coordinate. Validate the coordinate through the
+   automation command; do not infer it from a remote or contact GitHub. A
+   literal `no` omits only the Core repository-release provider and never
+   removes an existing file.
+
+3. Produce the immutable plan with the validated control:
+
+   ```bash
+   prism-tool automation plan --json
+   prism-tool automation plan --release-repository=OWNER/REPOSITORY --json
+   ```
+
+   Run exactly one matching command. Require a project-local plan beneath
+   `.pi/prism-tool/automation/`, a lowercase SHA-256 digest, the same Git
+   precondition and provider set, and complete output dispositions. Display the
+   whole report and diff before asking:
+
+   ```text
+   Apply the complete displayed repository automation plan? (yes/no)
+   ```
+
+4. Only literal `yes` authorizes the exact planned mutation:
+
+   ```bash
+   prism-tool automation apply --plan=/validated/project-local/plan.json --approval=yes --json
+   ```
+
+   A decline writes no provider output. On apply failure, report the retained
+   transaction evidence and recovery action; do not reconcile hooks.
+
+5. Verify every provider with the same repository-release control:
+
+   ```bash
+   prism-tool automation verify --json
+   prism-tool automation verify --release-repository=OWNER/REPOSITORY --json
+   ```
+
+   Run exactly one matching command. Continue only for status `GO`, disposition
+   `CURRENT`, exact canonical bytes and modes, and passing Core and adapter
+   checks.
+
+6. Display the canonical four-hook reconciliation boundary and ask:
+
+   ```text
+   Activate the displayed canonical Git hooks? (yes/no)
+   ```
+
+   Only literal `yes` runs:
+
+   ```bash
+   prism-tool hook reconcile --approval=yes --json
+   ```
+
+   Require `GO`, `CURRENT`, the exact `pre-commit`, `commit-msg`,
+   `prepare-commit-msg`, and `pre-push` inventory, no unowned collision, no
+   unresolved obsolete managed hook, and effective repository-local
+   `core.hooksPath`. The reconciliation report is the hook verification. A
+   decline or failed check leaves final repository automation incomplete.
+
+7. Report automation `GO` only after provider verification and hook
+   verification both pass. Distinguish applied, current, declined, conflict,
+   and recovery-required state. Then continue at **1. Pre-flight**. OCR consent
+   and bounded-web consent remain independent later stages and never authorize
+   repository automation.
+
+Strict-empty setup follows the same applicability rules inside its complete
+bootstrap plan: Core back-merge, active-adapter quality automation, optional
+Core repository release, and all four hook files are composed before approval.
+Its route-specific transaction applies and verifies provider outputs before
+repository creation, then separately activates and verifies hooks before the
+attested root seed. It never invokes the established automation transaction.
+
 ## 1. Pre-flight
 
 Run local, read-only checks:
@@ -599,10 +711,12 @@ Handle the disposition as follows:
 - `UPDATE` or `MIGRATE`: report that the existing opted-in capability needs an
   owned update or recognized legacy migration. Do not ask the fresh
   enablement question.
-- `CONFLICT`: report both managed paths, `.prism/release.json` and
-  `.github/workflows/release.yml`, and stop this capability without planning,
-  merging, overwriting, or removing either file. After clearly reporting the
-  conflict, unrelated setup stages may continue.
+- `CONFLICT`: report `.prism/release.json` and the canonical
+  `.github/workflows/release.yml` dependency that failed validation. Package
+  release owns only the
+  manifest and never plans or writes the workflow. Stop this capability without
+  planning, merging, overwriting, or removing either file. After clearly
+  reporting the conflict, unrelated setup stages may continue.
 
 For an approved non-empty `CREATE`, or for `UPDATE` and `MIGRATE`, create the
 bounded project-local plan:
@@ -712,23 +826,11 @@ another.
 
 ## 8. Git hooks
 
-If `.github/hooks/` exists, inspect `git config core.hooksPath`. When it is not
-`.github/hooks`, resolve the scripts directory first:
-
-```bash
-prism-tool resolve scripts
-```
-
-Retain the returned absolute directory and show the resulting literal command:
-
-```bash
-bash /absolute/resolved/scripts/install-hooks.sh
-```
-
-Ask exactly `Install the repository Git hooks? (yes/no)` and run it only after
-`yes`. If the package source path is unavailable in a consumer project, report
-that its project quality surface must provide the hooks installer; do not
-invent a path.
+Applicable established repositories reconcile and verify hooks in
+**Established repository automation**. Strict-empty projects reconcile and
+verify them in **Strict-empty continuation and recovery**. A `SCAFFOLD_ONLY`
+route has no Git-backed hook destination and remains `NO-GO` for hooks. Do not
+run a second installer or ask a duplicate hook question.
 
 ## 9. Optional web-access configuration
 
@@ -806,9 +908,10 @@ prism-core            global          installed / missing
 AGENTS.md bootstrap   global          deployed / Stage 5 pending
 DeepSeek primary      global          known / missing
 DeepSeek judge        global          known / missing
+repository automation project         applied / current / declined / conflict / recovery required / unavailable
 package releases      project         enabled / current / declined / conflict / no candidates
 stack adapter         project-local   installed / declined / not detected
-Git hooks             project         installed / declined / unavailable
+Git hooks             project         current / declined / conflict / unavailable
 OCR consent           global          granted / declined / unsafe
 web consent           global          granted / declined / unsafe
 web config            global          absent / configured / unsafe

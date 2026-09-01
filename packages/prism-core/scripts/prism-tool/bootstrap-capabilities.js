@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-capabilities.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: bootstrap-capabilities.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -202,7 +202,6 @@ function inspectCapabilityMetadata({projectRoot, capabilities}) {
                 'CHANGELOG.md',
                 'cliff.toml',
                 '.github/workflows/release.yml',
-                '.prism/release.json',
             ]),
         }));
     }
