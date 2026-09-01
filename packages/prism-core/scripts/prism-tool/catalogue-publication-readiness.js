@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
 
 'use strict';
 
@@ -8,6 +8,13 @@ const {runBounded} = require('./process');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3});
 const REPOSITORY = 'kyaulabs/prism-adapters';
+const SIGNING_SECRET_NAMES = Object.freeze([
+    'CATALOGUE_SIGNING_PRIVATE_KEY',
+    'CATALOGUE_SIGNING_PASSPHRASE',
+    'CATALOGUE_PUBLICATION_TOKEN',
+    'CATALOGUE_COMMIT_SIGNING_PRIVATE_KEY',
+    'CATALOGUE_COMMIT_SIGNING_PASSPHRASE',
+]);
 const ATTESTATION_PATH = path.join('.pi', 'prism-tool', 'catalogue-publication-readiness.json');
 const STATIC_ENDPOINTS = new Set([
     'repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main',
@@ -51,12 +58,26 @@ function validCredential(value, {label, permissions}) {
         value.expiresAt === null && value.rotationPolicy === 'NONE_ACCEPTED';
 }
 
+function validPublicationCommitSigning(value) {
+    return exactKeys(value, [
+        'type', 'identity', 'privateMaterialOutsideRepositoriesReviewed',
+        'offlineRecoveryCustodyReviewed',
+        'separatedFromCatalogueSigningReviewed',
+        'separatedFromPublicationCredentialReviewed',
+    ]) && value.type === 'OPENPGP' &&
+        value.identity === 'kyaulabs-bot <actions@kyaulabs.com>' &&
+        value.privateMaterialOutsideRepositoriesReviewed === true &&
+        value.offlineRecoveryCustodyReviewed === true &&
+        value.separatedFromCatalogueSigningReviewed === true &&
+        value.separatedFromPublicationCredentialReviewed === true;
+}
+
 function validateAttestation(value) {
     if (!exactKeys(value, [
         'schemaVersion', 'checkedAt', 'dispatchCredential', 'publicationCredential',
-        'credentialSeparationReviewed', 'retentionDays',
+        'publicationCommitSigning', 'credentialSeparationReviewed', 'retentionDays',
         'administratorAccessReviewed', 'offlineRecoveryCustodyReviewed',
-    ]) || value.schemaVersion !== 2 ||
+    ]) || value.schemaVersion !== 3 ||
         typeof value.checkedAt !== 'string' ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value.checkedAt) ||
         Number.isNaN(Date.parse(value.checkedAt)) ||
@@ -69,6 +90,7 @@ function validateAttestation(value) {
             label: 'prism-adapters-catalogue-publication',
             permissions: {contents: 'write', pullRequests: 'write'},
         }) ||
+        !validPublicationCommitSigning(value.publicationCommitSigning) ||
         value.dispatchCredential.label === value.publicationCredential.label ||
         value.credentialSeparationReviewed !== true ||
         !exactKeys(value.retentionDays, ['prism', 'prismAdapters']) ||
@@ -194,11 +216,7 @@ function inspectCataloguePublicationReadiness({phase, attestation, request}) {
             namesReady(request(`${dispatchPrefix}/secrets`), 'secrets',
                 ['CATALOGUE_DISPATCH_TOKEN'])),
         evaluate('signing-secret-presence', 'signing credential names are present', () =>
-            namesReady(request(`${signingPrefix}/secrets`), 'secrets', [
-                'CATALOGUE_SIGNING_PRIVATE_KEY',
-                'CATALOGUE_SIGNING_PASSPHRASE',
-                'CATALOGUE_PUBLICATION_TOKEN',
-            ])),
+            namesReady(request(`${signingPrefix}/secrets`), 'secrets', SIGNING_SECRET_NAMES)),
         evaluate('activation', 'activation matches requested phase', () => {
             const actual = variableValue(
                 request('repos/kyaulabs/prism-adapters/actions/variables'),
@@ -212,6 +230,10 @@ function inspectCataloguePublicationReadiness({phase, attestation, request}) {
         pass('dispatch-credential-scope', 'dispatch credential scope is attested'),
         pass('publication-credential-scope', 'publication credential scope is attested'),
         pass('credential-separation', 'separate credential authority is attested'),
+        pass(
+            'publication-commit-signing-custody',
+            'publication commit-signing custody is attested',
+        ),
         advisory('credential-lifecycle', 'non-expiring credentials have no planned rotation'),
         pass('manual-attestation', 'manual custody and retention controls are attested'),
     ];
