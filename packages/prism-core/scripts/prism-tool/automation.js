@@ -39,6 +39,18 @@ function sameFile(left, right) {
     return left.dev === right.dev && left.ino === right.ino;
 }
 
+function readBounded(descriptor, maximum, message) {
+    const buffer = Buffer.alloc(maximum + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    if (offset > maximum) throw new Error(message);
+    return buffer.subarray(0, offset);
+}
+
 function readExistingOutput(projectRoot, relativePath) {
     let current = projectRoot;
     for (const segment of relativePath.split('/').slice(0, -1)) {
@@ -559,10 +571,14 @@ function candidateContents(paths, output) {
         if (!held.isFile() || held.size > MAX_OUTPUT_BYTES) {
             throw new Error('automation candidate changed');
         }
-        const contents = fs.readFileSync(descriptor);
+        const contents = readBounded(
+            descriptor,
+            MAX_OUTPUT_BYTES,
+            'automation candidate changed'
+        );
         const current = fs.lstatSync(candidatePath);
         if (
-            !held.isFile() ||
+            contents.length !== held.size ||
             !sameFile(stat, held) ||
             !sameFile(held, current) ||
             (held.mode & 0o777) !== output.mode ||
@@ -714,6 +730,7 @@ function applyAutomation({
             })]),
         });
     } catch (error) {
+        const rollbackErrors = [];
         for (const record of published.reverse()) {
             try {
                 const current = readExistingOutput(projectRoot, record.output.path);
@@ -729,8 +746,8 @@ function applyAutomation({
                     record.previous.mode,
                     fs.renameSync
                 );
-            } catch {
-                continue;
+            } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
             }
         }
         for (const directory of createdDirectories.reverse()) {
@@ -738,15 +755,20 @@ function applyAutomation({
                 if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
                     fs.rmdirSync(directory);
                 }
-            } catch {
-                continue;
+            } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
             }
         }
         if (lockOpen) {
             try {
                 releaseHeldLock(retained.paths.lockPath, lock);
-            } catch {}
+            } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
+            }
             lockOpen = false;
+        }
+        if (rollbackErrors.length > 0) {
+            throw new AggregateError([error, ...rollbackErrors], 'automation rollback incomplete');
         }
         throw error;
     }

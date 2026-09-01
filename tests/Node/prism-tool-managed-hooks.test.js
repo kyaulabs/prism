@@ -138,6 +138,34 @@ test('fails closed on unowned canonical and obsolete collisions', (t) => {
     }
 });
 
+test('returns a conflict when the initial hook snapshot becomes unreadable', (t) => {
+    const fixture = makeFixture(t);
+    const target = hookPath(fixture.projectRoot, 'pre-commit');
+    writeHook(fixture.projectRoot, 'pre-commit', Buffer.concat([
+        canonical('pre-commit'),
+        Buffer.from('\n# older owned wrapper\n'),
+    ]));
+    const originalStat = fs.lstatSync;
+    let reads = 0;
+    fs.lstatSync = function failSnapshot(filePath, ...args) {
+        if (filePath === target) {
+            reads += 1;
+            if (reads === 4) throw new Error('injected snapshot failure');
+        }
+        return originalStat.call(this, filePath, ...args);
+    };
+
+    let result;
+    try {
+        result = applyManagedHooks({...fixture, approval: 'yes'});
+    } finally {
+        fs.lstatSync = originalStat;
+    }
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.checks[0].message, 'managed hooks were not reconciled');
+    assert.equal(fs.readFileSync(target).includes(Buffer.from('# older owned wrapper')), true);
+});
+
 test('rejects an owned hook changed during reconciliation', (t) => {
     const fixture = makeFixture(t);
     const older = Buffer.concat([
@@ -232,6 +260,7 @@ test('continues managed-hook rollback after one restoration fails', (t) => {
         fs.renameSync = originalRename;
     }
     assert.equal(result.status, 'NO-GO');
+    assert.equal(result.checks[0].message, 'managed hook rollback is incomplete');
     assert.equal(failedRestore, true);
     assert.equal(fs.existsSync(hookPath(fixture.projectRoot, 'commit-msg')), false);
 });

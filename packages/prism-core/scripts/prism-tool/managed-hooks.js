@@ -320,13 +320,14 @@ function applyManagedHooks({
     if (planned.disposition === 'CURRENT') return planned;
     const hooksRoot = path.join(projectRoot, '.github', 'hooks');
     const canonical = new Map(canonicalManagedHooks(coreRoot).map((hook) => [hook.name, hook]));
-    const observed = observedHookState(hooksRoot);
+    let observed;
     const originals = new Map();
     const published = [];
     const removed = [];
     const createdDirectories = [];
     let activated = false;
     try {
+        observed = observedHookState(hooksRoot);
         const locked = inspectManagedHooks({projectRoot, coreRoot, run, env});
         if (semanticPlan(locked) !== semanticPlan(planned) ||
             observedHookState(hooksRoot) !== observed) {
@@ -365,36 +366,37 @@ function applyManagedHooks({
         if (verified.status !== 'GO') throw new Error('managed hook verification failed');
         return Object.freeze({...verified, disposition: 'APPLIED'});
     } catch {
-        if (activated) {
-            bestEffort(() => invoke(run, projectRoot, [
-                'config', '--local', '--fixed-value', '--unset-all',
-                'core.hooksPath', HOOKS_PATH,
-            ], env));
-        }
+        let rollbackComplete = true;
+        if (activated && !bestEffort(() => invoke(run, projectRoot, [
+            'config', '--local', '--fixed-value', '--unset-all',
+            'core.hooksPath', HOOKS_PATH,
+        ], env))) rollbackComplete = false;
         for (const {name, current} of removed.reverse()) {
-            bestEffort(() => publishHook(
+            if (!bestEffort(() => publishHook(
                 path.join(hooksRoot, name),
                 current.contents,
                 current.mode,
                 fs.renameSync
-            ));
+            ))) rollbackComplete = false;
         }
         for (const name of published.reverse()) {
-            bestEffort(() => {
+            if (!bestEffort(() => {
                 const original = originals.get(name);
                 const destination = path.join(hooksRoot, name);
                 if (original === null) fs.rmSync(destination, {force: true});
                 else publishHook(destination, original.contents, original.mode, fs.renameSync);
-            });
+            })) rollbackComplete = false;
         }
         for (const directory of createdDirectories.reverse()) {
-            bestEffort(() => {
+            if (!bestEffort(() => {
                 if (fs.existsSync(directory) && fs.readdirSync(directory).length === 0) {
                     fs.rmdirSync(directory);
                 }
-            });
+            })) rollbackComplete = false;
         }
-        return conflictReport('managed hooks were not reconciled');
+        return conflictReport(rollbackComplete
+            ? 'managed hooks were not reconciled'
+            : 'managed hook rollback is incomplete');
     }
 }
 

@@ -320,7 +320,7 @@ test('continues automation rollback and releases the lock after a rollback read 
                 fs.renameSync(source, destination);
                 destinations.push(destination);
             },
-        }));
+        }), /automation rollback incomplete/);
     } finally {
         fs.lstatSync = originalStat;
     }
@@ -426,6 +426,59 @@ test('rejects oversized retained candidates before reading them', (t) => {
         fs.closeSync = originalClose;
     }
     assert.equal(candidateRead, false);
+});
+
+test('uses a bounded descriptor read when a retained candidate grows', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    const candidatePath = path.join(
+        path.dirname(planned.planPath),
+        ...envelope.plan.outputs[0].candidatePath.split('/')
+    );
+    const originalOpen = fs.openSync;
+    const originalRead = fs.readFileSync;
+    const originalReadSync = fs.readSync;
+    const originalClose = fs.closeSync;
+    let candidateDescriptor;
+    let unboundedRead = false;
+    fs.openSync = function observeOpen(filePath, ...args) {
+        const descriptor = originalOpen.call(this, filePath, ...args);
+        if (filePath === candidatePath) candidateDescriptor = descriptor;
+        return descriptor;
+    };
+    fs.readFileSync = function rejectUnboundedRead(file, ...args) {
+        if (file === candidateDescriptor) {
+            unboundedRead = true;
+            return Buffer.alloc(1048577);
+        }
+        return originalRead.call(this, file, ...args);
+    };
+    fs.readSync = function growDuringRead(descriptor, buffer, offset, length, position) {
+        if (descriptor === candidateDescriptor) {
+            buffer.fill(0x61, offset, offset + length);
+            return length;
+        }
+        return originalReadSync.call(this, descriptor, buffer, offset, length, position);
+    };
+    fs.closeSync = function observeClose(descriptor) {
+        const result = originalClose.call(this, descriptor);
+        if (descriptor === candidateDescriptor) candidateDescriptor = undefined;
+        return result;
+    };
+
+    try {
+        assert.throws(
+            () => applyAutomation({...fixture, planPath: planned.planPath}),
+            /candidate changed/
+        );
+    } finally {
+        fs.openSync = originalOpen;
+        fs.readFileSync = originalRead;
+        fs.readSync = originalReadSync;
+        fs.closeSync = originalClose;
+    }
+    assert.equal(unboundedRead, false);
 });
 
 test('rejects provider identity drift after planning', (t) => {
