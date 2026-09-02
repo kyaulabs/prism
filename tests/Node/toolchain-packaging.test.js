@@ -15,6 +15,22 @@ const root = path.resolve(__dirname, '../..');
 const CORE_PKG = path.join(root, 'packages/prism-core');
 const ADAPTER_PKG = path.join(root, 'packages/prism-php-web');
 const FAKE_BIN = path.join(root, 'tests/Shell/fixtures/bin');
+const REVIEW_SKILLS = [
+    'prism-review-session',
+    'prism-review-tooling-style',
+    'prism-review-structural-smells',
+    'prism-review-requirement-coverage',
+    'prism-review-static-security',
+    'prism-review-verifier',
+    'prism-review-readability',
+    'prism-review-duplication',
+    'prism-review-error-handling',
+    'prism-review-authorization',
+    'prism-review-input-validation',
+    'prism-review-differential',
+    'prism-review-spec-compliance',
+    'prism-review-false-positive-check',
+];
 
 function packPackage(packagePath) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pack-'));
@@ -160,6 +176,21 @@ test('packs the core package with every owned resource and executable modes', ()
         true,
         'Distill pattern reference packaged'
     );
+    assert.equal(packed.files.has('config/prism-review.json'), true, 'Core review profile packaged');
+    for (const skill of REVIEW_SKILLS) {
+        assert.equal(packed.files.has(`skills/${skill}/SKILL.md`), true, `${skill} packaged`);
+    }
+    for (const [license, opening, minimumBytes] of [
+        ['CC0-1.0.txt', 'CC0 1.0 Universal', 6000],
+        ['CC-BY-SA-4.0.txt', 'Attribution-ShareAlike 4.0 International', 18000],
+    ]) {
+        const archivePath = `package/config/licenses/${license}`;
+        assert.equal(packed.files.has(`config/licenses/${license}`), true, `${license} packaged`);
+        const text = execFileSync('tar', ['-xOzf', packed.tarball, archivePath], {encoding: 'utf8'});
+        assert.match(text, new RegExp(opening));
+        assert.equal(Buffer.byteLength(text) >= minimumBytes, true, `${license} is complete`);
+        assert.equal(text, fs.readFileSync(path.join(CORE_PKG, 'config', 'licenses', license), 'utf8'));
+    }
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
     assert.equal(
         packed.files.has('docs/adapter-catalogue.md'),
@@ -178,6 +209,13 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.match(coreNotice, /Copyright \(c\) 2026 Lauren Tan/);
     assert.match(coreNotice, /License: MIT/);
     assert.match(coreNotice, /packages\/prism-core\/skills\/distill\/SKILL\.md/);
+    assert.match(coreNotice, /JeremyMorgan\/code-review-skills/);
+    assert.match(coreNotice, /trailofbits\/skills/);
+    assert.match(coreNotice, /dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724/);
+    assert.match(coreNotice, /129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3/);
+    for (const skill of REVIEW_SKILLS.slice(6)) {
+        assert.match(coreNotice, new RegExp(`skills/${skill}/SKILL\\.md`));
+    }
     assert.notEqual(packed.files.get('scripts/prism-review.js') & 0o111, 0, 'review bin is executable');
     assert.notEqual(packed.files.get('scripts/prism-tool.js') & 0o111, 0, 'tool bin is executable');
     assert.notEqual(packed.files.get('scripts/install-global.sh') & 0o111, 0, 'installer is executable');

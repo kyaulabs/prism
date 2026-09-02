@@ -95,8 +95,7 @@ function profileReadiness(context, coreRoot, projectRoot) {
         piDir: context.piDir ?? path.join(projectRoot, '.pi'),
     });
     let adapter = null;
-    if (registration !== null) {
-        if (registration.reviewPath === null) throw new Error('adapter review profile is unavailable');
+    if (registration?.reviewPath !== null && registration?.reviewPath !== undefined) {
         adapter = (context.loadAdapterProfile ?? loadAdapterProfile)({
             registration,
             repositoryRoot: projectRoot,

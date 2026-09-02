@@ -128,6 +128,7 @@ test('reports local runtime readiness without loading the SDK or running Git', a
             PI_MODEL: 'claude-sonnet-4-5',
             PI_REASONING_LEVEL: 'high',
         },
+        coreProfilePresent: false,
         run: () => { throw new Error('Git must not run'); },
         loadSdk: () => { throw new Error('SDK must not load'); },
     });

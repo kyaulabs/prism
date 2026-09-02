@@ -118,6 +118,44 @@ function loadFixture(t, mutate = () => {}, options = {}) {
     return {root, profile};
 }
 
+test('loads the complete packaged Core review policy', () => {
+    const packageRoot = path.resolve(__dirname, '../../packages/prism-core');
+
+    const loaded = loadCoreProfile({packageRoot});
+
+    assert.equal(loaded.resources.length, 14);
+    assert.deepEqual(loaded.profile.axes.map(({id}) => id), AXES);
+    assert.deepEqual(loaded.profile.axes.map(({lenses}) => lenses.length), [2, 4, 3, 4]);
+    assert.equal(loaded.profile.sessionSkill, 'prism-review-session');
+    assert.deepEqual(loaded.profile.verifierSkills, [
+        'prism-review-verifier',
+        'prism-review-false-positive-check',
+    ]);
+    assert.deepEqual(
+        loaded.profile.exemptions.map(({kind}) => kind),
+        ['binary', 'symlink', 'gitlink', 'unsupported-mode']
+    );
+    assert.equal(loaded.resources.every(({sha256}) => /^[0-9a-f]{64}$/.test(sha256)), true);
+    assert.deepEqual(
+        loaded.profile.resources.filter(({source}) => source !== undefined).map(({id, license, source}) => ({
+            id,
+            license,
+            sourceLicense: source.license,
+            sourceSha256: source.sha256,
+        })),
+        [
+            {id: 'prism-review-readability', license: 'CC0-1.0', sourceLicense: 'CC0-1.0', sourceSha256: 'dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724'},
+            {id: 'prism-review-duplication', license: 'CC0-1.0', sourceLicense: 'CC0-1.0', sourceSha256: 'b3579019191ced792449f09b7c206380bf8471eaf1af2f5f38a01c41c5c93d3f'},
+            {id: 'prism-review-error-handling', license: 'CC0-1.0', sourceLicense: 'CC0-1.0', sourceSha256: '8688863241834ed78a3e9d2a701a716eca19ca2acd167584de7c1806e92b0de6'},
+            {id: 'prism-review-authorization', license: 'CC0-1.0', sourceLicense: 'CC0-1.0', sourceSha256: '791b7d94e613acd1d63bc7cc34cbb391055f3586f3ecc17cd7005f92911eb353'},
+            {id: 'prism-review-input-validation', license: 'CC0-1.0', sourceLicense: 'CC0-1.0', sourceSha256: '130cac2d1847689c7575fb8b3f1e73beccddc909549183e41024aa8e5e7b3fc3'},
+            {id: 'prism-review-differential', license: 'CC-BY-SA-4.0', sourceLicense: 'CC-BY-SA-4.0', sourceSha256: 'f9af6a8193fc1a9f8ca3c54bb8d19095a5f20c9472ca6d014488bbde50b67da0'},
+            {id: 'prism-review-spec-compliance', license: 'CC-BY-SA-4.0', sourceLicense: 'CC-BY-SA-4.0', sourceSha256: 'eb0d91b50a9c06f50baf8763d1e23566897b9fa3e7ffcf13134eee4e1ccaefe5'},
+            {id: 'prism-review-false-positive-check', license: 'CC-BY-SA-4.0', sourceLicense: 'CC-BY-SA-4.0', sourceSha256: '129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3'},
+        ]
+    );
+});
+
 test('canonical JSON is stable, ordered, and closed to non-JSON values', () => {
     assert.equal(canonicalize({z: [3, {b: 2, a: 1}], a: true}), '{"a":true,"z":[3,{"a":1,"b":2}]}');
     assert.equal(digestJson({b: 2, a: 1}), digestJson({a: 1, b: 2}));
