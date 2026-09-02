@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,7 @@ const {makeTempDir, writeExecutable, writeJson} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     discoverAdapter,
+    discoverOptionalAdapter,
     loadAdapterHandler,
     validateBootstrapRegistration,
 } = require('../../packages/prism-core/scripts/prism-tool/discovery');
@@ -73,6 +74,9 @@ function writeAdapter(
     if (options.bootstrapProtocol !== undefined) {
         prism.bootstrapProtocol = options.bootstrapProtocol;
     }
+    if (options.review) {
+        prism.review = './config/prism-review.json';
+    }
     writeJson(path.join(packageRoot, 'package.json'), {
         name: packageName,
         version: options.version ?? '1.0.0',
@@ -80,6 +84,16 @@ function writeAdapter(
     });
     writeJson(path.join(packageRoot, 'toolchain.json'), adapterContract(packageName, componentId));
     fs.mkdirSync(path.join(packageRoot, 'scripts'), {recursive: true});
+    if (options.review) {
+        writeJson(path.join(packageRoot, 'config', 'prism-review.json'), {
+            schemaVersion: 1,
+            package: packageName,
+            role: 'adapter',
+            resources: [],
+            exemptions: [],
+            axes: [],
+        });
+    }
     const handlerProtocol = options.handlerBootstrapProtocol;
     const marker = options.loadMarker
         ? `require('node:fs').writeFileSync(${JSON.stringify(options.loadMarker)}, 'loaded\\n');\n`
@@ -367,6 +381,53 @@ test('discovers a direct project-local Pi npm adapter dependency', (t) => {
     assert.equal(
         registration.handlerPath,
         fs.realpathSync(path.join(packageRoot, 'scripts/prism-tool-adapter.js'))
+    );
+});
+
+test('optional discovery permits zero adapters and one canonical review registration', (t) => {
+    const emptyRoot = makeTempDir();
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(emptyRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    assert.equal(discoverOptionalAdapter({projectRoot: emptyRoot}), null);
+
+    const piDir = path.join(projectRoot, '.pi');
+    const packageRoot = path.join(projectRoot, 'packages', 'adapter');
+    writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {review: true});
+    fs.mkdirSync(path.join(packageRoot, 'skills'), {recursive: true});
+    fs.mkdirSync(path.join(packageRoot, 'prompts'), {recursive: true});
+    writeJson(path.join(piDir, 'settings.json'), {
+        packages: [{source: '../packages/adapter'}],
+        skills: ['../packages/adapter/skills'],
+        prompts: ['../packages/adapter/prompts'],
+    });
+
+    const registration = discoverOptionalAdapter({projectRoot, piDir});
+
+    assert.equal(registration.packageName, '@fixture/adapter');
+    assert.equal(
+        registration.reviewPath,
+        fs.realpathSync(path.join(packageRoot, 'config', 'prism-review.json'))
+    );
+});
+
+test('optional discovery rejects two distinct adapter roots', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const piDir = path.join(projectRoot, '.pi');
+    const firstRoot = path.join(projectRoot, 'first-adapter');
+    const secondRoot = path.join(projectRoot, 'second-adapter');
+    writeAdapter(firstRoot, '@fixture/first');
+    writeAdapter(secondRoot, '@fixture/second');
+    fs.mkdirSync(path.join(firstRoot, 'skills'), {recursive: true});
+    fs.mkdirSync(path.join(secondRoot, 'skills'), {recursive: true});
+    writeJson(path.join(piDir, 'settings.json'), {
+        skills: ['../first-adapter/skills', '../second-adapter/skills'],
+    });
+
+    assert.throws(
+        () => discoverOptionalAdapter({projectRoot, piDir}),
+        /more than one active adapter/
     );
 });
 

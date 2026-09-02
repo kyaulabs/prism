@@ -400,7 +400,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: trusted Core root, optional active adapter registration, optional protected-base Git blob reader, and immutable changed path descriptors.
 - Produces: `canonicalize`, `digestJson`, `discoverOptionalAdapter`, `loadCoreProfile`, `loadAdapterProfile`, `buildReviewPlan`, and deterministic policy/plan digests.
 
-- [ ] **Step 1: Write failing canonical JSON, profile, and optional-discovery tests**
+- [x] **Step 1: Write failing canonical JSON, profile, and optional-discovery tests**
 
 Use this complete minimal Core fixture shape:
 
@@ -442,13 +442,13 @@ The adapter fixture uses only `schemaVersion`, `package`, `role`, `resources`, `
 - a non-text exemption has exact ID, canonical axis subset, fixed kind, literal trigger, and fixed reason; it cannot target regular UTF-8 text; and
 - protected-base mode reads profile and skill bytes through injected immutable Git-object reads and never opens the worktree copies.
 
-- [ ] **Step 2: Run profile and discovery tests to verify Red**
+- [x] **Step 2: Run profile and discovery tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js`
 
 Expected: FAIL because the profile modules and optional adapter discovery do not exist.
 
-- [ ] **Step 3: Implement exact schema and resource validation**
+- [x] **Step 3: Implement exact schema and resource validation**
 
 `canonical-json.js` recursively serializes JSON values with sorted object keys and preserved array order, rejects unsupported values and unsafe integers, and exports `canonicalize` and `digestJson`.
 
@@ -469,7 +469,7 @@ Resource source metadata, when present, has exactly:
 
 Resolve installed resources lexically and canonically within the package root. Reject every symlink component, require a regular non-executable file no larger than `RESOURCE_BYTES`, fatal-decode UTF-8, and parse frontmatter through the existing parser module. The frontmatter name must equal the final skill-directory name. Hash exact local bytes separately from upstream source metadata.
 
-- [ ] **Step 4: Implement optional adapter and protected-base loading**
+- [x] **Step 4: Implement optional adapter and protected-base loading**
 
 Add `discoverOptionalAdapter` beside existing discovery without changing `discoverAdapter` callers:
 
@@ -488,7 +488,7 @@ Allow only one new adapter manifest key, `prism.review`, and expose its validate
 
 Wire `doctor --json` to load and validate the Core profile when it exists, inspect optional adapter state, validate `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` syntax, and report trust source. It does not instantiate a model or perform inference.
 
-- [ ] **Step 5: Run and refactor**
+- [x] **Step 5: Run and refactor**
 
 Run: `node --test tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js tests/Node/prism-review-cli.test.js`
 
@@ -496,13 +496,13 @@ Expected: PASS with Core-only, installed-adapter, local-adapter, and protected-b
 
 Refactor duplicate containment and no-follow checks into private helpers in `profile.js`; do not widen exports. Rerun the same command.
 
-- [ ] **Step 6: Stage profile mechanics**
+- [x] **Step 6: Stage profile mechanics**
 
 Run: `git add packages/prism-core/scripts/prism-review/canonical-json.js packages/prism-core/scripts/prism-review/schema.js packages/prism-core/scripts/prism-review/profile.js packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/prism-tool/discovery.js tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js tests/Node/prism-review-cli.test.js`
 
 Expected: only closed profile/discovery mechanics and tests are staged.
 
-- [ ] **Step 7: Create the profile commit**
+- [x] **Step 7: Create the profile commit**
 
 ```bash
 prism-tool commit create --type feat --scope review --subject "load closed review profiles"

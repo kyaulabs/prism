@@ -6,6 +6,8 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const {EXIT} = require('./constants');
+const {discoverOptionalAdapter} = require('../prism-tool/discovery');
+const {loadAdapterProfile, loadCoreProfile} = require('./profile');
 const {classifyTrustRoot} = require('./trust');
 
 const MAX_MANIFEST_BYTES = 65536;
@@ -83,6 +85,31 @@ function writeJson(stream, value) {
     stream.write(`${JSON.stringify(value)}\n`);
 }
 
+function profileReadiness(context, coreRoot, projectRoot) {
+    const profilePresent = context.coreProfilePresent ??
+        fs.existsSync(path.join(coreRoot, 'config', 'prism-review.json'));
+    if (!profilePresent) return null;
+    const core = (context.loadCoreProfile ?? loadCoreProfile)({packageRoot: coreRoot});
+    const registration = (context.discoverOptionalAdapter ?? discoverOptionalAdapter)({
+        projectRoot,
+        piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+    });
+    let adapter = null;
+    if (registration !== null) {
+        if (registration.reviewPath === null) throw new Error('adapter review profile is unavailable');
+        adapter = (context.loadAdapterProfile ?? loadAdapterProfile)({
+            registration,
+            repositoryRoot: projectRoot,
+        });
+    }
+    return {
+        core: {profileDigest: core.profileDigest, policyDigest: core.policyDigest},
+        adapter: adapter === null
+            ? null
+            : {profileDigest: adapter.profileDigest, policyDigest: adapter.policyDigest},
+    };
+}
+
 function safeRelativePath(value) {
     return typeof value === 'string' && value !== '' && !/[\\\x00-\x1f\x7f]/.test(value) &&
         !path.posix.isAbsolute(value) && value !== '.' && value !== '..' &&
@@ -129,18 +156,30 @@ async function main(argv, context = {}) {
     if (argv.length === 2 && argv[0] === 'doctor' && argv[1] === '--json') {
         try {
             const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-            const trust = classifyTrustRoot(coreRoot, repositoryRoot(context));
+            const projectRoot = repositoryRoot(context);
+            const trust = classifyTrustRoot(coreRoot, projectRoot);
+            const model = activeModel(context.env ?? process.env);
+            const profile = profileReadiness(context, coreRoot, projectRoot);
+            const checks = [
+                {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
+                {id: 'active-model', status: 'PASS', message: 'active Pi model syntax validated'},
+            ];
+            if (profile !== null) {
+                checks.push({
+                    id: 'review-profile',
+                    status: 'PASS',
+                    message: 'closed review profile validated',
+                });
+            }
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: 'doctor',
                 status: 'GO',
                 sourceClass: trust.sourceClass,
                 eligibleForAuthority: trust.eligibleForAuthority,
-                model: activeModel(context.env ?? process.env),
-                checks: [
-                    {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
-                    {id: 'active-model', status: 'PASS', message: 'active Pi model syntax validated'},
-                ],
+                model,
+                ...(profile === null ? {} : {profile}),
+                checks,
             });
             return EXIT.OK;
         } catch {

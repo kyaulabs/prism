@@ -152,6 +152,42 @@ test('reports local runtime readiness without loading the SDK or running Git', a
     });
 });
 
+test('doctor validates an available Core profile and optional adapter state without inference', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const calls = [];
+    const output = capture();
+    const status = await main(['doctor', '--json'], {
+        ...output.context,
+        projectRoot: repositoryRoot,
+        env: {
+            PI_PROVIDER: 'anthropic',
+            PI_MODEL: 'claude-sonnet-4-5',
+            PI_REASONING_LEVEL: 'high',
+        },
+        coreProfilePresent: true,
+        loadCoreProfile() {
+            calls.push('core');
+            return {profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)};
+        },
+        discoverOptionalAdapter() {
+            calls.push('adapter-discovery');
+            return null;
+        },
+        loadSdk: () => { throw new Error('SDK must not load'); },
+    });
+
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(calls, ['core', 'adapter-discovery']);
+    const report = JSON.parse(output.result().stdout);
+    assert.deepEqual(report.profile, {
+        core: {profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)},
+        adapter: null,
+    });
+    assert.deepEqual(report.checks.at(-1), {
+        id: 'review-profile', status: 'PASS', message: 'closed review profile validated',
+    });
+});
+
 test('fails readiness without echoing invalid model environment values', async () => {
     const repositoryRoot = path.resolve(__dirname, '../..');
     for (const env of [

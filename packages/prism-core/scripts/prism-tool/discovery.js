@@ -1,4 +1,4 @@
-// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -43,6 +43,18 @@ function resolveOwnedFile(packageRoot, relativePath, label) {
     return canonical;
 }
 
+function resolveOwnedReviewFile(packageRoot, relativePath) {
+    const resolved = resolveOwnedFile(packageRoot, relativePath, 'adapter review profile');
+    let current = packageRoot;
+    for (const segment of relativePath.replace(/^\.\//, '').split('/')) {
+        current = path.join(current, segment);
+        if (fs.lstatSync(current).isSymbolicLink()) {
+            throw new Error('adapter review profile is invalid');
+        }
+    }
+    return resolved;
+}
+
 function registrationFor(packageRoot, expectedName) {
     const canonicalRoot = fs.realpathSync(packageRoot);
     const manifest = readJson(path.join(canonicalRoot, 'package.json'), 'adapter package manifest');
@@ -57,7 +69,7 @@ function registrationFor(packageRoot, expectedName) {
         return null;
     }
     if (Object.keys(prism).some((key) => ![
-        'adapter', 'bootstrapProtocol', 'handler', 'toolchain',
+        'adapter', 'bootstrapProtocol', 'handler', 'review', 'toolchain',
     ].includes(key))) {
         throw new Error('adapter package metadata is unsupported');
     }
@@ -76,6 +88,9 @@ function registrationFor(packageRoot, expectedName) {
     }
     const contractPath = resolveOwnedFile(canonicalRoot, prism.toolchain, 'adapter contract');
     const handlerPath = resolveOwnedFile(canonicalRoot, prism.handler, 'adapter handler');
+    const reviewPath = prism.review === undefined
+        ? null
+        : resolveOwnedReviewFile(canonicalRoot, prism.review);
     const contract = loadContract(contractPath);
     if (contract.role !== 'adapter' || contract.package !== manifest.name) {
         throw new Error('adapter contract identity mismatch');
@@ -87,6 +102,7 @@ function registrationFor(packageRoot, expectedName) {
         bootstrapProtocol: prism.bootstrapProtocol ?? null,
         contractPath,
         handlerPath,
+        reviewPath,
         contract,
     };
 }
@@ -245,12 +261,29 @@ function discoverAutomationAdapter(options) {
     return Object.freeze({registration, handler});
 }
 
-function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+function optionalRegistrations(projectRoot, piDir) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalPi = fs.realpathSync(piDir);
     if (!isInside(canonicalProject, canonicalPi)) throw new Error('Pi directory escapes project root');
     const registrations = [...managedCandidates(canonicalPi), ...localCandidates(canonicalPi)];
-    const byRoot = new Map(registrations.map((registration) => [registration.packageRoot, registration]));
+    return new Map(registrations.map((registration) => [registration.packageRoot, registration]));
+}
+
+function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+    try {
+        fs.lstatSync(piDir);
+    } catch (error) {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+    }
+    const byRoot = optionalRegistrations(projectRoot, piDir);
+    if (byRoot.size === 0) return null;
+    if (byRoot.size > 1) throw new Error('more than one active adapter is not permitted');
+    return [...byRoot.values()][0];
+}
+
+function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+    const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size !== 1) throw new Error('exactly one active adapter is required');
     const registration = [...byRoot.values()][0];
     const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
@@ -264,6 +297,7 @@ function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
 module.exports = {
     discoverAdapter,
     discoverAutomationAdapter,
+    discoverOptionalAdapter,
     loadAdapterHandler,
     registrationFor,
     validateBootstrapRegistration,
