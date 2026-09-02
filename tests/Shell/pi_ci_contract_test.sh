@@ -68,6 +68,18 @@ echo "── locked, script-free dependency install ──"
 assert_ci_contains 'composer install[^|]*--no-scripts' 'Composer install disables lifecycle scripts'
 assert_ci_contains 'npm ci' 'npm installs from the committed lockfile'
 
+SHELL_REGRESSION_STEP=$(awk '
+	/^[[:space:]]+- name: Shell regression tests$/ { found = 1 }
+	found && /^[[:space:]]+- name:/ && $0 !~ /Shell regression tests$/ { exit }
+	found { print }
+' "$CI")
+if grep -qE 'COMPOSER_PROCESS_TIMEOUT:[[:space:]]+900' <<< "$SHELL_REGRESSION_STEP"; then
+	pass 'Shell regressions enforce the bounded Composer timeout'
+else
+	fail 'Shell regressions must set COMPOSER_PROCESS_TIMEOUT to 900'
+	failures=$((failures + 1))
+fi
+
 echo "── mandatory local readiness before declared tools ──"
 assert_ci_contains 'prism-tool.js doctor --local-only' 'local CLI doctor runs before declared tools'
 

@@ -212,6 +212,8 @@ jobs:
         run: bash .github/scripts/check-script-executable-bits.sh
 
       - name: Shell regression tests
+        env:
+          COMPOSER_PROCESS_TIMEOUT: 900
         run: composer test:shell
 
       - name: PHP CS Fixer (dry-run)
