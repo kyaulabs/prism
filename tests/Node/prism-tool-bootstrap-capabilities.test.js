@@ -1056,6 +1056,46 @@ test('renders custom supported versions and an explicit acknowledgement target',
     assert.match(contents, /acknowledge complete vulnerability reports within 72 hours/);
 });
 
+test('preserves backslashes next to table delimiters in supported version labels', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const {renderCoreProfileProviders} = require(
+        '../../packages/prism-core/scripts/prism-tool/bootstrap-profile-providers'
+    );
+
+    renderCoreProfileProviders({
+        coreRoot: CORE_ROOT,
+        candidateRoot,
+        request: {
+            schemaVersion: 1,
+            source: {mode: 'BLANK', evidence: null},
+            capabilities: ['security-disclosure'],
+            metadata: {
+                schemaVersion: 1,
+                displayName: 'Secure Project',
+                summary: 'A project with escaped supported version labels.',
+                suggestedDisplayName: 'secure-project',
+                capabilityMetadata: {
+                    'security-disclosure': {
+                        reportingContact: {kind: 'email', value: 'security@example.test'},
+                        supportedVersions: {
+                            policy: 'custom',
+                            rows: [{version: String.raw`\|`, status: 'supported'}],
+                        },
+                    },
+                },
+            },
+            adapter: null,
+        },
+    });
+
+    const contents = fs.readFileSync(path.join(candidateRoot, 'SECURITY.md'), 'utf8');
+    assert.equal(
+        contents.split('\n').find((line) => line.endsWith('| Yes |')),
+        String.raw`| \\\| | Yes |`
+    );
+});
+
 test('renders repository ownership with a default and contained path rules', (t) => {
     const candidateRoot = makeTempDir();
     t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
