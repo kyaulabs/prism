@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "package": "@kyaulabs/prism-php-web",
+  "role": "adapter",
+  "resources": [
+    {"id": "php-web-stack", "path": "skills/php-web-stack/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "rcs-header", "path": "skills/rcs-header/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "scss-mobile-first", "path": "skills/scss-mobile-first/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "frontend-architecture", "path": "skills/frontend-architecture/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "tdd-php", "path": "skills/tdd-php/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "pest-browser", "path": "skills/pest-browser/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "visual-review", "path": "skills/visual-review/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "accessibility", "path": "skills/accessibility/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "security-coding-php", "path": "skills/security-coding-php/SKILL.md", "license": "AGPL-3.0-only"},
+    {"id": "database", "path": "skills/database/SKILL.md", "license": "AGPL-3.0-only"}
+  ],
+  "exemptions": [],
+  "axes": [
+    {
+      "id": "tooling-style",
+      "lenses": [
+        {
+          "id": "php-web.php-web-stack.tooling",
+          "skill": "php-web-stack",
+          "trigger": {
+            "mode": "paths",
+            "suffixes": [".cjs", ".css", ".feature", ".js", ".json", ".mjs", ".php", ".scss", ".sql", ".xml", ".yaml", ".yml"],
+            "basenames": ["composer.json", "composer.lock", "npm-shrinkwrap.json", "package-lock.json", "package.json", "pnpm-lock.yaml"]
+          }
+        },
+        {
+          "id": "php-web.rcs-header.tooling",
+          "skill": "rcs-header",
+          "trigger": {"mode": "paths", "suffixes": [".cjs", ".js", ".mjs", ".php", ".scss", ".sh", ".ts"]}
+        },
+        {
+          "id": "php-web.scss-mobile-first.tooling",
+          "skill": "scss-mobile-first",
+          "trigger": {"mode": "paths", "suffixes": [".scss"]}
+        },
+        {
+          "id": "php-web.tdd-php.tooling",
+          "skill": "tdd-php",
+          "trigger": {"mode": "paths", "suffixes": [".php"], "prefixes": ["tests/"]}
+        }
+      ]
+    },
+    {
+      "id": "structural-smells",
+      "lenses": [
+        {
+          "id": "php-web.php-web-stack.structure",
+          "skill": "php-web-stack",
+          "trigger": {
+            "mode": "paths",
+            "suffixes": [".cjs", ".css", ".feature", ".js", ".json", ".mjs", ".php", ".scss", ".sql", ".xml", ".yaml", ".yml"],
+            "basenames": ["composer.json", "composer.lock", "npm-shrinkwrap.json", "package-lock.json", "package.json", "pnpm-lock.yaml"]
+          }
+        },
+        {
+          "id": "php-web.scss-mobile-first.structure",
+          "skill": "scss-mobile-first",
+          "trigger": {"mode": "paths", "suffixes": [".scss"]}
+        },
+        {
+          "id": "php-web.frontend-architecture.structure",
+          "skill": "frontend-architecture",
+          "trigger": {"mode": "paths", "suffixes": [".cjs", ".js", ".mjs"]}
+        },
+        {
+          "id": "php-web.database.structure",
+          "skill": "database",
+          "trigger": {"mode": "paths", "suffixes": [".sql"], "prefixes": ["database/", "migrations/"]}
+        }
+      ]
+    },
+    {
+      "id": "requirement-coverage",
+      "lenses": [
+        {
+          "id": "php-web.php-web-stack.requirements",
+          "skill": "php-web-stack",
+          "trigger": {
+            "mode": "paths",
+            "suffixes": [".cjs", ".css", ".feature", ".js", ".json", ".mjs", ".php", ".scss", ".sql", ".xml", ".yaml", ".yml"],
+            "basenames": ["composer.json", "composer.lock", "npm-shrinkwrap.json", "package-lock.json", "package.json", "pnpm-lock.yaml"]
+          }
+        },
+        {
+          "id": "php-web.tdd-php.requirements",
+          "skill": "tdd-php",
+          "trigger": {"mode": "paths", "suffixes": [".php"], "prefixes": ["tests/"]}
+        },
+        {
+          "id": "php-web.pest-browser.requirements",
+          "skill": "pest-browser",
+          "trigger": {"mode": "paths", "prefixes": ["tests/Browser/"]}
+        },
+        {
+          "id": "php-web.visual-review.requirements",
+          "skill": "visual-review",
+          "trigger": {"mode": "paths", "suffixes": [".cjs", ".css", ".htm", ".html", ".js", ".mjs", ".scss"], "prefixes": ["cdn/", "tests/Browser/"]}
+        },
+        {
+          "id": "php-web.accessibility.requirements",
+          "skill": "accessibility",
+          "trigger": {"mode": "paths", "suffixes": [".cjs", ".css", ".htm", ".html", ".js", ".mjs", ".scss"], "prefixes": ["cdn/", "tests/Browser/"]}
+        }
+      ]
+    },
+    {
+      "id": "static-security",
+      "lenses": [
+        {
+          "id": "php-web.php-web-stack.security",
+          "skill": "php-web-stack",
+          "trigger": {
+            "mode": "paths",
+            "suffixes": [".cjs", ".css", ".feature", ".js", ".json", ".mjs", ".php", ".scss", ".sql", ".xml", ".yaml", ".yml"],
+            "basenames": ["composer.json", "composer.lock", "npm-shrinkwrap.json", "package-lock.json", "package.json", "pnpm-lock.yaml"]
+          }
+        },
+        {
+          "id": "php-web.frontend-architecture.security",
+          "skill": "frontend-architecture",
+          "trigger": {"mode": "paths", "suffixes": [".cjs", ".js", ".mjs"]}
+        },
+        {
+          "id": "php-web.security-coding-php.security",
+          "skill": "security-coding-php",
+          "trigger": {
+            "mode": "paths",
+            "suffixes": [".cjs", ".js", ".mjs", ".php", ".sql"],
+            "basenames": [".env.example", "composer.json", "composer.lock", "npm-shrinkwrap.json", "package-lock.json", "package.json", "pnpm-lock.yaml"]
+          }
+        },
+        {
+          "id": "php-web.database.security",
+          "skill": "database",
+          "trigger": {"mode": "paths", "suffixes": [".sql"], "prefixes": ["database/", "migrations/"]}
+        }
+      ]
+    }
+  ]
+}

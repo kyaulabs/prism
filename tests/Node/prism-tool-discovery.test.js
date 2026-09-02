@@ -411,6 +411,22 @@ test('optional discovery permits zero adapters and one canonical review registra
     );
 });
 
+test('discovers the packaged PHP/web review profile without loading its handler', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const packageRoot = path.resolve(__dirname, '../../packages/prism-php-web');
+    writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
+        skills: [path.join(packageRoot, 'skills')],
+    });
+
+    const registration = discoverOptionalAdapter({projectRoot});
+
+    assert.equal(
+        registration.reviewPath,
+        fs.realpathSync(path.join(packageRoot, 'config', 'prism-review.json'))
+    );
+});
+
 test('optional discovery rejects two distinct adapter roots', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));

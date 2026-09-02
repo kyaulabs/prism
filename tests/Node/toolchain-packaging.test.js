@@ -480,7 +480,10 @@ test('declares one compatible empty-project bootstrap protocol in the adapter pa
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {
     const packed = packPackage(ADAPTER_PKG);
+    const manifest = JSON.parse(fs.readFileSync(path.join(ADAPTER_PKG, 'package.json'), 'utf8'));
+    assert.equal(manifest.prism.review, './config/prism-review.json');
     assert.equal(packed.files.has('toolchain.json'), true);
+    assert.equal(packed.files.has('config/prism-review.json'), true, 'adapter review profile packaged');
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
     for (const module of [
@@ -505,6 +508,11 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 3, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 10, true, 'skills present');
+    assert.equal(
+        tarPaths(packed, 'package/skills/').some((entry) => entry.startsWith('prism-review-php-web-')),
+        false,
+        'adapter does not duplicate review skills'
+    );
     assert.equal(tarPaths(packed, 'package/docs/').length >= 4, true, 'docs present');
 });
 

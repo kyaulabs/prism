@@ -681,7 +681,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: the package's existing Agent Skills and the closed adapter profile contract.
 - Produces: conservative path-triggered adapter lenses with no new adapter review skill, command, exemption, or Core stack knowledge.
 
-- [ ] **Step 1: Write failing adapter composition and archive tests**
+- [x] **Step 1: Write failing adapter composition and archive tests**
 
 Create installed and local adapter fixtures. Assert these outcomes:
 
@@ -709,13 +709,13 @@ tests/Browser/account.php
 
 Every case retains all thirteen Core lenses and the same file-by-axis input scope. Assert no `database` or `accessibility` lens is inferred solely from a generic `backend/` prefix. Assert the npm archive contains the adapter profile and no new `prism-review-php-web-*` skill directory.
 
-- [ ] **Step 2: Run adapter profile tests to verify Red**
+- [x] **Step 2: Run adapter profile tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because the adapter profile and manifest registration are absent.
 
-- [ ] **Step 3: Register existing adapter skills as lenses**
+- [x] **Step 3: Register existing adapter skills as lenses**
 
 Add only this manifest field beside the adapter's existing keys:
 
@@ -754,7 +754,7 @@ Map lenses as follows:
 
 Use unique dotted lens IDs with an axis suffix when one resource appears on several axes. Tests compare selected resource names per axis rather than treating one resource name as a globally reusable lens ID. Keep `exemptions` empty. Adapter profile loading failure is fatal when the adapter manifest declares one; a Core-only project with no adapter remains valid.
 
-- [ ] **Step 4: Run and refactor**
+- [x] **Step 4: Run and refactor**
 
 Run: `node --test tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -762,13 +762,13 @@ Expected: PASS for installed, local, protected-base, path-trigger, Core-only, ma
 
 Refactor repeated trigger arrays only inside the JSON profile if the closed schema supports named data without indirection; otherwise keep explicit arrays. Do not add runtime condition logic. Rerun the command.
 
-- [ ] **Step 5: Stage the adapter profile**
+- [x] **Step 5: Stage the adapter profile**
 
 Run: `git add packages/prism-php-web/config/prism-review.json packages/prism-php-web/package.json tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: the profile, one manifest field, and tests are staged. No adapter skill is new.
 
-- [ ] **Step 6: Create the adapter profile commit**
+- [x] **Step 6: Create the adapter profile commit**
 
 ```bash
 prism-tool commit create --type feat --scope php-web --subject "register adapter review lenses"

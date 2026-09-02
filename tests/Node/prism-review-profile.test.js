@@ -21,6 +21,8 @@ const AXES = [
     'static-security',
 ];
 const RESOURCE_IDS = ['session', 'tooling', 'structure', 'requirements', 'security', 'verifier'];
+const CORE_PACKAGE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_PACKAGE_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 
 function tempRoot(t) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-profile-'));
@@ -154,6 +156,51 @@ test('loads the complete packaged Core review policy', () => {
             {id: 'prism-review-false-positive-check', license: 'CC-BY-SA-4.0', sourceLicense: 'CC-BY-SA-4.0', sourceSha256: '129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3'},
         ]
     );
+});
+
+test('composes installed and local PHP/web lenses from conservative path triggers', (t) => {
+    const core = loadCoreProfile({packageRoot: CORE_PACKAGE_ROOT});
+    const installedRoot = tempRoot(t);
+    fs.cpSync(ADAPTER_PACKAGE_ROOT, installedRoot, {recursive: true});
+    const registrations = [ADAPTER_PACKAGE_ROOT, installedRoot].map((packageRoot) => ({
+        packageName: '@kyaulabs/prism-php-web',
+        packageRoot,
+        reviewPath: path.join(packageRoot, 'config', 'prism-review.json'),
+    }));
+    const cases = [
+        ['README.md', []],
+        ['src/Account.php', ['php-web-stack', 'rcs-header', 'tdd-php', 'security-coding-php']],
+        ['assets/account.scss', ['php-web-stack', 'rcs-header', 'scss-mobile-first', 'visual-review', 'accessibility']],
+        ['assets/account.js', ['php-web-stack', 'rcs-header', 'frontend-architecture', 'visual-review', 'accessibility', 'security-coding-php']],
+        ['migrations/001_account.sql', ['php-web-stack', 'database', 'security-coding-php']],
+        ['tests/Browser/account.php', ['php-web-stack', 'rcs-header', 'tdd-php', 'pest-browser', 'visual-review', 'accessibility', 'security-coding-php']],
+    ];
+
+    for (const registration of registrations) {
+        const adapter = loadAdapterProfile({registration});
+        for (const [changedPath, expected] of cases) {
+            const plan = buildReviewPlan({core, adapter, changedPaths: [changedPath]});
+            const coreLenses = plan.axes.flatMap(({lenses}) =>
+                lenses.filter(({package: packageName}) => packageName === '@kyaulabs/prism-core'));
+            const adapterSkills = [...new Set(plan.axes.flatMap(({lenses}) =>
+                lenses.filter(({package: packageName}) => packageName === '@kyaulabs/prism-php-web')
+                    .map(({skill}) => skill)))];
+            assert.equal(coreLenses.length, 13, `${changedPath} keeps Core lenses`);
+            assert.deepEqual(adapterSkills, expected, changedPath);
+            assert.deepEqual(plan.changedPaths, [{
+                oldPath: null,
+                newPath: changedPath,
+                kind: 'text',
+                text: true,
+            }]);
+        }
+        for (const changedPath of ['backend/account', 'backend/accessibility']) {
+            const plan = buildReviewPlan({core, adapter, changedPaths: [changedPath]});
+            const skills = plan.axes.flatMap(({lenses}) => lenses.map(({skill}) => skill));
+            assert.equal(skills.includes('database'), false);
+            assert.equal(skills.includes('accessibility'), false);
+        }
+    }
 });
 
 test('canonical JSON is stable, ordered, and closed to non-JSON values', () => {
