@@ -116,9 +116,10 @@ the shared `/check` gate.
 Coverage uses the adapter-owned command:
 
 ```bash
-PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
 ```
 
+The profile selects the nearest available port and owns readiness and cleanup.
 The changed-file gate reads `tests/coverage.xml` and requires at least 80% line
 coverage on each changed PHP file in the coverage source set. Coverage does not
 replace assertions: uncovered behavior needs a test, while unreachable

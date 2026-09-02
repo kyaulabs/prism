@@ -801,7 +801,7 @@ prism-tool commit create --type feat --scope php-web --subject "supervise browse
 - Consumes: the accepted ADR-0101 CLI and PHP/web profile.
 - Produces: one documented canonical command and a language-independent TDD rule for test-owned servers.
 
-- [ ] **Step 1: Update contract tests before prose**
+- [x] **Step 1: Update contract tests before prose**
 
 In `tests/Shell/toolchain_entrypoints_test.sh`, replace `CANONICAL_PEST` with:
 
@@ -820,7 +820,7 @@ kill <pid>
 
 Add assertions that Core TDD says profiles choose the nearest available port and never reuse occupied listeners, and Core README documents `prism-tool server run` as foreground-scoped.
 
-- [ ] **Step 2: Run the instruction contract and verify Red**
+- [x] **Step 2: Run the instruction contract and verify Red**
 
 Run:
 
@@ -830,7 +830,7 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 
 Expected: FAIL because current guidance hardcodes and may reuse `localhost:8080`.
 
-- [ ] **Step 3: Update Core and adapter guidance**
+- [x] **Step 3: Update Core and adapter guidance**
 
 Add this rule to `packages/prism-core/skills/tdd/SKILL.md` near full-suite verification:
 
@@ -861,7 +861,7 @@ State that the launcher selects the nearest available port and owns readiness an
 
 Replace both fixed coverage commands in `packages/prism-php-web/skills/tdd-php/SKILL.md` and the command in `packages/prism-php-web/docs/tests.md` with the same canonical supervised command. Browser-focused Pest invocations use the profile; unit-only focused invocations remain `prism-tool run pest -- ...`.
 
-- [ ] **Step 4: Run instruction and focused regression checks**
+- [x] **Step 4: Run instruction and focused regression checks**
 
 Run:
 
@@ -877,7 +877,7 @@ node --test tests/Node/toolchain-contract.test.js tests/Node/prism-tool-server-l
 
 Expected: PASS.
 
-- [ ] **Step 5: Stage and commit the guidance slice**
+- [x] **Step 5: Stage and commit the guidance slice**
 
 Stage:
 

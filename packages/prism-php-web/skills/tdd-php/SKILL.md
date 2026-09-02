@@ -136,14 +136,14 @@ mock.
 Run:
 
 ```bash
-PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
 ```
 
 Use this exact coverage invocation even when the current suite has no browser
-tests. The environment variable is inert for non-browser tests and keeps TDD,
-CI, aggregate checks, and generated plans on one adapter-owned command. Report
-coverage for the files you touched. Minimum 80% line coverage on
-changed files is enforced by
+tests. The profile selects the nearest available port and owns readiness and
+cleanup, keeping TDD, CI, aggregate checks, and generated plans on one
+adapter-owned command. Report coverage for the files you touched. Minimum 80%
+line coverage on changed files is enforced by
 `packages/prism-php-web/scripts/coverage-gate.php`. Feed it the Clover report:
 
 ```bash
@@ -164,7 +164,7 @@ Run the adapter gate `/check-php`, which covers:
 prism-tool run php-cs-fixer -- fix --dry-run --diff
 prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
 prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
-PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
 ```
 
 - PSR-12 code style is enforced by `php-cs-fixer`.
