@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -13,7 +13,7 @@
 #      idempotently: a re-run replaces the managed block; a pre-existing
 #      user-owned file is backed up to *.bak once, then the prism block is
 #      appended (pi concatenates all AGENTS.md into every session).
-#   3. Deploy the owned prism-tool launcher and verify mandatory readiness.
+#   3. Deploy the owned prism-tool and prism-review launchers and verify mandatory readiness.
 #
 # Usage:
 #   bash packages/prism-core/scripts/install-global.sh [OPTIONS]
@@ -35,7 +35,8 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PKG_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 PI_DIR=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
 BIN_DIR=${PRISM_BIN_DIR:-$HOME/.local/bin}
-LAUNCHER="$BIN_DIR/prism-tool"
+TOOL_LAUNCHER="$BIN_DIR/prism-tool"
+REVIEW_LAUNCHER="$BIN_DIR/prism-review"
 NETWORK_APPROVED=false
 UNINSTALL_LAUNCHER=false
 SELECTED_CORE_SOURCE=""
@@ -70,24 +71,40 @@ mark_end() {
 }
 
 launcher_is_managed() {
-    local launcher="$1"
-    [ -f "$launcher" ] &&
-        [ ! -L "$launcher" ] &&
+    local launcher="$1" name="$2"
+    [ -f "$launcher" ] && [ ! -L "$launcher" ] || return 1
+    if grep -qFx "# prism-core:managed-launcher $name begin" "$launcher" &&
+        grep -qFx "# prism-core:managed-launcher $name end" "$launcher"; then
+        return 0
+    fi
+    [ "$name" = prism-tool ] &&
         grep -qFx '# prism-core:managed-launcher begin' "$launcher" &&
         grep -qFx '# prism-core:managed-launcher end' "$launcher"
 }
 
-remove_managed_launcher() {
-    if [ ! -e "$LAUNCHER" ] && [ ! -L "$LAUNCHER" ]; then
-        echo "• no managed launcher at $LAUNCHER"
-        return
-    fi
-    if ! launcher_is_managed "$LAUNCHER"; then
-        echo "✗ refusing to remove an unmanaged launcher at $LAUNCHER" >&2
+launcher_absent_or_managed() {
+    local launcher="$1" name="$2"
+    { [ ! -e "$launcher" ] && [ ! -L "$launcher" ]; } || launcher_is_managed "$launcher" "$name"
+}
+
+remove_managed_launchers() {
+    if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
+        echo "✗ refusing to remove an unmanaged launcher at $TOOL_LAUNCHER" >&2
         exit 1
     fi
-    rm -f -- "$LAUNCHER"
-    echo "✓ removed managed launcher $LAUNCHER"
+    if ! launcher_absent_or_managed "$REVIEW_LAUNCHER" prism-review; then
+        echo "✗ refusing to remove an unmanaged launcher at $REVIEW_LAUNCHER" >&2
+        exit 1
+    fi
+    local launcher
+    for launcher in "$TOOL_LAUNCHER" "$REVIEW_LAUNCHER"; do
+        if [ -e "$launcher" ]; then
+            rm -f -- "$launcher"
+            echo "✓ removed managed launcher $launcher"
+        else
+            echo "• no managed launcher at $launcher"
+        fi
+    done
 }
 
 canonical_cli() {
@@ -95,8 +112,8 @@ canonical_cli() {
     node -e 'const fs = require("node:fs"); process.stdout.write(fs.realpathSync(process.argv[1]));' "$candidate" 2>/dev/null
 }
 
-deploy_launcher() {
-    local core_cli="$1" temp
+validate_cli_path() {
+    local core_cli="$1"
     case "$core_cli" in
         /*) ;;
         *) echo "✗ managed core CLI path is not absolute" >&2; exit 1 ;;
@@ -107,21 +124,37 @@ deploy_launcher() {
             exit 1
             ;;
     esac
-    if { [ -e "$LAUNCHER" ] || [ -L "$LAUNCHER" ]; } && ! launcher_is_managed "$LAUNCHER"; then
-        echo "✗ refusing to replace an unmanaged launcher at $LAUNCHER" >&2
+}
+
+deploy_one_launcher() {
+    local name="$1" launcher="$2" core_cli="$3" temp
+    temp=$(mktemp "$BIN_DIR/.${name}.XXXXXX")
+    {
+        printf '#!/usr/bin/env bash\n'
+        printf '# prism-core:managed-launcher %s begin\n' "$name"
+        printf "exec node '%s' \"\$@\"\n" "$core_cli"
+        printf '# prism-core:managed-launcher %s end\n' "$name"
+    } > "$temp"
+    chmod 0755 "$temp"
+    mv -f -- "$temp" "$launcher"
+    echo "✓ deployed managed launcher $launcher"
+}
+
+deploy_launchers() {
+    local tool_cli="$1" review_cli="$2"
+    validate_cli_path "$tool_cli"
+    validate_cli_path "$review_cli"
+    if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
+        echo "✗ refusing to replace an unmanaged launcher at $TOOL_LAUNCHER" >&2
+        exit 1
+    fi
+    if ! launcher_absent_or_managed "$REVIEW_LAUNCHER" prism-review; then
+        echo "✗ refusing to replace an unmanaged launcher at $REVIEW_LAUNCHER" >&2
         exit 1
     fi
     mkdir -p -- "$BIN_DIR"
-    temp=$(mktemp "$BIN_DIR/.prism-tool.XXXXXX")
-    {
-        printf '#!/usr/bin/env bash\n'
-        printf '# prism-core:managed-launcher begin\n'
-        printf "exec node '%s' \"\$@\"\n" "$core_cli"
-        printf '# prism-core:managed-launcher end\n'
-    } > "$temp"
-    chmod 0755 "$temp"
-    mv -f -- "$temp" "$LAUNCHER"
-    echo "✓ deployed managed launcher $LAUNCHER"
+    deploy_one_launcher prism-tool "$TOOL_LAUNCHER" "$tool_cli"
+    deploy_one_launcher prism-review "$REVIEW_LAUNCHER" "$review_cli"
 }
 
 # deploy_marked <dest> <src> <marker_id>
@@ -173,7 +206,7 @@ deploy_marked() {
 }
 
 if [ "$UNINSTALL_LAUNCHER" = true ]; then
-    remove_managed_launcher
+    remove_managed_launchers
     exit 0
 fi
 
@@ -227,17 +260,24 @@ done
 
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     CORE_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-tool.js"
+    REVIEW_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-review.js"
 elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
     CORE_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-tool.js"
+    REVIEW_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-review.js"
 else
     CORE_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-tool.js"
+    REVIEW_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-review.js"
 fi
 
 if ! CORE_CLI=$(canonical_cli "$CORE_CLI_CANDIDATE"); then
     echo "✗ installed prism-core CLI is unavailable" >&2
     exit 1
 fi
-deploy_launcher "$CORE_CLI"
+if ! REVIEW_CLI=$(canonical_cli "$REVIEW_CLI_CANDIDATE"); then
+    echo "✗ installed prism-review CLI is unavailable" >&2
+    exit 1
+fi
+deploy_launchers "$CORE_CLI" "$REVIEW_CLI"
 
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;

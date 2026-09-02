@@ -6,6 +6,7 @@
 .pi/npm/
 .pi/git/
 .pi/prism-tool/
+.pi/prism-review/
 
 # Semgrep settings (API keys, registry tokens)
 .semgrep/settings.yml

@@ -243,7 +243,6 @@ Expected: one signed commit with the standard three trailers.
 - Modify: `.gitignore`
 - Modify: `packages/prism-core/package.json`
 - Modify: `packages/prism-core/safe-dirs.json`
-- Modify: `package-lock.json`
 - Modify: `packages/prism-core/scripts/install-global.sh`
 - Modify: `packages/prism-core/scripts/validate-harness.sh`
 - Modify: `packages/prism-core/scripts/check-peer-deps.js`
@@ -260,7 +259,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: the selected Core source under ADR-0075 and the stable interface constants above.
 - Produces: two managed package binaries, `prism-tool` and `prism-review`; `classifyTrustRoot(coreRoot, repositoryRoot)`; and a non-inference runtime-readiness report. This new `prism-review doctor` surface does not modify or replace the existing `/doctor` workflow.
 
-- [ ] **Step 1: Write failing CLI, trust, peer, package, and installer tests**
+- [x] **Step 1: Write failing CLI, trust, peer, package, and installer tests**
 
 Create `tests/Node/prism-review-cli.test.js` with a capture helper for async `main`. Cover these exact public behaviors:
 
@@ -298,7 +297,7 @@ Also assert:
 
 Extend `check-peer-deps` tests so dynamic imports beneath `scripts/prism-review/` require a declared Pi peer. Extend package tests to require `bin.prism-review`, its executable mode, and every new module. Extend installer tests so both launchers use separate ownership markers, refresh idempotently, refuse unmanaged collisions before either write, and are both removed by the existing uninstall operation.
 
-- [ ] **Step 2: Run the focused tests to verify Red**
+- [x] **Step 2: Run the focused tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-cli.test.js tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -308,7 +307,7 @@ Run: `bash tests/Shell/install_global_toolchain_test.sh`
 
 Expected: FAIL because only `prism-tool` is deployed.
 
-- [ ] **Step 3: Add the executable, parser, and trust classifier**
+- [x] **Step 3: Add the executable, parser, and trust classifier**
 
 Create the executable wrapper with the shebang first, the hook-managed RCS block immediately after it, and then this executable logic:
 
@@ -333,7 +332,7 @@ Promise.resolve(main(process.argv.slice(2)))
 
 `cli.js` exports async `main(argv, context = {})`. Parse the exact grammar in Stable interfaces through literal array comparisons and fixed-position validated SHA/path operands. Read Core version from a bounded, non-symlink package manifest. Use injected stdout/stderr when present. Emit one JSON object plus newline for JSON commands. Keep review commands unavailable until later tasks instead of returning placeholder success.
 
-- [ ] **Step 4: Package and install both managed launchers**
+- [x] **Step 4: Package and install both managed launchers**
 
 Change Core's `bin` to:
 
@@ -344,13 +343,13 @@ Change Core's `bin` to:
 }
 ```
 
-Narrow the existing Pi peer to `>=0.84.1 <0.85.0`. Add no dependency. Refresh only the workspace package metadata recorded in `package-lock.json`.
+Narrow the existing Pi peer to `>=0.84.1 <0.85.0`. Add no dependency. The root lockfile has no workspace record for package-local manifests, so it remains unchanged.
 
 Generalize `install-global.sh` over two literal launcher records. Preflight both destinations before the first write. Each managed wrapper executes one canonical script from the selected Core source, has mode 0755, and carries a launcher-specific begin/end marker. Preserve the existing `--uninstall-launcher` spelling but remove both owned wrappers. Refuse a collision at either path without changing the other.
 
 Add `scripts/prism-review.js` to the harness validator's executable entry points. Extend `check-peer-deps.js` to scan static and dynamic imports in Core extensions and `scripts/prism-review/`; do not scan arbitrary package or project JavaScript. Add `.pi/prism-review/` to the repository ignore file and only `.pi/prism-review/work` to Core's `safe_rm_dirs`; the broader private-state tree is never a recursive-delete zone.
 
-- [ ] **Step 5: Run and refactor**
+- [x] **Step 5: Run and refactor**
 
 Run: `node --test tests/Node/prism-review-cli.test.js tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -366,13 +365,13 @@ Expected: PASS with both package bins at mode 100755.
 
 Refactor only duplicated two-launcher installer code. Rerun the same commands and require the same results.
 
-- [ ] **Step 6: Stage the packaged CLI**
+- [x] **Step 6: Stage the packaged CLI**
 
-Run: `git add .gitignore package-lock.json packages/prism-core/package.json packages/prism-core/safe-dirs.json packages/prism-core/scripts/prism-review.js packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/prism-review/constants.js packages/prism-core/scripts/prism-review/errors.js packages/prism-core/scripts/prism-review/trust.js packages/prism-core/scripts/install-global.sh packages/prism-core/scripts/validate-harness.sh packages/prism-core/scripts/check-peer-deps.js tests/Node/prism-review-cli.test.js tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js tests/Shell/install_global_toolchain_test.sh tests/Shell/script_executable_bits_test.sh`
+Run: `git add .gitignore packages/prism-core/package.json packages/prism-core/safe-dirs.json packages/prism-core/scripts/prism-review.js packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/prism-review/constants.js packages/prism-core/scripts/prism-review/errors.js packages/prism-core/scripts/prism-review/trust.js packages/prism-core/scripts/install-global.sh packages/prism-core/scripts/validate-harness.sh packages/prism-core/scripts/check-peer-deps.js tests/Node/prism-review-cli.test.js tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js tests/Shell/install_global_toolchain_test.sh tests/Shell/script_executable_bits_test.sh`
 
 Expected: only the listed CLI, package, installer, validator, and tests are staged.
 
-- [ ] **Step 7: Create the CLI commit**
+- [x] **Step 7: Create the CLI commit**
 
 ```bash
 prism-tool commit create --type feat --scope review --subject "package the review runtime"

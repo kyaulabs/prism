@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/08/20 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 set -euo pipefail
 
@@ -42,7 +42,12 @@ if [[ "${2:-}" == npm:* ]]; then
 if (process.argv[2] !== 'doctor') process.exit(2);
 process.stdout.write('fixture\tPASS\tready\nGO\n');
 JSEOF
-    chmod +x "$package_root/scripts/prism-tool.js"
+    cat > "$package_root/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+process.stdout.write('fixture review\n');
+JSEOF
+    chmod +x "$package_root/scripts/prism-tool.js" "$package_root/scripts/prism-review.js"
 fi
 EOF
     cat > "$root/bin/semgrep" <<'EOF'
@@ -89,22 +94,28 @@ output=$(HOME="$T1/home" \
     bash "$INSTALLER" 2>&1) || status=$?
 
 launcher="$T1/bin-dir/prism-tool"
+review_launcher="$T1/bin-dir/prism-review"
 if [ "$status" -eq 0 ]; then
     pass "local source installation needs no registry approval"
 else
     fail "local source installation exited $status: $output"
 fi
-if [ -f "$launcher" ] && [ ! -L "$launcher" ] && [ "$(file_mode "$launcher")" = "755" ]; then
-    pass "managed launcher is a mode-0755 regular file"
+if [ -f "$launcher" ] && [ ! -L "$launcher" ] && [ "$(file_mode "$launcher")" = "755" ] \
+    && [ -f "$review_launcher" ] && [ ! -L "$review_launcher" ] \
+    && [ "$(file_mode "$review_launcher")" = "755" ]; then
+    pass "managed launchers are mode-0755 regular files"
 else
-    fail "managed launcher was not installed as a mode-0755 regular file"
+    fail "managed launchers were not installed as mode-0755 regular files"
 fi
-if grep -qF '# prism-core:managed-launcher begin' "$launcher" 2>/dev/null \
-    && grep -qF '# prism-core:managed-launcher end' "$launcher" 2>/dev/null \
-    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$launcher" 2>/dev/null; then
-    pass "launcher invokes the canonical local core CLI with both ownership sentinels"
+if grep -qF '# prism-core:managed-launcher prism-tool begin' "$launcher" 2>/dev/null \
+    && grep -qF '# prism-core:managed-launcher prism-tool end' "$launcher" 2>/dev/null \
+    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$launcher" 2>/dev/null \
+    && grep -qF '# prism-core:managed-launcher prism-review begin' "$review_launcher" 2>/dev/null \
+    && grep -qF '# prism-core:managed-launcher prism-review end' "$review_launcher" 2>/dev/null \
+    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$review_launcher" 2>/dev/null; then
+    pass "launchers invoke canonical local Core CLIs with distinct ownership sentinels"
 else
-    fail "launcher does not invoke the canonical local core CLI"
+    fail "launchers do not invoke canonical local Core CLIs"
 fi
 launcher_output=""
 status=0
@@ -142,6 +153,7 @@ fi
 printf 'shell-startup-sentinel\n' > "$T1/home/.bashrc"
 printf 'profile-sentinel\n' > "$T1/home/.profile"
 launcher_before=$(cksum "$launcher" | awk '{print $1 ":" $2}')
+review_launcher_before=$(cksum "$review_launcher" | awk '{print $1 ":" $2}')
 status=0
 HOME="$T1/home" \
     PI_CODING_AGENT_DIR="$T1/pi-agent" \
@@ -150,7 +162,9 @@ HOME="$T1/home" \
     PATH="$T1/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 launcher_after=$(cksum "$launcher" | awk '{print $1 ":" $2}')
-if [ "$status" -eq 0 ] && [ "$launcher_before" = "$launcher_after" ]; then
+review_launcher_after=$(cksum "$review_launcher" | awk '{print $1 ":" $2}')
+if [ "$status" -eq 0 ] && [ "$launcher_before" = "$launcher_after" ] \
+    && [ "$review_launcher_before" = "$review_launcher_after" ]; then
     pass "managed launcher refresh is idempotent"
 else
     fail "managed launcher refresh changed content or failed"
@@ -381,11 +395,14 @@ else
     fail "approved npm installation failed or did not disable lifecycle scripts: $output"
 fi
 npm_launcher="$T2/bin-dir/prism-tool"
+npm_review_launcher="$T2/bin-dir/prism-review"
 expected_npm_cli="$T2/pi-agent/npm/node_modules/@kyaulabs/prism-core/scripts/prism-tool.js"
-if grep -qF "exec node '$expected_npm_cli' \"\$@\"" "$npm_launcher" 2>/dev/null; then
-    pass "npm launcher targets the canonical Pi-managed package CLI"
+expected_npm_review_cli="$T2/pi-agent/npm/node_modules/@kyaulabs/prism-core/scripts/prism-review.js"
+if grep -qF "exec node '$expected_npm_cli' \"\$@\"" "$npm_launcher" 2>/dev/null \
+    && grep -qF "exec node '$expected_npm_review_cli' \"\$@\"" "$npm_review_launcher" 2>/dev/null; then
+    pass "npm launchers target canonical Pi-managed package CLIs"
 else
-    fail "npm launcher does not target the Pi-managed package CLI"
+    fail "npm launchers do not target Pi-managed package CLIs"
 fi
 
 echo "── installer defers standing consent and live readiness to setup ──"
@@ -539,10 +556,11 @@ HOME="$T6/home" \
     PATH="$T6/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -eq 0 ] \
-    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$T6/bin-dir/prism-tool"; then
-    pass "installer refreshes a launcher carrying both ownership sentinels"
+    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$T6/bin-dir/prism-tool" \
+    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$T6/bin-dir/prism-review"; then
+    pass "installer refreshes and completes its owned launcher set"
 else
-    fail "installer did not refresh its owned launcher"
+    fail "installer did not refresh its owned launcher set"
 fi
 pi_count_before=$(wc -l < "$T6/pi-invocations" | tr -d ' ')
 status=0
@@ -552,16 +570,58 @@ HOME="$T6/home" \
     PI_INVOCATIONS="$T6/pi-invocations" \
     PATH="$T6/bin:$PATH" \
     bash "$INSTALLER" --uninstall-launcher >/dev/null 2>&1 || status=$?
-if [ "$status" -eq 0 ] && [ ! -e "$T6/bin-dir/prism-tool" ]; then
-    pass "uninstall removes only a managed launcher"
+if [ "$status" -eq 0 ] && [ ! -e "$T6/bin-dir/prism-tool" ] \
+    && [ ! -e "$T6/bin-dir/prism-review" ]; then
+    pass "uninstall removes only managed launchers"
 else
-    fail "uninstall did not remove the managed launcher"
+    fail "uninstall did not remove the managed launchers"
 fi
 pi_count_after=$(wc -l < "$T6/pi-invocations" | tr -d ' ')
 if [ "$pi_count_before" = "$pi_count_after" ]; then
     pass "uninstall exits without an additional Pi installation"
 else
     fail "uninstall unexpectedly invoked Pi"
+fi
+
+T5B=$(mktemp -d)
+register_temp_dir "$T5B"
+write_fake_tools "$T5B"
+mkdir -p "$T5B/home" "$T5B/pi-agent" "$T5B/bin-dir"
+: > "$T5B/pi-invocations"
+printf 'unrelated review executable\n' > "$T5B/bin-dir/prism-review"
+chmod 0755 "$T5B/bin-dir/prism-review"
+status=0
+HOME="$T5B/home" \
+    PI_CODING_AGENT_DIR="$T5B/pi-agent" \
+    PRISM_BIN_DIR="$T5B/bin-dir" \
+    PI_INVOCATIONS="$T5B/pi-invocations" \
+    PATH="$T5B/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -e "$T5B/bin-dir/prism-tool" ] \
+    && [ "$(cat "$T5B/bin-dir/prism-review")" = 'unrelated review executable' ]; then
+    pass "a review-launcher collision blocks both launcher writes"
+else
+    fail "a review-launcher collision caused a partial launcher write"
+fi
+cat > "$T5B/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exit 0
+# prism-core:managed-launcher prism-tool end
+EOF
+chmod 0755 "$T5B/bin-dir/prism-tool"
+status=0
+HOME="$T5B/home" \
+    PI_CODING_AGENT_DIR="$T5B/pi-agent" \
+    PRISM_BIN_DIR="$T5B/bin-dir" \
+    PI_INVOCATIONS="$T5B/pi-invocations" \
+    PATH="$T5B/bin:$PATH" \
+    bash "$INSTALLER" --uninstall-launcher >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ -e "$T5B/bin-dir/prism-tool" ] \
+    && [ "$(cat "$T5B/bin-dir/prism-review")" = 'unrelated review executable' ]; then
+    pass "uninstall collision preserves the complete launcher set"
+else
+    fail "uninstall collision removed part of the launcher set"
 fi
 
 echo "── fail-closed options and paths ──"
@@ -644,8 +704,9 @@ HOME="$T10/home" \
     PI_INVOCATIONS="$T10/pi-invocations" \
     PATH="$T10/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
-if [ "$status" -eq 0 ] && [ -x "$T10/home/.local/bin/prism-tool" ]; then
-    pass "default launcher destination is HOME/.local/bin/prism-tool"
+if [ "$status" -eq 0 ] && [ -x "$T10/home/.local/bin/prism-tool" ] \
+    && [ -x "$T10/home/.local/bin/prism-review" ]; then
+    pass "default launcher destination contains both managed launchers"
 else
     fail "installer did not use the default launcher destination"
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -203,6 +203,7 @@ fi
 
 printf '%s\n' '── Validating toolchain entry points ──'
 ENTRY_POINTS=(
+	"$REPO_ROOT/packages/prism-core/scripts/prism-review.js"
 	"$REPO_ROOT/packages/prism-core/scripts/prism-tool.js"
 	"$REPO_ROOT/packages/prism-core/scripts/install-global.sh"
 	"$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
@@ -240,7 +241,7 @@ const isCovered = (file) => {
 const required = [];
 if (pkg.prism?.toolchain) required.push('toolchain.json');
 if (pkg.name === '@kyaulabs/prism-core') {
-	required.push('safe-dirs.json', 'scripts/prism-tool.js', 'config/commitlint.config.cjs');
+	required.push('safe-dirs.json', 'scripts/prism-review.js', 'scripts/prism-tool.js', 'config/commitlint.config.cjs');
 }
 if (pkg.name === '@kyaulabs/prism-php-web') {
 	required.push('safe-dirs.json', 'scripts/prism-tool-adapter.js');
