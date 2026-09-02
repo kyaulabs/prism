@@ -337,8 +337,10 @@ CANONICAL_PEST='prism-tool server run @kyaulabs/prism-php-web:browser-fixture --
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" "$CANONICAL_PEST" 'check-php uses the canonical Pest coverage command'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$CANONICAL_PEST" 'tdd-php uses the canonical Pest coverage command'
 assert_file_contains "$ADAPTER_DOCS/tests.md" "$CANONICAL_PEST" 'adapter test docs use the canonical Pest coverage command'
-for forbidden in 'php -S' 'PEST_BROWSER_BASE_URL=' 'reusing existing dev server' 'kill <pid>'; do
-	assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" "$forbidden" "check-php omits shell-owned server lifecycle: $forbidden"
+for lifecycle_surface in "$ADAPTER_PROMPTS/check-php.md" "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$ADAPTER_DOCS/tests.md"; do
+	for forbidden in 'php -S' 'PEST_BROWSER_BASE_URL=' 'reusing existing dev server' 'kill <pid>'; do
+		assert_file_not_contains "$lifecycle_surface" "$forbidden" "${lifecycle_surface##*/} omits shell-owned server lifecycle: $forbidden"
+	done
 done
 assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'nearest available.*port' 'Core TDD selects the nearest available profile port'
 assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'never reuses an occupied listener' 'Core TDD never reuses occupied listeners'

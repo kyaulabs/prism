@@ -187,6 +187,7 @@ async function superviseServer(options) {
         owned.port = port;
         const readiness = await awaitReadiness(owned);
         if (readiness.startupError === true) {
+            await cleanupOwned(stop, owned);
             throw lifecycleError('SERVER_STARTUP_FAILED', 'server startup failed');
         }
         if (readiness.status === 'EXITED') {

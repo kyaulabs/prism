@@ -137,6 +137,20 @@ test('rejects malformed or unsafe server profiles', () => {
     }
 });
 
+test('rejects unmatched closing braces in server templates', () => {
+    const contract = serverProfileContract({
+        clients: [{
+            toolId: 'fixture-client',
+            environment: {FIXTURE_ENDPOINT: 'tcp://{host}:{port}}'},
+        }],
+    });
+
+    assert.throws(
+        () => validateContract(contract, 'fixture.json'),
+        /server profile fixture environment value is invalid/
+    );
+});
+
 test('rejects duplicate server profiles and duplicate clients', () => {
     const duplicateProfile = serverProfileContract();
     duplicateProfile.serverProfiles.push({...duplicateProfile.serverProfiles[0]});

@@ -146,6 +146,28 @@ test('retries a bind race but stops on a real startup failure', async () => {
     });
 });
 
+test('cleans up an owned server after a post-spawn startup error', async () => {
+    const stopped = [];
+    const selectedProfile = profile();
+
+    await assert.rejects(() => superviseServer({
+        profile: selectedProfile,
+        client: selectedProfile.clients[0],
+        projectRoot: '/fixture',
+        env: {},
+        candidates: [selectedProfile.preferredPort],
+        probe: async () => false,
+        start: async () => child(),
+        awaitReadiness: async () => ({status: 'EXITED', startupError: true}),
+        runClient: () => 0,
+        stop: async (owned) => stopped.push(owned.pid),
+    }), (error) => {
+        assert.equal(error.code, 'SERVER_STARTUP_FAILED');
+        return true;
+    });
+    assert.deepEqual(stopped, [101]);
+});
+
 test('classifies process spawn errors as startup failures', async () => {
     const selectedProfile = {
         ...profile(),

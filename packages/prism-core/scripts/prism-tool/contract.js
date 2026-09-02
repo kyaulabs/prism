@@ -180,7 +180,7 @@ function validateServerTemplate(value, filePath, label, maximumBytes) {
         Buffer.byteLength(value) > maximumBytes ||
         /[\0\r\n`]/.test(value) ||
         value.includes('$(') ||
-        /\{(?!host\}|port\})/.test(value)
+        /\{(?!host\}|port\})|(?<!\{host)(?<!\{port)\}/.test(value)
     ) {
         fail(filePath, `${label} is invalid`);
     }
