@@ -117,9 +117,10 @@ test('rejects every command outside the closed grammar before dependencies run',
     }
 });
 
-test('reports local runtime readiness without loading the SDK or running Git', async () => {
+test('reports exact model and isolated SDK readiness without running Git', async () => {
     const output = capture();
     const repositoryRoot = path.resolve(__dirname, '../..');
+    const calls = [];
     const status = await main(['doctor', '--json'], {
         ...output.context,
         projectRoot: repositoryRoot,
@@ -130,10 +131,20 @@ test('reports local runtime readiness without loading the SDK or running Git', a
         },
         coreProfilePresent: false,
         run: () => { throw new Error('Git must not run'); },
-        loadSdk: () => { throw new Error('SDK must not load'); },
+        async inspectIsolatedRuntime(options) {
+            calls.push(options.repositoryRoot);
+            return {
+                provider: 'anthropic',
+                id: 'claude-sonnet-4-5',
+                reasoningLevel: 'high',
+                contextWindow: 200000,
+                authentication: 'UNKNOWN',
+            };
+        },
     });
 
     assert.equal(status, EXIT.OK);
+    assert.deepEqual(calls, [repositoryRoot]);
     assert.equal(output.result().stderr, '');
     assert.deepEqual(JSON.parse(output.result().stdout), {
         schemaVersion: 1,
@@ -145,10 +156,13 @@ test('reports local runtime readiness without loading the SDK or running Git', a
             provider: 'anthropic',
             id: 'claude-sonnet-4-5',
             reasoningLevel: 'high',
+            contextWindow: 200000,
+            authentication: 'UNKNOWN',
         },
         checks: [
             {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
-            {id: 'active-model', status: 'PASS', message: 'active Pi model syntax validated'},
+            {id: 'active-model', status: 'PASS', message: 'active Pi model resolved exactly'},
+            {id: 'sdk-isolation', status: 'PASS', message: 'isolated Pi resources validated'},
         ],
     });
 });
@@ -166,6 +180,13 @@ test('doctor validates an available Core profile and optional adapter state with
             PI_REASONING_LEVEL: 'high',
         },
         coreProfilePresent: true,
+        inspectIsolatedRuntime: async () => ({
+            provider: 'anthropic',
+            id: 'claude-sonnet-4-5',
+            reasoningLevel: 'high',
+            contextWindow: 200000,
+            authentication: 'UNKNOWN',
+        }),
         loadCoreProfile() {
             calls.push('core');
             return {profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)};

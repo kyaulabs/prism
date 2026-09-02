@@ -273,7 +273,7 @@ test('packs the core package with every owned resource and executable modes', ()
     );
     for (const module of [
         'canonical-json', 'cli', 'constants', 'errors', 'git-snapshot', 'profile',
-        'schema', 'snapshot-tools', 'trust',
+        'schema', 'session-runner', 'snapshot-tools', 'trust',
     ]) {
         assert.equal(
             packed.files.has(`scripts/prism-review/${module}.js`),

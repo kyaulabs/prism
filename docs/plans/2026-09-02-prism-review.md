@@ -928,7 +928,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: one axis or verifier request, exact policy bytes, snapshot tool descriptors, active Pi environment, and an optional injected SDK facade.
 - Produces: `resolveActiveModel`, `calculateContextBudget`, `buildSessionPrompt`, and `runIsolatedSession` with exactly one validated terminating submission.
 
-- [ ] **Step 1: Write failing SDK-isolation and prompt-budget tests**
+- [x] **Step 1: Write failing SDK-isolation and prompt-budget tests**
 
 Build an injected facade that records all SDK calls and simulates tool submission. Assert the runtime uses:
 
@@ -952,13 +952,13 @@ Test valid and invalid `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL`; unkn
 
 The prompt test must prove that the only variable data sections are exact selected skill bytes, canonical snapshot manifest/evidence metadata, and closed output schema. Each section is length-labelled and says it is hostile data. Parent messages, local paths, settings, arbitrary project content, and non-selected adapter skills are absent.
 
-- [ ] **Step 2: Run session tests to verify Red**
+- [x] **Step 2: Run session tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-session.test.js`
 
 Expected: FAIL because the session runner does not exist.
 
-- [ ] **Step 3: Implement exact model and budget resolution**
+- [x] **Step 3: Implement exact model and budget resolution**
 
 Validate provider and model as bounded control-free IDs. Accept only Pi's reasoning levels `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Dynamic-import `@earendil-works/pi-coding-agent`; do not import or add `typebox`.
 
@@ -966,7 +966,7 @@ Create `ModelRuntime` with network refresh disabled, resolve exactly `getModel(p
 
 `calculateContextBudget` reserves policy bytes, manifest/evidence bytes, tool framing, 32768 output tokens, and 20 percent safety headroom. Treat one input byte as at least one token. The effective source/diff allowance is the lower of the calculated allowance and `LIMIT.INPUT_BYTES`. A non-positive allowance is Inconclusive before session creation.
 
-- [ ] **Step 4: Implement isolated resources and terminating tools**
+- [x] **Step 4: Implement isolated resources and terminating tools**
 
 In production, create private temporary agent and cwd directories beneath the operating-system temporary root and outside the reviewed repository. Unit tests inject `tempRoot` beneath the ignored `.pi/prism-review/work` directory so plan execution does not write outside this checkout. Reject a production temporary root contained by the reviewed repository. Use `SettingsManager.inMemory` with compaction and retry disabled. Build `DefaultResourceLoader` with all discovery flags disabled and overrides returning no skills, prompts, themes, extensions, AGENTS files, or appended system text. Reload and reject any diagnostic or discovered resource.
 
@@ -978,7 +978,7 @@ The submit tool validates its schema and invokes the request's deterministic `va
 
 Complete `doctor --json` by loading the public SDK without inference, resolving the exact active model metadata, checking supported reasoning, validating isolated resource construction, and disposing it. Report authentication as unknown until an actual review call; never inspect an auth store or claim local auth readiness.
 
-- [ ] **Step 5: Run and refactor session Green**
+- [x] **Step 5: Run and refactor session Green**
 
 Run: `node --test tests/Node/prism-review-session.test.js`
 
@@ -990,13 +990,13 @@ Expected: no output.
 
 Refactor SDK facade creation behind one private loader while retaining the public injected `loadSdk` seam. Rerun both commands.
 
-- [ ] **Step 6: Stage isolated session mechanics**
+- [x] **Step 6: Stage isolated session mechanics**
 
 Run: `git add packages/prism-core/scripts/prism-review/session-runner.js packages/prism-core/scripts/prism-review/schema.js packages/prism-core/scripts/prism-review/cli.js tests/Node/prism-review-session.test.js tests/Node/prism-review-cli.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: session source, schema changes, and tests are staged.
 
-- [ ] **Step 7: Create the session commit**
+- [x] **Step 7: Create the session commit**
 
 ```bash
 prism-tool commit create --type feat --scope review --subject "isolate Pi review sessions"

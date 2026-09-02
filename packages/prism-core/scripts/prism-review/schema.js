@@ -210,6 +210,31 @@ function validateProfile(value, expectedRole, expectedPackage) {
     return value;
 }
 
+function validateClosedJsonSchema(value, label = 'tool schema') {
+    object(value, ['type', 'additionalProperties', 'properties', 'required'], label);
+    if (value.type !== 'object' || value.additionalProperties !== false) fail(label);
+    object(value.properties, Object.keys(value.properties ?? {}), label);
+    if (!Array.isArray(value.required) ||
+        value.required.some((key) => typeof key !== 'string' || !Object.hasOwn(value.properties, key))) {
+        fail(label);
+    }
+    unique(value.required, label);
+    return value;
+}
+
+function deepFreezeJson(value, label = 'JSON value') {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value)) fail(label);
+        return value;
+    }
+    if (Array.isArray(value)) return Object.freeze(value.map((entry) => deepFreezeJson(entry, label)));
+    object(value, Object.keys(value), label);
+    const copy = {};
+    for (const [key, entry] of Object.entries(value)) copy[key] = deepFreezeJson(entry, label);
+    return Object.freeze(copy);
+}
+
 function triggerMatches(value, changedPath) {
     if (value.mode === 'always') return true;
     const basename = path.posix.basename(changedPath);
@@ -218,6 +243,12 @@ function triggerMatches(value, changedPath) {
         (value.basenames ?? []).includes(basename);
 }
 
-module.exports = {safeRelativePath, triggerMatches, validateProfile};
+module.exports = {
+    deepFreezeJson,
+    safeRelativePath,
+    triggerMatches,
+    validateClosedJsonSchema,
+    validateProfile,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

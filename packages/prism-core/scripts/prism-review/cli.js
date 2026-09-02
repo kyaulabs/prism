@@ -8,11 +8,10 @@ const path = require('node:path');
 const {EXIT} = require('./constants');
 const {discoverOptionalAdapter} = require('../prism-tool/discovery');
 const {loadAdapterProfile, loadCoreProfile} = require('./profile');
+const {inspectIsolatedRuntime} = require('./session-runner');
 const {classifyTrustRoot} = require('./trust');
 
 const MAX_MANIFEST_BYTES = 65536;
-const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
-const REASONING = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const HELP = `usage: prism-review COMMAND
 
@@ -68,17 +67,6 @@ function repositoryRoot(context) {
     const result = (context.run ?? defaultRun)('git', ['rev-parse', '--show-toplevel'], {cwd});
     if (result.error || result.status !== 0) throw new Error('repository is unavailable');
     return fs.realpathSync(String(result.stdout).trim());
-}
-
-function activeModel(env) {
-    const provider = env.PI_PROVIDER;
-    const id = env.PI_MODEL;
-    const reasoningLevel = env.PI_REASONING_LEVEL;
-    if (!MODEL_ID.test(provider ?? '') || !MODEL_ID.test(id ?? '') ||
-        !REASONING.has(reasoningLevel)) {
-        throw new Error('active Pi model is invalid');
-    }
-    return Object.freeze({provider, id, reasoningLevel});
 }
 
 function writeJson(stream, value) {
@@ -157,11 +145,18 @@ async function main(argv, context = {}) {
             const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
             const projectRoot = repositoryRoot(context);
             const trust = classifyTrustRoot(coreRoot, projectRoot);
-            const model = activeModel(context.env ?? process.env);
+            const model = await (context.inspectIsolatedRuntime ?? inspectIsolatedRuntime)({
+                repositoryRoot: projectRoot,
+                env: context.env ?? process.env,
+                loadSdk: context.loadSdk,
+                tempRoot: context.tempRoot,
+                removeTemp: context.removeTemp,
+            });
             const profile = profileReadiness(context, coreRoot, projectRoot);
             const checks = [
                 {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
-                {id: 'active-model', status: 'PASS', message: 'active Pi model syntax validated'},
+                {id: 'active-model', status: 'PASS', message: 'active Pi model resolved exactly'},
+                {id: 'sdk-isolation', status: 'PASS', message: 'isolated Pi resources validated'},
             ];
             if (profile !== null) {
                 checks.push({
