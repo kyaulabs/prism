@@ -105,6 +105,21 @@ configuration, and never loads project-local Markdown configuration, plugins,
 or custom rules. Skills, prompts, agent instructions, generated history, legal
 text, and unrelated templates require separate format-aware treatment.
 
+## Supervised test servers
+
+Adapters may declare foreground-scoped loopback server profiles for test
+suites. Run one permitted client within a profile's lifecycle with:
+
+```text
+prism-tool server run PACKAGE:PROFILE --tool TOOL_ID -- ARGUMENTS
+```
+
+Each adapter profile declares its preferred port and trusted server, health,
+and client settings. Core chooses the nearest available valid port, never
+reuses an occupied listener, waits for readiness, passes the selected endpoint
+to the client, and cleans up only its owned process group when the client ends.
+Arbitrary project server commands and non-loopback listeners are rejected.
+
 ## Bounded web access
 
 The web-access extension exposes only `web_search` and `fetch_content`. Both

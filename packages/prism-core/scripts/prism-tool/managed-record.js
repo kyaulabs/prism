@@ -1,4 +1,4 @@
-// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -287,7 +287,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
             JSON.stringify(published.record) !== JSON.stringify(record)) {
             throw new Error();
         }
-    } catch {
+    } catch (error) {
         if (priorRemoved) {
             try {
                 const current = io.lstatSync(managedPath);
@@ -305,7 +305,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
                         const currentBackup = io.lstatSync(backup);
                         if (!matchesManagedRecord(pinnedBackup, backupStat, context) ||
                             !matchesManagedRecord(currentBackup, pinnedBackup, context)) {
-                            throw new Error();
+                            throw new Error('managed record rollback failed', {cause: error});
                         }
                         io.linkSync(backup, managedPath);
                         const restored = io.lstatSync(managedPath);
@@ -316,14 +316,14 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
                                 restored.dev === backupAfter.dev && restored.ino === backupAfter.ino) {
                                 io.unlinkSync(managedPath);
                             }
-                            throw new Error();
+                            throw new Error('managed record rollback failed', {cause: error});
                         }
                         fsyncDirectory(context, parent);
                     } catch { }
                 }
             }
         }
-        throw new Error('managed record publication failed');
+        throw new Error('managed record publication failed', {cause: error});
     } finally {
         if (descriptor !== undefined) closeQuietly(io, descriptor);
         if (backupDescriptor !== undefined) closeQuietly(io, backupDescriptor);

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: composer_validate_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: composer_validate_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 set -euo pipefail
 
@@ -60,6 +60,14 @@ if (cd "$TMPDIR_TEST" && composer validate --strict --no-check-publish) 2>/dev/n
 	fail "drifted lock did NOT fail validation"
 else
 	echo "  OK: drifted lock correctly fails validation"
+fi
+
+echo "── Test 3: Composer process timeout covers aggregate suites ──"
+PROCESS_TIMEOUT=$(cd "$REPO_ROOT" && composer config process-timeout)
+if [[ "$PROCESS_TIMEOUT" =~ ^[0-9]+$ ]] && [ "$PROCESS_TIMEOUT" -ge 900 ]; then
+	pass "Composer process timeout is at least 900 seconds"
+else
+	fail "Composer process timeout must be at least 900 seconds (actual: $PROCESS_TIMEOUT)"
 fi
 
 print_summary "composer_validate_test"

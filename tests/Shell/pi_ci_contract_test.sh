@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
@@ -68,6 +68,18 @@ echo "── locked, script-free dependency install ──"
 assert_ci_contains 'composer install[^|]*--no-scripts' 'Composer install disables lifecycle scripts'
 assert_ci_contains 'npm ci' 'npm installs from the committed lockfile'
 
+SHELL_REGRESSION_STEP=$(awk '
+	/^[[:space:]]+- name: Shell regression tests$/ { found = 1 }
+	found && /^[[:space:]]+- name:/ && $0 !~ /Shell regression tests$/ { exit }
+	found { print }
+' "$CI")
+if grep -qE 'COMPOSER_PROCESS_TIMEOUT:[[:space:]]+900' <<< "$SHELL_REGRESSION_STEP"; then
+	pass 'Shell regressions enforce the bounded Composer timeout'
+else
+	fail 'Shell regressions must set COMPOSER_PROCESS_TIMEOUT to 900'
+	failures=$((failures + 1))
+fi
+
 echo "── mandatory local readiness before declared tools ──"
 assert_ci_contains 'prism-tool.js doctor --local-only' 'local CLI doctor runs before declared tools'
 
@@ -78,7 +90,8 @@ assert_ci_contains 'validate-harness.sh' 'Harness validation runs'
 assert_ci_contains 'npm pack' 'Package smoke packs archives'
 assert_ci_contains 'composer audit|npm audit' 'Dependency audits run'
 assert_ci_contains 'prism-tool.js run php-cs-fixer' 'Adapter lint runs through the launcher'
-assert_ci_contains 'prism-tool.js run pest' 'Pest coverage runs through the launcher'
+assert_ci_contains 'prism-tool(\.js)? server run @kyaulabs/prism-php-web:browser-fixture --tool pest' 'Pest coverage uses the supervised browser fixture profile'
+assert_ci_not_contains 'php -S|PHP_SERVER_PID|PEST_BROWSER_BASE_URL' 'CI has no shell-owned fixed-port server lifecycle'
 assert_ci_contains 'prism-tool.js run semgrep' 'Semgrep scan runs through the launcher'
 assert_ci_contains 'prism-tool.js run commitlint' 'PR-range commitlint runs through the launcher'
 assert_ci_contains 'prism-tool.js run playwright' 'Playwright Chromium installs through the launcher'

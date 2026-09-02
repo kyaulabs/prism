@@ -765,10 +765,13 @@ function applyAutomation({
             } catch (rollbackError) {
                 rollbackErrors.push(rollbackError);
             }
-            lockOpen = false;
         }
         if (rollbackErrors.length > 0) {
-            throw new AggregateError([error, ...rollbackErrors], 'automation rollback incomplete');
+            throw new AggregateError(
+                [error, ...rollbackErrors],
+                'automation rollback incomplete',
+                {cause: error}
+            );
         }
         throw error;
     }

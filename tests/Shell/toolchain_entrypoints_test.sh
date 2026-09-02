@@ -327,18 +327,25 @@ echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run stylelint --' 'check-php runs stylelint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run eslint --' 'check-php runs eslint through the launcher'
-assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run pest -- --coverage' 'check-php runs pest through the launcher'
+assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool server run .*--tool pest -- --coverage' 'check-php runs Pest through a supervised server profile'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(' 'check-php avoids command substitution blocked by the safety extension'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" 'mktemp' 'check-php uses project-local temp files instead of mktemp'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\btrap\b' 'check-php avoids deferred-execution builtins blocked by the safety extension'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run sass --' 'build-assets runs sass through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run uglify-js --' 'build-assets runs uglify-js through the launcher'
-CANONICAL_PEST='PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage'
-assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'prism-tool run pest -- --coverage' 'tdd-php runs pest through the launcher'
+CANONICAL_PEST='prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" "$CANONICAL_PEST" 'check-php uses the canonical Pest coverage command'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$CANONICAL_PEST" 'tdd-php uses the canonical Pest coverage command'
-assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '^prism-tool run pest -- --coverage$' 'check-php has no bare coverage fallback'
-assert_file_not_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" '^prism-tool run pest -- --coverage$' 'tdd-php has no bare coverage fallback'
+assert_file_contains "$ADAPTER_DOCS/tests.md" "$CANONICAL_PEST" 'adapter test docs use the canonical Pest coverage command'
+for lifecycle_surface in "$ADAPTER_PROMPTS/check-php.md" "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$ADAPTER_DOCS/tests.md"; do
+	for forbidden in 'php -S' 'PEST_BROWSER_BASE_URL=' 'reusing existing dev server' 'kill <pid>'; do
+		assert_file_not_contains "$lifecycle_surface" "$forbidden" "${lifecycle_surface##*/} omits shell-owned server lifecycle: $forbidden"
+	done
+done
+assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'nearest available.*port' 'Core TDD selects the nearest available profile port'
+assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'never reuses an occupied listener' 'Core TDD never reuses occupied listeners'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool server run PACKAGE:PROFILE --tool TOOL_ID -- ARGUMENTS' 'Core README documents the supervised server command'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'foreground-scoped' 'Core README documents foreground-scoped servers'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" 'vendor/bin/pest|--min=100' 'check-php has no direct Pest or invented minimum'
 assert_file_not_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'vendor/bin/pest|--min=100' 'tdd-php has no direct Pest or invented minimum'
 assert_file_contains "$CORE_SKILLS/writing-plans/SKILL.md" 'active adapter.*verbatim|verbatim.*active adapter' 'plan authoring validates adapter-owned commands'

@@ -35,6 +35,7 @@ documentation, and conversation.
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
+| server profile | An optional adapter toolchain declaration for one foreground-scoped loopback test dependency, including its preferred port, trusted server and health commands, permitted client tools, and selected-endpoint environment templates. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
 | external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep and OCR are the initial prerequisites. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
@@ -107,6 +108,9 @@ The globally installed, language-agnostic harness package.
 - Owns deterministic post-application Git initialization, canonical hook
   distribution, bounded repository-seed attestation, and signed root-commit
   orchestration.
+- Owns language-agnostic foreground supervision, nearest-port selection,
+  readiness, and cleanup for contract-declared local test servers without
+  learning stack commands or preferred ports.
 - Owns privacy-minimal global standing-consent state through narrow,
   explicitly approved launcher operations.
 - Owns the opt-in package-release capability, canonical release workflow,
@@ -137,6 +141,8 @@ A project-local specialization of the Prism core.
 - Owns stack-specific local/CI quality behavior, generated CI, dependency
   population, browser acquisition, and visual review tooling behind Core
   orchestration.
+- May declare closed server profiles for stack-specific foreground test
+  dependencies while Core owns generic process and port lifecycle mechanics.
 - Scaffolds a user-authored visual brief and reusable visual review tooling
   without selecting a palette, theme type, design movement, or inspiration.
 - A change that requires stack-specific logic in core is an architecture
@@ -155,6 +161,9 @@ The declaration that connects Prism resources to executable capabilities.
 - Keeps Core Markdown execution behind the dedicated changed-file checker and
   packaged configuration; consumer rules, plugins, and generic tool dispatch
   cannot alter the gate.
+- May contain bounded adapter-owned server profiles whose loopback host,
+  preferred port, command templates, client tools, and environment templates
+  are validated before any process starts.
 - Fails closed on malformed data, unsupported schemas, duplicate IDs, drift,
   or ambiguous adapter registration.
 
@@ -408,6 +417,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 
 - Pi package metadata and explicitly declared project-local package paths.
 - Versioned toolchain contracts and adapter handler registration.
+- Contract-declared server profiles consumed through Core's synchronous,
+  foreground-scoped loopback supervisor.
 - Argument-array subprocess calls with bounded, sanitized output and stable
   exit statuses.
 - Composer/npm manifests and lockfiles as ecosystem transaction boundaries.
@@ -531,6 +542,9 @@ Pi-era decisions:
 - `adr/0100-provider-composed-repository-automation.md` — reconcile applicable
   Core and adapter workflows and hooks through trusted providers, route-specific
   transactions, and explicit pre-commit proof.
+- `adr/0101-contract-declared-supervised-server-lifecycles.md` — supervise
+  adapter-declared foreground loopback test servers through Core with
+  nearest-port selection, readiness, bounded clients, and owned cleanup.
 
 ## When to update this file
 

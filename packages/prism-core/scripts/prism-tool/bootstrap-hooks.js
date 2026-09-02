@@ -326,7 +326,7 @@ function applyBootstrapHooks({
                 'config', '--local', '--fixed-value', '--unset-all', 'core.hooksPath', HOOKS_PATH,
             ]);
             if (rollback.error || ![0, 5].includes(rollback.status)) {
-                throw new Error('Git hooks path rollback failed');
+                throw new Error('Git hooks path rollback failed', {cause: error});
             }
         }
         throw error;

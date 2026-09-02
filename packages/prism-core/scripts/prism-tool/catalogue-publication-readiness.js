@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -195,7 +195,7 @@ function variableValue(value, name) {
     return matches.length === 1 ? matches[0].value : undefined;
 }
 
-function inspectCataloguePublicationReadiness({phase, attestation, request}) {
+function inspectCataloguePublicationReadiness({phase, request}) {
     const dispatchPrefix = 'repos/kyaulabs/prism/environments/catalogue-dispatch';
     const signingPrefix = 'repos/kyaulabs/prism-adapters/environments/catalogue-signing';
     const checks = [

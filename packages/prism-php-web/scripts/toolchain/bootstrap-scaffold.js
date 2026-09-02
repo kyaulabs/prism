@@ -323,9 +323,6 @@ if [[ "$MODE" == --ci ]]; then
     [[ "$BASE" =~ ^[0-9a-f]{40}$ ]] || exit 2
     git cat-file -e "$BASE^{commit}"
 fi
-SERVER_PID=""
-cleanup() { [[ -z "$SERVER_PID" ]] || kill "$SERVER_PID" 2>/dev/null || true; }
-trap cleanup EXIT
 prism-tool doctor --local-only
 if [[ "$MODE" == --ci ]]; then
     prism-tool markdown lint --changed-from "$BASE"
@@ -339,16 +336,7 @@ find cdn/js -type f -name '*.js' -print -quit | grep -q . && prism-tool run esli
 if [[ -f visual_review.json ]]; then
     prism-tool run playwright -- test visual_review.spec.mjs --list --workers=1
 fi
-php -S 127.0.0.1:8080 -t tests/Browser/fixtures >/dev/null 2>&1 &
-SERVER_PID=$!
-READY=no
-for attempt in $(seq 1 50); do
-    if php -r "exit(@file_get_contents('http://127.0.0.1:8080/smoke.html') === false ? 1 : 0);"; then READY=yes; break; fi
-    sleep 0.1
-done
-[[ "$READY" == yes ]] || exit 1
-export PEST_BROWSER_BASE_URL=http://127.0.0.1:8080
-prism-tool run pest -- --coverage --min=80
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage --min=80
 if [[ "$MODE" == --ci ]]; then git diff --name-only "$BASE" HEAD -- '*.php'; else git diff --cached --name-only --diff-filter=AM -- '*.php'; fi | php .github/scripts/coverage-gate.php tests/coverage.xml
 [[ ! -x tests/Shell/run-all.sh ]] || tests/Shell/run-all.sh
 `;

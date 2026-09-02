@@ -1,4 +1,4 @@
-// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -18,7 +18,20 @@ const TOP_LEVEL_KEYS = new Set([
     'package',
     'role',
     'schemaVersion',
+    'serverProfiles',
 ]);
+const SERVER_PROFILE_KEYS = new Set([
+    'clients',
+    'health',
+    'host',
+    'id',
+    'preferredPort',
+    'server',
+    'startupTimeoutMs',
+]);
+const SERVER_COMMAND_KEYS = new Set(['arguments', 'executable']);
+const SERVER_CLIENT_KEYS = new Set(['environment', 'toolId']);
+const ENVIRONMENT_KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
 const COMPONENT_KEYS = new Set([
     'argumentPolicy',
     'argvPrefix',
@@ -160,6 +173,95 @@ function validateArgumentPolicy(policy, filePath, componentId) {
     fail(filePath, `component ${componentId} has unsupported argument policy`);
 }
 
+function validateServerTemplate(value, filePath, label, maximumBytes) {
+    if (
+        typeof value !== 'string' ||
+        value.length === 0 ||
+        Buffer.byteLength(value) > maximumBytes ||
+        /[\0\r\n`]/.test(value) ||
+        value.includes('$(') ||
+        /\{(?!host\}|port\})|(?<!\{host)(?<!\{port)\}/.test(value)
+    ) {
+        fail(filePath, `${label} is invalid`);
+    }
+}
+
+function validateServerCommand(command, filePath, label) {
+    if (!isRecord(command)) fail(filePath, `${label} must be an object`);
+    assertKnownKeys(command, SERVER_COMMAND_KEYS, filePath, label);
+    assertString(command.executable, EXECUTABLE, filePath, `${label} executable`);
+    if (!Array.isArray(command.arguments) || command.arguments.length > 64) {
+        fail(filePath, `${label} arguments must be a bounded array`);
+    }
+    for (const argument of command.arguments) {
+        validateServerTemplate(argument, filePath, `${label} argument`, 4096);
+    }
+}
+
+function validateServerClient(client, componentIds, filePath, profileId) {
+    if (!isRecord(client)) fail(filePath, `server profile ${profileId} client must be an object`);
+    assertKnownKeys(client, SERVER_CLIENT_KEYS, filePath, `server profile ${profileId} client`);
+    assertString(client.toolId, IDENTIFIER, filePath, `server profile ${profileId} client tool`);
+    if (!componentIds.has(client.toolId)) {
+        fail(filePath, `server profile ${profileId} client tool is undeclared`);
+    }
+    if (!isRecord(client.environment) || Object.keys(client.environment).length > 32) {
+        fail(filePath, `server profile ${profileId} client environment is invalid`);
+    }
+    for (const [key, value] of Object.entries(client.environment)) {
+        assertString(key, ENVIRONMENT_KEY, filePath, `server profile ${profileId} environment key`);
+        validateServerTemplate(
+            value,
+            filePath,
+            `server profile ${profileId} environment value`,
+            1024
+        );
+    }
+}
+
+function validateServerProfile(profile, componentIds, filePath) {
+    if (!isRecord(profile)) fail(filePath, 'server profile must be an object');
+    assertKnownKeys(profile, SERVER_PROFILE_KEYS, filePath, 'server profile');
+    assertString(profile.id, IDENTIFIER, filePath, 'server profile id');
+    if (!['127.0.0.1', '::1'].includes(profile.host)) {
+        fail(filePath, `server profile ${profile.id} host must be loopback`);
+    }
+    if (!Number.isInteger(profile.preferredPort) || profile.preferredPort < 1 || profile.preferredPort > 65535) {
+        fail(filePath, `server profile ${profile.id} preferred port is invalid`);
+    }
+    if (!Number.isInteger(profile.startupTimeoutMs) || profile.startupTimeoutMs < 100 || profile.startupTimeoutMs > 60000) {
+        fail(filePath, `server profile ${profile.id} startup timeout is invalid`);
+    }
+    validateServerCommand(profile.server, filePath, `server profile ${profile.id} server`);
+    if (profile.health !== undefined) {
+        validateServerCommand(profile.health, filePath, `server profile ${profile.id} health`);
+    }
+    if (!Array.isArray(profile.clients) || profile.clients.length === 0 || profile.clients.length > 32) {
+        fail(filePath, `server profile ${profile.id} clients must be a non-empty bounded array`);
+    }
+    const clients = new Set();
+    for (const client of profile.clients) {
+        validateServerClient(client, componentIds, filePath, profile.id);
+        if (clients.has(client.toolId)) {
+            fail(filePath, `duplicate server client ${client.toolId}`);
+        }
+        clients.add(client.toolId);
+    }
+}
+
+function validateServerProfiles(value, role, componentIds, filePath) {
+    if (value === undefined) return;
+    if (role !== 'adapter' || !Array.isArray(value) || value.length === 0 || value.length > 32) {
+        fail(filePath, 'server profiles require a non-empty bounded adapter collection');
+    }
+    const ids = new Set();
+    for (const profile of value) {
+        validateServerProfile(profile, componentIds, filePath);
+        if (ids.has(profile.id)) fail(filePath, `duplicate server profile ${profile.id}`);
+        ids.add(profile.id);
+    }
+}
+
 function isApprovedBoundedExternal(component, role) {
     if (role !== 'core' || component.kind !== 'command' || component.provisioning !== 'external') {
         return false;
@@ -273,8 +375,9 @@ function validateContract(value, filePath) {
         }
         ids.add(component.id);
     }
+    validateServerProfiles(value.serverProfiles, value.role, ids, filePath);
 
-    return value;
+    return deepFreeze(value);
 }
 
 function deepFreeze(value) {
@@ -320,7 +423,7 @@ function loadContract(filePath) {
     } catch {
         fail(filePath, 'invalid JSON');
     }
-    return deepFreeze(validateContract(value, filePath));
+    return validateContract(value, filePath);
 }
 
 module.exports = {
