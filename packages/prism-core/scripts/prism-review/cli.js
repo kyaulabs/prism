@@ -7,8 +7,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {EXIT} = require('./constants');
 const {discoverOptionalAdapter} = require('../prism-tool/discovery');
-const {loadAdapterProfile, loadCoreProfile} = require('./profile');
-const {inspectIsolatedRuntime} = require('./session-runner');
+const {createSnapshot} = require('./git-snapshot');
+const {runReviewAttempt} = require('./orchestrator');
+const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profile');
+const {inspectIsolatedRuntime, resolveActiveModel} = require('./session-runner');
 const {classifyTrustRoot} = require('./trust');
 
 const MAX_MANIFEST_BYTES = 65536;
@@ -103,6 +105,78 @@ function safeRelativePath(value) {
         !value.startsWith('../') && path.posix.normalize(value) === value;
 }
 
+function isInside(root, candidate) {
+    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(candidate));
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function snapshotOptions(review, projectRoot) {
+    const options = {repositoryRoot: projectRoot, mode: review.command.slice('review '.length)};
+    if (review.commit !== undefined) options.commit = review.commit;
+    if (review.base !== undefined) options.base = review.base;
+    if (review.head !== undefined) options.head = review.head;
+    if (review.path !== undefined) options.path = review.path;
+    return options;
+}
+
+function changedPaths(snapshot) {
+    return snapshot.entries.map((entry) => ({
+        oldPath: entry.oldPath,
+        newPath: entry.newPath,
+        kind: entry.kind,
+        text: entry.kind === 'text',
+    }));
+}
+
+async function executeReview(review, context, coreRoot, projectRoot, trust) {
+    const snapshot = (context.createSnapshot ?? createSnapshot)(snapshotOptions(review, projectRoot));
+    const core = (context.loadCoreProfile ?? loadCoreProfile)({packageRoot: coreRoot});
+    const registration = (context.discoverOptionalAdapter ?? discoverOptionalAdapter)({
+        projectRoot,
+        piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+    });
+    let adapter = null;
+    if (registration?.reviewPath !== null && registration?.reviewPath !== undefined) {
+        const protectedBase = snapshot.mode === 'path' ? snapshot.headCommit : snapshot.baseCommit;
+        if ((protectedBase === null || protectedBase === undefined) &&
+            isInside(projectRoot, registration.packageRoot)) {
+            throw new Error('protected adapter base is unavailable');
+        }
+        adapter = (context.loadAdapterProfile ?? loadAdapterProfile)({
+            registration,
+            repositoryRoot: projectRoot,
+            ...(protectedBase === null || protectedBase === undefined ? {} : {protectedBase}),
+        });
+    }
+    const plan = (context.buildReviewPlan ?? buildReviewPlan)({
+        core,
+        adapter,
+        changedPaths: changedPaths(snapshot),
+    });
+    const active = await (context.resolveActiveModel ?? resolveActiveModel)({
+        env: context.env ?? process.env,
+        loadSdk: context.loadSdk,
+    });
+    return (context.runReviewAttempt ?? runReviewAttempt)({
+        command: review.command,
+        sourceClass: trust.sourceClass,
+        snapshot,
+        plan,
+        resources: [...core.resources, ...(adapter?.resources ?? [])],
+        sessionSkill: core.profile.sessionSkill,
+        verifierSkills: core.profile.verifierSkills,
+        repositoryRoot: projectRoot,
+        tempRoot: context.tempRoot,
+        env: context.env ?? process.env,
+        loadSdk: context.loadSdk,
+        runSession: context.runSession,
+        assertFresh: context.assertFresh,
+        timeoutMs: context.timeoutMs,
+        reviewTimeoutMs: context.reviewTimeoutMs,
+        active,
+    });
+}
+
 function parseReview(argv) {
     if (argv.length === 3 && argv[0] === 'review' && argv[1] === 'staged' &&
         argv[2] === '--json') {
@@ -190,17 +264,11 @@ async function main(argv, context = {}) {
     if (review !== null) {
         try {
             const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
-            const trust = classifyTrustRoot(coreRoot, repositoryRoot(context));
-            writeJson(stdout, {
-                schemaVersion: 1,
-                command: review.command,
-                authoritative: false,
-                status: 'NO-GO',
-                outcome: 'INCONCLUSIVE',
-                sourceClass: trust.sourceClass,
-                reason: 'RUNTIME_INCOMPLETE',
-            });
-            return EXIT.READINESS;
+            const projectRoot = repositoryRoot(context);
+            const trust = classifyTrustRoot(coreRoot, projectRoot);
+            const report = await executeReview(review, context, coreRoot, projectRoot, trust);
+            writeJson(stdout, report);
+            return report.outcome === 'PASS' ? EXIT.OK : EXIT.REVIEW;
         } catch {
             writeJson(stdout, {
                 schemaVersion: 1,

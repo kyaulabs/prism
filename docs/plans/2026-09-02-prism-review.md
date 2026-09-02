@@ -1026,7 +1026,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: immutable snapshot, merged review plan, session runner, per-axis tools/ledger, and ad hoc scope request.
 - Produces: `validateFindingAnchor`, `verifyFindings`, `runReviewAttempt`, complete byte/lens matrices, normalized findings, and one non-authoritative JSON report.
 
-- [ ] **Step 1: Write failing finding-anchor and four-axis tests**
+- [x] **Step 1: Write failing finding-anchor and four-axis tests**
 
 Finding tests cover:
 
@@ -1058,13 +1058,13 @@ schemaVersion, axis, outcome, lenses, findings, notes
 
 Verifier tests split proposed findings into canonical chunks of at most 16, create fresh sessions, allow only relevant immutable reads plus `submit_verification`, and keep only confirmed findings. A possible Blocking result with `NEEDS_CONTEXT`, verifier timeout, omitted disposition, duplicate disposition, or malformed anchor makes the review Inconclusive. Rejected Advisory/Suggested findings disappear from authoritative output. Duplicate confirmed findings merge deterministically without severity promotion.
 
-- [ ] **Step 2: Run finding and orchestration tests to verify Red**
+- [x] **Step 2: Run finding and orchestration tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-findings.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-cli.test.js`
 
 Expected: FAIL because finding validation, orchestration, and live ad hoc dispatch are absent.
 
-- [ ] **Step 3: Add closed submission and finding schemas**
+- [x] **Step 3: Add closed submission and finding schemas**
 
 Axis submissions use the exact keys above. Outcomes are `PASS`, `BLOCKING`, or `INCONCLUSIVE`. Lens status is `COMPLETE` or `INCONCLUSIVE`; every selected lens appears once. Notes contain at most sixteen strings of at most 2048 bytes.
 
@@ -1079,7 +1079,7 @@ The final four fields are required bounded strings for Blocking and `null` for A
 
 Verifier submissions contain one disposition and bounded rationale for every supplied finding fingerprint, plus an optional duplicate target. They cannot create findings or change classification.
 
-- [ ] **Step 4: Implement axis orchestration and deterministic exposure closure**
+- [x] **Step 4: Implement axis orchestration and deterministic exposure closure**
 
 For each canonical axis:
 
@@ -1095,7 +1095,7 @@ Stop starting new sessions after an axis becomes Inconclusive, but preserve comp
 
 The deterministic exposure matrix has one row per manifest entry and one status per axis. Text status is `EXPOSED` only after complete intervals. Metadata status is `EXEMPTED` only with the exact Core exemption. Reports say `byteExposure` and include object/diff digests, never byte contents.
 
-- [ ] **Step 5: Implement adversarial verification and CLI dispatch**
+- [x] **Step 5: Implement adversarial verification and CLI dispatch**
 
 Validate and fingerprint all proposed findings before verifier calls. Sort by axis, path, side, line, lens, and fingerprint. Run fresh verifier sessions over chunks of sixteen. Give each verifier the normalized finding records, exposure matrix, relevant immutable read tools, and verifier skill bytes. Do not give it axis submission tools.
 
@@ -1111,7 +1111,7 @@ lenses, exemptions, findings, verifier, limits
 
 Set `authoritative` to `false`. Exit `0` for PASS or non-blocking Advisory/Suggested reports, `4` for BLOCKING or INCONCLUSIVE, `3` for readiness failures before review, and `2` for grammar errors. Do not create `.pi/prism-review` state in this stage.
 
-- [ ] **Step 6: Run and refactor orchestration Green**
+- [x] **Step 6: Run and refactor orchestration Green**
 
 Run: `node --test tests/Node/prism-review-findings.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-cli.test.js`
 
@@ -1119,13 +1119,13 @@ Expected: PASS for all four scopes, axis/lens ordering, complete exposure, verif
 
 Refactor outcome aggregation and sorting into pure private helpers. Rerun the same command.
 
-- [ ] **Step 7: Stage review orchestration**
+- [x] **Step 7: Stage review orchestration**
 
 Run: `git add packages/prism-core/scripts/prism-review/findings.js packages/prism-core/scripts/prism-review/orchestrator.js packages/prism-core/scripts/prism-review/schema.js packages/prism-core/scripts/prism-review/cli.js tests/Node/prism-review-findings.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-cli.test.js`
 
 Expected: only review orchestration, schemas, CLI dispatch, and tests are staged.
 
-- [ ] **Step 8: Create the orchestration commit**
+- [x] **Step 8: Create the orchestration commit**
 
 ```bash
 prism-tool commit create --type feat --scope review --subject "run four-axis ad hoc review"

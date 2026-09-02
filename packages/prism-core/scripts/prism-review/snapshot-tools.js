@@ -87,21 +87,20 @@ function createSnapshotTools(snapshot, options = {}) {
     const ledger = {
         failed: false,
         exposure,
-        isComplete() {
+        isEntryComplete(entryDigest) {
             if (this.failed) return false;
-            for (const entry of snapshot.entries) {
-                const record = exposure.get(entry.entryDigest);
-                if (entry.kind !== 'text') {
-                    if (record.exemptionId !== `metadata.${entry.kind}`) return false;
-                    continue;
-                }
-                for (const side of entry.requiredSides) {
-                    const total = side === 'base' ? entry.baseBytes : entry.headBytes;
-                    if (!complete(record.files[side], total)) return false;
-                }
-                if (!complete(record.diff, entry.diffBytes)) return false;
+            const entry = entries.get(entryDigest);
+            const record = exposure.get(entryDigest);
+            if (entry === undefined || record === undefined) return false;
+            if (entry.kind !== 'text') return record.exemptionId === `metadata.${entry.kind}`;
+            for (const side of entry.requiredSides) {
+                const total = side === 'base' ? entry.baseBytes : entry.headBytes;
+                if (!complete(record.files[side], total)) return false;
             }
-            return true;
+            return complete(record.diff, entry.diffBytes);
+        },
+        isComplete() {
+            return snapshot.entries.every((entry) => this.isEntryComplete(entry.entryDigest));
         },
     };
 

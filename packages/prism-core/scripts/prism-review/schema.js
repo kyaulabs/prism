@@ -210,15 +210,27 @@ function validateProfile(value, expectedRole, expectedPackage) {
     return value;
 }
 
+function validateSchemaNode(value, label) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value) ||
+        Object.getPrototypeOf(value) !== Object.prototype) fail(label);
+    if (value.type === 'object') {
+        if (value.additionalProperties !== false) fail(label);
+        object(value.properties, Object.keys(value.properties ?? {}), label);
+        if (!Array.isArray(value.required) ||
+            value.required.some((key) => typeof key !== 'string' || !Object.hasOwn(value.properties, key))) {
+            fail(label);
+        }
+        unique(value.required, label);
+        Object.values(value.properties).forEach((entry) => validateSchemaNode(entry, label));
+    } else if (value.type === 'array') {
+        validateSchemaNode(value.items, label);
+    }
+}
+
 function validateClosedJsonSchema(value, label = 'tool schema') {
     object(value, ['type', 'additionalProperties', 'properties', 'required'], label);
-    if (value.type !== 'object' || value.additionalProperties !== false) fail(label);
-    object(value.properties, Object.keys(value.properties ?? {}), label);
-    if (!Array.isArray(value.required) ||
-        value.required.some((key) => typeof key !== 'string' || !Object.hasOwn(value.properties, key))) {
-        fail(label);
-    }
-    unique(value.required, label);
+    if (value.type !== 'object') fail(label);
+    validateSchemaNode(value, label);
     return value;
 }
 
@@ -235,6 +247,90 @@ function deepFreezeJson(value, label = 'JSON value') {
     return Object.freeze(copy);
 }
 
+function findingProperties() {
+    return {
+        axis: {type: 'string'},
+        lensId: {type: 'string'},
+        classification: {type: 'string', enum: ['BLOCKING', 'ADVISORY', 'SUGGESTED']},
+        path: {type: 'string'},
+        side: {type: 'string', enum: ['base', 'head']},
+        line: {type: 'integer', minimum: 1},
+        summary: {type: 'string'},
+        evidence: {type: 'string'},
+        causality: {type: ['string', 'null']},
+        relevance: {type: ['string', 'null']},
+        workflowImpact: {type: ['string', 'null']},
+    };
+}
+
+function axisSubmissionSchema(axisId, lensIds) {
+    return {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+            schemaVersion: {type: 'integer', const: 1},
+            axis: {type: 'string', const: axisId},
+            outcome: {type: 'string', enum: ['PASS', 'BLOCKING', 'INCONCLUSIVE']},
+            lenses: {
+                type: 'array',
+                minItems: lensIds.length,
+                maxItems: lensIds.length,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        id: {type: 'string', enum: lensIds},
+                        status: {type: 'string', enum: ['COMPLETE', 'INCONCLUSIVE']},
+                    },
+                    required: ['id', 'status'],
+                },
+            },
+            findings: {
+                type: 'array',
+                maxItems: 64,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: findingProperties(),
+                    required: ['axis', 'lensId', 'classification', 'path', 'side', 'line',
+                        'summary', 'evidence', 'causality', 'relevance', 'workflowImpact'],
+                },
+            },
+            notes: {type: 'array', maxItems: 16, items: {type: 'string'}},
+        },
+        required: ['schemaVersion', 'axis', 'outcome', 'lenses', 'findings', 'notes'],
+    };
+}
+
+function verifierSubmissionSchema(fingerprints) {
+    return {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+            schemaVersion: {type: 'integer', const: 1},
+            dispositions: {
+                type: 'array',
+                minItems: fingerprints.length,
+                maxItems: fingerprints.length,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        fingerprint: {type: 'string', enum: fingerprints},
+                        disposition: {type: 'string', enum: [
+                            'CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'DUPLICATE',
+                        ]},
+                        rationale: {type: 'string'},
+                        duplicateOf: {type: ['string', 'null']},
+                    },
+                    required: ['fingerprint', 'disposition', 'rationale', 'duplicateOf'],
+                },
+            },
+        },
+        required: ['schemaVersion', 'dispositions'],
+    };
+}
+
 function triggerMatches(value, changedPath) {
     if (value.mode === 'always') return true;
     const basename = path.posix.basename(changedPath);
@@ -244,11 +340,13 @@ function triggerMatches(value, changedPath) {
 }
 
 module.exports = {
+    axisSubmissionSchema,
     deepFreezeJson,
     safeRelativePath,
     triggerMatches,
     validateClosedJsonSchema,
     validateProfile,
+    verifierSubmissionSchema,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

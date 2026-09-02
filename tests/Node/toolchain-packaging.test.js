@@ -272,8 +272,8 @@ test('packs the core package with every owned resource and executable modes', ()
         'shared sensitive-path policy packaged'
     );
     for (const module of [
-        'canonical-json', 'cli', 'constants', 'errors', 'git-snapshot', 'profile',
-        'schema', 'session-runner', 'snapshot-tools', 'trust',
+        'canonical-json', 'cli', 'constants', 'errors', 'findings', 'git-snapshot',
+        'orchestrator', 'profile', 'schema', 'session-runner', 'snapshot-tools', 'trust',
     ]) {
         assert.equal(
             packed.files.has(`scripts/prism-review/${module}.js`),

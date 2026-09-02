@@ -251,38 +251,96 @@ test('readiness errors do not disclose canonical package paths', async () => {
     assert.doesNotMatch(output.result().stdout + output.result().stderr, new RegExp(canary));
 });
 
-test('recognizes each review mode but never returns placeholder success', async () => {
+test('dispatches every review scope through snapshot, planning, and orchestration', async () => {
     const repositoryRoot = path.resolve(__dirname, '../..');
     const shaA = 'a'.repeat(40);
     const shaB = 'b'.repeat(40);
     const cases = [
-        {argv: ['review', 'staged', '--json'], command: 'review staged'},
-        {argv: ['review', 'commit', '--commit', shaA, '--json'], command: 'review commit'},
+        {argv: ['review', 'staged', '--json'], command: 'review staged', scope: {mode: 'staged'}},
+        {
+            argv: ['review', 'commit', '--commit', shaA, '--json'],
+            command: 'review commit',
+            scope: {mode: 'commit', commit: shaA},
+        },
         {
             argv: ['review', 'branch', '--base', shaA, '--head', shaB, '--json'],
             command: 'review branch',
+            scope: {mode: 'branch', base: shaA, head: shaB},
         },
-        {argv: ['review', 'path', '--path', 'src/file.js', '--json'], command: 'review path'},
+        {
+            argv: ['review', 'path', '--path', 'src/file.js', '--json'],
+            command: 'review path',
+            scope: {mode: 'path', path: 'src/file.js'},
+        },
     ];
-    for (const {argv, command} of cases) {
+    for (const {argv, command, scope} of cases) {
+        const calls = [];
         const output = capture();
-        const status = await main(argv, {
-            ...output.context,
-            projectRoot: repositoryRoot,
-            loadSdk: () => { throw new Error('SDK must not load'); },
-        });
-        assert.equal(status, EXIT.READINESS, command);
-        assert.deepEqual(JSON.parse(output.result().stdout), {
+        const snapshot = {
+            ...scope,
+            baseCommit: shaA,
+            headCommit: shaB,
+            manifestDigest: 'c'.repeat(64),
+            entries: [{oldPath: null, newPath: 'src/file.js', kind: 'text'}],
+        };
+        const core = {
+            role: 'core',
+            profile: {sessionSkill: 'session', verifierSkills: ['verifier']},
+            resources: [{id: 'session', text: 'session'}, {id: 'verifier', text: 'verifier'}],
+        };
+        const plan = {policyDigest: 'd'.repeat(64), planDigest: 'e'.repeat(64)};
+        const report = {
             schemaVersion: 1,
             command,
             authoritative: false,
-            status: 'NO-GO',
-            outcome: 'INCONCLUSIVE',
             sourceClass: 'REVIEWED_WORKTREE',
-            reason: 'RUNTIME_INCOMPLETE',
+            outcome: command === 'review commit'
+                ? 'BLOCKING'
+                : command === 'review path' ? 'INCONCLUSIVE' : 'PASS',
+        };
+        const status = await main(argv, {
+            ...output.context,
+            projectRoot: repositoryRoot,
+            env: {PI_PROVIDER: 'fixture', PI_MODEL: 'model', PI_REASONING_LEVEL: 'high'},
+            createSnapshot(options) {
+                calls.push(['snapshot', options]);
+                return snapshot;
+            },
+            loadCoreProfile() { calls.push(['core']); return core; },
+            discoverOptionalAdapter() { calls.push(['adapter']); return null; },
+            buildReviewPlan(options) {
+                calls.push(['plan', options.changedPaths]);
+                return plan;
+            },
+            async resolveActiveModel() {
+                calls.push(['model']);
+                return {metadata: {provider: 'fixture', id: 'model'}};
+            },
+            async runReviewAttempt(options) {
+                calls.push(['run', options.command, options.snapshot, options.plan]);
+                return report;
+            },
         });
+
+        assert.equal(status, report.outcome === 'PASS' ? EXIT.OK : EXIT.REVIEW);
+        assert.deepEqual(JSON.parse(output.result().stdout), report);
         assert.equal(output.result().stderr, '');
+        assert.deepEqual(calls[0][0], 'snapshot');
+        assert.deepEqual(calls[0][1], {repositoryRoot, ...scope});
+        assert.deepEqual(calls.map(([name]) => name), ['snapshot', 'core', 'adapter', 'plan', 'model', 'run']);
     }
+});
+
+test('uses readiness exit three before an attempt and review exit four for Inconclusive reports', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const readiness = capture();
+    assert.equal(await main(['review', 'staged', '--json'], {
+        ...readiness.context,
+        projectRoot: repositoryRoot,
+        createSnapshot() { throw new Error('private readiness canary'); },
+    }), EXIT.READINESS);
+    assert.equal(JSON.parse(readiness.result().stdout).reason, 'RUNTIME_READINESS_FAILED');
+    assert.doesNotMatch(readiness.result().stdout, /private readiness canary/);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
