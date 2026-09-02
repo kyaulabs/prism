@@ -149,7 +149,7 @@ test('retries a bind race but stops on a real startup failure', async () => {
 test('classifies process spawn errors as startup failures', async () => {
     const selectedProfile = {
         ...profile(),
-        startupTimeoutMs: 100,
+        startupTimeoutMs: 1,
         server: {executable: 'prism-server-executable-that-does-not-exist', arguments: []},
         health: undefined,
     };

@@ -70,8 +70,16 @@ async function startServer({profile, projectRoot, env, port}) {
     });
     child.port = port;
     child.startError = null;
-    child.once('error', (error) => {
-        child.startError = error;
+    await new Promise((resolve, reject) => {
+        let spawned = false;
+        child.once('spawn', () => {
+            spawned = true;
+            resolve();
+        });
+        child.once('error', (error) => {
+            child.startError = error;
+            if (!spawned) reject(error);
+        });
     });
     return child;
 }
