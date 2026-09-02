@@ -2,7 +2,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createRequire } from "node:module";
+import os from "node:os";
+import path from "node:path";
 import {
     diagnoseUnmodelableShellConstruct,
     loadAdditionalSensitivePaths,
@@ -40,6 +43,17 @@ test("shared sensitive-path policy matches the safety extension", () => {
     }
     const manifest = "~/.gnupg/\n/root/private\n";
     assert.deepEqual(loadAdditionalSensitivePaths(manifest), sharedPolicy.loadAdditionalSensitivePaths(manifest));
+});
+
+test("canonicalization fails closed for an unresolvable existing path", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "prism-sensitive-path-"));
+    try {
+        const loop = path.join(root, "loop");
+        fs.symlinkSync("loop", loop);
+        assert.throws(() => sharedPolicy.canonicalizePath(loop), /cannot be canonicalized/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("deny floor: ssh, cloud, netrc, git-credentials, ssl-private", () => {

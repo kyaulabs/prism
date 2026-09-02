@@ -125,6 +125,15 @@ if [ "$status" -eq 0 ] && grep -qFx 'GO' <<< "$launcher_output"; then
 else
     fail "installed launcher could not execute the core CLI"
 fi
+review_launcher_output=""
+review_status=0
+review_launcher_output=$(PATH="$T1/bin:$PATH" "$review_launcher" --version 2>&1) || review_status=$?
+if [ "$review_status" -eq 0 ] \
+    && grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' <<< "$review_launcher_output"; then
+    pass "installed review launcher executes the review CLI"
+else
+    fail "installed review launcher could not execute the review CLI"
+fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
     && ! grep -qF 'llm test' "$T1/ocr-invocations" \
@@ -398,11 +407,17 @@ npm_launcher="$T2/bin-dir/prism-tool"
 npm_review_launcher="$T2/bin-dir/prism-review"
 expected_npm_cli="$T2/pi-agent/npm/node_modules/@kyaulabs/prism-core/scripts/prism-tool.js"
 expected_npm_review_cli="$T2/pi-agent/npm/node_modules/@kyaulabs/prism-core/scripts/prism-review.js"
+npm_review_output=""
+npm_review_status=0
+npm_review_output=$(PATH="$T2/bin:$PATH" "$npm_review_launcher" --fixture-argument 2>&1) || npm_review_status=$?
 if grep -qF "exec node '$expected_npm_cli' \"\$@\"" "$npm_launcher" 2>/dev/null \
-    && grep -qF "exec node '$expected_npm_review_cli' \"\$@\"" "$npm_review_launcher" 2>/dev/null; then
-    pass "npm launchers target canonical Pi-managed package CLIs"
+    && grep -qF "exec node '$expected_npm_review_cli' \"\$@\"" "$npm_review_launcher" 2>/dev/null \
+    && [ -f "$expected_npm_review_cli" ] \
+    && [ "$npm_review_status" -eq 0 ] \
+    && grep -qFx 'fixture review' <<< "$npm_review_output"; then
+    pass "npm launchers target executable canonical package CLIs"
 else
-    fail "npm launchers do not target Pi-managed package CLIs"
+    fail "npm launchers do not target executable package CLIs"
 fi
 
 echo "── installer defers standing consent and live readiness to setup ──"
@@ -622,6 +637,68 @@ if [ "$status" -ne 0 ] && [ -e "$T5B/bin-dir/prism-tool" ] \
     pass "uninstall collision preserves the complete launcher set"
 else
     fail "uninstall collision removed part of the launcher set"
+fi
+
+T5C=$(mktemp -d)
+register_temp_dir "$T5C"
+write_fake_tools "$T5C"
+mkdir -p "$T5C/home" "$T5C/pi-agent" "$T5C/bin-dir"
+: > "$T5C/pi-invocations"
+cat > "$T5C/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+for argument in "$@"; do
+    if [ "$argument" = "${FAIL_MOVE_DEST:-}" ]; then exit 70; fi
+done
+exec /usr/bin/mv "$@"
+EOF
+chmod 0755 "$T5C/bin/mv"
+status=0
+HOME="$T5C/home" \
+    PI_CODING_AGENT_DIR="$T5C/pi-agent" \
+    PRISM_BIN_DIR="$T5C/bin-dir" \
+    PI_INVOCATIONS="$T5C/pi-invocations" \
+    FAIL_MOVE_DEST="$T5C/bin-dir/prism-review" \
+    PATH="$T5C/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -e "$T5C/bin-dir/prism-tool" ] \
+    && [ ! -e "$T5C/bin-dir/prism-review" ]; then
+    pass "failed pair deployment rolls back both launchers"
+else
+    fail "failed pair deployment left a partial launcher set"
+fi
+
+T5D=$(mktemp -d)
+register_temp_dir "$T5D"
+write_fake_tools "$T5D"
+mkdir -p "$T5D/home" "$T5D/pi-agent" "$T5D/bin-dir"
+: > "$T5D/pi-invocations"
+cat > "$T5D/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+destination=""
+for argument in "$@"; do destination="$argument"; done
+if [ "$destination" = "${RACE_MOVE_DEST:-}" ] && [ ! -e "${RACE_MARKER:-}" ]; then
+    printf 'concurrent unmanaged launcher\n' > "$destination"
+    chmod 0755 "$destination"
+    : > "$RACE_MARKER"
+fi
+exec /usr/bin/mv "$@"
+EOF
+chmod 0755 "$T5D/bin/mv"
+status=0
+HOME="$T5D/home" \
+    PI_CODING_AGENT_DIR="$T5D/pi-agent" \
+    PRISM_BIN_DIR="$T5D/bin-dir" \
+    PI_INVOCATIONS="$T5D/pi-invocations" \
+    RACE_MOVE_DEST="$T5D/bin-dir/prism-tool" \
+    RACE_MARKER="$T5D/raced" \
+    PATH="$T5D/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] \
+    && [ "$(cat "$T5D/bin-dir/prism-tool" 2>/dev/null)" = 'concurrent unmanaged launcher' ] \
+    && [ ! -e "$T5D/bin-dir/prism-review" ]; then
+    pass "launcher commit does not overwrite a concurrent unmanaged file"
+else
+    fail "launcher commit overwrote or accepted a concurrent unmanaged file"
 fi
 
 echo "── fail-closed options and paths ──"

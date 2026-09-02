@@ -54,12 +54,14 @@ function changedLine(entry, side, line) {
     });
 }
 
-function changedFlowExplanation(entry, causality) {
+function changedFlowExplanation(entry, side, causality) {
     if (!/changed data flow/i.test(causality)) return false;
     const references = [...causality.matchAll(/line\s+(\d+)/gi)].map((match) => Number(match[1]));
-    return references.some((line) => entry.hunks.some((hunk) =>
-        (hunk.oldLines > 0 && line >= hunk.oldStart && line < hunk.oldStart + hunk.oldLines) ||
-        (hunk.newLines > 0 && line >= hunk.newStart && line < hunk.newStart + hunk.newLines)));
+    return references.some((line) => entry.hunks.some((hunk) => {
+        const start = side === 'base' ? hunk.oldStart : hunk.newStart;
+        const length = side === 'base' ? hunk.oldLines : hunk.newLines;
+        return length > 0 && line >= start && line < start + length;
+    }));
 }
 
 function validateFindingAnchor(value, context) {
@@ -84,7 +86,7 @@ function validateFindingAnchor(value, context) {
     const lineText = sourceLine(entry, value.side, value.line);
     if (!lineText.includes(value.evidence)) throw new Error('finding snippet does not match immutable source');
     const isChanged = changedLine(entry, value.side, value.line);
-    if (blocking && !isChanged && !changedFlowExplanation(entry, value.causality)) {
+    if (blocking && !isChanged && !changedFlowExplanation(entry, value.side, value.causality)) {
         throw new Error('Blocking context lacks a changed data flow anchor');
     }
     const fingerprint = digestJson({

@@ -13,6 +13,7 @@ const {
     resolveActiveModel,
     runIsolatedSession,
 } = require('../../packages/prism-core/scripts/prism-review/session-runner');
+const {deepFreezeJson, validateClosedJsonSchema} = require('../../packages/prism-core/scripts/prism-review/schema');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '../..');
 const TEMP_ROOT = path.join(REPOSITORY_ROOT, '.pi/prism-review/work/session-tests');
@@ -316,6 +317,63 @@ test('rejects premature, duplicate, and post-termination activity', async () => 
         const result = await runIsolatedSession(request(fixture));
         assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'INVALID_SESSION_ACTIVITY'});
     }
+});
+
+test('rejects a tool call that completes after the terminating submission', async () => {
+    let releaseRead;
+    const readGate = new Promise((resolve) => { releaseRead = resolve; });
+    const fixture = fakeSdk(async ({tools}) => {
+        const pendingRead = tools.get('read_file').execute('read', {offset: 0});
+        await Promise.resolve();
+        await tools.get('submit_review').execute('done', {answer: 'done'});
+        releaseRead();
+        await pendingRead;
+    });
+    const result = await runIsolatedSession(request(fixture, {
+        tools: [{
+            name: 'read_file',
+            description: 'Read immutable bytes.',
+            parameters: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {offset: {type: 'integer'}},
+                required: ['offset'],
+            },
+            async execute(_callId, args) {
+                await readGate;
+                return {offset: args.offset};
+            },
+        }],
+    }));
+
+    assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'INVALID_SESSION_ACTIVITY'});
+});
+
+test('rejects nested schema nodes without a supported type', () => {
+    assert.throws(() => validateClosedJsonSchema({
+        type: 'object',
+        additionalProperties: false,
+        properties: {answer: {}},
+        required: ['answer'],
+    }), /schema/i);
+});
+
+test('rejects unsupported nested schema keywords', () => {
+    assert.throws(() => validateClosedJsonSchema({
+        type: 'object',
+        additionalProperties: false,
+        properties: {answer: {type: 'string', invented: true}},
+        required: ['answer'],
+    }), /schema/i);
+});
+
+test('freezes an own __proto__ field without changing the object prototype', () => {
+    const frozen = deepFreezeJson(JSON.parse('{"__proto__":{"polluted":true},"answer":"ok"}'));
+
+    assert.equal(Object.getPrototypeOf(frozen), Object.prototype);
+    assert.equal(Object.hasOwn(frozen, '__proto__'), true);
+    assert.equal(Object.getPrototypeOf(frozen).polluted, undefined);
+    assert.deepEqual(frozen.__proto__, {polluted: true});
 });
 
 test('fails closed on malformed or missing submissions and inherited resources', async () => {

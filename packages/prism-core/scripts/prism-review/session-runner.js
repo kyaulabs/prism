@@ -216,6 +216,10 @@ function extensionFactory(request, state) {
                         throw new Error('session activity after submission');
                     }
                     const value = await tool.execute(callId, args, signal, onUpdate, context);
+                    if (state.submission !== null) {
+                        state.activityAfterSubmission = true;
+                        throw new Error('session activity after submission');
+                    }
                     return toolResult(value);
                 },
             });

@@ -21,6 +21,7 @@ const RAW = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])(\d*)$/;
 const TREE = /^(\d{6}) (blob|commit) ([0-9a-f]+)\t(.+)$/;
 const FULL_OBJECT = /^[0-9a-f]{40,64}$/;
 const ZERO_OBJECT = /^0+$/;
+const RAW_STATUSES = new Set(['A', 'B', 'C', 'D', 'M', 'R', 'T', 'U', 'X']);
 
 function digest(bytes) {
     return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -115,6 +116,11 @@ function rawEntries(bytes) {
         const match = fields[index++].match(RAW);
         if (match === null) throw new Error('raw diff is malformed');
         const [, oldMode, newMode, oldId, newId, status, score] = match;
+        if (!RAW_STATUSES.has(status)) throw new Error('raw diff status is malformed');
+        if (((status === 'R' || status === 'C') && Number(score) > 100) ||
+            (status !== 'R' && status !== 'C' && score !== '')) {
+            throw new Error('raw diff score is malformed');
+        }
         if ((!ZERO_OBJECT.test(oldId) && !FULL_OBJECT.test(oldId)) ||
             (!ZERO_OBJECT.test(newId) && !FULL_OBJECT.test(newId))) {
             throw new Error('raw diff object ID is malformed');
@@ -414,12 +420,12 @@ function freezePathEntries(items, runGit) {
         let headBytes = 0;
         if (kind === 'regular') {
             const bytes = showObject(runGit, item.objectId);
+            aggregate += bytes.length;
             const classified = classifyRegular(bytes);
             kind = classified.kind;
             if (kind === 'text') {
                 headText = classified.value;
                 headBytes = bytes.length;
-                aggregate += bytes.length;
             }
         }
         if (aggregate > LIMIT.INPUT_BYTES) throw new Error('review input exceeds limit');

@@ -92,6 +92,20 @@ test('permits advisory context but requires a changed-flow explanation for conte
     }), context));
 });
 
+test('binds contextual Blocking explanations to the anchored side', () => {
+    const movedEntry = Object.freeze({
+        ...entry,
+        headText: 'first\ninserted\nnew value\ncontext\n',
+        headLineStarts: Object.freeze([0, 6, 15, 25, 33]),
+        hunks: Object.freeze([Object.freeze({oldStart: 2, oldLines: 1, newStart: 3, newLines: 1})]),
+    });
+    assert.throws(() => validateFindingAnchor(finding({
+        line: 4,
+        evidence: 'context',
+        causality: 'Changed data flow from line 2 reaches this context.',
+    }), {...context, snapshot: {entries: [movedEntry, metadata]}}), /changed data flow/i);
+});
+
 test('rejects stale paths, wrong sides, invalid lines, snippets, and metadata anchors', () => {
     const invalid = [
         finding({path: 'src/missing.js'}),

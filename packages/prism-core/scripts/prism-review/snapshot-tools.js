@@ -45,8 +45,7 @@ function sliceUtf8(value, offset, limit) {
     let end = Math.min(bytes.length, offset + limit);
     while (end > offset && !byteBoundary(bytes, end)) end -= 1;
     if (end === offset && end < bytes.length) {
-        end += 1;
-        while (end < bytes.length && !byteBoundary(bytes, end)) end += 1;
+        throw new Error('review byte limit is too small for the next UTF-8 character');
     }
     return {
         text: bytes.subarray(offset, end).toString('utf8'),
@@ -66,6 +65,7 @@ function toolSchema(properties, required) {
 
 function createSnapshotTools(snapshot, options = {}) {
     const entries = new Map(snapshot.entries.map((entry) => [entry.entryDigest, entry]));
+    if (entries.size !== snapshot.entries.length) throw new Error('snapshot entry digests are duplicate');
     const exposure = new Map();
     const metadataExemptions = options.metadataExemptions ?? {};
     for (const entry of snapshot.entries) {

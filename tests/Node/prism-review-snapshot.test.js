@@ -243,6 +243,54 @@ test('fails closed on limits, invalid UTF-8, and malformed Git output', (t) => {
     }), /malformed/i);
 });
 
+test('rejects unsupported raw Git status values', () => {
+    const run = (_command, args) => {
+        if (args[0] === 'rev-parse') return {status: 0, stdout: `${'a'.repeat(40)}\n`};
+        if (args.includes('--raw')) {
+            return {status: 0, stdout: Buffer.from(`:100644 100644 ${'a'.repeat(40)} ${'b'.repeat(40)} Z\0file.txt\0`)};
+        }
+        if (args.includes('--numstat')) return {status: 0, stdout: Buffer.from('1\t1\tfile.txt\0')};
+        if (args[0] === 'show') return {status: 0, stdout: Buffer.from('value\n')};
+        if (args.includes('--unified=0')) return {status: 0, stdout: Buffer.from('patch\n')};
+        throw new Error('unexpected call');
+    };
+    assert.throws(() => createSnapshot({
+        mode: 'branch', repositoryRoot: process.cwd(), base: 'a'.repeat(40), head: 'b'.repeat(40), run,
+    }), /status|malformed/i);
+});
+
+test('rejects raw Git rename scores above one hundred', () => {
+    const run = (_command, args) => {
+        if (args[0] === 'rev-parse') return {status: 0, stdout: `${'a'.repeat(40)}\n`};
+        if (args.includes('--raw')) {
+            return {status: 0, stdout: Buffer.from(`:100644 100644 ${'a'.repeat(40)} ${'b'.repeat(40)} R101\0old.txt\0new.txt\0`)};
+        }
+        if (args.includes('--numstat')) return {status: 0, stdout: Buffer.from('1\t1\t\0old.txt\0new.txt\0')};
+        if (args[0] === 'show') return {status: 0, stdout: Buffer.from('value\n')};
+        if (args.includes('--unified=0')) return {status: 0, stdout: Buffer.from('patch\n')};
+        throw new Error('unexpected call');
+    };
+    assert.throws(() => createSnapshot({
+        mode: 'branch', repositoryRoot: process.cwd(), base: 'a'.repeat(40), head: 'b'.repeat(40), run,
+    }), /score|malformed/i);
+});
+
+test('rejects raw Git scores on non-rename statuses', () => {
+    const run = (_command, args) => {
+        if (args[0] === 'rev-parse') return {status: 0, stdout: `${'a'.repeat(40)}\n`};
+        if (args.includes('--raw')) {
+            return {status: 0, stdout: Buffer.from(`:100644 100644 ${'a'.repeat(40)} ${'b'.repeat(40)} M50\0file.txt\0`)};
+        }
+        if (args.includes('--numstat')) return {status: 0, stdout: Buffer.from('1\t1\tfile.txt\0')};
+        if (args[0] === 'show') return {status: 0, stdout: Buffer.from('value\n')};
+        if (args.includes('--unified=0')) return {status: 0, stdout: Buffer.from('patch\n')};
+        throw new Error('unexpected call');
+    };
+    assert.throws(() => createSnapshot({
+        mode: 'branch', repositoryRoot: process.cwd(), base: 'a'.repeat(40), head: 'b'.repeat(40), run,
+    }), /score|malformed/i);
+});
+
 test('fails closed on path-count, aggregate-input, timeout, output, and disagreement bounds', (t) => {
     const many = repository(t);
     for (let index = 0; index < 513; index += 1) {
@@ -284,6 +332,16 @@ test('fails closed on path-count, aggregate-input, timeout, output, and disagree
     }), /disagree/);
 });
 
+test('counts path-scoped binary objects against the aggregate input limit', (t) => {
+    const root = repository(t);
+    for (let index = 0; index < 5; index += 1) {
+        write(root, `binary/file-${index}.dat`, Buffer.concat([Buffer.from([0]), Buffer.alloc(220000, index)]));
+    }
+    commit(root, 'binary files');
+
+    assert.throws(() => createSnapshot({mode: 'path', repositoryRoot: root, path: 'binary'}), /input exceeds/);
+});
+
 test('retains unsupported Git modes as metadata-only entries', () => {
     const run = (_command, args) => {
         if (args[0] === 'rev-parse') return {status: 0, stdout: `${'a'.repeat(40)}\n`};
@@ -303,6 +361,19 @@ test('retains unsupported Git modes as metadata-only entries', () => {
     assert.deepEqual(snapshot.entries[0].requiredSides, []);
 });
 
+test('snapshot tools reject duplicate entry digests', () => {
+    const duplicate = Object.freeze({
+        entryDigest: 'a'.repeat(64),
+        kind: 'binary',
+        requiredSides: Object.freeze([]),
+        diffBytes: 0,
+    });
+    assert.throws(() => createSnapshotTools(
+        {entries: [duplicate, duplicate]},
+        {metadataExemptions: METADATA_EXEMPTIONS}
+    ), /duplicate/i);
+});
+
 test('snapshot tools reject invented parameters and mark failed ledgers', async (t) => {
     const root = repository(t);
     write(root, 'unicode.txt', 'éx\n');
@@ -310,11 +381,17 @@ test('snapshot tools reject invented parameters and mark failed ledgers', async 
     const snapshot = createSnapshot({mode: 'path', repositoryRoot: root, path: 'unicode.txt'});
     const {tools, ledger} = createSnapshotTools(snapshot, {metadataExemptions: METADATA_EXEMPTIONS});
     const entry = snapshot.entries[0];
-    const first = await tools.read_file.execute('first', {
+    await assert.rejects(() => tools.read_file.execute('too-small', {
         entryDigest: entry.entryDigest,
         side: 'head',
         offset: 0,
         limit: 1,
+    }), /too small/i);
+    const first = await tools.read_file.execute('first', {
+        entryDigest: entry.entryDigest,
+        side: 'head',
+        offset: 0,
+        limit: 2,
     });
     assert.equal(first.nextOffset, 2);
     assert.match(first.content, /é/);

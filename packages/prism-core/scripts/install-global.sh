@@ -126,8 +126,8 @@ validate_cli_path() {
     esac
 }
 
-deploy_one_launcher() {
-    local name="$1" launcher="$2" core_cli="$3" temp
+prepare_launcher() {
+    local name="$1" core_cli="$2" temp
     temp=$(mktemp "$BIN_DIR/.${name}.XXXXXX")
     {
         printf '#!/usr/bin/env bash\n'
@@ -136,12 +136,55 @@ deploy_one_launcher() {
         printf '# prism-core:managed-launcher %s end\n' "$name"
     } > "$temp"
     chmod 0755 "$temp"
-    mv -f -- "$temp" "$launcher"
-    echo "✓ deployed managed launcher $launcher"
+    printf '%s\n' "$temp"
+}
+
+move_no_clobber() {
+    local source="$1" destination="$2"
+    mv -n -- "$source" "$destination" || return 1
+    [ ! -e "$source" ] && [ ! -L "$source" ]
+}
+
+launcher_checksum() {
+    cksum "$1" | awk '{print $1 ":" $2}'
+}
+
+evacuate_launcher() {
+    local launcher="$1" name="$2" backup
+    if [ ! -e "$launcher" ]; then
+        printf '\n'
+        return 0
+    fi
+    backup=$(mktemp "$BIN_DIR/.${name}.backup.XXXXXX")
+    rm -f -- "$backup"
+    if ! move_no_clobber "$launcher" "$backup"; then
+        rm -f -- "$backup"
+        return 1
+    fi
+    if ! launcher_is_managed "$backup" "$name"; then
+        if ! move_no_clobber "$backup" "$launcher"; then
+            echo "✗ concurrent launcher preserved at $backup" >&2
+        fi
+        return 1
+    fi
+    printf '%s\n' "$backup"
+}
+
+restore_launcher() {
+    local launcher="$1" name="$2" checksum="$3" backup="$4"
+    if [ -e "$launcher" ] && launcher_is_managed "$launcher" "$name" \
+        && [ "$(launcher_checksum "$launcher")" = "$checksum" ]; then
+        rm -f -- "$launcher"
+    fi
+    if [ -n "$backup" ] && ! move_no_clobber "$backup" "$launcher"; then
+        echo "✗ concurrent launcher prevented restoration; backup retained at $backup" >&2
+        return 1
+    fi
 }
 
 deploy_launchers() {
-    local tool_cli="$1" review_cli="$2"
+    local tool_cli="$1" review_cli="$2" tool_temp review_temp tool_checksum review_checksum
+    local tool_backup="" review_backup=""
     validate_cli_path "$tool_cli"
     validate_cli_path "$review_cli"
     if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
@@ -153,8 +196,37 @@ deploy_launchers() {
         exit 1
     fi
     mkdir -p -- "$BIN_DIR"
-    deploy_one_launcher prism-tool "$TOOL_LAUNCHER" "$tool_cli"
-    deploy_one_launcher prism-review "$REVIEW_LAUNCHER" "$review_cli"
+    tool_temp=$(prepare_launcher prism-tool "$tool_cli")
+    if ! review_temp=$(prepare_launcher prism-review "$review_cli"); then
+        rm -f -- "$tool_temp"
+        return 1
+    fi
+    tool_checksum=$(launcher_checksum "$tool_temp")
+    review_checksum=$(launcher_checksum "$review_temp")
+    if ! tool_backup=$(evacuate_launcher "$TOOL_LAUNCHER" prism-tool); then
+        rm -f -- "$tool_temp" "$review_temp"
+        return 1
+    fi
+    if ! review_backup=$(evacuate_launcher "$REVIEW_LAUNCHER" prism-review); then
+        restore_launcher "$TOOL_LAUNCHER" prism-tool "$tool_checksum" "$tool_backup" || true
+        rm -f -- "$tool_temp" "$review_temp"
+        return 1
+    fi
+    if ! move_no_clobber "$tool_temp" "$TOOL_LAUNCHER"; then
+        restore_launcher "$TOOL_LAUNCHER" prism-tool "$tool_checksum" "$tool_backup" || true
+        restore_launcher "$REVIEW_LAUNCHER" prism-review "$review_checksum" "$review_backup" || true
+        rm -f -- "$tool_temp" "$review_temp"
+        return 1
+    fi
+    if ! move_no_clobber "$review_temp" "$REVIEW_LAUNCHER"; then
+        restore_launcher "$TOOL_LAUNCHER" prism-tool "$tool_checksum" "$tool_backup" || true
+        restore_launcher "$REVIEW_LAUNCHER" prism-review "$review_checksum" "$review_backup" || true
+        rm -f -- "$review_temp"
+        return 1
+    fi
+    rm -f -- "$tool_backup" "$review_backup"
+    echo "✓ deployed managed launcher $TOOL_LAUNCHER"
+    echo "✓ deployed managed launcher $REVIEW_LAUNCHER"
 }
 
 # deploy_marked <dest> <src> <marker_id>

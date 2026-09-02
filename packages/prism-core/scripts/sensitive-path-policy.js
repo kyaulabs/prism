@@ -38,38 +38,49 @@ function canonicalizePath(value) {
             const real = fs.realpathSync(current);
             if (tail.length === 0) return path.normalize(real);
             return path.normalize(`${real}/${tail.reverse().join('/')}`);
-        } catch {
+        } catch (error) {
+            if (!['ENOENT', 'ENOTDIR'].includes(error.code)) {
+                throw new Error('sensitive path cannot be canonicalized');
+            }
             const parent = path.dirname(current);
-            if (parent === current) return path.normalize(value);
+            if (parent === current) throw new Error('sensitive path cannot be canonicalized');
             tail.push(path.basename(current));
             current = parent;
         }
     }
-    return path.normalize(value);
+    throw new Error('sensitive path cannot be canonicalized');
 }
 
-function sensitivePathMatch(absPath, options) {
-    const canonical = canonicalizePath(absPath);
-    const name = path.basename(canonical);
+function matchNormalized(candidate, options, canonicalPatterns) {
+    const name = path.basename(candidate);
     if (isEnvBasename(name)) return {className: 'env'};
     if (name === 'auth.json' || name === 'mcp-auth.json') {
         return {className: 'opencode-auth-store'};
     }
     for (const pattern of DEFAULT_PATTERNS) {
-        const patternPath = canonicalizePath(normalizeRaw(pattern.raw, options.home));
-        if (canonical === patternPath ||
-            (pattern.dir && canonical.startsWith(`${patternPath}/`))) {
+        const normalized = normalizeRaw(pattern.raw, options.home);
+        const patternPath = canonicalPatterns ? canonicalizePath(normalized) : normalized;
+        if (candidate === patternPath ||
+            (pattern.dir && candidate.startsWith(`${patternPath}/`))) {
             return {className: pattern.className};
         }
     }
     for (const raw of options.extraPaths ?? []) {
-        const patternPath = canonicalizePath(normalizeRaw(raw, options.home));
+        const normalized = normalizeRaw(raw, options.home);
+        const patternPath = canonicalPatterns ? canonicalizePath(normalized) : normalized;
         const directory = raw.endsWith('/');
-        if (canonical === patternPath || (directory && canonical.startsWith(`${patternPath}/`))) {
+        if (candidate === patternPath || (directory && candidate.startsWith(`${patternPath}/`))) {
             return {className: 'additional'};
         }
     }
     return null;
+}
+
+function sensitivePathMatch(absPath, options) {
+    const lexical = path.normalize(absPath);
+    const direct = matchNormalized(lexical, options, false);
+    if (direct !== null) return direct;
+    return matchNormalized(canonicalizePath(absPath), options, true);
 }
 
 function loadAdditionalSensitivePaths(envValue) {

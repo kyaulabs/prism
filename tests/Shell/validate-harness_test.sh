@@ -77,6 +77,27 @@ fi
 rm -rf "$TOOLCHAIN_FIXTURE"
 trap - EXIT
 
+printf '%s\n' '── validate-harness: review resources reject symlinks ──'
+REVIEW_RESOURCE="$REPO_ROOT/packages/prism-core/config/licenses/CC0-1.0.txt"
+REVIEW_BACKUP=$(mktemp)
+cp "$REVIEW_RESOURCE" "$REVIEW_BACKUP"
+cleanup_review_resource() {
+    rm -f "$REVIEW_RESOURCE"
+    mv "$REVIEW_BACKUP" "$REVIEW_RESOURCE"
+}
+trap cleanup_review_resource EXIT
+rm -f "$REVIEW_RESOURCE"
+ln -s "$REVIEW_BACKUP" "$REVIEW_RESOURCE"
+if output=$(bash "$VALIDATOR" 2>&1); then
+    fail 'symlinked review resource was accepted'
+elif printf '%s\n' "$output" | grep -Fq 'review source license'; then
+    pass 'symlinked review resource is rejected'
+else
+    fail "symlinked review resource failure lacked its diagnostic: $output"
+fi
+cleanup_review_resource
+trap - EXIT
+
 printf '%s\n' '── validate-harness: tracked blank-line violations fail closed ──'
 BLANK_LINE_FIXTURE=$(mktemp "$REPO_ROOT/packages/prism-core/docs/.blank-line-test.XXXXXX")
 BLANK_LINE_RELATIVE=${BLANK_LINE_FIXTURE#"$REPO_ROOT"/}

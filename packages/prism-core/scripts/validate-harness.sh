@@ -249,14 +249,16 @@ for (const [packageRoot, profile, expectedResources, role] of profiles) {
         throw new Error(`${role} review profile is incomplete`);
     }
     for (const resource of profile.resources) {
-        if (!fs.statSync(path.join(packageRoot, resource.path)).isFile()) {
-            throw new Error(`${role} review resource is missing`);
+        const resourceIdentity = fs.lstatSync(path.join(packageRoot, resource.path));
+        if (resourceIdentity.isSymbolicLink() || !resourceIdentity.isFile()) {
+            throw new Error(`${role} review resource is missing or unsafe`);
         }
     }
 }
 for (const license of ['CC0-1.0.txt', 'CC-BY-SA-4.0.txt']) {
-    if (!fs.statSync(path.join(coreRoot, 'config/licenses', license)).isFile()) {
-        throw new Error(`review source license ${license} is missing`);
+    const licenseIdentity = fs.lstatSync(path.join(coreRoot, 'config/licenses', license));
+    if (licenseIdentity.isSymbolicLink() || !licenseIdentity.isFile()) {
+        throw new Error(`review source license ${license} is missing or unsafe`);
     }
 }
 NODE

@@ -214,6 +214,7 @@ function validateSchemaNode(value, label) {
     if (value === null || typeof value !== 'object' || Array.isArray(value) ||
         Object.getPrototypeOf(value) !== Object.prototype) fail(label);
     if (value.type === 'object') {
+        object(value, ['type', 'additionalProperties', 'properties', 'required', 'description'], label);
         if (value.additionalProperties !== false) fail(label);
         object(value.properties, Object.keys(value.properties ?? {}), label);
         if (!Array.isArray(value.required) ||
@@ -223,7 +224,14 @@ function validateSchemaNode(value, label) {
         unique(value.required, label);
         Object.values(value.properties).forEach((entry) => validateSchemaNode(entry, label));
     } else if (value.type === 'array') {
+        object(value, ['type', 'items', 'minItems', 'maxItems', 'description'], label);
         validateSchemaNode(value.items, label);
+    } else {
+        object(value, ['type', 'enum', 'const', 'minimum', 'maximum', 'pattern', 'description'], label);
+        const types = Array.isArray(value.type) ? value.type : [value.type];
+        const supported = new Set(['boolean', 'integer', 'null', 'number', 'string']);
+        if (types.length === 0 || types.some((type) => !supported.has(type))) fail(label);
+        unique(types, label);
     }
 }
 
@@ -243,7 +251,14 @@ function deepFreezeJson(value, label = 'JSON value') {
     if (Array.isArray(value)) return Object.freeze(value.map((entry) => deepFreezeJson(entry, label)));
     object(value, Object.keys(value), label);
     const copy = {};
-    for (const [key, entry] of Object.entries(value)) copy[key] = deepFreezeJson(entry, label);
+    for (const [key, entry] of Object.entries(value)) {
+        Object.defineProperty(copy, key, {
+            value: deepFreezeJson(entry, label),
+            enumerable: true,
+            configurable: true,
+            writable: true,
+        });
+    }
     return Object.freeze(copy);
 }
 
