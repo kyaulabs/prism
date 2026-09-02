@@ -918,7 +918,6 @@ function readPlanFile(operation, area, relativePath) {
 
 function renderReleaseCapabilityFiles({
     projectRoot,
-    coreRoot,
     adapterReleases = [],
     candidates = null,
 }) {

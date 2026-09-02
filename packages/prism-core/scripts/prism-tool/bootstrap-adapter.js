@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -253,7 +253,7 @@ function removeAttemptWorkspace(projectRoot, attemptId) {
     removeEmpty(piRoot);
 }
 
-function cleanupFailedProvision(projectRoot, attemptId, acquisition) {
+function cleanupFailedProvision(projectRoot, attemptId) {
     let roots;
     let pi;
     try {
@@ -498,7 +498,7 @@ function provisionBootstrapAdapter(options) {
             options.source,
             attempt,
             'PI_INSTALL_FAILED',
-            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+            cleanupFailedProvision(projectRoot, attempt.id)
         );
     }
     if (result.error || result.status !== 0) {
@@ -507,7 +507,7 @@ function provisionBootstrapAdapter(options) {
             options.source,
             attempt,
             'PI_INSTALL_FAILED',
-            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+            cleanupFailedProvision(projectRoot, attempt.id)
         );
     }
     const expectedPi = ['npm', 'prism-tool', 'settings.json'];
@@ -552,7 +552,7 @@ function provisionBootstrapAdapter(options) {
             options.source,
             attempt,
             'POSTINSTALL_VALIDATION_FAILED',
-            cleanupFailedProvision(projectRoot, attempt.id, acquisition)
+            cleanupFailedProvision(projectRoot, attempt.id)
         );
     }
     return {
@@ -712,9 +712,9 @@ function validateLegacyReceipt(receipt, projectRoot, attemptId) {
         !SHA256.test(receipt.settings.sha256) ||
         receipt.settings.packageSource !== receipt.acquisition.installSource ||
         !isRecord(receipt.registration) || !exactKeys(receipt.registration, [
-            'packageName', 'packageVersion', 'bootstrapProtocol', 'packageRoot',
-            'contractPath', 'handlerPath',
-        ]) || receipt.registration.packageName !== receipt.adapter.packageName ||
+        'packageName', 'packageVersion', 'bootstrapProtocol', 'packageRoot',
+        'contractPath', 'handlerPath',
+    ]) || receipt.registration.packageName !== receipt.adapter.packageName ||
         receipt.registration.packageVersion !== receipt.adapter.packageVersion ||
         receipt.registration.bootstrapProtocol !== receipt.adapter.bootstrapProtocol ||
         !['packageRoot', 'contractPath', 'handlerPath'].every((key) =>
