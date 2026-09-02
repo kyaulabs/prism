@@ -797,7 +797,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: one parsed ad hoc scope, Git through an injected argument-array runner, and the existing additive sensitive-path environment policy.
 - Produces: `createSnapshot`, `createSnapshotTools`, `assertFresh`, immutable entry/diff objects, and byte-interval ledgers shared by all axes.
 
-- [ ] **Step 1: Write failing shared-classifier and real-Git snapshot tests**
+- [x] **Step 1: Write failing shared-classifier and real-Git snapshot tests**
 
 Move no behavior yet. First add parity tests that call the current safety classification and the planned CommonJS path-policy function over the existing path fixture table. Every deny class and `.env.example` exception must match.
 
@@ -840,7 +840,7 @@ await tools.read_diff.execute('call-2', {
 
 Require literal entry IDs, valid side availability, byte offsets from zero, limits from 1 through 32768, UTF-8 boundary-safe `nextOffset` values, labelled hostile-data output, and exact interval ledger updates. A caller advances only through the returned `nextOffset`, so multi-byte characters are never split or skipped. Search, glob, regex, path, filesystem, and arbitrary object-ID parameters do not exist.
 
-- [ ] **Step 2: Run the snapshot and safety tests to verify Red**
+- [x] **Step 2: Run the snapshot and safety tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-snapshot.test.js`
 
@@ -850,19 +850,19 @@ Run: `node --import tsx --test tests/Node/safety-sensitive-paths.test.ts`
 
 Expected: FAIL on the planned shared-policy parity import.
 
-- [ ] **Step 3: Extract one path classifier without changing safety behavior**
+- [x] **Step 3: Extract one path classifier without changing safety behavior**
 
 Move only path-oriented policy from the safety TypeScript module into `scripts/sensitive-path-policy.js`: default patterns, environment-file basename handling, canonicalization, `sensitivePathMatch`, and `loadAdditionalSensitivePaths`. Export CommonJS functions and frozen data. The TypeScript module imports and re-exports typed wrappers, while retaining all shell tokenization and command classification.
 
 Do not read any credential path during classification. Nonexistent paths are classified lexically after canonicalizing the nearest existing parent. Preserve additive `PRISM_SENSITIVE_PATHS` behavior and every current class name. This refactor must make the existing safety suite green before snapshot code is added.
 
-- [ ] **Step 4: Run safety parity Green**
+- [x] **Step 4: Run safety parity Green**
 
 Run: `node --import tsx --test tests/Node/safety-sensitive-paths.test.ts`
 
 Expected: PASS with no changed safety classification.
 
-- [ ] **Step 5: Implement immutable snapshots and tools**
+- [x] **Step 5: Implement immutable snapshots and tools**
 
 Use bounded `spawnSync`-compatible argument arrays, NUL-delimited Git output, and fatal UTF-8 decoding. Resolve every revision to a full commit before diff parsing. Use Git object IDs and these command families:
 
@@ -883,7 +883,7 @@ Represent regular UTF-8 blobs with immutable byte-to-line maps. Added and modifi
 
 `createSnapshotTools(snapshot)` returns plain custom-tool descriptors and a ledger. `read_file` and `read_diff` slice at validated UTF-8 byte boundaries, return escaped labelled text plus `offset`, `nextOffset`, and total bytes, and merge exact byte intervals. A successful axis requires complete intervals for every required blob and diff. Metadata-only entries require exact fixed exemption IDs from the Core profile. Failed calls mark the ledger failed and cannot satisfy exposure.
 
-- [ ] **Step 6: Run and refactor snapshot Green**
+- [x] **Step 6: Run and refactor snapshot Green**
 
 Run: `node --test tests/Node/prism-review-snapshot.test.js`
 
@@ -895,13 +895,13 @@ Expected: PASS.
 
 Refactor repeated Git-result validation into one private helper and repeated interval merging into one private helper. Rerun both commands.
 
-- [ ] **Step 7: Stage immutable scope mechanics**
+- [x] **Step 7: Stage immutable scope mechanics**
 
 Run: `git add packages/prism-core/scripts/sensitive-path-policy.js packages/prism-core/scripts/prism-review/git-snapshot.js packages/prism-core/scripts/prism-review/snapshot-tools.js packages/prism-core/extensions/safety/sensitive-paths.ts tests/Node/prism-review-snapshot.test.js tests/Node/safety-sensitive-paths.test.ts tests/Node/toolchain-packaging.test.js`
 
 Expected: shared sensitive policy, snapshot mechanics, and their tests are staged.
 
-- [ ] **Step 8: Create the snapshot commit**
+- [x] **Step 8: Create the snapshot commit**
 
 ```bash
 prism-tool commit create --type feat --scope review --subject "freeze immutable review input"

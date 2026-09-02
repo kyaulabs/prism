@@ -266,7 +266,15 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'tool CLI modules packaged');
-    for (const module of ['cli', 'constants', 'errors', 'trust']) {
+    assert.equal(
+        packed.files.has('scripts/sensitive-path-policy.js'),
+        true,
+        'shared sensitive-path policy packaged'
+    );
+    for (const module of [
+        'canonical-json', 'cli', 'constants', 'errors', 'git-snapshot', 'profile',
+        'schema', 'snapshot-tools', 'trust',
+    ]) {
         assert.equal(
             packed.files.has(`scripts/prism-review/${module}.js`),
             true,
