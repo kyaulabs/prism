@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-template-source.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -699,7 +699,10 @@ test('normalizes immutable Template reports for trusted provider composition', a
     assert.equal(Object.isFrozen(normalized), true);
     assert.equal(Object.isFrozen(normalized.source), true);
     assert.equal(Object.isFrozen(normalized.source.evidence), true);
-    assert.equal(JSON.stringify(normalized).includes('api.github.com'), false);
+    assert.deepEqual(Object.keys(normalized.source.evidence), [
+        'schemaVersion', 'source', 'templateId', 'defaultBranch', 'commitSha', 'treeSha',
+        'manifest', 'classificationSha256',
+    ]);
     assert.equal(JSON.stringify(normalized).includes('network-approved'), false);
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });

@@ -285,7 +285,7 @@ function supportedVersionsContents(supportedVersions) {
     };
     if (supportedVersions.policy !== 'custom') return `${wording[supportedVersions.policy]}\n`;
     const rows = supportedVersions.rows.map(({version, status}) =>
-        `| ${version.replace(/\|/gu, '\\|')} | ${status === 'supported' ? 'Yes' : 'No'} |`
+        `| ${version.replace(/[\\|]/gu, '\\$&')} | ${status === 'supported' ? 'Yes' : 'No'} |`
     );
     return '| Version | Supported |\n| --- | --- |\n' + `${rows.join('\n')}\n`;
 }
