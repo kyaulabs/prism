@@ -192,6 +192,7 @@ test('packs the core package with every owned resource and executable modes', ()
         assert.equal(text, fs.readFileSync(path.join(CORE_PKG, 'config', 'licenses', license), 'utf8'));
     }
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
+    assert.equal(packed.files.has('docs/review-runtime.md'), true, 'review runtime documentation packaged');
     assert.equal(
         packed.files.has('docs/adapter-catalogue.md'),
         true,

@@ -1147,6 +1147,8 @@ Expected: one signed commit with the standard three trailers.
 - Modify: `packages/prism-core/README.md`
 - Modify: `packages/prism-php-web/README.md`
 - Modify: `packages/prism-core/scripts/validate-harness.sh`
+- Modify: `tests/Node/prism-tool-run.test.js`
+- Modify: `tests/Node/toolchain-contract.test.js`
 - Modify: `tests/Node/toolchain-packaging.test.js`
 - Modify: `tests/Shell/validate-harness_test.sh`
 - Test: `tests/Node/prism-review-e2e.test.js`
@@ -1157,7 +1159,7 @@ Expected: one signed commit with the standard three trailers.
 - Consumes: the packaged Core and adapter archives, fixture repositories, fake SDK sessions, and all earlier public interfaces.
 - Produces: installed-package evidence that ad hoc review works outside the checkout, self-authority fails, no live inference is required by tests, and OCR remains the only current finalization authority.
 
-- [ ] **Step 1: Write failing installed-package and foundation-boundary tests**
+- [x] **Step 1: Write failing installed-package and foundation-boundary tests**
 
 The Node end-to-end test packs and extracts both packages into ignored temporary roots beneath `.pi/prism-review/work`, creates a separate fixture Git repository there, registers the extracted adapter, and spawns the extracted public `prism-review` executable for each review command. A test-owned `NODE_OPTIONS=--require=...` preload intercepts the exact CommonJS `session-runner.js` import and supplies scripted fake sessions; production code exposes no fake-runner flag or module-path environment variable. Assert:
 
@@ -1174,7 +1176,7 @@ The Node end-to-end test packs and extracts both packages into ignored temporary
 
 The shell contract test asserts current prompts, skills, consent, toolchain, commit attribution, and chain modules still name and use OCR/version one. It also asserts `prism-review` docs call the runtime non-authoritative and name the release/install checkpoint. This test protects the bridge from landing early.
 
-- [ ] **Step 2: Run end-to-end and boundary tests to verify Red**
+- [x] **Step 2: Run end-to-end and boundary tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -1184,7 +1186,7 @@ Run: `bash tests/Shell/prism_review_foundation_contract_test.sh`
 
 Expected: FAIL because the explicit foundation/cutover boundary is undocumented.
 
-- [ ] **Step 3: Document the runtime and strengthen validation**
+- [x] **Step 3: Document the runtime and strengthen validation**
 
 `packages/prism-core/docs/review-runtime.md` documents:
 
@@ -1202,7 +1204,7 @@ Update public and package documentation with a short link to this reference. Do 
 
 Extend harness validation to require both package bins, the Core review profile, all fourteen Core skill resources, the adapter profile, source-license files, and exact manifest registration. Add no live SDK or provider check.
 
-- [ ] **Step 4: Run the complete foundation suite**
+- [x] **Step 4: Run the complete foundation suite**
 
 Run: `node --test tests/Node/prism-review-cli.test.js tests/Node/prism-review-profile.test.js tests/Node/prism-review-snapshot.test.js tests/Node/prism-review-session.test.js tests/Node/prism-review-findings.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-e2e.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-packaging.test.js tests/Node/check-peer-deps.test.js`
 
@@ -1232,7 +1234,7 @@ Run: `npm run test:node`
 
 Expected: PASS for the complete Node suite.
 
-- [ ] **Step 5: Run package inventory and no-state checks**
+- [x] **Step 5: Run package inventory and no-state checks**
 
 Create the ignored owned directory `.pi/prism-review/work/package-check`, then run: `npm pack ./packages/prism-core --json --ignore-scripts --pack-destination .pi/prism-review/work/package-check`
 
@@ -1244,13 +1246,13 @@ Expected: the JSON inventory contains `config/prism-review.json`, the registered
 
 Confirm `git status --short` shows no `.pi/prism-review` state and no raw model output fixture outside test-owned temporary directories.
 
-- [ ] **Step 6: Stage foundation documentation and end-to-end coverage**
+- [x] **Step 6: Stage foundation documentation and end-to-end coverage**
 
-Run: `git add README.md CODING_HARNESS.md packages/prism-core/README.md packages/prism-core/docs/review-runtime.md packages/prism-php-web/README.md packages/prism-core/scripts/validate-harness.sh tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js tests/Shell/prism_review_foundation_contract_test.sh tests/Shell/validate-harness_test.sh`
+Run: `git add README.md CODING_HARNESS.md docs/plans/2026-09-02-prism-review.md packages/prism-core/README.md packages/prism-core/docs/review-runtime.md packages/prism-php-web/README.md packages/prism-core/scripts/validate-harness.sh tests/Node/prism-review-e2e.test.js tests/Node/prism-tool-run.test.js tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js tests/Shell/prism_review_foundation_contract_test.sh tests/Shell/validate-harness_test.sh`
 
-Expected: only foundation docs, validators, installed-package tests, and boundary tests are staged.
+Expected: only the updated plan, foundation docs, validators, installed-package tests, and boundary tests are staged.
 
-- [ ] **Step 7: Create the foundation-closure commit**
+- [x] **Step 7: Create the foundation-closure commit**
 
 ```bash
 prism-tool commit create --type docs --scope review --subject "document the review foundation"

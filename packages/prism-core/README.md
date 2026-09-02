@@ -16,6 +16,7 @@ Core owns:
 - global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
 - the safety enforcement and bounded web-access extensions;
 - the `prism-tool` launcher and Core toolchain contract;
+- the non-authoritative `prism-review` runtime and closed Core review policy;
 - strict-empty setup orchestration and generic project-provider composition;
 - repository creation, canonical hooks, root-seed preparation, and recovery;
 - optional project capabilities;
@@ -47,10 +48,10 @@ For an npm source, the installer requires separate registry authorization:
 PRISM_CORE_SOURCE=npm:@kyaulabs/prism-core bash packages/prism-core/scripts/install-global.sh --network-approved=yes
 ```
 
-The installer deploys `prism-tool` to
+The installer deploys `prism-tool` and `prism-review` to
 `${PRISM_BIN_DIR:-$HOME/.local/bin}` and installs the global instruction
 resources. It does not edit shell startup files or `PATH`, and it refuses to
-overwrite an unrelated launcher. Remove a Prism-owned launcher with:
+overwrite an unrelated launcher. Remove the Prism-owned launcher set with:
 
 ```bash
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
@@ -91,6 +92,13 @@ reports web-access readiness without a live request. Reviewed-code egress is
 available only through the dedicated `prism-tool code-review ocr` operation.
 CI provisions compatible tools in its ephemeral environment but creates no
 consent and runs neither OCR review nor web access.
+
+`prism-review` provides bounded ad hoc staged, commit, branch, and tracked-path
+reports through isolated Pi SDK sessions. Reports from this release are always
+non-authoritative and do not replace OCR-backed `code-review` or write chain
+state. See [Review runtime foundation](docs/review-runtime.md) for commands,
+limits, report fields, model use, and the required release and installation
+checkpoint before authority work.
 
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:

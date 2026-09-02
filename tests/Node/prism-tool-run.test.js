@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -132,8 +132,11 @@ test('registers the Node test suite in the source checkout', () => {
     assert.equal(rootPackage.scripts?.['test:node'], 'node --test tests/Node/*.test.js tests/Node/*.test.ts');
 });
 
-test('publishes an executable prism-tool bin with its core config', () => {
-    assert.deepEqual(corePackage.bin, {'prism-tool': 'scripts/prism-tool.js'});
+test('publishes both executable Core bins with their config', () => {
+    assert.deepEqual(corePackage.bin, {
+        'prism-review': 'scripts/prism-review.js',
+        'prism-tool': 'scripts/prism-tool.js',
+    });
     assert.equal(corePackage.files.includes('config'), true);
     assert.equal(fs.statSync(cli).mode & 0o111, 0o111);
 });

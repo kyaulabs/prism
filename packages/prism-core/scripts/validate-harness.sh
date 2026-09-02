@@ -223,6 +223,49 @@ for entry in "${ENTRY_POINTS[@]}"; do
 done
 ok "$ENTRY_COUNT toolchain entry point(s) executable"
 
+printf '%s\n' '── Validating review runtime foundation ──'
+if ! review_output=$(node - "$REPO_ROOT" 2>&1 <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const root = process.argv[2];
+const coreRoot = path.join(root, 'packages/prism-core');
+const adapterRoot = path.join(root, 'packages/prism-php-web');
+const coreManifest = require(path.join(coreRoot, 'package.json'));
+const adapterManifest = require(path.join(adapterRoot, 'package.json'));
+if (coreManifest.bin?.['prism-tool'] !== 'scripts/prism-tool.js' ||
+    coreManifest.bin?.['prism-review'] !== 'scripts/prism-review.js') {
+    throw new Error('Core package bins are incomplete');
+}
+if (adapterManifest.prism?.review !== './config/prism-review.json') {
+    throw new Error('adapter review profile registration is incomplete');
+}
+const profiles = [
+    [coreRoot, require(path.join(coreRoot, 'config/prism-review.json')), 14, 'core'],
+    [adapterRoot, require(path.join(adapterRoot, 'config/prism-review.json')), 10, 'adapter'],
+];
+for (const [packageRoot, profile, expectedResources, role] of profiles) {
+    if (profile.schemaVersion !== 1 || profile.role !== role ||
+        profile.resources.length !== expectedResources) {
+        throw new Error(`${role} review profile is incomplete`);
+    }
+    for (const resource of profile.resources) {
+        if (!fs.statSync(path.join(packageRoot, resource.path)).isFile()) {
+            throw new Error(`${role} review resource is missing`);
+        }
+    }
+}
+for (const license of ['CC0-1.0.txt', 'CC-BY-SA-4.0.txt']) {
+    if (!fs.statSync(path.join(coreRoot, 'config/licenses', license)).isFile()) {
+        throw new Error(`review source license ${license} is missing`);
+    }
+}
+NODE
+); then
+    err "review runtime foundation: $review_output"
+else
+    ok 'review runtime package surface checked'
+fi
+
 printf '%s\n' '── Validating package archive inclusions ──'
 INCLUDE_COUNT=0
 while IFS= read -r -d '' pkg_json; do
