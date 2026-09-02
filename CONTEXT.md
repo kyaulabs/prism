@@ -34,6 +34,11 @@ documentation, and conversation.
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, the safety extension, and the web-access extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
+| Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It begins as a non-authoritative foundation and becomes finalization authority only after the staged cutover in ADR-0103. |
+| review profile | A closed package-owned declaration of review skills, axis lenses, deterministic path triggers, and fixed non-text exemptions. An adapter may append lenses but cannot replace Core policy or supply executable review commands. |
+| byte exposure | Deterministic evidence that every required interval of an immutable Git blob or diff was returned to a review session. It records data delivery, not model attention, understanding, or semantic coverage. |
+| criteria receipt | Private managed evidence identifying the exact committed specification, plan, or explicit no-criteria disposition approved before implementation and artifact cleanup. Immutable source blobs remain authoritative over extracted summaries. |
+| check receipt | Private managed evidence binding actual Core and adapter quality-gate results to one branch, base, and HEAD. Starting a new check invalidates the prior active PASS before any gate runs. |
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
 | server profile | An optional adapter toolchain declaration for one foreground-scoped loopback test dependency, including its preferred port, trusted server and health commands, permitted client tools, and selected-endpoint environment templates. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
@@ -545,6 +550,12 @@ Pi-era decisions:
 - `adr/0101-contract-declared-supervised-server-lifecycles.md` — supervise
   adapter-declared foreground loopback test servers through Core with
   nearest-port selection, readiness, bounded clients, and owned cleanup.
+- `adr/0102-trusted-skill-first-review-runtime.md` — run four-axis review through
+  a stable installed Core trust root, isolated Pi SDK sessions, closed package
+  profiles, immutable Git objects, and complete per-axis byte exposure.
+- `adr/0103-deterministic-review-authority-and-staged-ocr-cutover.md` — bind
+  finalization review to criteria and check receipts, introduce review-chain
+  version two, and replace OCR only after a human release/install checkpoint.
 
 ## When to update this file
 
