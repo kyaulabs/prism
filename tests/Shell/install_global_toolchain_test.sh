@@ -76,6 +76,12 @@ file_mode() {
     stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
 }
 
+launcher_artifacts_absent() {
+    local directory="$1"
+    ! compgen -G "$directory/.prism-tool.*" >/dev/null \
+        && ! compgen -G "$directory/.prism-review.*" >/dev/null
+}
+
 echo "── local source installation and managed launcher ──"
 T1=$(mktemp -d)
 register_temp_dir "$T1"
@@ -874,6 +880,8 @@ EOF
 chmod 0755 "$T5F/bin-dir/prism-tool" "$T5F/bin-dir/prism-review"
 tool_before=$(cksum "$T5F/bin-dir/prism-tool")
 review_before=$(cksum "$T5F/bin-dir/prism-review")
+tool_mode_before=$(file_mode "$T5F/bin-dir/prism-tool")
+review_mode_before=$(file_mode "$T5F/bin-dir/prism-review")
 cat > "$T5F/bin/mv" <<'EOF'
 #!/usr/bin/env bash
 destination=""
@@ -899,9 +907,15 @@ HOME="$T5F/home" \
     PATH="$T5F/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -ne 0 ] \
+    && [ -e "$T5F/signalled" ] \
+    && [ -f "$T5F/bin-dir/prism-tool" ] && [ ! -L "$T5F/bin-dir/prism-tool" ] \
+    && [ -f "$T5F/bin-dir/prism-review" ] && [ ! -L "$T5F/bin-dir/prism-review" ] \
     && [ "$tool_before" = "$(cksum "$T5F/bin-dir/prism-tool")" ] \
     && [ "$review_before" = "$(cksum "$T5F/bin-dir/prism-review")" ] \
-    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ]; then
+    && [ "$tool_mode_before" = "$(file_mode "$T5F/bin-dir/prism-tool")" ] \
+    && [ "$review_mode_before" = "$(file_mode "$T5F/bin-dir/prism-review")" ] \
+    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ] \
+    && launcher_artifacts_absent "$T5F/bin-dir"; then
     pass "launcher deployment rolls back on TERM"
 else
     fail "launcher deployment did not roll back after TERM"
@@ -917,9 +931,15 @@ HOME="$T5F/home" \
     PATH="$T5F/bin:$PATH" \
     bash "$INSTALLER" --uninstall-launcher >/dev/null 2>&1 || status=$?
 if [ "$status" -ne 0 ] \
+    && [ -e "$T5F/signalled" ] \
+    && [ -f "$T5F/bin-dir/prism-tool" ] && [ ! -L "$T5F/bin-dir/prism-tool" ] \
+    && [ -f "$T5F/bin-dir/prism-review" ] && [ ! -L "$T5F/bin-dir/prism-review" ] \
     && [ "$tool_before" = "$(cksum "$T5F/bin-dir/prism-tool")" ] \
     && [ "$review_before" = "$(cksum "$T5F/bin-dir/prism-review")" ] \
-    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ]; then
+    && [ "$tool_mode_before" = "$(file_mode "$T5F/bin-dir/prism-tool")" ] \
+    && [ "$review_mode_before" = "$(file_mode "$T5F/bin-dir/prism-review")" ] \
+    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ] \
+    && launcher_artifacts_absent "$T5F/bin-dir"; then
     pass "launcher uninstall rolls back on TERM"
 else
     fail "launcher uninstall did not roll back after TERM"
