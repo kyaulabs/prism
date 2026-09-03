@@ -2,6 +2,24 @@
   "schemaVersion": 1,
   "package": "@kyaulabs/prism-php-web",
   "role": "adapter",
+  "qualityProvider": {
+    "id": "php-web-quality",
+    "protocolVersion": 1,
+    "gates": [
+      "php-web.changed-file-coverage",
+      "php-web.composer-audit",
+      "php-web.eslint",
+      "php-web.node-tests",
+      "php-web.npm-audit",
+      "php-web.pest-coverage",
+      "php-web.php-cs-fixer",
+      "php-web.php-syntax",
+      "php-web.playwright-list",
+      "php-web.shell-tests",
+      "php-web.stylelint",
+      "php-web.typescript"
+    ]
+  },
   "components": [
     {
       "id": "php-cs-fixer",
@@ -102,6 +120,18 @@
       "version": "17.0.0",
       "provisioning": "consumer-dev",
       "authentication": "none"
+    },
+    {
+      "id": "typescript",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "typescript",
+      "version": "7.0.2",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "tsc",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
     },
     {
       "id": "playwright",

@@ -519,6 +519,7 @@ test('declares the exact PHP web adapter components and registration', () => {
         ['eslint-js', '10.0.1'],
         ['stylelint', '17.14.1'],
         ['stylelint-config-scss', '17.0.0'],
+        ['typescript', '7.0.2'],
         ['playwright', '1.62.1'],
     ]);
 

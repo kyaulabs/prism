@@ -348,15 +348,15 @@ prism-tool commit create --type feat --scope review --subject "resolve trusted a
 - Modify: `packages/prism-php-web/scripts/prism-tool-adapter.js`
 - Modify: `packages/prism-php-web/toolchain.json`
 - Create: `tests/Node/prism-tool-php-web-quality.test.js`
+- Modify: `tests/Node/prism-tool-discovery.test.js`
 - Modify: `tests/Node/toolchain-contract.test.js`
-- Modify: `tests/Node/toolchain-packaging.test.js`
 
 **Interfaces:**
 
-- Consumes: the adapter's validated `toolchain.json`, `resolveTool()`, Core-supplied bounded command/tool/server callbacks, and immutable `baseSha`/`headSha`.
+- Consumes: the adapter's validated `toolchain.json`, Core-supplied bounded command/tool/server/artifact callbacks, tracked paths, package-script names, immutable `baseSha`/`headSha`, and final snapshot verification.
 - Produces: `runQualityProvider(options)` and the exact twelve-gate report defined above.
 
-- [ ] **Step 1: Write failing adapter operation tests**
+- [x] **Step 1: Write failing adapter operation tests**
 
 Use a fixture project and callback spies; do not spawn real linters in unit tests. Assert exact command arrays and order, all twelve IDs, fixed `SKIPPED` applicability codes, `--coverage --min=80`, changed-file coverage input derived from `git diff --name-only <base>..<head> -- '*.php'`, browser supervision through the supplied server callback, Node tests only when `test:node` or `test:plugin` exists, every `tests/Shell/*_test.sh` invocation through `bash`, and locked Composer/npm audits. Add failures for nonzero status, timeout, output overflow, missing executable, malformed artifact, and changed base/head.
 
@@ -376,28 +376,28 @@ assert.equal(report.gates.find(({id}) => id === 'php-web.pest-coverage').command
     'prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage --min=80');
 ```
 
-- [ ] **Step 2: Run the adapter tests to verify Red**
+- [x] **Step 2: Run the adapter tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-php-web-quality.test.js tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: FAIL because the adapter handler has no `runQualityProvider` operation.
 
-- [ ] **Step 3: Implement the shared PHP/web gate operation**
+- [x] **Step 3: Implement the shared PHP/web gate operation**
 
 Implement a data-driven gate list with the exact IDs from the stable interface section. The operation must invoke only supplied Core callbacks, hash bounded stdout/stderr immediately, hash `tests/coverage.xml` before returning coverage success, and return no raw logs. Discover applicable tracked files through bounded `git ls-files -z`, never shell glob expansion. Keep PHP syntax, formatter, lint, TypeScript, Playwright-list, Pest/server lifecycle, changed-file coverage, Node, shell, Composer audit, and npm audit behavior in this adapter module. Capture actual tool versions from the callback metadata. Re-read branch/base/HEAD through the callback before returning and force the report to `FAIL` on drift.
 
 Export only `runQualityProvider` through `prism-tool-adapter.js`; do not put commands in `config/prism-review.json` or Core.
 
-- [ ] **Step 4: Run adapter, contract, and package tests to verify Green**
+- [x] **Step 4: Run adapter, contract, and package tests to verify Green**
 
 Run: `node --test tests/Node/prism-tool-php-web-quality.test.js tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js`
 
 Expected: PASS and the packed adapter inventory contains `scripts/toolchain/quality-provider.js`.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-php-web/scripts/toolchain/quality-provider.js packages/prism-php-web/scripts/prism-tool-adapter.js tests/Node/prism-tool-php-web-quality.test.js tests/Node/toolchain-contract.test.js tests/Node/toolchain-packaging.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-php-web/scripts/toolchain/quality-provider.js packages/prism-php-web/scripts/prism-tool-adapter.js packages/prism-php-web/toolchain.json tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-php-web-quality.test.js tests/Node/toolchain-contract.test.js
 prism-tool commit create --type feat --scope php-web --subject "provide deterministic stack quality gates"
 ```
 

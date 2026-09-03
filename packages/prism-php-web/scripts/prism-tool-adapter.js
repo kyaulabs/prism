@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -14,6 +14,7 @@ const {
     verifyBootstrapScaffold,
 } = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
+const {runQualityProvider} = require('./toolchain/quality-provider');
 const {
     applyCandidate,
     installBootstrapDependencies,
@@ -99,6 +100,7 @@ module.exports = {
     resolve,
     resolveTool,
     runBootstrapQuality,
+    runQualityProvider,
     verify,
     verifyAutomation,
     verifyBootstrapProject,

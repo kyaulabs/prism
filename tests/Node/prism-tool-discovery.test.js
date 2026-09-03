@@ -219,7 +219,7 @@ test('setup inspect discovers the source adapter and emits a read-only JSON repo
     for (const executable of ['php-cs-fixer', 'pest']) {
         writeExecutable(path.join(projectRoot, 'vendor', 'bin', executable), 'exit 0');
     }
-    for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'playwright']) {
+    for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'tsc', 'playwright']) {
         writeExecutable(path.join(projectRoot, 'node_modules', '.bin', executable), 'exit 0');
     }
     const externalBin = path.join(projectRoot, 'external-bin');
