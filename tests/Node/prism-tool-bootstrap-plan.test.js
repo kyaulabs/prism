@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -2287,6 +2287,7 @@ test('runs selected-adapter effects only after the scaffold is durable', (t) => 
         `${path.join(projectRoot, 'node_modules', '.bin', 'uglifyjs')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'eslint')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'stylelint')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'tsc')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} --version`,
     ]);
     const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
