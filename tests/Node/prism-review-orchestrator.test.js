@@ -255,6 +255,8 @@ test('fails closed on stale snapshots and failed sessions', async () => {
     }, {assertFresh: () => { freshness += 1; return freshness < 2; }}));
     assert.equal(stale.outcome, 'INCONCLUSIVE');
     assert.deepEqual(staleCalls, ['tooling-style']);
+    assert.equal(stale.axes[0].status, 'INCONCLUSIVE');
+    assert.equal(stale.axes[0].reason, 'SNAPSHOT_STALE');
 
     const failed = await runReviewAttempt(options(async () => ({
         ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_TIMEOUT',
@@ -279,6 +281,59 @@ test('fails closed on stale snapshots and failed sessions', async () => {
     assert.equal(timed.outcome, 'INCONCLUSIVE');
     assert.deepEqual(timedCalls, ['tooling-style']);
     assert.equal(timed.axes[1].reason, 'REVIEW_TIMEOUT');
+});
+
+test('recomputes the global deadline immediately before an axis session', async () => {
+    const times = [0, 1, 50];
+    let timeoutMs;
+    await runReviewAttempt(options(async (request) => {
+        timeoutMs = request.timeoutMs;
+        return {ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_FAILED'};
+    }, {
+        timeoutMs: 100,
+        reviewTimeoutMs: 100,
+        now: () => times.shift() ?? 50,
+    }));
+
+    assert.equal(timeoutMs, 50);
+});
+
+test('recomputes the global deadline immediately before a verifier session', async () => {
+    const times = Array.from({length: 11}, (_value, index) => index);
+    let verifierTimeout;
+    const report = await runReviewAttempt(options(async (request) => {
+        await exposeAll(request);
+        if (request.sessionType === 'axis') {
+            return {
+                ok: true,
+                submission: axisSubmission(request, request.axis === 'tooling-style'
+                    ? [proposed('ADVISORY')]
+                    : []),
+                model,
+            };
+        }
+        verifierTimeout = request.timeoutMs;
+        return {
+            ok: true,
+            submission: {
+                schemaVersion: 1,
+                dispositions: request.findings.map((finding) => ({
+                    fingerprint: finding.fingerprint,
+                    disposition: 'CONFIRMED',
+                    rationale: 'Confirmed against immutable evidence.',
+                    duplicateOf: null,
+                })),
+            },
+            model,
+        };
+    }, {
+        timeoutMs: 100,
+        reviewTimeoutMs: 100,
+        now: () => times.shift() ?? 10,
+    }));
+
+    assert.equal(report.outcome, 'PASS');
+    assert.equal(verifierTimeout, 90);
 });
 
 test('verifies canonical chunks, drops rejected findings, and keeps confirmed Blocking', async () => {

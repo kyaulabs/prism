@@ -97,7 +97,10 @@ This is delivery evidence, not proof that a model understood the bytes.
 
 Proposed findings must identify immutable source by path, side, line, and a
 matching bounded snippet. Blocking findings also require causal, relevance, and
-workflow-impact statements tied to the reviewed change. Fresh verifier
+workflow-impact statements tied to the reviewed change. A Blocking anchor
+outside a changed hunk must bind one changed source line to that exact target
+line and side. Rename, copy, and mode metadata do not make every source line
+changed. Fresh verifier
 sessions try to disprove normalized findings in chunks of at most sixteen.
 Uncertain Blocking findings, incomplete verification, stale input, or any
 incomplete axis makes the final result Inconclusive.

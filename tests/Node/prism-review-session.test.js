@@ -98,10 +98,23 @@ function fakeSdk(behavior, overrides = {}) {
         async createAgentSession(options) {
             calls.push({name: 'createAgentSession', options});
             const tools = new Map(registeredTools.map((tool) => [tool.name, tool]));
+            const listeners = new Set();
             const session = {
                 async prompt(prompt, promptOptions) {
                     calls.push({name: 'session.prompt', prompt, options: promptOptions});
-                    if (behavior) await behavior({tools, calls, options, prompt});
+                    if (behavior) {
+                        await behavior({
+                            tools,
+                            calls,
+                            options,
+                            prompt,
+                            emit: (event) => listeners.forEach((listener) => listener(event)),
+                        });
+                    }
+                },
+                subscribe(listener) {
+                    listeners.add(listener);
+                    return () => listeners.delete(listener);
                 },
                 async abort() { calls.push({name: 'session.abort'}); },
                 dispose() {
@@ -290,6 +303,18 @@ test('creates one isolated custom-tool-only session and freezes one submission',
     assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
 });
 
+test('validates direct submit-tool arguments against the closed schema', async () => {
+    const fixture = fakeSdk(async ({tools}) => {
+        await tools.get('submit_review').execute('submit', {answer: 'complete', invented: true});
+    });
+
+    const result = await runIsolatedSession(request(fixture, {
+        validateSubmission() {},
+    }));
+
+    assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_FAILED'});
+});
+
 test('rejects premature, duplicate, and post-termination activity', async () => {
     let ready = false;
     const premature = fakeSdk(async ({tools}) => {
@@ -318,6 +343,17 @@ test('rejects premature, duplicate, and post-termination activity', async () => 
         const result = await runIsolatedSession(request(fixture));
         assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'INVALID_SESSION_ACTIVITY'});
     }
+});
+
+test('rejects model output emitted after the terminating submission', async () => {
+    const fixture = fakeSdk(async ({tools, emit}) => {
+        await tools.get('submit_review').execute('done', {answer: 'done'});
+        emit({type: 'message_update'});
+    });
+
+    const result = await runIsolatedSession(request(fixture));
+
+    assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'INVALID_SESSION_ACTIVITY'});
 });
 
 test('rejects a tool call that completes after the terminating submission', async () => {

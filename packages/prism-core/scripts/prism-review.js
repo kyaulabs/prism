@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S -u NODE_OPTIONS -u NODE_PATH node
 // $KYAULabs: prism-review.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';

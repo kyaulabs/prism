@@ -85,11 +85,34 @@ test('permits advisory context but requires a changed-flow explanation for conte
         evidence: 'context',
         causality: 'General concern without a changed anchor.',
     }), context), /changed data flow/i);
+    assert.throws(() => validateFindingAnchor(finding({
+        line: 3,
+        evidence: 'context',
+        causality: 'Changed data flow from head line 2 reaches this context.',
+    }), context), /changed data flow/i);
     assert.doesNotThrow(() => validateFindingAnchor(finding({
         line: 3,
         evidence: 'context',
-        causality: 'Changed data flow from line 2 reaches this context.',
+        causality: 'Changed data flow from head line 2 to head line 3.',
     }), context));
+});
+
+test('does not treat metadata-only rename content as changed', () => {
+    const renamedEntry = Object.freeze({
+        ...entry,
+        status: 'R',
+        oldPath: 'src/old.js',
+        newPath: 'src/new.js',
+        baseText: 'first\nsame value\ncontext\n',
+        headText: 'first\nsame value\ncontext\n',
+        hunks: Object.freeze([]),
+    });
+
+    assert.throws(() => validateFindingAnchor(finding({
+        path: 'src/new.js',
+        evidence: 'same value',
+        causality: 'The file was renamed without a source change.',
+    }), {...context, snapshot: {entries: [renamedEntry, metadata]}}), /changed data flow/i);
 });
 
 test('binds contextual Blocking explanations to the anchored side', () => {
@@ -104,6 +127,26 @@ test('binds contextual Blocking explanations to the anchored side', () => {
         evidence: 'context',
         causality: 'Changed data flow from line 2 reaches this context.',
     }), {...context, snapshot: {entries: [movedEntry, metadata]}}), /changed data flow/i);
+});
+
+test('rejects an ambiguous base-side copy anchor', () => {
+    const firstCopy = Object.freeze({
+        ...entry,
+        status: 'C',
+        oldPath: 'src/source.js',
+        newPath: 'src/first.js',
+    });
+    const secondCopy = Object.freeze({
+        ...firstCopy,
+        entryDigest: 'c'.repeat(64),
+        newPath: 'src/second.js',
+    });
+
+    assert.throws(() => validateFindingAnchor(finding({
+        path: 'src/source.js',
+        side: 'base',
+        evidence: 'old value',
+    }), {...context, snapshot: {entries: [firstCopy, secondCopy]}}), /ambiguous/);
 });
 
 test('rejects stale paths, wrong sides, invalid lines, snippets, and metadata anchors', () => {

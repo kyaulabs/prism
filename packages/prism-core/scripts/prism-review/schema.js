@@ -11,7 +11,7 @@ const HEX_40 = /^[0-9a-f]{40}$/;
 const HEX_64 = /^[0-9a-f]{64}$/;
 const SOURCE_LICENSES = new Set(['CC0-1.0', 'CC-BY-SA-4.0']);
 const EXEMPTION_KINDS = new Set(['binary', 'symlink', 'gitlink', 'unsupported-mode']);
-const PATTERN_SYNTAX = /[*?\[\]{}()|+^$\\]/;
+const PATTERN_SYNTAX = /[*?[\]{}()|+^$\\]/;
 
 function fail(label) {
     throw new Error(`${label} is invalid`);
@@ -128,7 +128,13 @@ function resource(value) {
     id(value.id, 'resource id');
     safeRelativePath(value.path);
     boundedText(value.license, 'resource license', 128);
-    if (value.source !== undefined) source(value.source);
+    const adapted = SOURCE_LICENSES.has(value.license);
+    if (value.license !== 'AGPL-3.0-only' && !adapted) fail('resource license');
+    if (adapted !== (value.source !== undefined)) fail('resource provenance');
+    if (value.source !== undefined) {
+        source(value.source);
+        if (value.source.license !== value.license) fail('resource provenance');
+    }
     return value;
 }
 
@@ -239,6 +245,50 @@ function validateClosedJsonSchema(value, label = 'tool schema') {
     object(value, ['type', 'additionalProperties', 'properties', 'required'], label);
     if (value.type !== 'object') fail(label);
     validateSchemaNode(value, label);
+    return value;
+}
+
+function matchesSchemaType(value, type) {
+    if (type === 'null') return value === null;
+    if (type === 'array') return Array.isArray(value);
+    if (type === 'object') {
+        return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+            Object.getPrototypeOf(value) === Object.prototype;
+    }
+    if (type === 'integer') return Number.isSafeInteger(value);
+    if (type === 'number') return typeof value === 'number' && Number.isFinite(value);
+    return typeof value === type;
+}
+
+function validateSchemaValue(value, schema, label) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    if (!types.some((type) => matchesSchemaType(value, type))) fail(label);
+    if (Object.hasOwn(schema, 'const') && !Object.is(value, schema.const)) fail(label);
+    if (schema.enum !== undefined && !schema.enum.some((entry) => Object.is(value, entry))) fail(label);
+    if (typeof value === 'string' && schema.pattern !== undefined && !new RegExp(schema.pattern, 'u').test(value)) {
+        fail(label);
+    }
+    if (typeof value === 'number' &&
+        ((schema.minimum !== undefined && value < schema.minimum) ||
+        (schema.maximum !== undefined && value > schema.maximum))) fail(label);
+    if (Array.isArray(value)) {
+        if ((schema.minItems !== undefined && value.length < schema.minItems) ||
+            (schema.maxItems !== undefined && value.length > schema.maxItems)) fail(label);
+        value.forEach((entry) => validateSchemaValue(entry, schema.items, label));
+    } else if (types.includes('object') && value !== null && typeof value === 'object') {
+        const keys = Reflect.ownKeys(value);
+        if (keys.some((key) => {
+            const descriptor = typeof key === 'string' ? Object.getOwnPropertyDescriptor(value, key) : undefined;
+            return descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value') ||
+                !Object.hasOwn(schema.properties, key);
+        }) || schema.required.some((key) => !Object.hasOwn(value, key))) fail(label);
+        for (const key of keys) validateSchemaValue(value[key], schema.properties[key], label);
+    }
+}
+
+function validateJsonSchemaValue(value, schema, label = 'tool arguments') {
+    validateClosedJsonSchema(schema);
+    validateSchemaValue(value, schema, label);
     return value;
 }
 
@@ -360,6 +410,7 @@ module.exports = {
     safeRelativePath,
     triggerMatches,
     validateClosedJsonSchema,
+    validateJsonSchemaValue,
     validateProfile,
     verifierSubmissionSchema,
 };

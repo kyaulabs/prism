@@ -202,7 +202,7 @@ async function verifyFindings(options) {
                 tempRoot: options.tempRoot,
                 env: options.env,
                 loadSdk: options.loadSdk,
-                timeoutMs: sessionTimeout(options.timeoutMs, remaining),
+                timeoutMs: sessionTimeout(options.timeoutMs, options.remaining()),
                 active: options.active,
             });
         } catch {
@@ -369,7 +369,7 @@ async function runReviewAttempt(options) {
                 tempRoot: options.tempRoot,
                 env: options.env,
                 loadSdk: options.loadSdk,
-                timeoutMs: sessionTimeout(options.timeoutMs, remainingMs),
+                timeoutMs: sessionTimeout(options.timeoutMs, remaining()),
                 active: options.active,
             });
         } catch {
@@ -383,6 +383,16 @@ async function runReviewAttempt(options) {
                 status: 'INCONCLUSIVE',
                 outcome: 'INCONCLUSIVE',
                 reason: result?.reason ?? 'AXIS_SESSION_FAILED',
+            });
+            state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
+            return reportValue(options, state);
+        }
+        if (!safelyFresh(assertFresh, options.snapshot)) {
+            state.axes.push({
+                id: axisId,
+                status: 'INCONCLUSIVE',
+                outcome: 'INCONCLUSIVE',
+                reason: 'SNAPSHOT_STALE',
             });
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
             return reportValue(options, state);

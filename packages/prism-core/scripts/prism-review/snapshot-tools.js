@@ -63,6 +63,27 @@ function toolSchema(properties, required) {
     });
 }
 
+function validateTextByteCounts(entry) {
+    if (!Array.isArray(entry.requiredSides) ||
+        entry.requiredSides.some((side) => !['base', 'head'].includes(side)) ||
+        new Set(entry.requiredSides).size !== entry.requiredSides.length ||
+        typeof entry.diffText !== 'string' ||
+        entry.diffBytes !== Buffer.byteLength(entry.diffText, 'utf8')) {
+        throw new Error('snapshot text byte count is invalid');
+    }
+    for (const side of ['base', 'head']) {
+        const value = entry[`${side}Text`];
+        const advertised = entry[`${side}Bytes`];
+        const required = entry.requiredSides.includes(side);
+        if ((value !== null && typeof value !== 'string') ||
+            !Number.isSafeInteger(advertised) || advertised < 0 ||
+            advertised !== (typeof value === 'string' ? Buffer.byteLength(value, 'utf8') : 0) ||
+            required !== (typeof value === 'string')) {
+            throw new Error('snapshot text byte count is invalid');
+        }
+    }
+}
+
 function createSnapshotTools(snapshot, options = {}) {
     const entries = new Map(snapshot.entries.map((entry) => [entry.entryDigest, entry]));
     if (entries.size !== snapshot.entries.length) throw new Error('snapshot entry digests are duplicate');
@@ -70,6 +91,7 @@ function createSnapshotTools(snapshot, options = {}) {
     const metadataExemptions = options.metadataExemptions ?? {};
     for (const entry of snapshot.entries) {
         if (entry.kind === 'text') {
+            validateTextByteCounts(entry);
             exposure.set(entry.entryDigest, {
                 files: Object.fromEntries(entry.requiredSides.map((side) => [side, []])),
                 diff: [],

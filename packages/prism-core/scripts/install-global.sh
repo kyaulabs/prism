@@ -37,6 +37,8 @@ PI_DIR=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
 BIN_DIR=${PRISM_BIN_DIR:-$HOME/.local/bin}
 TOOL_LAUNCHER="$BIN_DIR/prism-tool"
 REVIEW_LAUNCHER="$BIN_DIR/prism-review"
+LAUNCHER_LOCK="$BIN_DIR/.prism-launchers.lock"
+LAUNCHER_LOCK_HELD=false
 NETWORK_APPROVED=false
 UNINSTALL_LAUNCHER=false
 SELECTED_CORE_SOURCE=""
@@ -71,15 +73,37 @@ mark_end() {
 }
 
 launcher_is_managed() {
-    local launcher="$1" name="$2"
-    [ -f "$launcher" ] && [ ! -L "$launcher" ] || return 1
-    if grep -qFx "# prism-core:managed-launcher $name begin" "$launcher" &&
-        grep -qFx "# prism-core:managed-launcher $name end" "$launcher"; then
-        return 0
+    local launcher="$1" name="$2" first begin command end target
+    local prefix="exec node '" suffix="' \"\$@\""
+    if [ "$name" = prism-review ]; then
+        prefix="exec env -u NODE_OPTIONS -u NODE_PATH node '"
     fi
-    [ "$name" = prism-tool ] &&
-        grep -qFx '# prism-core:managed-launcher begin' "$launcher" &&
-        grep -qFx '# prism-core:managed-launcher end' "$launcher"
+    [ -f "$launcher" ] && [ ! -L "$launcher" ] || return 1
+    {
+        IFS= read -r first &&
+        IFS= read -r begin &&
+        IFS= read -r command &&
+        IFS= read -r end &&
+        ! IFS= read -r
+    } < "$launcher" || return 1
+    [ "$first" = '#!/usr/bin/env bash' ] || return 1
+    if [ "$begin" != "# prism-core:managed-launcher $name begin" ] ||
+        [ "$end" != "# prism-core:managed-launcher $name end" ]; then
+        [ "$name" = prism-tool ] &&
+            [ "$begin" = '# prism-core:managed-launcher begin' ] &&
+            [ "$end" = '# prism-core:managed-launcher end' ] || return 1
+    fi
+    case "$command" in
+        "$prefix"*"$suffix") ;;
+        "exec node '"*"$suffix")
+            [ "$name" = prism-review ] || return 1
+            prefix="exec node '"
+            ;;
+        *) return 1 ;;
+    esac
+    target=${command#"$prefix"}
+    target=${target%"$suffix"}
+    [ -n "$target" ] && [[ "$target" != *"'"* ]]
 }
 
 launcher_absent_or_managed() {
@@ -87,7 +111,30 @@ launcher_absent_or_managed() {
     { [ ! -e "$launcher" ] && [ ! -L "$launcher" ]; } || launcher_is_managed "$launcher" "$name"
 }
 
+cleanup_launcher_lock() {
+    if [ "$LAUNCHER_LOCK_HELD" = true ]; then
+        rmdir -- "$LAUNCHER_LOCK" 2>/dev/null || true
+        LAUNCHER_LOCK_HELD=false
+    fi
+}
+
+acquire_launcher_lock() {
+    mkdir -p -- "$BIN_DIR"
+    if ! mkdir -- "$LAUNCHER_LOCK" 2>/dev/null; then
+        echo "✗ another launcher transaction is in progress" >&2
+        exit 1
+    fi
+    LAUNCHER_LOCK_HELD=true
+    trap cleanup_launcher_lock EXIT HUP INT TERM
+}
+
+release_launcher_lock() {
+    cleanup_launcher_lock
+    trap - EXIT HUP INT TERM
+}
+
 remove_managed_launchers() {
+    acquire_launcher_lock
     if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
         echo "✗ refusing to remove an unmanaged launcher at $TOOL_LAUNCHER" >&2
         exit 1
@@ -105,6 +152,7 @@ remove_managed_launchers() {
             echo "• no managed launcher at $launcher"
         fi
     done
+    release_launcher_lock
 }
 
 canonical_cli() {
@@ -127,12 +175,15 @@ validate_cli_path() {
 }
 
 prepare_launcher() {
-    local name="$1" core_cli="$2" temp
+    local name="$1" core_cli="$2" temp command_prefix="exec node"
     temp=$(mktemp "$BIN_DIR/.${name}.XXXXXX")
+    if [ "$name" = prism-review ]; then
+        command_prefix="exec env -u NODE_OPTIONS -u NODE_PATH node"
+    fi
     {
         printf '#!/usr/bin/env bash\n'
         printf '# prism-core:managed-launcher %s begin\n' "$name"
-        printf "exec node '%s' \"\$@\"\n" "$core_cli"
+        printf "%s '%s' \"\$@\"\n" "$command_prefix" "$core_cli"
         printf '# prism-core:managed-launcher %s end\n' "$name"
     } > "$temp"
     chmod 0755 "$temp"
@@ -186,6 +237,7 @@ deploy_launchers() {
     local tool_cli="$1" review_cli="$2" tool_temp review_temp tool_checksum review_checksum
     local tool_backup="" review_backup=""
     validate_cli_path "$tool_cli"
+    acquire_launcher_lock
     validate_cli_path "$review_cli"
     if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
         echo "✗ refusing to replace an unmanaged launcher at $TOOL_LAUNCHER" >&2
@@ -227,6 +279,7 @@ deploy_launchers() {
     rm -f -- "$tool_backup" "$review_backup"
     echo "✓ deployed managed launcher $TOOL_LAUNCHER"
     echo "✓ deployed managed launcher $REVIEW_LAUNCHER"
+    release_launcher_lock
 }
 
 # deploy_marked <dest> <src> <marker_id>

@@ -22,6 +22,7 @@ const TREE = /^(\d{6}) (blob|commit) ([0-9a-f]+)\t(.+)$/;
 const FULL_OBJECT = /^[0-9a-f]{40,64}$/;
 const ZERO_OBJECT = /^0+$/;
 const RAW_STATUSES = new Set(['A', 'B', 'C', 'D', 'M', 'R', 'T', 'U', 'X']);
+const MAX_SYMLINK_TARGET_BYTES = 4096;
 
 function digest(bytes) {
     return crypto.createHash('sha256').update(bytes).digest('hex');
@@ -224,6 +225,38 @@ function assertSafePaths(entries, root, options) {
     }
 }
 
+function assertSafeSymlinkTargets(entries, root, options, runGit) {
+    const policy = sensitivityOptions(options, root);
+    for (const entry of entries) {
+        const sides = Object.hasOwn(entry, 'mode')
+            ? [{mode: entry.mode, objectId: entry.objectId, relativePath: entry.path}]
+            : [
+                {mode: entry.oldMode, objectId: entry.oldObjectId, relativePath: entry.oldPath},
+                {mode: entry.newMode, objectId: entry.newObjectId, relativePath: entry.newPath},
+            ];
+        for (const side of sides) {
+            if (side.mode !== '120000' || side.objectId === null || side.relativePath === null) continue;
+            const targetBytes = runGit(
+                ['show', side.objectId],
+                {maxBuffer: MAX_SYMLINK_TARGET_BYTES + 1}
+            );
+            if (targetBytes.length > MAX_SYMLINK_TARGET_BYTES) {
+                throw new Error('symbolic link target is invalid');
+            }
+            const target = text(targetBytes, 'symbolic link target');
+            if (target === '' || /[\u0000-\u001f\u007f]/.test(target)) {
+                throw new Error('symbolic link target is invalid');
+            }
+            const targetPath = path.isAbsolute(target)
+                ? path.normalize(target)
+                : path.resolve(root, path.dirname(side.relativePath), target);
+            if (sensitivePathMatch(targetPath, policy) !== null) {
+                throw new Error('review scope contains a sensitive symbolic link target');
+            }
+        }
+    }
+}
+
 function modeKind(mode) {
     if (mode === '100644' || mode === '100755') return 'regular';
     if (mode === '120000') return 'symlink';
@@ -244,7 +277,9 @@ function classifyRegular(bytes) {
 
 function patchArgs(scope, entry, baseTree, headTree) {
     const paths = relativePaths(entry);
-    const common = ['--unified=0', '--no-color', '--no-ext-diff', '--find-renames', '--find-copies'];
+    const common = [
+        '--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--find-copies',
+    ];
     if (scope === 'staged') return ['diff', '--cached', ...common, '--', ...paths];
     return ['diff', ...common, baseTree, headTree, '--', ...paths];
 }
@@ -368,7 +403,7 @@ function diffArguments(scope, baseTree, headTree, kind) {
     const flags = kind === 'raw'
         ? ['--raw', '-z', '--abbrev=64']
         : ['--numstat', '-z'];
-    const common = ['--find-renames', '--find-copies', '--find-copies-harder'];
+    const common = ['--no-ext-diff', '--no-textconv', '--find-renames', '--find-copies'];
     if (scope === 'staged') return ['diff', '--cached', ...flags, ...common, '--'];
     return ['diff', ...flags, ...common, baseTree, headTree, '--'];
 }
@@ -517,6 +552,7 @@ function createSnapshot(options) {
         if (items.length === 0) throw new Error('path scope is not tracked');
         if (items.length > LIMIT.CHANGED_PATHS) throw new Error('review path count exceeds limit');
         assertSafePaths(items.map((item) => ({oldPath: null, newPath: item.path})), root, options);
+        assertSafeSymlinkTargets(items, root, options, runGit);
         return finishSnapshot({
             mode: 'path',
             repositoryRoot: root,
@@ -559,6 +595,7 @@ function createSnapshot(options) {
         throw new Error('review path count exceeds limit');
     }
     assertSafePaths(matched, root, options);
+    assertSafeSymlinkTargets(matched, root, options, runGit);
     const entries = freezeDiffEntries(matched, options.mode, baseTree, headTree, runGit);
     if (options.mode === 'staged') {
         const after = indexFingerprint(root, runGit);

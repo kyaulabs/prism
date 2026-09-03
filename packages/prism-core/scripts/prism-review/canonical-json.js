@@ -23,7 +23,12 @@ function canonicalize(value) {
     if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) {
         throw new Error('canonical JSON value is unsupported');
     }
-    const entries = Object.keys(value).sort().map((key) => {
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key !== 'string' ||
+        !Object.prototype.propertyIsEnumerable.call(value, key))) {
+        throw new Error('canonical JSON value is unsupported');
+    }
+    const entries = keys.sort().map((key) => {
         if (value[key] === undefined) throw new Error('canonical JSON value is unsupported');
         return `${JSON.stringify(key)}:${canonicalize(value[key])}`;
     });

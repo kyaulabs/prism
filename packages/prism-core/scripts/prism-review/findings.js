@@ -29,10 +29,12 @@ function bounded(value, label, maximum, multiline = true) {
 }
 
 function anchoredEntry(finding, snapshot) {
-    return snapshot.entries.find((entry) => entry.kind === 'text' && (
+    const matches = snapshot.entries.filter((entry) => entry.kind === 'text' && (
         (finding.side === 'base' && entry.oldPath === finding.path && typeof entry.baseText === 'string') ||
         (finding.side === 'head' && entry.newPath === finding.path && typeof entry.headText === 'string')
     ));
+    if (matches.length > 1) throw new Error('finding path or side is ambiguous');
+    return matches[0];
 }
 
 function sourceLine(entry, side, line) {
@@ -44,9 +46,6 @@ function sourceLine(entry, side, line) {
 }
 
 function changedLine(entry, side, line) {
-    if (entry.modeOnly || entry.status === 'R' || (entry.status === 'C' && side === 'head')) {
-        return true;
-    }
     return entry.hunks.some((hunk) => {
         const start = side === 'base' ? hunk.oldStart : hunk.newStart;
         const length = side === 'base' ? hunk.oldLines : hunk.newLines;
@@ -54,14 +53,22 @@ function changedLine(entry, side, line) {
     });
 }
 
-function changedFlowExplanation(entry, side, causality) {
-    if (!/changed data flow/i.test(causality)) return false;
-    const references = [...causality.matchAll(/line\s+(\d+)/gi)].map((match) => Number(match[1]));
-    return references.some((line) => entry.hunks.some((hunk) => {
-        const start = side === 'base' ? hunk.oldStart : hunk.newStart;
-        const length = side === 'base' ? hunk.oldLines : hunk.newLines;
-        return length > 0 && line >= start && line < start + length;
-    }));
+function changedFlowExplanation(entry, side, findingLine, causality) {
+    const references = [...causality.matchAll(
+        /changed data flow from (base|head) line (\d+) to (base|head) line (\d+)/gi
+    )];
+    return references.some((match) => {
+        const sourceSide = match[1].toLowerCase();
+        const sourceLine = Number(match[2]);
+        const targetSide = match[3].toLowerCase();
+        const targetLine = Number(match[4]);
+        if (sourceSide !== side || targetSide !== side || targetLine !== findingLine) return false;
+        return entry.hunks.some((hunk) => {
+            const start = side === 'base' ? hunk.oldStart : hunk.newStart;
+            const length = side === 'base' ? hunk.oldLines : hunk.newLines;
+            return length > 0 && sourceLine >= start && sourceLine < start + length;
+        });
+    });
 }
 
 function validateFindingAnchor(value, context) {
@@ -86,7 +93,8 @@ function validateFindingAnchor(value, context) {
     const lineText = sourceLine(entry, value.side, value.line);
     if (!lineText.includes(value.evidence)) throw new Error('finding snippet does not match immutable source');
     const isChanged = changedLine(entry, value.side, value.line);
-    if (blocking && !isChanged && !changedFlowExplanation(entry, value.side, value.causality)) {
+    if (blocking && !isChanged &&
+        !changedFlowExplanation(entry, value.side, value.line, value.causality)) {
         throw new Error('Blocking context lacks a changed data flow anchor');
     }
     const fingerprint = digestJson({

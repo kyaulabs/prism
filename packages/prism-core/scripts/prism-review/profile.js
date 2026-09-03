@@ -72,7 +72,7 @@ function parseJson(bytes, label) {
         return value;
     } catch (error) {
         if (/UTF-8/.test(error.message)) throw error;
-        throw new Error(`${label} is invalid`);
+        throw new Error(`${label} is invalid`, {cause: error});
     }
 }
 
@@ -206,7 +206,8 @@ function loadAdapterProfile(options) {
         ? null
         : fs.realpathSync(options.repositoryRoot);
     const local = repositoryRoot !== null && isInside(repositoryRoot, packageRoot);
-    if (local && options.protectedBase !== undefined) {
+    if (local) {
+        if (options.protectedBase === undefined) throw new Error('protected base is required');
         if (!SHA.test(options.protectedBase)) throw new Error('protected base is invalid');
         const packageRelative = path.relative(repositoryRoot, packageRoot).split(path.sep).join('/');
         const profileRelative = path.relative(packageRoot, reviewPath).split(path.sep).join('/');

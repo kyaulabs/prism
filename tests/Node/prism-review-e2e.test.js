@@ -47,7 +47,7 @@ function git(root, args) {
     return command('git', args, {cwd: root}).trim();
 }
 
-function writePreload(target, sessionRunnerPath) {
+function writePreload(target, sessionRunnerPath, entryPath) {
     const source = `'use strict';
 const Module = require('node:module');
 const fs = require('node:fs');
@@ -122,22 +122,27 @@ Module._load = function (request, parent, isMain) {
     if (resolved === target) return facade;
     return original.apply(this, arguments);
 };
+const entry = ${JSON.stringify(entryPath)};
+process.argv = [process.execPath, entry, ...process.argv.slice(2)];
+require(entry);
 `;
     fs.writeFileSync(target, source);
 }
 
-function runReview(coreRoot, fixtureRoot, preload, args, extraEnv = {}) {
-    const result = spawnSync(process.execPath, [path.join(coreRoot, 'scripts/prism-review.js'), ...args], {
+function runReview(_coreRoot, fixtureRoot, preload, args, extraEnv = {}) {
+    const env = {
+        ...process.env,
+        PI_PROVIDER: 'fixture-provider',
+        PI_MODEL: 'fixture-model',
+        PI_REASONING_LEVEL: 'high',
+        ...extraEnv,
+    };
+    delete env.NODE_OPTIONS;
+    delete env.NODE_PATH;
+    const result = spawnSync(process.execPath, [preload, ...args], {
         cwd: fixtureRoot,
         encoding: 'utf8',
-        env: {
-            ...process.env,
-            NODE_OPTIONS: `--require=${preload}`,
-            PI_PROVIDER: 'fixture-provider',
-            PI_MODEL: 'fixture-model',
-            PI_REASONING_LEVEL: 'high',
-            ...extraEnv,
-        },
+        env,
     });
     assert.equal(result.stderr, '');
     assert.ok([0, 4].includes(result.status), result.stdout);
@@ -168,7 +173,11 @@ test('runs every packaged ad hoc scope with fake isolated sessions and no retain
     git(fixture, ['add', 'review.php']);
 
     const preload = path.join(WORK_ROOT, 'fake-session-preload.cjs');
-    writePreload(preload, path.join(core.root, 'scripts/prism-review/session-runner.js'));
+    writePreload(
+        preload,
+        path.join(core.root, 'scripts/prism-review/session-runner.js'),
+        path.join(core.root, 'scripts/prism-review.js')
+    );
     const staged = runReview(core.root, fixture, preload, ['review', 'staged', '--json']);
     const {classifyTrustRoot} = require(path.join(core.root, 'scripts/prism-review/trust.js'));
     assert.deepEqual(classifyTrustRoot(core.root, fixture), {
@@ -233,7 +242,7 @@ test('runs every packaged ad hoc scope with fake isolated sessions and no retain
     });
     assert.equal(stale.status, 4);
     assert.equal(stale.report.outcome, 'INCONCLUSIVE');
-    assert.equal(stale.report.axes[1].reason, 'SNAPSHOT_STALE');
+    assert.equal(stale.report.axes[0].reason, 'SNAPSHOT_STALE');
 
     assert.equal(fs.existsSync(path.join(fixture, '.pi/prism-review')), false);
     assert.equal(core.inventory.some(({path: file}) => file === 'scripts/prism-review.js'), true);
@@ -243,7 +252,11 @@ test('runs every packaged ad hoc scope with fake isolated sessions and no retain
 test('checkout Core remains self-reviewed and every report remains non-authoritative', (t) => {
     fs.mkdirSync(WORK_ROOT, {recursive: true});
     const preload = path.join(WORK_ROOT, 'checkout-fake-session-preload.cjs');
-    writePreload(preload, path.join(ROOT, 'packages/prism-core/scripts/prism-review/session-runner.js'));
+    writePreload(
+        preload,
+        path.join(ROOT, 'packages/prism-core/scripts/prism-review/session-runner.js'),
+        path.join(ROOT, 'packages/prism-core/scripts/prism-review.js')
+    );
     t.after(cleanupWorkRoot);
 
     const result = runReview(path.join(ROOT, 'packages/prism-core'), ROOT, preload, [

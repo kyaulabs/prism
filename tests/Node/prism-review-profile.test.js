@@ -214,6 +214,8 @@ test('canonical JSON is stable, ordered, and closed to non-JSON values', () => {
         {x: undefined},
         [undefined],
         Array(1),
+        Object.defineProperty({}, 'hidden', {value: true}),
+        {[Symbol('hidden')]: true},
         new Date(),
     ]) {
         assert.throws(() => canonicalize(value));
@@ -280,6 +282,7 @@ test('enforces closed profile, axis, trigger, and resource schemas', (t) => {
         ['glob trigger', (p) => { p.axes[0].lenses[0].trigger = {mode: 'paths', suffixes: ['.*']}; }],
         ['unsorted trigger', (p) => { p.axes[0].lenses[0].trigger = {mode: 'paths', suffixes: ['.z', '.a']}; }],
         ['path escape', (p) => { p.resources[0].path = '../SKILL.md'; }],
+        ['missing adapted provenance', (p) => { p.resources[0].license = 'CC0-1.0'; }],
         ['invalid source metadata', (p) => {
             p.resources[0].source = {
                 repository: 'http://github.com/example/source',
@@ -420,6 +423,17 @@ test('rejects a relative adapter profile registration before filesystem access',
             reviewPath: 'relative-profile.json',
         },
     }), /adapter review registration is invalid/);
+});
+
+test('requires a protected base for repository-local adapter policy', (t) => {
+    const repositoryRoot = tempRoot(t);
+    const adapterRoot = path.join(repositoryRoot, 'packages', 'adapter');
+    const reviewPath = writeProfilePackage(adapterRoot, adapterProfile());
+
+    assert.throws(() => loadAdapterProfile({
+        registration: {packageName: '@fixture/adapter', packageRoot: adapterRoot, reviewPath},
+        repositoryRoot,
+    }), /protected base is required/);
 });
 
 test('rejects a symlink-substituted adapter profile registration', (t) => {

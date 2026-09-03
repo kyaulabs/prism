@@ -3,7 +3,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const {execFileSync} = require('node:child_process');
+const {execFileSync, spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -64,6 +64,7 @@ test('freezes staged index entries with canonical metadata and ignores worktree 
     fs.rmSync(path.join(root, 'delete.txt'));
     fs.renameSync(path.join(root, 'rename.txt'), path.join(root, 'renamed.txt'));
     fs.copyFileSync(path.join(root, 'copy.txt'), path.join(root, 'copied.txt'));
+    write(root, 'copy.txt', 'copy source updated\n');
     fs.chmodSync(path.join(root, 'mode.sh'), 0o755);
     write(root, 'added.txt', 'added\n');
     write(root, 'binary.dat', Buffer.from([0, 1, 2, 3]));
@@ -172,6 +173,26 @@ test('freezes exact commit and branch scopes including a root commit', (t) => {
     );
 });
 
+test('disables text conversion and harder copy discovery for every diff', (t) => {
+    const root = repository(t);
+    write(root, 'source.txt', 'before\n');
+    const base = commit(root, 'base');
+    write(root, 'source.txt', 'after\n');
+    const head = commit(root, 'head');
+    const calls = [];
+    const run = (command, args, options) => {
+        calls.push(args);
+        return spawnSync(command, args, options);
+    };
+
+    createSnapshot({mode: 'branch', repositoryRoot: root, base, head, run});
+
+    const diffs = calls.filter(([operation]) => operation === 'diff');
+    assert.equal(diffs.length > 0, true);
+    assert.equal(diffs.every((args) => args.includes('--no-textconv')), true);
+    assert.equal(diffs.every((args) => !args.includes('--find-copies-harder')), true);
+});
+
 test('path scope inventories tracked HEAD objects and rejects unsafe or mutable paths', (t) => {
     const root = repository(t);
     write(root, 'docs/a.txt', 'alpha\n');
@@ -192,6 +213,14 @@ test('path scope inventories tracked HEAD objects and rejects unsafe or mutable 
     for (const candidate of ['ignored.txt', 'untracked.txt', '.git', '/etc/passwd', '../outside', 'linked-docs/a.txt']) {
         assert.throws(() => createSnapshot({mode: 'path', repositoryRoot: root, path: candidate}), undefined, candidate);
     }
+});
+
+test('rejects an exempt-named symlink whose immutable target is sensitive', (t) => {
+    const root = repository(t);
+    fs.symlinkSync('.env', path.join(root, '.env.example'));
+    git(root, ['add', '.env.example']);
+
+    assert.throws(() => createSnapshot({mode: 'staged', repositoryRoot: root}), /sensitive/i);
 });
 
 test('rejects sensitive paths before requesting patches or object bytes', () => {
@@ -359,6 +388,22 @@ test('retains unsupported Git modes as metadata-only entries', () => {
 
     assert.equal(snapshot.entries[0].kind, 'unsupported-mode');
     assert.deepEqual(snapshot.entries[0].requiredSides, []);
+});
+
+test('snapshot tools reject text byte-count contradictions', () => {
+    const contradictory = Object.freeze({
+        entryDigest: 'a'.repeat(64),
+        kind: 'text',
+        requiredSides: Object.freeze(['head']),
+        baseText: null,
+        headText: 'three',
+        diffText: 'diff',
+        baseBytes: 0,
+        headBytes: 4,
+        diffBytes: 4,
+    });
+
+    assert.throws(() => createSnapshotTools({entries: [contradictory]}), /byte count/i);
 });
 
 test('snapshot tools reject duplicate entry digests', () => {

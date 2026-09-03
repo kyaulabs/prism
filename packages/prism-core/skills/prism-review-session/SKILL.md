@@ -25,6 +25,7 @@ Use this control skill for every Prism reviewer axis session.
 - Do not fix code, write files, invoke a shell, request network access, grant waivers, publish results, or select a model.
 - Do not claim that delivered bytes were understood merely because the byte-exposure ledger is complete.
 - Do not invent evidence, paths, requirements, exemptions, lenses, or deterministic gate results.
+- A Blocking finding anchored outside a changed hunk must identify one changed source line and its anchored target as `Changed data flow from SIDE line SOURCE to SIDE line TARGET.` Use the finding's side for both positions and its line for `TARGET`.
 - Return no report outside the submission contract.
 
 ## Cross-refs

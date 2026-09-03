@@ -5,9 +5,10 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {clearTimeout, setTimeout} = require('node:timers');
 const {canonicalize} = require('./canonical-json');
 const {LIMIT} = require('./constants');
-const {deepFreezeJson, validateClosedJsonSchema} = require('./schema');
+const {deepFreezeJson, validateClosedJsonSchema, validateJsonSchemaValue} = require('./schema');
 
 const CONTROL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const REASONING_LEVELS = Object.freeze(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
@@ -246,6 +247,7 @@ function extensionFactory(request, state) {
                     state.activityAfterSubmission = true;
                     throw new Error('duplicate review submission');
                 }
+                validateJsonSchemaValue(args, request.outputSchema, 'review submission');
                 request.validateSubmission(args);
                 const submission = deepFreezeJson(args, 'review submission');
                 request.validateSubmissionPrerequisites(submission);
@@ -323,6 +325,7 @@ async function runIsolatedSession(request) {
     let session;
     let state;
     let result;
+    let unsubscribe;
     let timedOut = false;
     let timer;
     try {
@@ -345,6 +348,16 @@ async function runIsolatedSession(request) {
         directories = createTemporaryDirectories(request);
         state = {submission: null, activityAfterSubmission: false};
         session = await createIsolatedSession(active, directories, extensionFactory(request, state));
+        if (typeof session.subscribe !== 'function') throw new Error('isolated extension is invalid');
+        const postSubmissionEvents = new Set([
+            'turn_start', 'message_start', 'message_update',
+            'tool_execution_start', 'tool_execution_update',
+        ]);
+        unsubscribe = session.subscribe((event) => {
+            if (state.submission !== null && postSubmissionEvents.has(event?.type)) {
+                state.activityAfterSubmission = true;
+            }
+        });
         const timeoutMs = request.timeoutMs ?? LIMIT.SESSION_TIMEOUT_MS;
         if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > LIMIT.SESSION_TIMEOUT_MS) {
             throw new Error('session timeout is invalid');
@@ -377,6 +390,13 @@ async function runIsolatedSession(request) {
     } finally {
         if (timer !== undefined) clearTimeout(timer);
         let cleanupFailed = false;
+        if (unsubscribe !== undefined) {
+            try {
+                unsubscribe();
+            } catch {
+                cleanupFailed = true;
+            }
+        }
         if (session !== undefined) {
             try {
                 session.dispose();

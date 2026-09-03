@@ -37,6 +37,28 @@ test('the executable exposes the public version command', () => {
     assert.equal(result.stderr, '');
 });
 
+test('the executable strips inherited Node preload injection', (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-preload-'));
+    const preload = path.join(root, 'preload.cjs');
+    const marker = path.join(root, 'executed');
+    fs.writeFileSync(preload, "require('node:fs').writeFileSync(process.env.PRISM_PRELOAD_MARKER, 'ran');\n");
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+
+    const result = spawnSync(path.join(CORE_ROOT, 'scripts/prism-review.js'), ['--version'], {
+        encoding: 'utf8',
+        env: {
+            ...process.env,
+            NODE_OPTIONS: `--require=${preload}`,
+            NODE_PATH: root,
+            PRISM_PRELOAD_MARKER: marker,
+        },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '0.4.3\n');
+    assert.equal(fs.existsSync(marker), false);
+});
+
 test('prints the packaged Core version without touching runtime boundaries', async () => {
     const output = capture();
     const status = await main(['--version'], {
@@ -100,6 +122,17 @@ test('classifies checkout Core as ineligible for authority', () => {
         eligibleForAuthority: false,
         sourceClass: 'REVIEWED_WORKTREE',
     });
+});
+
+test('rejects a symlinked external Core path into the reviewed repository', (t) => {
+    const {classifyTrustRoot} = require('../../packages/prism-core/scripts/prism-review/trust');
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-trust-link-'));
+    const linkedCore = path.join(root, 'core');
+    fs.symlinkSync(CORE_ROOT, linkedCore);
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+
+    assert.throws(() => classifyTrustRoot(linkedCore, repositoryRoot), /trust root is invalid/);
 });
 
 test('classifies a separate installed Core root as authority-eligible', (t) => {

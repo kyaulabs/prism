@@ -112,7 +112,7 @@ if grep -qF '# prism-core:managed-launcher prism-tool begin' "$launcher" 2>/dev/
     && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$launcher" 2>/dev/null \
     && grep -qF '# prism-core:managed-launcher prism-review begin' "$review_launcher" 2>/dev/null \
     && grep -qF '# prism-core:managed-launcher prism-review end' "$review_launcher" 2>/dev/null \
-    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$review_launcher" 2>/dev/null; then
+    && grep -qF "exec env -u NODE_OPTIONS -u NODE_PATH node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$review_launcher" 2>/dev/null; then
     pass "launchers invoke canonical local Core CLIs with distinct ownership sentinels"
 else
     fail "launchers do not invoke canonical local Core CLIs"
@@ -133,6 +133,19 @@ if [ "$review_status" -eq 0 ] \
     pass "installed review launcher executes the review CLI"
 else
     fail "installed review launcher could not execute the review CLI"
+fi
+cat > "$T1/preload.cjs" <<'JSEOF'
+require('node:fs').writeFileSync(process.env.PRISM_PRELOAD_MARKER, 'ran');
+JSEOF
+preload_status=0
+NODE_OPTIONS="--require=$T1/preload.cjs" \
+    NODE_PATH="$T1" \
+    PRISM_PRELOAD_MARKER="$T1/preload-ran" \
+    "$review_launcher" --version >/dev/null 2>&1 || preload_status=$?
+if [ "$preload_status" -eq 0 ] && [ ! -e "$T1/preload-ran" ]; then
+    pass "installed review launcher strips Node module injection"
+else
+    fail "installed review launcher accepted Node module injection"
 fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
@@ -411,7 +424,7 @@ npm_review_output=""
 npm_review_status=0
 npm_review_output=$(PATH="$T2/bin:$PATH" "$npm_review_launcher" --fixture-argument 2>&1) || npm_review_status=$?
 if grep -qF "exec node '$expected_npm_cli' \"\$@\"" "$npm_launcher" 2>/dev/null \
-    && grep -qF "exec node '$expected_npm_review_cli' \"\$@\"" "$npm_review_launcher" 2>/dev/null \
+    && grep -qF "exec env -u NODE_OPTIONS -u NODE_PATH node '$expected_npm_review_cli' \"\$@\"" "$npm_review_launcher" 2>/dev/null \
     && [ -f "$expected_npm_review_cli" ] \
     && [ "$npm_review_status" -eq 0 ] \
     && grep -qFx 'fixture review' <<< "$npm_review_output"; then
@@ -534,6 +547,26 @@ if [ "$status" -ne 0 ] && [ "$partial_before" = "$partial_after" ]; then
 else
     fail "installer replaced a launcher with incomplete ownership sentinels"
 fi
+cat > "$T5/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+printf 'not a managed wrapper\n'
+# prism-core:managed-launcher prism-tool end
+EOF
+spoof_before=$(cksum "$T5/bin-dir/prism-tool" | awk '{print $1 ":" $2}')
+status=0
+HOME="$T5/home" \
+    PI_CODING_AGENT_DIR="$T5/pi-agent" \
+    PRISM_BIN_DIR="$T5/bin-dir" \
+    PI_INVOCATIONS="$T5/pi-invocations" \
+    PATH="$T5/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+spoof_after=$(cksum "$T5/bin-dir/prism-tool" | awk '{print $1 ":" $2}')
+if [ "$status" -ne 0 ] && [ "$spoof_before" = "$spoof_after" ]; then
+    pass "installer rejects sentinel-shaped unmanaged launchers"
+else
+    fail "installer accepted a launcher based only on sentinels"
+fi
 rm -f "$T5/bin-dir/prism-tool"
 printf 'symlink target\n' > "$T5/symlink-target"
 ln -s "$T5/symlink-target" "$T5/bin-dir/prism-tool"
@@ -563,6 +596,13 @@ exec node '/stale/prism-tool.js' "$@"
 # prism-core:managed-launcher end
 EOF
 chmod 0755 "$T6/bin-dir/prism-tool"
+cat > "$T6/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec node '/stale/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T6/bin-dir/prism-review"
 status=0
 HOME="$T6/home" \
     PI_CODING_AGENT_DIR="$T6/pi-agent" \
@@ -572,7 +612,7 @@ HOME="$T6/home" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
 if [ "$status" -eq 0 ] \
     && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-tool.js' \"\$@\"" "$T6/bin-dir/prism-tool" \
-    && grep -qF "exec node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$T6/bin-dir/prism-review"; then
+    && grep -qF "exec env -u NODE_OPTIONS -u NODE_PATH node '$REPO_ROOT/packages/prism-core/scripts/prism-review.js' \"\$@\"" "$T6/bin-dir/prism-review"; then
     pass "installer refreshes and completes its owned launcher set"
 else
     fail "installer did not refresh its owned launcher set"
@@ -699,6 +739,25 @@ if [ "$status" -ne 0 ] \
     pass "launcher commit does not overwrite a concurrent unmanaged file"
 else
     fail "launcher commit overwrote or accepted a concurrent unmanaged file"
+fi
+
+T5E=$(mktemp -d)
+register_temp_dir "$T5E"
+write_fake_tools "$T5E"
+mkdir -p "$T5E/home" "$T5E/pi-agent" "$T5E/bin-dir/.prism-launchers.lock"
+: > "$T5E/pi-invocations"
+status=0
+HOME="$T5E/home" \
+    PI_CODING_AGENT_DIR="$T5E/pi-agent" \
+    PRISM_BIN_DIR="$T5E/bin-dir" \
+    PI_INVOCATIONS="$T5E/pi-invocations" \
+    PATH="$T5E/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -e "$T5E/bin-dir/prism-tool" ] \
+    && [ ! -e "$T5E/bin-dir/prism-review" ]; then
+    pass "launcher deployment rejects a concurrent transaction"
+else
+    fail "launcher deployment was not serialized"
 fi
 
 echo "── fail-closed options and paths ──"
