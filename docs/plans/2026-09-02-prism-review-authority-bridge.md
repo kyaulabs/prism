@@ -286,18 +286,18 @@ prism-tool commit create --type feat --scope review --subject "record immutable 
 **Files:**
 
 - Create: `packages/prism-core/scripts/prism-review/quality-provider.js`
-- Modify: `packages/prism-core/scripts/prism-review/profile.js`
+- Modify: `packages/prism-core/scripts/prism-tool/contract.js`
 - Modify: `packages/prism-core/scripts/prism-tool/discovery.js`
 - Create: `tests/Node/prism-review-quality-provider.test.js`
-- Modify: `tests/Node/prism-review-profile.test.js`
 - Modify: `tests/Node/prism-tool-discovery.test.js`
+- Modify: `tests/Node/toolchain-contract.test.js`
 
 **Interfaces:**
 
 - Consumes: active adapter registration, protected-base Git blobs, package manifests, and handler loading.
 - Produces: `protectedAdapterIdentity()`, `resolveQualityProvider()`, and `validateQualityReport()`.
 
-- [ ] **Step 1: Write failing provider-boundary tests**
+- [x] **Step 1: Write failing provider-boundary tests**
 
 Build fixtures with one active adapter inside the reviewed repository and a second extracted package outside it. Assert that protected-base `package.json`, `toolchain.json`, review profile, and skills determine the expected package/version; the external package must have the same name and exact version; its canonical root must be outside the repository; its handler must export `runQualityProvider`; and its contract must validate before loading executable code. Reject checkout-only providers, current-HEAD version substitution, symlink escapes, mismatched package versions, multiple candidates, missing operations, altered handler paths, unknown report fields, duplicate/missing gates, raw output strings, and values above limits.
 
@@ -315,28 +315,28 @@ assert.equal(resolved.identity.sourceClass, 'INSTALLED_EXTERNAL');
 assert.equal(typeof resolved.run, 'function');
 ```
 
-- [ ] **Step 2: Run provider tests to verify Red**
+- [x] **Step 2: Run provider tests to verify Red**
 
-Run: `node --test tests/Node/prism-review-quality-provider.test.js tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js`
+Run: `node --test tests/Node/prism-review-quality-provider.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-contract.test.js`
 
 Expected: FAIL because the quality-provider operation and protected-base identity reader are absent.
 
-- [ ] **Step 3: Implement closed provider discovery**
+- [x] **Step 3: Implement closed provider discovery**
 
-Read the active adapter's committed package manifest and toolchain declaration from `protectedBase` using the same bounded Git-blob rules as protected review profiles. Resolve the installed package from Node's package-resolution roots anchored at the installed Core package; permit a function injection only in the internal module options used by tests, never through CLI flags or environment variables. Canonicalize the resolved package directory, reject roots inside the reviewed repository, call `registrationFor()`, require exact package name/version/protocol parity with protected base, then load the handler and expose only its bound `runQualityProvider` method.
+Extend the adapter toolchain contract with an optional closed `qualityProvider` declaration containing `id`, `protocolVersion`, and a sorted unique non-empty `gates` array. Read the active adapter's committed package manifest and toolchain declaration from `protectedBase` using the same bounded Git-blob rules as protected review profiles. Resolve the installed package from Node's package-resolution roots anchored at the installed Core package; permit a function injection only in the internal module options used by tests, never through CLI flags or environment variables. Canonicalize the resolved package directory, reject roots inside the reviewed repository, call `registrationFor()`, require exact package name/version/protocol/gate parity with protected base, then load the handler and expose only its bound `runQualityProvider` method.
 
 Validate quality reports as plain closed JSON. Require exactly the provider's declared gate-ID set, sorted and unique; permit only `PASS`, `FAIL`, and `SKIPPED`; require `status: PASS` only when all gates are valid `PASS`/`SKIPPED`; cap each stdout/stderr byte count at 1 MiB and every artifact at 256 KiB; require SHA-256 fields; and reject fields containing raw output, absolute paths, control characters, or credentials.
 
-- [ ] **Step 4: Run provider and discovery tests to verify Green**
+- [x] **Step 4: Run provider and discovery tests to verify Green**
 
-Run: `node --test tests/Node/prism-review-quality-provider.test.js tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js`
+Run: `node --test tests/Node/prism-review-quality-provider.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-contract.test.js`
 
 Expected: PASS while existing bootstrap and automation handler discovery remains compatible.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/quality-provider.js packages/prism-core/scripts/prism-review/profile.js packages/prism-core/scripts/prism-tool/discovery.js tests/Node/prism-review-quality-provider.test.js tests/Node/prism-review-profile.test.js tests/Node/prism-tool-discovery.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/quality-provider.js packages/prism-core/scripts/prism-tool/contract.js packages/prism-core/scripts/prism-tool/discovery.js tests/Node/prism-review-quality-provider.test.js tests/Node/prism-tool-discovery.test.js tests/Node/toolchain-contract.test.js
 prism-tool commit create --type feat --scope review --subject "resolve trusted adapter quality providers"
 ```
 
@@ -346,6 +346,7 @@ prism-tool commit create --type feat --scope review --subject "resolve trusted a
 
 - Create: `packages/prism-php-web/scripts/toolchain/quality-provider.js`
 - Modify: `packages/prism-php-web/scripts/prism-tool-adapter.js`
+- Modify: `packages/prism-php-web/toolchain.json`
 - Create: `tests/Node/prism-tool-php-web-quality.test.js`
 - Modify: `tests/Node/toolchain-contract.test.js`
 - Modify: `tests/Node/toolchain-packaging.test.js`

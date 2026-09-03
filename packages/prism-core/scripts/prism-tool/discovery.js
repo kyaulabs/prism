@@ -249,6 +249,17 @@ function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
     return handler;
 }
 
+function loadQualityProviderHandler(registration) {
+    if (registration?.contract?.qualityProvider === undefined) {
+        throw new Error('adapter quality provider is undeclared');
+    }
+    const handler = loadAdapterHandler(registration);
+    if (typeof handler.runQualityProvider !== 'function') {
+        throw new Error('adapter quality provider interface is invalid');
+    }
+    return handler;
+}
+
 function discoverAutomationAdapter(options) {
     const registration = discoverAdapter(options);
     const handler = loadAdapterHandler(registration);
@@ -300,6 +311,7 @@ module.exports = {
     discoverAutomationAdapter,
     discoverOptionalAdapter,
     loadAdapterHandler,
+    loadQualityProviderHandler,
     registrationFor,
     validateBootstrapRegistration,
 };
