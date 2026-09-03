@@ -900,11 +900,11 @@ prism-tool commit create --type test --scope review --subject "prove packaged au
 - Consumes: the completed public command grammar and record/provider contracts.
 - Produces: maintained user guidance that distinguishes dormant bridge authority from the still-active OCR workflow.
 
-- [ ] **Step 1: Write failing documentation contract tests**
+- [x] **Step 1: Write failing documentation contract tests**
 
 Require maintained docs to state: criteria must be captured after approval and before implementation/cleanup; `NONE_DECLARED` is explicit; check RUNNING invalidates prior PASS; external Core and matching external adapter are mandatory; v2 initial/repair/reuse semantics; dual-read preflight; no source/transcript/log retention; each extra attempt needs approval; OCR/version one remain normal authority in this release; and human publication/install/push/PR/merge boundaries remain. Require every new source file in package inventory and prohibit authority claims for checkout Core.
 
-- [ ] **Step 2: Run documentation contracts to verify Red**
+- [x] **Step 2: Run documentation contracts to verify Red**
 
 Run: `bash tests/Shell/prism_review_architecture_contract_test.sh`
 
@@ -914,11 +914,11 @@ Run: `bash packages/prism-core/scripts/validate-harness.sh`
 
 Expected: FAIL because maintained documentation describes only the stage-one foundation.
 
-- [ ] **Step 3: Update maintained documentation and validator inventory**
+- [x] **Step 3: Update maintained documentation and validator inventory**
 
 Document the exact bridge CLI, state classifications, record locations, failure semantics, package trust-root procedure, provider/model cost disclosure, and staged migration boundary. Label the new authority path dormant until humans release, publish, and install both packages. Keep current `/check`, code-review, finalization, `/pr` recovery, setup, doctor, release, consent, attribution, and OCR instructions unchanged except where they describe dual-read compatibility. Do not change ADR-0103 or the cutover specification unless implementation discovers a contradiction that requires returning to architecture review.
 
-- [ ] **Step 4: Run docs, Markdown, and harness validation to verify Green**
+- [x] **Step 4: Run docs, Markdown, and harness validation to verify Green**
 
 Run: `bash tests/Shell/prism_review_architecture_contract_test.sh`
 
@@ -930,10 +930,10 @@ Run: `prism-tool markdown lint --changed-from 651da45735a1d8b06a5a64271a09f23e12
 
 Expected: PASS with no claim that OCR has been removed or superseded in this release.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/docs/review-runtime.md packages/prism-core/README.md packages/prism-php-web/README.md tests/Shell/prism_review_architecture_contract_test.sh tests/Shell/prism_review_foundation_contract_test.sh packages/prism-core/scripts/validate-harness.sh
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/docs/review-runtime.md packages/prism-core/README.md packages/prism-php-web/README.md tests/Shell/prism_review_architecture_contract_test.sh tests/Shell/prism_review_foundation_contract_test.sh packages/prism-core/scripts/validate-harness.sh
 prism-tool commit create --type docs --scope review --subject "document the authority compatibility bridge"
 ```
 

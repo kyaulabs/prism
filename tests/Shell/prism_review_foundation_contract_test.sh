@@ -52,6 +52,15 @@ if grep -Fq 'code-review' "$REPO_ROOT/packages/prism-core/prompts/pr.md" \
 else
     fail 'current prompt authority changed before the bridge'
 fi
+if grep -Fq 'dormant authority compatibility bridge' \
+    "$REPO_ROOT/packages/prism-core/README.md" \
+    && grep -Fq 'OCR and schema version one remain the normal' "$DOC" \
+    && grep -Fq 'does not switch normal' \
+        "$REPO_ROOT/packages/prism-php-web/README.md"; then
+    pass 'maintained bridge docs preserve OCR authority'
+else
+    fail 'maintained bridge docs claim a premature authority cutover'
+fi
 
 printf '\nprism_review_foundation_contract_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
