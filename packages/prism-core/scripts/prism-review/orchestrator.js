@@ -1,4 +1,4 @@
-// $KYAULabs: orchestrator.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: orchestrator.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -11,6 +11,7 @@ const {runIsolatedSession} = require('./session-runner');
 const {createSnapshotTools} = require('./snapshot-tools');
 
 const AXIS_KEYS = Object.freeze(['schemaVersion', 'axis', 'outcome', 'lenses', 'findings', 'notes']);
+const AUTHORITATIVE = Symbol('authoritative review');
 
 function exact(value, keys, label) {
     if (value === null || typeof value !== 'object' || Array.isArray(value) ||
@@ -328,7 +329,10 @@ function axisIncompleteReason(axisId, toolSet, criteriaSet) {
     return criteriaIncompleteReason(axisId, toolSet, criteriaSet);
 }
 
-async function runReviewAttempt(options) {
+async function runReviewAttempt(options, authority = null) {
+    if (options.authoritative === true && authority !== AUTHORITATIVE) {
+        throw new Error('authoritative review interface is required');
+    }
     const runSession = options.runSession ?? runIsolatedSession;
     const assertFresh = options.assertFresh ?? snapshotIsFresh;
     const now = options.now ?? Date.now;
@@ -534,6 +538,10 @@ async function runReviewAttempt(options) {
     return reportValue(options, state);
 }
 
-module.exports = {runReviewAttempt, validateAxisSubmission, verifyFindings};
+function runAuthoritativeAttempt(options) {
+    return runReviewAttempt({...options, authoritative: true}, AUTHORITATIVE);
+}
+
+module.exports = {runAuthoritativeAttempt, runReviewAttempt, validateAxisSubmission, verifyFindings};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

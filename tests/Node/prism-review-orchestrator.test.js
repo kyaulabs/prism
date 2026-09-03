@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-orchestrator.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-orchestrator.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -6,7 +6,10 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 const {AXES} = require('../../packages/prism-core/scripts/prism-review/constants');
-const {runReviewAttempt} = require('../../packages/prism-core/scripts/prism-review/orchestrator');
+const {
+    runAuthoritativeAttempt,
+    runReviewAttempt,
+} = require('../../packages/prism-core/scripts/prism-review/orchestrator');
 
 const headText = 'first\nchanged value\ncontext\n';
 const diffText = 'diff --git a/src/example.php b/src/example.php\n@@ -2 +2 @@\n-old\n+changed value\n';
@@ -244,14 +247,20 @@ test('runs four fresh axes in canonical order with complete lenses and byte expo
     assert.equal(calls.every((call) => call.snapshot === snapshot), true);
 });
 
+test('rejects authoritative mode through the ad hoc review interface', async () => {
+    await assert.rejects(() => runReviewAttempt(options(async () => {
+        throw new Error('session must not run');
+    }, {authoritative: true, criteria})), /authoritative review interface/i);
+});
+
 test('records complete criteria exposure for an authoritative requirement axis', async () => {
     const calls = [];
-    const report = await runReviewAttempt(options(async (request) => {
+    const report = await runAuthoritativeAttempt(options(async (request) => {
         calls.push(request);
         await exposeAll(request);
         await exposeCriteria(request);
         return {ok: true, submission: axisSubmission(request), model};
-    }, {authoritative: true, criteria}));
+    }, {criteria}));
 
     assert.equal(report.outcome, 'PASS');
     assert.equal(report.authoritative, true);
@@ -278,10 +287,10 @@ test('accepts NONE_DECLARED authority without criteria source calls', async () =
         digest: '8'.repeat(64),
         blobs: Object.freeze([]),
     });
-    const report = await runReviewAttempt(options(async (request) => {
+    const report = await runAuthoritativeAttempt(options(async (request) => {
         await exposeAll(request);
         return {ok: true, submission: axisSubmission(request), model};
-    }, {authoritative: true, criteria: none}));
+    }, {criteria: none}));
 
     assert.equal(report.outcome, 'PASS');
     assert.deepEqual(report.criteriaExposure, {
@@ -293,11 +302,11 @@ test('accepts NONE_DECLARED authority without criteria source calls', async () =
 
 test('makes an authoritative requirement submission Inconclusive until criteria are exposed', async () => {
     const calls = [];
-    const report = await runReviewAttempt(options(async (request) => {
+    const report = await runAuthoritativeAttempt(options(async (request) => {
         calls.push(request);
         await exposeAll(request);
         return {ok: true, submission: axisSubmission(request), model};
-    }, {authoritative: true, criteria}));
+    }, {criteria}));
 
     assert.equal(report.authoritative, true);
     assert.equal(report.outcome, 'INCONCLUSIVE');

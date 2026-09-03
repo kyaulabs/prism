@@ -614,7 +614,7 @@ prism-tool commit create --type feat --scope review --subject "add replayable re
 - Consumes: Tasks 2, 3, 5, 6, and 7 plus `classifyTrustRoot()`, snapshot/profile/session orchestration.
 - Produces: `runAuthoritativeReview()` and `inspectAuthorityReadiness()` for initial review and exact reuse.
 
-- [ ] **Step 1: Write failing authority and reuse tests**
+- [x] **Step 1: Write failing authority and reuse tests**
 
 Use extracted Core/adapter fixtures outside a separate Git repository. Assert local Core rejection before model calls, missing/mismatched external adapter rejection, missing criteria, missing/stale/non-PASS check, dirty tree, changed target/base/HEAD, complete initial PASS, initial BLOCKING recorded and finalization-blocking, Inconclusive diagnostics without a segment, and exact same-HEAD reuse without calling the model. Change each identity independently—check, criteria, Core bytes/version, adapter bytes/version, profile, policy, skill, model, reasoning, base, HEAD, and snapshot—and assert no reuse.
 
@@ -636,28 +636,28 @@ assert.equal(second.reused, true);
 assert.equal(fixtureContext.sessionCalls, calls);
 ```
 
-- [ ] **Step 2: Run authority tests to verify Red**
+- [x] **Step 2: Run authority tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js`
 
 Expected: FAIL because the authoritative coordinator is absent.
 
-- [ ] **Step 3: Implement guarded initial orchestration**
+- [x] **Step 3: Implement guarded initial orchestration**
 
 Canonicalize Core and repository first and require `eligibleForAuthority === true`. Derive branch target, `baseRef`, exact base SHA, and HEAD from Git; require clean state; verify criteria and check receipts; load Core policy from installed Core; load active adapter policy from protected base when local; resolve the matching external adapter quality identity; and resolve the exact active Pi model. Build one branch snapshot from base SHA through HEAD.
 
 Before spending a model attempt, inspect version-two state. Return exact reuse only when the current valid segment and every bound digest/identity exactly match. Otherwise require `ABSENT`, or `LEGACY` with explicit `newInitial: true`; then run all four axes and verifier work once. Write a bounded attempt diagnostic for Inconclusive. For complete PASS/BLOCKING, call Task 7 directly with the in-memory report and return the persisted receipt. Never accept an input JSON segment.
 
-- [ ] **Step 4: Run authority, profile, snapshot, and trust tests to verify Green**
+- [x] **Step 4: Run authority, profile, snapshot, and trust tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-profile.test.js tests/Node/prism-review-snapshot.test.js tests/Node/prism-review-cli.test.js`
 
 Expected: PASS, with checkout Core unable to author a chain.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/authority.js packages/prism-core/scripts/prism-review/orchestrator.js tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/authority.js packages/prism-core/scripts/prism-review/orchestrator.js tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js
 prism-tool commit create --type feat --scope review --subject "guard installed-package review authority"
 ```
 
