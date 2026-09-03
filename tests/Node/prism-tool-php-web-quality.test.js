@@ -112,6 +112,28 @@ test('executes quality gates sequentially', async () => {
     assert.equal(maximum, 1);
 });
 
+test('executes only shell regression tests through the shell gate', async () => {
+    const shellRequests = [];
+    await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: ['scripts/deploy.sh', 'tests/Shell/example_test.sh'],
+        packageScripts: [],
+        runCommand: async (request) => {
+            if (request.command === 'bash') shellRequests.push(request.args);
+            return success(request);
+        },
+        runTool: success,
+        runServer: success,
+        changedLines: async () => [],
+        readArtifact: async () => Buffer.from('<coverage/>'),
+        verifySnapshot: async () => true,
+    });
+
+    assert.deepEqual(shellRequests, [['tests/Shell/example_test.sh']]);
+});
+
 test('ignores non-statement Clover lines in changed-file coverage', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,

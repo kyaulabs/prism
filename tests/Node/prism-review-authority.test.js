@@ -392,6 +392,21 @@ test('rejects an oversized authority package before reading its contents', async
     }, fixture.context), /byte limit/);
 });
 
+test('rejects package identity reads when no-follow opens are unsupported', (t) => {
+    const root = tempRoot(t);
+    packageRoot(root, '@fixture/core', '1.2.3', 'core');
+    const unsupportedFs = new Proxy({constants: {...fs.constants, O_NOFOLLOW: undefined}}, {
+        get(target, property) {
+            if (Reflect.has(target, property)) return Reflect.get(target, property);
+            const value = Reflect.get(fs, property);
+            return typeof value === 'function' ? value.bind(fs) : value;
+        },
+    });
+
+    assert.throws(() => packageIdentity(root, 'INSTALLED_EXTERNAL', null, {fs: unsupportedFs}),
+        /no-follow/i);
+});
+
 test('refuses reuse when any bound authority identity changes', async (t) => {
     const cases = [
         ['check', (fixture) => { fixture.overrides.checkDigest = '0'.repeat(64); }],

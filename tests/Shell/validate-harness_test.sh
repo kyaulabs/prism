@@ -30,6 +30,11 @@ for marker in 'Validating skills' 'Checking Distill output-style contract' 'Vali
 		fail "$marker check missing"
 	fi
 done
+if grep -q "'package-identity.js'" "$VALIDATOR"; then
+	pass 'package identity runtime module is required'
+else
+	fail 'package identity runtime module is missing from validator inventory'
+fi
 
 printf '%s\n' '── validate-harness: retired opencode permission gate absent ──'
 if grep -q 'bash permission patterns' "$VALIDATOR"; then

@@ -117,15 +117,16 @@ function defaultExecute(request, context) {
     const coreRoot = fs.realpathSync(context.coreRoot ?? path.resolve(__dirname, '../..'));
     const projectRoot = fs.realpathSync(context.projectRoot);
     const contract = loadCoreContract(coreRoot);
+    const executionCommand = request.executionCommand ?? request.command;
     let command;
     let args;
     let commandTools = [];
-    if (request.command[0] === 'prism-tool') {
+    if (executionCommand[0] === 'prism-tool') {
         command = process.execPath;
-        args = [path.join(coreRoot, 'scripts', 'prism-tool.js'), ...request.command.slice(1)];
+        args = [path.join(coreRoot, 'scripts', 'prism-tool.js'), ...executionCommand.slice(1)];
         const markdown = contract.components.find(({id}) => id === 'markdownlint-cli2');
         commandTools = [{id: markdown.id, version: markdown.version}];
-    } else if (request.command[0] === 'semgrep') {
+    } else if (executionCommand[0] === 'semgrep') {
         const component = contract.components.find(({id}) => id === 'semgrep');
         const readiness = checkExternalTools({contract: {...contract, components: [component]}, env,
             run: context.run ?? runBounded});
@@ -133,11 +134,11 @@ function defaultExecute(request, context) {
             throw new Error('Semgrep readiness failed');
         }
         command = executable('semgrep', env);
-        args = request.command.slice(1);
+        args = executionCommand.slice(1);
         commandTools = [{id: 'semgrep', version: readiness[0].actual}];
     } else {
-        command = executable(request.command[0], env);
-        args = request.command.slice(1);
+        command = executable(executionCommand[0], env);
+        args = executionCommand.slice(1);
     }
     const result = (context.run ?? runBounded)(command, args, {
         cwd: projectRoot,
@@ -160,7 +161,11 @@ function harnessPresent(projectRoot) {
     }
 }
 
-function requests(identity) {
+function requests(identity, trackedPaths = null) {
+    const semgrepCommand = [
+        'semgrep', 'scan', '--config', '.semgrep/kyaulabs.yml', '--config', 'p/php', '--config',
+        'p/secrets', '--config', 'p/javascript', '--error', '--metrics', 'off', '--disable-version-check',
+    ];
     return [
         {id: 'core.repository-clean', command: ['git', 'status', '--porcelain=v1', '-z', '--untracked-files=all']},
         {id: 'core.diff-check', command: ['git', 'diff', '--check', `${identity.baseSha}..${identity.headSha}`]},
@@ -170,10 +175,9 @@ function requests(identity) {
             '--', '.', ':!adr/**', ':!docs/plans/**',
         ]},
         {id: 'core.harness', command: ['bash', 'packages/prism-core/scripts/validate-harness.sh']},
-        {id: 'core.semgrep', command: [
-            'semgrep', 'scan', '--config', '.semgrep/kyaulabs.yml', '--config', 'p/php', '--config',
-            'p/secrets', '--config', 'p/javascript', '--error', '--metrics', 'off', '--disable-version-check',
-        ]},
+        {id: 'core.semgrep', command: semgrepCommand,
+            executionCommand: trackedPaths === null ? semgrepCommand : [...semgrepCommand, '--', ...trackedPaths],
+            skip: trackedPaths?.length === 0},
     ];
 }
 
@@ -517,10 +521,17 @@ function createQualityCallbacks(identity, context = {}) {
 
 async function runCoreQuality(identity, context = {}) {
     const execute = context.execute ?? ((request) => defaultExecute(request, context));
+    let trackedPaths = null;
+    if (context.execute === undefined) {
+        trackedPaths = nulPaths(gitBytes(context, [
+            'ls-tree', '-r', '--name-only', '-z', identity.headSha,
+        ]));
+        assertSafeTrackedPaths(context, trackedPaths);
+    }
     const gates = [];
-    for (const request of requests(identity)) {
-        if (request.id === 'core.harness' &&
-            !(context.hasHarness ?? harnessPresent(fs.realpathSync(context.projectRoot)))) {
+    for (const request of requests(identity, trackedPaths)) {
+        if (request.skip === true || (request.id === 'core.harness' &&
+            !(context.hasHarness ?? harnessPresent(fs.realpathSync(context.projectRoot))))) {
             gates.push(skippedReceipt(request));
         } else {
             try {

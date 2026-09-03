@@ -261,6 +261,7 @@ const runtimeModules = [
     'core-quality.js',
     'criteria.js',
     'criteria-tools.js',
+    'package-identity.js',
     'quality-provider.js',
     'review-chain-v2.js',
     'review-state.js',

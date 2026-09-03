@@ -144,6 +144,44 @@ test('applies process-level sensitive paths to the tracked quality scope', (t) =
         handler: {resolveTool() {}}}), /sensitive/);
 });
 
+test('passes only validated tracked paths to the default Semgrep gate', async (t) => {
+    const root = makeTempDir();
+    const bin = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(bin, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(root, 'safe.js'), 'module.exports = true;\n');
+    fs.writeFileSync(path.join(root, 'ignored-secret.txt'), 'not-for-semgrep\n');
+    fs.writeFileSync(path.join(bin, 'semgrep'), '#!/bin/sh\nexit 0\n', {mode: 0o755});
+    let scanArgs;
+
+    const report = await runCoreQuality({
+        branch: 'feat/check', baseRef: 'develop', baseSha, headSha,
+    }, {
+        projectRoot: root,
+        coreRoot,
+        env: {PATH: `${bin}${path.delimiter}${process.env.PATH}`},
+        runGit: (_command, args) => ({
+            status: 0,
+            stdout: args[0] === 'ls-tree' ? Buffer.from('safe.js\0') : Buffer.alloc(0),
+            stderr: Buffer.alloc(0),
+        }),
+        run: (command, args) => {
+            if (path.basename(command) === 'semgrep' && args.includes('--version')) {
+                return {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
+            }
+            if (path.basename(command) === 'semgrep') scanArgs = args;
+            return {status: args[0] === 'grep' ? 1 : 0, stdout: Buffer.alloc(0),
+                stderr: Buffer.alloc(0), error: undefined};
+        },
+        hasHarness: false,
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.status, 'PASS');
+    assert.deepEqual(scanArgs.slice(-2), ['--', 'safe.js']);
+    assert.equal(scanArgs.includes('ignored-secret.txt'), false);
+});
+
 test('fails bounded Core receipts on timeout, nonzero status, and output overflow', async () => {
     const report = await runCoreQuality({
         branch: 'feat/check',

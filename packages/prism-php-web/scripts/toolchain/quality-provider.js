@@ -225,7 +225,7 @@ async function runQualityProvider(options) {
     const files = [...new Set(options.trackedPaths.map(relativeFile))].sort();
     const php = files.filter((file) => file.endsWith('.php'));
     const script = files.filter((file) => /^(?:tests\/Node\/.*\.(?:js|ts)|.*\.(?:js|mjs|cjs|ts))$/u.test(file));
-    const shell = files.filter((file) => file.endsWith('.sh'));
+    const shell = files.filter((file) => /^tests\/Shell\/.+_test\.sh$/u.test(file));
     const style = files.filter((file) => file.endsWith('.scss') || file.endsWith('.css'));
     const has = (file) => files.includes(file);
     const tasks = new Map();
