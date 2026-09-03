@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: check_skill_frontmatter_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 set -euo pipefail
 
@@ -21,6 +21,53 @@ if grep -q 'missing or empty description' "$VALIDATOR"; then pass 'description r
 if grep -q 'invalid skill name' "$VALIDATOR"; then pass 'pi name grammar enforced'; else fail 'pi name grammar missing'; fi
 if [ -f "$PARSER" ]; then pass 'frontmatter parser moved into prism-core'; else fail 'frontmatter parser missing'; fi
 if bash "$VALIDATOR" >/dev/null; then pass 'real skills satisfy contract'; else fail 'real skills fail contract'; fi
+
+review_skills=(
+	prism-review-session
+	prism-review-tooling-style
+	prism-review-structural-smells
+	prism-review-requirement-coverage
+	prism-review-static-security
+	prism-review-verifier
+	prism-review-readability
+	prism-review-duplication
+	prism-review-error-handling
+	prism-review-authorization
+	prism-review-input-validation
+	prism-review-differential
+	prism-review-spec-compliance
+	prism-review-false-positive-check
+)
+adapted_skills=(
+	prism-review-readability
+	prism-review-duplication
+	prism-review-error-handling
+	prism-review-authorization
+	prism-review-input-validation
+	prism-review-differential
+	prism-review-spec-compliance
+	prism-review-false-positive-check
+)
+for skill in "${review_skills[@]}"; do
+	file="$REPO_ROOT/packages/prism-core/skills/$skill/SKILL.md"
+	if [ -f "$file" ] \
+		&& [ "$(node "$PARSER" "$file" name)" = "$skill" ] \
+		&& [[ "$(node "$PARSER" "$file" description)" == *'Use when'* ]] \
+		&& grep -qFx '## Rules' "$file" \
+		&& [ "$(grep '^## ' "$file" | tail -1)" = '## Gotchas' ]; then
+		pass "$skill has the closed review-skill shape"
+	else
+		fail "$skill does not have the closed review-skill shape"
+	fi
+done
+for skill in "${adapted_skills[@]}"; do
+	file="$REPO_ROOT/packages/prism-core/skills/$skill/SKILL.md"
+	if grep -q '^derived-from:' "$file" 2>/dev/null && grep -qFx '## Upstream' "$file" 2>/dev/null; then
+		pass "$skill retains adaptation provenance"
+	else
+		fail "$skill is missing adaptation provenance"
+	fi
+done
 
 printf '\ncheck_skill_frontmatter_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

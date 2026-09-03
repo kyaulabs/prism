@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "package": "@kyaulabs/prism-core",
+  "role": "core",
+  "resources": [
+    {
+      "id": "prism-review-session",
+      "path": "skills/prism-review-session/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-tooling-style",
+      "path": "skills/prism-review-tooling-style/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-structural-smells",
+      "path": "skills/prism-review-structural-smells/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-requirement-coverage",
+      "path": "skills/prism-review-requirement-coverage/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-static-security",
+      "path": "skills/prism-review-static-security/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-verifier",
+      "path": "skills/prism-review-verifier/SKILL.md",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "id": "prism-review-readability",
+      "path": "skills/prism-review-readability/SKILL.md",
+      "license": "CC0-1.0",
+      "source": {
+        "repository": "https://github.com/JeremyMorgan/code-review-skills",
+        "revision": "f23b891431af2456b7a44cf5632e78046b5c9373",
+        "path": "skills/readability-and-naming/SKILL.md",
+        "sha256": "dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724",
+        "license": "CC0-1.0",
+        "changes": "Adapted to immutable evidence and Prism review submission."
+      }
+    },
+    {
+      "id": "prism-review-duplication",
+      "path": "skills/prism-review-duplication/SKILL.md",
+      "license": "CC0-1.0",
+      "source": {
+        "repository": "https://github.com/JeremyMorgan/code-review-skills",
+        "revision": "f23b891431af2456b7a44cf5632e78046b5c9373",
+        "path": "skills/code-duplication-detection/SKILL.md",
+        "sha256": "b3579019191ced792449f09b7c206380bf8471eaf1af2f5f38a01c41c5c93d3f",
+        "license": "CC0-1.0",
+        "changes": "Adapted to intent-based immutable review without remediation."
+      }
+    },
+    {
+      "id": "prism-review-error-handling",
+      "path": "skills/prism-review-error-handling/SKILL.md",
+      "license": "CC0-1.0",
+      "source": {
+        "repository": "https://github.com/JeremyMorgan/code-review-skills",
+        "revision": "f23b891431af2456b7a44cf5632e78046b5c9373",
+        "path": "skills/error-handling-resilience/SKILL.md",
+        "sha256": "8688863241834ed78a3e9d2a701a716eca19ca2acd167584de7c1806e92b0de6",
+        "license": "CC0-1.0",
+        "changes": "Adapted to changed error paths and immutable Prism evidence."
+      }
+    },
+    {
+      "id": "prism-review-authorization",
+      "path": "skills/prism-review-authorization/SKILL.md",
+      "license": "CC0-1.0",
+      "source": {
+        "repository": "https://github.com/JeremyMorgan/code-review-skills",
+        "revision": "f23b891431af2456b7a44cf5632e78046b5c9373",
+        "path": "skills/authorization-implementation/SKILL.md",
+        "sha256": "791b7d94e613acd1d63bc7cc34cbb391055f3586f3ecc17cd7005f92911eb353",
+        "license": "CC0-1.0",
+        "changes": "Adapted to framework-neutral source-to-sink review without exploit execution."
+      }
+    },
+    {
+      "id": "prism-review-input-validation",
+      "path": "skills/prism-review-input-validation/SKILL.md",
+      "license": "CC0-1.0",
+      "source": {
+        "repository": "https://github.com/JeremyMorgan/code-review-skills",
+        "revision": "f23b891431af2456b7a44cf5632e78046b5c9373",
+        "path": "skills/input-validation/SKILL.md",
+        "sha256": "130cac2d1847689c7575fb8b3f1e73beccddc909549183e41024aa8e5e7b3fc3",
+        "license": "CC0-1.0",
+        "changes": "Adapted to language-neutral immutable source-to-sink review."
+      }
+    },
+    {
+      "id": "prism-review-differential",
+      "path": "skills/prism-review-differential/SKILL.md",
+      "license": "CC-BY-SA-4.0",
+      "source": {
+        "repository": "https://github.com/trailofbits/skills",
+        "revision": "14e5a1070020c5d101e8362756f3201fb677b467",
+        "path": "plugins/differential-review/skills/differential-review/SKILL.md",
+        "sha256": "f9af6a8193fc1a9f8ca3c54bb8d19095a5f20c9472ca6d014488bbde50b67da0",
+        "license": "CC-BY-SA-4.0",
+        "changes": "KYAULabs adapted the source for Prism's isolated review contract."
+      }
+    },
+    {
+      "id": "prism-review-spec-compliance",
+      "path": "skills/prism-review-spec-compliance/SKILL.md",
+      "license": "CC-BY-SA-4.0",
+      "source": {
+        "repository": "https://github.com/trailofbits/skills",
+        "revision": "14e5a1070020c5d101e8362756f3201fb677b467",
+        "path": "plugins/spec-to-code-compliance/skills/spec-to-code-compliance/SKILL.md",
+        "sha256": "eb0d91b50a9c06f50baf8763d1e23566897b9fa3e7ffcf13134eee4e1ccaefe5",
+        "license": "CC-BY-SA-4.0",
+        "changes": "KYAULabs adapted the source for Prism's isolated review contract."
+      }
+    },
+    {
+      "id": "prism-review-false-positive-check",
+      "path": "skills/prism-review-false-positive-check/SKILL.md",
+      "license": "CC-BY-SA-4.0",
+      "source": {
+        "repository": "https://github.com/trailofbits/skills",
+        "revision": "14e5a1070020c5d101e8362756f3201fb677b467",
+        "path": "plugins/fp-check/skills/fp-check/SKILL.md",
+        "sha256": "129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3",
+        "license": "CC-BY-SA-4.0",
+        "changes": "KYAULabs adapted the source for Prism's isolated review contract."
+      }
+    }
+  ],
+  "sessionSkill": "prism-review-session",
+  "verifierSkills": [
+    "prism-review-verifier",
+    "prism-review-false-positive-check"
+  ],
+  "exemptions": [
+    {
+      "id": "metadata.binary",
+      "axes": [
+        "tooling-style",
+        "structural-smells",
+        "requirement-coverage",
+        "static-security"
+      ],
+      "kind": "binary",
+      "trigger": {"mode": "always"},
+      "reason": "Binary content has no regular UTF-8 text bytes for model review."
+    },
+    {
+      "id": "metadata.symlink",
+      "axes": [
+        "tooling-style",
+        "structural-smells",
+        "requirement-coverage",
+        "static-security"
+      ],
+      "kind": "symlink",
+      "trigger": {"mode": "always"},
+      "reason": "A symbolic link contributes link metadata rather than regular file bytes."
+    },
+    {
+      "id": "metadata.gitlink",
+      "axes": [
+        "tooling-style",
+        "structural-smells",
+        "requirement-coverage",
+        "static-security"
+      ],
+      "kind": "gitlink",
+      "trigger": {"mode": "always"},
+      "reason": "A Gitlink records an object identity rather than an in-repository text blob."
+    },
+    {
+      "id": "metadata.unsupported-mode",
+      "axes": [
+        "tooling-style",
+        "structural-smells",
+        "requirement-coverage",
+        "static-security"
+      ],
+      "kind": "unsupported-mode",
+      "trigger": {"mode": "always"},
+      "reason": "The changed Git mode has no supported regular-text representation."
+    }
+  ],
+  "axes": [
+    {
+      "id": "tooling-style",
+      "lenses": [
+        {"id": "core.tooling-style", "skill": "prism-review-tooling-style", "trigger": {"mode": "always"}},
+        {"id": "core.readability", "skill": "prism-review-readability", "trigger": {"mode": "always"}}
+      ]
+    },
+    {
+      "id": "structural-smells",
+      "lenses": [
+        {"id": "core.structural-smells", "skill": "prism-review-structural-smells", "trigger": {"mode": "always"}},
+        {"id": "core.duplication", "skill": "prism-review-duplication", "trigger": {"mode": "always"}},
+        {"id": "core.error-handling", "skill": "prism-review-error-handling", "trigger": {"mode": "always"}},
+        {"id": "core.differential-structure", "skill": "prism-review-differential", "trigger": {"mode": "always"}}
+      ]
+    },
+    {
+      "id": "requirement-coverage",
+      "lenses": [
+        {"id": "core.requirement-coverage", "skill": "prism-review-requirement-coverage", "trigger": {"mode": "always"}},
+        {"id": "core.spec-compliance", "skill": "prism-review-spec-compliance", "trigger": {"mode": "always"}},
+        {"id": "core.differential-requirements", "skill": "prism-review-differential", "trigger": {"mode": "always"}}
+      ]
+    },
+    {
+      "id": "static-security",
+      "lenses": [
+        {"id": "core.static-security", "skill": "prism-review-static-security", "trigger": {"mode": "always"}},
+        {"id": "core.authorization", "skill": "prism-review-authorization", "trigger": {"mode": "always"}},
+        {"id": "core.input-validation", "skill": "prism-review-input-validation", "trigger": {"mode": "always"}},
+        {"id": "core.differential-security", "skill": "prism-review-differential", "trigger": {"mode": "always"}}
+      ]
+    }
+  ]
+}

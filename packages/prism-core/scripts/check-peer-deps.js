@@ -1,4 +1,4 @@
-// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 // Verify that any pi bundled-core package imported by a package's extensions/
 // is declared in that package.json's peerDependencies.
@@ -55,27 +55,15 @@ try {
     process.exit(0);
 }
 
-const extDir = path.join(path.dirname(pkgJsonPath), 'extensions');
-let extStat;
-try {
-    extStat = fs.statSync(extDir);
-} catch (e) {
-    if (e.code !== 'ENOENT') {
-        // A real stat failure (EACCES, ELOOP, ...) must be visible, not
-        // conflated with the absent-dir no-op: print it on stdout (the
-        // caller treats every stdout line as a violation) and still exit 0.
-        console.log(`${rel}: cannot stat extensions/: ${e.message}`);
-    }
-    // No extensions -> cannot import a pi core at runtime -> nothing to check.
-    process.exit(0);
-}
-if (!extStat.isDirectory()) {
-    process.exit(0);
-}
+const packageRootDir = path.dirname(pkgJsonPath);
+const scanRoots = [
+    {label: 'extensions/', path: path.join(packageRootDir, 'extensions')},
+    {label: 'scripts/prism-review/', path: path.join(packageRootDir, 'scripts', 'prism-review')},
+];
 
 const peers = new Set(Object.keys(pkg.peerDependencies || {}));
 const imported = new Set();
-const importRe = /\bfrom\s+['"]([^'"]+)['"]/g;
+const importRe = /\b(?:from\s+|import\s*(?:\(\s*)?)['"]([^'"]+)['"]/g;
 
 function walk(dir) {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -92,19 +80,28 @@ function walk(dir) {
         }
     }
 }
-try {
-    walk(extDir);
-} catch (e) {
-    // The always-exit-0 contract holds even when the tree cannot be scanned:
-    // print the failure on stdout (the caller treats every stdout line as a
-    // violation) instead of crashing with an uncaught exception (F-5).
-    console.log(`${rel}: cannot scan extensions/: ${e.message}`);
-    process.exit(0);
+for (const root of scanRoots) {
+    let identity;
+    try {
+        identity = fs.statSync(root.path);
+    } catch (error) {
+        if (error.code !== 'ENOENT') {
+            console.log(`${rel}: cannot stat ${root.label}: ${error.message}`);
+        }
+        continue;
+    }
+    if (!identity.isDirectory()) continue;
+    try {
+        walk(root.path);
+    } catch (error) {
+        console.log(`${rel}: cannot scan ${root.label}: ${error.message}`);
+        process.exit(0);
+    }
 }
 
 for (const core of imported) {
     if (!peers.has(core)) {
-        console.log(`${rel}: extension imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
+        console.log(`${rel}: package imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
     }
 }
 

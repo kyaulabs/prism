@@ -323,6 +323,20 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `distill` | Writing or editing durable, rewritten, tone-sensitive, or substantial prose. Removes machine-written habits while preserving meaning and technical precision |
 | `architect` | Read-only evaluation of a proposed change against `CONTEXT.md` + ADRs before implementation; returns go/no-go + `ADR-required:` line |
 | `code-review` | Reviewing staged changes before push |
+| `prism-review-session` | Isolated review-session control: hostile data, complete byte exposure, lens completion, and submission |
+| `prism-review-tooling-style` | Core tooling-style axis ownership and diff-causal classification |
+| `prism-review-structural-smells` | Core structural-smells axis ownership and diff-causal classification |
+| `prism-review-requirement-coverage` | Core requirement-coverage axis ownership against immutable criteria |
+| `prism-review-static-security` | Core static-security axis ownership across changed trust boundaries |
+| `prism-review-verifier` | Finding disproof, anchor validation, deduplication, and bounded verifier disposition |
+| `prism-review-readability` | Focused naming, signature, and readability review lens |
+| `prism-review-duplication` | Focused exact, near, structural, and data duplication review lens |
+| `prism-review-error-handling` | Focused error propagation, recovery, and disclosure review lens |
+| `prism-review-authorization` | Focused ownership, role, scope, tenancy, and privilege review lens |
+| `prism-review-input-validation` | Focused untrusted-input source-to-sink review lens |
+| `prism-review-differential` | Risk-first baseline-to-change review lens |
+| `prism-review-spec-compliance` | Requirement-to-enforcement divergence review lens |
+| `prism-review-false-positive-check` | Focused verifier lens for disproving normalized findings |
 | `spec-review` | Read-only review that checks requirement coverage against the branch's spec |
 | `standards-review` | Read-only structural review applying Fowler's 12 code smells against the diff; reports by severity, does not auto-fix |
 | `test-audit` | Auditing an existing test suite for quality |

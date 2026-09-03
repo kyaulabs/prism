@@ -1,14 +1,66 @@
-// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: safety-sensitive-paths.test.ts kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { createRequire } from "node:module";
+import os from "node:os";
+import path from "node:path";
 import {
     diagnoseUnmodelableShellConstruct,
+    loadAdditionalSensitivePaths,
     sensitiveOperandCheck,
+    sensitivePathMatch,
 } from "../../packages/prism-core/extensions/safety/sensitive-paths.ts";
 import { resolveExtraPaths } from "../../packages/prism-core/extensions/safety/tool-call-handler.ts";
 
 const OPTS = { projectDir: "/repo", home: "/home/tester" };
+const require = createRequire(import.meta.url);
+const sharedPolicy = require("../../packages/prism-core/scripts/sensitive-path-policy.js");
+
+test("shared sensitive-path policy matches the safety extension", () => {
+    const cases = [
+        ["/home/tester/.local/share/opencode/auth.json", "opencode-auth-store"],
+        ["/home/tester/.opencodereview/config.json", "review-config"],
+        ["/home/tester/.ssh/id_rsa", "ssh"],
+        ["/home/tester/.aws/credentials", "cloud-credentials"],
+        ["/home/tester/.netrc", "netrc"],
+        ["/home/tester/.git-credentials", "git-credentials"],
+        ["/etc/ssl/private/key.pem", "ssl-private"],
+        ["/repo/auth.json", "opencode-auth-store"],
+        ["/repo/mcp-auth.json", "opencode-auth-store"],
+        ["/repo/.env", "env"],
+        ["/repo/.env.local", "env"],
+        ["/repo/.env.example", null],
+        ["/home/tester/intelephense/license.txt", "intelephense-license"],
+        ["/home/tester/.config/opencode/manifest.json", "prism-user-manifest"],
+        ["/home/tester/.gnupg/key", "additional"],
+    ] as const;
+    const opts = {...OPTS, extraPaths: ["~/.gnupg/"]};
+    for (const [candidate, expected] of cases) {
+        assert.equal(sensitivePathMatch(candidate, opts)?.className ?? null, expected, candidate);
+        assert.equal(sharedPolicy.sensitivePathMatch(candidate, opts)?.className ?? null, expected, candidate);
+    }
+    const manifest = "~/.gnupg/\n/root/private\n";
+    assert.deepEqual(loadAdditionalSensitivePaths(manifest), sharedPolicy.loadAdditionalSensitivePaths(manifest));
+});
+
+test("an additional root-directory entry denies every absolute path", () => {
+    const opts = {...OPTS, extraPaths: ["/"]};
+    assert.equal(sensitivePathMatch("/repo/file.txt", opts)?.className, "additional");
+    assert.equal(sharedPolicy.sensitivePathMatch("/repo/file.txt", opts)?.className, "additional");
+});
+
+test("canonicalization fails closed for an unresolvable existing path", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "prism-sensitive-path-"));
+    try {
+        const loop = path.join(root, "loop");
+        fs.symlinkSync("loop", loop);
+        assert.throws(() => sharedPolicy.canonicalizePath(loop), /cannot be canonicalized/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
 
 test("deny floor: ssh, cloud, netrc, git-credentials, ssl-private", () => {
     assert.equal(sensitiveOperandCheck("cat /home/tester/.ssh/id_rsa", OPTS)?.className, "ssh");

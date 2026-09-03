@@ -17,6 +17,7 @@ The adapter owns:
 - accessibility, frontend architecture, visual design, and visual review;
 - database, security, page, browser-test, and source-header guidance;
 - the PHP/web bootstrap provider and consumer toolchain contract;
+- additive PHP/web lens registration for Core's review runtime;
 - project-local `safe-dirs.json` data for Core's safety extension.
 
 Core continues to own the engineering pipeline, setup transaction, repository
@@ -119,6 +120,14 @@ The tooling accepts unauthenticated loopback pages with controlled,
 non-sensitive data. `pest-browser` owns critical functional browser flows;
 `visual-review` owns visual inspection and milestone evidence. See
 [Visual review tooling](docs/visual-review.md).
+
+## Review runtime lenses
+
+The adapter registers existing stack skills as additive lenses for PHP, SCSS,
+JavaScript, SQL, browser-test, and related paths. Core's four axes and metadata
+exemptions remain mandatory. The current runtime produces non-authoritative ad
+hoc reports only; it does not replace OCR-backed finalization. See Core's
+[Review runtime foundation](https://github.com/kyaulabs/prism/blob/main/packages/prism-core/docs/review-runtime.md).
 
 ## Core handoff
 

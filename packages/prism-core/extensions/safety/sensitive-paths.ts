@@ -1,7 +1,10 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
-import { resolve as resolvePath, normalize, basename, dirname } from "node:path";
-import { realpathSync } from "node:fs";
+import { resolve as resolvePath, normalize, basename } from "node:path";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const sharedPathPolicy = require("../../scripts/sensitive-path-policy.js");
 
 export interface SensitivePathOptions {
     projectDir: string;
@@ -23,25 +26,6 @@ export interface SensitiveMatch {
     className: string;
     diagnostic?: SafetyDiagnostic;
 }
-
-interface RawPattern {
-    raw: string;
-    className: string;
-    dir: boolean;
-}
-
-const DEFAULT_PATTERNS: readonly RawPattern[] = [
-    { raw: "~/.local/share/opencode/", className: "opencode-auth-store", dir: true },
-    { raw: "~/.opencodereview/", className: "review-config", dir: true },
-    { raw: "~/intelephense/license.txt", className: "intelephense-license", dir: false },
-    { raw: "~/intelephense/licence.txt", className: "intelephense-license", dir: false },
-    { raw: "~/.config/opencode/", className: "prism-user-manifest", dir: true },
-    { raw: "~/.ssh/", className: "ssh", dir: true },
-    { raw: "~/.aws/", className: "cloud-credentials", dir: true },
-    { raw: "~/.netrc", className: "netrc", dir: false },
-    { raw: "~/.git-credentials", className: "git-credentials", dir: false },
-    { raw: "/etc/ssl/private/", className: "ssl-private", dir: true },
-];
 
 const SETUP_SCRIPTS = new Set([
     "migrate-setup.sh",
@@ -548,52 +532,12 @@ function isOptionToken(token: string): boolean {
     return token.startsWith("-") || token.includes("=");
 }
 
-function normalizeRaw(raw: string, home: string): string {
-    const expanded = raw.startsWith("~/") ? home + "/" + raw.slice(2) : raw;
-    return normalize(expanded).replace(/\/+$/, "");
-}
-
-function isEnvBasename(name: string): boolean {
-    if (name === ".env.example") return false;
-    return name === ".env" || name.startsWith(".env.");
-}
-
-/** Max ancestor hops when walking up to an existing realpath-able prefix. */
-const MAX_CANONICALIZE_STEPS = 64;
-
 export function canonicalizePath(p: string): string {
-    let current = normalize(p);
-    const tail: string[] = [];
-    for (let i = 0; i < MAX_CANONICALIZE_STEPS; i++) {
-        try {
-            const real = realpathSync(current);
-            if (tail.length === 0) return normalize(real);
-            return normalize(real + "/" + tail.reverse().join("/"));
-        } catch {
-            const parent = dirname(current);
-            if (parent === current) return normalize(p);
-            tail.push(basename(current));
-            current = parent;
-        }
-    }
-    return normalize(p);
+    return sharedPathPolicy.canonicalizePath(p);
 }
 
 export function sensitivePathMatch(absPath: string, opts: SensitivePathOptions): SensitiveMatch | null {
-    const canonical = canonicalizePath(absPath);
-    const name = basename(canonical);
-    if (isEnvBasename(name)) return { className: "env" };
-    if (name === "auth.json" || name === "mcp-auth.json") return { className: "opencode-auth-store" };
-    for (const pattern of DEFAULT_PATTERNS) {
-        const patternPath = canonicalizePath(normalizeRaw(pattern.raw, opts.home));
-        if (canonical === patternPath || (pattern.dir && canonical.startsWith(patternPath + "/"))) return { className: pattern.className };
-    }
-    for (const raw of opts.extraPaths ?? []) {
-        const patternPath = canonicalizePath(normalizeRaw(raw, opts.home));
-        const dir = raw.endsWith("/");
-        if (canonical === patternPath || (dir && canonical.startsWith(patternPath + "/"))) return { className: "additional" };
-    }
-    return null;
+    return sharedPathPolicy.sensitivePathMatch(absPath, opts);
 }
 
 export function sensitivePatternCheck(pattern: unknown, base: string, opts: SensitivePathOptions): SensitiveMatch | null {
@@ -774,20 +718,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
 }
 
 export function loadAdditionalSensitivePaths(envValue: string | undefined): string[] {
-    if (envValue === undefined || envValue === "") return [];
-    const paths: string[] = [];
-    for (const line of envValue.split("\n")) {
-        const entry = line.trim();
-        if (entry === "") continue;
-        if (!entry.startsWith("~/") && !entry.startsWith("/")) {
-            throw new Error("sensitive-paths: manifest entry must be absolute or ~/-prefixed — fail closed (ADR-0047)");
-        }
-        if (/[\u0000-\u001f\u007f]/.test(entry)) {
-            throw new Error("sensitive-paths: manifest entry contains control characters — fail closed (ADR-0047)");
-        }
-        paths.push(entry);
-    }
-    return paths;
+    return sharedPathPolicy.loadAdditionalSensitivePaths(envValue);
 }
 
 // vim: ft=typescript sts=4 sw=4 ts=4 et :

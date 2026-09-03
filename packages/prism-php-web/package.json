@@ -29,7 +29,8 @@
     "adapter": true,
     "bootstrapProtocol": 1,
     "toolchain": "./toolchain.json",
-    "handler": "./scripts/prism-tool-adapter.js"
+    "handler": "./scripts/prism-tool-adapter.js",
+    "review": "./config/prism-review.json"
   },
   "engines": {
     "node": ">=22.19.0"

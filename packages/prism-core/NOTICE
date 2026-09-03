@@ -101,6 +101,52 @@ cursor/plugins pstack
     - packages/prism-core/skills/distill/SKILL.md
     - packages/prism-core/skills/distill/references/patterns.md
 
+JeremyMorgan/code-review-skills
+  URL: https://github.com/JeremyMorgan/code-review-skills
+  Revision: f23b891431af2456b7a44cf5632e78046b5c9373
+  License: CC0-1.0
+  License text: packages/prism-core/config/licenses/CC0-1.0.txt
+  What was adapted: Focused readability, duplication, error-handling,
+    authorization, and input-validation review methods. Report creation,
+    mutation, active testing, stack assumptions, and remediation instructions
+    were removed for Prism's isolated immutable-evidence contract.
+  Used in:
+    - packages/prism-core/skills/prism-review-readability/SKILL.md
+      Source: skills/readability-and-naming/SKILL.md
+      SHA-256: dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724
+    - packages/prism-core/skills/prism-review-duplication/SKILL.md
+      Source: skills/code-duplication-detection/SKILL.md
+      SHA-256: b3579019191ced792449f09b7c206380bf8471eaf1af2f5f38a01c41c5c93d3f
+    - packages/prism-core/skills/prism-review-error-handling/SKILL.md
+      Source: skills/error-handling-resilience/SKILL.md
+      SHA-256: 8688863241834ed78a3e9d2a701a716eca19ca2acd167584de7c1806e92b0de6
+    - packages/prism-core/skills/prism-review-authorization/SKILL.md
+      Source: skills/authorization-implementation/SKILL.md
+      SHA-256: 791b7d94e613acd1d63bc7cc34cbb391055f3586f3ecc17cd7005f92911eb353
+    - packages/prism-core/skills/prism-review-input-validation/SKILL.md
+      Source: skills/input-validation/SKILL.md
+      SHA-256: 130cac2d1847689c7575fb8b3f1e73beccddc909549183e41024aa8e5e7b3fc3
+
+trailofbits/skills
+  URL: https://github.com/trailofbits/skills
+  Revision: 14e5a1070020c5d101e8362756f3201fb677b467
+  License: CC-BY-SA-4.0
+  License text: packages/prism-core/config/licenses/CC-BY-SA-4.0.txt
+  Changes: KYAULabs adapted these sources for Prism's isolated review
+    contract. Agent delegation, commands, repository and network operations,
+    active exploitation, mutable reports, and file-writing instructions were
+    removed. The adapted files remain CC BY-SA 4.0.
+  Used in:
+    - packages/prism-core/skills/prism-review-differential/SKILL.md
+      Source: plugins/differential-review/skills/differential-review/SKILL.md
+      SHA-256: f9af6a8193fc1a9f8ca3c54bb8d19095a5f20c9472ca6d014488bbde50b67da0
+    - packages/prism-core/skills/prism-review-spec-compliance/SKILL.md
+      Source: plugins/spec-to-code-compliance/skills/spec-to-code-compliance/SKILL.md
+      SHA-256: eb0d91b50a9c06f50baf8763d1e23566897b9fa3e7ffcf13134eee4e1ccaefe5
+    - packages/prism-core/skills/prism-review-false-positive-check/SKILL.md
+      Source: plugins/fp-check/skills/fp-check/SKILL.md
+      SHA-256: 129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3
+
 @earendil-works/pi-coding-agent
   URL: https://github.com/earendil-works/pi-coding-agent
   Copyright: Copyright (c) earendil-works

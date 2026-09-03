@@ -4,6 +4,7 @@
     ".git",
     ".pi/npm",
     ".pi/git",
-    ".pi/prism-tool/work"
+    ".pi/prism-tool/work",
+    ".pi/prism-review/work"
   ]
 }

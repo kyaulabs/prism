@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -15,6 +15,22 @@ const root = path.resolve(__dirname, '../..');
 const CORE_PKG = path.join(root, 'packages/prism-core');
 const ADAPTER_PKG = path.join(root, 'packages/prism-php-web');
 const FAKE_BIN = path.join(root, 'tests/Shell/fixtures/bin');
+const REVIEW_SKILLS = [
+    'prism-review-session',
+    'prism-review-tooling-style',
+    'prism-review-structural-smells',
+    'prism-review-requirement-coverage',
+    'prism-review-static-security',
+    'prism-review-verifier',
+    'prism-review-readability',
+    'prism-review-duplication',
+    'prism-review-error-handling',
+    'prism-review-authorization',
+    'prism-review-input-validation',
+    'prism-review-differential',
+    'prism-review-spec-compliance',
+    'prism-review-false-positive-check',
+];
 
 function packPackage(packagePath) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pack-'));
@@ -80,6 +96,28 @@ function fakeExternalRun(invocations) {
     };
 }
 
+test('declares the bounded review executable and Pi SDK peer', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(CORE_PKG, 'package.json'), 'utf8'));
+
+    assert.deepEqual(manifest.bin, {
+        'prism-review': 'scripts/prism-review.js',
+        'prism-tool': 'scripts/prism-tool.js',
+    });
+    assert.equal(
+        manifest.peerDependencies['@earendil-works/pi-coding-agent'],
+        '>=0.84.1 <0.85.0'
+    );
+});
+
+test('keeps review private state ignored with only its work directory recursively removable', () => {
+    const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+    const safeDirs = JSON.parse(fs.readFileSync(path.join(CORE_PKG, 'safe-dirs.json'), 'utf8'));
+
+    assert.match(gitignore, /^\.pi\/prism-review\/$/m);
+    assert.equal(safeDirs.safe_rm_dirs.includes('.pi/prism-review/work'), true);
+    assert.equal(safeDirs.safe_rm_dirs.includes('.pi/prism-review'), false);
+});
+
 test('packs the core package with every owned resource and executable modes', () => {
     const packed = packPackage(CORE_PKG);
     assert.equal(packed.files.has('toolchain.json'), true);
@@ -138,7 +176,23 @@ test('packs the core package with every owned resource and executable modes', ()
         true,
         'Distill pattern reference packaged'
     );
+    assert.equal(packed.files.has('config/prism-review.json'), true, 'Core review profile packaged');
+    for (const skill of REVIEW_SKILLS) {
+        assert.equal(packed.files.has(`skills/${skill}/SKILL.md`), true, `${skill} packaged`);
+    }
+    for (const [license, opening, minimumBytes] of [
+        ['CC0-1.0.txt', 'CC0 1.0 Universal', 6000],
+        ['CC-BY-SA-4.0.txt', 'Attribution-ShareAlike 4.0 International', 18000],
+    ]) {
+        const archivePath = `package/config/licenses/${license}`;
+        assert.equal(packed.files.has(`config/licenses/${license}`), true, `${license} packaged`);
+        const text = execFileSync('tar', ['-xOzf', packed.tarball, archivePath], {encoding: 'utf8'});
+        assert.match(text, new RegExp(opening));
+        assert.equal(Buffer.byteLength(text) >= minimumBytes, true, `${license} is complete`);
+        assert.equal(text, fs.readFileSync(path.join(CORE_PKG, 'config', 'licenses', license), 'utf8'));
+    }
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
+    assert.equal(packed.files.has('docs/review-runtime.md'), true, 'review runtime documentation packaged');
     assert.equal(
         packed.files.has('docs/adapter-catalogue.md'),
         true,
@@ -156,7 +210,15 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.match(coreNotice, /Copyright \(c\) 2026 Lauren Tan/);
     assert.match(coreNotice, /License: MIT/);
     assert.match(coreNotice, /packages\/prism-core\/skills\/distill\/SKILL\.md/);
-    assert.notEqual(packed.files.get('scripts/prism-tool.js') & 0o111, 0, 'bin is executable');
+    assert.match(coreNotice, /JeremyMorgan\/code-review-skills/);
+    assert.match(coreNotice, /trailofbits\/skills/);
+    assert.match(coreNotice, /dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724/);
+    assert.match(coreNotice, /129223b79b8cb1e7c289c90cbe4ba288d9b210e318a0d1464f319e30329481b3/);
+    for (const skill of REVIEW_SKILLS.slice(6)) {
+        assert.match(coreNotice, new RegExp(`skills/${skill}/SKILL\\.md`));
+    }
+    assert.notEqual(packed.files.get('scripts/prism-review.js') & 0o111, 0, 'review bin is executable');
+    assert.notEqual(packed.files.get('scripts/prism-tool.js') & 0o111, 0, 'tool bin is executable');
     assert.notEqual(packed.files.get('scripts/install-global.sh') & 0o111, 0, 'installer is executable');
     assert.notEqual(packed.files.get('scripts/install-hooks.sh') & 0o111, 0, 'hook installer is executable');
     assert.equal(packed.files.get('toolchain.json') & 0o111, 0, 'contract is not executable');
@@ -204,7 +266,22 @@ test('packs the core package with every owned resource and executable modes', ()
     }
     assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
-    assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'CLI modules packaged');
+    assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'tool CLI modules packaged');
+    assert.equal(
+        packed.files.has('scripts/sensitive-path-policy.js'),
+        true,
+        'shared sensitive-path policy packaged'
+    );
+    for (const module of [
+        'canonical-json', 'cli', 'constants', 'errors', 'findings', 'git-snapshot',
+        'orchestrator', 'profile', 'schema', 'session-runner', 'snapshot-tools', 'trust',
+    ]) {
+        assert.equal(
+            packed.files.has(`scripts/prism-review/${module}.js`),
+            true,
+            `review ${module} module packaged`
+        );
+    }
 });
 
 test('documents reviewed adapter release authority and publisher ownership', () => {
@@ -412,7 +489,10 @@ test('declares one compatible empty-project bootstrap protocol in the adapter pa
 
 test('packs the adapter with contract, handler, modules, prompts, skills, and safe data', () => {
     const packed = packPackage(ADAPTER_PKG);
+    const manifest = JSON.parse(fs.readFileSync(path.join(ADAPTER_PKG, 'package.json'), 'utf8'));
+    assert.equal(manifest.prism.review, './config/prism-review.json');
     assert.equal(packed.files.has('toolchain.json'), true);
+    assert.equal(packed.files.has('config/prism-review.json'), true, 'adapter review profile packaged');
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
     for (const module of [
@@ -437,11 +517,17 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     }
     assert.equal(tarPaths(packed, 'package/prompts/').length >= 3, true, 'prompts present');
     assert.equal(tarPaths(packed, 'package/skills/').filter((p) => p.endsWith('SKILL.md')).length >= 10, true, 'skills present');
+    assert.equal(
+        tarPaths(packed, 'package/skills/').some((entry) => entry.startsWith('prism-review-php-web-')),
+        false,
+        'adapter does not duplicate review skills'
+    );
     assert.equal(tarPaths(packed, 'package/docs/').length >= 4, true, 'docs present');
 });
 
 test('tracks executable modes in the git index for the CLI, handler, and installers', () => {
     const entries = [
+        'packages/prism-core/scripts/prism-review.js',
         'packages/prism-core/scripts/prism-tool.js',
         'packages/prism-core/scripts/install-global.sh',
         'packages/prism-core/scripts/install-hooks.sh',

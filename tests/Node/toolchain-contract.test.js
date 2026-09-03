@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -495,6 +495,7 @@ test('declares the exact PHP web adapter components and registration', () => {
         bootstrapProtocol: 1,
         toolchain: './toolchain.json',
         handler: './scripts/prism-tool-adapter.js',
+        review: './config/prism-review.json',
     });
 });
 

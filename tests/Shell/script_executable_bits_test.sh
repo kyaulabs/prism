@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: script_executable_bits_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: script_executable_bits_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 # ── Tests for check-script-executable-bits.sh ─────────────────────────────────
 # Verifies the guard catches .sh scripts under .github/scripts/ that lack the
@@ -112,6 +112,7 @@ test_error_message_names_remediation
 test_toolchain_entry_point_modes() {
 	local entry mode bad=0
 	for entry in \
+		packages/prism-core/scripts/prism-review.js \
 		packages/prism-core/scripts/prism-tool.js \
 		packages/prism-core/scripts/install-global.sh \
 		packages/prism-core/scripts/install-hooks.sh \
@@ -123,7 +124,7 @@ test_toolchain_entry_point_modes() {
 		fi
 	done
 	if [ "$bad" -eq 0 ]; then
-		pass "toolchain CLI, handler, and installers are 100755 in the git index"
+		pass "toolchain CLIs, handler, and installers are 100755 in the git index"
 	else
 		fail "a toolchain entry point is not 100755 in the git index"
 	fi
