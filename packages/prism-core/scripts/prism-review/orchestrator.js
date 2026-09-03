@@ -378,7 +378,12 @@ async function runReviewAttempt(options) {
             return reportValue(options, state);
         }
         if (result?.ok !== true) {
-            state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: result.reason});
+            state.axes.push({
+                id: axisId,
+                status: 'INCONCLUSIVE',
+                outcome: 'INCONCLUSIVE',
+                reason: result?.reason ?? 'AXIS_SESSION_FAILED',
+            });
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
             return reportValue(options, state);
         }

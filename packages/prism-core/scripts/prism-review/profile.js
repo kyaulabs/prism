@@ -191,9 +191,11 @@ function loadAdapterProfile(options) {
         throw new Error('adapter review registration is invalid');
     }
     const packageRoot = fs.realpathSync(registration.packageRoot);
+    if (!path.isAbsolute(registration.reviewPath)) {
+        throw new Error('adapter review registration is invalid');
+    }
     const registeredProfile = fs.lstatSync(registration.reviewPath);
-    if (!path.isAbsolute(registration.reviewPath) || registeredProfile.isSymbolicLink() ||
-        !registeredProfile.isFile()) {
+    if (registeredProfile.isSymbolicLink() || !registeredProfile.isFile()) {
         throw new Error('adapter review registration is invalid');
     }
     const reviewPath = fs.realpathSync(registration.reviewPath);
@@ -257,12 +259,15 @@ function changedDescriptor(value) {
     if (oldPath !== null) safeRelativePath(oldPath, 'changed path');
     if (newPath !== null) safeRelativePath(newPath, 'changed path');
     const kind = value.kind ?? 'text';
-    const text = value.text ?? kind === 'text';
     if (!['text', 'binary', 'symlink', 'gitlink', 'unsupported-mode'].includes(kind) ||
-        typeof text !== 'boolean') {
+        (value.text !== undefined && typeof value.text !== 'boolean')) {
         throw new Error('changed path descriptor is invalid');
     }
-    if (kind !== 'text' && text) throw new Error('metadata exemption cannot target regular text');
+    const text = kind === 'text';
+    if (value.text !== undefined && value.text !== text) {
+        if (value.text) throw new Error('metadata exemption cannot target regular text');
+        throw new Error('changed path descriptor is invalid');
+    }
     return {oldPath, newPath, kind, text};
 }
 

@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const {spawnSync} = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -46,6 +47,32 @@ test('prints the packaged Core version without touching runtime boundaries', asy
 
     assert.equal(status, 0);
     assert.deepEqual(output.result(), {stdout: '0.4.3\n', stderr: ''});
+});
+
+test('uses a bounded descriptor read for the package version manifest', async (t) => {
+    const coreRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-version-'));
+    fs.writeFileSync(
+        path.join(coreRoot, 'package.json'),
+        '{"name":"@kyaulabs/prism-core","version":"1.2.3"}\n'
+    );
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    const originalReadFileSync = fs.readFileSync;
+    let unboundedDescriptorRead = false;
+    fs.readFileSync = (target, ...args) => {
+        if (typeof target === 'number') {
+            unboundedDescriptorRead = true;
+            throw new Error('whole descriptor reads are not permitted');
+        }
+        return originalReadFileSync(target, ...args);
+    };
+    t.after(() => { fs.readFileSync = originalReadFileSync; });
+    const output = capture();
+
+    const status = await main(['--version'], {...output.context, coreRoot});
+
+    assert.equal(status, EXIT.OK);
+    assert.equal(unboundedDescriptorRead, false);
+    assert.deepEqual(output.result(), {stdout: '1.2.3\n', stderr: ''});
 });
 
 test('prints the closed command grammar without touching runtime boundaries', async () => {

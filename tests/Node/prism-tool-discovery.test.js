@@ -12,6 +12,7 @@ const {
     discoverAdapter,
     discoverOptionalAdapter,
     loadAdapterHandler,
+    registrationFor,
     validateBootstrapRegistration,
 } = require('../../packages/prism-core/scripts/prism-tool/discovery');
 const {
@@ -408,6 +409,25 @@ test('optional discovery permits zero adapters and one canonical review registra
     assert.equal(
         registration.reviewPath,
         fs.realpathSync(path.join(packageRoot, 'config', 'prism-review.json'))
+    );
+});
+
+test('rejects non-portable backslashes in adapter-owned paths', (t) => {
+    const packageRoot = makeTempDir();
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    writeAdapter(packageRoot, '@fixture/adapter', 'fixture-tool', {review: true});
+    const manifestPath = path.join(packageRoot, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.prism.review = 'config\\prism-review.json';
+    writeJson(manifestPath, manifest);
+    fs.copyFileSync(
+        path.join(packageRoot, 'config', 'prism-review.json'),
+        path.join(packageRoot, 'config\\prism-review.json')
+    );
+
+    assert.throws(
+        () => registrationFor(packageRoot, '@fixture/adapter'),
+        /adapter review profile is invalid/
     );
 });
 

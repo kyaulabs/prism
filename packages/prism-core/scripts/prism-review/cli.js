@@ -26,6 +26,17 @@ prism-review review branch --base SHA --head SHA --json
 prism-review review path --path RELATIVE_TRACKED_PATH --json
 `;
 
+function readBoundedDescriptor(descriptor, maximum) {
+    const buffer = Buffer.allocUnsafe(maximum + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    return buffer.subarray(0, offset);
+}
+
 function readVersion(coreRoot) {
     const root = fs.realpathSync(coreRoot);
     const manifestPath = path.join(root, 'package.json');
@@ -37,7 +48,7 @@ function readVersion(coreRoot) {
     const descriptor = fs.openSync(manifestPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
-        const contents = fs.readFileSync(descriptor);
+        const contents = readBoundedDescriptor(descriptor, MAX_MANIFEST_BYTES);
         const current = fs.fstatSync(descriptor);
         if (!held.isFile() || held.dev !== identity.dev || held.ino !== identity.ino ||
             contents.length !== held.size || current.dev !== held.dev || current.ino !== held.ino ||

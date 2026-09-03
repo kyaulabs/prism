@@ -80,6 +80,14 @@ function boundedCount(value, label) {
     return value;
 }
 
+function conservativeTokenUpperBound(byteCount) {
+    return byteCount;
+}
+
+function conservativeByteAllowance(tokenCount) {
+    return tokenCount;
+}
+
 function calculateContextBudget(options) {
     const contextWindow = boundedCount(options.contextWindow, 'context window');
     const policyBytes = boundedCount(options.policyBytes, 'policy bytes');
@@ -90,15 +98,19 @@ function calculateContextBudget(options) {
         throw new Error('review context exceeds limit');
     }
     const safetyTokens = Math.ceil(contextWindow * 0.2);
-    const reservedTokens = OUTPUT_TOKENS + safetyTokens + policyBytes + evidenceBytes + toolFramingBytes;
-    const available = contextWindow - reservedTokens;
-    if (available <= 0) throw new Error('review context budget is exhausted');
+    const inputTokenUpperBound = conservativeTokenUpperBound(
+        policyBytes + evidenceBytes + toolFramingBytes
+    );
+    const reservedTokens = OUTPUT_TOKENS + safetyTokens + inputTokenUpperBound;
+    const availableTokens = contextWindow - reservedTokens;
+    if (availableTokens <= 0) throw new Error('review context budget is exhausted');
     return Object.freeze({
         contextWindow,
         outputTokens: OUTPUT_TOKENS,
         safetyTokens,
+        inputTokenUpperBound,
         reservedTokens,
-        sourceBytes: Math.min(available, LIMIT.INPUT_BYTES),
+        sourceBytes: Math.min(conservativeByteAllowance(availableTokens), LIMIT.INPUT_BYTES),
     });
 }
 

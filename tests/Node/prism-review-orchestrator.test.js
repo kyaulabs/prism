@@ -262,6 +262,10 @@ test('fails closed on stale snapshots and failed sessions', async () => {
     assert.equal(failed.outcome, 'INCONCLUSIVE');
     assert.equal(failed.axes[0].reason, 'SESSION_TIMEOUT');
 
+    const reasonless = await runReviewAttempt(options(async () => ({ok: false})));
+    assert.equal(reasonless.outcome, 'INCONCLUSIVE');
+    assert.equal(reasonless.axes[0].reason, 'AXIS_SESSION_FAILED');
+
     const times = [0, 1, 101];
     const timedCalls = [];
     const timed = await runReviewAttempt(options(async (request) => {

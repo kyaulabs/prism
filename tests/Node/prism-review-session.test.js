@@ -208,6 +208,7 @@ test('calculates a conservative bounded source allowance', () => {
         contextWindow: 200000,
         outputTokens: 32768,
         safetyTokens: 40000,
+        inputTokenUpperBound: 17000,
         reservedTokens: 89768,
         sourceBytes: 110232,
     });

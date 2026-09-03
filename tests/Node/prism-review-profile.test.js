@@ -334,6 +334,15 @@ test('validates fixed metadata exemptions without exempting regular text', (t) =
     assert.throws(() => loadCoreProfile({packageRoot: invalid.root}));
 });
 
+test('rejects a changed-path text flag that contradicts its kind', () => {
+    const core = loadCoreProfile({packageRoot: CORE_PACKAGE_ROOT});
+
+    assert.throws(() => buildReviewPlan({
+        core,
+        changedPaths: [{newPath: 'src/example.js', kind: 'text', text: false}],
+    }), /descriptor/);
+});
+
 test('rejects symlinked, executable, non-regular, invalid UTF-8, and oversized resources', (t) => {
     const cases = [
         ['symlink', (root, file) => {
@@ -398,6 +407,19 @@ test('validates adapter subsets and prevents Core lens replacement', (t) => {
         registration: {packageName: '@fixture/adapter', packageRoot: collisionRoot, reviewPath},
     });
     assert.throws(() => buildReviewPlan({core, adapter: loaded, changedPaths: ['file.php']}));
+});
+
+test('rejects a relative adapter profile registration before filesystem access', (t) => {
+    const root = tempRoot(t);
+    writeProfilePackage(root, adapterProfile());
+
+    assert.throws(() => loadAdapterProfile({
+        registration: {
+            packageName: '@fixture/adapter',
+            packageRoot: root,
+            reviewPath: 'relative-profile.json',
+        },
+    }), /adapter review registration is invalid/);
 });
 
 test('rejects a symlink-substituted adapter profile registration', (t) => {

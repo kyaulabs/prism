@@ -113,7 +113,9 @@ AGENTS files, or appended system text, and no built-in tools.
 Only immutable `read_file`, immutable `read_diff`, and one terminating
 submission tool are registered. Policy, evidence, source, diff, finding, and
 tool-result bytes are labelled as hostile data. The runtime rejects premature,
-missing, duplicate, malformed, and post-termination submissions.
+missing, duplicate, malformed, and post-termination submissions. Context
+budgeting conservatively reserves one token for every UTF-8 input byte, then
+reserves the fixed output allowance and a twenty-percent safety margin.
 
 A review invokes the selected provider and may incur possible provider cost.
 `doctor --json` resolves model metadata and validates isolation without running

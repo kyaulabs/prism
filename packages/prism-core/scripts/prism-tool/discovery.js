@@ -32,7 +32,8 @@ function isInside(root, candidate) {
 }
 
 function resolveOwnedFile(packageRoot, relativePath, label) {
-    if (typeof relativePath !== 'string' || relativePath.length === 0 || path.isAbsolute(relativePath)) {
+    if (typeof relativePath !== 'string' || relativePath.length === 0 ||
+        relativePath.includes('\\') || path.isAbsolute(relativePath)) {
         throw new Error(`${label} is invalid`);
     }
     const lexical = path.resolve(packageRoot, relativePath);
