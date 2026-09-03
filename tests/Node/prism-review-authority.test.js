@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const {AXES, LIMIT} = require('../../packages/prism-core/scripts/prism-review/constants');
+const {packageIdentity} = require('../../packages/prism-core/scripts/prism-review/package-identity');
 const {
     inspectAuthorityReadiness,
     runAuthoritativeReview,
@@ -78,7 +79,7 @@ function authorityFixture(t, outcome = 'PASS') {
     const check = Object.freeze({
         schemaVersion: 1, kind: 'check', status: 'PASS', branch: 'feat/example',
         baseRef: 'origin/develop', baseSha, headSha,
-        core: Object.freeze({packageName: '@fixture/core', packageVersion: '1.2.3'}),
+        core: Object.freeze(packageIdentity(coreRoot, 'INSTALLED_EXTERNAL')),
         adapter: Object.freeze({id: 'fixture-quality', packageName: '@fixture/adapter',
             packageVersion: '2.3.4', protocolVersion: 1, gates: Object.freeze(['fixture.gate']),
             sourceClass: 'INSTALLED_EXTERNAL'}),
@@ -341,6 +342,7 @@ test('rejects unsafe repair closure targets, tests, gates, criteria, and continu
         ['duplicate finding', (input) => { input.closures.closures.push(
             structuredClone(input.closures.closures[0])); }],
         ['absolute test', (input) => { input.closures.closures[0].tests[0].path = '/tmp/test.js'; }],
+        ['non-test evidence', (input) => { input.closures.closures[0].tests[0].path = 'README.md'; }],
         ['missing test', (_input, _prior, fixture) => { fixture.context.isTrackedClosureTest = () => false; }],
         ['failed gate', (_input, _prior, fixture) => {
             const verify = fixture.context.verifyCheck;
@@ -371,6 +373,23 @@ test('rejects unsafe repair closure targets, tests, gates, criteria, and continu
             assert.equal(fixture.context.sessionCalls, 0);
         });
     }
+});
+
+test('rejects an oversized authority package before reading its contents', async (t) => {
+    const fixture = authorityFixture(t);
+    const oversized = path.join(fixture.coreRoot, 'oversized.bin');
+    fs.writeFileSync(oversized, '');
+    fs.truncateSync(oversized, 33554433);
+    const originalRead = fs.readFileSync;
+    fs.readFileSync = (target, ...args) => {
+        if (target === oversized) throw new Error('oversized-file-read-canary');
+        return originalRead(target, ...args);
+    };
+    t.after(() => { fs.readFileSync = originalRead; });
+
+    await assert.rejects(() => runAuthoritativeReview({
+        operation: 'initial', baseRef: 'origin/develop', newInitial: false,
+    }, fixture.context), /byte limit/);
 });
 
 test('refuses reuse when any bound authority identity changes', async (t) => {

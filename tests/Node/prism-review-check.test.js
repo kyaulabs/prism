@@ -283,9 +283,17 @@ test('defaults an omitted adapter registration to Core-only', async (t) => {
 test('publishes RUNNING before gates and verifies the exact passing HEAD', async (t) => {
     const fixture = repository(t);
     let running;
+    const expectedCore = {
+        name: '@kyaulabs/prism-core',
+        version: '0.4.3',
+        digest: 'f'.repeat(64),
+        sourceClass: 'INSTALLED_EXTERNAL',
+    };
     const result = await runDeterministicCheck({baseRef: 'develop'}, {
         projectRoot: fixture.root,
         coreRoot,
+        sourceClass: 'INSTALLED_EXTERNAL',
+        packageIdentity: () => expectedCore,
         randomBytes: () => Buffer.from('0123456789abcdef'),
         registration: {},
         resolveQualityProvider: adapterProvider,
@@ -300,6 +308,7 @@ test('publishes RUNNING before gates and verifies the exact passing HEAD', async
     assert.equal(result.status, 'PASS');
     assert.equal(result.baseSha, fixture.baseSha);
     assert.equal(result.headSha, fixture.headSha);
+    assert.deepEqual(result.core, expectedCore);
     assert.equal(verifyCheck({
         branch: 'feat/check',
         baseRef: 'develop',

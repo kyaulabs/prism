@@ -404,8 +404,8 @@ test('proves packaged criteria, check, initial, reuse, repair, and preflight aut
         })}\n`);
         fs.writeFileSync(path.join(fixture, '.gitignore'), '.pi/\n');
         fs.writeFileSync(path.join(fixture, 'criteria.md'), '# Approved fixture criteria\n');
-        fs.mkdirSync(path.join(fixture, 'tests'));
-        fs.writeFileSync(path.join(fixture, 'tests/fixture.test.js'), 'fixture test evidence\n');
+        fs.mkdirSync(path.join(fixture, 'tests/Node'), {recursive: true});
+        fs.writeFileSync(path.join(fixture, 'tests/Node/fixture.test.js'), 'fixture test evidence\n');
         fs.writeFileSync(path.join(fixture, 'review.js'), 'module.exports = "base";\n');
         git(fixture, ['init', '-q']);
         git(fixture, ['config', 'user.email', 'fixture@example.test']);
@@ -487,7 +487,7 @@ test('proves packaged criteria, check, initial, reuse, repair, and preflight aut
     const closurePath = path.join(blockedFixture.fixture, '.pi/closures.json');
     fs.writeFileSync(closurePath, JSON.stringify({schemaVersion: 1, closures: [{fingerprint,
         evidence: 'The repaired fixture now passes.',
-        tests: [{path: 'tests/fixture.test.js', gateId: 'core.repository-clean'}]}]}));
+        tests: [{path: 'tests/Node/fixture.test.js', gateId: 'php-web.node-tests'}]}]}));
     const repair = runReview(core.root, blockedFixture.fixture, preload, [
         'review', 'repair', '--base-ref', 'origin/develop', '--closures', '.pi/closures.json', '--json',
     ], env);

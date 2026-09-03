@@ -9,6 +9,7 @@ const path = require('node:path');
 const {TextDecoder} = require('node:util');
 const {digestJson} = require('./canonical-json');
 const {CORE_GATE_IDS, createQualityCallbacks, runCoreQuality} = require('./core-quality');
+const {packageIdentity} = require('./package-identity');
 const {resolveQualityProvider, validateQualityReport} = require('./quality-provider');
 const {
     REVIEW_STATE,
@@ -43,16 +44,34 @@ function boundedText(value, pattern, label) {
     return value;
 }
 
-function parseIdentity(value, adapter = false) {
-    const keys = adapter
-        ? ['id', 'packageName', 'packageVersion', 'protocolVersion', 'gates', 'sourceClass']
-        : ['packageName', 'packageVersion'];
-    exact(value, keys, adapter ? 'check adapter identity' : 'check Core identity');
+function parseQualityIdentity(value) {
+    exact(value, ['packageName', 'packageVersion'], 'Core quality identity');
+    return {
+        packageName: boundedText(value.packageName, PACKAGE_NAME, 'check package name'),
+        packageVersion: boundedText(value.packageVersion, VERSION, 'check package version'),
+    };
+}
+
+function parseCoreIdentity(value) {
+    exact(value, ['name', 'version', 'digest', 'sourceClass'], 'check Core identity');
+    if (!SHA256.test(value.digest ?? '') || value.sourceClass !== 'INSTALLED_EXTERNAL') {
+        throw new Error('check Core identity is invalid');
+    }
+    return {
+        name: boundedText(value.name, PACKAGE_NAME, 'check package name'),
+        version: boundedText(value.version, VERSION, 'check package version'),
+        digest: value.digest,
+        sourceClass: value.sourceClass,
+    };
+}
+
+function parseIdentity(value) {
+    const keys = ['id', 'packageName', 'packageVersion', 'protocolVersion', 'gates', 'sourceClass'];
+    exact(value, keys, 'check adapter identity');
     const identity = {
         packageName: boundedText(value.packageName, PACKAGE_NAME, 'check package name'),
         packageVersion: boundedText(value.packageVersion, VERSION, 'check package version'),
     };
-    if (!adapter) return identity;
     if (!ID.test(value.id ?? '') || value.protocolVersion !== 1 ||
         value.sourceClass !== 'INSTALLED_EXTERNAL' || !Array.isArray(value.gates) ||
         value.gates.length === 0 || value.gates.length > 64 ||
@@ -123,7 +142,7 @@ function parseCheck(value) {
     }
     const branch = boundedText(value.branch, BRANCH, 'check branch');
     const baseRef = boundedText(value.baseRef, BRANCH, 'check base reference');
-    const core = parseIdentity(value.core);
+    const core = parseCoreIdentity(value.core);
     const adapter = value.adapter === null ? null : parseIdentity(value.adapter, true);
     const gates = value.gates.map(parseGate);
     const ids = gates.map(({id}) => id);
@@ -212,9 +231,11 @@ function sameSnapshot(expected, context) {
 }
 
 function coreIdentity(context) {
-    const root = fs.realpathSync(context.coreRoot ?? path.resolve(__dirname, '../..'));
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    return parseIdentity({packageName: manifest.name, packageVersion: manifest.version});
+    const identify = context.packageIdentity ?? packageIdentity;
+    return parseCoreIdentity(identify(
+        fs.realpathSync(context.coreRoot ?? path.resolve(__dirname, '../..')),
+        context.sourceClass ?? 'INSTALLED_EXTERNAL'
+    ));
 }
 
 function inspectCheck(context = {}) {
@@ -272,7 +293,7 @@ async function runDeterministicCheck(input, context = {}) {
                 run: context.runGit,
                 env: context.env,
             });
-            adapter = parseIdentity(provider.identity, true);
+            adapter = parseIdentity(provider.identity);
         }
         running = parseCheck({
             schemaVersion: 1,
@@ -292,8 +313,10 @@ async function runDeterministicCheck(input, context = {}) {
         });
         exact(coreReport, ['schemaVersion', 'core', 'status', 'gates'], 'Core quality report');
         if (coreReport.schemaVersion !== 1 ||
-            JSON.stringify(parseIdentity(coreReport.core)) !== JSON.stringify(core) ||
-            !Array.isArray(coreReport.gates) || coreReport.gates.length !== CORE_GATE_IDS.length) {
+            JSON.stringify(parseQualityIdentity(coreReport.core)) !== JSON.stringify({
+                packageName: core.name,
+                packageVersion: core.version,
+            }) || !Array.isArray(coreReport.gates) || coreReport.gates.length !== CORE_GATE_IDS.length) {
             throw new Error('Core quality report is invalid');
         }
         gates = coreReport.gates.map(parseGate);

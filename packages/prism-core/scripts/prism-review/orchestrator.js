@@ -167,7 +167,8 @@ function sessionTimeout(requested, remaining) {
 
 async function verifyFindings(options) {
     if (options.findings.length === 0) {
-        return {complete: true, uncertainBlocking: false, findings: [], chunks: 0, dispositions: []};
+        return {complete: true, uncertainBlocking: false, candidates: [], findings: [], chunks: 0,
+            dispositions: []};
     }
     const sorted = [...options.findings].sort(findingOrder);
     const dispositions = [];
@@ -175,7 +176,8 @@ async function verifyFindings(options) {
     for (let offset = 0; offset < sorted.length; offset += LIMIT.VERIFIER_FINDINGS) {
         const remaining = options.remaining();
         if (remaining <= 0 || !safelyFresh(options.assertFresh, options.snapshot)) {
-            return {complete: false, uncertainBlocking: true, findings: [], chunks: dispositions.length, dispositions, model};
+            return {complete: false, uncertainBlocking: true, candidates: sorted, findings: [],
+                chunks: dispositions.length, dispositions, model};
         }
         const chunk = sorted.slice(offset, offset + LIMIT.VERIFIER_FINDINGS);
         const relevant = subsetSnapshot(options.snapshot, chunk);
@@ -184,7 +186,8 @@ async function verifyFindings(options) {
         const resources = selectResources(options.resourceIndex, [options.sessionSkill, ...options.verifierSkills]);
         const timeoutMs = sessionTimeout(options.timeoutMs, options.remaining());
         if (timeoutMs === null) {
-            return {complete: false, uncertainBlocking: true, findings: [], chunks: dispositions.length, dispositions, model};
+            return {complete: false, uncertainBlocking: true, candidates: sorted, findings: [],
+                chunks: dispositions.length, dispositions, model};
         }
         let result;
         try {
@@ -218,15 +221,18 @@ async function verifyFindings(options) {
                 active: options.active,
             });
         } catch {
-            return {complete: false, uncertainBlocking: true, findings: [], chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
+            return {complete: false, uncertainBlocking: true, candidates: sorted, findings: [],
+                chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
         }
         if (result?.ok !== true || !toolSet.ledger.isComplete()) {
-            return {complete: false, uncertainBlocking: true, findings: [], chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
+            return {complete: false, uncertainBlocking: true, candidates: sorted, findings: [],
+                chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
         }
         try {
             validateVerifierSubmission(result.submission, chunk);
         } catch {
-            return {complete: false, uncertainBlocking: true, findings: [], chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
+            return {complete: false, uncertainBlocking: true, candidates: sorted, findings: [],
+                chunks: Math.ceil((offset + 1) / LIMIT.VERIFIER_FINDINGS), dispositions, model};
         }
         for (const finding of chunk) {
             dispositions.push(result.submission.dispositions.find(
@@ -261,6 +267,7 @@ async function verifyFindings(options) {
     return {
         complete: true,
         uncertainBlocking,
+        candidates: sorted,
         findings: confirmed.sort(findingOrder),
         chunks: Math.ceil(sorted.length / LIMIT.VERIFIER_FINDINGS),
         dispositions,
@@ -466,7 +473,7 @@ async function runReviewAttempt(options, authority = null) {
         axisLedgers: [],
         lenses: [],
         findings: [],
-        verifier: {complete: false, chunks: 0, dispositions: []},
+        verifier: {complete: false, chunks: 0, candidates: [], dispositions: []},
     };
     let index;
     let exemptions;
@@ -634,6 +641,7 @@ async function runReviewAttempt(options, authority = null) {
     state.verifier = {
         complete: verified.complete,
         chunks: verified.chunks,
+        candidates: verified.candidates ?? [],
         dispositions: verified.dispositions,
     };
     state.findings = verified.findings;

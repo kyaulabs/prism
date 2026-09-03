@@ -273,6 +273,9 @@ test('records complete criteria exposure for an authoritative requirement axis',
     assert.deepEqual(calls.filter((request) =>
         request.tools.some(({name}) => name === 'read_criteria')).map(({axis}) => axis),
     ['requirement-coverage']);
+    const tooling = calls.find(({axis}) => axis === 'tooling-style');
+    const requirements = calls.find(({axis}) => axis === 'requirement-coverage');
+    assert.equal(requirements.sourceBytes, tooling.sourceBytes + criteriaSource.byteCount);
     assert.doesNotMatch(JSON.stringify(report), /one € two/);
 });
 

@@ -448,7 +448,7 @@ async function executeBridge(bridge, context, projectRoot, trust) {
             piDir: context.piDir ?? path.join(projectRoot, '.pi'),
         });
         const receipt = await (context.runDeterministicCheck ?? runDeterministicCheck)(
-            {baseRef: bridge.baseRef}, {...context, projectRoot, registration}
+            {baseRef: bridge.baseRef}, {...context, projectRoot, registration, sourceClass: trust.sourceClass}
         );
         if (!/^[0-9a-f]{64}$/.test(receipt?.digest ?? '') || !['PASS', 'FAIL'].includes(receipt.status)) {
             throw new Error('check receipt is invalid');

@@ -228,31 +228,34 @@ async function runQualityProvider(options) {
     const shell = files.filter((file) => file.endsWith('.sh'));
     const style = files.filter((file) => file.endsWith('.scss') || file.endsWith('.css'));
     const has = (file) => files.includes(file);
-    const pending = new Map();
-    pending.set('php-web.composer-audit', has('composer.lock')
+    const tasks = new Map();
+    tasks.set('php-web.composer-audit', () => has('composer.lock')
         ? one('php-web.composer-audit', ['composer', 'audit', '--locked', '--no-interaction'], options.runCommand,
             {command: 'composer', args: ['audit', '--locked', '--no-interaction']})
         : skipped('php-web.composer-audit', ['composer', 'audit', '--locked', '--no-interaction']));
-    pending.set('php-web.eslint', script.length
+    tasks.set('php-web.eslint', () => script.length
         ? one('php-web.eslint', ['eslint', 'TRACKED_SCRIPT_FILES'], options.runTool,
             {toolId: 'eslint', args: script})
         : skipped('php-web.eslint', ['eslint', 'TRACKED_SCRIPT_FILES']));
-    pending.set('php-web.node-tests', options.packageScripts.some((name) => ['test:node', 'test:plugin'].includes(name)) &&
-        files.some((file) => /^tests\/Node\/.*\.test\.(?:js|ts)$/u.test(file))
+    tasks.set('php-web.node-tests', () => options.packageScripts.some(
+        (name) => ['test:node', 'test:plugin'].includes(name)
+    ) && files.some((file) => /^tests\/Node\/.*\.test\.(?:js|ts)$/u.test(file))
         ? one('php-web.node-tests', ['node', '--test', 'tests/Node'], options.runCommand,
             {command: 'node', args: ['--test', 'tests/Node']})
         : skipped('php-web.node-tests', ['node', '--test', 'tests/Node']));
-    pending.set('php-web.npm-audit', has('package-lock.json')
+    tasks.set('php-web.npm-audit', () => has('package-lock.json')
         ? one('php-web.npm-audit', ['npm', 'audit', '--audit-level=low'], options.runCommand,
             {command: 'npm', args: ['audit', '--audit-level=low']})
         : skipped('php-web.npm-audit', ['npm', 'audit', '--audit-level=low']));
-    pending.set('php-web.php-cs-fixer', php.length
+    tasks.set('php-web.php-cs-fixer', () => php.length
         ? one('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES'],
             options.runTool, {toolId: 'php-cs-fixer', args: ['fix', '--dry-run', '--diff', ...php]})
         : skipped('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES']));
-    pending.set('php-web.php-syntax', many('php-web.php-syntax', ['php', '-l', 'TRACKED_PHP_FILES'],
-        options.runCommand, php.map((file) => ({command: 'php', args: ['-l', file]}))));
-    pending.set('php-web.playwright-list', files.some((file) => file.startsWith('tests/Browser/'))
+    tasks.set('php-web.php-syntax', () => many(
+        'php-web.php-syntax', ['php', '-l', 'TRACKED_PHP_FILES'], options.runCommand,
+        php.map((file) => ({command: 'php', args: ['-l', file]}))
+    ));
+    tasks.set('php-web.playwright-list', () => files.some((file) => file.startsWith('tests/Browser/'))
         ? one('php-web.playwright-list', ['playwright', 'test', '--list'], options.runTool,
             {toolId: 'playwright', args: ['test', '--list']})
         : skipped('php-web.playwright-list', ['playwright', 'test', '--list']));
@@ -260,30 +263,33 @@ async function runQualityProvider(options) {
         'prism-tool', 'server', 'run', '@kyaulabs/prism-php-web:browser-fixture',
         '--tool', 'pest', '--', '--coverage', '--min=80', '--coverage-clover=tests/coverage.xml',
     ];
-    const pestCoverage = php.length
+    tasks.set('php-web.pest-coverage', () => php.length
         ? one('php-web.pest-coverage', pestCommand, options.runServer,
             {profileId: 'browser-fixture', toolId: 'pest',
                 args: ['--coverage', '--min=80', '--coverage-clover=tests/coverage.xml']})
-        : Promise.resolve(skipped('php-web.pest-coverage', pestCommand));
-    pending.set('php-web.pest-coverage', pestCoverage);
-    pending.set('php-web.changed-file-coverage', (async () => {
-        const pestReceipt = await pestCoverage;
-        return pestReceipt.status === 'PASS'
+        : skipped('php-web.pest-coverage', pestCommand));
+    tasks.set('php-web.changed-file-coverage', (byId) =>
+        byId.get('php-web.pest-coverage').status === 'PASS'
             ? changedCoverage(options)
-            : skipped('php-web.changed-file-coverage', ['coverage-gate', 'tests/coverage.xml']);
-    })());
-    pending.set('php-web.shell-tests', many('php-web.shell-tests', ['bash', 'TRACKED_SHELL_TESTS'],
-        options.runCommand, shell.map((file) => ({command: 'bash', args: [file]}))));
-    pending.set('php-web.stylelint', style.length
+            : skipped('php-web.changed-file-coverage', ['coverage-gate', 'tests/coverage.xml']));
+    tasks.set('php-web.shell-tests', () => many(
+        'php-web.shell-tests', ['bash', 'TRACKED_SHELL_TESTS'], options.runCommand,
+        shell.map((file) => ({command: 'bash', args: [file]}))
+    ));
+    tasks.set('php-web.stylelint', () => style.length
         ? one('php-web.stylelint', ['stylelint', 'TRACKED_STYLE_FILES'], options.runTool,
             {toolId: 'stylelint', args: style})
         : skipped('php-web.stylelint', ['stylelint', 'TRACKED_STYLE_FILES']));
-    pending.set('php-web.typescript', has('tsconfig.json')
+    tasks.set('php-web.typescript', () => has('tsconfig.json')
         ? one('php-web.typescript', ['typescript', '--noEmit'], options.runTool,
             {toolId: 'typescript', args: ['--noEmit']})
         : skipped('php-web.typescript', ['typescript', '--noEmit']));
-    const gates = [];
-    for (const id of GATES) gates.push(await pending.get(id));
+    const executionOrder = GATES.filter((id) => id !== 'php-web.changed-file-coverage');
+    executionOrder.splice(executionOrder.indexOf('php-web.pest-coverage') + 1, 0,
+        'php-web.changed-file-coverage');
+    const byId = new Map();
+    for (const id of executionOrder) byId.set(id, await tasks.get(id)(byId));
+    const gates = GATES.map((id) => byId.get(id));
     let snapshotValid = false;
     try {
         snapshotValid = await options.verifySnapshot({

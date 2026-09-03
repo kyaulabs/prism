@@ -194,13 +194,16 @@ function validateExemptions(value) {
 }
 
 function validateVerifier(value, findings, requireComplete = true) {
-    exact(value, ['complete', 'chunks', 'dispositions'], 'review verifier');
+    exact(value, ['complete', 'chunks', 'candidates', 'dispositions'], 'review verifier');
     if ((requireComplete ? value.complete !== true : typeof value.complete !== 'boolean') ||
         !Number.isSafeInteger(value.chunks) || value.chunks < 0 ||
+        !Array.isArray(value.candidates) || value.candidates.length > LIMIT.REVIEW_FINDINGS ||
         !Array.isArray(value.dispositions) || value.dispositions.length > LIMIT.REVIEW_FINDINGS) {
         throw new ReviewChainV2Error('review verifier is incomplete');
     }
-    const expected = new Set(findings.map(({fingerprint}) => fingerprint));
+    const candidates = value.candidates.map(validateFinding);
+    const expected = new Map(candidates.map((candidate) => [candidate.fingerprint, candidate]));
+    if (expected.size !== candidates.length) throw new ReviewChainV2Error('review verifier candidates are invalid');
     const dispositions = new Map();
     const rows = value.dispositions.map((row) => {
         exact(row, ['fingerprint', 'disposition', 'rationale', 'duplicateOf'], 'review verifier disposition');
@@ -218,8 +221,10 @@ function validateVerifier(value, findings, requireComplete = true) {
         dispositions.set(row.fingerprint, row);
         return {...row};
     });
-    const expectedChunks = rows.length === 0 ? 0 : Math.ceil(rows.length / LIMIT.VERIFIER_FINDINGS);
-    if (requireComplete && value.chunks !== expectedChunks) {
+    const expectedChunks = candidates.length === 0
+        ? 0
+        : Math.ceil(candidates.length / LIMIT.VERIFIER_FINDINGS);
+    if (requireComplete && (value.chunks !== expectedChunks || rows.length !== candidates.length)) {
         throw new ReviewChainV2Error('review verifier is incomplete');
     }
     for (const row of rows.filter(({disposition}) => disposition === 'DUPLICATE')) {
@@ -230,15 +235,19 @@ function validateVerifier(value, findings, requireComplete = true) {
             visited.add(target);
             target = dispositions.get(target).duplicateOf;
         }
-        if (dispositions.get(target)?.disposition !== 'CONFIRMED') {
+        if (dispositions.get(target)?.disposition !== 'CONFIRMED' ||
+            expected.get(row.fingerprint).classification !== expected.get(target)?.classification) {
             throw new ReviewChainV2Error('review verifier duplicate is invalid');
         }
     }
-    if (requireComplete && findings.some((finding) =>
-        dispositions.get(finding.fingerprint)?.disposition !== 'CONFIRMED')) {
+    const confirmed = candidates.filter(({fingerprint}) =>
+        dispositions.get(fingerprint)?.disposition === 'CONFIRMED');
+    if (requireComplete && (confirmed.length !== findings.length || findings.some((finding) =>
+        JSON.stringify(expected.get(finding.fingerprint)) !== JSON.stringify(finding) ||
+        dispositions.get(finding.fingerprint)?.disposition !== 'CONFIRMED'))) {
         throw new ReviewChainV2Error('confirmed review finding is invalid');
     }
-    return {complete: true, chunks: value.chunks, dispositions: rows};
+    return {complete: value.complete, chunks: value.chunks, candidates, dispositions: rows};
 }
 
 function validateModel(value) {
@@ -339,10 +348,8 @@ function validateReport(report, input) {
     const hasBlocking = findings.some(({classification}) => classification === 'BLOCKING');
     if ((report.outcome === 'BLOCKING') !== hasBlocking) throw new ReviewChainV2Error('review outcome is invalid');
     const axes = validateAxes(report.axes);
-    if ((report.outcome === 'BLOCKING') !== axes.some(({outcome}) => outcome === 'BLOCKING')) {
-        throw new ReviewChainV2Error('review outcome is invalid');
-    }
-    validateAxisFindingOutcomes(axes, findings);
+    const verifier = validateVerifier(report.verifier, findings);
+    validateAxisFindingOutcomes(axes, verifier.candidates);
     return {
         axes,
         byteExposure: validateExposure(report.byteExposure),
@@ -350,7 +357,7 @@ function validateReport(report, input) {
         lenses: validateLenses(report.lenses),
         exemptions: validateExemptions(report.exemptions),
         findings,
-        verifier: validateVerifier(report.verifier, findings),
+        verifier,
         model,
         outcome: report.outcome,
         planDigest: report.planDigest,
@@ -441,7 +448,8 @@ function validateSegment(value) {
         throw new ReviewChainV2Error('review findings are invalid');
     }
     const axes = validateAxes(value.axes);
-    validateAxisFindingOutcomes(axes, findings);
+    const verifier = validateVerifier(value.verifier, findings);
+    validateAxisFindingOutcomes(axes, verifier.candidates);
     const closures = value.closures.map(validateClosure);
     if (new Set(closures.map(({fingerprint}) => fingerprint)).size !== closures.length) {
         throw new ReviewChainV2Error('review closures are duplicate');
@@ -461,7 +469,7 @@ function validateSegment(value) {
         lenses: validateLenses(value.lenses),
         exemptions: validateExemptions(value.exemptions),
         findings,
-        verifier: validateVerifier(value.verifier, findings),
+        verifier,
         closures,
         reuse: validateReuse(value.reuse, value.range, check),
     };

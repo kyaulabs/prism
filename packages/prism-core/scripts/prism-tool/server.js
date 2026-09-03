@@ -1,4 +1,4 @@
-// $KYAULabs: server.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: server.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -63,9 +63,12 @@ async function runValidatedServer(request, context = {}) {
         throw Object.assign(new Error('server executable is unavailable'), {code: 'READINESS_FAILED'});
     }
     const projectRoot = fs.realpathSync(request.projectRoot);
+    const clientExecutable = handler.resolveTool({component, projectRoot});
+    if (typeof clientExecutable !== 'string' || clientExecutable.length === 0) {
+        throw new Error('server client executable is unavailable');
+    }
     const runClient = context.runClient ?? ((selected) => {
-        const executable = handler.resolveTool({component: selected.component, projectRoot});
-        const argv = [...(selected.component.argvPrefix ?? []), executable, ...selected.args];
+        const argv = [...(selected.component.argvPrefix ?? []), clientExecutable, ...selected.args];
         return (context.run ?? runBounded)(argv[0], argv.slice(1), {
             cwd: projectRoot,
             env: selected.env,

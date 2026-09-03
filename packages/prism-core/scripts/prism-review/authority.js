@@ -3,7 +3,6 @@
 'use strict';
 
 const childProcess = require('node:child_process');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {digestJson} = require('./canonical-json');
@@ -12,6 +11,7 @@ const {verifyCriteria} = require('./criteria');
 const {validateClosureProposal} = require('./findings');
 const {createSnapshot} = require('./git-snapshot');
 const {runAuthoritativeAttempt} = require('./orchestrator');
+const {packageIdentity} = require('./package-identity');
 const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profile');
 const {resolveQualityProvider} = require('./quality-provider');
 const {inspectReviewChainV2, recordReviewAttempt} = require('./review-chain-v2');
@@ -21,8 +21,6 @@ const {discoverOptionalAdapter} = require('../prism-tool/discovery');
 
 const OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
-const MAX_PACKAGE_FILES = 4096;
-const MAX_PACKAGE_BYTES = 33554432;
 
 function exact(value, keys, label) {
     if (value === null || typeof value !== 'object' || Array.isArray(value) ||
@@ -83,72 +81,6 @@ function resolveRepositoryIdentity(input, context, repositoryRoot) {
     return {branch, baseRef, baseSha, headSha};
 }
 
-function readHeldFile(filePath) {
-    const before = fs.lstatSync(filePath);
-    if (!before.isFile() || before.isSymbolicLink()) throw new Error('authority package file is invalid');
-    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    try {
-        const held = fs.fstatSync(descriptor);
-        const bytes = fs.readFileSync(descriptor);
-        const after = fs.fstatSync(descriptor);
-        if (!held.isFile() || held.dev !== before.dev || held.ino !== before.ino ||
-            held.size !== bytes.length || after.dev !== held.dev || after.ino !== held.ino ||
-            after.size !== held.size) throw new Error('authority package file changed');
-        return {bytes, mode: held.mode & 0o777};
-    } finally {
-        fs.closeSync(descriptor);
-    }
-}
-
-function packageFiles(root, current = root, output = []) {
-    for (const name of fs.readdirSync(current).sort()) {
-        if (name === 'node_modules') continue;
-        const absolute = path.join(current, name);
-        const identity = fs.lstatSync(absolute);
-        if (identity.isSymbolicLink()) throw new Error('authority package contains a symbolic link');
-        if (identity.isDirectory()) packageFiles(root, absolute, output);
-        else if (identity.isFile()) output.push({absolute, path: path.relative(root, absolute).split(path.sep).join('/')});
-        else throw new Error('authority package contains an unsupported entry');
-        if (output.length > MAX_PACKAGE_FILES) throw new Error('authority package exceeds file limit');
-    }
-    return output;
-}
-
-function packageIdentity(packageRoot, sourceClass, adapter = null) {
-    const root = fs.realpathSync(packageRoot);
-    const requested = fs.lstatSync(packageRoot);
-    if (!requested.isDirectory() || requested.isSymbolicLink() || root !== path.resolve(packageRoot)) {
-        throw new Error('authority package root is invalid');
-    }
-    let total = 0;
-    let manifestBytes = null;
-    const inventory = packageFiles(root).map((entry) => {
-        const held = readHeldFile(entry.absolute);
-        if (entry.path === 'package.json') manifestBytes = held.bytes;
-        total += held.bytes.length;
-        if (total > MAX_PACKAGE_BYTES) throw new Error('authority package exceeds byte limit');
-        return {path: entry.path, mode: held.mode, bytes: held.bytes.length,
-            sha256: crypto.createHash('sha256').update(held.bytes).digest('hex')};
-    });
-    if (manifestBytes === null) throw new Error('authority package manifest is unavailable');
-    const manifest = JSON.parse(manifestBytes.toString('utf8'));
-    if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(manifest.name ?? '') ||
-        !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version ?? '')) {
-        throw new Error('authority package manifest is invalid');
-    }
-    const identity = {
-        name: manifest.name,
-        version: manifest.version,
-        digest: digestJson(inventory),
-        sourceClass,
-    };
-    return adapter === null ? identity : {
-        ...identity,
-        providerId: adapter.id,
-        protocolVersion: adapter.protocolVersion,
-    };
-}
-
 function resourceIdentities(core, adapter) {
     return [...core.resources, ...(adapter?.resources ?? [])].map(({id, path: resourcePath, sha256}) => ({
         id, path: resourcePath, sha256,
@@ -183,6 +115,17 @@ function assertContinuousHistory(context, repositoryRoot, fromSha, toSha) {
     git(context, repositoryRoot, ['merge-base', '--is-ancestor', fromSha, toSha]);
 }
 
+function closureTestMatchesGate(testPath, gateId) {
+    if (gateId.endsWith('.node-tests')) {
+        return /^tests\/Node\/.+\.test\.(?:js|ts)$/u.test(testPath);
+    }
+    if (gateId.endsWith('.shell-tests')) {
+        return /^tests\/Shell\/.+_test\.sh$/u.test(testPath);
+    }
+    if (gateId.endsWith('.pest-coverage')) return /^tests\/.+\.php$/u.test(testPath);
+    return false;
+}
+
 function trackedClosureTest(context, repositoryRoot, headSha, testPath) {
     if (context.isTrackedClosureTest !== undefined) {
         return context.isTrackedClosureTest(testPath, headSha) === true;
@@ -208,7 +151,7 @@ function repairContext(input, current, criteria, check, repository, context, rep
             throw new Error('repair closure target is invalid');
         }
         for (const test of closure.tests) {
-            if (gates.get(test.gateId) !== 'PASS' ||
+            if (gates.get(test.gateId) !== 'PASS' || !closureTestMatchesGate(test.path, test.gateId) ||
                 !trackedClosureTest(context, repositoryRoot, repository.headSha, test.path)) {
                 throw new Error('repair closure test is invalid');
             }
@@ -314,9 +257,7 @@ async function runAuthoritativeReview(input, context = {}) {
         throw new Error('active adapter is unavailable');
     }
     const corePackage = (context.packageIdentity ?? packageIdentity)(resolved.coreRoot, readiness.sourceClass);
-    if (check.core.packageName !== corePackage.name || check.core.packageVersion !== corePackage.version) {
-        throw new Error('check Core identity mismatch');
-    }
+    if (!same(check.core, corePackage)) throw new Error('check Core identity mismatch');
     const snapshot = (context.createSnapshot ?? createSnapshot)({
         mode: 'branch', repositoryRoot: resolved.repositoryRoot,
         base: snapshotBase, head: repository.headSha,

@@ -77,6 +77,41 @@ test('runs changed-file coverage only after the Pest artifact exists', async () 
     assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
 });
 
+test('executes quality gates sequentially', async () => {
+    let active = 0;
+    let maximum = 0;
+    const tracked = async (request) => {
+        active += 1;
+        maximum = Math.max(maximum, active);
+        await delay(5);
+        active -= 1;
+        return success(request);
+    };
+
+    await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: [
+            'app/example.php',
+            'assets/example.js',
+            'tests/Node/example.test.js',
+            'tests/Shell/example_test.sh',
+            'composer.lock',
+            'package-lock.json',
+        ],
+        packageScripts: ['test:node'],
+        runCommand: tracked,
+        runTool: tracked,
+        runServer: tracked,
+        changedLines: async () => [],
+        readArtifact: async () => Buffer.from('<coverage/>'),
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(maximum, 1);
+});
+
 test('ignores non-statement Clover lines in changed-file coverage', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,

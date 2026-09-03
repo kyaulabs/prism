@@ -137,6 +137,7 @@ function report(target, overrides = {}) {
         verifier: {
             complete: true,
             chunks: findings.length === 0 ? 0 : 1,
+            candidates: findings,
             dispositions: findings.map((item) => ({
                 fingerprint: item.fingerprint,
                 disposition: 'CONFIRMED',
@@ -331,6 +332,68 @@ test('preserves a concurrently advanced chain instead of publishing from stale s
     );
 });
 
+test('records rejected verifier candidates without promoting them to findings', (t) => {
+    const target = fixture(t);
+    const confirmed = finding();
+    const rejected = finding({fingerprint: '0'.repeat(64), summary: 'This candidate is not reproducible.'});
+    const review = report(target, {
+        findings: [confirmed],
+        report: {
+            verifier: {
+                complete: true,
+                chunks: 1,
+                candidates: [confirmed, rejected],
+                dispositions: [
+                    {fingerprint: confirmed.fingerprint, disposition: 'CONFIRMED',
+                        rationale: 'Confirmed against immutable review evidence.', duplicateOf: null},
+                    {fingerprint: rejected.fingerprint, disposition: 'REJECTED',
+                        rationale: 'The claimed path is not reachable.', duplicateOf: null},
+                ],
+            },
+        },
+    });
+
+    const record = recordReviewAttempt(attempt(target, {report: review}), target);
+
+    assert.equal(record.findings.length, 1);
+    assert.equal(record.segments[0].verifier.candidates.length, 2);
+    assert.equal(record.segments[0].verifier.dispositions.length, 2);
+});
+
+test('rejects duplicate verifier candidates with incompatible classifications', (t) => {
+    const target = fixture(t);
+    const advisory = finding();
+    const blocking = finding({
+        classification: 'BLOCKING',
+        fingerprint: '0'.repeat(64),
+        summary: 'This candidate blocks the workflow.',
+        causality: 'The changed value reaches the runtime.',
+        relevance: 'The reviewed change introduced it.',
+        workflowImpact: 'The workflow returns an incorrect result.',
+    });
+    const review = report(target, {
+        findings: [advisory],
+        report: {
+            axes: AXES.map((id) => ({id, status: 'COMPLETE',
+                outcome: id === 'tooling-style' ? 'BLOCKING' : 'PASS', reason: null})),
+            verifier: {
+                complete: true,
+                chunks: 1,
+                candidates: [advisory, blocking],
+                dispositions: [
+                    {fingerprint: advisory.fingerprint, disposition: 'CONFIRMED',
+                        rationale: 'Confirmed against immutable review evidence.', duplicateOf: null},
+                    {fingerprint: blocking.fingerprint, disposition: 'DUPLICATE',
+                        rationale: 'Claims the same behavior.', duplicateOf: advisory.fingerprint},
+                ],
+            },
+        },
+    });
+
+    assert.throws(() => recordReviewAttempt(attempt(target, {report: review}), target),
+        /verifier duplicate is invalid/);
+});
+
 test('rejects incomplete authority ledgers, malformed verifier state, and stale identities', (t) => {
     const cases = [
         (input) => { input.report.axes.pop(); },
@@ -470,7 +533,7 @@ test('rejects duplicate or over-limit Inconclusive finding sets', (t) => {
         const inconclusive = report(target, {
             findings,
             outcome: 'INCONCLUSIVE',
-            report: {verifier: {complete: false, chunks: 0, dispositions: []}},
+            report: {verifier: {complete: false, chunks: 0, candidates: [], dispositions: []}},
         });
 
         assert.throws(() => recordReviewAttempt(attempt(target, {report: inconclusive}), target), /findings/);
