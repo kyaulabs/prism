@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -112,6 +112,20 @@ test('prints the closed command grammar without touching runtime boundaries', as
     assert.match(output.result().stdout, /review commit --commit SHA --json/);
     assert.match(output.result().stdout, /review branch --base SHA --head SHA --json/);
     assert.match(output.result().stdout, /review path --path RELATIVE_TRACKED_PATH --json/);
+    assert.match(output.result().stdout,
+        /criteria record --source ROLE:COMMIT:PATH \[--source ROLE:COMMIT:PATH \.\.\.\] --json/);
+    assert.match(output.result().stdout, /criteria none --json/);
+    assert.match(output.result().stdout, /criteria inspect --json/);
+    assert.match(output.result().stdout, /check --base-ref origin\/develop\|origin\/main --json/);
+    assert.match(output.result().stdout, /chain inspect --json/);
+    assert.match(output.result().stdout,
+        /chain verify --base-ref origin\/develop\|origin\/main --json/);
+    assert.match(output.result().stdout,
+        /review authoritative --base-ref origin\/develop\|origin\/main --json/);
+    assert.match(output.result().stdout,
+        /review authoritative --base-ref origin\/develop\|origin\/main --new-initial --json/);
+    assert.match(output.result().stdout,
+        /review repair --base-ref origin\/develop\|origin\/main --closures RELATIVE_PATH --json/);
 });
 
 test('classifies checkout Core as ineligible for authority', () => {
@@ -163,6 +177,22 @@ test('rejects every command outside the closed grammar before dependencies run',
         ['review', 'branch', '--head', 'a'.repeat(40), '--base', 'b'.repeat(40), '--json'],
         ['review', 'path', '--path', '../outside', '--json'],
         ['review', 'path', '--path', 'bad\npath', '--json'],
+        ['criteria', 'record', '--json'],
+        ['criteria', 'record', '--source', `spec:${'a'.repeat(40)}:docs/spec.md`, '--json'],
+        ['criteria', 'record', '--source', 'SPEC:HEAD:docs/spec.md', '--json'],
+        ['criteria', 'record', '--source', `SPEC:${'a'.repeat(40)}:/docs/spec.md`, '--json'],
+        ['criteria', 'record', '--source', `SPEC:${'a'.repeat(40)}:docs/a.md`,
+            '--source', `PLAN:${'a'.repeat(40)}:docs/a.md`, '--json'],
+        ['criteria', 'none', '--json', 'extra'],
+        ['check', '--json', '--base-ref', 'origin/develop'],
+        ['check', '--base-ref', 'develop', '--json'],
+        ['chain', 'verify', '--base-ref', 'origin/develop', '--json', 'extra'],
+        ['review', 'authoritative', '--new-initial', '--base-ref', 'origin/develop', '--json'],
+        ['review', 'authoritative', '--base-ref', 'origin/develop', '--new-initial', '--new-initial', '--json'],
+        ['review', 'repair', '--base-ref', 'origin/develop', '--closures', '../closures.json', '--json'],
+        ['review', 'repair', '--base-ref', 'origin/develop', '--closures', 'closures/*.json', '--json'],
+        ['review', 'repair', '--base-ref', 'origin/develop', '--closures', 'closures.json',
+            '--closures', 'again.json', '--json'],
     ];
     for (const argv of invalid) {
         const output = capture();
@@ -174,6 +204,302 @@ test('rejects every command outside the closed grammar before dependencies run',
         assert.equal(status, EXIT.USAGE, JSON.stringify(argv));
         assert.equal(output.result().stdout, '', JSON.stringify(argv));
         assert.equal(output.result().stderr, 'prism-review: invalid arguments\n', JSON.stringify(argv));
+    }
+});
+
+test('reports explicit read-only bridge state without requiring authority eligibility', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const output = capture();
+    const calls = [];
+
+    const status = await main(['criteria', 'inspect', '--json'], {
+        ...output.context,
+        projectRoot: repositoryRoot,
+        classifyTrustRoot(coreRoot, project) {
+            calls.push(['trust', coreRoot, project]);
+            return {eligibleForAuthority: false, sourceClass: 'REVIEWED_WORKTREE'};
+        },
+        inspectCriteria() {
+            calls.push(['criteria']);
+            return {state: 'ABSENT', path: '/private/canary'};
+        },
+    });
+
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(calls.map(([name]) => name), ['trust', 'criteria']);
+    assert.deepEqual(JSON.parse(output.result().stdout), {
+        schemaVersion: 1,
+        command: 'criteria inspect',
+        status: 'PASS',
+        outcome: 'PASS',
+        eligibleForAuthority: false,
+        sourceClass: 'REVIEWED_WORKTREE',
+        state: 'ABSENT',
+        version: null,
+        receiptDigest: null,
+        reason: null,
+    });
+    assert.doesNotMatch(output.result().stdout, /private|canary/);
+    assert.equal(output.result().stderr, '');
+});
+
+test('verifies a chain read-only from checkout Core', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const sha = 'a'.repeat(40);
+    const digest = 'b'.repeat(64);
+    const output = capture();
+    const status = await main([
+        'chain', 'verify', '--base-ref', 'origin/develop', '--json',
+    ], {
+        ...output.context,
+        projectRoot: repositoryRoot,
+        classifyTrustRoot: () => ({eligibleForAuthority: false, sourceClass: 'REVIEWED_WORKTREE'}),
+        resolveBridgeIdentity: () => ({
+            branch: 'feat/example', baseRef: 'origin/develop', baseSha: sha, headSha: sha,
+        }),
+        verifyCriteria: () => ({digest}),
+        verifyCheck: (identity) => ({...identity, digest, status: 'PASS'}),
+        verifyReviewChainV2: () => ({record: {schemaVersion: 2, headSha: sha}}),
+    });
+
+    assert.equal(status, EXIT.OK);
+    const report = JSON.parse(output.result().stdout);
+    assert.equal(report.eligibleForAuthority, false);
+    assert.equal(report.sourceClass, 'REVIEWED_WORKTREE');
+    assert.equal(report.state, 'VALID');
+    assert.equal(report.version, 2);
+});
+
+test('records exact criteria sources only through an eligible authority root', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const sha = 'a'.repeat(40);
+    const argv = [
+        'criteria', 'record', '--source', `SPEC:${sha}:docs/specs/review:bridge.md`,
+        '--source', `PLAN:${sha}:docs/plans/review.md`, '--json',
+    ];
+    const rejected = capture();
+    let touched = false;
+    assert.equal(await main(argv, {
+        ...rejected.context,
+        projectRoot: repositoryRoot,
+        classifyTrustRoot: () => ({eligibleForAuthority: false, sourceClass: 'REVIEWED_WORKTREE'}),
+        recordCriteria: () => { touched = true; },
+    }), EXIT.READINESS);
+    assert.equal(touched, false);
+
+    const output = capture();
+    let request;
+    const status = await main(argv, {
+        ...output.context,
+        projectRoot: repositoryRoot,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        recordCriteria(value) {
+            request = value;
+            return {disposition: 'DECLARED', digest: 'b'.repeat(64), path: '/private/canary'};
+        },
+    });
+
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(request, {
+        disposition: 'DECLARED',
+        sources: [
+            {role: 'SPEC', commit: sha, path: 'docs/specs/review:bridge.md'},
+            {role: 'PLAN', commit: sha, path: 'docs/plans/review.md'},
+        ],
+    });
+    assert.deepEqual(JSON.parse(output.result().stdout), {
+        schemaVersion: 1,
+        command: 'criteria record',
+        status: 'PASS',
+        outcome: 'PASS',
+        eligibleForAuthority: true,
+        sourceClass: 'INSTALLED_EXTERNAL',
+        state: 'VALID',
+        version: 1,
+        receiptDigest: 'b'.repeat(64),
+        reason: null,
+    });
+    assert.doesNotMatch(output.result().stdout, /private|canary/);
+});
+
+test('dispatches each exact bridge operation with closed results', async (t) => {
+    const repositoryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-cli-bridge-'));
+    fs.writeFileSync(path.join(repositoryRoot, 'closures.json'), JSON.stringify({
+        schemaVersion: 1,
+        closures: [{
+            fingerprint: 'a'.repeat(64),
+            evidence: 'regression passes',
+            tests: [{path: 'tests/Node/example.test.js', gateId: 'core.node-tests'}],
+        }],
+    }));
+    t.after(() => fs.rmSync(repositoryRoot, {recursive: true, force: true}));
+    const sha = 'b'.repeat(40);
+    const digest = 'c'.repeat(64);
+    const cases = [
+        {argv: ['criteria', 'none', '--json'], command: 'criteria none', call: 'criteria-none'},
+        {argv: ['check', '--base-ref', 'origin/develop', '--json'], command: 'check', call: 'check'},
+        {argv: ['chain', 'inspect', '--json'], command: 'chain inspect', call: 'chain-inspect'},
+        {argv: ['chain', 'verify', '--base-ref', 'origin/develop', '--json'],
+            command: 'chain verify', call: 'chain-verify'},
+        {argv: ['review', 'authoritative', '--base-ref', 'origin/develop', '--json'],
+            command: 'review authoritative', call: 'review-initial'},
+        {argv: ['review', 'authoritative', '--base-ref', 'origin/develop', '--new-initial', '--json'],
+            command: 'review authoritative', call: 'review-replacement'},
+        {argv: ['review', 'repair', '--base-ref', 'origin/develop', '--closures', 'closures.json', '--json'],
+            command: 'review repair', call: 'review-repair'},
+    ];
+
+    for (const fixture of cases) {
+        const calls = [];
+        const output = capture();
+        const status = await main(fixture.argv, {
+            ...output.context,
+            projectRoot: repositoryRoot,
+            classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+            recordCriteria(input) {
+                calls.push(['criteria-none', input]);
+                return {digest, disposition: 'NONE_DECLARED'};
+            },
+            runDeterministicCheck(input) {
+                calls.push(['check', input]);
+                return {status: 'PASS', digest, headSha: sha};
+            },
+            inspectReviewChainV2() {
+                calls.push(['chain-inspect']);
+                return {state: 'ABSENT'};
+            },
+            resolveBridgeIdentity(baseRef) {
+                calls.push(['identity', baseRef]);
+                return {branch: 'feat/example', baseRef, baseSha: sha, headSha: sha};
+            },
+            verifyCriteria() { calls.push(['verify-criteria']); return {digest}; },
+            verifyCheck(identity) {
+                calls.push(['verify-check', identity]);
+                return {...identity, digest, status: 'PASS'};
+            },
+            verifyReviewChainV2(expected) {
+                calls.push(['chain-verify', expected]);
+                return {record: {schemaVersion: 2, headSha: sha}};
+            },
+            runAuthoritativeReview(input) {
+                calls.push([input.operation === 'repair' ? 'review-repair' :
+                    input.newInitial ? 'review-replacement' : 'review-initial', input]);
+                return {authoritative: true, reused: false, outcome: 'PASS',
+                    receipt: {schemaVersion: 2, headSha: sha}};
+            },
+        });
+
+        assert.equal(status, EXIT.OK, fixture.call);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.command, fixture.command);
+        assert.equal(report.status, 'PASS');
+        assert.equal(report.outcome, 'PASS');
+        assert.equal(report.eligibleForAuthority, true);
+        assert.equal(report.sourceClass, 'INSTALLED_EXTERNAL');
+        assert.equal(report.reason, null);
+        assert.ok(calls.some(([name]) => name === fixture.call), fixture.call);
+        if (fixture.call === 'review-repair') {
+            assert.equal(calls.at(-1)[1].closures.closures[0].fingerprint, 'a'.repeat(64));
+        }
+    }
+});
+
+test('rejects checkout authority mutations with explicit trust state before dependencies run', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const sha = 'a'.repeat(40);
+    const cases = [
+        ['criteria', 'record', '--source', `SPEC:${sha}:docs/spec.md`, '--json'],
+        ['check', '--base-ref', 'origin/develop', '--json'],
+        ['review', 'authoritative', '--base-ref', 'origin/develop', '--json'],
+    ];
+    for (const argv of cases) {
+        const output = capture();
+        let touched = false;
+        const status = await main(argv, {
+            ...output.context,
+            projectRoot: repositoryRoot,
+            classifyTrustRoot: () => ({eligibleForAuthority: false, sourceClass: 'REVIEWED_WORKTREE'}),
+            recordCriteria: () => { touched = true; },
+            runDeterministicCheck: () => { touched = true; },
+            runAuthoritativeReview: () => { touched = true; },
+        });
+        assert.equal(status, EXIT.READINESS);
+        assert.equal(touched, false);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.eligibleForAuthority, false);
+        assert.equal(report.sourceClass, 'REVIEWED_WORKTREE');
+        assert.equal(report.reason, 'AUTHORITY_INELIGIBLE');
+    }
+});
+
+test('uses review exit semantics for failed checks and authoritative Blocking outcomes', async () => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const trust = () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'});
+    const fixtures = [
+        {
+            argv: ['check', '--base-ref', 'origin/develop', '--json'],
+            context: {runDeterministicCheck: () => ({status: 'FAIL', digest: 'a'.repeat(64)})},
+            status: 'FAIL', outcome: 'INCONCLUSIVE',
+        },
+        {
+            argv: ['review', 'authoritative', '--base-ref', 'origin/develop', '--json'],
+            context: {runAuthoritativeReview: () => ({outcome: 'BLOCKING', receipt: {
+                schemaVersion: 2, openBlocking: ['b'.repeat(64)],
+            }})},
+            status: 'BLOCKING', outcome: 'BLOCKING',
+        },
+    ];
+    for (const fixture of fixtures) {
+        const output = capture();
+        const exit = await main(fixture.argv, {
+            ...output.context,
+            ...fixture.context,
+            projectRoot: repositoryRoot,
+            classifyTrustRoot: trust,
+        });
+        assert.equal(exit, EXIT.REVIEW);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.status, fixture.status);
+        assert.equal(report.outcome, fixture.outcome);
+    }
+});
+
+test('reads closure proposals through a bounded repository-confined no-follow boundary', async (t) => {
+    const repositoryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-cli-closures-'));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-cli-outside-'));
+    fs.writeFileSync(path.join(outside, 'closures.json'), '{}');
+    fs.symlinkSync(path.join(outside, 'closures.json'), path.join(repositoryRoot, 'file-link.json'));
+    fs.symlinkSync(outside, path.join(repositoryRoot, 'parent-link'));
+    fs.writeFileSync(path.join(repositoryRoot, 'oversized.json'), 'x'.repeat(1048577));
+    fs.writeFileSync(path.join(repositoryRoot, 'invalid-utf8.json'), Buffer.concat([
+        Buffer.from(`{"schemaVersion":1,"closures":[{"fingerprint":"${'a'.repeat(64)}","evidence":"`),
+        Buffer.from([0xff]),
+        Buffer.from('","tests":[{"path":"tests/Node/example.test.js","gateId":"core.node-tests"}]}]}'),
+    ]));
+    t.after(() => {
+        fs.rmSync(repositoryRoot, {recursive: true, force: true});
+        fs.rmSync(outside, {recursive: true, force: true});
+    });
+    const unsafe = [
+        'file-link.json', 'parent-link/closures.json', 'oversized.json', 'invalid-utf8.json',
+    ];
+
+    for (const closurePath of unsafe) {
+        const output = capture();
+        let attempted = false;
+        const status = await main([
+            'review', 'repair', '--base-ref', 'origin/develop', '--closures', closurePath, '--json',
+        ], {
+            ...output.context,
+            projectRoot: repositoryRoot,
+            classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+            runAuthoritativeReview: () => { attempted = true; },
+        });
+        assert.equal(status, EXIT.READINESS, closurePath);
+        assert.equal(attempted, false, closurePath);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.reason, 'RUNTIME_READINESS_FAILED');
+        assert.doesNotMatch(output.result().stdout, /outside|closures-/);
     }
 });
 

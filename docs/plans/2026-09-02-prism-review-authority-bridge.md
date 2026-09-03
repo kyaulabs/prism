@@ -733,7 +733,7 @@ prism-tool commit create --type feat --scope review --subject "verify continuous
 - Consumes: criteria, check, chain-v2, and authority modules.
 - Produces: the deliberate dormant bridge commands without changing ad hoc command behavior.
 
-- [ ] **Step 1: Write failing CLI grammar and dispatch tests**
+- [x] **Step 1: Write failing CLI grammar and dispatch tests**
 
 Add tests for this exact grammar and reject reordered, duplicated, missing, relative-SHA, unknown, extra, or unsafe controls before dependencies run:
 
@@ -751,28 +751,28 @@ prism-review review repair --base-ref origin/develop|origin/main --closures RELA
 
 Assert checkout Core returns readiness failure for `criteria record`, `check`, and authoritative review, while read-only inspection reports explicit states. Assert closure files use bounded no-follow reads and cannot escape the repository. Existing ad hoc commands must retain their outputs and exit semantics.
 
-- [ ] **Step 2: Run CLI tests to verify Red**
+- [x] **Step 2: Run CLI tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-cli.test.js`
 
 Expected: FAIL because the bridge grammar is not recognized.
 
-- [ ] **Step 3: Implement the public CLI dispatch**
+- [x] **Step 3: Implement the public CLI dispatch**
 
 Extend `HELP` with the exact commands. Parse sources by splitting only the first two `:` separators, require uppercase closed roles, a full lowercase commit SHA, and a safe relative path. Require `--new-initial` only for authoritative initial replacement and `--closures` only for repair. Perform no inference or default requirement selection. Route authority mutations through `classifyTrustRoot()` before touching state. Render closed JSON with explicit command, status/outcome, authority eligibility, state/version, receipt digest, and bounded reason codes; do not render private paths or exception messages.
 
 Keep internal callback injection available only through direct `main(argv, context)` tests. Do not add environment controls, fixture paths, model flags, retry flags, or public fake-provider switches.
 
-- [ ] **Step 4: Run CLI and ad hoc e2e tests to verify Green**
+- [x] **Step 4: Run CLI and ad hoc e2e tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-cli.test.js tests/Node/prism-review-e2e.test.js`
 
 Expected: PASS and every old ad hoc report remains non-authoritative.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/prism-review/constants.js tests/Node/prism-review-cli.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/prism-review/constants.js tests/Node/prism-review-cli.test.js
 prism-tool commit create --type feat --scope review --subject "expose closed authority bridge commands"
 ```
 
