@@ -739,6 +739,7 @@ function recordReviewAttempt(input, context = {}) {
     const published = publishAuthorityRecord({
         projectRoot: repositoryRoot(context),
         filename: 'review-chain.json',
+        expectedRecord: current.state === REVIEW_STATE.ABSENT ? null : current.record,
         limit: FILE_LIMIT,
         record,
         parse: parseAny,

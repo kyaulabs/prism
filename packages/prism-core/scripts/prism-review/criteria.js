@@ -202,16 +202,19 @@ function recordCriteria(input, context = {}) {
         sources,
     });
     const current = inspectCriteria(context);
-    if (current.state === REVIEW_STATE.VALID) {
+    if (current.state === REVIEW_STATE.VALID && current.record.branch === record.branch) {
         if (JSON.stringify(current.record) !== JSON.stringify(record)) {
             throw new Error('criteria record is immutable');
         }
         return {...current.record, path: current.path, digest: criteriaDigest(current.record)};
     }
-    if (current.state !== REVIEW_STATE.ABSENT) throw new Error('criteria record is unsafe');
+    if (![REVIEW_STATE.ABSENT, REVIEW_STATE.VALID].includes(current.state)) {
+        throw new Error('criteria record is unsafe');
+    }
     const published = publishAuthorityRecord({
         projectRoot: repositoryRoot(context),
         filename: 'criteria.json',
+        expectedRecord: current.state === REVIEW_STATE.ABSENT ? null : current.record,
         limit: FILE_LIMIT,
         record,
         parse: parseCriteria,
@@ -235,7 +238,8 @@ function verifyCriteria(expected, context = {}) {
         throw new Error('criteria record is stale');
     }
     const blobs = inspected.record.sources.map((source) => {
-        const blobOid = treeIdentity(context, source.commit, source.path);
+        const commit = resolveCommit(context, source.commit);
+        const blobOid = treeIdentity(context, commit, source.path);
         const loaded = readBlob(context, blobOid);
         if (blobOid !== source.blobOid || loaded.bytes.length !== source.byteCount ||
             sha256(loaded.bytes) !== source.sha256) {

@@ -83,13 +83,12 @@ function normalizeResult(result) {
 }
 
 function combine(results) {
-    const normalized = results.map(normalizeResult);
     return {
-        passed: normalized.every(({passed}) => passed),
-        stdout: Buffer.concat(normalized.map(({stdout}) => stdout)),
-        stderr: Buffer.concat(normalized.map(({stderr}) => stderr)),
-        tools: [...new Map(normalized.flatMap(({tools}) => tools).map((tool) => [tool.id, tool])).values()],
-        artifacts: normalized.flatMap(({artifacts}) => artifacts),
+        passed: results.every(({passed}) => passed),
+        stdout: Buffer.concat(results.map(({stdout}) => stdout)),
+        stderr: Buffer.concat(results.map(({stderr}) => stderr)),
+        tools: [...new Map(results.flatMap(({tools}) => tools).map((tool) => [tool.id, tool])).values()],
+        artifacts: results.flatMap(({artifacts}) => artifacts),
     };
 }
 
@@ -133,7 +132,18 @@ async function many(id, command, callback, requests) {
     if (requests.length === 0) return skipped(id, command);
     try {
         const results = [];
-        for (const request of requests) results.push(await callback({...request, id}));
+        let stdoutBytes = 0;
+        let stderrBytes = 0;
+        for (const request of requests) {
+            const result = await callback({...request, id});
+            const normalized = normalizeResult(result);
+            stdoutBytes += normalized.stdout.length;
+            stderrBytes += normalized.stderr.length;
+            if (stdoutBytes > OUTPUT_LIMIT || stderrBytes > OUTPUT_LIMIT) {
+                throw new Error('quality output exceeds its evidence limit');
+            }
+            results.push(normalized);
+        }
         return receipt(id, command, combine(results));
     } catch {
         return receipt(id, command, {

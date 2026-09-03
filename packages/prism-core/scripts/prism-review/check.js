@@ -261,7 +261,7 @@ async function runDeterministicCheck(input, context = {}) {
     try {
         let provider = null;
         let adapter = null;
-        if (context.registration !== null) {
+        if (context.registration !== null && context.registration !== undefined) {
             const resolveProvider = context.resolveQualityProvider ?? resolveQualityProvider;
             provider = await resolveProvider({
                 repositoryRoot: projectRoot(context),

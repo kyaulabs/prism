@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-state.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-state.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -37,6 +37,25 @@ test('rejects symlinks in the authority state path', (t) => {
         record: {schemaVersion: 1, disposition: 'NONE_DECLARED'},
     }), /unsafe/);
     assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test('preserves a newer authority record when expected prior state is stale', (t) => {
+    const projectRoot = fixture(t);
+    const options = {
+        projectRoot,
+        filename: 'criteria.json',
+        limit: 131072,
+        parse: (value) => value,
+    };
+    const current = {schemaVersion: 1, disposition: 'DECLARED'};
+    publishAuthorityRecord({...options, record: current});
+
+    assert.throws(() => publishAuthorityRecord({
+        ...options,
+        expectedRecord: {schemaVersion: 1, disposition: 'NONE_DECLARED'},
+        record: {schemaVersion: 1, disposition: 'REPLACEMENT'},
+    }), /changed/);
+    assert.deepEqual(inspectAuthorityRecord(options).record, current);
 });
 
 test('publishes project-private authority records through nested engine directories', (t) => {

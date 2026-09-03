@@ -1,4 +1,4 @@
-// $KYAULabs: review-state.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: review-state.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -94,6 +94,13 @@ function publishAuthorityRecord(options, context = {}) {
     const detail = inspectAuthorityRecord(options, context);
     if (![REVIEW_STATE.ABSENT, REVIEW_STATE.VALID].includes(detail.state)) {
         throw new Error('review record path is unsafe');
+    }
+    if (Object.hasOwn(options, 'expectedRecord') &&
+        (options.expectedRecord === null
+            ? detail.state !== REVIEW_STATE.ABSENT
+            : detail.state !== REVIEW_STATE.VALID ||
+                JSON.stringify(detail.record) !== JSON.stringify(options.expectedRecord))) {
+        throw new Error('review record changed');
     }
     const managedPath = authorityPath(options.projectRoot, options.filename);
     publishManagedRecord({

@@ -1,4 +1,4 @@
-// $KYAULabs: criteria-tools.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: criteria-tools.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -105,6 +105,9 @@ function validatedCriteria(criteria) {
         }
         return {...identity, text: blob.text};
     });
+    if (new Set(blobs.map(({sha256}) => sha256)).size !== blobs.length) {
+        throw new Error('criteria source digests are duplicate');
+    }
     return {record: {...criteria.record, sources}, digest: criteria.digest, blobs};
 }
 

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-criteria-tools.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-criteria-tools.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -49,6 +49,25 @@ test('delivers immutable criteria by UTF-8 byte interval until the source is exp
     assert.match(first.content, /UNTRUSTED REVIEW CRITERIA/);
     assert.equal(set.ledger.isComplete(), true);
     assert.deepEqual(set.ledger.rows(), [{...source, status: 'EXPOSED'}]);
+});
+
+test('rejects duplicate source digests before exposing criteria', () => {
+    const duplicate = {
+        ...source,
+        role: 'PLAN',
+        path: 'docs/plans/example.md',
+        blobOid: 'c'.repeat(40),
+    };
+    const verified = {
+        ...criteria(),
+        record: {...criteria().record, sources: [source, duplicate]},
+        blobs: [
+            {...source, text: 'one € two'},
+            {...duplicate, text: 'one € two'},
+        ],
+    };
+
+    assert.throws(() => createCriteriaTools(verified), /digests are duplicate/);
 });
 
 test('needs no source delivery for an explicit NONE_DECLARED receipt', () => {

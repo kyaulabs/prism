@@ -277,6 +277,47 @@ test('replays a continuous repair, confirmed closure, and preserved Advisory fin
     assert.equal(verified.advisoryFindings.length, 1);
 });
 
+test('preserves a concurrently advanced chain instead of publishing from stale state', (t) => {
+    const target = fixture(t);
+    const initial = recordReviewAttempt(attempt(target), target);
+    fs.writeFileSync(path.join(target.projectRoot, 'file.txt'), 'repaired\n');
+    git(target.projectRoot, 'commit', '-qam', 'repair');
+    const repaired = {...target, headSha: git(target.projectRoot, 'rev-parse', 'HEAD')};
+    const chainPath = path.join(
+        target.projectRoot, '.pi', 'prism-tool', 'code-review', 'review-chain.json'
+    );
+    const concurrent = structuredClone(initial);
+    concurrent.segments[0].plan.profileDigest = '0'.repeat(64);
+    let chainReads = 0;
+    const racingFs = new Proxy(fs, {
+        get(targetFs, property) {
+            if (property === 'openSync') {
+                return (file, flags, ...rest) => {
+                    if (file === chainPath) {
+                        chainReads += 1;
+                        if (chainReads === 2) {
+                            fs.writeFileSync(chainPath, `${JSON.stringify(concurrent)}\n`);
+                        }
+                    }
+                    return targetFs.openSync(file, flags, ...rest);
+                };
+            }
+            const value = Reflect.get(targetFs, property);
+            return typeof value === 'function' ? value.bind(targetFs) : value;
+        },
+    });
+
+    assert.throws(() => recordReviewAttempt(attempt(repaired, {
+        operation: 'repair',
+        fromSha: target.headSha,
+        report: report(repaired, {fromSha: target.headSha, findings: []}),
+    }), {...repaired, fs: racingFs}), /changed/);
+    assert.equal(
+        inspectReviewChainV2(repaired).record.segments[0].plan.profileDigest,
+        concurrent.segments[0].plan.profileDigest
+    );
+});
+
 test('rejects incomplete authority ledgers, malformed verifier state, and stale identities', (t) => {
     const cases = [
         (input) => { input.report.axes.pop(); },

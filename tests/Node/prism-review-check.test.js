@@ -101,6 +101,7 @@ test('publishes FAIL when HEAD changes after Core quality execution', async (t) 
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: adapterProvider,
         runCoreQuality: async () => {
             fs.writeFileSync(path.join(fixture.root, 'README.md'), 'moved HEAD\n');
@@ -120,6 +121,7 @@ test('rejects a dirty worktree and makes an existing PASS unverifiable', async (
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: adapterProvider,
         runCoreQuality: async () => coreReport(),
     };
@@ -148,6 +150,7 @@ test('publishes bounded failed adapter gate evidence without raw output', async 
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: async () => provider,
         runCoreQuality: async () => coreReport(),
     });
@@ -166,6 +169,7 @@ test('retains no reusable PASS after a provider omits a declared gate', async (t
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: async () => provider,
         runCoreQuality: async () => coreReport(),
     });
@@ -186,6 +190,7 @@ test('invalidates a prior PASS when the installed provider becomes unavailable',
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: adapterProvider,
         runCoreQuality: async () => coreReport(),
     };
@@ -207,6 +212,7 @@ test('invalidates a prior PASS before an interrupted retry invokes a gate', asyn
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: adapterProvider,
         runCoreQuality: async () => coreReport(),
     };
@@ -254,6 +260,26 @@ test('publishes a Core-only PASS when no adapter is active', async (t) => {
     assert.equal(providerCalls, 0);
 });
 
+test('defaults an omitted adapter registration to Core-only', async (t) => {
+    const fixture = repository(t);
+    let providerCalls = 0;
+
+    const result = await runDeterministicCheck({baseRef: 'develop'}, {
+        projectRoot: fixture.root,
+        coreRoot,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        resolveQualityProvider: () => {
+            providerCalls += 1;
+            throw new Error('adapter provider must not resolve');
+        },
+        runCoreQuality: async () => coreReport(),
+    });
+
+    assert.equal(result.status, 'PASS');
+    assert.equal(result.adapter, null);
+    assert.equal(providerCalls, 0);
+});
+
 test('publishes RUNNING before gates and verifies the exact passing HEAD', async (t) => {
     const fixture = repository(t);
     let running;
@@ -261,6 +287,7 @@ test('publishes RUNNING before gates and verifies the exact passing HEAD', async
         projectRoot: fixture.root,
         coreRoot,
         randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
         resolveQualityProvider: adapterProvider,
         runCoreQuality: async () => {
             running = inspectCheck({projectRoot: fixture.root});

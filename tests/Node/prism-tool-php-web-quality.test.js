@@ -97,6 +97,32 @@ test('ignores non-statement Clover lines in changed-file coverage', async () => 
     assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
 });
 
+test('stops multi-file quality execution when combined output exceeds its bound', async () => {
+    let syntaxCalls = 0;
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: ['app/one.php', 'app/two.php', 'app/three.php'],
+        packageScripts: [],
+        runCommand: async (request) => {
+            if (request.command === 'php' && request.args[0] === '-l') {
+                syntaxCalls += 1;
+                return {...await success(request), stdout: Buffer.alloc(600000)};
+            }
+            return success(request);
+        },
+        runTool: success,
+        runServer: success,
+        changedLines: async () => [],
+        readArtifact: async () => Buffer.from('<coverage/>'),
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.gates.find(({id}) => id === 'php-web.php-syntax').status, 'FAIL');
+    assert.equal(syntaxCalls, 2);
+});
+
 test('fails closed when execution output overflows or the snapshot drifts', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,

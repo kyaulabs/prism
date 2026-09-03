@@ -56,6 +56,37 @@ test('rejects criteria when the checkout branch drifts from the recorded branch'
     assert.throws(() => verifyCriteria({branch: 'feat/tester-abcd-change'}, target), /unavailable/);
 });
 
+test('replaces a stale receipt when recording criteria for another branch', (t) => {
+    const target = fixture(t);
+    recordCriteria({disposition: 'NONE_DECLARED', sources: []}, target);
+    git(target.projectRoot, 'checkout', '-q', '-b', 'feat/tester-abcd-other');
+
+    const recorded = recordCriteria({
+        disposition: 'DECLARED',
+        sources: [{role: 'SPEC', commit: target.head, path: 'docs/specs/change-spec.md'}],
+    }, target);
+
+    assert.equal(recorded.branch, 'feat/tester-abcd-other');
+    assert.equal(recorded.disposition, 'DECLARED');
+    assert.equal(verifyCriteria({branch: 'feat/tester-abcd-other'}, target).digest, recorded.digest);
+});
+
+test('rejects recorded criteria commits removed from current branch history', (t) => {
+    const target = fixture(t);
+    recordCriteria({
+        disposition: 'DECLARED',
+        sources: [{role: 'SPEC', commit: target.head, path: 'docs/specs/change-spec.md'}],
+    }, target);
+    git(target.projectRoot, 'checkout', '--orphan', 'replacement');
+    git(target.projectRoot, 'rm', '-q', '-rf', '.');
+    fs.writeFileSync(path.join(target.projectRoot, 'README.md'), 'replacement history\n');
+    git(target.projectRoot, 'add', 'README.md');
+    git(target.projectRoot, 'commit', '-q', '-m', 'docs: replace history');
+    git(target.projectRoot, 'branch', '-M', 'feat/tester-abcd-change');
+
+    assert.throws(() => verifyCriteria({branch: 'feat/tester-abcd-change'}, target), /Git evidence/);
+});
+
 test('keeps committed criteria authoritative over worktree edits and replacement attempts', (t) => {
     const target = fixture(t);
     const recorded = recordCriteria({
