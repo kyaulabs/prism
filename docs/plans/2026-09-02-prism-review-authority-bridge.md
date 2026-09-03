@@ -223,7 +223,7 @@ prism-tool commit create --type feat --scope review --subject "add private autho
 - Consumes: Task 1 authority records, `digestJson()`, and Git object plumbing.
 - Produces: `inspectCriteria()`, `recordCriteria()`, `verifyCriteria()`, and `criteriaDigest()`.
 
-- [ ] **Step 1: Write failing criteria behavior tests**
+- [x] **Step 1: Write failing criteria behavior tests**
 
 Exercise the public module against real temporary Git repositories. Cover a declared record with `SPEC` and `PLAN` sources, explicit `NONE_DECLARED`, a missing record, duplicate roles/paths, uncommitted and sensitive paths, merge/non-commit revisions, modified worktree bytes, missing blobs, invalid UTF-8, source files over 256 KiB, aggregate sources over 1 MiB, branch drift, malformed records, and a Git object whose bytes no longer match the stored SHA-256.
 
@@ -246,13 +246,13 @@ assert.deepEqual(Object.keys(recorded.sources[0]), [
 assert.doesNotMatch(JSON.stringify(recorded), /accepted criterion fixture/);
 ```
 
-- [ ] **Step 2: Run the criteria tests to verify Red**
+- [x] **Step 2: Run the criteria tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-criteria.test.js`
 
 Expected: FAIL because `criteria.js` does not exist.
 
-- [ ] **Step 3: Implement criteria capture and replay**
+- [x] **Step 3: Implement criteria capture and replay**
 
 Use a closed schema:
 
@@ -268,16 +268,16 @@ Use a closed schema:
 
 Resolve every supplied revision with `git rev-parse --verify <sha>^{commit}`; resolve the exact path with `git ls-tree -z <commit> -- <path>`; require one regular blob; read with `git cat-file blob <oid>` under the existing 256-KiB per-source and 1-MiB aggregate limits; reject sensitive paths through `sensitivePathMatch`; and store only identity metadata. Sort by role then path, reject duplicates, require one or more sources for `DECLARED`, and require zero sources for `NONE_DECLARED`. `verifyCriteria()` must reread every immutable blob, recompute its digest and byte count, and require the current branch to match. Return `digestJson(record)` separately as `digest` rather than making a self-referential field.
 
-- [ ] **Step 4: Run criteria and snapshot tests to verify Green**
+- [x] **Step 4: Run criteria and snapshot tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-criteria.test.js tests/Node/prism-review-snapshot.test.js`
 
 Expected: PASS, including worktree edits that do not alter committed criteria authority.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/criteria.js tests/Node/prism-review-criteria.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/criteria.js tests/Node/prism-review-criteria.test.js
 prism-tool commit create --type feat --scope review --subject "record immutable review criteria"
 ```
 
