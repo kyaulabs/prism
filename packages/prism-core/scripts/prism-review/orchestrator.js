@@ -3,6 +3,7 @@
 'use strict';
 
 const {AXES, LIMIT, OUTCOME} = require('./constants');
+const {createCriteriaTools} = require('./criteria-tools');
 const {assertFresh: snapshotIsFresh} = require('./git-snapshot');
 const {normalizeFindings, validateVerifierSubmission} = require('./findings');
 const {axisSubmissionSchema, verifierSubmissionSchema} = require('./schema');
@@ -284,10 +285,10 @@ function reportValue(options, state) {
             package: lens.package,
             status: 'INCONCLUSIVE',
         }));
-    return {
+    const report = {
         schemaVersion: 1,
         command: options.command,
-        authoritative: false,
+        authoritative: state.authoritative,
         sourceClass: options.sourceClass,
         outcome: state.outcome,
         scope: scopeValue(options.snapshot),
@@ -303,6 +304,28 @@ function reportValue(options, state) {
         verifier: state.verifier,
         limits: LIMIT,
     };
+    if (state.authoritative) report.criteriaExposure = state.criteriaSet.ledger.report();
+    return report;
+}
+
+function criteriaEvidence(criteriaSet) {
+    const report = criteriaSet.ledger.report();
+    return {
+        disposition: report.disposition,
+        sources: report.sources,
+    };
+}
+
+function criteriaIncompleteReason(axisId, toolSet, criteriaSet) {
+    return axisId === 'requirement-coverage' && criteriaSet !== null &&
+        toolSet.ledger.isComplete() && !criteriaSet.ledger.isComplete()
+        ? 'CRITERIA_EXPOSURE_INCOMPLETE'
+        : null;
+}
+
+function axisIncompleteReason(axisId, toolSet, criteriaSet) {
+    if (!toolSet.ledger.isComplete()) return 'BYTE_EXPOSURE_INCOMPLETE';
+    return criteriaIncompleteReason(axisId, toolSet, criteriaSet);
 }
 
 async function runReviewAttempt(options) {
@@ -316,8 +339,15 @@ async function runReviewAttempt(options) {
     }
     const deadline = now() + reviewTimeoutMs;
     const remaining = () => deadline - now();
+    const authoritative = options.authoritative === true;
+    if (authoritative && options.criteria === undefined) {
+        throw new Error('authoritative criteria are required');
+    }
+    const criteriaSet = authoritative ? createCriteriaTools(options.criteria) : null;
     const state = {
         outcome: 'INCONCLUSIVE',
+        authoritative,
+        criteriaSet,
         model: options.model ?? null,
         axes: [],
         axisLedgers: [],
@@ -347,6 +377,7 @@ async function runReviewAttempt(options) {
             return reportValue(options, state);
         }
         const toolSet = createSnapshotTools(options.snapshot, {metadataExemptions: exemptions});
+        const requirementCriteria = axisId === 'requirement-coverage' ? criteriaSet : null;
         const timeoutMs = sessionTimeout(options.timeoutMs, remaining());
         if (timeoutMs === null) {
             state.axes.push({
@@ -371,15 +402,31 @@ async function runReviewAttempt(options) {
                     axis: axis.id,
                     lenses: axis.lenses,
                     manifest: options.snapshot.manifest,
+                    ...(requirementCriteria === null
+                        ? {}
+                        : {criteria: criteriaEvidence(requirementCriteria)}),
                 },
                 outputSchema: schema,
-                tools: Object.values(toolSet.tools),
+                tools: [
+                    ...Object.values(toolSet.tools),
+                    ...(requirementCriteria === null
+                        ? []
+                        : Object.values(requirementCriteria.tools)),
+                ],
                 submitToolName: 'submit_review',
                 validateSubmission: (value) => validateAxisSubmission(value, axis, options.snapshot),
                 validateSubmissionPrerequisites: () => {
                     if (!toolSet.ledger.isComplete()) throw new Error('axis byte exposure is incomplete');
+                    if (requirementCriteria !== null && !requirementCriteria.ledger.isComplete()) {
+                        throw new Error('criteria exposure is incomplete');
+                    }
                 },
-                sourceBytes: sourceBytes(options.snapshot),
+                sourceBytes: sourceBytes(options.snapshot) + (requirementCriteria === null
+                    ? 0
+                    : requirementCriteria.ledger.report().sources.reduce(
+                        (total, source) => total + source.byteCount,
+                        0
+                    )),
                 repositoryRoot: options.repositoryRoot,
                 tempRoot: options.tempRoot,
                 env: options.env,
@@ -388,7 +435,8 @@ async function runReviewAttempt(options) {
                 active: options.active,
             });
         } catch {
-            state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: 'AXIS_SESSION_FAILED'});
+            const reason = criteriaIncompleteReason(axisId, toolSet, criteriaSet) ?? 'AXIS_SESSION_FAILED';
+            state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason});
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
             return reportValue(options, state);
         }
@@ -397,7 +445,8 @@ async function runReviewAttempt(options) {
                 id: axisId,
                 status: 'INCONCLUSIVE',
                 outcome: 'INCONCLUSIVE',
-                reason: result?.reason ?? 'AXIS_SESSION_FAILED',
+                reason: criteriaIncompleteReason(axisId, toolSet, criteriaSet) ??
+                    result?.reason ?? 'AXIS_SESSION_FAILED',
             });
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
             return reportValue(options, state);
@@ -421,10 +470,10 @@ async function runReviewAttempt(options) {
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
             return reportValue(options, state);
         }
-        const exposed = toolSet.ledger.isComplete();
+        const incompleteReason = axisIncompleteReason(axisId, toolSet, criteriaSet);
         state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
-        if (!exposed) {
-            state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: 'BYTE_EXPOSURE_INCOMPLETE'});
+        if (incompleteReason !== null) {
+            state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: incompleteReason});
             return reportValue(options, state);
         }
         for (const selected of axis.lenses) {

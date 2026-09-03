@@ -248,6 +248,17 @@ function validateClosedJsonSchema(value, label = 'tool schema') {
     return value;
 }
 
+function closedObjectSchema(properties, required) {
+    const schema = {
+        type: 'object',
+        additionalProperties: false,
+        properties,
+        required,
+    };
+    validateClosedJsonSchema(schema);
+    return deepFreezeJson(schema, 'tool schema');
+}
+
 function matchesSchemaType(value, type) {
     if (type === 'null') return value === null;
     if (type === 'array') return Array.isArray(value);
@@ -406,6 +417,7 @@ function triggerMatches(value, changedPath) {
 
 module.exports = {
     axisSubmissionSchema,
+    closedObjectSchema,
     deepFreezeJson,
     safeRelativePath,
     triggerMatches,

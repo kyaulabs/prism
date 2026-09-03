@@ -113,6 +113,25 @@ const model = Object.freeze({
     provider: 'fixture', id: 'model', reasoningLevel: 'high', contextWindow: 200000,
     authentication: 'UNKNOWN',
 });
+const criteriaSource = Object.freeze({
+    role: 'SPEC',
+    commit: '8'.repeat(40),
+    path: 'docs/specs/example.md',
+    blobOid: '9'.repeat(40),
+    byteCount: 11,
+    sha256: '7e846cb2d6e3ee6bcb3b803b53d49b134b23e974d280d9a164c2f6919db0a7df',
+});
+const criteria = Object.freeze({
+    record: Object.freeze({
+        schemaVersion: 1,
+        kind: 'criteria',
+        branch: 'feat/example',
+        disposition: 'DECLARED',
+        sources: Object.freeze([criteriaSource]),
+    }),
+    digest: '8'.repeat(64),
+    blobs: Object.freeze([Object.freeze({...criteriaSource, text: 'one € two'})]),
+});
 
 async function exposeAll(request) {
     const tools = Object.fromEntries(request.tools.map((tool) => [tool.name, tool]));
@@ -132,6 +151,22 @@ async function exposeAll(request) {
                 offset: 0,
                 limit: item.diffBytes,
             });
+        }
+    }
+}
+
+async function exposeCriteria(request) {
+    const tool = request.tools.find(({name}) => name === 'read_criteria');
+    if (tool === undefined) return;
+    for (const source of request.evidence.criteria.sources) {
+        let offset = 0;
+        while (offset < source.byteCount) {
+            const chunk = await tool.execute('criteria', {
+                sourceDigest: source.sha256,
+                offset,
+                limit: 7,
+            });
+            offset = chunk.nextOffset;
         }
     }
 }
@@ -207,6 +242,81 @@ test('runs four fresh axes in canonical order with complete lenses and byte expo
     assert.equal(calls[0].resources.some(({id}) => id === 'skill-php'), false);
     assert.equal(calls[3].resources.some(({id}) => id === 'skill-php'), true);
     assert.equal(calls.every((call) => call.snapshot === snapshot), true);
+});
+
+test('records complete criteria exposure for an authoritative requirement axis', async () => {
+    const calls = [];
+    const report = await runReviewAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        await exposeCriteria(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {authoritative: true, criteria}));
+
+    assert.equal(report.outcome, 'PASS');
+    assert.equal(report.authoritative, true);
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'DECLARED',
+        status: 'EXPOSED',
+        sources: [criteriaSource],
+    });
+    assert.deepEqual(calls.filter((request) =>
+        request.tools.some(({name}) => name === 'read_criteria')).map(({axis}) => axis),
+    ['requirement-coverage']);
+    assert.doesNotMatch(JSON.stringify(report), /one € two/);
+});
+
+test('accepts NONE_DECLARED authority without criteria source calls', async () => {
+    const none = Object.freeze({
+        record: Object.freeze({
+            schemaVersion: 1,
+            kind: 'criteria',
+            branch: 'feat/example',
+            disposition: 'NONE_DECLARED',
+            sources: Object.freeze([]),
+        }),
+        digest: '8'.repeat(64),
+        blobs: Object.freeze([]),
+    });
+    const report = await runReviewAttempt(options(async (request) => {
+        await exposeAll(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {authoritative: true, criteria: none}));
+
+    assert.equal(report.outcome, 'PASS');
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'NONE_DECLARED',
+        status: 'NONE_DECLARED',
+        sources: [],
+    });
+});
+
+test('makes an authoritative requirement submission Inconclusive until criteria are exposed', async () => {
+    const calls = [];
+    const report = await runReviewAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {authoritative: true, criteria}));
+
+    assert.equal(report.authoritative, true);
+    assert.equal(report.outcome, 'INCONCLUSIVE');
+    assert.deepEqual(calls.map(({axis}) => axis), AXES.slice(0, 3));
+    assert.equal(calls[0].tools.some(({name}) => name === 'read_criteria'), false);
+    assert.equal(calls[1].tools.some(({name}) => name === 'read_criteria'), false);
+    assert.equal(calls[2].tools.some(({name}) => name === 'read_criteria'), true);
+    assert.deepEqual(calls[2].evidence.criteria, {
+        disposition: 'DECLARED',
+        sources: [criteriaSource],
+    });
+    assert.equal(report.axes[2].reason, 'CRITERIA_EXPOSURE_INCOMPLETE');
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'DECLARED',
+        status: 'INCOMPLETE',
+        sources: [criteriaSource],
+    });
+    assert.doesNotMatch(JSON.stringify(report), /one € two/);
+    assert.doesNotMatch(JSON.stringify(calls[2].evidence), /one € two/);
 });
 
 test('rejects premature submission and stops after an Inconclusive axis', async () => {

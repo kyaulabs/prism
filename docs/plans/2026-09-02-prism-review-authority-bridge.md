@@ -497,7 +497,7 @@ prism-tool commit create --type feat --scope review --subject "publish exact-hea
 - Consumes: a verified criteria record and immutable Git blobs from Task 2.
 - Produces: `createCriteriaTools()` plus a criteria-exposure ledger included only in authoritative requirement-axis evidence.
 
-- [ ] **Step 1: Write failing criteria-delivery tests**
+- [x] **Step 1: Write failing criteria-delivery tests**
 
 Assert chunked `read_criteria` delivery by `{sourceDigest, offset, limit}`, exact interval union, UTF-8 byte offsets, refusal of unknown sources/ranges, and completeness only after every declared source byte is delivered. Assert `NONE_DECLARED` needs no source tool calls. Run an authoritative attempt fixture where the requirement axis submits early and require `INCONCLUSIVE`; prove other axes cannot call `read_criteria`; prove the requirement-axis prompt receives source identities but reports retain no source bytes.
 
@@ -515,26 +515,26 @@ while (offset < verifiedCriteria.sources[0].byteCount) {
 assert.equal(set.ledger.isComplete(), true);
 ```
 
-- [ ] **Step 2: Run criteria exposure tests to verify Red**
+- [x] **Step 2: Run criteria exposure tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-criteria-tools.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-session.test.js`
 
 Expected: FAIL because criteria tools and authoritative prerequisites are absent.
 
-- [ ] **Step 3: Implement requirement-authority delivery**
+- [x] **Step 3: Implement requirement-authority delivery**
 
 Create a tool and interval ledger parallel to `snapshot-tools.js`, with a 32-KiB maximum chunk and closed schema. Extend `runReviewAttempt()` with optional `criteria`; when present, mark the report authoritative only if requested by its trusted caller, add `read_criteria` only to the requirement-coverage session, add source identities and disposition to hostile evidence, and reject submission until both snapshot and criteria ledgers are complete. Add `criteriaExposure` containing role, commit, path, blob OID, byte count, digest, and `EXPOSED`/`NONE_DECLARED`, but never raw bytes. Keep every existing ad hoc call's report byte-for-byte schema-compatible with `authoritative: false`.
 
-- [ ] **Step 4: Run exposure, orchestration, and session tests to verify Green**
+- [x] **Step 4: Run exposure, orchestration, and session tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-criteria-tools.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-session.test.js tests/Node/prism-review-e2e.test.js`
 
 Expected: PASS, including all existing ad hoc report assertions.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/criteria-tools.js packages/prism-core/scripts/prism-review/orchestrator.js packages/prism-core/scripts/prism-review/session-runner.js packages/prism-core/scripts/prism-review/schema.js tests/Node/prism-review-criteria-tools.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-session.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/criteria-tools.js packages/prism-core/scripts/prism-review/orchestrator.js packages/prism-core/scripts/prism-review/session-runner.js packages/prism-core/scripts/prism-review/schema.js tests/Node/prism-review-criteria-tools.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-session.test.js
 prism-tool commit create --type feat --scope review --subject "expose immutable criteria to requirement review"
 ```
 
