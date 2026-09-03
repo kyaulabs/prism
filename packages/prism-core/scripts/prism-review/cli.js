@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {TextDecoder} = require('node:util');
 const {digestJson} = require('./canonical-json');
-const {runDeterministicCheck, verifyCheck} = require('./check');
+const {inspectCheck, runDeterministicCheck, verifyCheck} = require('./check');
 const {AUTHORITY_BASE_REFS, CRITERIA_ROLES, EXIT, LIMIT} = require('./constants');
 const {criteriaDigest, inspectCriteria, recordCriteria, verifyCriteria} = require('./criteria');
 const {validateClosureProposal} = require('./findings');
@@ -16,6 +16,7 @@ const {createSnapshot} = require('./git-snapshot');
 const {runReviewAttempt} = require('./orchestrator');
 const {inspectReviewChainV2, verifyReviewChainV2} = require('./review-chain-v2');
 const {runAuthoritativeReview} = require('./authority');
+const {resolveQualityProvider} = require('./quality-provider');
 const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profile');
 const {safeRelativePath: validateSafeRelativePath} = require('./schema');
 const {inspectIsolatedRuntime, resolveActiveModel} = require('./session-runner');
@@ -104,6 +105,19 @@ function writeJson(stream, value) {
     stream.write(`${JSON.stringify(value)}\n`);
 }
 
+function doctorRepositoryIdentity(context, projectRoot) {
+    if (context.resolveDoctorIdentity !== undefined) return context.resolveDoctorIdentity();
+    const result = (context.run ?? defaultRun)('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+        cwd: projectRoot,
+    });
+    const branch = String(result.stdout ?? '').trim();
+    if (result.error || result.status !== 0 || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(branch)) {
+        throw new Error('doctor repository identity is unavailable');
+    }
+    const target = branch.startsWith('release/') || branch.startsWith('hotfix/') ? 'main' : 'develop';
+    return bridgeRepositoryIdentity(`origin/${target}`, context, projectRoot);
+}
+
 function profileReadiness(context, coreRoot, projectRoot) {
     const profilePresent = context.coreProfilePresent ??
         fs.existsSync(path.join(coreRoot, 'config', 'prism-review.json'));
@@ -113,18 +127,49 @@ function profileReadiness(context, coreRoot, projectRoot) {
         projectRoot,
         piDir: context.piDir ?? path.join(projectRoot, '.pi'),
     });
-    let adapter = null;
-    if (registration?.reviewPath !== null && registration?.reviewPath !== undefined) {
-        adapter = (context.loadAdapterProfile ?? loadAdapterProfile)({
-            registration,
-            repositoryRoot: projectRoot,
-        });
-    }
-    return {
+    const profile = {
         core: {profileDigest: core.profileDigest, policyDigest: core.policyDigest},
-        adapter: adapter === null
-            ? null
-            : {profileDigest: adapter.profileDigest, policyDigest: adapter.policyDigest},
+        adapter: null,
+    };
+    if (registration?.reviewPath === null || registration?.reviewPath === undefined) {
+        return {profile, adapter: null};
+    }
+    const identity = doctorRepositoryIdentity(context, projectRoot);
+    const resolveProvider = context.resolveQualityProvider ?? resolveQualityProvider;
+    const provider = resolveProvider({
+        repositoryRoot: projectRoot,
+        coreRoot,
+        protectedBase: identity.baseSha,
+        registration,
+        resolvePackage: context.resolvePackage,
+        run: context.runGit,
+        env: context.env,
+    });
+    const loadAdapter = context.loadAdapterProfile ?? loadAdapterProfile;
+    const adapter = loadAdapter({registration, repositoryRoot: projectRoot, protectedBase: identity.baseSha});
+    const installed = loadAdapter({registration: provider.registration,
+        repositoryRoot: projectRoot, protectedBase: identity.baseSha});
+    if (adapter.profileDigest !== installed.profileDigest || adapter.policyDigest !== installed.policyDigest) {
+        throw new Error('doctor adapter policy is mismatched');
+    }
+    profile.adapter = {profileDigest: adapter.profileDigest, policyDigest: adapter.policyDigest};
+    return {
+        profile,
+        adapter: {
+            protected: {
+                packageName: provider.identity.packageName,
+                packageVersion: provider.identity.packageVersion,
+                profileDigest: adapter.profileDigest,
+                policyDigest: adapter.policyDigest,
+            },
+            provider: {
+                id: provider.identity.id,
+                packageName: provider.identity.packageName,
+                packageVersion: provider.identity.packageVersion,
+                protocolVersion: provider.identity.protocolVersion,
+                sourceClass: provider.identity.sourceClass,
+            },
+        },
     };
 }
 
@@ -398,8 +443,12 @@ async function executeBridge(bridge, context, projectRoot, trust) {
         });
     }
     if (bridge.operation === 'check') {
+        const registration = (context.discoverOptionalAdapter ?? discoverOptionalAdapter)({
+            projectRoot,
+            piDir: context.piDir ?? path.join(projectRoot, '.pi'),
+        });
         const receipt = await (context.runDeterministicCheck ?? runDeterministicCheck)(
-            {baseRef: bridge.baseRef}, {...context, projectRoot}
+            {baseRef: bridge.baseRef}, {...context, projectRoot, registration}
         );
         if (!/^[0-9a-f]{64}$/.test(receipt?.digest ?? '') || !['PASS', 'FAIL'].includes(receipt.status)) {
             throw new Error('check receipt is invalid');
@@ -475,7 +524,8 @@ async function main(argv, context = {}) {
         try {
             const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
             const projectRoot = repositoryRoot(context);
-            const trust = classifyTrustRoot(coreRoot, projectRoot);
+            const trust = (context.classifyTrustRoot ?? classifyTrustRoot)(coreRoot, projectRoot);
+            if (!trust.eligibleForAuthority) throw new Error('authority trust root is unavailable');
             const model = await (context.inspectIsolatedRuntime ?? inspectIsolatedRuntime)({
                 repositoryRoot: projectRoot,
                 env: context.env ?? process.env,
@@ -483,18 +533,37 @@ async function main(argv, context = {}) {
                 tempRoot: context.tempRoot,
                 removeTemp: context.removeTemp,
             });
-            const profile = profileReadiness(context, coreRoot, projectRoot);
-            if (profile === null) throw new Error('Core review profile is unavailable');
+            const readiness = profileReadiness(context, coreRoot, projectRoot);
+            if (readiness === null) throw new Error('Core review profile is unavailable');
+            const {profile} = readiness;
+            const criteria = (context.inspectCriteria ?? inspectCriteria)({...context, projectRoot});
+            const check = (context.inspectCheck ?? inspectCheck)({...context, projectRoot});
+            if (!['ABSENT', 'VALID'].includes(criteria.state) ||
+                !['ABSENT', 'VALID'].includes(check.state)) {
+                throw new Error('authority receipt state is unsafe');
+            }
+            const authority = {
+                core: {
+                    packageName: '@kyaulabs/prism-core',
+                    packageVersion: readVersion(coreRoot),
+                    profileDigest: profile.core.profileDigest,
+                    policyDigest: profile.core.policyDigest,
+                    sourceClass: trust.sourceClass,
+                },
+                adapter: readiness.adapter,
+                criteriaState: criteria.state,
+                checkState: check.state,
+            };
             const checks = [
-                {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
+                {id: 'authority-trust-root', status: 'PASS', message: 'installed Core authority validated'},
                 {id: 'active-model', status: 'PASS', message: 'active Pi model resolved exactly'},
                 {id: 'sdk-isolation', status: 'PASS', message: 'isolated Pi resources validated'},
+                {id: 'review-profile', status: 'PASS', message: 'closed review profile validated'},
+                {id: 'criteria-state', status: criteria.state, message: 'criteria receipt state inspected'},
+                {id: 'check-state', status: check.state, message: 'check receipt state inspected'},
+                {id: 'adapter-quality-provider', status: profile.adapter === null ? 'SKIPPED' : 'PASS',
+                    message: profile.adapter === null ? 'no active adapter' : 'adapter provider validated'},
             ];
-            checks.push({
-                id: 'review-profile',
-                status: 'PASS',
-                message: 'closed review profile validated',
-            });
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: 'doctor',
@@ -503,6 +572,7 @@ async function main(argv, context = {}) {
                 eligibleForAuthority: trust.eligibleForAuthority,
                 model,
                 profile,
+                authority,
                 checks,
             });
             return EXIT.OK;

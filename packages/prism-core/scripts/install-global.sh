@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -483,6 +483,24 @@ case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "⚠ $BIN_DIR is not on PATH; add it manually before invoking prism-tool" ;;
 esac
+
+REVIEW_VERSION=""
+REVIEW_MANIFEST="$(dirname -- "$(dirname -- "$REVIEW_CLI")")/package.json"
+EXPECTED_REVIEW_VERSION=""
+if ! EXPECTED_REVIEW_VERSION=$(node -e '
+const fs = require("node:fs");
+const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (value.name !== "@kyaulabs/prism-core" || typeof value.version !== "string") process.exit(1);
+process.stdout.write(value.version);
+' "$REVIEW_MANIFEST" 2>/dev/null) \
+    || ! REVIEW_VERSION=$(NODE_OPTIONS='--require=/prism-review-node-injection-denied' \
+        NODE_PATH='/prism-review-node-injection-denied' "$REVIEW_LAUNCHER" --version 2>/dev/null) \
+    || [[ ! "$REVIEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+    || [ "$REVIEW_VERSION" != "$EXPECTED_REVIEW_VERSION" ]; then
+    echo "✗ installed prism-review executable verification failed" >&2
+    exit 1
+fi
+echo "✓ prism review packaged executable PASS"
 
 LOCAL_REPORT=""
 if ! LOCAL_REPORT=$(node "$CORE_CLI" doctor --local-only --json 2>&1); then

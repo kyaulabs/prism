@@ -503,6 +503,149 @@ test('reads closure proposals through a bounded repository-confined no-follow bo
     }
 });
 
+test('doctor reports exact external authority and absent receipt readiness without probing authentication', async (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-doctor-'));
+    const coreRoot = path.join(root, 'core');
+    const repositoryRoot = path.join(root, 'repository');
+    fs.mkdirSync(coreRoot);
+    fs.mkdirSync(repositoryRoot);
+    fs.writeFileSync(path.join(coreRoot, 'package.json'),
+        '{"name":"@kyaulabs/prism-core","version":"1.2.3"}\n');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const output = capture();
+    let authenticationProbes = 0;
+
+    const status = await main(['doctor', '--json'], {
+        ...output.context,
+        coreRoot,
+        projectRoot: repositoryRoot,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        coreProfilePresent: true,
+        inspectIsolatedRuntime: async () => ({
+            provider: 'fixture-provider', id: 'fixture-model', reasoningLevel: 'high',
+            contextWindow: 200000, authentication: 'UNKNOWN',
+        }),
+        loadCoreProfile: () => ({profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)}),
+        discoverOptionalAdapter: () => null,
+        inspectCriteria: () => ({state: 'ABSENT'}),
+        inspectCheck: () => ({state: 'ABSENT'}),
+        probeAuthentication: () => { authenticationProbes += 1; },
+    });
+
+    assert.equal(status, EXIT.OK);
+    assert.equal(authenticationProbes, 0);
+    const report = JSON.parse(output.result().stdout);
+    assert.equal(report.status, 'GO');
+    assert.deepEqual(report.authority, {
+        core: {
+            packageName: '@kyaulabs/prism-core', packageVersion: '1.2.3',
+            profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64),
+            sourceClass: 'INSTALLED_EXTERNAL',
+        },
+        adapter: null,
+        criteriaState: 'ABSENT',
+        checkState: 'ABSENT',
+    });
+    assert.deepEqual(report.checks.map(({id, status: checkStatus}) => [id, checkStatus]), [
+        ['authority-trust-root', 'PASS'],
+        ['active-model', 'PASS'],
+        ['sdk-isolation', 'PASS'],
+        ['review-profile', 'PASS'],
+        ['criteria-state', 'ABSENT'],
+        ['check-state', 'ABSENT'],
+        ['adapter-quality-provider', 'SKIPPED'],
+    ]);
+});
+
+test('doctor binds a protected adapter profile to one matching external provider', async (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-doctor-adapter-'));
+    const coreRoot = path.join(root, 'core');
+    const repositoryRoot = path.join(root, 'repository');
+    fs.mkdirSync(coreRoot);
+    fs.mkdirSync(repositoryRoot);
+    fs.writeFileSync(path.join(coreRoot, 'package.json'),
+        '{"name":"@kyaulabs/prism-core","version":"1.2.3"}\n');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const output = capture();
+    const registration = {packageName: '@kyaulabs/prism-php-web', reviewPath: '/reviewed/profile'};
+    const installedRegistration = {packageName: '@kyaulabs/prism-php-web', reviewPath: '/installed/profile'};
+
+    const status = await main(['doctor', '--json'], {
+        ...output.context,
+        coreRoot,
+        projectRoot: repositoryRoot,
+        coreProfilePresent: true,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        inspectIsolatedRuntime: async () => ({provider: 'fixture', id: 'model', reasoningLevel: 'high',
+            contextWindow: 200000, authentication: 'UNKNOWN'}),
+        loadCoreProfile: () => ({profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)}),
+        discoverOptionalAdapter: () => registration,
+        resolveDoctorIdentity: () => ({baseSha: '1'.repeat(40)}),
+        resolveQualityProvider: () => ({
+            identity: {id: 'php-web-quality', packageName: '@kyaulabs/prism-php-web',
+                packageVersion: '1.2.3', protocolVersion: 1, sourceClass: 'INSTALLED_EXTERNAL'},
+            registration: installedRegistration,
+        }),
+        loadAdapterProfile: () => ({profileDigest: 'c'.repeat(64), policyDigest: 'd'.repeat(64)}),
+        inspectCriteria: () => ({state: 'VALID'}),
+        inspectCheck: () => ({state: 'VALID'}),
+    });
+
+    assert.equal(status, EXIT.OK);
+    const report = JSON.parse(output.result().stdout);
+    assert.deepEqual(report.authority.adapter, {
+        protected: {
+            packageName: '@kyaulabs/prism-php-web', packageVersion: '1.2.3',
+            profileDigest: 'c'.repeat(64), policyDigest: 'd'.repeat(64),
+        },
+        provider: {
+            id: 'php-web-quality', packageName: '@kyaulabs/prism-php-web', packageVersion: '1.2.3',
+            protocolVersion: 1, sourceClass: 'INSTALLED_EXTERNAL',
+        },
+    });
+    assert.equal(report.checks.at(-1).status, 'PASS');
+});
+
+test('doctor returns NO-GO for checkout Core and adapter-provider mismatch', async (t) => {
+    const repositoryRoot = path.resolve(__dirname, '../..');
+    const localOutput = capture();
+    let runtimeTouched = false;
+    const localStatus = await main(['doctor', '--json'], {
+        ...localOutput.context,
+        projectRoot: repositoryRoot,
+        inspectIsolatedRuntime: () => { runtimeTouched = true; },
+    });
+    assert.equal(localStatus, EXIT.READINESS);
+    assert.equal(runtimeTouched, false);
+    assert.equal(JSON.parse(localOutput.result().stdout).status, 'NO-GO');
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-doctor-mismatch-'));
+    const coreRoot = path.join(root, 'core');
+    const projectRoot = path.join(root, 'repository');
+    fs.mkdirSync(coreRoot);
+    fs.mkdirSync(projectRoot);
+    fs.writeFileSync(path.join(coreRoot, 'package.json'),
+        '{"name":"@kyaulabs/prism-core","version":"1.2.3"}\n');
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const mismatchOutput = capture();
+    const mismatchStatus = await main(['doctor', '--json'], {
+        ...mismatchOutput.context,
+        coreRoot,
+        projectRoot,
+        coreProfilePresent: true,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        inspectIsolatedRuntime: async () => ({provider: 'fixture', id: 'model', reasoningLevel: 'high',
+            contextWindow: 200000, authentication: 'UNKNOWN'}),
+        loadCoreProfile: () => ({profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)}),
+        discoverOptionalAdapter: () => ({packageName: '@kyaulabs/prism-php-web', reviewPath: '/reviewed'}),
+        resolveDoctorIdentity: () => ({baseSha: '1'.repeat(40)}),
+        resolveQualityProvider: () => { throw new Error('PRIVATE_PROVIDER_CANARY'); },
+    });
+    assert.equal(mismatchStatus, EXIT.READINESS);
+    assert.equal(JSON.parse(mismatchOutput.result().stdout).status, 'NO-GO');
+    assert.doesNotMatch(mismatchOutput.result().stdout, /PRIVATE_PROVIDER_CANARY|reviewed/);
+});
+
 test('fails readiness when the mandatory Core review profile is absent', async () => {
     const output = capture();
     const repositoryRoot = path.resolve(__dirname, '../..');
@@ -516,6 +659,7 @@ test('fails readiness when the mandatory Core review profile is absent', async (
             PI_REASONING_LEVEL: 'high',
         },
         coreProfilePresent: false,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
         run: () => { throw new Error('Git must not run'); },
         async inspectIsolatedRuntime(options) {
             calls.push(options.repositoryRoot);
@@ -553,6 +697,7 @@ test('doctor validates an available Core profile and optional adapter state with
             PI_REASONING_LEVEL: 'high',
         },
         coreProfilePresent: true,
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
         inspectIsolatedRuntime: async () => ({
             provider: 'anthropic',
             id: 'claude-sonnet-4-5',
@@ -568,6 +713,8 @@ test('doctor validates an available Core profile and optional adapter state with
             calls.push('adapter-discovery');
             return null;
         },
+        inspectCriteria: () => ({state: 'ABSENT'}),
+        inspectCheck: () => ({state: 'ABSENT'}),
         loadSdk: () => { throw new Error('SDK must not load'); },
     });
 
@@ -578,7 +725,7 @@ test('doctor validates an available Core profile and optional adapter state with
         core: {profileDigest: 'a'.repeat(64), policyDigest: 'b'.repeat(64)},
         adapter: null,
     });
-    assert.deepEqual(report.checks.at(-1), {
+    assert.deepEqual(report.checks.find(({id}) => id === 'review-profile'), {
         id: 'review-profile', status: 'PASS', message: 'closed review profile validated',
     });
 });

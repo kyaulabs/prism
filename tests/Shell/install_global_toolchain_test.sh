@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 set -euo pipefail
 
@@ -36,6 +36,7 @@ fi
 if [[ "${2:-}" == npm:* ]]; then
     package_root="$PI_CODING_AGENT_DIR/npm/node_modules/@kyaulabs/prism-core"
     mkdir -p "$package_root/scripts"
+    printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$package_root/package.json"
     cat > "$package_root/scripts/prism-tool.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
@@ -45,7 +46,7 @@ JSEOF
     cat > "$package_root/scripts/prism-review.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
-process.stdout.write('fixture review\n');
+process.stdout.write(process.argv[2] === '--version' ? '0.4.3\n' : 'fixture review\n');
 JSEOF
     chmod +x "$package_root/scripts/prism-tool.js" "$package_root/scripts/prism-review.js"
 fi
@@ -152,6 +153,11 @@ if [ "$preload_status" -eq 0 ] && [ ! -e "$T1/preload-ran" ]; then
     pass "installed review launcher strips Node module injection"
 else
     fail "installed review launcher accepted Node module injection"
+fi
+if grep -qFx '✓ prism review packaged executable PASS' <<< "$output"; then
+    pass "installer verifies the packaged review executable"
+else
+    fail "installer omitted packaged review executable verification"
 fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
@@ -337,7 +343,14 @@ cat > "$T14/pi-agent/local-core/scripts/prism-tool.js" <<'JSEOF'
 if (process.argv[2] !== 'doctor') process.exit(2);
 process.stdout.write('fixture\tPASS\tready\nGO\n');
 JSEOF
-chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js"
+cat > "$T14/pi-agent/local-core/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== '--version') process.exit(2);
+process.stdout.write('0.4.3\n');
+JSEOF
+chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js" \
+    "$T14/pi-agent/local-core/scripts/prism-review.js"
 cat > "$T14/pi-agent/settings.json" <<EOF
 {
   "packages": [
@@ -348,12 +361,13 @@ cat > "$T14/pi-agent/settings.json" <<EOF
 }
 EOF
 status=0
-HOME="$T14/home" \
+output=""
+output=$(HOME="$T14/home" \
     PI_CODING_AGENT_DIR="$T14/pi-agent" \
     PRISM_BIN_DIR="$T14/bin-dir" \
     PI_INVOCATIONS="$T14/pi-invocations" \
     PATH="$T14/bin:$PATH" \
-    bash "$T14/pi-agent/local-core/scripts/install-global.sh" >/dev/null 2>&1 || status=$?
+    bash "$T14/pi-agent/local-core/scripts/install-global.sh" 2>&1) || status=$?
 if [ "$status" -eq 0 ] && [ ! -s "$T14/pi-invocations" ] \
     && node - "$T14/pi-agent/settings.json" "$T14/pi-agent/local-core" <<'JSEOF'
 const fs = require('node:fs');
@@ -365,7 +379,7 @@ JSEOF
 then
     pass "an already installed local core reconciles without invoking Pi"
 else
-    fail "the under-Pi installation path did not reconcile exclusively"
+    fail "the under-Pi installation path did not reconcile exclusively: $output"
 fi
 
 echo "── npm source registry approval ──"

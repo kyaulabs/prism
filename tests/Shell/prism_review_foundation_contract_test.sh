@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_review_foundation_contract_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: prism_review_foundation_contract_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 set -euo pipefail
 
@@ -24,7 +24,10 @@ done
 
 printf '%s\n' '── OCR authority remains current ──'
 if grep -Fq 'prism-tool code-review ocr' "$REPO_ROOT/packages/prism-core/skills/code-review/SKILL.md" \
-    && grep -Fq 'Standing OCR consent' "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"; then
+    && grep -Fq 'code-review chain record' "$REPO_ROOT/packages/prism-core/skills/code-review/SKILL.md" \
+    && grep -Fq 'Standing OCR consent' "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md" \
+    && ! grep -Fq 'prism-review review authoritative' \
+        "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"; then
     pass 'current review and finalization still use OCR'
 else
     fail 'current OCR review authority changed during foundation work'

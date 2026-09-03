@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -273,8 +273,10 @@ test('packs the core package with every owned resource and executable modes', ()
         'shared sensitive-path policy packaged'
     );
     for (const module of [
-        'canonical-json', 'cli', 'constants', 'errors', 'findings', 'git-snapshot',
-        'orchestrator', 'profile', 'schema', 'session-runner', 'snapshot-tools', 'trust',
+        'authority', 'canonical-json', 'check', 'cli', 'constants', 'core-quality',
+        'criteria', 'criteria-tools', 'errors', 'findings', 'git-snapshot',
+        'orchestrator', 'profile', 'quality-provider', 'review-chain-v2', 'review-state',
+        'schema', 'session-runner', 'snapshot-tools', 'trust',
     ]) {
         assert.equal(
             packed.files.has(`scripts/prism-review/${module}.js`),
@@ -496,8 +498,8 @@ test('packs the adapter with contract, handler, modules, prompts, skills, and sa
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.notEqual(packed.files.get('scripts/prism-tool-adapter.js') & 0o111, 0, 'handler is executable');
     for (const module of [
-        'audit', 'automation-provider', 'bootstrap-scaffold', 'project', 'transaction',
-        'visual-review-files', 'workspace',
+        'audit', 'automation-provider', 'bootstrap-scaffold', 'project', 'quality-provider',
+        'transaction', 'visual-review-files', 'workspace',
     ]) {
         assert.equal(packed.files.has(`scripts/toolchain/${module}.js`), true, module);
     }

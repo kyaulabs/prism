@@ -843,7 +843,7 @@ prism-tool commit create --type feat --scope pr --subject "accept coherent revie
 - Consumes: all bridge runtime modules and package extraction helpers.
 - Produces: doctor evidence for external Core/provider readiness and a fake-session package proof of criteria → check → initial → repair → preflight.
 
-- [ ] **Step 1: Write failing doctor, package, and compatibility tests**
+- [x] **Step 1: Write failing doctor, package, and compatibility tests**
 
 Pack Core and adapter, extract them outside a fixture repository, configure the fixture's active adapter as a reviewed-worktree package, and resolve the external quality package independently. Assert `prism-review doctor --json` reports Core source class, authority eligibility, exact Core version/profile/policy, protected-base adapter identity/profile, matching external quality-provider identity/version/protocol, Pi SDK isolation, and no authentication probe. Add mismatch and local-source NO-GO cases.
 
@@ -851,7 +851,7 @@ Extend the fake-session preload to complete criteria exposure, all four axes, fi
 
 Finally assert the normal finalization compatibility fixture still invokes OCR and records schema one.
 
-- [ ] **Step 2: Run package and shell tests to verify Red**
+- [x] **Step 2: Run package and shell tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js`
 
@@ -861,13 +861,13 @@ Run: `bash tests/Shell/prism_review_foundation_contract_test.sh`
 
 Expected: FAIL because doctor lacks bridge readiness and packaged authority has no end-to-end proof.
 
-- [ ] **Step 3: Complete readiness and packaged execution**
+- [x] **Step 3: Complete readiness and packaged execution**
 
 Extend doctor with fixed checks for `authority-trust-root`, `criteria-state`, `check-state`, and `adapter-quality-provider`. Readiness may report criteria/check as absent without claiming finalization readiness, but authority eligibility requires external Core and a matching external provider whenever an active protected-base adapter is present. Keep authentication `UNKNOWN` and make no inference call.
 
 Update installer verification only enough to prove the packaged `prism-review` executable is external and strips Node injection; do not install the adapter, grant consent, mutate review state, or switch normal doctor/finalization authority. Ensure package inventories include every new module and adapter provider. Keep the source-checkout e2e preload test-owned; production receives no test hook.
 
-- [ ] **Step 4: Run the package, installer, and compatibility tests to verify Green**
+- [x] **Step 4: Run the package, installer, and compatibility tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js tests/Node/prism-review-cli.test.js`
 
@@ -877,10 +877,10 @@ Run: `bash tests/Shell/prism_review_foundation_contract_test.sh`
 
 Expected: PASS, including explicit proof that normal finalization still uses OCR/version one.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/install-global.sh tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js tests/Shell/install_global_toolchain_test.sh tests/Shell/prism_review_foundation_contract_test.sh
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/cli.js packages/prism-core/scripts/install-global.sh tests/Node/prism-review-cli.test.js tests/Node/prism-review-e2e.test.js tests/Node/toolchain-packaging.test.js tests/Shell/install_global_toolchain_test.sh tests/Shell/prism_review_foundation_contract_test.sh
 prism-tool commit create --type test --scope review --subject "prove packaged authority bridge behavior"
 ```
 
