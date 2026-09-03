@@ -140,7 +140,7 @@ function assertSafePath(context, sourcePath) {
         projectDir: root,
         home: context.home ?? os.homedir(),
         extraPaths: loadAdditionalSensitivePaths(
-            context.sensitivePaths ?? context.env?.PRISM_SENSITIVE_PATHS
+            context.sensitivePaths ?? (context.env ?? process.env).PRISM_SENSITIVE_PATHS
         ),
     };
     if (sensitivePathMatch(path.join(root, sourcePath), policy) !== null) {
@@ -238,6 +238,7 @@ function verifyCriteria(expected, context = {}) {
         throw new Error('criteria record is stale');
     }
     const blobs = inspected.record.sources.map((source) => {
+        assertSafePath(context, source.path);
         const commit = resolveCommit(context, source.commit);
         const blobOid = treeIdentity(context, commit, source.path);
         const loaded = readBlob(context, blobOid);

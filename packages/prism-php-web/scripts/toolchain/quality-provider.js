@@ -247,9 +247,9 @@ async function runQualityProvider(options) {
             {command: 'npm', args: ['audit', '--audit-level=low']})
         : skipped('php-web.npm-audit', ['npm', 'audit', '--audit-level=low']));
     pending.set('php-web.php-cs-fixer', php.length
-        ? one('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', 'TRACKED_PHP_FILES'],
+        ? one('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES'],
             options.runTool, {toolId: 'php-cs-fixer', args: ['fix', '--dry-run', '--diff', ...php]})
-        : skipped('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', 'TRACKED_PHP_FILES']));
+        : skipped('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES']));
     pending.set('php-web.php-syntax', many('php-web.php-syntax', ['php', '-l', 'TRACKED_PHP_FILES'],
         options.runCommand, php.map((file) => ({command: 'php', args: ['-l', file]}))));
     pending.set('php-web.playwright-list', files.some((file) => file.startsWith('tests/Browser/'))

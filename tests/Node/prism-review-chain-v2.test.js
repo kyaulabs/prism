@@ -226,6 +226,19 @@ test('classifies strict version-one state as LEGACY without changing OCR authori
     assert.equal(selectReviewChainVersion(target).version, 1);
 });
 
+test('records authority for prerelease Core and adapter packages', (t) => {
+    const target = fixture(t);
+    const candidate = attempt(target);
+    candidate.core.version = '0.2.0-rc.1';
+    candidate.adapter.version = '0.2.0-beta.2';
+
+    const recorded = recordReviewAttempt(candidate, target);
+
+    assert.equal(recorded.segments[0].core.version, '0.2.0-rc.1');
+    assert.equal(recorded.segments[0].adapter.version, '0.2.0-beta.2');
+    assert.equal(inspectReviewChainV2(target).state, 'VALID');
+});
+
 test('replays a continuous repair, confirmed closure, and preserved Advisory finding', (t) => {
     const target = fixture(t);
     const blocking = finding({

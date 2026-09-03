@@ -1,4 +1,4 @@
-// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -69,7 +69,7 @@ function receipt(request, result, status = null) {
         throw new Error('Core quality result is invalid');
     }
     const acceptedStatus = request.id === 'core.conflict-markers'
-        ? [0, 1].includes(result.status)
+        ? result.status === 1
         : result.status === 0;
     const clean = request.id !== 'core.repository-clean' ||
         (Buffer.isBuffer(result.stdout) ? result.stdout.length === 0 : String(result.stdout ?? '') === '');
@@ -224,7 +224,7 @@ function assertSafeTrackedPaths(context, trackedPaths) {
         projectDir: projectRoot,
         home: context.home ?? os.homedir(),
         extraPaths: loadAdditionalSensitivePaths(
-            context.sensitivePaths ?? context.env?.PRISM_SENSITIVE_PATHS
+            context.sensitivePaths ?? (context.env ?? process.env).PRISM_SENSITIVE_PATHS
         ),
     };
     if (trackedPaths.some((trackedPath) =>

@@ -209,6 +209,20 @@ canonical_cli() {
     node -e 'const fs = require("node:fs"); process.stdout.write(fs.realpathSync(process.argv[1]));' "$candidate" 2>/dev/null
 }
 
+canonical_package_cli() {
+    local package_root="$1" relative_path="$2"
+    node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+const root = fs.realpathSync(process.argv[1]);
+const candidate = path.join(root, process.argv[2]);
+const identity = fs.lstatSync(candidate);
+const resolved = fs.realpathSync(candidate);
+if (!identity.isFile() || identity.isSymbolicLink() || resolved !== candidate) process.exit(1);
+process.stdout.write(resolved);
+' "$package_root" "$relative_path" 2>/dev/null
+}
+
 validate_cli_path() {
     local core_cli="$1"
     case "$core_cli" in
@@ -459,21 +473,16 @@ done
 # --- 3. deploy the stable launcher and verify readiness --------------------
 
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
-    CORE_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-review.js"
-elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
-    CORE_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-review.js"
+    INSTALLED_CORE_ROOT="$PI_DIR/npm/node_modules/@kyaulabs/prism-core"
 else
-    CORE_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-review.js"
+    INSTALLED_CORE_ROOT="$SELECTED_CORE_SOURCE"
 fi
 
-if ! CORE_CLI=$(canonical_cli "$CORE_CLI_CANDIDATE"); then
+if ! CORE_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-tool.js'); then
     echo "✗ installed prism-core CLI is unavailable" >&2
     exit 1
 fi
-if ! REVIEW_CLI=$(canonical_cli "$REVIEW_CLI_CANDIDATE"); then
+if ! REVIEW_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-review.js'); then
     echo "✗ installed prism-review CLI is unavailable" >&2
     exit 1
 fi
@@ -485,7 +494,7 @@ case ":$PATH:" in
 esac
 
 REVIEW_VERSION=""
-REVIEW_MANIFEST="$(dirname -- "$(dirname -- "$REVIEW_CLI")")/package.json"
+REVIEW_MANIFEST="$INSTALLED_CORE_ROOT/package.json"
 EXPECTED_REVIEW_VERSION=""
 if ! EXPECTED_REVIEW_VERSION=$(node -e '
 const fs = require("node:fs");

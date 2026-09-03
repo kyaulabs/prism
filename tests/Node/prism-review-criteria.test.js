@@ -136,6 +136,27 @@ test('rejects duplicate, missing, unsafe, and non-text criteria sources', (t) =>
     }, binary), /UTF-8/);
 });
 
+test('rejects criteria that the current sensitive-path policy newly denies', (t) => {
+    const target = fixture(t);
+    const prior = process.env.PRISM_SENSITIVE_PATHS;
+    t.after(() => {
+        if (prior === undefined) delete process.env.PRISM_SENSITIVE_PATHS;
+        else process.env.PRISM_SENSITIVE_PATHS = prior;
+    });
+    recordCriteria({
+        disposition: 'DECLARED',
+        sources: [{role: 'SPEC', commit: target.head, path: 'docs/specs/change-spec.md'}],
+    }, target);
+    process.env.PRISM_SENSITIVE_PATHS = path.join(
+        target.projectRoot,
+        'docs',
+        'specs',
+        'change-spec.md'
+    );
+
+    assert.throws(() => verifyCriteria({branch: 'feat/tester-abcd-change'}, target), /sensitive/);
+});
+
 test('classifies malformed and public criteria records as unsafe', (t) => {
     const target = fixture(t);
     const stateDirectory = path.join(target.projectRoot, '.pi', 'prism-tool', 'code-review');

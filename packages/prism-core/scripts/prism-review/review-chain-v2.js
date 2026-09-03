@@ -256,7 +256,7 @@ function validatePackage(value, adapter = false) {
     exact(value, adapter
         ? ['name', 'version', 'digest', 'sourceClass', 'providerId', 'protocolVersion']
         : ['name', 'version', 'digest', 'sourceClass'], 'review package');
-    if (!PACKAGE.test(value.name) || !/^\d+\.\d+\.\d+$/.test(value.version) ||
+    if (!PACKAGE.test(value.name) || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.version) ||
         !SOURCE_CLASSES.has(value.sourceClass)) throw new ReviewChainV2Error('review package is invalid');
     digest(value.digest, 'review package digest');
     if (adapter && (!ID.test(value.providerId) || value.protocolVersion !== 1)) {

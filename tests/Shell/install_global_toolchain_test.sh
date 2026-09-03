@@ -1021,6 +1021,41 @@ else
     fail "launcher accepted an unsupported canonical CLI path"
 fi
 
+T7B=$(mktemp -d)
+register_temp_dir "$T7B"
+write_fake_tools "$T7B"
+mkdir -p "$T7B/home" "$T7B/pi-agent" "$T7B/bin-dir" \
+    "$T7B/source/scripts" "$T7B/external/scripts"
+: > "$T7B/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7B/source/package.json"
+cat > "$T7B/source/scripts/prism-tool.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== 'doctor') process.exit(2);
+process.stdout.write('{"status":"GO"}\n');
+JSEOF
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7B/external/package.json"
+cat > "$T7B/external/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+process.stdout.write('0.4.3\n');
+JSEOF
+chmod +x "$T7B/source/scripts/prism-tool.js" "$T7B/external/scripts/prism-review.js"
+ln -s "$T7B/external/scripts/prism-review.js" "$T7B/source/scripts/prism-review.js"
+status=0
+HOME="$T7B/home" \
+    PI_CODING_AGENT_DIR="$T7B/pi-agent" \
+    PRISM_BIN_DIR="$T7B/bin-dir" \
+    PRISM_CORE_SOURCE="$T7B/source" \
+    PI_INVOCATIONS="$T7B/pi-invocations" \
+    PATH="$T7B/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -e "$T7B/bin-dir/prism-review" ]; then
+    pass "installer rejects a review CLI outside the selected Core package"
+else
+    fail "installer accepted a review CLI outside the selected Core package"
+fi
+
 T8=$(mktemp -d)
 register_temp_dir "$T8"
 write_fake_tools "$T8"

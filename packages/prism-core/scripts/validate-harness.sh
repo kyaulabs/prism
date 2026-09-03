@@ -265,14 +265,27 @@ const runtimeModules = [
     'review-chain-v2.js',
     'review-state.js',
 ];
+const coreReviewRoot = path.join(coreRoot, 'scripts/prism-review');
+for (const directory of [path.join(coreRoot, 'scripts'), coreReviewRoot]) {
+    const identity = fs.lstatSync(directory);
+    if (identity.isSymbolicLink() || !identity.isDirectory() || fs.realpathSync(directory) !== directory) {
+        throw new Error('Core review module directory is missing or unsafe');
+    }
+}
 for (const module of runtimeModules) {
-    const identity = fs.lstatSync(path.join(coreRoot, 'scripts/prism-review', module));
+    const identity = fs.lstatSync(path.join(coreReviewRoot, module));
     if (identity.isSymbolicLink() || !identity.isFile()) {
         throw new Error(`Core review module ${module} is missing or unsafe`);
     }
 }
-const qualityProvider = fs.lstatSync(path.join(adapterRoot,
-    'scripts/toolchain/quality-provider.js'));
+const adapterProviderRoot = path.join(adapterRoot, 'scripts/toolchain');
+for (const directory of [path.join(adapterRoot, 'scripts'), adapterProviderRoot]) {
+    const identity = fs.lstatSync(directory);
+    if (identity.isSymbolicLink() || !identity.isDirectory() || fs.realpathSync(directory) !== directory) {
+        throw new Error('adapter quality provider directory is missing or unsafe');
+    }
+}
+const qualityProvider = fs.lstatSync(path.join(adapterProviderRoot, 'quality-provider.js'));
 if (qualityProvider.isSymbolicLink() || !qualityProvider.isFile()) {
     throw new Error('adapter quality provider is missing or unsafe');
 }

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -116,6 +116,34 @@ test('derives bounded adapter inputs from the immutable Git range', async (t) =>
     ]);
 });
 
+test('applies process-level sensitive paths to the tracked quality scope', (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const prior = process.env.PRISM_SENSITIVE_PATHS;
+    t.after(() => {
+        if (prior === undefined) delete process.env.PRISM_SENSITIVE_PATHS;
+        else process.env.PRISM_SENSITIVE_PATHS = prior;
+    });
+    const git = (args) => {
+        const result = childProcess.spawnSync('git', args, {cwd: root, encoding: 'utf8'});
+        assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
+    };
+    git(['init', '-b', 'develop']);
+    git(['config', 'user.name', 'Prism Test']);
+    git(['config', 'user.email', 'prism@example.test']);
+    fs.writeFileSync(path.join(root, 'review-input.txt'), 'tracked\n');
+    git(['add', '.']);
+    git(['commit', '-m', 'base']);
+    const head = git(['rev-parse', 'HEAD']);
+    process.env.PRISM_SENSITIVE_PATHS = path.join(root, 'review-input.txt');
+
+    assert.throws(() => createQualityCallbacks({
+        branch: 'develop', baseRef: 'develop', baseSha: head, headSha: head,
+    }, {projectRoot: root, registration: {contract: {components: [], serverProfiles: []}},
+        handler: {resolveTool() {}}}), /sensitive/);
+});
+
 test('fails bounded Core receipts on timeout, nonzero status, and output overflow', async () => {
     const report = await runCoreQuality({
         branch: 'feat/check',
@@ -145,6 +173,26 @@ test('fails bounded Core receipts on timeout, nonzero status, and output overflo
     assert.equal(report.gates.find(({id}) => id === 'core.harness').status, 'SKIPPED');
     assert.equal(report.gates.find(({id}) => id === 'core.semgrep').status, 'FAIL');
     assert.equal(JSON.stringify(report).includes('ETIMEDOUT'), false);
+});
+
+test('fails the conflict-marker gate when Git reports a match', async () => {
+    const report = await runCoreQuality({
+        branch: 'feat/check',
+        baseRef: 'develop',
+        baseSha,
+        headSha,
+    }, {
+        projectRoot,
+        coreRoot,
+        execute: async (request) => request.id === 'core.conflict-markers'
+            ? {...success(request), status: 0, stdout: Buffer.from('file.js:1:<<<<<<< HEAD\n')}
+            : success(request),
+        hasHarness: true,
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.status, 'FAIL');
+    assert.equal(report.gates.find(({id}) => id === 'core.conflict-markers').status, 'FAIL');
 });
 
 test('runs the six fixed Core gates with normalized commands and digest-only output', async () => {
