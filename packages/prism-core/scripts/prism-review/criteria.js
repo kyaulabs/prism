@@ -1,4 +1,4 @@
-// $KYAULabs: criteria.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: criteria.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -226,7 +226,8 @@ function verifyCriteria(expected, context = {}) {
         throw new Error('criteria expectation is invalid');
     }
     const inspected = inspectCriteria(context);
-    if (inspected.state !== REVIEW_STATE.VALID || inspected.record.branch !== expected.branch) {
+    if (currentBranch(context) !== expected.branch || inspected.state !== REVIEW_STATE.VALID ||
+        inspected.record.branch !== expected.branch) {
         throw new Error('criteria record is unavailable');
     }
     const digest = criteriaDigest(inspected.record);

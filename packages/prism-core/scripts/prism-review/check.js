@@ -1,4 +1,4 @@
-// $KYAULabs: check.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: check.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -124,13 +124,14 @@ function parseCheck(value) {
     const branch = boundedText(value.branch, BRANCH, 'check branch');
     const baseRef = boundedText(value.baseRef, BRANCH, 'check base reference');
     const core = parseIdentity(value.core);
-    const adapter = parseIdentity(value.adapter, true);
+    const adapter = value.adapter === null ? null : parseIdentity(value.adapter, true);
     const gates = value.gates.map(parseGate);
     const ids = gates.map(({id}) => id);
+    const expectedGates = [...CORE_GATE_IDS, ...(adapter?.gates ?? [])];
     if (new Set(ids).size !== ids.length || (value.status === 'RUNNING' && gates.length !== 0) ||
         (value.status === 'PASS' && (gates.some(({status}) => status === 'FAIL') ||
-            gates.length !== CORE_GATE_IDS.length + adapter.gates.length ||
-            [...CORE_GATE_IDS, ...adapter.gates].some((id, index) => ids[index] !== id)))) {
+            gates.length !== expectedGates.length ||
+            expectedGates.some((id, index) => ids[index] !== id)))) {
         throw new Error('check gate state is invalid');
     }
     return {
@@ -258,17 +259,21 @@ async function runDeterministicCheck(input, context = {}) {
     if (running !== null) publish(running, context);
     let gates = [];
     try {
-        const resolveProvider = context.resolveQualityProvider ?? resolveQualityProvider;
-        const provider = await resolveProvider({
-            repositoryRoot: projectRoot(context),
-            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
-            protectedBase: identity.baseSha,
-            registration: context.registration,
-            resolvePackage: context.resolvePackage,
-            run: context.runGit,
-            env: context.env,
-        });
-        const adapter = parseIdentity(provider.identity, true);
+        let provider = null;
+        let adapter = null;
+        if (context.registration !== null) {
+            const resolveProvider = context.resolveQualityProvider ?? resolveQualityProvider;
+            provider = await resolveProvider({
+                repositoryRoot: projectRoot(context),
+                coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+                protectedBase: identity.baseSha,
+                registration: context.registration,
+                resolvePackage: context.resolvePackage,
+                run: context.runGit,
+                env: context.env,
+            });
+            adapter = parseIdentity(provider.identity, true);
+        }
         running = parseCheck({
             schemaVersion: 1,
             kind: 'check',
@@ -296,22 +301,24 @@ async function runDeterministicCheck(input, context = {}) {
             gates.some(({status}) => status === 'FAIL') || !sameSnapshot(identity, context)) {
             throw new Error('Core quality report failed');
         }
-        const providerOptions = context.providerOptions ?? (provider.registration
-            ? createQualityCallbacks(identity, {
-                ...context,
-                registration: provider.registration,
-                verifySnapshot: () => sameSnapshot(identity, context),
-            })
-            : {});
-        const providerReport = validateQualityReport(await provider.run({
-            projectRoot: projectRoot(context),
-            baseSha: identity.baseSha,
-            headSha: identity.headSha,
-            ...providerOptions,
-        }), adapter);
-        gates.push(...providerReport.gates.map(parseGate));
-        if (providerReport.status !== 'PASS' || !sameSnapshot(identity, context)) {
-            throw new Error('adapter quality report failed');
+        if (provider !== null) {
+            const providerOptions = context.providerOptions ?? (provider.registration
+                ? createQualityCallbacks(identity, {
+                    ...context,
+                    registration: provider.registration,
+                    verifySnapshot: () => sameSnapshot(identity, context),
+                })
+                : {});
+            const providerReport = validateQualityReport(await provider.run({
+                projectRoot: projectRoot(context),
+                baseSha: identity.baseSha,
+                headSha: identity.headSha,
+                ...providerOptions,
+            }), adapter);
+            gates.push(...providerReport.gates.map(parseGate));
+            if (providerReport.status !== 'PASS' || !sameSnapshot(identity, context)) {
+                throw new Error('adapter quality report failed');
+            }
         }
         const passed = publish({...running, status: 'PASS', gates}, context);
         return {...passed, path: inspectCheck(context).path, digest: checkDigest(passed)};

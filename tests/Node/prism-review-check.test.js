@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-check.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-check.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -230,6 +230,28 @@ test('invalidates a prior PASS before an interrupted retry invokes a gate', asyn
         baseSha: fixture.baseSha,
         headSha: fixture.headSha,
     }, {projectRoot: fixture.root}), /unavailable/);
+});
+
+test('publishes a Core-only PASS when no adapter is active', async (t) => {
+    const fixture = repository(t);
+    let providerCalls = 0;
+
+    const result = await runDeterministicCheck({baseRef: 'develop'}, {
+        projectRoot: fixture.root,
+        coreRoot,
+        registration: null,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        resolveQualityProvider: () => {
+            providerCalls += 1;
+            throw new Error('adapter provider must not resolve');
+        },
+        runCoreQuality: async () => coreReport(),
+    });
+
+    assert.equal(result.status, 'PASS');
+    assert.equal(result.adapter, null);
+    assert.deepEqual(result.gates.map(({id}) => id), CORE_GATE_IDS);
+    assert.equal(providerCalls, 0);
 });
 
 test('publishes RUNNING before gates and verifies the exact passing HEAD', async (t) => {

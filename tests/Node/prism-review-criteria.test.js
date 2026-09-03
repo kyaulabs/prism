@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-criteria.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-criteria.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -46,6 +46,14 @@ test('distinguishes explicit no-criteria authority from missing state', (t) => {
     assert.equal(recorded.disposition, 'NONE_DECLARED');
     assert.deepEqual(recorded.sources, []);
     assert.deepEqual(verifyCriteria({branch: 'feat/tester-abcd-change'}, target).blobs, []);
+});
+
+test('rejects criteria when the checkout branch drifts from the recorded branch', (t) => {
+    const target = fixture(t);
+    recordCriteria({disposition: 'NONE_DECLARED', sources: []}, target);
+    git(target.projectRoot, 'checkout', '-q', '-b', 'feat/tester-abcd-other');
+
+    assert.throws(() => verifyCriteria({branch: 'feat/tester-abcd-change'}, target), /unavailable/);
 });
 
 test('keeps committed criteria authoritative over worktree edits and replacement attempts', (t) => {

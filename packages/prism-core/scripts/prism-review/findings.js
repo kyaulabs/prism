@@ -138,7 +138,8 @@ function validateClosureProposal(value) {
         const tests = closure.tests.map((item) => {
             exact(item, ['path', 'gateId'], 'closure test');
             safeRelativePath(item.path, 'closure test path');
-            if (!ID.test(item.gateId ?? '') || seen.has(`${item.path}\0${item.gateId}`)) {
+            if (typeof item.gateId !== 'string' || !ID.test(item.gateId) ||
+                seen.has(`${item.path}\0${item.gateId}`)) {
                 throw new Error('closure test is invalid');
             }
             seen.add(`${item.path}\0${item.gateId}`);

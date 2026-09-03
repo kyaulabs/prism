@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -282,8 +282,12 @@ test('rejects incomplete authority ledgers, malformed verifier state, and stale 
         (input) => { input.report.axes.pop(); },
         (input) => { input.report.lenses[0].status = 'INCONCLUSIVE'; },
         (input) => { input.report.byteExposure[0].axes['tooling-style'] = 'INCOMPLETE'; },
+        (input) => { input.report.byteExposure[0].status = 'CORRUPT'; },
         (input) => { input.report.criteriaExposure.status = 'INCOMPLETE'; },
         (input) => { input.report.verifier.dispositions[0].disposition = 'UNKNOWN'; },
+        (input) => { input.report.verifier.dispositions.push({
+            ...input.report.verifier.dispositions[0], fingerprint: '0'.repeat(64),
+        }); },
         (input) => { input.report.findings.push({...input.report.findings[0]}); },
         (input) => { input.snapshot.manifestDigest = '0'.repeat(64); },
         (input) => { input.report.scope.baseCommit = input.check.headSha; },
@@ -398,6 +402,26 @@ test('rejects unvalidated Inconclusive report fields instead of persisting model
     assert.equal(fs.existsSync(path.join(
         target.projectRoot, '.pi', 'prism-tool', 'code-review', 'review-attempt.json'
     )), false);
+});
+
+test('rejects duplicate or over-limit Inconclusive finding sets', (t) => {
+    const cases = [
+        [finding(), finding()],
+        Array.from({length: LIMIT.REVIEW_FINDINGS + 1}, (_value, index) => finding({
+            fingerprint: index.toString(16).padStart(64, '0'),
+        })),
+    ];
+    for (const findings of cases) {
+        const target = fixture(t);
+        const inconclusive = report(target, {
+            findings,
+            outcome: 'INCONCLUSIVE',
+            report: {verifier: {complete: false, chunks: 0, dispositions: []}},
+        });
+
+        assert.throws(() => recordReviewAttempt(attempt(target, {report: inconclusive}), target), /findings/);
+        assert.equal(inspectReviewChainV2(target).state, 'ABSENT');
+    }
 });
 
 test('stores bounded Inconclusive diagnostics without advancing the chain', (t) => {

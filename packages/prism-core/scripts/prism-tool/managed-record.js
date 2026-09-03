@@ -1,4 +1,4 @@
-// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -193,8 +193,7 @@ function ensureManagedDirectory(directory, trustedRoot, context = {}) {
         try {
             if (typeof io.constants.O_NOFOLLOW !== 'number' ||
                 typeof io.constants.O_DIRECTORY !== 'number' ||
-                !identity.isDirectory() || identity.isSymbolicLink() || !isOwned(identity, context) ||
-                (current === target && (identity.mode & 0o777) !== 0o700)) {
+                !identity.isDirectory() || identity.isSymbolicLink() || !isOwned(identity, context)) {
                 throw new Error();
             }
             descriptor = io.openSync(
@@ -205,6 +204,7 @@ function ensureManagedDirectory(directory, trustedRoot, context = {}) {
             if (!held.isDirectory() || held.dev !== identity.dev || held.ino !== identity.ino ||
                 !isOwned(held, context)) throw new Error();
             if (created) io.fchmodSync(descriptor, 0o700);
+            if (current === target && (io.fstatSync(descriptor).mode & 0o777) !== 0o700) throw new Error();
             io.fsyncSync(descriptor);
             io.closeSync(descriptor);
             descriptor = undefined;

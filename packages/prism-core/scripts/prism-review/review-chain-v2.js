@@ -1,4 +1,4 @@
-// $KYAULabs: review-chain-v2.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: review-chain-v2.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -20,6 +20,7 @@ const ID = /^[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const CONTROL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const OUTCOMES = new Set(['PASS', 'BLOCKING']);
+const ENTRY_STATUSES = new Set(['A', 'B', 'C', 'D', 'M', 'R', 'T', 'U', 'X']);
 const CLASSES = new Set(['BLOCKING', 'ADVISORY', 'SUGGESTED']);
 const CLOSURE_DISPOSITIONS = new Set(['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION']);
 const REASONING = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
@@ -104,7 +105,9 @@ function validateExposure(value, requireComplete = true) {
             throw new ReviewChainV2Error('review byte exposure is invalid');
         }
         seen.add(row.entryDigest);
-        bounded(row.status, 'review entry status', 8);
+        if (!ENTRY_STATUSES.has(row.status)) {
+            throw new ReviewChainV2Error('review entry status is invalid');
+        }
         safeRelativePath(row.path, 'review entry path');
         objectId(row.oldObjectId, 'review old object', true);
         objectId(row.newObjectId, 'review new object', true);
@@ -197,11 +200,13 @@ function validateVerifier(value, findings, requireComplete = true) {
         !Array.isArray(value.dispositions) || value.dispositions.length > LIMIT.REVIEW_FINDINGS) {
         throw new ReviewChainV2Error('review verifier is incomplete');
     }
+    const expected = new Set(findings.map(({fingerprint}) => fingerprint));
     const dispositions = new Map();
     const rows = value.dispositions.map((row) => {
         exact(row, ['fingerprint', 'disposition', 'rationale', 'duplicateOf'], 'review verifier disposition');
         digest(row.fingerprint, 'verifier fingerprint');
-        if (!['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'DUPLICATE'].includes(row.disposition) ||
+        if (!expected.has(row.fingerprint) ||
+            !['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'DUPLICATE'].includes(row.disposition) ||
             dispositions.has(row.fingerprint)) throw new ReviewChainV2Error('review verifier disposition is invalid');
         bounded(row.rationale, 'verifier rationale', 2048);
         if (row.disposition === 'DUPLICATE') {
@@ -369,6 +374,10 @@ function validateInconclusiveReport(report, input) {
         if (axis.reason !== null) bounded(axis.reason, 'review axis reason', 128);
     });
     const findings = report.findings.map(validateFinding);
+    if (findings.length > LIMIT.REVIEW_FINDINGS ||
+        new Set(findings.map(({fingerprint}) => fingerprint)).size !== findings.length) {
+        throw new ReviewChainV2Error('review findings are invalid');
+    }
     validateExposure(report.byteExposure, false);
     validateCriteriaExposure(report.criteriaExposure, false);
     validateLenses(report.lenses, false);

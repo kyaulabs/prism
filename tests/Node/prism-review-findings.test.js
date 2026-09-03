@@ -229,6 +229,7 @@ test('validates closed repair closure proposals and dispositions', () => {
         (value) => { value.closures[0].fingerprint = 'invalid'; },
         (value) => { value.closures[0].tests[0].path = '/tmp/example.test.js'; },
         (value) => { value.closures[0].tests[0].gateId = 'Unknown Gate'; },
+        (value) => { value.closures[0].tests[0].gateId = 123; },
         (value) => { value.closures.push(structuredClone(value.closures[0])); },
     ]) {
         const copy = structuredClone(proposal);

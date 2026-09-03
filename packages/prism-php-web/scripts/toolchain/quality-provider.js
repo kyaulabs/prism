@@ -1,4 +1,4 @@
-// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -150,7 +150,7 @@ function coverageCounts(xml, projectRoot) {
     const source = Buffer.isBuffer(xml) ? xml.toString('utf8') : String(xml);
     const counts = new Map();
     const filePattern = /<file\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/file>/gu;
-    const linePattern = /<line\s+[^>]*num="(\d+)"[^>]*count="(\d+)"[^>]*\/?\s*>/gu;
+    const linePattern = /<line\s+([^>]*)\/?\s*>/gu;
     for (const fileMatch of source.matchAll(filePattern)) {
         const name = fileMatch[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&');
         const relative = path.isAbsolute(name)
@@ -162,32 +162,46 @@ function coverageCounts(xml, projectRoot) {
             continue;
         }
         for (const lineMatch of fileMatch[2].matchAll(linePattern)) {
-            counts.set(`${relative}:${Number(lineMatch[1])}`, Number(lineMatch[2]));
+            const type = /(?:^|\s)type="([^"]+)"/u.exec(lineMatch[1]);
+            const number = /(?:^|\s)num="(\d+)"/u.exec(lineMatch[1]);
+            const count = /(?:^|\s)count="(\d+)"/u.exec(lineMatch[1]);
+            if (type?.[1] === 'stmt' && number !== null && count !== null) {
+                counts.set(`${relative}:${Number(number[1])}`, Number(count[1]));
+            }
         }
     }
     return counts;
 }
 
 async function changedCoverage(options) {
+    const id = 'php-web.changed-file-coverage';
     const command = ['coverage-gate', 'tests/coverage.xml'];
-    const lines = await options.changedLines({
-        baseSha: options.baseSha,
-        headSha: options.headSha,
-        extensions: ['php'],
-    });
-    if (!Array.isArray(lines) || lines.length === 0) {
-        return skipped('php-web.changed-file-coverage', command);
+    try {
+        const lines = await options.changedLines({
+            baseSha: options.baseSha,
+            headSha: options.headSha,
+            extensions: ['php'],
+        });
+        if (!Array.isArray(lines) || lines.length === 0) return skipped(id, command);
+        const xml = await options.readArtifact('tests/coverage.xml', ARTIFACT_LIMIT);
+        const counts = coverageCounts(xml, options.projectRoot);
+        const passed = lines.every(({file, line}) => counts.get(`${relativeFile(file)}:${line}`) > 0);
+        return receipt(id, command, {
+            passed,
+            stdout: EMPTY,
+            stderr: EMPTY,
+            tools: [],
+            artifacts: [{path: 'tests/coverage.xml', ...digest(xml, ARTIFACT_LIMIT, 'coverage artifact')}],
+        });
+    } catch {
+        return receipt(id, command, {
+            passed: false,
+            stdout: EMPTY,
+            stderr: Buffer.from('provider-error:coverage'),
+            tools: [],
+            artifacts: [],
+        });
     }
-    const xml = await options.readArtifact('tests/coverage.xml', ARTIFACT_LIMIT);
-    const counts = coverageCounts(xml, options.projectRoot);
-    const passed = lines.every(({file, line}) => counts.get(`${relativeFile(file)}:${line}`) > 0);
-    return receipt('php-web.changed-file-coverage', command, {
-        passed,
-        stdout: EMPTY,
-        stderr: EMPTY,
-        tools: [],
-        artifacts: [{path: 'tests/coverage.xml', ...digest(xml, ARTIFACT_LIMIT, 'coverage artifact')}],
-    });
 }
 
 async function runQualityProvider(options) {
@@ -260,7 +274,14 @@ async function runQualityProvider(options) {
         : skipped('php-web.typescript', ['typescript', '--noEmit']));
     const gates = [];
     for (const id of GATES) gates.push(await pending.get(id));
-    if (await options.verifySnapshot({baseSha: options.baseSha, headSha: options.headSha}) !== true) {
+    let snapshotValid = false;
+    try {
+        snapshotValid = await options.verifySnapshot({
+            baseSha: options.baseSha,
+            headSha: options.headSha,
+        }) === true;
+    } catch { }
+    if (!snapshotValid) {
         const gate = gates.find(({id}) => id === 'php-web.changed-file-coverage');
         gate.status = 'FAIL';
     }

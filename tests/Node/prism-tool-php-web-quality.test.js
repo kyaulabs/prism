@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-quality.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-quality.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -70,11 +70,31 @@ test('runs changed-file coverage only after the Pest artifact exists', async () 
         changedLines: async () => [{file: 'app/example.php', line: 7}],
         readArtifact: async () => {
             assert.equal(coverageReady, true);
-            return Buffer.from('<coverage><file name="app/example.php"><line num="7" count="1"/></file></coverage>');
+            return Buffer.from('<coverage><file name="app/example.php"><line num="7" type="stmt" count="1"/></file></coverage>');
         },
     });
 
     assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
+});
+
+test('ignores non-statement Clover lines in changed-file coverage', async () => {
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: ['app/example.php'],
+        packageScripts: [],
+        runCommand: success,
+        runTool: success,
+        runServer: success,
+        changedLines: async () => [{file: 'app/example.php', line: 7}],
+        readArtifact: async () => Buffer.from(
+            '<coverage><file name="app/example.php"><line num="7" type="method" count="1"/></file></coverage>'
+        ),
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
 });
 
 test('fails closed when execution output overflows or the snapshot drifts', async () => {
@@ -99,6 +119,47 @@ test('fails closed when execution output overflows or the snapshot drifts', asyn
     assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
 });
 
+test('returns a failed coverage receipt when coverage evidence cannot be read', async () => {
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: ['app/example.php'],
+        packageScripts: [],
+        runCommand: success,
+        runTool: success,
+        runServer: success,
+        changedLines: async () => [{file: 'app/example.php', line: 9}],
+        readArtifact: async () => { throw new Error('coverage-output-canary'); },
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.status, 'FAIL');
+    const coverage = report.gates.find(({id}) => id === 'php-web.changed-file-coverage');
+    assert.equal(coverage.status, 'FAIL');
+    assert.equal(JSON.stringify(report).includes('coverage-output-canary'), false);
+});
+
+test('returns a failed report when final snapshot verification errors', async () => {
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: [],
+        packageScripts: [],
+        runCommand: success,
+        runTool: success,
+        runServer: success,
+        changedLines: async () => [],
+        readArtifact: async () => Buffer.from('<coverage/>'),
+        verifySnapshot: async () => { throw new Error('snapshot-output-canary'); },
+    });
+
+    assert.equal(report.status, 'FAIL');
+    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
+    assert.equal(JSON.stringify(report).includes('snapshot-output-canary'), false);
+});
+
 test('fails the report for uncovered changed PHP lines without raw output', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,
@@ -111,7 +172,7 @@ test('fails the report for uncovered changed PHP lines without raw output', asyn
         packageScripts: ['test:node'],
         verifySnapshot: async () => true,
         changedLines: async () => [{file: 'app/example.php', line: 9}],
-        readArtifact: async () => Buffer.from('<coverage><file name="app/example.php"><line num="9" count="0"/></file></coverage>'),
+        readArtifact: async () => Buffer.from('<coverage><file name="app/example.php"><line num="9" type="stmt" count="0"/></file></coverage>'),
     });
 
     assert.equal(report.status, 'FAIL');

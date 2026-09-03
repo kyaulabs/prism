@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-managed-record.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-managed-record.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -27,6 +27,20 @@ test('creates every missing contained managed directory privately', (t) => {
     for (const directory of ['one', 'one/two', 'one/two/three']) {
         assert.equal(fs.statSync(path.join(root, directory)).mode & 0o777, 0o700);
     }
+});
+
+test('normalizes newly created directories under a restrictive umask', (t) => {
+    const root = fixture(t);
+    const target = path.join(root, 'state');
+    const original = process.umask(0o177);
+
+    try {
+        assert.equal(ensureManagedDirectory(target, root), target);
+    } finally {
+        process.umask(original);
+    }
+
+    assert.equal(fs.statSync(target).mode & 0o777, 0o700);
 });
 
 test('rejects an existing public final directory without changing its mode', (t) => {
