@@ -1,4 +1,4 @@
-// $KYAULabs: server.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: server.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -41,6 +41,49 @@ function parseServerInvocation(args) {
     };
 }
 
+async function runValidatedServer(request, context = {}) {
+    const {registration, handler, profileId, toolId, toolArgs} = request;
+    if (registration === null || typeof registration !== 'object' ||
+        handler === null || typeof handler !== 'object' || typeof handler.resolveTool !== 'function' ||
+        typeof profileId !== 'string' || typeof toolId !== 'string' || !Array.isArray(toolArgs) ||
+        toolArgs.length > 256 || toolArgs.some((argument) => typeof argument !== 'string' ||
+            argument.length > 4096 || /[\x00-\x1f\x7f]/.test(argument) || path.isAbsolute(argument))) {
+        throw new Error('validated server request is invalid');
+    }
+    const profile = registration.contract.serverProfiles?.find(({id}) => id === profileId);
+    const client = profile?.clients.find(({toolId: allowed}) => allowed === toolId);
+    const component = registration.contract.components.find(({id}) => id === toolId);
+    if (!profile || !client || !component || component.kind !== 'command') {
+        throw new Error('validated server selection is unavailable');
+    }
+    const env = context.env ?? process.env;
+    const resolve = context.resolveExecutable ?? resolveExecutable;
+    const commands = [profile.server, ...(profile.health ? [profile.health] : [])];
+    if (commands.some(({executable}) => !resolve(executable, env))) {
+        throw Object.assign(new Error('server executable is unavailable'), {code: 'READINESS_FAILED'});
+    }
+    const projectRoot = fs.realpathSync(request.projectRoot);
+    const runClient = context.runClient ?? ((selected) => {
+        const executable = handler.resolveTool({component: selected.component, projectRoot});
+        const argv = [...(selected.component.argvPrefix ?? []), executable, ...selected.args];
+        return (context.run ?? runBounded)(argv[0], argv.slice(1), {
+            cwd: projectRoot,
+            env: selected.env,
+            encoding: null,
+            maxBuffer: context.maxBuffer ?? 1048577,
+            timeout: context.timeout ?? selected.component.executionTimeoutMs ?? 30000,
+        });
+    });
+    const supervisor = context.serverSupervisor ?? superviseServer;
+    return supervisor({
+        profile,
+        client,
+        projectRoot,
+        env,
+        runClient: (clientEnv) => runClient({component, args: toolArgs, env: clientEnv}),
+    });
+}
+
 async function serverCommand(args, context, runTool, exit) {
     let parsed;
     try {
@@ -69,12 +112,13 @@ async function serverCommand(args, context, runTool, exit) {
     }
     const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
     let registration;
+    let handler;
     try {
         registration = discoverAdapter({
             projectRoot,
             piDir: context.piDir ?? path.join(projectRoot, '.pi'),
         });
-        loadAdapterHandler(registration);
+        handler = loadAdapterHandler(registration);
     } catch {
         process.stderr.write('prism-tool: active adapter discovery failed\n');
         return exit.USAGE;
@@ -99,14 +143,19 @@ async function serverCommand(args, context, runTool, exit) {
         return exit.READINESS;
     }
     const runClient = context.runDeclaredTool ?? runTool;
-    const supervisor = context.serverSupervisor ?? superviseServer;
     try {
-        return await supervisor({
-            profile,
-            client,
-            projectRoot: fs.realpathSync(projectRoot),
+        return await runValidatedServer({
+            registration,
+            handler,
+            profileId: parsed.profileId,
+            toolId: parsed.toolId,
+            toolArgs: parsed.toolArgs,
+            projectRoot,
+        }, {
             env,
-            runClient: (clientEnv) => runClient([
+            resolveExecutable,
+            serverSupervisor: context.serverSupervisor ?? superviseServer,
+            runClient: ({env: clientEnv}) => runClient([
                 parsed.toolId,
                 '--',
                 ...parsed.toolArgs,
@@ -120,6 +169,6 @@ async function serverCommand(args, context, runTool, exit) {
     }
 }
 
-module.exports = {serverCommand};
+module.exports = {runValidatedServer, serverCommand};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

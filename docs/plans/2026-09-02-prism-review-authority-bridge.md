@@ -417,7 +417,7 @@ prism-tool commit create --type feat --scope php-web --subject "provide determin
 - Consumes: Task 1 managed records, Task 3 provider resolution, Task 4 adapter operation, Core tool resolution, and `superviseServer()`.
 - Produces: `runDeterministicCheck()`, `inspectCheck()`, `verifyCheck()`, `checkDigest()`, and reusable bounded callbacks for trusted providers.
 
-- [ ] **Step 1: Write failing RUNNING/PASS and Core-gate tests**
+- [x] **Step 1: Write failing RUNNING/PASS and Core-gate tests**
 
 Assert that `RUNNING` is durably visible before the first callback; a prior `PASS` becomes unusable immediately; SIGINT-style rejection, timeout, failed Semgrep, failed dependency audit, partial provider output, malformed output, missing gates, output overflow, changed branch/base/HEAD, and dirty worktree all prevent reusable `PASS`; and a successful run binds the exact repository and provider identities. Assert that no persisted receipt contains the output canary.
 
@@ -437,13 +437,13 @@ assert.equal(verifyCheck({branch, baseRef: 'origin/develop', baseSha, headSha}, 
     result.digest);
 ```
 
-- [ ] **Step 2: Run check tests to verify Red**
+- [x] **Step 2: Run check tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-check.test.js tests/Node/prism-review-core-quality.test.js tests/Node/prism-tool-server.test.js`
 
 Expected: FAIL because deterministic check orchestration is absent.
 
-- [ ] **Step 3: Implement check orchestration and Core gates**
+- [x] **Step 3: Implement check orchestration and Core gates**
 
 Before invoking any gate, derive branch, protected target, `baseSha`, and `HEAD`; require a clean worktree; create a 32-hex attempt ID; and publish this closed RUNNING record:
 
@@ -467,16 +467,16 @@ Run the six fixed Core gates, then the trusted adapter provider. Core commands a
 
 After every gate, revalidate branch, base ref SHA, HEAD, and clean status. Publish `PASS` only after all IDs and artifacts validate; otherwise publish bounded `FAIL` diagnostic state. `verifyCheck()` accepts only `PASS`, exact expected identities, and a successful replay of the closed schema. Export a lower-level server runner from `server.js` that accepts an already validated stable contract/handler; keep the existing CLI behavior unchanged.
 
-- [ ] **Step 4: Run check, provider, and server tests to verify Green**
+- [x] **Step 4: Run check, provider, and server tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-check.test.js tests/Node/prism-review-core-quality.test.js tests/Node/prism-review-quality-provider.test.js tests/Node/prism-tool-php-web-quality.test.js tests/Node/prism-tool-server.test.js`
 
 Expected: PASS with interrupted attempts retaining `RUNNING` or `FAIL`, never the older `PASS`.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/check.js packages/prism-core/scripts/prism-review/core-quality.js packages/prism-core/scripts/prism-tool/server.js tests/Node/prism-review-check.test.js tests/Node/prism-review-core-quality.test.js tests/Node/prism-tool-server.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/check.js packages/prism-core/scripts/prism-review/core-quality.js packages/prism-core/scripts/prism-tool/server.js tests/Node/prism-review-check.test.js tests/Node/prism-review-core-quality.test.js tests/Node/prism-tool-server.test.js
 prism-tool commit create --type feat --scope review --subject "publish exact-head check receipts"
 ```
 
