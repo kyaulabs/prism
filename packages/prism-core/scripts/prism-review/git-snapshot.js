@@ -16,7 +16,7 @@ const {
     sensitivePathMatch,
 } = require('../sensitive-path-policy');
 
-const decoder = new TextDecoder('utf-8', {fatal: true});
+const decoder = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true});
 const RAW = /^:(\d{6}) (\d{6}) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])(\d*)$/;
 const TREE = /^(\d{6}) (blob|commit) ([0-9a-f]+)\t(.+)$/;
 const FULL_OBJECT = /^[0-9a-f]{40,64}$/;
@@ -619,7 +619,8 @@ function assertFresh(snapshot) {
         const bytes = fs.existsSync(snapshot.freshness.path)
             ? fs.readFileSync(snapshot.freshness.path)
             : Buffer.alloc(0);
-        return digest(bytes) === snapshot.freshness.digest;
+        const currentHead = stagedBase(gitRunner(snapshot.repositoryRoot));
+        return digest(bytes) === snapshot.freshness.digest && currentHead === snapshot.baseCommit;
     } catch {
         return false;
     }

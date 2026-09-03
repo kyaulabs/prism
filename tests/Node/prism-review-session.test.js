@@ -116,7 +116,10 @@ function fakeSdk(behavior, overrides = {}) {
                     listeners.add(listener);
                     return () => listeners.delete(listener);
                 },
-                async abort() { calls.push({name: 'session.abort'}); },
+                async abort() {
+                    calls.push({name: 'session.abort'});
+                    if (overrides.abortBehavior) await overrides.abortBehavior({calls});
+                },
                 dispose() {
                     calls.push({name: 'session.dispose'});
                     if (overrides.disposeError) throw overrides.disposeError;
@@ -491,11 +494,21 @@ test('normalizes provider, cancellation, timeout, and cleanup failures', async (
         ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_CANCELLED',
     });
 
-    const hanging = fakeSdk(async () => new Promise(() => {}));
+    let releasePrompt;
+    const hanging = fakeSdk(async ({calls}) => {
+        await new Promise((resolve) => { releasePrompt = resolve; });
+        calls.push({name: 'session.prompt.settled'});
+    }, {
+        abortBehavior() { globalThis.setTimeout(releasePrompt, 10); },
+    });
     assert.deepEqual(await runIsolatedSession(request(hanging, {timeoutMs: 10})), {
         ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_TIMEOUT',
     });
     assert.equal(hanging.calls.some(({name}) => name === 'session.abort'), true);
+    const settledIndex = hanging.calls.findIndex(({name}) => name === 'session.prompt.settled');
+    const disposeIndex = hanging.calls.findIndex(({name}) => name === 'session.dispose');
+    assert.ok(settledIndex >= 0);
+    assert.ok(disposeIndex > settledIndex);
 
     const cleanup = fakeSdk(async ({tools}) => {
         await tools.get('submit_review').execute('submit', {answer: 'done'});

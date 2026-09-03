@@ -145,6 +145,23 @@ test('freezes staged index entries with canonical metadata and ignores worktree 
     assert.equal(ledger.isComplete(), true);
 });
 
+test('staged freshness rejects a HEAD move with unchanged index bytes', (t) => {
+    const root = repository(t);
+    write(root, 'file.txt', 'base\n');
+    commit(root, 'base');
+    write(root, 'file.txt', 'staged\n');
+    git(root, ['add', 'file.txt']);
+    const snapshot = createSnapshot({mode: 'staged', repositoryRoot: root});
+    const indexPath = git(root, ['rev-parse', '--git-path', 'index']).trim();
+    const absoluteIndex = path.isAbsolute(indexPath) ? indexPath : path.join(root, indexPath);
+    const frozenIndex = fs.readFileSync(absoluteIndex);
+
+    commit(root, 'move HEAD');
+    fs.writeFileSync(absoluteIndex, frozenIndex);
+
+    assert.equal(assertFresh(snapshot), false);
+});
+
 test('freezes exact commit and branch scopes including a root commit', (t) => {
     const root = repository(t);
     write(root, 'root.txt', 'root\n');
@@ -270,6 +287,19 @@ test('fails closed on limits, invalid UTF-8, and malformed Git output', (t) => {
     assert.throws(() => createSnapshot({
         mode: 'branch', repositoryRoot: process.cwd(), base: 'a'.repeat(40), head: 'b'.repeat(40), run,
     }), /malformed/i);
+});
+
+test('preserves a UTF-8 BOM in snapshot text and byte accounting', (t) => {
+    const root = repository(t);
+    write(root, 'bom.txt', Buffer.from([0xef, 0xbb, 0xbf, 0x68, 0x69, 0x0a]));
+    git(root, ['add', 'bom.txt']);
+
+    const snapshot = createSnapshot({mode: 'staged', repositoryRoot: root});
+    const entry = snapshot.entries[0];
+
+    assert.equal(entry.headText, '\ufeffhi\n');
+    assert.equal(entry.headBytes, 6);
+    assert.equal(Buffer.byteLength(entry.headText), entry.headBytes);
 });
 
 test('rejects unsupported raw Git status values', () => {

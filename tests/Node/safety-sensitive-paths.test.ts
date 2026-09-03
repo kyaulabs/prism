@@ -45,6 +45,12 @@ test("shared sensitive-path policy matches the safety extension", () => {
     assert.deepEqual(loadAdditionalSensitivePaths(manifest), sharedPolicy.loadAdditionalSensitivePaths(manifest));
 });
 
+test("an additional root-directory entry denies every absolute path", () => {
+    const opts = {...OPTS, extraPaths: ["/"]};
+    assert.equal(sensitivePathMatch("/repo/file.txt", opts)?.className, "additional");
+    assert.equal(sharedPolicy.sensitivePathMatch("/repo/file.txt", opts)?.className, "additional");
+});
+
 test("canonicalization fails closed for an unresolvable existing path", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "prism-sensitive-path-"));
     try {

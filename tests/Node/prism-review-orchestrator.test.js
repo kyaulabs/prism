@@ -268,7 +268,7 @@ test('fails closed on stale snapshots and failed sessions', async () => {
     assert.equal(reasonless.outcome, 'INCONCLUSIVE');
     assert.equal(reasonless.axes[0].reason, 'AXIS_SESSION_FAILED');
 
-    const times = [0, 1, 101];
+    const times = [0, 1, 2, 101];
     const timedCalls = [];
     const timed = await runReviewAttempt(options(async (request) => {
         timedCalls.push(request.axis);
@@ -296,6 +296,23 @@ test('recomputes the global deadline immediately before an axis session', async 
     }));
 
     assert.equal(timeoutMs, 50);
+});
+
+test('does not start an axis session after the global deadline expires', async () => {
+    const times = [0, 1, 101];
+    let calls = 0;
+    const report = await runReviewAttempt(options(async () => {
+        calls += 1;
+        throw new Error('session must not start');
+    }, {
+        timeoutMs: 100,
+        reviewTimeoutMs: 100,
+        now: () => times.shift() ?? 101,
+    }));
+
+    assert.equal(calls, 0);
+    assert.equal(report.outcome, 'INCONCLUSIVE');
+    assert.equal(report.axes[0].reason, 'REVIEW_TIMEOUT');
 });
 
 test('recomputes the global deadline immediately before a verifier session', async () => {
@@ -334,6 +351,36 @@ test('recomputes the global deadline immediately before a verifier session', asy
 
     assert.equal(report.outcome, 'PASS');
     assert.equal(verifierTimeout, 90);
+});
+
+test('does not start a verifier session after the global deadline expires', async () => {
+    const times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 101];
+    let axisCalls = 0;
+    let verifierCalls = 0;
+    const report = await runReviewAttempt(options(async (request) => {
+        await exposeAll(request);
+        if (request.sessionType === 'verifier') {
+            verifierCalls += 1;
+            throw new Error('verifier must not start');
+        }
+        axisCalls += 1;
+        return {
+            ok: true,
+            submission: axisSubmission(request, request.axis === 'tooling-style'
+                ? [proposed('ADVISORY')]
+                : []),
+            model,
+        };
+    }, {
+        timeoutMs: 100,
+        reviewTimeoutMs: 100,
+        now: () => times.shift() ?? 101,
+    }));
+
+    assert.equal(axisCalls, 4);
+    assert.equal(verifierCalls, 0);
+    assert.equal(report.outcome, 'INCONCLUSIVE');
+    assert.equal(report.verifier.complete, false);
 });
 
 test('verifies canonical chunks, drops rejected findings, and keeps confirmed Blocking', async () => {

@@ -177,7 +177,7 @@ test('rejects every command outside the closed grammar before dependencies run',
     }
 });
 
-test('reports exact model and isolated SDK readiness without running Git', async () => {
+test('fails readiness when the mandatory Core review profile is absent', async () => {
     const output = capture();
     const repositoryRoot = path.resolve(__dirname, '../..');
     const calls = [];
@@ -203,27 +203,14 @@ test('reports exact model and isolated SDK readiness without running Git', async
         },
     });
 
-    assert.equal(status, EXIT.OK);
+    assert.equal(status, EXIT.READINESS);
     assert.deepEqual(calls, [repositoryRoot]);
     assert.equal(output.result().stderr, '');
     assert.deepEqual(JSON.parse(output.result().stdout), {
         schemaVersion: 1,
         command: 'doctor',
-        status: 'GO',
-        sourceClass: 'REVIEWED_WORKTREE',
-        eligibleForAuthority: false,
-        model: {
-            provider: 'anthropic',
-            id: 'claude-sonnet-4-5',
-            reasoningLevel: 'high',
-            contextWindow: 200000,
-            authentication: 'UNKNOWN',
-        },
-        checks: [
-            {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
-            {id: 'active-model', status: 'PASS', message: 'active Pi model resolved exactly'},
-            {id: 'sdk-isolation', status: 'PASS', message: 'isolated Pi resources validated'},
-        ],
+        status: 'NO-GO',
+        reason: 'RUNTIME_READINESS_FAILED',
     });
 });
 

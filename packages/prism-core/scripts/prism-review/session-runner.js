@@ -372,6 +372,7 @@ async function runIsolatedSession(request) {
         await Promise.race([promptRun, timeout]);
         if (timedOut) {
             await session.abort();
+            await promptRun.catch(() => undefined);
             result = failure('SESSION_TIMEOUT');
         } else if (state.activityAfterSubmission) {
             result = failure('INVALID_SESSION_ACTIVITY');

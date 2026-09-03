@@ -238,18 +238,17 @@ async function main(argv, context = {}) {
                 removeTemp: context.removeTemp,
             });
             const profile = profileReadiness(context, coreRoot, projectRoot);
+            if (profile === null) throw new Error('Core review profile is unavailable');
             const checks = [
                 {id: 'trust-root', status: 'PASS', message: 'review trust root classified'},
                 {id: 'active-model', status: 'PASS', message: 'active Pi model resolved exactly'},
                 {id: 'sdk-isolation', status: 'PASS', message: 'isolated Pi resources validated'},
             ];
-            if (profile !== null) {
-                checks.push({
-                    id: 'review-profile',
-                    status: 'PASS',
-                    message: 'closed review profile validated',
-                });
-            }
+            checks.push({
+                id: 'review-profile',
+                status: 'PASS',
+                message: 'closed review profile validated',
+            });
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: 'doctor',
@@ -257,7 +256,7 @@ async function main(argv, context = {}) {
                 sourceClass: trust.sourceClass,
                 eligibleForAuthority: trust.eligibleForAuthority,
                 model,
-                ...(profile === null ? {} : {profile}),
+                profile,
                 checks,
             });
             return EXIT.OK;

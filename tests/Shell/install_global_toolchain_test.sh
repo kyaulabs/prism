@@ -679,11 +679,70 @@ else
     fail "uninstall collision removed part of the launcher set"
 fi
 
+T5B2=$(mktemp -d)
+register_temp_dir "$T5B2"
+write_fake_tools "$T5B2"
+mkdir -p "$T5B2/home" "$T5B2/pi-agent" "$T5B2/bin-dir"
+: > "$T5B2/pi-invocations"
+cat > "$T5B2/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exec node '/previous/prism-tool.js' "$@"
+# prism-core:managed-launcher prism-tool end
+EOF
+cat > "$T5B2/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec node '/previous/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T5B2/bin-dir/prism-tool" "$T5B2/bin-dir/prism-review"
+tool_before=$(cksum "$T5B2/bin-dir/prism-tool")
+review_before=$(cksum "$T5B2/bin-dir/prism-review")
+cat > "$T5B2/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+for argument in "$@"; do
+    if [ "$argument" = "${FAIL_MOVE_SOURCE:-}" ]; then exit 70; fi
+done
+exec /usr/bin/mv "$@"
+EOF
+chmod 0755 "$T5B2/bin/mv"
+status=0
+HOME="$T5B2/home" \
+    PI_CODING_AGENT_DIR="$T5B2/pi-agent" \
+    PRISM_BIN_DIR="$T5B2/bin-dir" \
+    PI_INVOCATIONS="$T5B2/pi-invocations" \
+    FAIL_MOVE_SOURCE="$T5B2/bin-dir/prism-review" \
+    PATH="$T5B2/bin:$PATH" \
+    bash "$INSTALLER" --uninstall-launcher >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] \
+    && [ "$tool_before" = "$(cksum "$T5B2/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T5B2/bin-dir/prism-review")" ]; then
+    pass "failed uninstall restores the managed launcher pair"
+else
+    fail "failed uninstall removed part of the managed launcher pair"
+fi
+
 T5C=$(mktemp -d)
 register_temp_dir "$T5C"
 write_fake_tools "$T5C"
 mkdir -p "$T5C/home" "$T5C/pi-agent" "$T5C/bin-dir"
 : > "$T5C/pi-invocations"
+cat > "$T5C/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exec node '/previous/prism-tool.js' "$@"
+# prism-core:managed-launcher prism-tool end
+EOF
+cat > "$T5C/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec node '/previous/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T5C/bin-dir/prism-tool" "$T5C/bin-dir/prism-review"
+tool_before=$(cksum "$T5C/bin-dir/prism-tool")
+review_before=$(cksum "$T5C/bin-dir/prism-review")
 cat > "$T5C/bin/mv" <<'EOF'
 #!/usr/bin/env bash
 for argument in "$@"; do
@@ -700,11 +759,12 @@ HOME="$T5C/home" \
     FAIL_MOVE_DEST="$T5C/bin-dir/prism-review" \
     PATH="$T5C/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
-if [ "$status" -ne 0 ] && [ ! -e "$T5C/bin-dir/prism-tool" ] \
-    && [ ! -e "$T5C/bin-dir/prism-review" ]; then
-    pass "failed pair deployment rolls back both launchers"
+if [ "$status" -ne 0 ] \
+    && [ "$tool_before" = "$(cksum "$T5C/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T5C/bin-dir/prism-review")" ]; then
+    pass "failed pair deployment restores existing launchers"
 else
-    fail "failed pair deployment left a partial launcher set"
+    fail "failed pair deployment did not restore existing launchers"
 fi
 
 T5D=$(mktemp -d)
@@ -736,9 +796,43 @@ HOME="$T5D/home" \
 if [ "$status" -ne 0 ] \
     && [ "$(cat "$T5D/bin-dir/prism-tool" 2>/dev/null)" = 'concurrent unmanaged launcher' ] \
     && [ ! -e "$T5D/bin-dir/prism-review" ]; then
-    pass "launcher commit does not overwrite a concurrent unmanaged file"
+    pass "tool launcher commit does not overwrite a concurrent unmanaged file"
 else
-    fail "launcher commit overwrote or accepted a concurrent unmanaged file"
+    fail "tool launcher commit overwrote or accepted a concurrent unmanaged file"
+fi
+
+T5D2=$(mktemp -d)
+register_temp_dir "$T5D2"
+write_fake_tools "$T5D2"
+mkdir -p "$T5D2/home" "$T5D2/pi-agent" "$T5D2/bin-dir"
+: > "$T5D2/pi-invocations"
+cat > "$T5D2/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+destination=""
+for argument in "$@"; do destination="$argument"; done
+if [ "$destination" = "${RACE_MOVE_DEST:-}" ] && [ ! -e "${RACE_MARKER:-}" ]; then
+    printf 'concurrent unmanaged launcher\n' > "$destination"
+    chmod 0755 "$destination"
+    : > "$RACE_MARKER"
+fi
+exec /usr/bin/mv "$@"
+EOF
+chmod 0755 "$T5D2/bin/mv"
+status=0
+HOME="$T5D2/home" \
+    PI_CODING_AGENT_DIR="$T5D2/pi-agent" \
+    PRISM_BIN_DIR="$T5D2/bin-dir" \
+    PI_INVOCATIONS="$T5D2/pi-invocations" \
+    RACE_MOVE_DEST="$T5D2/bin-dir/prism-review" \
+    RACE_MARKER="$T5D2/raced" \
+    PATH="$T5D2/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] \
+    && [ "$(cat "$T5D2/bin-dir/prism-review" 2>/dev/null)" = 'concurrent unmanaged launcher' ] \
+    && [ ! -e "$T5D2/bin-dir/prism-tool" ]; then
+    pass "review launcher commit does not overwrite a concurrent unmanaged file"
+else
+    fail "review launcher commit overwrote or accepted a concurrent unmanaged file"
 fi
 
 T5E=$(mktemp -d)
@@ -758,6 +852,69 @@ if [ "$status" -ne 0 ] && [ ! -e "$T5E/bin-dir/prism-tool" ] \
     pass "launcher deployment rejects a concurrent transaction"
 else
     fail "launcher deployment was not serialized"
+fi
+
+T5F=$(mktemp -d)
+register_temp_dir "$T5F"
+write_fake_tools "$T5F"
+mkdir -p "$T5F/home" "$T5F/pi-agent" "$T5F/bin-dir"
+: > "$T5F/pi-invocations"
+cat > "$T5F/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+destination=""
+for argument in "$@"; do destination="$argument"; done
+if [ "$destination" = "${SIGNAL_MOVE_DEST:-}" ] && [ ! -e "${SIGNAL_MARKER:-}" ]; then
+    : > "$SIGNAL_MARKER"
+    kill -TERM "$PPID"
+    exit 0
+fi
+exec /usr/bin/mv "$@"
+EOF
+chmod 0755 "$T5F/bin/mv"
+status=0
+HOME="$T5F/home" \
+    PI_CODING_AGENT_DIR="$T5F/pi-agent" \
+    PRISM_BIN_DIR="$T5F/bin-dir" \
+    PI_INVOCATIONS="$T5F/pi-invocations" \
+    SIGNAL_MOVE_DEST="$T5F/bin-dir/prism-tool" \
+    SIGNAL_MARKER="$T5F/signalled" \
+    PATH="$T5F/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -eq 143 ] && [ ! -e "$T5F/bin-dir/prism-tool" ] \
+    && [ ! -e "$T5F/bin-dir/prism-review" ]; then
+    pass "launcher transaction terminates on TERM"
+else
+    fail "launcher transaction continued or returned the wrong status after TERM"
+fi
+
+T5G=$(mktemp -d)
+register_temp_dir "$T5G"
+write_fake_tools "$T5G"
+mkdir -p "$T5G/home" "$T5G/pi-agent" "$T5G/bin-dir"
+: > "$T5G/pi-invocations"
+cat > "$T5G/bin/chmod" <<'EOF'
+#!/usr/bin/env bash
+for argument in "$@"; do
+    case "$argument" in
+        "$FAIL_CHMOD_DIR"/.prism-tool.*) exit 70 ;;
+    esac
+done
+exec /usr/bin/chmod "$@"
+EOF
+chmod 0755 "$T5G/bin/chmod"
+status=0
+HOME="$T5G/home" \
+    PI_CODING_AGENT_DIR="$T5G/pi-agent" \
+    PRISM_BIN_DIR="$T5G/bin-dir" \
+    PI_INVOCATIONS="$T5G/pi-invocations" \
+    FAIL_CHMOD_DIR="$T5G/bin-dir" \
+    PATH="$T5G/bin:$PATH" \
+    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] && [ ! -e "$T5G/bin-dir/prism-tool" ] \
+    && [ ! -e "$T5G/bin-dir/prism-review" ]; then
+    pass "launcher preparation failure stops before pair mutation"
+else
+    fail "launcher preparation failure was masked"
 fi
 
 echo "── fail-closed options and paths ──"

@@ -154,7 +154,8 @@ function sessionTimeout(requested, remaining) {
     if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > LIMIT.SESSION_TIMEOUT_MS) {
         throw new Error('session timeout is invalid');
     }
-    return Math.max(1, Math.min(timeout, remaining));
+    if (remaining <= 0) return null;
+    return Math.min(timeout, remaining);
 }
 
 async function verifyFindings(options) {
@@ -174,6 +175,10 @@ async function verifyFindings(options) {
         const toolSet = createSnapshotTools(relevant, {metadataExemptions: options.metadataExemptions});
         const schema = verifierSubmissionSchema(chunk.map(({fingerprint}) => fingerprint));
         const resources = selectResources(options.resourceIndex, [options.sessionSkill, ...options.verifierSkills]);
+        const timeoutMs = sessionTimeout(options.timeoutMs, options.remaining());
+        if (timeoutMs === null) {
+            return {complete: false, uncertainBlocking: true, findings: [], chunks: dispositions.length, dispositions, model};
+        }
         let result;
         try {
             result = await options.runSession({
@@ -202,7 +207,7 @@ async function verifyFindings(options) {
                 tempRoot: options.tempRoot,
                 env: options.env,
                 loadSdk: options.loadSdk,
-                timeoutMs: sessionTimeout(options.timeoutMs, options.remaining()),
+                timeoutMs,
                 active: options.active,
             });
         } catch {
@@ -342,6 +347,16 @@ async function runReviewAttempt(options) {
             return reportValue(options, state);
         }
         const toolSet = createSnapshotTools(options.snapshot, {metadataExemptions: exemptions});
+        const timeoutMs = sessionTimeout(options.timeoutMs, remaining());
+        if (timeoutMs === null) {
+            state.axes.push({
+                id: axisId,
+                status: 'INCONCLUSIVE',
+                outcome: 'INCONCLUSIVE',
+                reason: 'REVIEW_TIMEOUT',
+            });
+            return reportValue(options, state);
+        }
         let result;
         try {
             const schema = axisSubmissionSchema(axis.id, axis.lenses.map(({id}) => id));
@@ -369,7 +384,7 @@ async function runReviewAttempt(options) {
                 tempRoot: options.tempRoot,
                 env: options.env,
                 loadSdk: options.loadSdk,
-                timeoutMs: sessionTimeout(options.timeoutMs, remaining()),
+                timeoutMs,
                 active: options.active,
             });
         } catch {

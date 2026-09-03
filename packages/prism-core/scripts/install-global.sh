@@ -118,6 +118,13 @@ cleanup_launcher_lock() {
     fi
 }
 
+terminate_launcher_transaction() {
+    local status="$1"
+    cleanup_launcher_lock
+    trap - HUP INT TERM
+    exit "$status"
+}
+
 acquire_launcher_lock() {
     mkdir -p -- "$BIN_DIR"
     if ! mkdir -- "$LAUNCHER_LOCK" 2>/dev/null; then
@@ -125,7 +132,10 @@ acquire_launcher_lock() {
         exit 1
     fi
     LAUNCHER_LOCK_HELD=true
-    trap cleanup_launcher_lock EXIT HUP INT TERM
+    trap cleanup_launcher_lock EXIT
+    trap 'terminate_launcher_transaction 129' HUP
+    trap 'terminate_launcher_transaction 130' INT
+    trap 'terminate_launcher_transaction 143' TERM
 }
 
 release_launcher_lock() {
@@ -134,6 +144,7 @@ release_launcher_lock() {
 }
 
 remove_managed_launchers() {
+    local tool_backup="" review_backup="" tool_present=false review_present=false
     acquire_launcher_lock
     if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
         echo "✗ refusing to remove an unmanaged launcher at $TOOL_LAUNCHER" >&2
@@ -143,15 +154,28 @@ remove_managed_launchers() {
         echo "✗ refusing to remove an unmanaged launcher at $REVIEW_LAUNCHER" >&2
         exit 1
     fi
-    local launcher
-    for launcher in "$TOOL_LAUNCHER" "$REVIEW_LAUNCHER"; do
-        if [ -e "$launcher" ]; then
-            rm -f -- "$launcher"
-            echo "✓ removed managed launcher $launcher"
-        else
-            echo "• no managed launcher at $launcher"
-        fi
-    done
+    [ ! -e "$TOOL_LAUNCHER" ] || tool_present=true
+    [ ! -e "$REVIEW_LAUNCHER" ] || review_present=true
+    if ! tool_backup=$(evacuate_launcher "$TOOL_LAUNCHER" prism-tool); then
+        return 1
+    fi
+    if ! review_backup=$(evacuate_launcher "$REVIEW_LAUNCHER" prism-review); then
+        restore_launcher "$TOOL_LAUNCHER" prism-tool "" "$tool_backup" || true
+        return 1
+    fi
+    if ! rm -f -- "$tool_backup" "$review_backup"; then
+        return 1
+    fi
+    if [ "$tool_present" = true ]; then
+        echo "✓ removed managed launcher $TOOL_LAUNCHER"
+    else
+        echo "• no managed launcher at $TOOL_LAUNCHER"
+    fi
+    if [ "$review_present" = true ]; then
+        echo "✓ removed managed launcher $REVIEW_LAUNCHER"
+    else
+        echo "• no managed launcher at $REVIEW_LAUNCHER"
+    fi
     release_launcher_lock
 }
 
@@ -180,13 +204,19 @@ prepare_launcher() {
     if [ "$name" = prism-review ]; then
         command_prefix="exec env -u NODE_OPTIONS -u NODE_PATH node"
     fi
-    {
+    if ! {
         printf '#!/usr/bin/env bash\n'
         printf '# prism-core:managed-launcher %s begin\n' "$name"
         printf "%s '%s' \"\$@\"\n" "$command_prefix" "$core_cli"
         printf '# prism-core:managed-launcher %s end\n' "$name"
-    } > "$temp"
-    chmod 0755 "$temp"
+    } > "$temp"; then
+        rm -f -- "$temp"
+        return 1
+    fi
+    if ! chmod 0755 "$temp"; then
+        rm -f -- "$temp"
+        return 1
+    fi
     printf '%s\n' "$temp"
 }
 
@@ -248,7 +278,9 @@ deploy_launchers() {
         exit 1
     fi
     mkdir -p -- "$BIN_DIR"
-    tool_temp=$(prepare_launcher prism-tool "$tool_cli")
+    if ! tool_temp=$(prepare_launcher prism-tool "$tool_cli"); then
+        return 1
+    fi
     if ! review_temp=$(prepare_launcher prism-review "$review_cli"); then
         rm -f -- "$tool_temp"
         return 1
