@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 const {AXES} = require('../../packages/prism-core/scripts/prism-review/constants');
+const {validateFindingAnchor} = require('../../packages/prism-core/scripts/prism-review/findings');
 const {
     runAuthoritativeAttempt,
     runReviewAttempt,
@@ -581,6 +582,110 @@ test('merges verifier-confirmed duplicates deterministically without promotion',
     assert.equal(report.outcome, 'PASS');
     assert.equal(report.findings.length, 1);
     assert.equal(report.findings[0].fingerprint, report.verifier.dispositions[0].fingerprint);
+});
+
+test('reviews repair context on every axis and confirms closures in a fresh session', async () => {
+    const prior = validateFindingAnchor(proposed('BLOCKING', 'Prior blocking behavior.'), {
+        snapshot,
+        axis: 'tooling-style',
+        lensIds: ['core.tooling-style'],
+    });
+    const closure = {
+        fingerprint: prior.fingerprint,
+        evidence: 'The focused regression now passes.',
+        tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}],
+    };
+    const repair = {
+        priorOpenBlocking: [prior],
+        proposals: [closure],
+        check: {
+            digest: '8'.repeat(64),
+            headSha: snapshot.headCommit,
+            gates: [{id: 'php-web.node-tests', status: 'PASS'}],
+        },
+    };
+    const calls = [];
+    const result = await runAuthoritativeAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        if (request.sessionType === 'closure-verifier') {
+            return {
+                ok: true,
+                submission: {
+                    schemaVersion: 1,
+                    dispositions: [{
+                        fingerprint: prior.fingerprint,
+                        disposition: 'CONFIRMED',
+                        rationale: 'The complete repair delta removes the failure path.',
+                    }],
+                },
+                model,
+            };
+        }
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {criteria: {
+        record: {schemaVersion: 1, kind: 'criteria', branch: 'feat/example',
+            disposition: 'NONE_DECLARED', sources: []},
+        digest: '8'.repeat(64),
+        blobs: [],
+    }, repair}));
+
+    assert.equal(result.report.outcome, 'PASS');
+    assert.equal(calls.filter(({sessionType}) => sessionType === 'axis').length, 4);
+    assert.equal(calls.filter(({sessionType}) => sessionType === 'axis').every((request) =>
+        request.evidence.repair === repair), true);
+    const verifier = calls.at(-1);
+    assert.equal(verifier.sessionType, 'closure-verifier');
+    assert.equal(verifier.evidence.repair, repair);
+    assert.equal(verifier.snapshot, snapshot);
+    assert.deepEqual(result.closures, [{...closure,
+        disposition: 'CONFIRMED',
+        rationale: 'The complete repair delta removes the failure path.',
+    }]);
+});
+
+test('keeps rejected closures open and makes uncertain or incomplete closure review Inconclusive', async () => {
+    const prior = validateFindingAnchor(proposed('BLOCKING', 'Prior blocking behavior.'), {
+        snapshot,
+        axis: 'tooling-style',
+        lensIds: ['core.tooling-style'],
+    });
+    for (const disposition of ['REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'FAILED', 'NO_EXPOSURE']) {
+        const repair = {
+            priorOpenBlocking: [prior],
+            proposals: [{fingerprint: prior.fingerprint, evidence: 'A regression passes.',
+                tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}]}],
+            check: {digest: '8'.repeat(64), headSha: snapshot.headCommit,
+                gates: [{id: 'php-web.node-tests', status: 'PASS'}]},
+        };
+        const result = await runAuthoritativeAttempt(options(async (request) => {
+            if (disposition !== 'NO_EXPOSURE' || request.sessionType !== 'closure-verifier') {
+                await exposeAll(request);
+            }
+            if (request.sessionType !== 'closure-verifier') {
+                return {ok: true, submission: axisSubmission(request), model};
+            }
+            if (disposition === 'FAILED') return {ok: false, reason: 'SESSION_FAILED'};
+            if (disposition === 'NO_EXPOSURE') return {ok: true, submission: {schemaVersion: 1,
+                dispositions: [{fingerprint: prior.fingerprint, disposition: 'CONFIRMED',
+                    rationale: 'Claims closure without reading the complete repair.'}]}, model};
+            return {ok: true, submission: {schemaVersion: 1, dispositions: [{
+                fingerprint: prior.fingerprint, disposition,
+                rationale: 'The supplied evidence has this disposition.',
+            }]}, model};
+        }, {criteria: {
+            record: {schemaVersion: 1, kind: 'criteria', branch: 'feat/example',
+                disposition: 'NONE_DECLARED', sources: []}, digest: '8'.repeat(64), blobs: [],
+        }, repair}));
+
+        if (disposition === 'REJECTED') {
+            assert.equal(result.report.outcome, 'PASS');
+            assert.equal(result.closures[0].disposition, 'REJECTED');
+        } else {
+            assert.equal(result.report.outcome, 'INCONCLUSIVE');
+            assert.deepEqual(result.closures, []);
+        }
+    }
 });
 
 test('makes an incomplete verifier session Inconclusive', async () => {

@@ -5,8 +5,13 @@
 const {AXES, LIMIT, OUTCOME} = require('./constants');
 const {createCriteriaTools} = require('./criteria-tools');
 const {assertFresh: snapshotIsFresh} = require('./git-snapshot');
-const {normalizeFindings, validateVerifierSubmission} = require('./findings');
-const {axisSubmissionSchema, verifierSubmissionSchema} = require('./schema');
+const {
+    normalizeFindings,
+    validateClosureProposal,
+    validateClosureSubmission,
+    validateVerifierSubmission,
+} = require('./findings');
+const {axisSubmissionSchema, closureSubmissionSchema, verifierSubmissionSchema} = require('./schema');
 const {runIsolatedSession} = require('./session-runner');
 const {createSnapshotTools} = require('./snapshot-tools');
 
@@ -272,6 +277,11 @@ function scopeValue(snapshot) {
     };
 }
 
+function attemptResult(options, state, closures = []) {
+    const report = reportValue(options, state);
+    return options.repair === undefined ? report : {report, closures};
+}
+
 function reportValue(options, state) {
     const axes = AXES.map((axisId) => state.axes.find(({id}) => id === axisId) ?? {
         id: axisId,
@@ -329,6 +339,103 @@ function axisIncompleteReason(axisId, toolSet, criteriaSet) {
     return criteriaIncompleteReason(axisId, toolSet, criteriaSet);
 }
 
+function validatedRepair(value, snapshot) {
+    exact(value, ['priorOpenBlocking', 'proposals', 'check'], 'repair context');
+    if (!Array.isArray(value.priorOpenBlocking) || value.priorOpenBlocking.length === 0 ||
+        value.priorOpenBlocking.length > LIMIT.REVIEW_FINDINGS) throw new Error('repair context is invalid');
+    const proposals = validateClosureProposal({schemaVersion: 1, closures: value.proposals}).closures;
+    const prior = new Map();
+    for (const finding of value.priorOpenBlocking) {
+        if (finding === null || typeof finding !== 'object' || Array.isArray(finding) ||
+            finding.classification !== 'BLOCKING' || !/^[0-9a-f]{64}$/.test(finding.fingerprint ?? '') ||
+            prior.has(finding.fingerprint)) throw new Error('repair finding is invalid');
+        prior.set(finding.fingerprint, finding);
+    }
+    if (proposals.some(({fingerprint}) => !prior.has(fingerprint))) {
+        throw new Error('repair closure target is invalid');
+    }
+    exact(value.check, ['digest', 'headSha', 'gates'], 'repair check');
+    if (!/^[0-9a-f]{64}$/.test(value.check.digest) || value.check.headSha !== snapshot.headCommit ||
+        !Array.isArray(value.check.gates) || value.check.gates.length > 128) {
+        throw new Error('repair check is invalid');
+    }
+    const gateIds = new Set();
+    for (const gate of value.check.gates) {
+        exact(gate, ['id', 'status'], 'repair check gate');
+        if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(gate.id) ||
+            !['PASS', 'SKIPPED'].includes(gate.status) || gateIds.has(gate.id)) {
+            throw new Error('repair check gate is invalid');
+        }
+        gateIds.add(gate.id);
+    }
+    return value;
+}
+
+async function verifyClosures(options) {
+    const toolSet = createSnapshotTools(options.snapshot, {metadataExemptions: options.metadataExemptions});
+    if (options.remaining() <= 0 || !safelyFresh(options.assertFresh, options.snapshot)) {
+        return {complete: false, uncertain: true, closures: []};
+    }
+    const timeoutMs = sessionTimeout(options.timeoutMs, options.remaining());
+    if (timeoutMs === null) return {complete: false, uncertain: true, closures: []};
+    let result;
+    try {
+        result = await options.runSession({
+            sessionType: 'closure-verifier',
+            axis: 'closure-verifier',
+            snapshot: options.snapshot,
+            resources: selectResources(options.resourceIndex,
+                [options.sessionSkill, ...options.verifierSkills]),
+            evidence: {
+                schemaVersion: 1,
+                manifest: options.snapshot.manifest,
+                exposure: options.exposure,
+                repair: options.repair,
+            },
+            outputSchema: closureSubmissionSchema(
+                options.repair.proposals.map(({fingerprint}) => fingerprint)
+            ),
+            tools: Object.values(toolSet.tools),
+            submitToolName: 'submit_closures',
+            validateSubmission: (value) => validateClosureSubmission(value, options.repair.proposals),
+            validateSubmissionPrerequisites: () => {
+                if (!toolSet.ledger.isComplete()) throw new Error('closure byte exposure is incomplete');
+            },
+            sourceBytes: sourceBytes(options.snapshot),
+            repositoryRoot: options.repositoryRoot,
+            tempRoot: options.tempRoot,
+            env: options.env,
+            loadSdk: options.loadSdk,
+            timeoutMs,
+            active: options.active,
+        });
+    } catch {
+        return {complete: false, uncertain: true, closures: []};
+    }
+    if (result?.ok !== true || !toolSet.ledger.isComplete() ||
+        !safelyFresh(options.assertFresh, options.snapshot)) {
+        return {complete: false, uncertain: true, closures: []};
+    }
+    let submission;
+    try {
+        submission = validateClosureSubmission(result.submission, options.repair.proposals);
+    } catch {
+        return {complete: false, uncertain: true, closures: []};
+    }
+    const disposition = new Map(submission.dispositions.map((row) => [row.fingerprint, row]));
+    const closures = options.repair.proposals.map((proposal) => ({
+        ...proposal,
+        disposition: disposition.get(proposal.fingerprint).disposition,
+        rationale: disposition.get(proposal.fingerprint).rationale,
+    }));
+    return {
+        complete: true,
+        uncertain: closures.some(({disposition: value}) =>
+            ['NEEDS_CONTEXT', 'INVALID_LOCATION'].includes(value)),
+        closures,
+    };
+}
+
 async function runReviewAttempt(options, authority = null) {
     if (options.authoritative === true && authority !== AUTHORITATIVE) {
         throw new Error('authoritative review interface is required');
@@ -348,6 +455,8 @@ async function runReviewAttempt(options, authority = null) {
         throw new Error('authoritative criteria are required');
     }
     const criteriaSet = authoritative ? createCriteriaTools(options.criteria) : null;
+    const repair = options.repair === undefined ? null : validatedRepair(options.repair, options.snapshot);
+    if (repair !== null && !authoritative) throw new Error('authoritative repair interface is required');
     const state = {
         outcome: 'INCONCLUSIVE',
         authoritative,
@@ -365,7 +474,7 @@ async function runReviewAttempt(options, authority = null) {
         index = resourceIndex(options.resources);
         exemptions = metadataExemptions(options.plan, options.snapshot);
     } catch {
-        return reportValue(options, state);
+        return attemptResult(options, state);
     }
     const proposed = [];
     for (const axisId of AXES) {
@@ -378,7 +487,7 @@ async function runReviewAttempt(options, authority = null) {
                 outcome: 'INCONCLUSIVE',
                 reason: remainingMs <= 0 ? 'REVIEW_TIMEOUT' : 'SNAPSHOT_STALE',
             });
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         const toolSet = createSnapshotTools(options.snapshot, {metadataExemptions: exemptions});
         const requirementCriteria = axisId === 'requirement-coverage' ? criteriaSet : null;
@@ -390,7 +499,7 @@ async function runReviewAttempt(options, authority = null) {
                 outcome: 'INCONCLUSIVE',
                 reason: 'REVIEW_TIMEOUT',
             });
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         let result;
         try {
@@ -409,6 +518,7 @@ async function runReviewAttempt(options, authority = null) {
                     ...(requirementCriteria === null
                         ? {}
                         : {criteria: criteriaEvidence(requirementCriteria)}),
+                    ...(repair === null ? {} : {repair}),
                 },
                 outputSchema: schema,
                 tools: [
@@ -442,7 +552,7 @@ async function runReviewAttempt(options, authority = null) {
             const reason = criteriaIncompleteReason(axisId, toolSet, criteriaSet) ?? 'AXIS_SESSION_FAILED';
             state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason});
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         if (result?.ok !== true) {
             state.axes.push({
@@ -453,7 +563,7 @@ async function runReviewAttempt(options, authority = null) {
                     result?.reason ?? 'AXIS_SESSION_FAILED',
             });
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         if (!safelyFresh(assertFresh, options.snapshot)) {
             state.axes.push({
@@ -463,7 +573,7 @@ async function runReviewAttempt(options, authority = null) {
                 reason: 'SNAPSHOT_STALE',
             });
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         state.model ??= result.model;
         let normalized;
@@ -472,13 +582,13 @@ async function runReviewAttempt(options, authority = null) {
         } catch {
             state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: 'AXIS_SUBMISSION_INVALID'});
             state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         const incompleteReason = axisIncompleteReason(axisId, toolSet, criteriaSet);
         state.axisLedgers.push({axis: axisId, ledger: toolSet.ledger});
         if (incompleteReason !== null) {
             state.axes.push({id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: incompleteReason});
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
         for (const selected of axis.lenses) {
             const lens = result.submission.lenses.find(({id}) => id === selected.id);
@@ -486,13 +596,13 @@ async function runReviewAttempt(options, authority = null) {
         }
         state.axes.push({id: axisId, status: 'COMPLETE', outcome: result.submission.outcome, reason: null});
         proposed.push(...normalized);
-        if (result.submission.outcome === 'INCONCLUSIVE') return reportValue(options, state);
+        if (result.submission.outcome === 'INCONCLUSIVE') return attemptResult(options, state);
         if (proposed.length > LIMIT.REVIEW_FINDINGS ||
             Buffer.byteLength(JSON.stringify(proposed), 'utf8') > LIMIT.OUTPUT_BYTES) {
             state.axes[state.axes.length - 1] = {
                 id: axisId, status: 'INCONCLUSIVE', outcome: 'INCONCLUSIVE', reason: 'FINDING_LIMIT_EXCEEDED',
             };
-            return reportValue(options, state);
+            return attemptResult(options, state);
         }
     }
     const exposure = exposureRows(options.snapshot, state.axisLedgers);
@@ -518,7 +628,7 @@ async function runReviewAttempt(options, authority = null) {
             remaining,
         });
     } catch {
-        return reportValue(options, state);
+        return attemptResult(options, state);
     }
     state.model ??= verified.model;
     state.verifier = {
@@ -530,12 +640,37 @@ async function runReviewAttempt(options, authority = null) {
     if (!verified.complete || verified.uncertainBlocking || remaining() <= 0 ||
         !safelyFresh(assertFresh, options.snapshot)) {
         state.outcome = 'INCONCLUSIVE';
-    } else {
-        state.outcome = state.findings.some(({classification}) => classification === 'BLOCKING')
-            ? 'BLOCKING'
-            : 'PASS';
+        return attemptResult(options, state);
     }
-    return reportValue(options, state);
+    state.outcome = state.findings.some(({classification}) => classification === 'BLOCKING')
+        ? 'BLOCKING'
+        : 'PASS';
+    if (repair !== null) {
+        const closureResult = await verifyClosures({
+            repair,
+            snapshot: options.snapshot,
+            exposure,
+            resourceIndex: index,
+            sessionSkill: options.sessionSkill,
+            verifierSkills: options.verifierSkills,
+            metadataExemptions: exemptions,
+            runSession,
+            assertFresh,
+            repositoryRoot: options.repositoryRoot,
+            tempRoot: options.tempRoot,
+            env: options.env,
+            loadSdk: options.loadSdk,
+            timeoutMs: options.timeoutMs,
+            active: options.active,
+            remaining,
+        });
+        if (!closureResult.complete || closureResult.uncertain || remaining() <= 0) {
+            state.outcome = 'INCONCLUSIVE';
+            return attemptResult(options, state);
+        }
+        return attemptResult(options, state, closureResult.closures);
+    }
+    return attemptResult(options, state);
 }
 
 function runAuthoritativeAttempt(options) {

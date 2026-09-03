@@ -678,7 +678,7 @@ prism-tool commit create --type feat --scope review --subject "guard installed-p
 - Consumes: a valid prior version-two chain, fresh exact-HEAD check, immutable criteria, and a bounded closure proposal.
 - Produces: continuous repair segments with adversarial closure dispositions and directly affected test evidence.
 
-- [ ] **Step 1: Write failing repair and closure tests**
+- [x] **Step 1: Write failing repair and closure tests**
 
 Create a first segment with one confirmed Blocking finding, commit a repair, create a fresh check receipt, and propose this closed closure input:
 
@@ -695,28 +695,28 @@ Create a first segment with one confirmed Blocking finding, commit a repair, cre
 
 Assert the repair snapshot starts at the prior reviewed HEAD; all four axes expose the entire delta; prior open Blocking findings, closure evidence, test identities, and current check evidence reach each axis and the closure verifier; only `CONFIRMED` closes a finding; `REJECTED`, `NEEDS_CONTEXT`, `INVALID_LOCATION`, missing tests, missing exposure, verifier failure, and uncertain Blocking become Inconclusive or keep the finding open as defined by the closed schema. Reject closure of Advisory findings, unknown/duplicate fingerprints, arbitrary absolute test paths, stale checks, changed criteria, and discontinuous Git history.
 
-- [ ] **Step 2: Run repair tests to verify Red**
+- [x] **Step 2: Run repair tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-findings.test.js tests/Node/prism-review-chain-v2.test.js`
 
 Expected: FAIL because repair context and closure dispositions are not yet modeled.
 
-- [ ] **Step 3: Implement repair and closure semantics**
+- [x] **Step 3: Implement repair and closure semantics**
 
 Add a closed closure proposal validator and a terminating `submit_closures` schema with one disposition per proposed fingerprint: `CONFIRMED`, `REJECTED`, `NEEDS_CONTEXT`, or `INVALID_LOCATION`, each with bounded rationale. Use the existing false-positive/verifier policy resources in a fresh isolated session over the complete repair snapshot. Do not permit a closure model to raise severity or create findings. Require the named test path to be a safe tracked path and its gate ID to be present and successful in the current check receipt.
 
 For repair operations, keep the original base and criteria digest, require `from === prior.headSha`, require a new exact-HEAD check, pass prior open Blocking findings and proposals as hostile evidence to every axis, and expose every repair entry on all axes. Append only after all axes, new-finding verification, and closure verification complete. Preserve unconfirmed open findings and all Advisory findings.
 
-- [ ] **Step 4: Run repair and chain tests to verify Green**
+- [x] **Step 4: Run repair and chain tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-findings.test.js tests/Node/prism-review-chain-v2.test.js tests/Node/prism-review-session.test.js`
 
 Expected: PASS with no incomplete repair able to advance the valid chain.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/authority.js packages/prism-core/scripts/prism-review/orchestrator.js packages/prism-core/scripts/prism-review/schema.js packages/prism-core/scripts/prism-review/findings.js tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-findings.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/authority.js packages/prism-core/scripts/prism-review/orchestrator.js packages/prism-core/scripts/prism-review/schema.js packages/prism-core/scripts/prism-review/findings.js tests/Node/prism-review-authority.test.js tests/Node/prism-review-orchestrator.test.js tests/Node/prism-review-findings.test.js
 prism-tool commit create --type feat --scope review --subject "verify continuous review repairs"
 ```
 

@@ -9,6 +9,7 @@ const path = require('node:path');
 const {digestJson} = require('./canonical-json');
 const {verifyCheck} = require('./check');
 const {verifyCriteria} = require('./criteria');
+const {validateClosureProposal} = require('./findings');
 const {createSnapshot} = require('./git-snapshot');
 const {runAuthoritativeAttempt} = require('./orchestrator');
 const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profile');
@@ -172,6 +173,58 @@ function same(left, right) {
     return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function assertContinuousHistory(context, repositoryRoot, fromSha, toSha) {
+    if (context.assertAncestor !== undefined) {
+        if (context.assertAncestor(fromSha, toSha) !== true) {
+            throw new Error('repair review history is discontinuous');
+        }
+        return;
+    }
+    git(context, repositoryRoot, ['merge-base', '--is-ancestor', fromSha, toSha]);
+}
+
+function trackedClosureTest(context, repositoryRoot, headSha, testPath) {
+    if (context.isTrackedClosureTest !== undefined) {
+        return context.isTrackedClosureTest(testPath, headSha) === true;
+    }
+    return git(context, repositoryRoot,
+        ['ls-tree', '-r', '--name-only', '-z', headSha, '--', `:(literal)${testPath}`]) === `${testPath}\0`;
+}
+
+function repairContext(input, current, criteria, check, repository, context, repositoryRoot) {
+    if (current.state !== 'VALID' || current.record.branch !== repository.branch ||
+        current.record.baseRef !== repository.baseRef || current.record.baseSha !== repository.baseSha ||
+        current.record.criteriaDigest !== criteria.digest || current.record.headSha === repository.headSha) {
+        throw new Error('repair review chain is discontinuous');
+    }
+    assertContinuousHistory(context, repositoryRoot, current.record.headSha, repository.headSha);
+    const proposal = validateClosureProposal(input.closures);
+    const open = current.record.findings.filter(({state, classification}) =>
+        state === 'OPEN' && classification === 'BLOCKING');
+    const openByFingerprint = new Map(open.map((finding) => [finding.fingerprint, finding]));
+    const gates = new Map(check.gates.map(({id, status}) => [id, status]));
+    for (const closure of proposal.closures) {
+        if (!openByFingerprint.has(closure.fingerprint)) {
+            throw new Error('repair closure target is invalid');
+        }
+        for (const test of closure.tests) {
+            if (gates.get(test.gateId) !== 'PASS' ||
+                !trackedClosureTest(context, repositoryRoot, repository.headSha, test.path)) {
+                throw new Error('repair closure test is invalid');
+            }
+        }
+    }
+    return {
+        priorOpenBlocking: open,
+        proposals: proposal.closures,
+        check: {
+            digest: check.digest,
+            headSha: check.headSha,
+            gates: check.gates.map(({id, status}) => ({id, status})),
+        },
+    };
+}
+
 function reusable(record, identity) {
     if (record.branch !== identity.branch || record.baseRef !== identity.baseRef ||
         record.baseSha !== identity.baseSha || record.headSha !== identity.headSha ||
@@ -185,8 +238,12 @@ function reusable(record, identity) {
 }
 
 async function runAuthoritativeReview(input, context = {}) {
-    exact(input, ['operation', 'baseRef', 'newInitial'], 'authoritative review request');
-    if (input.operation !== 'initial' || typeof input.newInitial !== 'boolean') {
+    const operation = input?.operation;
+    exact(input, operation === 'repair'
+        ? ['operation', 'baseRef', 'newInitial', 'closures']
+        : ['operation', 'baseRef', 'newInitial'], 'authoritative review request');
+    if (!['initial', 'repair'].includes(operation) || typeof input.newInitial !== 'boolean' ||
+        (operation === 'repair' && input.newInitial)) {
         throw new Error('authoritative review request is invalid');
     }
     const resolved = roots(context);
@@ -208,6 +265,12 @@ async function runAuthoritativeReview(input, context = {}) {
         !['branch', 'baseRef', 'baseSha', 'headSha'].every((key) => check[key] === repository[key])) {
         throw new Error('check receipt is unavailable');
     }
+    const inspectChain = context.inspectReviewChainV2 ?? inspectReviewChainV2;
+    const current = inspectChain({...context, projectRoot: resolved.repositoryRoot});
+    const repair = operation === 'repair'
+        ? repairContext(input, current, criteria, check, repository, context, resolved.repositoryRoot)
+        : null;
+    const snapshotBase = repair === null ? repository.baseSha : current.record.headSha;
     const loadCore = context.loadCoreProfile ?? loadCoreProfile;
     const coreProfile = loadCore({packageRoot: resolved.coreRoot});
     const discover = context.discoverOptionalAdapter ?? discoverOptionalAdapter;
@@ -256,11 +319,11 @@ async function runAuthoritativeReview(input, context = {}) {
     }
     const snapshot = (context.createSnapshot ?? createSnapshot)({
         mode: 'branch', repositoryRoot: resolved.repositoryRoot,
-        base: repository.baseSha, head: repository.headSha,
+        base: snapshotBase, head: repository.headSha,
         run: context.runGit, env: context.env, home: context.home,
         sensitivePaths: context.sensitivePaths,
     });
-    if (snapshot.baseCommit !== repository.baseSha || snapshot.headCommit !== repository.headSha) {
+    if (snapshot.baseCommit !== snapshotBase || snapshot.headCommit !== repository.headSha) {
         throw new Error('authoritative snapshot is stale');
     }
     const plan = (context.buildReviewPlan ?? buildReviewPlan)({
@@ -287,19 +350,18 @@ async function runAuthoritativeReview(input, context = {}) {
         model: {provider: model.provider, id: model.id, reasoningLevel: model.reasoningLevel,
             contextWindow: model.contextWindow},
     };
-    const inspectChain = context.inspectReviewChainV2 ?? inspectReviewChainV2;
-    const current = inspectChain({...context, projectRoot: resolved.repositoryRoot});
-    if (current.state === 'VALID') {
+    if (operation === 'initial' && current.state === 'VALID') {
         if (reusable(current.record, bound)) {
             return {authoritative: true, reused: true, receipt: current.record};
         }
         throw new Error('review chain identity is stale');
     }
-    if (current.state === 'LEGACY' ? !input.newInitial : current.state !== 'ABSENT') {
+    if (operation === 'initial' && (current.state === 'LEGACY' ? !input.newInitial : current.state !== 'ABSENT')) {
         throw new Error('review chain is unavailable');
     }
-    const report = await (context.runReviewAttempt ?? runAuthoritativeAttempt)({
-        command: 'review branch', sourceClass: readiness.sourceClass, authoritative: true,
+    const execution = await (context.runReviewAttempt ?? runAuthoritativeAttempt)({
+        command: repair === null ? 'review branch' : 'review repair',
+        sourceClass: readiness.sourceClass, authoritative: true,
         criteria, snapshot, plan,
         resources: [...coreProfile.resources, ...(adapterProfile?.resources ?? [])],
         sessionSkill: coreProfile.profile.sessionSkill,
@@ -308,19 +370,23 @@ async function runAuthoritativeReview(input, context = {}) {
         env: context.env ?? process.env, loadSdk: context.loadSdk,
         runSession: context.runSession, assertFresh: context.assertFresh,
         timeoutMs: context.timeoutMs, reviewTimeoutMs: context.reviewTimeoutMs, active,
+        ...(repair === null ? {} : {repair}),
     });
+    const report = repair === null ? execution : (execution.report ?? execution);
+    const closures = repair === null ? [] : (execution.closures ?? []);
     const receipt = (context.recordReviewAttempt ?? recordReviewAttempt)({
-        operation: 'initial', branch: repository.branch, baseRef: repository.baseRef,
-        baseSha: repository.baseSha, fromSha: repository.baseSha,
+        operation, branch: repository.branch, baseRef: repository.baseRef,
+        baseSha: repository.baseSha, fromSha: snapshotBase,
         criteriaDigest: criteria.digest,
         check: {digest: check.digest, headSha: check.headSha},
         core: corePackage, adapter: adapterPackage,
         profileDigest: identities.profileDigest,
         resourceDigest: identities.resourceDigest,
         skillDigest: identities.skillDigest,
-        snapshot: bound.snapshot, report, closures: [], newInitial: input.newInitial,
+        snapshot: bound.snapshot, report, closures, newInitial: input.newInitial,
     }, {...context, projectRoot: resolved.repositoryRoot});
-    return {authoritative: true, reused: false, outcome: report.outcome, receipt};
+    const outcome = receipt?.openBlocking?.length > 0 ? 'BLOCKING' : report.outcome;
+    return {authoritative: true, reused: false, outcome, receipt};
 }
 
 module.exports = {inspectAuthorityReadiness, runAuthoritativeReview};

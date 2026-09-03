@@ -82,7 +82,7 @@ function authorityFixture(t, outcome = 'PASS') {
         adapter: Object.freeze({id: 'fixture-quality', packageName: '@fixture/adapter',
             packageVersion: '2.3.4', protocolVersion: 1, gates: Object.freeze(['fixture.gate']),
             sourceClass: 'INSTALLED_EXTERNAL'}),
-        gates: Object.freeze([]), digest: 'e'.repeat(64),
+        gates: Object.freeze([{id: 'php-web.node-tests', status: 'PASS'}]), digest: 'e'.repeat(64),
     });
     const model = Object.freeze({provider: 'fixture', id: 'model', reasoningLevel: 'high',
         contextWindow: 200000, authentication: 'UNKNOWN'});
@@ -109,7 +109,11 @@ function authorityFixture(t, outcome = 'PASS') {
             registration: {packageName: '@fixture/adapter', packageVersion: '2.3.4',
                 packageRoot: externalAdapterRoot},
         }),
-        createSnapshot: () => ({...snapshot, ...(overrides.snapshot ?? {})}),
+        createSnapshot: (request) => {
+            context.snapshotRequests.push(request);
+            return {...snapshot, baseCommit: request.base, headCommit: request.head,
+                ...(overrides.snapshot ?? {})};
+        },
         buildReviewPlan: () => ({...plan,
             policyDigest: overrides.planPolicyDigest ?? plan.policyDigest,
             planDigest: overrides.planDigest ?? plan.planDigest}),
@@ -161,9 +165,11 @@ function authorityFixture(t, outcome = 'PASS') {
             return chain;
         },
         sessionCalls: 0,
+        snapshotRequests: [],
     };
     return {context, coreRoot, externalAdapterRoot, overrides,
         get chain() { return chain; },
+        setChain(value) { chain = value; },
         clearChain() { chain = null; }};
 }
 
@@ -265,6 +271,106 @@ test('requires explicit replacement for legacy review state', async (t) => {
         operation: 'initial', baseRef: 'origin/develop', newInitial: true,
     }, fixture.context);
     assert.equal(replaced.reused, false);
+});
+
+test('reviews a continuous repair from the prior reviewed HEAD and records confirmed closure', async (t) => {
+    const fixture = authorityFixture(t);
+    const priorHead = 'a'.repeat(40);
+    const fingerprint = 'f'.repeat(64);
+    const prior = {
+        state: 'OPEN', axis: 'tooling-style', lensId: 'core.tooling-style',
+        classification: 'BLOCKING', path: 'src/example.js', side: 'head', line: 2,
+        summary: 'The previous review found a runtime failure.', evidence: 'bad value',
+        causality: 'The changed value reaches the runtime.',
+        relevance: 'The prior reviewed change introduced it.',
+        workflowImpact: 'The runtime result is incorrect.', entryDigest: '1'.repeat(64),
+        changedLine: true, fingerprint, closure: null,
+    };
+    fixture.setChain({
+        schemaVersion: 2, kind: 'review-chain', branch: 'feat/example', baseRef: 'origin/develop',
+        baseSha: '1'.repeat(40), headSha: priorHead, criteriaDigest: 'd'.repeat(64),
+        segments: [], findings: [prior], openBlocking: [fingerprint],
+    });
+    let recorded;
+    fixture.context.runReviewAttempt = async (request) => {
+        fixture.context.sessionCalls += 1;
+        assert.equal(request.repair.priorOpenBlocking[0].fingerprint, fingerprint);
+        assert.equal(request.repair.check.gates[0].status, 'PASS');
+        const report = {
+            schemaVersion: 1, command: 'review repair', authoritative: true,
+            sourceClass: 'INSTALLED_EXTERNAL', outcome: 'PASS',
+            scope: {mode: 'branch', baseCommit: priorHead, headCommit: '2'.repeat(40)},
+            model: {provider: 'fixture', id: 'model', reasoningLevel: 'high',
+                contextWindow: 200000, authentication: 'UNKNOWN'},
+            policyDigest: 'b'.repeat(64), planDigest: 'c'.repeat(64),
+            manifestDigest: '4'.repeat(64), axes: [], byteExposure: [], lenses: [],
+            exemptions: [], findings: [], verifier: {complete: true, chunks: 0, dispositions: []},
+            limits: LIMIT,
+            criteriaExposure: {disposition: 'NONE_DECLARED', status: 'NONE_DECLARED', sources: []},
+        };
+        return {report, closures: request.repair.proposals.map((proposal) => ({...proposal,
+            disposition: 'CONFIRMED', rationale: 'The repaired flow is no longer reachable.',
+        }))};
+    };
+    fixture.context.isTrackedClosureTest = () => true;
+    fixture.context.assertAncestor = () => true;
+    fixture.context.recordReviewAttempt = (request) => {
+        recorded = request;
+        return {schemaVersion: 2, openBlocking: []};
+    };
+
+    const result = await runAuthoritativeReview({
+        operation: 'repair', baseRef: 'origin/develop', newInitial: false,
+        closures: {schemaVersion: 1, closures: [{
+            fingerprint, evidence: 'focused regression now passes',
+            tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}],
+        }]},
+    }, fixture.context);
+
+    assert.equal(result.outcome, 'PASS');
+    assert.equal(fixture.context.snapshotRequests.at(-1).base, priorHead);
+    assert.equal(recorded.operation, 'repair');
+    assert.equal(recorded.fromSha, priorHead);
+    assert.equal(recorded.closures[0].disposition, 'CONFIRMED');
+});
+
+test('rejects unsafe repair closure targets, tests, gates, criteria, and continuity before review', async (t) => {
+    const cases = [
+        ['Advisory finding', (input, prior) => { prior.classification = 'ADVISORY'; }],
+        ['unknown finding', (input) => { input.closures.closures[0].fingerprint = '0'.repeat(64); }],
+        ['duplicate finding', (input) => { input.closures.closures.push(
+            structuredClone(input.closures.closures[0])); }],
+        ['absolute test', (input) => { input.closures.closures[0].tests[0].path = '/tmp/test.js'; }],
+        ['missing test', (_input, _prior, fixture) => { fixture.context.isTrackedClosureTest = () => false; }],
+        ['failed gate', (_input, _prior, fixture) => {
+            const verify = fixture.context.verifyCheck;
+            fixture.context.verifyCheck = () => ({...verify(), gates: [{id: 'php-web.node-tests', status: 'FAIL'}]});
+        }],
+        ['changed criteria', (_input, _prior, fixture) => { fixture.overrides.criteriaDigest = '0'.repeat(64); }],
+        ['discontinuous history', (_input, _prior, fixture) => { fixture.context.assertAncestor = () => false; }],
+    ];
+    for (const [name, mutate] of cases) {
+        await t.test(name, async (child) => {
+            const fixture = authorityFixture(child);
+            const fingerprint = 'f'.repeat(64);
+            const prior = {state: 'OPEN', classification: 'BLOCKING', fingerprint};
+            fixture.setChain({
+                schemaVersion: 2, kind: 'review-chain', branch: 'feat/example', baseRef: 'origin/develop',
+                baseSha: '1'.repeat(40), headSha: 'a'.repeat(40), criteriaDigest: 'd'.repeat(64),
+                segments: [], findings: [prior], openBlocking: [fingerprint],
+            });
+            fixture.context.isTrackedClosureTest = () => true;
+            fixture.context.assertAncestor = () => true;
+            const input = {operation: 'repair', baseRef: 'origin/develop', newInitial: false,
+                closures: {schemaVersion: 1, closures: [{fingerprint,
+                    evidence: 'focused regression now passes',
+                    tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}]}]}};
+            mutate(input, prior, fixture);
+
+            await assert.rejects(() => runAuthoritativeReview(input, fixture.context));
+            assert.equal(fixture.context.sessionCalls, 0);
+        });
+    }
 });
 
 test('refuses reuse when any bound authority identity changes', async (t) => {

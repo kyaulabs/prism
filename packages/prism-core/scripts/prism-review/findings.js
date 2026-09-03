@@ -1,15 +1,19 @@
-// $KYAULabs: findings.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: findings.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
 const {AXES, FINDING_CLASS} = require('./constants');
 const {digestJson} = require('./canonical-json');
+const {safeRelativePath} = require('./schema');
 
 const FINDING_KEYS = Object.freeze([
     'axis', 'lensId', 'classification', 'path', 'side', 'line', 'summary', 'evidence',
     'causality', 'relevance', 'workflowImpact',
 ]);
 const DISPOSITIONS = new Set(['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'DUPLICATE']);
+const CLOSURE_DISPOSITIONS = new Set(['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION']);
+const DIGEST = /^[0-9a-f]{64}$/;
+const ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 
 function exact(value, keys, label) {
     if (value === null || typeof value !== 'object' || Array.isArray(value) ||
@@ -117,6 +121,50 @@ function normalizeFindings(values, context) {
     return Object.freeze(normalized);
 }
 
+function validateClosureProposal(value) {
+    exact(value, ['schemaVersion', 'closures'], 'closure proposal');
+    if (value.schemaVersion !== 1 || !Array.isArray(value.closures) || value.closures.length === 0 ||
+        value.closures.length > 32) throw new Error('closure proposal is invalid');
+    const fingerprints = new Set();
+    const closures = value.closures.map((closure) => {
+        exact(closure, ['fingerprint', 'evidence', 'tests'], 'closure proposal entry');
+        if (!DIGEST.test(closure.fingerprint) || fingerprints.has(closure.fingerprint) ||
+            !Array.isArray(closure.tests) || closure.tests.length === 0 || closure.tests.length > 32) {
+            throw new Error('closure proposal entry is invalid');
+        }
+        fingerprints.add(closure.fingerprint);
+        bounded(closure.evidence, 'closure evidence', 4096);
+        const seen = new Set();
+        const tests = closure.tests.map((item) => {
+            exact(item, ['path', 'gateId'], 'closure test');
+            safeRelativePath(item.path, 'closure test path');
+            if (!ID.test(item.gateId ?? '') || seen.has(`${item.path}\0${item.gateId}`)) {
+                throw new Error('closure test is invalid');
+            }
+            seen.add(`${item.path}\0${item.gateId}`);
+            return {...item};
+        });
+        return {...closure, tests};
+    });
+    return {schemaVersion: 1, closures};
+}
+
+function validateClosureSubmission(value, proposals) {
+    exact(value, ['schemaVersion', 'dispositions'], 'closure submission');
+    if (value.schemaVersion !== 1 || !Array.isArray(proposals) || !Array.isArray(value.dispositions) ||
+        value.dispositions.length !== proposals.length) throw new Error('closure submission is invalid');
+    const expected = new Set(proposals.map(({fingerprint}) => fingerprint));
+    const seen = new Set();
+    for (const row of value.dispositions) {
+        exact(row, ['fingerprint', 'disposition', 'rationale'], 'closure disposition');
+        if (!expected.has(row.fingerprint) || seen.has(row.fingerprint) ||
+            !CLOSURE_DISPOSITIONS.has(row.disposition)) throw new Error('closure disposition is invalid');
+        seen.add(row.fingerprint);
+        bounded(row.rationale, 'closure rationale', 2048);
+    }
+    return value;
+}
+
 function validateVerifierSubmission(value, findings) {
     exact(value, ['schemaVersion', 'dispositions'], 'verifier submission');
     if (value.schemaVersion !== 1 || !Array.isArray(value.dispositions) ||
@@ -145,6 +193,12 @@ function validateVerifierSubmission(value, findings) {
     return value;
 }
 
-module.exports = {normalizeFindings, validateFindingAnchor, validateVerifierSubmission};
+module.exports = {
+    normalizeFindings,
+    validateClosureProposal,
+    validateClosureSubmission,
+    validateFindingAnchor,
+    validateVerifierSubmission,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

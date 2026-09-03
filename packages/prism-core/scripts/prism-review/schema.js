@@ -1,4 +1,4 @@
-// $KYAULabs: schema.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: schema.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -378,6 +378,34 @@ function axisSubmissionSchema(axisId, lensIds) {
     };
 }
 
+function closureSubmissionSchema(fingerprints) {
+    return {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+            schemaVersion: {type: 'integer', const: 1},
+            dispositions: {
+                type: 'array',
+                minItems: fingerprints.length,
+                maxItems: fingerprints.length,
+                items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        fingerprint: {type: 'string', enum: fingerprints},
+                        disposition: {type: 'string', enum: [
+                            'CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION',
+                        ]},
+                        rationale: {type: 'string'},
+                    },
+                    required: ['fingerprint', 'disposition', 'rationale'],
+                },
+            },
+        },
+        required: ['schemaVersion', 'dispositions'],
+    };
+}
+
 function verifierSubmissionSchema(fingerprints) {
     return {
         type: 'object',
@@ -417,6 +445,7 @@ function triggerMatches(value, changedPath) {
 
 module.exports = {
     axisSubmissionSchema,
+    closureSubmissionSchema,
     closedObjectSchema,
     deepFreezeJson,
     safeRelativePath,
