@@ -859,16 +859,34 @@ register_temp_dir "$T5F"
 write_fake_tools "$T5F"
 mkdir -p "$T5F/home" "$T5F/pi-agent" "$T5F/bin-dir"
 : > "$T5F/pi-invocations"
+cat > "$T5F/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exec node '/previous/prism-tool.js' "$@"
+# prism-core:managed-launcher prism-tool end
+EOF
+cat > "$T5F/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec node '/previous/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T5F/bin-dir/prism-tool" "$T5F/bin-dir/prism-review"
+tool_before=$(cksum "$T5F/bin-dir/prism-tool")
+review_before=$(cksum "$T5F/bin-dir/prism-review")
 cat > "$T5F/bin/mv" <<'EOF'
 #!/usr/bin/env bash
 destination=""
 for argument in "$@"; do destination="$argument"; done
-if [ "$destination" = "${SIGNAL_MOVE_DEST:-}" ] && [ ! -e "${SIGNAL_MARKER:-}" ]; then
-    : > "$SIGNAL_MARKER"
-    kill -TERM "$PPID"
-    exit 0
-fi
-exec /usr/bin/mv "$@"
+/usr/bin/mv "$@" || exit $?
+case "$destination" in
+    "$SIGNAL_MOVE_DIR"/.prism-tool.backup.*)
+        if [ ! -e "${SIGNAL_MARKER:-}" ]; then
+            : > "$SIGNAL_MARKER"
+            kill -TERM "$PPID"
+        fi
+        ;;
+esac
 EOF
 chmod 0755 "$T5F/bin/mv"
 status=0
@@ -876,15 +894,35 @@ HOME="$T5F/home" \
     PI_CODING_AGENT_DIR="$T5F/pi-agent" \
     PRISM_BIN_DIR="$T5F/bin-dir" \
     PI_INVOCATIONS="$T5F/pi-invocations" \
-    SIGNAL_MOVE_DEST="$T5F/bin-dir/prism-tool" \
+    SIGNAL_MOVE_DIR="$T5F/bin-dir" \
     SIGNAL_MARKER="$T5F/signalled" \
     PATH="$T5F/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
-if [ "$status" -eq 143 ] && [ ! -e "$T5F/bin-dir/prism-tool" ] \
-    && [ ! -e "$T5F/bin-dir/prism-review" ]; then
-    pass "launcher transaction terminates on TERM"
+if [ "$status" -ne 0 ] \
+    && [ "$tool_before" = "$(cksum "$T5F/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T5F/bin-dir/prism-review")" ] \
+    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ]; then
+    pass "launcher deployment rolls back on TERM"
 else
-    fail "launcher transaction continued or returned the wrong status after TERM"
+    fail "launcher deployment did not roll back after TERM"
+fi
+rm -f "$T5F/signalled"
+status=0
+HOME="$T5F/home" \
+    PI_CODING_AGENT_DIR="$T5F/pi-agent" \
+    PRISM_BIN_DIR="$T5F/bin-dir" \
+    PI_INVOCATIONS="$T5F/pi-invocations" \
+    SIGNAL_MOVE_DIR="$T5F/bin-dir" \
+    SIGNAL_MARKER="$T5F/signalled" \
+    PATH="$T5F/bin:$PATH" \
+    bash "$INSTALLER" --uninstall-launcher >/dev/null 2>&1 || status=$?
+if [ "$status" -ne 0 ] \
+    && [ "$tool_before" = "$(cksum "$T5F/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T5F/bin-dir/prism-review")" ] \
+    && [ ! -e "$T5F/bin-dir/.prism-launchers.lock" ]; then
+    pass "launcher uninstall rolls back on TERM"
+else
+    fail "launcher uninstall did not roll back after TERM"
 fi
 
 T5G=$(mktemp -d)

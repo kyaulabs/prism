@@ -118,10 +118,27 @@ cleanup_launcher_lock() {
     fi
 }
 
+rollback_launcher_transaction() {
+    case "${launcher_transaction_kind:-}" in
+        deploy)
+            restore_launcher "$TOOL_LAUNCHER" prism-tool "${tool_checksum:-}" "${tool_backup:-}" || true
+            restore_launcher "$REVIEW_LAUNCHER" prism-review "${review_checksum:-}" "${review_backup:-}" || true
+            [ -z "${tool_temp:-}" ] || rm -f -- "$tool_temp"
+            [ -z "${review_temp:-}" ] || rm -f -- "$review_temp"
+            ;;
+        uninstall)
+            restore_launcher "$TOOL_LAUNCHER" prism-tool "" "${tool_backup:-}" || true
+            restore_launcher "$REVIEW_LAUNCHER" prism-review "" "${review_backup:-}" || true
+            ;;
+    esac
+    launcher_transaction_kind=""
+}
+
 terminate_launcher_transaction() {
     local status="$1"
-    cleanup_launcher_lock
     trap - HUP INT TERM
+    rollback_launcher_transaction
+    cleanup_launcher_lock
     exit "$status"
 }
 
@@ -145,6 +162,7 @@ release_launcher_lock() {
 
 remove_managed_launchers() {
     local tool_backup="" review_backup="" tool_present=false review_present=false
+    local launcher_transaction_kind=uninstall
     acquire_launcher_lock
     if ! launcher_absent_or_managed "$TOOL_LAUNCHER" prism-tool; then
         echo "✗ refusing to remove an unmanaged launcher at $TOOL_LAUNCHER" >&2
@@ -156,13 +174,20 @@ remove_managed_launchers() {
     fi
     [ ! -e "$TOOL_LAUNCHER" ] || tool_present=true
     [ ! -e "$REVIEW_LAUNCHER" ] || review_present=true
-    if ! tool_backup=$(evacuate_launcher "$TOOL_LAUNCHER" prism-tool); then
+    if ! tool_backup=$(prepare_launcher_backup "$TOOL_LAUNCHER" prism-tool); then
         return 1
     fi
-    if ! review_backup=$(evacuate_launcher "$REVIEW_LAUNCHER" prism-review); then
+    if ! review_backup=$(prepare_launcher_backup "$REVIEW_LAUNCHER" prism-review); then
+        return 1
+    fi
+    if ! evacuate_launcher "$TOOL_LAUNCHER" prism-tool "$tool_backup"; then
+        return 1
+    fi
+    if ! evacuate_launcher "$REVIEW_LAUNCHER" prism-review "$review_backup"; then
         restore_launcher "$TOOL_LAUNCHER" prism-tool "" "$tool_backup" || true
         return 1
     fi
+    launcher_transaction_kind=""
     if ! rm -f -- "$tool_backup" "$review_backup"; then
         return 1
     fi
@@ -230,16 +255,26 @@ launcher_checksum() {
     cksum "$1" | awk '{print $1 ":" $2}'
 }
 
-evacuate_launcher() {
+prepare_launcher_backup() {
     local launcher="$1" name="$2" backup
     if [ ! -e "$launcher" ]; then
         printf '\n'
         return 0
     fi
     backup=$(mktemp "$BIN_DIR/.${name}.backup.XXXXXX")
-    rm -f -- "$backup"
-    if ! move_no_clobber "$launcher" "$backup"; then
-        rm -f -- "$backup"
+    if ! rm -f -- "$backup"; then
+        return 1
+    fi
+    printf '%s\n' "$backup"
+}
+
+evacuate_launcher() {
+    local launcher="$1" name="$2" backup="$3"
+    if [ ! -e "$launcher" ]; then
+        return 0
+    fi
+    if [ -z "$backup" ] || ! move_no_clobber "$launcher" "$backup"; then
+        [ -z "$backup" ] || rm -f -- "$backup"
         return 1
     fi
     if ! launcher_is_managed "$backup" "$name"; then
@@ -248,7 +283,6 @@ evacuate_launcher() {
         fi
         return 1
     fi
-    printf '%s\n' "$backup"
 }
 
 restore_launcher() {
@@ -264,8 +298,8 @@ restore_launcher() {
 }
 
 deploy_launchers() {
-    local tool_cli="$1" review_cli="$2" tool_temp review_temp tool_checksum review_checksum
-    local tool_backup="" review_backup=""
+    local tool_cli="$1" review_cli="$2" tool_temp="" review_temp="" tool_checksum="" review_checksum=""
+    local tool_backup="" review_backup="" launcher_transaction_kind=deploy
     validate_cli_path "$tool_cli"
     acquire_launcher_lock
     validate_cli_path "$review_cli"
@@ -287,11 +321,19 @@ deploy_launchers() {
     fi
     tool_checksum=$(launcher_checksum "$tool_temp")
     review_checksum=$(launcher_checksum "$review_temp")
-    if ! tool_backup=$(evacuate_launcher "$TOOL_LAUNCHER" prism-tool); then
+    if ! tool_backup=$(prepare_launcher_backup "$TOOL_LAUNCHER" prism-tool); then
         rm -f -- "$tool_temp" "$review_temp"
         return 1
     fi
-    if ! review_backup=$(evacuate_launcher "$REVIEW_LAUNCHER" prism-review); then
+    if ! review_backup=$(prepare_launcher_backup "$REVIEW_LAUNCHER" prism-review); then
+        rm -f -- "$tool_temp" "$review_temp"
+        return 1
+    fi
+    if ! evacuate_launcher "$TOOL_LAUNCHER" prism-tool "$tool_backup"; then
+        rm -f -- "$tool_temp" "$review_temp"
+        return 1
+    fi
+    if ! evacuate_launcher "$REVIEW_LAUNCHER" prism-review "$review_backup"; then
         restore_launcher "$TOOL_LAUNCHER" prism-tool "$tool_checksum" "$tool_backup" || true
         rm -f -- "$tool_temp" "$review_temp"
         return 1
@@ -308,6 +350,7 @@ deploy_launchers() {
         rm -f -- "$review_temp"
         return 1
     fi
+    launcher_transaction_kind=""
     rm -f -- "$tool_backup" "$review_backup"
     echo "✓ deployed managed launcher $TOOL_LAUNCHER"
     echo "✓ deployed managed launcher $REVIEW_LAUNCHER"
