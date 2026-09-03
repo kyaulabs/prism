@@ -552,7 +552,7 @@ prism-tool commit create --type feat --scope review --subject "expose immutable 
 - Consumes: Task 1 managed state, normalized findings, validated review reports, criteria/check digests, package/profile/policy/resource identities, and existing version-one validation.
 - Produces: version-two inspect/select/record/verify functions and explicit `ABSENT`, `VALID`, `LEGACY`, `UNSAFE` states.
 
-- [ ] **Step 1: Write failing chain replay tests**
+- [x] **Step 1: Write failing chain replay tests**
 
 Cover one complete initial segment, a continuous repair, Advisory preservation, confirmed Blocking state, confirmed closure, duplicate findings, invalid closure targets, changed immutable identities, incomplete axes/lenses/exposure, malformed verifier decisions, stale base/head, and record-size limits. Write a valid schema-one fixture and assert `LEGACY`; malformed and symlinked state must be `UNSAFE`; missing state alone is `ABSENT`. Attempt safe legacy replacement and inject publication failure to prove schema one remains intact.
 
@@ -573,13 +573,13 @@ assert.deepEqual(record.segments[0].axes.map(({id, status}) => ({id, status})), 
 ]);
 ```
 
-- [ ] **Step 2: Run chain tests to verify Red**
+- [x] **Step 2: Run chain tests to verify Red**
 
 Run: `node --test tests/Node/prism-review-chain-v2.test.js tests/Node/prism-tool-review-chain.test.js`
 
 Expected: FAIL because version-two replay and legacy classification do not exist.
 
-- [ ] **Step 3: Implement strict version-two validation and replay**
+- [x] **Step 3: Implement strict version-two validation and replay**
 
 Export the existing version-one record validator without relaxing it. In `review-chain-v2.js`, parse the shared path as follows: no file is `ABSENT`; a strictly valid schema-one record is `LEGACY`; a strictly valid schema-two record is `VALID`; every other present state is `UNSAFE`.
 
@@ -587,16 +587,16 @@ Each engine-authored segment must bind range/base, snapshot/manifest/diff, crite
 
 `recordReviewAttempt()` accepts only a validated in-memory report from the engine, never a path or model-authored segment file. Publish only complete PASS/BLOCKING reports; diagnostics go to `review-attempt.json`. For `--new-initial`, retain valid legacy bytes until the complete replacement record has been fully validated and the atomic publication succeeds.
 
-- [ ] **Step 4: Run version-one and version-two chain tests to verify Green**
+- [x] **Step 4: Run version-one and version-two chain tests to verify Green**
 
 Run: `node --test tests/Node/prism-review-chain-v2.test.js tests/Node/prism-tool-review-chain.test.js tests/Node/prism-tool-code-review.test.js`
 
 Expected: PASS and the OCR chain command continues to write and verify schema one.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-review/review-chain-v2.js packages/prism-core/scripts/prism-tool/review-chain.js tests/Node/prism-review-chain-v2.test.js tests/Node/prism-tool-review-chain.test.js
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-review/review-chain-v2.js packages/prism-core/scripts/prism-tool/review-chain.js tests/Node/prism-review-chain-v2.test.js tests/Node/prism-tool-review-chain.test.js
 prism-tool commit create --type feat --scope review --subject "add replayable review chain version two"
 ```
 

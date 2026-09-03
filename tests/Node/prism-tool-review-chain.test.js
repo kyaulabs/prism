@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-review-chain.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: prism-tool-review-chain.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -13,6 +13,7 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {
     inspectReviewChain,
     recordReviewSegment,
+    validateRecordShape,
     verifyReviewChain,
 } = require('../../packages/prism-core/scripts/prism-tool/review-chain');
 
@@ -106,6 +107,9 @@ test('records and verifies one complete initial review segment', (t) => {
     }, target);
 
     assert.equal(record.headSha, target.headSha);
+    const storedRecord = structuredClone(record);
+    delete storedRecord.path;
+    assert.doesNotThrow(() => validateRecordShape(storedRecord));
     assert.equal(record.segments.length, 1);
     assert.equal(record.openBlocking.length, 1);
     assert.equal(fs.statSync(record.path).mode & 0o777, 0o600);
