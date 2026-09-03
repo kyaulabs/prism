@@ -792,13 +792,13 @@ prism-tool commit create --type feat --scope review --subject "expose closed aut
 - Consumes: strict version-one verification and Task 7 strict version-two verification.
 - Produces: one preflight result identifying version `1`, version `2`, or `ABSENT`, without combining evidence.
 
-- [ ] **Step 1: Write failing dual-read preflight tests**
+- [x] **Step 1: Write failing dual-read preflight tests**
 
 Exercise `pr preflight` and `pr review-preflight` with valid v1, valid v2, absent, stale v1, stale v2, open Blocking v1/v2, missing criteria/check for v2, valid schema-one state reported as legacy by v2 inspection, malformed state, and symlinked state. Assert one version is selected as a unit and fields never mix. Assert output includes `REVIEW_CHAIN_VERSION\t1|2` for valid state and `REVIEW_CHAIN\tABSENT` only for a missing file. `preflight` rejects absence; `review-preflight` may report absence but not legacy/unsafe/stale state.
 
 Add prompt-contract cases for absent state with no v2 receipts, both exact valid v2 receipts, one partial receipt, stale receipts, and unsafe receipts. The no-receipt case must retain OCR/version-one recovery. Both exact receipts must select one installed `prism-review review authoritative` attempt. Partial, stale, or unsafe v2 evidence must stop rather than silently falling back. Valid v2 state must inspect Advisory findings with `prism-review chain inspect --json`; valid v1 state keeps `prism-tool code-review chain inspect --json`.
 
-- [ ] **Step 2: Run PR and code-review tests to verify Red**
+- [x] **Step 2: Run PR and code-review tests to verify Red**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-review-chain.test.js tests/Node/prism-review-chain-v2.test.js`
 
@@ -806,13 +806,13 @@ Run: `bash tests/Shell/pr_command_test.sh`
 
 Expected: FAIL because PR preflight and the prompt understand only version one.
 
-- [ ] **Step 3: Implement strict dual-read selection**
+- [x] **Step 3: Implement strict dual-read selection**
 
 Inspect the shared chain path once through the v2 classifier. If it is `VALID`, verify only v2, including exact branch/base/head, criteria, check, continuity, complete axes/exposure/lenses, and zero open Blocking findings. If it is `LEGACY`, invoke only the existing strict v1 verifier. If it is `ABSENT`, preserve ADR-0093's narrow recovery and inspect criteria/check state. Report `V2_RECOVERY\tREADY` only when both receipts are valid at the exact preflight identities; report `V2_RECOVERY\tUNDECLARED` when both are absent; reject partial, stale, or unsafe receipt state. Treat `UNSAFE` and every validation error as blocking. Add version reporting without changing OCR's version-one record command.
 
 Update `pr.md` so ordinary absent state with `V2_RECOVERY=UNDECLARED` follows the existing OCR/version-one recovery. When `V2_RECOVERY=READY`, consume the invocation's one attempt through the stable installed `prism-review review authoritative` command and require a v2 chain. Never create/select criteria or run a check there. Branch Advisory inspection by version. The `code-review chain record` subcommand remains schema-one-only and explicitly refuses a schema-two path; its read-only inspect may identify v2 without accepting model-authored v2 input.
 
-- [ ] **Step 4: Run all preflight and chain tests to verify Green**
+- [x] **Step 4: Run all preflight and chain tests to verify Green**
 
 Run: `node --test tests/Node/prism-tool-pr.test.js tests/Node/prism-tool-code-review.test.js tests/Node/prism-tool-review-chain.test.js tests/Node/prism-review-chain-v2.test.js`
 
@@ -820,10 +820,10 @@ Run: `bash tests/Shell/pr_command_test.sh`
 
 Expected: PASS with both coherent chain versions accepted, narrow absent-state recovery selected deterministically, and malformed state rejected.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
-git add packages/prism-core/scripts/prism-tool/pr.js packages/prism-core/scripts/prism-tool/code-review.js packages/prism-core/prompts/pr.md tests/Node/prism-tool-pr.test.js tests/Node/prism-tool-code-review.test.js tests/Shell/pr_command_test.sh
+git add docs/plans/2026-09-02-prism-review-authority-bridge.md packages/prism-core/scripts/prism-tool/pr.js packages/prism-core/scripts/prism-tool/code-review.js packages/prism-core/prompts/pr.md tests/Node/prism-tool-pr.test.js tests/Node/prism-tool-code-review.test.js tests/Shell/pr_command_test.sh
 prism-tool commit create --type feat --scope pr --subject "accept coherent review chain versions"
 ```
 

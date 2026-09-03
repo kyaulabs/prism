@@ -1,15 +1,18 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {runBounded} = require('./process');
+const {inspectCheck, verifyCheck} = require('../prism-review/check');
+const {inspectCriteria, verifyCriteria} = require('../prism-review/criteria');
 const {
-    STATE,
-    inspectReviewChain,
-    verifyReviewChain,
-} = require('./review-chain');
+    inspectReviewChainV2,
+    verifyReviewChainV2,
+} = require('../prism-review/review-chain-v2');
+const {REVIEW_STATE} = require('../prism-review/review-state');
+const {runBounded} = require('./process');
+const {verifyReviewChain} = require('./review-chain');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -214,33 +217,64 @@ function preflight(context, options = {}) {
     if (diff.error || (diff.status !== 0 && diff.status !== 1)) return failure('cannot inspect branch net diff');
     if (diff.status === 0) return failure('branch has no net diff against its merge-base');
 
-    let reviewChainState = STATE.VALID;
-    let advisoryCount;
-
-    if (allowAbsentReviewChain) {
-        const inspect = context.inspectReviewChain ?? inspectReviewChain;
-        let inspected;
-        try {
-            inspected = inspect({...context, projectRoot: cwd});
-        } catch {
-            return failure('review chain is unsafe or invalid');
-        }
-        if (inspected.state === STATE.ABSENT) {
-            reviewChainState = STATE.ABSENT;
-        } else if (inspected.state !== STATE.VALID) {
-            return failure('review chain is unsafe or invalid');
-        }
+    const expected = {branch, baseRef, baseSha, headSha};
+    const inspect = context.inspectReviewChainV2 ?? inspectReviewChainV2;
+    let inspected;
+    try {
+        inspected = inspect({...context, projectRoot: cwd});
+    } catch {
+        return failure('review chain is unsafe or invalid');
     }
+    let reviewChainState;
+    let reviewChainVersion;
+    let advisoryCount;
+    let v2Recovery;
 
-    if (reviewChainState === STATE.VALID) {
-        const verify = context.verifyReviewChain ?? verifyReviewChain;
-        let review;
-        try {
-            review = verify({branch, baseRef, baseSha, headSha}, {...context, projectRoot: cwd});
-        } catch {
+    try {
+        if (inspected.state === REVIEW_STATE.VALID && inspected.version === 2) {
+            const criteria = (context.verifyCriteria ?? verifyCriteria)(
+                {branch}, {...context, projectRoot: cwd}
+            );
+            const check = (context.verifyCheck ?? verifyCheck)(expected, {...context, projectRoot: cwd});
+            const review = (context.verifyReviewChainV2 ?? verifyReviewChainV2)({
+                ...expected,
+                criteriaDigest: criteria.digest,
+                checkDigest: check.digest,
+            }, {...context, projectRoot: cwd});
+            reviewChainState = REVIEW_STATE.VALID;
+            reviewChainVersion = 2;
+            advisoryCount = String(review.advisoryFindings.length);
+        } else if (inspected.state === REVIEW_STATE.LEGACY && inspected.version === 1) {
+            const review = (context.verifyReviewChain ?? verifyReviewChain)(
+                expected, {...context, projectRoot: cwd}
+            );
+            reviewChainState = REVIEW_STATE.VALID;
+            reviewChainVersion = 1;
+            advisoryCount = String(review.advisoryFindings.length);
+        } else if (inspected.state === REVIEW_STATE.ABSENT && allowAbsentReviewChain) {
+            const criteriaState = (context.inspectCriteria ?? inspectCriteria)(
+                {...context, projectRoot: cwd}
+            );
+            const checkState = (context.inspectCheck ?? inspectCheck)(
+                {...context, projectRoot: cwd}
+            );
+            if (criteriaState.state === REVIEW_STATE.ABSENT && checkState.state === REVIEW_STATE.ABSENT) {
+                v2Recovery = 'UNDECLARED';
+            } else if (criteriaState.state === REVIEW_STATE.VALID && checkState.state === REVIEW_STATE.VALID) {
+                (context.verifyCriteria ?? verifyCriteria)({branch}, {...context, projectRoot: cwd});
+                (context.verifyCheck ?? verifyCheck)(expected, {...context, projectRoot: cwd});
+                v2Recovery = 'READY';
+            } else {
+                return failure('version-two recovery evidence is partial, stale, or unsafe');
+            }
+            reviewChainState = REVIEW_STATE.ABSENT;
+        } else if (inspected.state === REVIEW_STATE.ABSENT) {
             return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
+        } else {
+            return failure('review chain is unsafe or invalid');
         }
-        advisoryCount = String(review.advisoryFindings.length);
+    } catch {
+        return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
     }
 
     const fields = [
@@ -254,6 +288,8 @@ function preflight(context, options = {}) {
         ['NON_MERGE_COUNT', nonMergeCount],
         ['REVIEW_CHAIN', reviewChainState],
     ];
+    if (reviewChainVersion !== undefined) fields.push(['REVIEW_CHAIN_VERSION', String(reviewChainVersion)]);
+    if (v2Recovery !== undefined) fields.push(['V2_RECOVERY', v2Recovery]);
     if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;

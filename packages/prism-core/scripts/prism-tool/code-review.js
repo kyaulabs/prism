@@ -1,4 +1,4 @@
-// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -7,10 +7,11 @@ const path = require('node:path');
 const {assertPackageParity, loadContract} = require('./contract');
 const {STATE: CONSENT_STATE, inspectConsent} = require('./consent');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
+const {inspectReviewChainV2} = require('../prism-review/review-chain-v2');
+const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded, sanitizeDetail} = require('./process');
 const {
     ReviewChainError,
-    inspectReviewChain,
     recordReviewSegment,
     verifyReviewChain,
 } = require('./review-chain');
@@ -169,12 +170,23 @@ function parseVerifyControls(args) {
 }
 
 function reviewChainCommand(args, context) {
+    const inspect = context.inspectReviewChainV2 ?? inspectReviewChainV2;
     if (sameArguments(args, ['inspect', '--json'])) {
-        const inspected = inspectReviewChain(context);
-        process.stdout.write(`${JSON.stringify({schemaVersion: 1, ...inspected})}\n`);
-        return inspected.state === 'UNSAFE' ? EXIT.TOOL : EXIT.OK;
+        const inspected = inspect(context);
+        const result = inspected.state === REVIEW_STATE.LEGACY
+            ? {schemaVersion: 1, state: REVIEW_STATE.VALID, version: 1, record: inspected.record}
+            : {
+                schemaVersion: 1,
+                state: inspected.state,
+                ...(inspected.state === REVIEW_STATE.VALID ? {version: 2} : {}),
+            };
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        return inspected.state === REVIEW_STATE.UNSAFE ? EXIT.TOOL : EXIT.OK;
     }
     if (args.length === 4 && args[0] === 'record' && args[1] === '--input' && args[3] === '--json') {
+        if (inspect(context).state === REVIEW_STATE.VALID) {
+            throw new CodeReviewError(EXIT.TOOL, 'chain record is schema-one-only');
+        }
         const record = recordReviewSegment(readChainInput(args[2], context), context);
         process.stdout.write(`${JSON.stringify({schemaVersion: 1, status: 'GO', data: record})}\n`);
         return EXIT.OK;
