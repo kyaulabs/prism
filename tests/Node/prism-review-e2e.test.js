@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-e2e.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-review-e2e.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '../..');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'packages/prism-core/package.json'), 'utf8')
+).version;
 const WORK_ROOT = path.join(ROOT, '.pi/prism-review/work/e2e');
 
 function command(executable, args, options = {}) {
@@ -437,7 +440,7 @@ test('proves packaged criteria, check, initial, reuse, repair, and preflight aut
     assert.equal(doctor.status, 0);
     assert.equal(doctor.report.sourceClass, 'INSTALLED_EXTERNAL');
     assert.equal(doctor.report.eligibleForAuthority, true);
-    assert.equal(doctor.report.authority.core.packageVersion, '0.4.3');
+    assert.equal(doctor.report.authority.core.packageVersion, CORE_VERSION);
     assert.equal(doctor.report.authority.adapter.protected.packageName, '@kyaulabs/prism-php-web');
     assert.equal(doctor.report.authority.adapter.provider.id, 'php-web-quality');
     assert.equal(doctor.report.authority.adapter.provider.protocolVersion, 1);

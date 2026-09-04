@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-check.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-review-check.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -16,6 +16,9 @@ const {
 const {CORE_GATE_IDS} = require('../../packages/prism-core/scripts/prism-review/core-quality');
 
 const coreRoot = path.resolve(__dirname, '../../packages/prism-core');
+const coreVersion = JSON.parse(
+    fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8')
+).version;
 const EMPTY_DIGEST = {
     bytes: 0,
     sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
@@ -63,7 +66,7 @@ function gate(id) {
 function coreReport() {
     return {
         schemaVersion: 1,
-        core: {packageName: '@kyaulabs/prism-core', packageVersion: '0.4.3'},
+        core: {packageName: '@kyaulabs/prism-core', packageVersion: coreVersion},
         status: 'PASS',
         gates: CORE_GATE_IDS.map(gate),
     };
@@ -341,7 +344,7 @@ test('makes a PASS unverifiable when the installed Core package changes', async 
     t.after(() => fs.rmSync(installedCore, {recursive: true, force: true}));
     fs.writeFileSync(path.join(installedCore, 'package.json'), JSON.stringify({
         name: '@kyaulabs/prism-core',
-        version: '0.4.3',
+        version: coreVersion,
     }));
     fs.writeFileSync(path.join(installedCore, 'runtime.js'), 'module.exports = true;\n');
     const context = {
@@ -394,7 +397,7 @@ test('publishes RUNNING before gates and verifies the exact passing HEAD', async
     let running;
     const expectedCore = {
         name: '@kyaulabs/prism-core',
-        version: '0.4.3',
+        version: coreVersion,
         digest: 'f'.repeat(64),
         sourceClass: 'INSTALLED_EXTERNAL',
     };
