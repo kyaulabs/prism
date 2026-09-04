@@ -1061,6 +1061,57 @@ else
     fail "installer rejected an external review CLI after partial deployment"
 fi
 
+T7C=$(mktemp -d)
+register_temp_dir "$T7C"
+write_fake_tools "$T7C"
+mkdir -p "$T7C/home" "$T7C/pi-agent" "$T7C/bin-dir" "$T7C/source/scripts"
+: > "$T7C/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7C/source/package.json"
+cat > "$T7C/source/scripts/prism-tool.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== 'doctor') process.exit(2);
+process.stdout.write('{"status":"GO"}\n');
+JSEOF
+cat > "$T7C/source/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+process.stdout.write('9.9.9\n');
+JSEOF
+chmod +x "$T7C/source/scripts/prism-tool.js" "$T7C/source/scripts/prism-review.js"
+cat > "$T7C/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exec node '/previous/prism-tool.js' "$@"
+# prism-core:managed-launcher prism-tool end
+EOF
+cat > "$T7C/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec env -u NODE_OPTIONS -u NODE_PATH node '/previous/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T7C/bin-dir/prism-tool" "$T7C/bin-dir/prism-review"
+tool_before=$(cksum "$T7C/bin-dir/prism-tool")
+review_before=$(cksum "$T7C/bin-dir/prism-review")
+status=0
+output=$(HOME="$T7C/home" \
+    PI_CODING_AGENT_DIR="$T7C/pi-agent" \
+    PRISM_BIN_DIR="$T7C/bin-dir" \
+    PRISM_CORE_SOURCE="$T7C/source" \
+    PI_INVOCATIONS="$T7C/pi-invocations" \
+    PATH="$T7C/bin:$PATH" \
+    bash "$INSTALLER" 2>&1) || status=$?
+if [ "$status" -ne 0 ] \
+    && grep -qFx '✗ installed prism-review executable verification failed' <<< "$output" \
+    && [ ! -s "$T7C/pi-invocations" ] \
+    && [ "$tool_before" = "$(cksum "$T7C/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T7C/bin-dir/prism-review")" ]; then
+    pass "review executable verification fails before installation or launcher deployment"
+else
+    fail "review executable verification occurred after installation or launcher deployment"
+fi
+
 T8=$(mktemp -d)
 register_temp_dir "$T8"
 write_fake_tools "$T8"

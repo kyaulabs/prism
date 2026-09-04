@@ -438,6 +438,25 @@ resolve_core_clis() {
     fi
 }
 
+verify_review_cli() {
+    local expected_version=""
+    local review_manifest="$INSTALLED_CORE_ROOT/package.json"
+    local review_version=""
+    if ! expected_version=$(node -e '
+const fs = require("node:fs");
+const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (value.name !== "@kyaulabs/prism-core" || typeof value.version !== "string") process.exit(1);
+process.stdout.write(value.version);
+' "$review_manifest" 2>/dev/null) \
+        || ! review_version=$(env -u NODE_OPTIONS -u NODE_PATH "$REVIEW_CLI" --version 2>/dev/null) \
+        || [[ ! "$review_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+        || [ "$review_version" != "$expected_version" ]; then
+        echo "✗ installed prism-review executable verification failed" >&2
+        return 1
+    fi
+    echo "✓ prism review packaged executable PASS"
+}
+
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     if [[ ! "$PRISM_CORE_SOURCE" =~ ^npm:@kyaulabs/prism-core(@[^[:space:]@]+)?$ ]]; then
         echo "✗ configured npm core source is invalid" >&2
@@ -451,21 +470,25 @@ if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     echo "• installing core from approved npm source"
     npm_config_ignore_scripts=true pi install "$PRISM_CORE_SOURCE"
     resolve_core_clis "$PI_DIR/npm/node_modules/@kyaulabs/prism-core" || exit 1
+    verify_review_cli || exit 1
 elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
     if ! SELECTED_CORE_SOURCE=$(canonical_cli "${PRISM_CORE_SOURCE%/}"); then
         echo "✗ configured local core source is unavailable" >&2
         exit 1
     fi
     resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• installing core from configured local source"
     pi install "$SELECTED_CORE_SOURCE"
 elif [[ "$PKG_ROOT" == "$PI_DIR"/* ]]; then
     SELECTED_CORE_SOURCE="$PKG_ROOT"
     resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• core already under pi dir ($PKG_ROOT); skipping pi install"
 else
     SELECTED_CORE_SOURCE="$PKG_ROOT"
     resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• installing core from local source: $PKG_ROOT"
     pi install "$PKG_ROOT"
 fi
@@ -494,24 +517,6 @@ case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "⚠ $BIN_DIR is not on PATH; add it manually before invoking prism-tool" ;;
 esac
-
-REVIEW_VERSION=""
-REVIEW_MANIFEST="$INSTALLED_CORE_ROOT/package.json"
-EXPECTED_REVIEW_VERSION=""
-if ! EXPECTED_REVIEW_VERSION=$(node -e '
-const fs = require("node:fs");
-const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-if (value.name !== "@kyaulabs/prism-core" || typeof value.version !== "string") process.exit(1);
-process.stdout.write(value.version);
-' "$REVIEW_MANIFEST" 2>/dev/null) \
-    || ! REVIEW_VERSION=$(NODE_OPTIONS='--require=/prism-review-node-injection-denied' \
-        NODE_PATH='/prism-review-node-injection-denied' "$REVIEW_LAUNCHER" --version 2>/dev/null) \
-    || [[ ! "$REVIEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
-    || [ "$REVIEW_VERSION" != "$EXPECTED_REVIEW_VERSION" ]; then
-    echo "✗ installed prism-review executable verification failed" >&2
-    exit 1
-fi
-echo "✓ prism review packaged executable PASS"
 
 LOCAL_REPORT=""
 if ! LOCAL_REPORT=$(node "$CORE_CLI" doctor --local-only --json 2>&1); then
