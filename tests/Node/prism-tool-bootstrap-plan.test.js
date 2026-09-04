@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -100,7 +100,7 @@ function loadSignedAdapterFixture() {
         fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', hook), 0o755);
     }
     const catalogue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -111,7 +111,6 @@ function loadSignedAdapterFixture() {
             packageName: '@kyaulabs/prism-php-web',
             releases: [{
                 version: ADAPTER_VERSION,
-                coreRange: CORE_VERSION,
                 bootstrapProtocol: 1,
                 integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',

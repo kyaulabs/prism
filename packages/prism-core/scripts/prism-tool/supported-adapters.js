@@ -1,4 +1,4 @@
-// $KYAULabs: supported-adapters.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: supported-adapters.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -212,7 +212,7 @@ async function inspectSupportedAdapters(options) {
             data: null,
         };
     }
-    const manifest = readCoreManifest(options.coreRoot);
+    readCoreManifest(options.coreRoot);
     const verified = await acquireVerifiedCatalogue({
         fetchImpl: options.fetchImpl,
         context: cacheContext(options),
@@ -222,7 +222,6 @@ async function inspectSupportedAdapters(options) {
     });
     const adapters = selectCompatibleAdapters({
         catalogue: verified.catalogue,
-        coreVersion: manifest.version,
         bootstrapProtocol: BOOTSTRAP_PROTOCOL,
     });
     if (adapters.length === 0) throw new CatalogueError('NO_COMPATIBLE_ADAPTER');
@@ -260,10 +259,9 @@ function loadSelectedAdapter(options) {
         catalogue: verified.catalogue,
         now: options.now ?? options.context?.now,
     });
-    const manifest = readCoreManifest(options.coreRoot);
+    readCoreManifest(options.coreRoot);
     const selected = selectCompatibleAdapters({
         catalogue,
-        coreVersion: manifest.version,
         bootstrapProtocol: options.bootstrapProtocol ?? BOOTSTRAP_PROTOCOL,
     }).find((adapter) => adapter.id === options.adapterId);
     if (!selected) throw new CatalogueError('CATALOGUE_SELECTION_UNAVAILABLE');

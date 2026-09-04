@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -160,8 +160,9 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 3$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 4$/m);
     assert.doesNotMatch(releaseWorkflow, /back-merge|--base develop --head main/);
+    assert.doesNotMatch(releaseWorkflow, /Install release validation dependencies|npm ci/);
     assert.equal(
         releaseWorkflow,
         fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),
@@ -292,9 +293,12 @@ test('documents reviewed adapter release authority and publisher ownership', () 
         'utf8'
     );
 
-    assert.match(catalogueDocs, /adapter release declaration.*compatibility authority/is);
+    assert.match(catalogueDocs, /adapter release declaration.*release authority/is);
+    assert.match(catalogueDocs, /schema 2.*in-place cutoff/is);
+    assert.match(catalogueDocs, /protocol is the sole runtime.*compatibility discriminator/is);
     assert.match(catalogueDocs, /package name.*version.*derived.*manifest/is);
     assert.match(catalogueDocs, /publisher.*independently revalidates/is);
+    assert.match(catalogueDocs, /first recorded.*strictly newer/is);
     assert.match(catalogueDocs, /protected.*Actions.*signing/is);
     assert.match(catalogueDocs, /human-merged.*pull request/is);
     assert.doesNotMatch(catalogueDocs, /production private signing key.*human-owned/is);

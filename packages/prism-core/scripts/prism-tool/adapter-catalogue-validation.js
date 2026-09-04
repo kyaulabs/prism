@@ -1,4 +1,4 @@
-// $KYAULabs: adapter-catalogue-validation.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: adapter-catalogue-validation.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -118,10 +118,9 @@ function validIntegrity(value) {
 
 function validateRelease(release, versions) {
     if (!exactKeys(release, [
-        'version', 'coreRange', 'bootstrapProtocol', 'integrity', 'publishedAt', 'status',
+        'version', 'bootstrapProtocol', 'integrity', 'publishedAt', 'status',
     ]) || !boundedString(release.version, 64) || semver.valid(release.version) !== release.version ||
-        versions.has(release.version) || !boundedString(release.coreRange, 256) ||
-        semver.validRange(release.coreRange) === null ||
+        versions.has(release.version) ||
         !Number.isSafeInteger(release.bootstrapProtocol) || release.bootstrapProtocol <= 0 ||
         !validIntegrity(release.integrity) || !['ACTIVE', 'REVOKED'].includes(release.status)) {
         throw new CatalogueError('PAYLOAD_INVALID');
@@ -156,7 +155,7 @@ function validateCataloguePayload({catalogue, verified, now}) {
     const value = catalogue ?? verified?.catalogue;
     if (!exactKeys(value, [
         'schemaVersion', 'catalogueId', 'sequence', 'issuedAt', 'expiresAt', 'adapters',
-    ]) || value.schemaVersion !== 1 || value.catalogueId !== 'kyaulabs/prism-adapters' ||
+    ]) || value.schemaVersion !== 2 || value.catalogueId !== 'kyaulabs/prism-adapters' ||
         !Number.isSafeInteger(value.sequence) || value.sequence <= 0 ||
         !Array.isArray(value.adapters) || value.adapters.length === 0 ||
         value.adapters.length > MAX_ADAPTERS) {
@@ -183,7 +182,7 @@ function validateCataloguePayload({catalogue, verified, now}) {
     const adapters = value.adapters.map((adapter) =>
         validateAdapter(adapter, identifiers, packageNames));
     return Object.freeze({
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: value.catalogueId,
         sequence: value.sequence,
         issuedAt: value.issuedAt,
@@ -192,25 +191,20 @@ function validateCataloguePayload({catalogue, verified, now}) {
     });
 }
 
-function selectableRelease(release, coreVersion, bootstrapProtocol) {
+function selectableRelease(release, bootstrapProtocol) {
     return release.status === 'ACTIVE' &&
         semver.valid(release.version) === release.version &&
         semver.prerelease(release.version) === null &&
-        semver.validRange(release.coreRange) !== null &&
-        semver.satisfies(coreVersion, release.coreRange) &&
         release.bootstrapProtocol === bootstrapProtocol;
 }
 
-function selectCompatibleAdapters({catalogue, coreVersion, bootstrapProtocol}) {
-    if (semver.valid(coreVersion) !== coreVersion) {
-        throw new CatalogueError('CORE_VERSION_INVALID');
-    }
+function selectCompatibleAdapters({catalogue, bootstrapProtocol}) {
     if (!Number.isSafeInteger(bootstrapProtocol) || bootstrapProtocol <= 0) {
         throw new CatalogueError('BOOTSTRAP_PROTOCOL_INVALID');
     }
     return catalogue.adapters.flatMap((adapter) => {
         const releases = adapter.releases
-            .filter((release) => selectableRelease(release, coreVersion, bootstrapProtocol))
+            .filter((release) => selectableRelease(release, bootstrapProtocol))
             .sort((left, right) => semver.rcompare(left.version, right.version));
         if (releases.length === 0) return [];
         const selected = releases[0];
