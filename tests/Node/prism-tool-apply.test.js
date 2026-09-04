@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -61,6 +61,7 @@ function writeConsumerExecutables(projectRoot, executables = [
     'uglifyjs',
     'eslint',
     'stylelint',
+    'tsc',
     'playwright',
 ]) {
     for (const executable of executables) {
@@ -92,8 +93,8 @@ function makeCandidateFixture() {
     const candidateFiles = {
         'composer.json': '{"name":"fixture/project","require-dev":{"friendsofphp/php-cs-fixer":"3.95.18","pestphp/pest":"5.1.1","pestphp/pest-plugin-browser":"5.0.1"}}\n',
         'composer.lock': '{"packages":[],"packages-dev":[{"name":"friendsofphp/php-cs-fixer","version":"v3.95.18"},{"name":"pestphp/pest","version":"v5.1.1"},{"name":"pestphp/pest-plugin-browser","version":"v5.0.1"}]}\n',
-        'package.json': '{"name":"fixture-project","devDependencies":{"sass":"1.102.0","uglify-js":"3.19.3","eslint":"10.8.1","@eslint/js":"10.0.1","stylelint":"17.14.1","stylelint-config-standard-scss":"17.0.0","playwright":"1.62.1"}}\n',
-        'package-lock.json': '{"lockfileVersion":3,"packages":{"node_modules/sass":{"version":"1.102.0"},"node_modules/uglify-js":{"version":"3.19.3"},"node_modules/eslint":{"version":"10.8.1"},"node_modules/@eslint/js":{"version":"10.0.1"},"node_modules/stylelint":{"version":"17.14.1"},"node_modules/stylelint-config-standard-scss":{"version":"17.0.0"},"node_modules/playwright":{"version":"1.62.1"}}}\n',
+        'package.json': '{"name":"fixture-project","devDependencies":{"sass":"1.102.0","uglify-js":"3.19.3","eslint":"10.8.1","@eslint/js":"10.0.1","stylelint":"17.14.1","stylelint-config-standard-scss":"17.0.0","typescript":"7.0.2","playwright":"1.62.1"}}\n',
+        'package-lock.json': '{"lockfileVersion":3,"packages":{"node_modules/sass":{"version":"1.102.0"},"node_modules/uglify-js":{"version":"3.19.3"},"node_modules/eslint":{"version":"10.8.1"},"node_modules/@eslint/js":{"version":"10.0.1"},"node_modules/stylelint":{"version":"17.14.1"},"node_modules/stylelint-config-standard-scss":{"version":"17.0.0"},"node_modules/typescript":{"version":"7.0.2"},"node_modules/playwright":{"version":"1.62.1"}}}\n',
     };
     for (const [name, content] of Object.entries(candidateFiles)) {
         fs.writeFileSync(path.join(candidateRoot, name), content, {mode: 0o600});
@@ -703,7 +704,7 @@ test('applies dependency and canonical visual review files with Chromium only', 
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
         if (command === 'npm' && args[0] === 'ci') {
-            for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'playwright']) {
+            for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'tsc', 'playwright']) {
                 const executablePath = path.join(fixture.projectRoot, 'node_modules', '.bin', executable);
                 fs.mkdirSync(path.dirname(executablePath), {recursive: true});
                 fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', {mode: 0o755});

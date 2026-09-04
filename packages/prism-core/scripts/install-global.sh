@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -209,6 +209,20 @@ canonical_cli() {
     node -e 'const fs = require("node:fs"); process.stdout.write(fs.realpathSync(process.argv[1]));' "$candidate" 2>/dev/null
 }
 
+canonical_package_cli() {
+    local package_root="$1" relative_path="$2"
+    node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+const root = fs.realpathSync(process.argv[1]);
+const candidate = path.join(root, process.argv[2]);
+const identity = fs.lstatSync(candidate);
+const resolved = fs.realpathSync(candidate);
+if (!identity.isFile() || identity.isSymbolicLink() || resolved !== candidate) process.exit(1);
+process.stdout.write(resolved);
+' "$package_root" "$relative_path" 2>/dev/null
+}
+
 validate_cli_path() {
     local core_cli="$1"
     case "$core_cli" in
@@ -412,6 +426,37 @@ fi
 
 # --- 1. install the core package -------------------------------------------
 
+resolve_core_clis() {
+    INSTALLED_CORE_ROOT="$1"
+    if ! CORE_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-tool.js'); then
+        echo "✗ installed prism-core CLI is unavailable" >&2
+        return 1
+    fi
+    if ! REVIEW_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-review.js'); then
+        echo "✗ installed prism-review CLI is unavailable" >&2
+        return 1
+    fi
+}
+
+verify_review_cli() {
+    local expected_version=""
+    local review_manifest="$INSTALLED_CORE_ROOT/package.json"
+    local review_version=""
+    if ! expected_version=$(node -e '
+const fs = require("node:fs");
+const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (value.name !== "@kyaulabs/prism-core" || typeof value.version !== "string") process.exit(1);
+process.stdout.write(value.version);
+' "$review_manifest" 2>/dev/null) \
+        || ! review_version=$(env -u NODE_OPTIONS -u NODE_PATH "$REVIEW_CLI" --version 2>/dev/null) \
+        || [[ ! "$review_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+        || [ "$review_version" != "$expected_version" ]; then
+        echo "✗ installed prism-review executable verification failed" >&2
+        return 1
+    fi
+    echo "✓ prism review packaged executable PASS"
+}
+
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     if [[ ! "$PRISM_CORE_SOURCE" =~ ^npm:@kyaulabs/prism-core(@[^[:space:]@]+)?$ ]]; then
         echo "✗ configured npm core source is invalid" >&2
@@ -424,18 +469,26 @@ if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     fi
     echo "• installing core from approved npm source"
     npm_config_ignore_scripts=true pi install "$PRISM_CORE_SOURCE"
+    resolve_core_clis "$PI_DIR/npm/node_modules/@kyaulabs/prism-core" || exit 1
+    verify_review_cli || exit 1
 elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
     if ! SELECTED_CORE_SOURCE=$(canonical_cli "${PRISM_CORE_SOURCE%/}"); then
         echo "✗ configured local core source is unavailable" >&2
         exit 1
     fi
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• installing core from configured local source"
     pi install "$SELECTED_CORE_SOURCE"
 elif [[ "$PKG_ROOT" == "$PI_DIR"/* ]]; then
     SELECTED_CORE_SOURCE="$PKG_ROOT"
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• core already under pi dir ($PKG_ROOT); skipping pi install"
 else
     SELECTED_CORE_SOURCE="$PKG_ROOT"
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
+    verify_review_cli || exit 1
     echo "• installing core from local source: $PKG_ROOT"
     pi install "$PKG_ROOT"
 fi
@@ -458,25 +511,6 @@ done
 
 # --- 3. deploy the stable launcher and verify readiness --------------------
 
-if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
-    CORE_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="$PI_DIR/npm/node_modules/@kyaulabs/prism-core/scripts/prism-review.js"
-elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
-    CORE_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="${PRISM_CORE_SOURCE%/}/scripts/prism-review.js"
-else
-    CORE_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-tool.js"
-    REVIEW_CLI_CANDIDATE="$PKG_ROOT/scripts/prism-review.js"
-fi
-
-if ! CORE_CLI=$(canonical_cli "$CORE_CLI_CANDIDATE"); then
-    echo "✗ installed prism-core CLI is unavailable" >&2
-    exit 1
-fi
-if ! REVIEW_CLI=$(canonical_cli "$REVIEW_CLI_CANDIDATE"); then
-    echo "✗ installed prism-review CLI is unavailable" >&2
-    exit 1
-fi
 deploy_launchers "$CORE_CLI" "$REVIEW_CLI"
 
 case ":$PATH:" in

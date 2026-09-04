@@ -12,6 +12,7 @@ const {
     discoverAdapter,
     discoverOptionalAdapter,
     loadAdapterHandler,
+    loadQualityProviderHandler,
     registrationFor,
     validateBootstrapRegistration,
 } = require('../../packages/prism-core/scripts/prism-tool/discovery');
@@ -218,7 +219,7 @@ test('setup inspect discovers the source adapter and emits a read-only JSON repo
     for (const executable of ['php-cs-fixer', 'pest']) {
         writeExecutable(path.join(projectRoot, 'vendor', 'bin', executable), 'exit 0');
     }
-    for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'playwright']) {
+    for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'tsc', 'playwright']) {
         writeExecutable(path.join(projectRoot, 'node_modules', '.bin', executable), 'exit 0');
     }
     const externalBin = path.join(projectRoot, 'external-bin');
@@ -465,6 +466,29 @@ test('optional discovery rejects two distinct adapter roots', (t) => {
         () => discoverOptionalAdapter({projectRoot, piDir}),
         /more than one active adapter/
     );
+});
+
+test('loads the quality operation only for a declared provider', (t) => {
+    const packageRoot = makeTempDir();
+    t.after(() => fs.rmSync(packageRoot, {recursive: true, force: true}));
+    writeAdapter(packageRoot);
+    const contractPath = path.join(packageRoot, 'toolchain.json');
+    const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+    contract.qualityProvider = {
+        id: 'fixture-quality',
+        protocolVersion: 1,
+        gates: ['fixture.test'],
+    };
+    writeJson(contractPath, contract);
+    fs.writeFileSync(
+        path.join(packageRoot, 'scripts', 'prism-tool-adapter.js'),
+        "'use strict';\nmodule.exports = {inspect() {}, resolveTool() {}, runQualityProvider() {}};\n"
+    );
+    const registration = registrationFor(packageRoot, '@fixture/adapter');
+
+    const handler = loadQualityProviderHandler(registration);
+
+    assert.equal(typeof handler.runQualityProvider, 'function');
 });
 
 test('loads only the validated adapter handler interface', (t) => {

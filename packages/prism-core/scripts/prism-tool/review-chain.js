@@ -1,4 +1,4 @@
-// $KYAULabs: review-chain.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: review-chain.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -433,6 +433,7 @@ module.exports = {
     STATE,
     inspectReviewChain,
     recordReviewSegment,
+    validateRecordShape,
     resolveReviewChainPath,
     verifyReviewChain,
 };

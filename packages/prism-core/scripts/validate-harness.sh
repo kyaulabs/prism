@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: validate-harness.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 # Validate the pi package layout: Agent Skills frontmatter, prompt-template
 # descriptions, extension imports, executable shell helpers, and stale
@@ -254,6 +254,41 @@ for (const [packageRoot, profile, expectedResources, role] of profiles) {
             throw new Error(`${role} review resource is missing or unsafe`);
         }
     }
+}
+const runtimeModules = [
+    'authority.js',
+    'check.js',
+    'core-quality.js',
+    'criteria.js',
+    'criteria-tools.js',
+    'package-identity.js',
+    'quality-provider.js',
+    'review-chain-v2.js',
+    'review-state.js',
+];
+const coreReviewRoot = path.join(coreRoot, 'scripts/prism-review');
+for (const directory of [path.join(coreRoot, 'scripts'), coreReviewRoot]) {
+    const identity = fs.lstatSync(directory);
+    if (identity.isSymbolicLink() || !identity.isDirectory() || fs.realpathSync(directory) !== directory) {
+        throw new Error('Core review module directory is missing or unsafe');
+    }
+}
+for (const module of runtimeModules) {
+    const identity = fs.lstatSync(path.join(coreReviewRoot, module));
+    if (identity.isSymbolicLink() || !identity.isFile()) {
+        throw new Error(`Core review module ${module} is missing or unsafe`);
+    }
+}
+const adapterProviderRoot = path.join(adapterRoot, 'scripts/toolchain');
+for (const directory of [path.join(adapterRoot, 'scripts'), adapterProviderRoot]) {
+    const identity = fs.lstatSync(directory);
+    if (identity.isSymbolicLink() || !identity.isDirectory() || fs.realpathSync(directory) !== directory) {
+        throw new Error('adapter quality provider directory is missing or unsafe');
+    }
+}
+const qualityProvider = fs.lstatSync(path.join(adapterProviderRoot, 'quality-provider.js'));
+if (qualityProvider.isSymbolicLink() || !qualityProvider.isFile()) {
+    throw new Error('adapter quality provider is missing or unsafe');
 }
 for (const license of ['CC0-1.0.txt', 'CC-BY-SA-4.0.txt']) {
     const licenseIdentity = fs.lstatSync(path.join(coreRoot, 'config/licenses', license));

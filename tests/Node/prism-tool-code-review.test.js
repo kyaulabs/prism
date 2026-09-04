@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -118,6 +118,76 @@ function fixture(t, overrides = {}) {
 function reviewArgs() {
     return ['code-review', 'ocr', '--', 'review', '--audience', 'agent', '--format', 'json'];
 }
+
+test('chain inspection identifies version two without accepting model-authored input', () => {
+    const result = capture(() => main(['code-review', 'chain', 'inspect', '--json'], {
+        projectRoot: '/repo',
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+    }));
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(JSON.parse(result.stdout), {
+        schemaVersion: 1,
+        state: 'VALID',
+        version: 2,
+    });
+});
+
+test('schema-one record refuses an existing version-two chain before reading input', () => {
+    const result = capture(() => main([
+        'code-review', 'chain', 'record', '--input', 'missing.json', '--json',
+    ], {
+        projectRoot: '/repo',
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+    }));
+
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /chain record is schema-one-only/);
+    assert.doesNotMatch(result.stderr, /missing\.json|\/repo/);
+});
+
+test('chain verification dispatches a version-two chain to its verifier', () => {
+    const expected = {
+        branch: 'feat/tester-abcd-code-review',
+        baseRef: 'origin/develop',
+        baseSha: 'a'.repeat(40),
+        headSha: 'b'.repeat(40),
+        criteriaDigest: 'c'.repeat(64),
+        checkDigest: 'd'.repeat(64),
+    };
+    let received;
+    const result = capture(() => main([
+        'code-review', 'chain', 'verify',
+        `--branch=${expected.branch}`,
+        `--base-ref=${expected.baseRef}`,
+        `--base-sha=${expected.baseSha}`,
+        `--head-sha=${expected.headSha}`,
+        '--json',
+    ], {
+        projectRoot: '/repo',
+        inspectReviewChainV2: () => ({
+            state: 'VALID',
+            version: 2,
+            record: {
+                criteriaDigest: expected.criteriaDigest,
+                segments: [{check: {digest: expected.checkDigest}}],
+            },
+        }),
+        verifyReviewChain: () => { throw new Error('legacy verifier called'); },
+        verifyReviewChainV2: (value) => {
+            received = value;
+            return {advisoryFindings: []};
+        },
+    }));
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(received, expected);
+    assert.deepEqual(JSON.parse(result.stdout), {
+        schemaVersion: 1,
+        status: 'GO',
+        data: {advisoryFindings: []},
+    });
+});
 
 test('dedicated review validates versions and connectivity before exact OCR review', (t) => {
     const target = fixture(t);

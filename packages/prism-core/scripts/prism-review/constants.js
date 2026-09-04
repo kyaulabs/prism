@@ -1,6 +1,9 @@
-// $KYAULabs: constants.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: constants.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
+
+const AUTHORITY_BASE_REFS = Object.freeze(['origin/develop', 'origin/main']);
+const CRITERIA_ROLES = Object.freeze(['SPEC', 'PLAN', 'ISSUE', 'CONTEXT']);
 
 const AXES = Object.freeze([
     'tooling-style',
@@ -43,6 +46,14 @@ const LIMIT = Object.freeze({
     OUTPUT_BYTES: 1048576,
 });
 
-module.exports = {AXES, EXIT, FINDING_CLASS, LIMIT, OUTCOME};
+module.exports = {
+    AUTHORITY_BASE_REFS,
+    AXES,
+    CRITERIA_ROLES,
+    EXIT,
+    FINDING_CLASS,
+    LIMIT,
+    OUTCOME,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

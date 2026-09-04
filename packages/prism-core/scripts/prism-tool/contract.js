@@ -1,4 +1,4 @@
-// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -16,6 +16,7 @@ const TOP_LEVEL_KEYS = new Set([
     'browserTargets',
     'components',
     'package',
+    'qualityProvider',
     'role',
     'schemaVersion',
     'serverProfiles',
@@ -32,6 +33,8 @@ const SERVER_PROFILE_KEYS = new Set([
 const SERVER_COMMAND_KEYS = new Set(['arguments', 'executable']);
 const SERVER_CLIENT_KEYS = new Set(['environment', 'toolId']);
 const ENVIRONMENT_KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
+const QUALITY_GATE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
+const QUALITY_PROVIDER_KEYS = new Set(['gates', 'id', 'protocolVersion']);
 const COMPONENT_KEYS = new Set([
     'argumentPolicy',
     'argvPrefix',
@@ -339,6 +342,22 @@ function validateComponent(component, role, filePath) {
     }
 }
 
+function validateQualityProvider(value, role, filePath) {
+    if (value === undefined) return;
+    if (role !== 'adapter' || !isRecord(value)) {
+        fail(filePath, 'quality provider requires an adapter object');
+    }
+    assertKnownKeys(value, QUALITY_PROVIDER_KEYS, filePath, 'quality provider');
+    assertString(value.id, IDENTIFIER, filePath, 'quality provider id');
+    if (value.protocolVersion !== 1 || !Array.isArray(value.gates) ||
+        value.gates.length === 0 || value.gates.length > 64 ||
+        value.gates.some((gate) => typeof gate !== 'string' || !QUALITY_GATE.test(gate)) ||
+        new Set(value.gates).size !== value.gates.length ||
+        value.gates.some((gate, index) => index > 0 && value.gates[index - 1] >= gate)) {
+        fail(filePath, 'quality provider declaration is invalid');
+    }
+}
+
 function validateContract(value, filePath) {
     if (!isRecord(value)) {
         fail(filePath, 'contract must be an object');
@@ -376,6 +395,7 @@ function validateContract(value, filePath) {
         ids.add(component.id);
     }
     validateServerProfiles(value.serverProfiles, value.role, ids, filePath);
+    validateQualityProvider(value.qualityProvider, value.role, filePath);
 
     return deepFreeze(value);
 }

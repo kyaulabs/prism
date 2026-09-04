@@ -248,7 +248,21 @@ test('builds a length-labelled hostile-data prompt without local paths or inheri
             {id: 'one', text: 'FIRST BYTES'},
             {id: 'two', text: 'SECOND BYTES'},
         ],
-        evidence: {axis: 'tooling-style', manifestDigest: 'a'.repeat(64)},
+        evidence: {
+            axis: 'requirement-coverage',
+            manifestDigest: 'a'.repeat(64),
+            criteria: {
+                disposition: 'DECLARED',
+                sources: [{
+                    role: 'SPEC',
+                    commit: 'b'.repeat(40),
+                    path: 'docs/specs/example.md',
+                    blobOid: 'c'.repeat(40),
+                    byteCount: 11,
+                    sha256: 'd'.repeat(64),
+                }],
+            },
+        },
         outputSchema: SUBMIT_SCHEMA,
     });
 
@@ -260,6 +274,9 @@ test('builds a length-labelled hostile-data prompt without local paths or inheri
     assert.doesNotMatch(prompt, new RegExp(REPOSITORY_ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.doesNotMatch(prompt, /parent message|arbitrary project|NON_SELECTED_CANARY|settings\.json/i);
     assert.match(prompt, /use every selected lens/i);
+    assert.match(prompt, /criteria interval/i);
+    assert.match(prompt, /docs\/specs\/example\.md/);
+    assert.doesNotMatch(prompt, /CRITERIA_SOURCE_BYTES_CANARY/);
     assert.match(prompt, /submit exactly once/i);
     assert.match(prompt, /tool failure/i);
 });

@@ -16,7 +16,8 @@ Core owns:
 - global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
 - the safety enforcement and bounded web-access extensions;
 - the `prism-tool` launcher and Core toolchain contract;
-- the non-authoritative `prism-review` runtime and closed Core review policy;
+- the `prism-review` ad hoc runtime, dormant authority compatibility bridge,
+  and closed Core review policy;
 - strict-empty setup orchestration and generic project-provider composition;
 - repository creation, canonical hooks, root-seed preparation, and recovery;
 - optional project capabilities;
@@ -94,11 +95,26 @@ CI provisions compatible tools in its ephemeral environment but creates no
 consent and runs neither OCR review nor web access.
 
 `prism-review` provides bounded ad hoc staged, commit, branch, and tracked-path
-reports through isolated Pi SDK sessions. Reports from this release are always
-non-authoritative and do not replace OCR-backed `code-review` or write chain
-state. See [Review runtime foundation](docs/review-runtime.md) for commands,
-limits, report fields, model use, and the required release and installation
-checkpoint before authority work.
+reports through isolated Pi SDK sessions. Ad hoc reports are non-authoritative.
+This release also carries a dormant authority compatibility bridge with exact
+commands including:
+
+```text
+prism-review criteria record --source ROLE:COMMIT:PATH [--source ROLE:COMMIT:PATH ...] --json
+prism-review criteria none --json
+prism-review check --base-ref origin/develop|origin/main --json
+prism-review review authoritative --base-ref origin/develop|origin/main --json
+prism-review review repair --base-ref origin/develop|origin/main --closures RELATIVE_PATH --json
+```
+
+The bridge can author schema-version-two evidence only from installed Core
+outside the reviewed repository and, when an adapter is active, a matching
+external installed adapter. Checkout Core cannot author that evidence. The
+bridge does not replace OCR-backed `code-review` or normal finalization in this
+release. Humans must release, publish, and install matching packages before
+using it deliberately. See [Review runtime and authority compatibility
+bridge](docs/review-runtime.md) for the complete grammar, state model, limits,
+provider cost, and dual-read preflight behavior.
 
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:

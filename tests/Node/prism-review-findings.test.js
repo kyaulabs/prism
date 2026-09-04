@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-findings.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-findings.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -6,9 +6,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
     normalizeFindings,
+    validateClosureProposal,
+    validateClosureSubmission,
     validateFindingAnchor,
     validateVerifierSubmission,
 } = require('../../packages/prism-core/scripts/prism-review/findings');
+const {closureSubmissionSchema} = require('../../packages/prism-core/scripts/prism-review/schema');
 
 const entry = Object.freeze({
     entryDigest: 'a'.repeat(64),
@@ -194,6 +197,53 @@ test('fingerprints include axis, lens, anchor, class, and summary and reject dup
         assert.notEqual(changed.fingerprint, first.fingerprint);
     }
     assert.throws(() => normalizeFindings([finding(), finding()], context), /duplicate/i);
+});
+
+test('validates closed repair closure proposals and dispositions', () => {
+    const proposal = {
+        schemaVersion: 1,
+        closures: [{
+            fingerprint: 'f'.repeat(64),
+            evidence: 'The focused regression now passes.',
+            tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}],
+        }],
+    };
+    const normalized = validateClosureProposal(proposal);
+    assert.deepEqual(normalized, proposal);
+    const outputSchema = closureSubmissionSchema([proposal.closures[0].fingerprint]);
+    assert.equal(outputSchema.additionalProperties, false);
+    assert.deepEqual(outputSchema.properties.dispositions.items.properties.disposition.enum,
+        ['CONFIRMED', 'REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION']);
+    const submission = {
+        schemaVersion: 1,
+        dispositions: [{
+            fingerprint: proposal.closures[0].fingerprint,
+            disposition: 'CONFIRMED',
+            rationale: 'The repair removes the previously reachable failure.',
+        }],
+    };
+    assert.deepEqual(validateClosureSubmission(submission, normalized.closures), submission);
+
+    for (const mutation of [
+        (value) => { value.invented = true; },
+        (value) => { value.closures[0].fingerprint = 'invalid'; },
+        (value) => { value.closures[0].tests[0].path = '/tmp/example.test.js'; },
+        (value) => { value.closures[0].tests[0].gateId = 'Unknown Gate'; },
+        (value) => { value.closures[0].tests[0].gateId = 123; },
+        (value) => { value.closures.push(structuredClone(value.closures[0])); },
+    ]) {
+        const copy = structuredClone(proposal);
+        mutation(copy);
+        assert.throws(() => validateClosureProposal(copy));
+    }
+    for (const disposition of ['REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION']) {
+        const copy = structuredClone(submission);
+        copy.dispositions[0].disposition = disposition;
+        assert.doesNotThrow(() => validateClosureSubmission(copy, normalized.closures));
+    }
+    const missing = structuredClone(submission);
+    missing.dispositions = [];
+    assert.throws(() => validateClosureSubmission(missing, normalized.closures));
 });
 
 test('validates exact verifier dispositions for every supplied fingerprint', () => {

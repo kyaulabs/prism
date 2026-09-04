@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 set -euo pipefail
 
@@ -36,6 +36,7 @@ fi
 if [[ "${2:-}" == npm:* ]]; then
     package_root="$PI_CODING_AGENT_DIR/npm/node_modules/@kyaulabs/prism-core"
     mkdir -p "$package_root/scripts"
+    printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$package_root/package.json"
     cat > "$package_root/scripts/prism-tool.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
@@ -45,7 +46,7 @@ JSEOF
     cat > "$package_root/scripts/prism-review.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
-process.stdout.write('fixture review\n');
+process.stdout.write(process.argv[2] === '--version' ? '0.4.3\n' : 'fixture review\n');
 JSEOF
     chmod +x "$package_root/scripts/prism-tool.js" "$package_root/scripts/prism-review.js"
 fi
@@ -152,6 +153,11 @@ if [ "$preload_status" -eq 0 ] && [ ! -e "$T1/preload-ran" ]; then
     pass "installed review launcher strips Node module injection"
 else
     fail "installed review launcher accepted Node module injection"
+fi
+if grep -qFx '✓ prism review packaged executable PASS' <<< "$output"; then
+    pass "installer verifies the packaged review executable"
+else
+    fail "installer omitted packaged review executable verification"
 fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
@@ -337,7 +343,14 @@ cat > "$T14/pi-agent/local-core/scripts/prism-tool.js" <<'JSEOF'
 if (process.argv[2] !== 'doctor') process.exit(2);
 process.stdout.write('fixture\tPASS\tready\nGO\n');
 JSEOF
-chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js"
+cat > "$T14/pi-agent/local-core/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== '--version') process.exit(2);
+process.stdout.write('0.4.3\n');
+JSEOF
+chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js" \
+    "$T14/pi-agent/local-core/scripts/prism-review.js"
 cat > "$T14/pi-agent/settings.json" <<EOF
 {
   "packages": [
@@ -348,12 +361,13 @@ cat > "$T14/pi-agent/settings.json" <<EOF
 }
 EOF
 status=0
-HOME="$T14/home" \
+output=""
+output=$(HOME="$T14/home" \
     PI_CODING_AGENT_DIR="$T14/pi-agent" \
     PRISM_BIN_DIR="$T14/bin-dir" \
     PI_INVOCATIONS="$T14/pi-invocations" \
     PATH="$T14/bin:$PATH" \
-    bash "$T14/pi-agent/local-core/scripts/install-global.sh" >/dev/null 2>&1 || status=$?
+    bash "$T14/pi-agent/local-core/scripts/install-global.sh" 2>&1) || status=$?
 if [ "$status" -eq 0 ] && [ ! -s "$T14/pi-invocations" ] \
     && node - "$T14/pi-agent/settings.json" "$T14/pi-agent/local-core" <<'JSEOF'
 const fs = require('node:fs');
@@ -365,7 +379,7 @@ JSEOF
 then
     pass "an already installed local core reconciles without invoking Pi"
 else
-    fail "the under-Pi installation path did not reconcile exclusively"
+    fail "the under-Pi installation path did not reconcile exclusively: $output"
 fi
 
 echo "── npm source registry approval ──"
@@ -1005,6 +1019,97 @@ if [ "$unsupported_failed" -eq 0 ]; then
     pass "launcher deployment rejects quote, newline, and carriage-return CLI paths"
 else
     fail "launcher accepted an unsupported canonical CLI path"
+fi
+
+T7B=$(mktemp -d)
+register_temp_dir "$T7B"
+write_fake_tools "$T7B"
+mkdir -p "$T7B/home" "$T7B/pi-agent" "$T7B/bin-dir" \
+    "$T7B/source/scripts" "$T7B/external/scripts"
+: > "$T7B/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7B/source/package.json"
+cat > "$T7B/source/scripts/prism-tool.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== 'doctor') process.exit(2);
+process.stdout.write('{"status":"GO"}\n');
+JSEOF
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7B/external/package.json"
+cat > "$T7B/external/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+process.stdout.write('0.4.3\n');
+JSEOF
+chmod +x "$T7B/source/scripts/prism-tool.js" "$T7B/external/scripts/prism-review.js"
+ln -s "$T7B/external/scripts/prism-review.js" "$T7B/source/scripts/prism-review.js"
+status=0
+output=$(HOME="$T7B/home" \
+    PI_CODING_AGENT_DIR="$T7B/pi-agent" \
+    PRISM_BIN_DIR="$T7B/bin-dir" \
+    PRISM_CORE_SOURCE="$T7B/source" \
+    PI_INVOCATIONS="$T7B/pi-invocations" \
+    PATH="$T7B/bin:$PATH" \
+    bash "$INSTALLER" 2>&1) || status=$?
+if [ "$status" -ne 0 ] \
+    && grep -qFx '✗ installed prism-review CLI is unavailable' <<< "$output" \
+    && [ ! -e "$T7B/bin-dir/prism-review" ] \
+    && [ ! -e "$T7B/pi-agent/settings.json" ] \
+    && [ ! -e "$T7B/pi-agent/AGENTS.md" ] \
+    && [ ! -e "$T7B/pi-agent/APPEND_SYSTEM.md" ]; then
+    pass "installer rejects an external review CLI before partial deployment"
+else
+    fail "installer rejected an external review CLI after partial deployment"
+fi
+
+T7C=$(mktemp -d)
+register_temp_dir "$T7C"
+write_fake_tools "$T7C"
+mkdir -p "$T7C/home" "$T7C/pi-agent" "$T7C/bin-dir" "$T7C/source/scripts"
+: > "$T7C/pi-invocations"
+printf '{"name":"@kyaulabs/prism-core","version":"0.4.3"}\n' > "$T7C/source/package.json"
+cat > "$T7C/source/scripts/prism-tool.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+if (process.argv[2] !== 'doctor') process.exit(2);
+process.stdout.write('{"status":"GO"}\n');
+JSEOF
+cat > "$T7C/source/scripts/prism-review.js" <<'JSEOF'
+#!/usr/bin/env node
+'use strict';
+process.stdout.write('9.9.9\n');
+JSEOF
+chmod +x "$T7C/source/scripts/prism-tool.js" "$T7C/source/scripts/prism-review.js"
+cat > "$T7C/bin-dir/prism-tool" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-tool begin
+exec node '/previous/prism-tool.js' "$@"
+# prism-core:managed-launcher prism-tool end
+EOF
+cat > "$T7C/bin-dir/prism-review" <<'EOF'
+#!/usr/bin/env bash
+# prism-core:managed-launcher prism-review begin
+exec env -u NODE_OPTIONS -u NODE_PATH node '/previous/prism-review.js' "$@"
+# prism-core:managed-launcher prism-review end
+EOF
+chmod 0755 "$T7C/bin-dir/prism-tool" "$T7C/bin-dir/prism-review"
+tool_before=$(cksum "$T7C/bin-dir/prism-tool")
+review_before=$(cksum "$T7C/bin-dir/prism-review")
+status=0
+output=$(HOME="$T7C/home" \
+    PI_CODING_AGENT_DIR="$T7C/pi-agent" \
+    PRISM_BIN_DIR="$T7C/bin-dir" \
+    PRISM_CORE_SOURCE="$T7C/source" \
+    PI_INVOCATIONS="$T7C/pi-invocations" \
+    PATH="$T7C/bin:$PATH" \
+    bash "$INSTALLER" 2>&1) || status=$?
+if [ "$status" -ne 0 ] \
+    && grep -qFx '✗ installed prism-review executable verification failed' <<< "$output" \
+    && [ ! -s "$T7C/pi-invocations" ] \
+    && [ "$tool_before" = "$(cksum "$T7C/bin-dir/prism-tool")" ] \
+    && [ "$review_before" = "$(cksum "$T7C/bin-dir/prism-review")" ]; then
+    pass "review executable verification fails before installation or launcher deployment"
+else
+    fail "review executable verification occurred after installation or launcher deployment"
 fi
 
 T8=$(mktemp -d)

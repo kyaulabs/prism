@@ -1,4 +1,4 @@
-// $KYAULabs: git-snapshot.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: git-snapshot.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -413,6 +413,19 @@ function stagedBase(runGit) {
     return result === null ? null : objectId(text(result, 'HEAD').trim(), 'HEAD');
 }
 
+function branchFingerprint(runGit) {
+    const branch = text(runGit(['symbolic-ref', '--quiet', '--short', 'HEAD']), 'branch identity').trim();
+    const head = text(runGit(['rev-parse', '--verify', 'HEAD^{commit}']), 'branch HEAD').trim();
+    if (branch === '' || /[\x00-\x1f\x7f]/.test(branch) || !FULL_OBJECT.test(head)) {
+        throw new Error('branch identity is invalid');
+    }
+    return {
+        branch,
+        head,
+        worktreeDigest: digest(runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'])),
+    };
+}
+
 function indexFingerprint(root, runGit) {
     const rawPath = text(runGit(['rev-parse', '--git-path', 'index']), 'Git index path').trim();
     const indexPath = path.isAbsolute(rawPath) ? rawPath : path.join(root, rawPath);
@@ -584,6 +597,10 @@ function createSnapshot(options) {
         headCommit = resolveCommit(runGit, options.head);
         baseTree = baseCommit;
         headTree = headCommit;
+        if (options.trackBranchFreshness === true) {
+            freshness = branchFingerprint(runGit);
+            if (freshness.head !== headCommit) throw new Error('branch HEAD changed while freezing snapshot');
+        }
     } else {
         throw new Error('snapshot mode is invalid');
     }
@@ -602,6 +619,11 @@ function createSnapshot(options) {
         if (after.path !== freshness.path || after.digest !== freshness.digest) {
             throw new Error('Git index changed while freezing snapshot');
         }
+    } else if (options.mode === 'branch' && freshness !== null) {
+        const after = branchFingerprint(runGit);
+        if (JSON.stringify(after) !== JSON.stringify(freshness)) {
+            throw new Error('branch changed while freezing snapshot');
+        }
     }
     return finishSnapshot({
         mode: options.mode,
@@ -614,8 +636,14 @@ function createSnapshot(options) {
 }
 
 function assertFresh(snapshot) {
-    if (snapshot.mode !== 'staged') return true;
+    if (!['staged', 'branch'].includes(snapshot.mode)) return true;
     try {
+        if (snapshot.mode === 'branch') {
+            return snapshot.freshness === null || snapshot.freshness === undefined ||
+                JSON.stringify(branchFingerprint(
+                    gitRunner(snapshot.repositoryRoot)
+                )) === JSON.stringify(snapshot.freshness);
+        }
         const bytes = fs.existsSync(snapshot.freshness.path)
             ? fs.readFileSync(snapshot.freshness.path)
             : Buffer.alloc(0);

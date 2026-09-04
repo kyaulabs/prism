@@ -1,4 +1,4 @@
-// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: managed-record.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -159,6 +159,63 @@ function inspectManagedRecord({context = {}, filename, limit = 4096, parse}) {
     } catch {
         return {path: managedPath, state: STATE.UNSAFE};
     }
+}
+
+function ensureManagedDirectory(directory, trustedRoot, context = {}) {
+    const io = context.fs ?? fs;
+    const root = io.realpathSync(trustedRoot);
+    const target = path.resolve(directory);
+    const relation = path.relative(root, target);
+    if (relation === '' || relation.startsWith('..') || path.isAbsolute(relation)) {
+        throw new Error('managed record path is unsafe');
+    }
+    let current = root;
+    for (const segment of relation.split(path.sep).filter(Boolean)) {
+        const parent = current;
+        current = path.join(current, segment);
+        let created = false;
+        let identity;
+        try {
+            identity = io.lstatSync(current);
+        } catch (error) {
+            if (error?.code !== 'ENOENT') {
+                throw new Error('managed record path is unsafe', {cause: error});
+            }
+            try {
+                io.mkdirSync(current, {mode: 0o700});
+                created = true;
+                identity = io.lstatSync(current);
+            } catch (creationError) {
+                throw new Error('managed record path could not be created', {cause: creationError});
+            }
+        }
+        let descriptor;
+        try {
+            if (typeof io.constants.O_NOFOLLOW !== 'number' ||
+                typeof io.constants.O_DIRECTORY !== 'number' ||
+                !identity.isDirectory() || identity.isSymbolicLink() || !isOwned(identity, context) ||
+                (identity.mode & 0o022) !== 0) {
+                throw new Error();
+            }
+            descriptor = io.openSync(
+                current,
+                io.constants.O_RDONLY | io.constants.O_DIRECTORY | io.constants.O_NOFOLLOW
+            );
+            const held = io.fstatSync(descriptor);
+            if (!held.isDirectory() || held.dev !== identity.dev || held.ino !== identity.ino ||
+                !isOwned(held, context) || (held.mode & 0o022) !== 0) throw new Error();
+            if (created) io.fchmodSync(descriptor, 0o700);
+            if (current === target && (io.fstatSync(descriptor).mode & 0o777) !== 0o700) throw new Error();
+            io.fsyncSync(descriptor);
+            io.closeSync(descriptor);
+            descriptor = undefined;
+            if (created) fsyncDirectory(context, parent);
+        } catch (error) {
+            if (descriptor !== undefined) closeQuietly(io, descriptor);
+            throw new Error('managed record path is unsafe', {cause: error});
+        }
+    }
+    return target;
 }
 
 function ensureParent(context, managedPath) {
@@ -334,6 +391,7 @@ function publishManagedRecord({context = {}, detail, filename, record, parse, li
 
 module.exports = {
     STATE,
+    ensureManagedDirectory,
     inspectManagedRecord,
     publishManagedRecord,
     removeManagedRecord,

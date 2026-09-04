@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-server.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-server.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -8,6 +8,7 @@ const path = require('node:path');
 const test = require('node:test');
 const {makeTempDir, writeExecutable, writeJson} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {runValidatedServer} = require('../../packages/prism-core/scripts/prism-tool/server');
 
 const coreRoot = path.resolve(__dirname, '../../packages/prism-core');
 
@@ -84,7 +85,7 @@ function writeServerAdapter(t, options = {}) {
     fs.mkdirSync(path.join(packageRoot, 'skills'), {recursive: true});
     fs.writeFileSync(
         path.join(packageRoot, 'scripts/prism-tool-adapter.js'),
-        "'use strict';\nmodule.exports = {inspect() {}, resolveTool() {}};\n"
+        "'use strict';\nmodule.exports = {inspect() {}, resolveTool() { return '/fixture/client'; }};\n"
     );
     writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
         skills: ['../adapter/skills'],
@@ -252,6 +253,90 @@ test('maps client failure and lifecycle failure to stable tool status', async (t
     ], lifecycleFailure.context));
     assert.equal(failed.status, 4);
     assert.match(failed.stderr, /server health check failed/);
+});
+
+test('runs a prevalidated stable server profile without rediscovery', async (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const calls = [];
+    const result = await runValidatedServer({
+        registration: {
+            packageName: '@fixture/adapter',
+            contract: {
+                components: [{id: 'client', kind: 'command'}],
+                serverProfiles: [{
+                    id: 'fixture',
+                    host: '127.0.0.1',
+                    preferredPort: 8080,
+                    startupTimeoutMs: 1000,
+                    server: {executable: 'fixture-server', arguments: ['{host}', '{port}']},
+                    health: null,
+                    clients: [{toolId: 'client', environment: {ENDPOINT: 'tcp://{host}:{port}'}}],
+                }],
+            },
+        },
+        handler: {resolveTool() { return '/fixture/client'; }},
+        profileId: 'fixture',
+        toolId: 'client',
+        toolArgs: ['--coverage'],
+        projectRoot,
+    }, {
+        env: {PATH: '/fixture/bin'},
+        resolveExecutable: () => '/fixture/bin/fixture-server',
+        runClient: (request) => {
+            calls.push(request);
+            return {status: 0, stdout: 'ok', stderr: '', tools: []};
+        },
+        serverSupervisor: async (options) => options.runClient({
+            ...options.env,
+            ENDPOINT: 'tcp://127.0.0.1:8081',
+        }),
+    });
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(calls, [{
+        component: {id: 'client', kind: 'command'},
+        args: ['--coverage'],
+        env: {PATH: '/fixture/bin', ENDPOINT: 'tcp://127.0.0.1:8081'},
+    }]);
+});
+
+test('resolves the selected client before starting its server', async (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    let supervisorCalls = 0;
+
+    await assert.rejects(() => runValidatedServer({
+        registration: {
+            packageName: '@fixture/adapter',
+            contract: {
+                components: [{id: 'client', kind: 'command'}],
+                serverProfiles: [{
+                    id: 'fixture',
+                    host: '127.0.0.1',
+                    preferredPort: 8080,
+                    startupTimeoutMs: 1000,
+                    server: {executable: 'fixture-server', arguments: ['{host}', '{port}']},
+                    health: null,
+                    clients: [{toolId: 'client', environment: {ENDPOINT: 'tcp://{host}:{port}'}}],
+                }],
+            },
+        },
+        handler: {resolveTool() { throw new Error('client unavailable'); }},
+        profileId: 'fixture',
+        toolId: 'client',
+        toolArgs: [],
+        projectRoot,
+    }, {
+        env: {PATH: '/fixture/bin'},
+        resolveExecutable: () => '/fixture/bin/fixture-server',
+        serverSupervisor: async () => {
+            supervisorCalls += 1;
+            return {status: 0};
+        },
+    }), /client unavailable/);
+
+    assert.equal(supervisorCalls, 0);
 });
 
 test('renders fixed lifecycle diagnostics without relaying error text', async (t) => {

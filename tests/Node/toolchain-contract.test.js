@@ -109,6 +109,43 @@ test('loads both schema-v1 package contracts', () => {
     assert.equal(loadContract(adapterContract).role, 'adapter');
 });
 
+test('accepts a closed adapter quality-provider declaration', () => {
+    const input = serverProfileContract();
+    input.qualityProvider = {
+        id: 'fixture-quality',
+        protocolVersion: 1,
+        gates: ['fixture.lint', 'fixture.test'],
+    };
+
+    const contract = validateContract(input, 'fixture.json');
+
+    assert.deepEqual(contract.qualityProvider, {
+        id: 'fixture-quality',
+        protocolVersion: 1,
+        gates: ['fixture.lint', 'fixture.test'],
+    });
+    assert.equal(Object.isFrozen(contract.qualityProvider), true);
+});
+
+test('rejects malformed adapter quality-provider declarations', () => {
+    const invalid = [
+        {id: 'fixture-quality', protocolVersion: 2, gates: ['fixture.test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: []},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test', 'fixture.test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test', 'fixture.lint']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test'], command: 'npm test'},
+    ];
+    for (const qualityProvider of invalid) {
+        const contract = serverProfileContract();
+        contract.qualityProvider = qualityProvider;
+        assert.throws(() => validateContract(contract, 'fixture.json'), /quality provider/);
+    }
+    const core = boundedSemgrepContract();
+    core.qualityProvider = {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test']};
+    assert.throws(() => validateContract(core, 'fixture.json'), /quality provider/);
+});
+
 test('accepts and freezes a bounded adapter server profile', () => {
     const contract = validateContract(serverProfileContract(), 'fixture.json');
 
@@ -482,6 +519,7 @@ test('declares the exact PHP web adapter components and registration', () => {
         ['eslint-js', '10.0.1'],
         ['stylelint', '17.14.1'],
         ['stylelint-config-scss', '17.0.0'],
+        ['typescript', '7.0.2'],
         ['playwright', '1.62.1'],
     ]);
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_review_foundation_contract_test.sh kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+# $KYAULabs: prism_review_foundation_contract_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 set -euo pipefail
 
@@ -24,7 +24,10 @@ done
 
 printf '%s\n' '── OCR authority remains current ──'
 if grep -Fq 'prism-tool code-review ocr' "$REPO_ROOT/packages/prism-core/skills/code-review/SKILL.md" \
-    && grep -Fq 'Standing OCR consent' "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"; then
+    && grep -Fq 'code-review chain record' "$REPO_ROOT/packages/prism-core/skills/code-review/SKILL.md" \
+    && grep -Fq 'Standing OCR consent' "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md" \
+    && ! grep -Fq 'prism-review review authoritative' \
+        "$REPO_ROOT/packages/prism-core/skills/finishing-a-development-branch/SKILL.md"; then
     pass 'current review and finalization still use OCR'
 else
     fail 'current OCR review authority changed during foundation work'
@@ -48,6 +51,15 @@ if grep -Fq 'code-review' "$REPO_ROOT/packages/prism-core/prompts/pr.md" \
     pass 'current prompts retain OCR authority'
 else
     fail 'current prompt authority changed before the bridge'
+fi
+if grep -Fq 'dormant authority compatibility bridge' \
+    "$REPO_ROOT/packages/prism-core/README.md" \
+    && grep -Fq 'OCR and schema version one remain the normal' "$DOC" \
+    && grep -Fq 'does not switch normal' \
+        "$REPO_ROOT/packages/prism-php-web/README.md"; then
+    pass 'maintained bridge docs preserve OCR authority'
+else
+    fail 'maintained bridge docs claim a premature authority cutover'
 fi
 
 printf '\nprism_review_foundation_contract_test.sh: %d passed, %d failed\n' "$PASS" "$FAIL"

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-orchestrator.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-orchestrator.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -6,7 +6,11 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 const {AXES} = require('../../packages/prism-core/scripts/prism-review/constants');
-const {runReviewAttempt} = require('../../packages/prism-core/scripts/prism-review/orchestrator');
+const {validateFindingAnchor} = require('../../packages/prism-core/scripts/prism-review/findings');
+const {
+    runAuthoritativeAttempt,
+    runReviewAttempt,
+} = require('../../packages/prism-core/scripts/prism-review/orchestrator');
 
 const headText = 'first\nchanged value\ncontext\n';
 const diffText = 'diff --git a/src/example.php b/src/example.php\n@@ -2 +2 @@\n-old\n+changed value\n';
@@ -113,6 +117,25 @@ const model = Object.freeze({
     provider: 'fixture', id: 'model', reasoningLevel: 'high', contextWindow: 200000,
     authentication: 'UNKNOWN',
 });
+const criteriaSource = Object.freeze({
+    role: 'SPEC',
+    commit: '8'.repeat(40),
+    path: 'docs/specs/example.md',
+    blobOid: '9'.repeat(40),
+    byteCount: 11,
+    sha256: '7e846cb2d6e3ee6bcb3b803b53d49b134b23e974d280d9a164c2f6919db0a7df',
+});
+const criteria = Object.freeze({
+    record: Object.freeze({
+        schemaVersion: 1,
+        kind: 'criteria',
+        branch: 'feat/example',
+        disposition: 'DECLARED',
+        sources: Object.freeze([criteriaSource]),
+    }),
+    digest: '8'.repeat(64),
+    blobs: Object.freeze([Object.freeze({...criteriaSource, text: 'one € two'})]),
+});
 
 async function exposeAll(request) {
     const tools = Object.fromEntries(request.tools.map((tool) => [tool.name, tool]));
@@ -132,6 +155,22 @@ async function exposeAll(request) {
                 offset: 0,
                 limit: item.diffBytes,
             });
+        }
+    }
+}
+
+async function exposeCriteria(request) {
+    const tool = request.tools.find(({name}) => name === 'read_criteria');
+    if (tool === undefined) return;
+    for (const source of request.evidence.criteria.sources) {
+        let offset = 0;
+        while (offset < source.byteCount) {
+            const chunk = await tool.execute('criteria', {
+                sourceDigest: source.sha256,
+                offset,
+                limit: 7,
+            });
+            offset = chunk.nextOffset;
         }
     }
 }
@@ -207,6 +246,90 @@ test('runs four fresh axes in canonical order with complete lenses and byte expo
     assert.equal(calls[0].resources.some(({id}) => id === 'skill-php'), false);
     assert.equal(calls[3].resources.some(({id}) => id === 'skill-php'), true);
     assert.equal(calls.every((call) => call.snapshot === snapshot), true);
+});
+
+test('rejects authoritative mode through the ad hoc review interface', async () => {
+    await assert.rejects(() => runReviewAttempt(options(async () => {
+        throw new Error('session must not run');
+    }, {authoritative: true, criteria})), /authoritative review interface/i);
+});
+
+test('records complete criteria exposure for an authoritative requirement axis', async () => {
+    const calls = [];
+    const report = await runAuthoritativeAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        await exposeCriteria(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {criteria}));
+
+    assert.equal(report.outcome, 'PASS');
+    assert.equal(report.authoritative, true);
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'DECLARED',
+        status: 'EXPOSED',
+        sources: [criteriaSource],
+    });
+    assert.deepEqual(calls.filter((request) =>
+        request.tools.some(({name}) => name === 'read_criteria')).map(({axis}) => axis),
+    ['requirement-coverage']);
+    const tooling = calls.find(({axis}) => axis === 'tooling-style');
+    const requirements = calls.find(({axis}) => axis === 'requirement-coverage');
+    assert.equal(requirements.sourceBytes, tooling.sourceBytes + criteriaSource.byteCount);
+    assert.doesNotMatch(JSON.stringify(report), /one € two/);
+});
+
+test('accepts NONE_DECLARED authority without criteria source calls', async () => {
+    const none = Object.freeze({
+        record: Object.freeze({
+            schemaVersion: 1,
+            kind: 'criteria',
+            branch: 'feat/example',
+            disposition: 'NONE_DECLARED',
+            sources: Object.freeze([]),
+        }),
+        digest: '8'.repeat(64),
+        blobs: Object.freeze([]),
+    });
+    const report = await runAuthoritativeAttempt(options(async (request) => {
+        await exposeAll(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {criteria: none}));
+
+    assert.equal(report.outcome, 'PASS');
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'NONE_DECLARED',
+        status: 'NONE_DECLARED',
+        sources: [],
+    });
+});
+
+test('makes an authoritative requirement submission Inconclusive until criteria are exposed', async () => {
+    const calls = [];
+    const report = await runAuthoritativeAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {criteria}));
+
+    assert.equal(report.authoritative, true);
+    assert.equal(report.outcome, 'INCONCLUSIVE');
+    assert.deepEqual(calls.map(({axis}) => axis), AXES.slice(0, 3));
+    assert.equal(calls[0].tools.some(({name}) => name === 'read_criteria'), false);
+    assert.equal(calls[1].tools.some(({name}) => name === 'read_criteria'), false);
+    assert.equal(calls[2].tools.some(({name}) => name === 'read_criteria'), true);
+    assert.deepEqual(calls[2].evidence.criteria, {
+        disposition: 'DECLARED',
+        sources: [criteriaSource],
+    });
+    assert.equal(report.axes[2].reason, 'CRITERIA_EXPOSURE_INCOMPLETE');
+    assert.deepEqual(report.criteriaExposure, {
+        disposition: 'DECLARED',
+        status: 'INCOMPLETE',
+        sources: [criteriaSource],
+    });
+    assert.doesNotMatch(JSON.stringify(report), /one € two/);
+    assert.doesNotMatch(JSON.stringify(calls[2].evidence), /one € two/);
 });
 
 test('rejects premature submission and stops after an Inconclusive axis', async () => {
@@ -462,6 +585,110 @@ test('merges verifier-confirmed duplicates deterministically without promotion',
     assert.equal(report.outcome, 'PASS');
     assert.equal(report.findings.length, 1);
     assert.equal(report.findings[0].fingerprint, report.verifier.dispositions[0].fingerprint);
+});
+
+test('reviews repair context on every axis and confirms closures in a fresh session', async () => {
+    const prior = validateFindingAnchor(proposed('BLOCKING', 'Prior blocking behavior.'), {
+        snapshot,
+        axis: 'tooling-style',
+        lensIds: ['core.tooling-style'],
+    });
+    const closure = {
+        fingerprint: prior.fingerprint,
+        evidence: 'The focused regression now passes.',
+        tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}],
+    };
+    const repair = {
+        priorOpenBlocking: [prior],
+        proposals: [closure],
+        check: {
+            digest: '8'.repeat(64),
+            headSha: snapshot.headCommit,
+            gates: [{id: 'php-web.node-tests', status: 'PASS'}],
+        },
+    };
+    const calls = [];
+    const result = await runAuthoritativeAttempt(options(async (request) => {
+        calls.push(request);
+        await exposeAll(request);
+        if (request.sessionType === 'closure-verifier') {
+            return {
+                ok: true,
+                submission: {
+                    schemaVersion: 1,
+                    dispositions: [{
+                        fingerprint: prior.fingerprint,
+                        disposition: 'CONFIRMED',
+                        rationale: 'The complete repair delta removes the failure path.',
+                    }],
+                },
+                model,
+            };
+        }
+        return {ok: true, submission: axisSubmission(request), model};
+    }, {criteria: {
+        record: {schemaVersion: 1, kind: 'criteria', branch: 'feat/example',
+            disposition: 'NONE_DECLARED', sources: []},
+        digest: '8'.repeat(64),
+        blobs: [],
+    }, repair}));
+
+    assert.equal(result.report.outcome, 'PASS');
+    assert.equal(calls.filter(({sessionType}) => sessionType === 'axis').length, 4);
+    assert.equal(calls.filter(({sessionType}) => sessionType === 'axis').every((request) =>
+        request.evidence.repair === repair), true);
+    const verifier = calls.at(-1);
+    assert.equal(verifier.sessionType, 'closure-verifier');
+    assert.equal(verifier.evidence.repair, repair);
+    assert.equal(verifier.snapshot, snapshot);
+    assert.deepEqual(result.closures, [{...closure,
+        disposition: 'CONFIRMED',
+        rationale: 'The complete repair delta removes the failure path.',
+    }]);
+});
+
+test('keeps rejected closures open and makes uncertain or incomplete closure review Inconclusive', async () => {
+    const prior = validateFindingAnchor(proposed('BLOCKING', 'Prior blocking behavior.'), {
+        snapshot,
+        axis: 'tooling-style',
+        lensIds: ['core.tooling-style'],
+    });
+    for (const disposition of ['REJECTED', 'NEEDS_CONTEXT', 'INVALID_LOCATION', 'FAILED', 'NO_EXPOSURE']) {
+        const repair = {
+            priorOpenBlocking: [prior],
+            proposals: [{fingerprint: prior.fingerprint, evidence: 'A regression passes.',
+                tests: [{path: 'tests/Node/example.test.js', gateId: 'php-web.node-tests'}]}],
+            check: {digest: '8'.repeat(64), headSha: snapshot.headCommit,
+                gates: [{id: 'php-web.node-tests', status: 'PASS'}]},
+        };
+        const result = await runAuthoritativeAttempt(options(async (request) => {
+            if (disposition !== 'NO_EXPOSURE' || request.sessionType !== 'closure-verifier') {
+                await exposeAll(request);
+            }
+            if (request.sessionType !== 'closure-verifier') {
+                return {ok: true, submission: axisSubmission(request), model};
+            }
+            if (disposition === 'FAILED') return {ok: false, reason: 'SESSION_FAILED'};
+            if (disposition === 'NO_EXPOSURE') return {ok: true, submission: {schemaVersion: 1,
+                dispositions: [{fingerprint: prior.fingerprint, disposition: 'CONFIRMED',
+                    rationale: 'Claims closure without reading the complete repair.'}]}, model};
+            return {ok: true, submission: {schemaVersion: 1, dispositions: [{
+                fingerprint: prior.fingerprint, disposition,
+                rationale: 'The supplied evidence has this disposition.',
+            }]}, model};
+        }, {criteria: {
+            record: {schemaVersion: 1, kind: 'criteria', branch: 'feat/example',
+                disposition: 'NONE_DECLARED', sources: []}, digest: '8'.repeat(64), blobs: [],
+        }, repair}));
+
+        if (disposition === 'REJECTED') {
+            assert.equal(result.report.outcome, 'PASS');
+            assert.equal(result.closures[0].disposition, 'REJECTED');
+        } else {
+            assert.equal(result.report.outcome, 'INCONCLUSIVE');
+            assert.deepEqual(result.closures, []);
+        }
+    }
 });
 
 test('makes an incomplete verifier session Inconclusive', async () => {
