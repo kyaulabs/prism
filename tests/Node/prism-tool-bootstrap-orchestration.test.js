@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -221,6 +221,7 @@ test('established project status preserves the existing setup route without boot
 
     assert.equal(routed.status, 0, routed.stderr);
     assert.equal(JSON.parse(routed.stdout).route, 'ESTABLISHED_SETUP');
+    assert.equal(JSON.parse(routed.stdout).automationApplicability, 'SCAFFOLD_ONLY');
     assert.equal(status.status, 0, status.stderr);
     assert.equal(JSON.parse(status.stdout).disposition, 'NO_ACTIVE_BOOTSTRAP');
     assert.deepEqual(fs.readdirSync(projectRoot), ['README.md']);
@@ -580,6 +581,15 @@ test('active bootstrap status reports a durable project ready for repository cre
         }),
     }));
     const plan = JSON.parse(planned.stdout);
+    assert.equal(plan.providers.some(({id}) => id === 'core-repository-automation'), true);
+    assert.deepEqual(plan.outputs
+        .map(({path: outputPath}) => outputPath)
+        .filter((outputPath) => outputPath.startsWith('.github/hooks/')), [
+        '.github/hooks/commit-msg',
+        '.github/hooks/pre-commit',
+        '.github/hooks/pre-push',
+        '.github/hooks/prepare-commit-msg',
+    ]);
     const applied = captureWrites(() => main([
         'setup', 'project', 'apply', `--attempt=${ATTEMPT_ID}`,
         `--digest=${plan.planDigest}`, '--approval=yes', '--json',

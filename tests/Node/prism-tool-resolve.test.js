@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -149,7 +149,7 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
     assert.deepEqual(invocations.slice(0, 5).map(({command, args}) => ({command, args})), [
         {command: 'composer', args: ['require', '--dev', '--no-update', '--no-scripts', '--no-interaction', 'friendsofphp/php-cs-fixer:3.95.18', 'pestphp/pest:5.1.1', 'pestphp/pest-plugin-browser:5.0.1']},
         {command: 'composer', args: ['update', 'friendsofphp/php-cs-fixer:3.95.18', 'pestphp/pest:5.1.1', 'pestphp/pest-plugin-browser:5.0.1', '--with-all-dependencies', '--no-install', '--no-scripts', '--no-interaction']},
-        {command: 'npm', args: ['install', '--package-lock-only', '--ignore-scripts', '--save-dev', '--save-exact', 'sass@1.102.0', 'uglify-js@3.19.3', 'eslint@10.8.1', '@eslint/js@10.0.1', 'stylelint@17.14.1', 'stylelint-config-standard-scss@17.0.0', 'playwright@1.62.1']},
+        {command: 'npm', args: ['install', '--package-lock-only', '--ignore-scripts', '--save-dev', '--save-exact', 'sass@1.102.0', 'uglify-js@3.19.3', 'eslint@10.8.1', '@eslint/js@10.0.1', 'stylelint@17.14.1', 'stylelint-config-standard-scss@17.0.0', 'typescript@7.0.2', 'playwright@1.62.1']},
         {command: 'composer', args: ['audit', '--locked', '--format=json']},
         {command: 'npm', args: ['audit', '--package-lock-only', '--json']},
     ]);

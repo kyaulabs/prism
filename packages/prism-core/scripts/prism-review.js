@@ -1,0 +1,17 @@
+#!/usr/bin/env -S -u NODE_OPTIONS -u NODE_PATH node
+// $KYAULabs: prism-review.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+
+'use strict';
+
+const {main} = require('./prism-review/cli');
+
+Promise.resolve(main(process.argv.slice(2)))
+    .then((code) => {
+        process.exitCode = code;
+    })
+    .catch(() => {
+        process.stderr.write('prism-review: internal failure\n');
+        process.exitCode = 4;
+    });
+
+// vim: ft=javascript sts=4 sw=4 ts=4 et :

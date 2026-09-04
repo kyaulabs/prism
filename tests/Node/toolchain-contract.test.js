@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -65,9 +65,145 @@ function boundedOcrContract(versionRequirement = {
     };
 }
 
+function serverProfileContract(overrides = {}) {
+    return {
+        schemaVersion: 1,
+        package: '@fixture/adapter',
+        role: 'adapter',
+        components: [{
+            id: 'fixture-client',
+            kind: 'command',
+            ecosystem: 'npm',
+            package: 'fixture-client',
+            version: '1.0.0',
+            provisioning: 'consumer-dev',
+            authentication: 'none',
+            executable: 'fixture-client',
+            versionArguments: ['--version'],
+            argumentPolicy: {mode: 'passthrough'},
+        }],
+        serverProfiles: [{
+            id: 'fixture',
+            host: '127.0.0.1',
+            preferredPort: 8080,
+            startupTimeoutMs: 10000,
+            server: {
+                executable: 'fixture-server',
+                arguments: ['--listen', '{host}:{port}'],
+            },
+            health: {
+                executable: 'fixture-health',
+                arguments: ['--host', '{host}', '--port', '{port}'],
+            },
+            clients: [{
+                toolId: 'fixture-client',
+                environment: {FIXTURE_ENDPOINT: 'tcp://{host}:{port}'},
+            }],
+            ...overrides,
+        }],
+    };
+}
+
 test('loads both schema-v1 package contracts', () => {
     assert.equal(loadContract(coreContract).role, 'core');
     assert.equal(loadContract(adapterContract).role, 'adapter');
+});
+
+test('accepts a closed adapter quality-provider declaration', () => {
+    const input = serverProfileContract();
+    input.qualityProvider = {
+        id: 'fixture-quality',
+        protocolVersion: 1,
+        gates: ['fixture.lint', 'fixture.test'],
+    };
+
+    const contract = validateContract(input, 'fixture.json');
+
+    assert.deepEqual(contract.qualityProvider, {
+        id: 'fixture-quality',
+        protocolVersion: 1,
+        gates: ['fixture.lint', 'fixture.test'],
+    });
+    assert.equal(Object.isFrozen(contract.qualityProvider), true);
+});
+
+test('rejects malformed adapter quality-provider declarations', () => {
+    const invalid = [
+        {id: 'fixture-quality', protocolVersion: 2, gates: ['fixture.test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: []},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test', 'fixture.test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test', 'fixture.lint']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture test']},
+        {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test'], command: 'npm test'},
+    ];
+    for (const qualityProvider of invalid) {
+        const contract = serverProfileContract();
+        contract.qualityProvider = qualityProvider;
+        assert.throws(() => validateContract(contract, 'fixture.json'), /quality provider/);
+    }
+    const core = boundedSemgrepContract();
+    core.qualityProvider = {id: 'fixture-quality', protocolVersion: 1, gates: ['fixture.test']};
+    assert.throws(() => validateContract(core, 'fixture.json'), /quality provider/);
+});
+
+test('accepts and freezes a bounded adapter server profile', () => {
+    const contract = validateContract(serverProfileContract(), 'fixture.json');
+
+    assert.equal(contract.serverProfiles[0].preferredPort, 8080);
+    assert.equal(Object.isFrozen(contract.serverProfiles[0]), true);
+});
+
+test('rejects malformed or unsafe server profiles', () => {
+    const invalid = [
+        {...serverProfileContract(), role: 'core'},
+        serverProfileContract({id: 'UPPER'}),
+        serverProfileContract({host: '0.0.0.0'}),
+        serverProfileContract({preferredPort: 0}),
+        serverProfileContract({preferredPort: 65536}),
+        serverProfileContract({startupTimeoutMs: 99}),
+        serverProfileContract({server: {executable: '../server', arguments: []}}),
+        serverProfileContract({server: {executable: 'server', arguments: ['$(id)']}}),
+        serverProfileContract({clients: [{toolId: 'missing', environment: {}}]}),
+        serverProfileContract({
+            clients: [{toolId: 'fixture-client', environment: {'bad-key': 'x'}}],
+        }),
+    ];
+
+    for (const contract of invalid) {
+        assert.throws(() => validateContract(contract, 'fixture.json'), /fixture\.json/);
+    }
+});
+
+test('rejects unmatched closing braces in server templates', () => {
+    const contract = serverProfileContract({
+        clients: [{
+            toolId: 'fixture-client',
+            environment: {FIXTURE_ENDPOINT: 'tcp://{host}:{port}}'},
+        }],
+    });
+
+    assert.throws(
+        () => validateContract(contract, 'fixture.json'),
+        /server profile fixture environment value is invalid/
+    );
+});
+
+test('rejects duplicate server profiles and duplicate clients', () => {
+    const duplicateProfile = serverProfileContract();
+    duplicateProfile.serverProfiles.push({...duplicateProfile.serverProfiles[0]});
+    const duplicateClient = serverProfileContract();
+    duplicateClient.serverProfiles[0].clients.push(
+        {...duplicateClient.serverProfiles[0].clients[0]}
+    );
+
+    assert.throws(
+        () => validateContract(duplicateProfile, 'fixture.json'),
+        /duplicate server profile/
+    );
+    assert.throws(
+        () => validateContract(duplicateClient, 'fixture.json'),
+        /duplicate server client/
+    );
 });
 
 test('declares the exact bundled Markdown engine', () => {
@@ -357,6 +493,19 @@ test('loads contracts through a bounded immutable file boundary', (t) => {
     assert.throws(() => loadContract(symlinkPath), /symlink\.json: symbolic links are not allowed/);
 });
 
+test('loads the PHP browser fixture as an adapter-owned server profile', () => {
+    const contract = loadContract(adapterContract);
+    const [profile] = contract.serverProfiles;
+
+    assert.equal(profile.id, 'browser-fixture');
+    assert.equal(profile.host, '127.0.0.1');
+    assert.equal(profile.preferredPort, 8080);
+    assert.deepEqual(profile.clients, [{
+        toolId: 'pest',
+        environment: {PEST_BROWSER_BASE_URL: 'http://{host}:{port}'},
+    }]);
+});
+
 test('declares the exact PHP web adapter components and registration', () => {
     const contract = loadContract(adapterContract);
     const packageJson = require('../../packages/prism-php-web/package.json');
@@ -370,6 +519,7 @@ test('declares the exact PHP web adapter components and registration', () => {
         ['eslint-js', '10.0.1'],
         ['stylelint', '17.14.1'],
         ['stylelint-config-scss', '17.0.0'],
+        ['typescript', '7.0.2'],
         ['playwright', '1.62.1'],
     ]);
 
@@ -383,6 +533,7 @@ test('declares the exact PHP web adapter components and registration', () => {
         bootstrapProtocol: 1,
         toolchain: './toolchain.json',
         handler: './scripts/prism-tool-adapter.js',
+        review: './config/prism-review.json',
     });
 });
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -59,6 +59,13 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'standing web-access consent' 'set
 assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup asks one question per turn'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --json' 'setup classifies the canonical root before established setup'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation inspect --json' 'setup inspects established automation providers'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation plan --json' 'setup plans established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation apply --plan=.*--approval=yes --json' 'setup applies approved established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation verify --json' 'setup verifies established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool hook reconcile --approval=yes --json' 'setup reconciles canonical established hooks'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'SCAFFOLD_ONLY' 'setup identifies non-Git scaffold-only applicability'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'records repository automation as `NO-GO`' 'setup leaves non-Git scaffolds inapplicable for automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Template.*recommended default|recommended default.*Template' 'strict-empty setup recommends Template by default'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Blank' 'strict-empty setup offers Blank'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Cancel' 'strict-empty setup offers Cancel'
@@ -171,6 +178,30 @@ if [ -n "$setup_validate_line" ] && [ -n "$setup_apply_line" ] \
     pass 'strict-empty setup preserves validation, application, repository, hooks, and seed ordering'
 else
     fail 'strict-empty setup reorders validation, application, repository, hooks, or seed stages'
+    failures=$((failures + 1))
+fi
+
+ESTABLISHED_AUTOMATION_SECTION="${RESULT_FILE}.established-automation"
+register_temp_dir "$ESTABLISHED_AUTOMATION_SECTION"
+awk '/^## Established repository automation$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
+    "$CORE_PROMPTS/setup.md" > "$ESTABLISHED_AUTOMATION_SECTION"
+established_inspect_line=$({ grep -niF 'prism-tool automation inspect --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_release_line=$({ grep -niF 'Enable repository release management?' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_plan_line=$({ grep -niF 'prism-tool automation plan --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_apply_line=$({ grep -niF 'prism-tool automation apply --plan=' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_verify_line=$({ grep -niF 'prism-tool automation verify --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_hook_line=$({ grep -niF 'prism-tool hook reconcile --approval=yes --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+if [ -n "$established_inspect_line" ] && [ -n "$established_release_line" ] \
+    && [ -n "$established_plan_line" ] && [ -n "$established_apply_line" ] \
+    && [ -n "$established_verify_line" ] && [ -n "$established_hook_line" ] \
+    && [ "$established_inspect_line" -lt "$established_release_line" ] \
+    && [ "$established_release_line" -lt "$established_plan_line" ] \
+    && [ "$established_plan_line" -lt "$established_apply_line" ] \
+    && [ "$established_apply_line" -lt "$established_verify_line" ] \
+    && [ "$established_verify_line" -lt "$established_hook_line" ]; then
+    pass '/setup preserves established inspect, capability, plan, apply, verify, and hook ordering'
+else
+    fail '/setup does not preserve the established automation stage order'
     failures=$((failures + 1))
 fi
 
@@ -296,18 +327,25 @@ echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run stylelint --' 'check-php runs stylelint through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run eslint --' 'check-php runs eslint through the launcher'
-assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run pest -- --coverage' 'check-php runs pest through the launcher'
+assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool server run .*--tool pest -- --coverage' 'check-php runs Pest through a supervised server profile'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\$\(' 'check-php avoids command substitution blocked by the safety extension'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" 'mktemp' 'check-php uses project-local temp files instead of mktemp'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '\btrap\b' 'check-php avoids deferred-execution builtins blocked by the safety extension'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run sass --' 'build-assets runs sass through the launcher'
 assert_file_contains "$ADAPTER_PROMPTS/build-assets.md" 'prism-tool run uglify-js --' 'build-assets runs uglify-js through the launcher'
-CANONICAL_PEST='PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage'
-assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'prism-tool run pest -- --coverage' 'tdd-php runs pest through the launcher'
+CANONICAL_PEST='prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage'
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" "$CANONICAL_PEST" 'check-php uses the canonical Pest coverage command'
 assert_file_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$CANONICAL_PEST" 'tdd-php uses the canonical Pest coverage command'
-assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" '^prism-tool run pest -- --coverage$' 'check-php has no bare coverage fallback'
-assert_file_not_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" '^prism-tool run pest -- --coverage$' 'tdd-php has no bare coverage fallback'
+assert_file_contains "$ADAPTER_DOCS/tests.md" "$CANONICAL_PEST" 'adapter test docs use the canonical Pest coverage command'
+for lifecycle_surface in "$ADAPTER_PROMPTS/check-php.md" "$ADAPTER_SKILLS/tdd-php/SKILL.md" "$ADAPTER_DOCS/tests.md"; do
+	for forbidden in 'php -S' 'PEST_BROWSER_BASE_URL=' 'reusing existing dev server' 'kill <pid>'; do
+		assert_file_not_contains "$lifecycle_surface" "$forbidden" "${lifecycle_surface##*/} omits shell-owned server lifecycle: $forbidden"
+	done
+done
+assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'nearest available.*port' 'Core TDD selects the nearest available profile port'
+assert_file_contains "$CORE_SKILLS/tdd/SKILL.md" 'never reuses an occupied listener' 'Core TDD never reuses occupied listeners'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'prism-tool server run PACKAGE:PROFILE --tool TOOL_ID -- ARGUMENTS' 'Core README documents the supervised server command'
+assert_file_contains "$REPO_ROOT/packages/prism-core/README.md" 'foreground-scoped' 'Core README documents foreground-scoped servers'
 assert_file_not_contains "$ADAPTER_PROMPTS/check-php.md" 'vendor/bin/pest|--min=100' 'check-php has no direct Pest or invented minimum'
 assert_file_not_contains "$ADAPTER_SKILLS/tdd-php/SKILL.md" 'vendor/bin/pest|--min=100' 'tdd-php has no direct Pest or invented minimum'
 assert_file_contains "$CORE_SKILLS/writing-plans/SKILL.md" 'active adapter.*verbatim|verbatim.*active adapter' 'plan authoring validates adapter-owned commands'

@@ -123,6 +123,10 @@ and invokes preparation-only `/pr`.
 See [Coding Harness](CODING_HARNESS.md) for the on-ramps, fast path, architecture
 gates, TDD cycle, review chain, and finalization rules.
 
+Core also ships a non-authoritative `prism-review` foundation for bounded ad hoc
+review. It does not replace the current OCR-backed `code-review` or write review
+chain state. See [Review runtime foundation](packages/prism-core/docs/review-runtime.md).
+
 Ordinary commits use one standalone launcher call after exact staging:
 
 ```bash

@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -16,7 +16,7 @@ const RELEASE_SCHEMA_VERSION = 2;
 const CONFIG_PATH = '.prism/release.json';
 const WORKFLOW_PATH = '.github/workflows/release.yml';
 const WORKFLOW_MARKER = '# prism-managed: @kyaulabs/prism-core';
-const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 2';
+const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 3';
 const LEGACY_WORKFLOW_SHA256 = 'dd4cd0fdf362e4243117e620c906a7bfe42b8b52c011759a2a6ea8f1850f0ef6';
 const OPERATION_ROOT = path.join('.pi', 'prism-tool', 'package-release');
 const OPERATION_MARKER = '.prism-package-release.json';
@@ -410,14 +410,19 @@ function inspectReleaseCapability({
         allowEmpty: true,
     });
     let configExists;
-    let workflowExists;
+    let workflowContent;
     try {
         configExists = managedFileEntry(canonicalProject, CONFIG_PATH) !== undefined;
-        workflowExists = managedFileEntry(canonicalProject, WORKFLOW_PATH) !== undefined;
+        workflowContent = readManagedFile(canonicalProject, WORKFLOW_PATH, 'release workflow');
     } catch {
         return conflictResult(candidates);
     }
-    if (!configExists && !workflowExists) {
+    if (workflowOwnership(
+        workflowContent,
+        canonicalWorkflow,
+        legacyWorkflowSha256
+    ) !== 'OWNED_CANONICAL') return conflictResult(candidates);
+    if (!configExists) {
         if (candidates.length === 0) throw new Error('no publishable release packages discovered');
         return {
             status: 'GO',
@@ -429,12 +434,11 @@ function inspectReleaseCapability({
                 {
                     id: 'package-release-ownership',
                     status: 'PASS',
-                    message: 'managed release files can be created',
+                    message: 'package release metadata can be created',
                 },
             ],
         };
     }
-    if (configExists !== workflowExists) return conflictResult(candidates);
 
     let configuration;
     try {
@@ -447,18 +451,7 @@ function inspectReleaseCapability({
         packagePaths: configuration.packages,
     });
     if (candidates.length === 0) candidates = configuredCandidates;
-    let workflowContent;
-    try {
-        workflowContent = readManagedFile(canonicalProject, WORKFLOW_PATH, 'release workflow');
-    } catch {
-        return conflictResult(
-            candidates,
-            configuration.packages,
-            configuration.adapterReleases
-        );
-    }
-    const workflowState = workflowOwnership(workflowContent, canonicalWorkflow, legacyWorkflowSha256);
-    if (configuration.kind === 'LEGACY' && workflowState === 'LEGACY') {
+    if (configuration.kind === 'LEGACY') {
         return {
             status: 'GO',
             disposition: 'MIGRATE',
@@ -466,16 +459,9 @@ function inspectReleaseCapability({
             configuredPackages: configuration.packages,
             adapterReleases: [],
             checks: [
-                {id: 'package-release-ownership', status: 'PASS', message: 'legacy release files can be migrated'},
+                {id: 'package-release-ownership', status: 'PASS', message: 'legacy package metadata can be migrated'},
             ],
         };
-    }
-    if (configuration.kind !== 'MANAGED' || !workflowState.startsWith('OWNED_')) {
-        return conflictResult(
-            candidates,
-            configuration.packages,
-            configuration.adapterReleases
-        );
     }
     const candidatePackages = new Set(candidates.map(({path: packagePath}) => packagePath));
     if (configuration.adapterReleases.some(({package: packagePath}) =>
@@ -492,7 +478,7 @@ function inspectReleaseCapability({
         candidates,
         configuration.adapterReleases
     ));
-    const unchanged = configContent.equals(desiredConfig) && workflowState === 'OWNED_CANONICAL';
+    const unchanged = configContent.equals(desiredConfig);
     return {
         status: 'GO',
         disposition: unchanged ? 'UNCHANGED' : 'UPDATE',
@@ -755,7 +741,7 @@ function removeOwnedOperationContents(projectRoot, directoryPath, directory, rel
 }
 
 function assertNoExternalTransactionArtifacts(projectRoot) {
-    for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+    for (const relativePath of [CONFIG_PATH]) {
         const parentPath = path.join(projectRoot, path.dirname(relativePath));
         if (fileEntry(parentPath) === undefined) continue;
         const parent = holdDirectory(projectRoot, parentPath);
@@ -785,7 +771,7 @@ function assertNoPartialPublication(projectRoot, operation) {
     const plan = readPlan(operation, path.join(operation.root, planNames[0]), projectRoot);
     let changed = 0;
     let published = 0;
-    for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+    for (const relativePath of [CONFIG_PATH]) {
         if (plan.files[relativePath].after === plan.files[relativePath].before) continue;
         changed += 1;
         const state = managedFileState(projectRoot, relativePath);
@@ -932,7 +918,6 @@ function readPlanFile(operation, area, relativePath) {
 
 function renderReleaseCapabilityFiles({
     projectRoot,
-    coreRoot,
     adapterReleases = [],
     candidates = null,
 }) {
@@ -942,7 +927,6 @@ function renderReleaseCapabilityFiles({
         candidates: Object.freeze(releaseCandidates.map((candidate) => Object.freeze({...candidate}))),
         files: Object.freeze({
             [CONFIG_PATH]: Buffer.from(renderManagedConfiguration(releaseCandidates, adapterReleases)),
-            [WORKFLOW_PATH]: readCanonicalWorkflow(coreRoot),
         }),
     });
 }
@@ -1006,7 +990,7 @@ function planReleaseCapability({projectRoot, coreRoot, legacyWorkflowSha256 = LE
             disposition: inspection.disposition,
             inputs: {
                 candidates: sha256(JSON.stringify(inspection.candidates)),
-                workflow: files[WORKFLOW_PATH].after,
+                workflow: sha256(readCanonicalWorkflow(coreRoot)),
             },
             files,
         };
@@ -1066,11 +1050,11 @@ function readPlan(operation, planPath, projectRoot) {
         plan.files === null ||
         typeof plan.files !== 'object' ||
         Array.isArray(plan.files) ||
-        Object.keys(plan.files).sort().join(',') !== [CONFIG_PATH, WORKFLOW_PATH].sort().join(',')
+        Object.keys(plan.files).join(',') !== CONFIG_PATH
     ) {
         throw new Error('package-release plan is invalid');
     }
-    for (const relativePath of [CONFIG_PATH, WORKFLOW_PATH]) {
+    for (const relativePath of [CONFIG_PATH]) {
         const record = plan.files[relativePath];
         if (
             record === null ||
@@ -1398,13 +1382,19 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             coreRoot,
         }).candidates;
         const canonicalWorkflow = readCanonicalWorkflow(coreRoot);
+        const installedWorkflow = readManagedFile(
+            canonicalProject,
+            WORKFLOW_PATH,
+            'release workflow'
+        );
         if (
             sha256(JSON.stringify(currentCandidates)) !== plan.inputs.candidates ||
-            sha256(canonicalWorkflow) !== plan.inputs.workflow
+            sha256(canonicalWorkflow) !== plan.inputs.workflow ||
+            !installedWorkflow.equals(canonicalWorkflow)
         ) {
             throw new Error('package-release plan inputs changed');
         }
-        for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+        for (const relativePath of [CONFIG_PATH]) {
             const state = managedFileState(canonicalProject, relativePath);
             if (state.digest !== plan.files[relativePath].before) {
                 const error = new Error('package-release plan is stale');
@@ -1417,7 +1407,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             }
             originals.set(relativePath, state);
         }
-        for (const relativePath of [WORKFLOW_PATH, CONFIG_PATH]) {
+        for (const relativePath of [CONFIG_PATH]) {
             ensureTargetParent(canonicalProject, relativePath, createdDirectories);
             const targetPath = path.join(canonicalProject, relativePath);
             if (managedFileState(canonicalProject, relativePath).digest !== plan.files[relativePath].before) {
@@ -1425,7 +1415,7 @@ function applyReleaseCapability({projectRoot, coreRoot, planPath, rename = publi
             }
             const after = readPlanFile(operation, 'after', relativePath);
             const original = originals.get(relativePath);
-            const defaultMode = relativePath === CONFIG_PATH ? 0o600 : 0o644;
+            const defaultMode = 0o600;
             writeAtomic(
                 canonicalProject,
                 targetPath,

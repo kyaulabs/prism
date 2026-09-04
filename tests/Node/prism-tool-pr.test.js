@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -66,6 +66,10 @@ test('pr preflight reports the exact branch attestation', () => {
         cwd: '/repo',
         env: process.env,
         run,
+        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
+        verifyCriteria: () => assert.fail('legacy chains must not verify criteria'),
+        verifyCheck: () => assert.fail('legacy chains must not verify checks'),
+        verifyReviewChainV2: () => assert.fail('legacy chains must not use version-two verification'),
         verifyReviewChain: (expected) => {
             assert.deepEqual(expected, {
                 branch: 'fix/tester-abcd-example',
@@ -89,9 +93,70 @@ test('pr preflight reports the exact branch attestation', () => {
         'COMMIT_COUNT\t2',
         'NON_MERGE_COUNT\t2',
         'REVIEW_CHAIN\tVALID',
+        'REVIEW_CHAIN_VERSION\t1',
         'ADVISORY_COUNT\t1',
         '',
     ].join('\n'));
+});
+
+test('pr preflight selects a complete version-two chain as one unit', () => {
+    const v1Calls = [];
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: (expected) => {
+            assert.deepEqual(expected, {branch: 'fix/tester-abcd-example'});
+            return {digest: 'c'.repeat(64)};
+        },
+        verifyCheck: (expected) => {
+            assert.deepEqual(expected, {
+                branch: 'fix/tester-abcd-example',
+                baseRef: 'origin/develop',
+                baseSha: '1'.repeat(40),
+                headSha: '2'.repeat(40),
+            });
+            return {digest: 'd'.repeat(64)};
+        },
+        verifyReviewChain: () => v1Calls.push('v1'),
+        verifyReviewChainV2: (expected) => {
+            assert.deepEqual(expected, {
+                branch: 'fix/tester-abcd-example',
+                baseRef: 'origin/develop',
+                baseSha: '1'.repeat(40),
+                headSha: '2'.repeat(40),
+                criteriaDigest: 'c'.repeat(64),
+                checkDigest: 'd'.repeat(64),
+            });
+            return {advisoryFindings: []};
+        },
+    }));
+
+    assert.equal(result.status, 0);
+    assert.equal(v1Calls.length, 0);
+    assert.match(result.stdout, /REVIEW_CHAIN\tVALID/);
+    assert.match(result.stdout, /REVIEW_CHAIN_VERSION\t2/);
+    assert.doesNotMatch(result.stdout, /V2_RECOVERY/);
+});
+
+test('pr preflight rejects version-two receipts that change during verification', () => {
+    let criteriaCalls = 0;
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: (criteriaCalls += 1) === 1 ? 'c'.repeat(64) : 'e'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => ({advisoryFindings: []}),
+    }));
+
+    assert.equal(result.status, 4);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /incomplete, stale, or has unresolved Blocking findings/);
 });
 
 test('pr review-preflight reports an absent review chain', () => {
@@ -100,13 +165,117 @@ test('pr review-preflight reports an absent review chain', () => {
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChain: () => ({state: 'ABSENT'}),
+        inspectReviewChainV2: () => ({state: 'ABSENT'}),
+        inspectCriteria: () => ({state: 'ABSENT'}),
+        inspectCheck: () => ({state: 'ABSENT'}),
         verifyReviewChain: () => assert.fail('absent chain must not be verified'),
     }));
 
     assert.equal(result.status, 0);
     assert.match(result.stdout, /REVIEW_CHAIN\tABSENT/);
-    assert.doesNotMatch(result.stdout, /ADVISORY_COUNT/);
+    assert.match(result.stdout, /V2_RECOVERY\tUNDECLARED/);
+    assert.doesNotMatch(result.stdout, /REVIEW_CHAIN_VERSION|ADVISORY_COUNT/);
+});
+
+test('pr review-preflight reports ready only for both exact version-two receipts', () => {
+    const result = captureWrites(() => main(['pr', 'review-preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'ABSENT'}),
+        inspectCriteria: () => ({state: 'VALID'}),
+        inspectCheck: () => ({state: 'VALID'}),
+        verifyCriteria: (expected) => {
+            assert.deepEqual(expected, {branch: 'fix/tester-abcd-example'});
+            return {digest: 'c'.repeat(64)};
+        },
+        verifyCheck: (expected) => {
+            assert.deepEqual(expected, {
+                branch: 'fix/tester-abcd-example', baseRef: 'origin/develop',
+                baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+            });
+            return {digest: 'd'.repeat(64)};
+        },
+    }));
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /REVIEW_CHAIN\tABSENT/);
+    assert.match(result.stdout, /V2_RECOVERY\tREADY/);
+});
+
+test('pr review-preflight rejects partial, stale, and unsafe recovery receipts', () => {
+    const cases = [
+        ['partial criteria', {state: 'VALID'}, {state: 'ABSENT'}, () => ({digest: 'c'.repeat(64)}),
+            () => ({digest: 'd'.repeat(64)})],
+        ['partial check', {state: 'ABSENT'}, {state: 'VALID'}, () => ({digest: 'c'.repeat(64)}),
+            () => ({digest: 'd'.repeat(64)})],
+        ['unsafe criteria', {state: 'UNSAFE'}, {state: 'ABSENT'}, () => ({digest: 'c'.repeat(64)}),
+            () => ({digest: 'd'.repeat(64)})],
+        ['stale criteria', {state: 'VALID'}, {state: 'VALID'}, () => { throw new Error('CANARY'); },
+            () => ({digest: 'd'.repeat(64)})],
+        ['stale check', {state: 'VALID'}, {state: 'VALID'}, () => ({digest: 'c'.repeat(64)}),
+            () => { throw new Error('CANARY'); }],
+    ];
+    for (const [label, criteriaState, checkState, verifyCriteriaResult, verifyCheckResult] of cases) {
+        const result = captureWrites(() => main(['pr', 'review-preflight'], {
+            coreRoot: CORE_ROOT,
+            cwd: '/repo',
+            env: process.env,
+            run: makePreflightRun(),
+            inspectReviewChainV2: () => ({state: 'ABSENT'}),
+            inspectCriteria: () => criteriaState,
+            inspectCheck: () => checkState,
+            verifyCriteria: verifyCriteriaResult,
+            verifyCheck: verifyCheckResult,
+        }));
+
+        assert.equal(result.status, 4, label);
+        assert.doesNotMatch(result.stdout, /V2_RECOVERY/, label);
+        assert.doesNotMatch(result.stderr, /CANARY/, label);
+    }
+});
+
+test('pr preflight rejects absent chain state without probing recovery receipts', () => {
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'ABSENT'}),
+        inspectCriteria: () => assert.fail('strict preflight must not inspect recovery receipts'),
+        inspectCheck: () => assert.fail('strict preflight must not inspect recovery receipts'),
+    }));
+
+    assert.equal(result.status, 4);
+    assert.equal(result.stdout, '');
+});
+
+test('pr preflight rejects stale or Blocking version-two state without falling back', () => {
+    const cases = ['missing criteria', 'missing check', 'open Blocking'];
+    for (const label of cases) {
+        const v1Calls = [];
+        const result = captureWrites(() => main(['pr', 'preflight'], {
+            coreRoot: CORE_ROOT,
+            cwd: '/repo',
+            env: process.env,
+            run: makePreflightRun(),
+            inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+            verifyCriteria: label === 'missing criteria'
+                ? () => { throw new Error('CANARY'); }
+                : () => ({digest: 'c'.repeat(64)}),
+            verifyCheck: label === 'missing check'
+                ? () => { throw new Error('CANARY'); }
+                : () => ({digest: 'd'.repeat(64)}),
+            verifyReviewChain: () => v1Calls.push('fallback'),
+            verifyReviewChainV2: () => { throw new Error('CANARY'); },
+        }));
+
+        assert.equal(result.status, 4, label);
+        assert.equal(v1Calls.length, 0, label);
+        assert.equal(result.stdout, '', label);
+        assert.doesNotMatch(result.stderr, /CANARY/, label);
+    }
 });
 
 test('pr review-preflight verifies a present chain', () => {
@@ -115,7 +284,7 @@ test('pr review-preflight verifies a present chain', () => {
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChain: () => ({state: 'VALID'}),
+        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
         verifyReviewChain: () => ({
             advisoryFindings: [{summary: 'follow-up cleanup'}],
         }),
@@ -132,7 +301,7 @@ test('pr review-preflight rejects unsafe review-chain state', () => {
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChain: () => ({state: 'UNSAFE'}),
+        inspectReviewChainV2: () => ({state: 'UNSAFE'}),
     }));
 
     assert.equal(result.status, 4);
@@ -145,7 +314,7 @@ test('pr review-preflight rejects unusable present review-chain evidence', () =>
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChain: () => ({state: 'VALID'}),
+        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
         verifyReviewChain: () => { throw new Error('CANARY'); },
     }));
 
@@ -172,6 +341,7 @@ test('pr preflight accepts SHA-256 object ids', () => {
         cwd: '/repo',
         env: process.env,
         run,
+        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
         verifyReviewChain: () => ({advisoryFindings: []}),
     }));
 
@@ -197,6 +367,7 @@ test('pr preflight fails closed with stable diagnostics', () => {
             cwd: '/repo',
             env: process.env,
             run: makePreflightRun(new Map([[key, response]])),
+            inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
             verifyReviewChain: () => ({advisoryFindings: []}),
         }));
 
@@ -212,6 +383,7 @@ test('pr preflight rejects invalid review-chain evidence', () => {
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
         verifyReviewChain: () => { throw new Error('CANARY'); },
     }));
 

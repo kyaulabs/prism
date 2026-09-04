@@ -185,10 +185,17 @@ whose root cause is already known, write the fix plan directly.
 ### 9. HALT for approval
 
 Present: (1) issue summary (title, key requirements), (2) assessment
-(complexity, routing path taken, findings), (3) the full plan. Then ask:
+(complexity, routing path taken, findings), and (3) the exact plan path, but
+not the plan body. Then ask:
 
-> "Review the plan. Reply 'go' to create the branch and begin inline execution
-> with the `executing-plans` and `tdd` skills, or request changes."
+> "Plan written to `<path>`. Review it there. Reply 'go' to create the branch
+> and begin inline execution with the `executing-plans` and `tdd` skills, or
+> request changes."
+
+Apply requested changes directly to the same plan file through
+`writing-plans`, rerun its self-review, and report the path again. Do not
+reproduce the complete plan or a partial outline unless the user explicitly
+asks.
 
 **Do NOT write code or create a branch until the user approves.** This is the
 single hard gate between planning and execution.
@@ -247,8 +254,8 @@ Present each turn inline. End triage with:
 - Next step: <one sentence>
 ```
 
-For the enhancement path, follow with the plan presentation and approval
-prompt (Step 9).
+For the enhancement path, follow with the exact plan path and approval prompt
+from Step 9. Do not present the plan body.
 
 ## Rules
 
@@ -295,3 +302,5 @@ prompt (Step 9).
 - *Proceeding before plan approval* — Step 9 is a hard gate.
 - *Posting a comment without the AI disclaimer* — every comment carries it.
 - *Hard-coding repository or field IDs* — always detect them dynamically.
+- *Repeating the plan at approval* — `writing-plans` already wrote the
+  canonical review file. Present its path, not its contents.

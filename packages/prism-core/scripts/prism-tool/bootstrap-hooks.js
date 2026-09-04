@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-hooks.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: bootstrap-hooks.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -8,8 +8,7 @@ const path = require('node:path');
 const {readBootstrapJournal, transitionBootstrapJournal} = require('./bootstrap-journal');
 const {createBootstrapRepository} = require('./bootstrap-repository');
 const {runBounded} = require('./process');
-
-const EVENTS = Object.freeze(['commit-msg', 'pre-commit', 'pre-push', 'prepare-commit-msg']);
+const {CANONICAL_HOOKS, canonicalManagedHooks} = require('./managed-hooks');
 const HOOKS_PATH = '.github/hooks';
 const MAX_HOOK_BYTES = 65536;
 
@@ -152,12 +151,14 @@ function inspectBootstrapHooks({
     }).data.repository;
     const planPathSet = new Set(journal.applied.map((entry) => entry.path));
     const hookInventory = [];
-    for (const event of EVENTS) {
+    const canonical = new Map(canonicalManagedHooks(coreRoot).map((hook) => [hook.name, hook]));
+    for (const event of CANONICAL_HOOKS) {
         const relative = `${HOOKS_PATH}/${event}`;
         if (!planPathSet.has(relative)) throw new Error('bootstrap hook is absent from the plan');
-        const packaged = readRegularExecutable(path.join(coreRoot, 'config', 'bootstrap', 'hooks', event));
         const project = readRegularExecutable(path.join(root, HOOKS_PATH, event));
-        if (!project.contents.equals(packaged.contents)) throw new Error('bootstrap hook bytes changed');
+        if (!project.contents.equals(canonical.get(event).contents)) {
+            throw new Error('bootstrap hook bytes changed');
+        }
         hookInventory.push(Object.freeze({
             event,
             mode: 0o755,
@@ -165,7 +166,7 @@ function inspectBootstrapHooks({
         }));
     }
     const hookRootEntries = fs.readdirSync(path.join(root, HOOKS_PATH)).sort();
-    if (JSON.stringify(hookRootEntries) !== JSON.stringify([...EVENTS].sort())) {
+    if (JSON.stringify(hookRootEntries) !== JSON.stringify([...CANONICAL_HOOKS].sort())) {
         throw new Error('bootstrap hook inventory is invalid');
     }
     inspectLegacyHooks(root);
@@ -194,7 +195,7 @@ function inspectBootstrapHooks({
             attempt: Object.freeze({id: attemptId}),
             planDigest,
             repository,
-            hooks: Object.freeze(EVENTS.map((event) => Object.freeze({
+            hooks: Object.freeze(CANONICAL_HOOKS.map((event) => Object.freeze({
                 event,
                 path: `${HOOKS_PATH}/${event}`,
                 disposition: 'PRESERVE',
@@ -325,7 +326,7 @@ function applyBootstrapHooks({
                 'config', '--local', '--fixed-value', '--unset-all', 'core.hooksPath', HOOKS_PATH,
             ]);
             if (rollback.error || ![0, 5].includes(rollback.status)) {
-                throw new Error('Git hooks path rollback failed');
+                throw new Error('Git hooks path rollback failed', {cause: error});
             }
         }
         throw error;

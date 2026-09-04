@@ -1,4 +1,4 @@
-// $KYAULabs: setup-entry.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: setup-entry.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,12 @@ const DISPOSITION = Object.freeze({
     STRICT_EMPTY: 'STRICT_EMPTY',
     ESTABLISHED: 'ESTABLISHED',
     CONFLICT: 'CONFLICT',
+});
+
+const AUTOMATION_APPLICABILITY = Object.freeze({
+    STRICT_EMPTY: 'STRICT_EMPTY',
+    ESTABLISHED: 'ESTABLISHED',
+    SCAFFOLD_ONLY: 'SCAFFOLD_ONLY',
 });
 
 const REASON = Object.freeze({
@@ -113,7 +119,12 @@ function sameGitBoundary(left, right) {
 }
 
 function conflict(projectRoot, reason) {
-    return {projectRoot, disposition: DISPOSITION.CONFLICT, reason};
+    return {
+        projectRoot,
+        disposition: DISPOSITION.CONFLICT,
+        automationApplicability: null,
+        reason,
+    };
 }
 
 function classifySetupEntry({projectRoot}) {
@@ -145,6 +156,7 @@ function classifySetupEntry({projectRoot}) {
             return {
                 projectRoot: canonicalRoot,
                 disposition: DISPOSITION.ESTABLISHED,
+                automationApplicability: AUTOMATION_APPLICABILITY.ESTABLISHED,
                 reason: REASON.EXISTING_REPOSITORY,
             };
         }
@@ -152,6 +164,7 @@ function classifySetupEntry({projectRoot}) {
             return {
                 projectRoot: canonicalRoot,
                 disposition: DISPOSITION.ESTABLISHED,
+                automationApplicability: AUTOMATION_APPLICABILITY.SCAFFOLD_ONLY,
                 reason: REASON.CONTAINING_WORKTREE,
             };
         }
@@ -159,12 +172,14 @@ function classifySetupEntry({projectRoot}) {
             return {
                 projectRoot: canonicalRoot,
                 disposition: DISPOSITION.ESTABLISHED,
+                automationApplicability: AUTOMATION_APPLICABILITY.SCAFFOLD_ONLY,
                 reason: REASON.NON_EMPTY_ROOT,
             };
         }
         return {
             projectRoot: canonicalRoot,
             disposition: DISPOSITION.STRICT_EMPTY,
+            automationApplicability: AUTOMATION_APPLICABILITY.STRICT_EMPTY,
             reason: REASON.EMPTY_ROOT,
         };
     } catch {
@@ -172,6 +187,6 @@ function classifySetupEntry({projectRoot}) {
     }
 }
 
-module.exports = {DISPOSITION, REASON, classifySetupEntry};
+module.exports = {AUTOMATION_APPLICABILITY, DISPOSITION, REASON, classifySetupEntry};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -16,6 +16,8 @@ Core owns:
 - global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
 - the safety enforcement and bounded web-access extensions;
 - the `prism-tool` launcher and Core toolchain contract;
+- the `prism-review` ad hoc runtime, dormant authority compatibility bridge,
+  and closed Core review policy;
 - strict-empty setup orchestration and generic project-provider composition;
 - repository creation, canonical hooks, root-seed preparation, and recovery;
 - optional project capabilities;
@@ -47,10 +49,10 @@ For an npm source, the installer requires separate registry authorization:
 PRISM_CORE_SOURCE=npm:@kyaulabs/prism-core bash packages/prism-core/scripts/install-global.sh --network-approved=yes
 ```
 
-The installer deploys `prism-tool` to
+The installer deploys `prism-tool` and `prism-review` to
 `${PRISM_BIN_DIR:-$HOME/.local/bin}` and installs the global instruction
 resources. It does not edit shell startup files or `PATH`, and it refuses to
-overwrite an unrelated launcher. Remove a Prism-owned launcher with:
+overwrite an unrelated launcher. Remove the Prism-owned launcher set with:
 
 ```bash
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
@@ -92,6 +94,28 @@ available only through the dedicated `prism-tool code-review ocr` operation.
 CI provisions compatible tools in its ephemeral environment but creates no
 consent and runs neither OCR review nor web access.
 
+`prism-review` provides bounded ad hoc staged, commit, branch, and tracked-path
+reports through isolated Pi SDK sessions. Ad hoc reports are non-authoritative.
+This release also carries a dormant authority compatibility bridge with exact
+commands including:
+
+```text
+prism-review criteria record --source ROLE:COMMIT:PATH [--source ROLE:COMMIT:PATH ...] --json
+prism-review criteria none --json
+prism-review check --base-ref origin/develop|origin/main --json
+prism-review review authoritative --base-ref origin/develop|origin/main --json
+prism-review review repair --base-ref origin/develop|origin/main --closures RELATIVE_PATH --json
+```
+
+The bridge can author schema-version-two evidence only from installed Core
+outside the reviewed repository and, when an adapter is active, a matching
+external installed adapter. Checkout Core cannot author that evidence. The
+bridge does not replace OCR-backed `code-review` or normal finalization in this
+release. Humans must release, publish, and install matching packages before
+using it deliberately. See [Review runtime and authority compatibility
+bridge](docs/review-runtime.md) for the complete grammar, state model, limits,
+provider cost, and dual-read preflight behavior.
+
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:
 
@@ -104,6 +128,21 @@ The checker reads staged or committed Git blobs, uses the packaged
 configuration, and never loads project-local Markdown configuration, plugins,
 or custom rules. Skills, prompts, agent instructions, generated history, legal
 text, and unrelated templates require separate format-aware treatment.
+
+## Supervised test servers
+
+Adapters may declare foreground-scoped loopback server profiles for test
+suites. Run one permitted client within a profile's lifecycle with:
+
+```text
+prism-tool server run PACKAGE:PROFILE --tool TOOL_ID -- ARGUMENTS
+```
+
+Each adapter profile declares its preferred port and trusted server, health,
+and client settings. Core chooses the nearest available valid port, never
+reuses an occupied listener, waits for readiness, passes the selected endpoint
+to the client, and cleans up only its owned process group when the client ends.
+Arbitrary project server commands and non-loopback listeners are rejected.
 
 ## Bounded web access
 
@@ -189,7 +228,7 @@ The eight profiles are independent and disabled by default:
 | `repository-ownership` | `.github/CODEOWNERS` |
 | `support-routing` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `funding` | `.github/FUNDING.yml` |
-| `release-management` | `CHANGELOG.md`, `cliff.toml`, `.github/workflows/release.yml`, `.prism/release.json` |
+| `release-management` | `CHANGELOG.md`, `cliff.toml`, `.github/workflows/release.yml` |
 
 Licensing supports `AGPL-3.0-only` and `MIT`. Security policy is one of
 `current-development`, `latest-release`, `latest-major-line`, or `custom`.
@@ -200,6 +239,10 @@ bounded from 1 to 8760 hours.
 `Support` and description `Get help with this project.` The
 `blank_issues_enabled` value is `false` when `github-collaboration` is enabled
 and `true` otherwise.
+
+Repository release management does not require a publishable package. The
+separate package-release transaction owns `.prism/release.json` and accepts the
+managed release workflow as a required, read-only dependency.
 
 Funding accepts at most 15 records. The `github` and `custom` providers allow
 four records each; every other provider allows one. Custom destinations must be

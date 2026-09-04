@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # $KYAULabs: commit-msg kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+# prism-managed: @kyaulabs/prism-core
 
 set -euo pipefail
 

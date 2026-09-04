@@ -122,6 +122,13 @@ Run the active adapter's:
 3. changed-file coverage gate, when one exists
 4. formatter/lint/static checks
 
+When a test suite needs a local listening dependency, use the active adapter's
+contract-declared `prism-tool server run` profile. The profile owns its preferred
+port. Core chooses the nearest available valid port, preferring the higher port
+on equal distance, never reuses an occupied listener, and cleans up only its
+owned foreground server process group. Do not recreate this lifecycle with
+agent-authored shell commands.
+
 Then load `verification-before-completion`. If any evidence is stale or fails,
 the task is not done.
 

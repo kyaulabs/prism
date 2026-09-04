@@ -1,4 +1,4 @@
-// $KYAULabs: setup-route.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: setup-route.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -39,10 +39,11 @@ function routeFor(source) {
 function report(entry, source, route) {
     const conflict = entry.disposition === DISPOSITION.CONFLICT;
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         command: 'setup route',
         status: conflict ? 'NO-GO' : 'GO',
         disposition: entry.disposition,
+        automationApplicability: conflict ? null : entry.automationApplicability,
         source,
         route,
         reason: entry.reason,

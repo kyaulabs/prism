@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -14,6 +14,7 @@ const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
 const {runBounded} = require('./process');
+const {applyManagedHooks} = require('./managed-hooks');
 
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MAX_MANIFEST_BYTES = 65536;
@@ -482,8 +483,51 @@ function validGrammar(event, args) {
     return args.length === 2;
 }
 
+function reconcileHooksCommand(args, context) {
+    const approvals = args.filter((argument) => argument.startsWith('--approval='));
+    const jsonControls = args.filter((argument) => argument === '--json');
+    if (
+        approvals.length !== 1 ||
+        approvals[0] !== '--approval=yes' ||
+        jsonControls.length > 1 ||
+        args.some((argument) =>
+            argument !== '--json' && !argument.startsWith('--approval=')
+        )
+    ) {
+        process.stderr.write('usage: prism-tool hook reconcile --approval=yes [--json]\n');
+        return 2;
+    }
+    let result;
+    try {
+        result = applyManagedHooks({
+            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+            approval: 'yes',
+            run: context.hookRun ?? runBounded,
+            env: context.env ?? process.env,
+        });
+    } catch {
+        result = {
+            status: 'NO-GO',
+            disposition: 'CONFLICT',
+            hooks: [],
+            remove: [],
+            checks: [{
+                id: 'managed-hooks',
+                status: 'FAIL',
+                message: 'managed hook reconciliation failed',
+            }],
+        };
+    }
+    const report = {schemaVersion: 1, command: 'hook reconcile', ...result};
+    if (jsonControls.length === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
+    else process.stdout.write(`${report.status}\n`);
+    return report.status === 'GO' ? 0 : 5;
+}
+
 function hookCommand(args, context = {}) {
     const [event, ...hookArgs] = args;
+    if (event === 'reconcile') return reconcileHooksCommand(hookArgs, context);
     if (!validGrammar(event, hookArgs)) {
         process.stderr.write('usage: prism-tool hook pre-commit|commit-msg|prepare-commit-msg|pre-push ...\n');
         return 2;

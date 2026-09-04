@@ -1,4 +1,4 @@
-// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/08/31 -0700 Exp $
+// $KYAULabs: catalogue-publication-readiness.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -18,6 +18,7 @@ const SIGNING_SECRET_NAMES = Object.freeze([
 const ATTESTATION_PATH = path.join('.pi', 'prism-tool', 'catalogue-publication-readiness.json');
 const STATIC_ENDPOINTS = new Set([
     'repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main',
+    'repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main',
     'repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main',
     'repos/kyaulabs/prism/rulesets',
     'repos/kyaulabs/prism-adapters/rulesets',
@@ -194,13 +195,18 @@ function variableValue(value, name) {
     return matches.length === 1 ? matches[0].value : undefined;
 }
 
-function inspectCataloguePublicationReadiness({phase, attestation, request}) {
+function inspectCataloguePublicationReadiness({phase, request}) {
     const dispatchPrefix = 'repos/kyaulabs/prism/environments/catalogue-dispatch';
     const signingPrefix = 'repos/kyaulabs/prism-adapters/environments/catalogue-signing';
     const checks = [
         evaluate('prism-workflow', 'trusted Prism release workflow is present', () =>
             workflowReady(request('repos/kyaulabs/prism/contents/.github/workflows/release.yml?ref=main'),
                 '.github/workflows/release.yml')),
+        evaluate('prism-notification-workflow', 'trusted Prism notification workflow is present', () =>
+            workflowReady(
+                request('repos/kyaulabs/prism/contents/.github/workflows/catalogue-notify.yml?ref=main'),
+                '.github/workflows/catalogue-notify.yml',
+            )),
         evaluate('publisher-workflow', 'trusted publisher workflow is present', () =>
             workflowReady(request('repos/kyaulabs/prism-adapters/contents/.github/workflows/catalogue-signing.yml?ref=main'),
                 '.github/workflows/catalogue-signing.yml')),

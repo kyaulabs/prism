@@ -1,4 +1,4 @@
-// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/08/24 -0700 Exp $
+// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -32,7 +32,8 @@ function isInside(root, candidate) {
 }
 
 function resolveOwnedFile(packageRoot, relativePath, label) {
-    if (typeof relativePath !== 'string' || relativePath.length === 0 || path.isAbsolute(relativePath)) {
+    if (typeof relativePath !== 'string' || relativePath.length === 0 ||
+        relativePath.includes('\\') || path.isAbsolute(relativePath)) {
         throw new Error(`${label} is invalid`);
     }
     const lexical = path.resolve(packageRoot, relativePath);
@@ -41,6 +42,18 @@ function resolveOwnedFile(packageRoot, relativePath, label) {
     if (!isInside(packageRoot, canonical)) throw new Error(`${label} escapes package root`);
     if (!fs.statSync(canonical).isFile()) throw new Error(`${label} is invalid`);
     return canonical;
+}
+
+function resolveOwnedReviewFile(packageRoot, relativePath) {
+    const resolved = resolveOwnedFile(packageRoot, relativePath, 'adapter review profile');
+    let current = packageRoot;
+    for (const segment of relativePath.replace(/^\.\//, '').split('/')) {
+        current = path.join(current, segment);
+        if (fs.lstatSync(current).isSymbolicLink()) {
+            throw new Error('adapter review profile is invalid');
+        }
+    }
+    return resolved;
 }
 
 function registrationFor(packageRoot, expectedName) {
@@ -57,7 +70,7 @@ function registrationFor(packageRoot, expectedName) {
         return null;
     }
     if (Object.keys(prism).some((key) => ![
-        'adapter', 'bootstrapProtocol', 'handler', 'toolchain',
+        'adapter', 'bootstrapProtocol', 'handler', 'review', 'toolchain',
     ].includes(key))) {
         throw new Error('adapter package metadata is unsupported');
     }
@@ -76,6 +89,9 @@ function registrationFor(packageRoot, expectedName) {
     }
     const contractPath = resolveOwnedFile(canonicalRoot, prism.toolchain, 'adapter contract');
     const handlerPath = resolveOwnedFile(canonicalRoot, prism.handler, 'adapter handler');
+    const reviewPath = prism.review === undefined
+        ? null
+        : resolveOwnedReviewFile(canonicalRoot, prism.review);
     const contract = loadContract(contractPath);
     if (contract.role !== 'adapter' || contract.package !== manifest.name) {
         throw new Error('adapter contract identity mismatch');
@@ -87,6 +103,7 @@ function registrationFor(packageRoot, expectedName) {
         bootstrapProtocol: prism.bootstrapProtocol ?? null,
         contractPath,
         handlerPath,
+        reviewPath,
         contract,
     };
 }
@@ -232,12 +249,53 @@ function loadAdapterHandler(registration, expectedBootstrapProtocol = null) {
     return handler;
 }
 
-function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+function loadQualityProviderHandler(registration) {
+    if (registration?.contract?.qualityProvider === undefined) {
+        throw new Error('adapter quality provider is undeclared');
+    }
+    const handler = loadAdapterHandler(registration);
+    if (typeof handler.runQualityProvider !== 'function') {
+        throw new Error('adapter quality provider interface is invalid');
+    }
+    return handler;
+}
+
+function discoverAutomationAdapter(options) {
+    const registration = discoverAdapter(options);
+    const handler = loadAdapterHandler(registration);
+    if (
+        typeof handler.describeAutomation !== 'function' ||
+        typeof handler.prepareAutomation !== 'function' ||
+        typeof handler.verifyAutomation !== 'function'
+    ) {
+        throw new Error('adapter automation interface is invalid');
+    }
+    return Object.freeze({registration, handler});
+}
+
+function optionalRegistrations(projectRoot, piDir) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalPi = fs.realpathSync(piDir);
     if (!isInside(canonicalProject, canonicalPi)) throw new Error('Pi directory escapes project root');
     const registrations = [...managedCandidates(canonicalPi), ...localCandidates(canonicalPi)];
-    const byRoot = new Map(registrations.map((registration) => [registration.packageRoot, registration]));
+    return new Map(registrations.map((registration) => [registration.packageRoot, registration]));
+}
+
+function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+    try {
+        fs.lstatSync(piDir);
+    } catch (error) {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+    }
+    const byRoot = optionalRegistrations(projectRoot, piDir);
+    if (byRoot.size === 0) return null;
+    if (byRoot.size > 1) throw new Error('more than one active adapter is not permitted');
+    return [...byRoot.values()][0];
+}
+
+function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
+    const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size !== 1) throw new Error('exactly one active adapter is required');
     const registration = [...byRoot.values()][0];
     const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
@@ -250,7 +308,10 @@ function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
 
 module.exports = {
     discoverAdapter,
+    discoverAutomationAdapter,
+    discoverOptionalAdapter,
     loadAdapterHandler,
+    loadQualityProviderHandler,
     registrationFor,
     validateBootstrapRegistration,
 };

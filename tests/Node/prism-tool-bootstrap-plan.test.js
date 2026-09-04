@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/08/28 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -664,8 +664,14 @@ test('creates a digest-bound Blank Core-only project plan from edited metadata',
     assert.equal(report.metadata.displayName, 'Editable Project Name');
     assert.match(report.metadataDigest, /^[0-9a-f]{64}$/);
     assert.match(report.planDigest, /^[0-9a-f]{64}$/);
-    assert.equal(report.providers.length, 1);
-    assert.equal(report.outputs.length, 7);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline',
+        'core-repository-automation',
+    ]);
+    assert.equal(report.outputs.length, 8);
+    assert.equal(report.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/back-merge.yml'
+    ), true);
     assert.deepEqual(report.effects, []);
     assert.deepEqual(report.recovery, {
         beforeDurable: 'REMOVE_OWNED_ATTEMPT_AND_PROVE_STRICT_EMPTY',
@@ -733,8 +739,11 @@ test('creates a digest-bound Template Core-only project plan from fixed source e
     assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
     assert.equal(report.adapter, null);
     assert.deepEqual(report.capabilities, []);
-    assert.equal(report.providers.length, 1);
-    assert.equal(report.outputs.length, 7);
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-baseline',
+        'core-repository-automation',
+    ]);
+    assert.equal(report.outputs.length, 8);
     assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
     const attemptRoot = path.dirname(path.dirname(report.data.planPath));
     const sourcePath = path.join(attemptRoot, 'reports', 'source.json');
@@ -1009,10 +1018,23 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     });
     assert.deepEqual(report.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'php-web-scaffold',
     ]);
+    const attemptRoot = path.dirname(path.dirname(report.data.planPath));
+    const backMerge = fs.readFileSync(
+        path.join(attemptRoot, 'candidate', '.github', 'workflows', 'back-merge.yml'),
+        'utf8'
+    );
+    assert.match(backMerge, /^# prism-managed: @kyaulabs\/prism-core$/m);
+    assert.match(backMerge, /^# prism-automation-schema: 1$/m);
+    assert.match(backMerge, /types: \[closed\]/);
+    assert.match(backMerge, /github\.event\.pull_request\.merged == true/);
+    assert.match(backMerge, /github\.event\.pull_request\.base\.ref == 'main'/);
+    assert.match(backMerge, /--base develop --head main/);
+    assert.doesNotMatch(backMerge, /git push|gh pr merge/);
     assert.match(report.adapterReportDigest, /^[0-9a-f]{64}$/);
-    assert.equal(report.outputs.length, 40);
+    assert.equal(report.outputs.length, 41);
     assert.equal(report.outputs.every((output, index, outputs) =>
         index === 0 || outputs[index - 1].path.localeCompare(output.path) < 0
     ), true);
@@ -1025,10 +1047,12 @@ test('plans a Blank project with the provisioned PHP web adapter', (t) => {
     ]);
     assert.deepEqual(report.checks.map(({id}) => id), [
         'core-baseline-render',
+        'core-repository-automation-render',
         'php-web-scaffold-render',
     ]);
     assert.deepEqual(report.verification.map(({id}) => id), [
         'core-baseline-inventory',
+        'core-repository-automation-inventory',
         'php-web-scaffold-inventory',
     ]);
     assert.deepEqual(report.filesystem.allowedRootEntries, ['.pi']);
@@ -1072,12 +1096,12 @@ test('composes all governance profiles with a Blank PHP web adapter plan', (t) =
         'licensing', 'community-governance', 'github-collaboration',
     ]);
     assert.deepEqual(report.providers.map(({id}) => id), [
-        'core-baseline', 'licensing', 'community-governance',
-        'github-collaboration', 'php-web-scaffold',
+        'core-baseline', 'core-repository-automation', 'licensing',
+        'community-governance', 'github-collaboration', 'php-web-scaffold',
     ]);
-    assert.equal(report.outputs.length, 46);
-    assert.equal(report.checks.length, 5);
-    assert.equal(report.verification.length, 5);
+    assert.equal(report.outputs.length, 47);
+    assert.equal(report.checks.length, 6);
+    assert.equal(report.verification.length, 6);
     const readme = fs.readFileSync(path.join(
         path.dirname(path.dirname(report.data.planPath)),
         'candidate', 'README.md'
@@ -1114,7 +1138,7 @@ test('composes support with funding and all seven capabilities in canonical Blan
     const pair = JSON.parse(pairResult.stdout);
     assert.deepEqual(pair.capabilities, ['support-routing', 'funding']);
     assert.deepEqual(pair.providers.map(({id}) => id), [
-        'core-baseline', 'support-routing', 'funding',
+        'core-baseline', 'core-repository-automation', 'support-routing', 'funding',
     ]);
     assert.match(
         fs.readFileSync(path.join(
@@ -1147,12 +1171,13 @@ test('composes support with funding and all seven capabilities in canonical Blan
         'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
     ]);
     assert.deepEqual(all.providers.map(({id}) => id), [
-        'core-baseline', 'licensing', 'community-governance', 'github-collaboration',
-        'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
+        'core-baseline', 'core-repository-automation', 'licensing',
+        'community-governance', 'github-collaboration', 'security-disclosure',
+        'repository-ownership', 'support-routing', 'funding',
     ]);
-    assert.equal(all.outputs.length, 17);
-    assert.equal(all.checks.length, 8);
-    assert.equal(all.verification.length, 8);
+    assert.equal(all.outputs.length, 18);
+    assert.equal(all.checks.length, 9);
+    assert.equal(all.verification.length, 9);
     const attemptRoot = path.dirname(path.dirname(all.data.planPath));
     assert.match(
         fs.readFileSync(path.join(
@@ -1161,6 +1186,7 @@ test('composes support with funding and all seven capabilities in canonical Blan
         /^blank_issues_enabled: false$/m
     );
     assert.deepEqual(fs.readdirSync(path.join(attemptRoot, 'reports')).sort(), [
+        'core-automation.json',
         'core-baseline.json',
         'metadata.json',
         'profile-community-governance.json',
@@ -1252,11 +1278,11 @@ test('keeps the PHP web provider source- and capability-independent with all sev
     assert.deepEqual(reports[2].provider, reports[0].provider);
     for (const {plan} of reports.slice(1)) {
         assert.deepEqual(plan.providers.map(({id}) => id), [
-            'core-baseline', 'licensing', 'community-governance', 'github-collaboration',
-            'security-disclosure', 'repository-ownership', 'support-routing', 'funding',
-            'php-web-scaffold',
+            'core-baseline', 'core-repository-automation', 'licensing',
+            'community-governance', 'github-collaboration', 'security-disclosure',
+            'repository-ownership', 'support-routing', 'funding', 'php-web-scaffold',
         ]);
-        assert.equal(plan.outputs.length, 50);
+        assert.equal(plan.outputs.length, 51);
     }
     const adapterPaths = reports[0].provider.outputs.map(({path: outputPath}) => outputPath);
     for (const profilePath of [
@@ -1297,12 +1323,13 @@ test('plans a Template project with the provisioned PHP web adapter', async (t) 
     assert.match(report.sourceDigest, /^[0-9a-f]{64}$/);
     assert.deepEqual(report.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'php-web-scaffold',
     ]);
-    assert.equal(report.outputs.length, 40);
+    assert.equal(report.outputs.length, 41);
     assert.equal(report.effects.length, 5);
-    assert.equal(report.checks.length, 2);
-    assert.equal(report.verification.length, 2);
+    assert.equal(report.checks.length, 3);
+    assert.equal(report.verification.length, 3);
     assert.deepEqual(fixture.calls.map(({url}) => url), fixture.urls);
 });
 
@@ -1339,7 +1366,7 @@ test('composes an explicitly selected advertised Template capability', async (t)
     const report = JSON.parse(result.stdout);
     assert.deepEqual(report.capabilities, ['licensing']);
     assert.deepEqual(report.providers.map(({id}) => id), [
-        'core-baseline', 'licensing', 'php-web-scaffold',
+        'core-baseline', 'core-repository-automation', 'licensing', 'php-web-scaffold',
     ]);
     assert.equal(report.outputs.some(({path: outputPath}) => outputPath === 'LICENSE'), true);
 });
@@ -1402,7 +1429,7 @@ test('composes each advertised security identity profile into a Template Core-on
             ));
             assert.deepEqual(report.capabilities, [scenario.capability]);
             assert.deepEqual(report.providers.map(({id}) => id), [
-                'core-baseline', scenario.capability,
+                'core-baseline', 'core-repository-automation', scenario.capability,
             ]);
             assert.equal(report.outputs.some(({path: outputPath}) => outputPath === scenario.output), true);
             assert.equal(
@@ -1640,7 +1667,7 @@ test('rejects adapter report declarations that differ from the package-owned man
     assert.deepEqual(fs.readdirSync(projectRoot), []);
 });
 
-test('rejects release management when Core-only and PHP web candidates are not publishable', (t) => {
+test('plans repository release management without publishable packages', (t) => {
     const coreRoot = makeTempDir();
     t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
     const corePlan = captureWrites(() => main([
@@ -1659,8 +1686,14 @@ test('rejects release management when Core-only and PHP web candidates are not p
             },
         }),
     }));
-    assert.equal(corePlan.status, 5);
-    assert.deepEqual(fs.readdirSync(coreRoot), []);
+    assert.equal(corePlan.status, 0, corePlan.stderr);
+    const coreReport = JSON.parse(corePlan.stdout);
+    assert.equal(coreReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ), true);
+    assert.equal(coreReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.prism/release.json'
+    ), false);
 
     const phpRoot = makeTempDir();
     t.after(() => fs.rmSync(phpRoot, {recursive: true, force: true}));
@@ -1682,8 +1715,14 @@ test('rejects release management when Core-only and PHP web candidates are not p
         }),
         run: bootstrapRunner(phpRoot),
     }));
-    assert.equal(phpPlan.status, 5);
-    assert.deepEqual(fs.readdirSync(phpRoot), []);
+    assert.equal(phpPlan.status, 0, phpPlan.stderr);
+    const phpReport = JSON.parse(phpPlan.stdout);
+    assert.equal(phpReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.github/workflows/release.yml'
+    ), true);
+    assert.equal(phpReport.outputs.some(({path: outputPath}) =>
+        outputPath === '.prism/release.json'
+    ), false);
 });
 
 test('composes release management after a publishable adapter candidate is rendered', (t) => {
@@ -1730,6 +1769,7 @@ test('composes release management after a publishable adapter candidate is rende
     const plan = JSON.parse(planned.stdout);
     assert.deepEqual(plan.providers.map(({id}) => id), [
         'core-baseline',
+        'core-repository-automation',
         'licensing',
         'community-governance',
         'github-collaboration',
@@ -1744,22 +1784,12 @@ test('composes release management after a publishable adapter candidate is rende
         'CHANGELOG.md',
         'cliff.toml',
         '.github/workflows/release.yml',
-        '.prism/release.json',
     ]) {
         assert.equal(plan.outputs.some(({path: candidatePath}) => candidatePath === outputPath), true);
     }
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(
-        path.dirname(path.dirname(plan.data.planPath)),
-        'candidate',
-        '.prism',
-        'release.json'
-    ), 'utf8')), {
-        schemaVersion: 2,
-        managedBy: '@kyaulabs/prism-core',
-        versionPolicy: 'lockstep',
-        packages: ['.'],
-        adapterReleases: [],
-    });
+    assert.equal(plan.outputs.some(({path: candidatePath}) =>
+        candidatePath === '.prism/release.json'
+    ), false);
     assert.equal(validatePlan(
         projectRoot,
         ATTEMPT_ID,
@@ -2257,6 +2287,7 @@ test('runs selected-adapter effects only after the scaffold is durable', (t) => 
         `${path.join(projectRoot, 'node_modules', '.bin', 'uglifyjs')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'eslint')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'stylelint')} --version`,
+        `${path.join(projectRoot, 'node_modules', '.bin', 'tsc')} --version`,
         `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} --version`,
     ]);
     const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
@@ -2795,7 +2826,7 @@ test('does not follow a candidate intermediate directory substituted after plan 
         const descriptor = originalOpen.call(this, filePath, ...args);
         if (typeof filePath === 'string' && path.basename(filePath) === 'candidate') {
             candidateOpens += 1;
-            if (candidateOpens === 10) {
+            if (candidateOpens === 12) {
                 fs.renameSync(originalGithub, displacedGithub);
                 fs.symlinkSync('.github-held', originalGithub, 'dir');
                 replaced = true;

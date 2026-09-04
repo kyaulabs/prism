@@ -177,6 +177,12 @@ web-access consent. Revoke them with `prism-tool consent revoke-ocr` and
 `prism-tool consent revoke-web`. Local installation, hooks, and CI use
 local-only readiness and establish neither consent nor outbound operation.
 
+The packaged [`prism-review` foundation](packages/prism-core/docs/review-runtime.md)
+can run the same four axes as a bounded ad hoc report. Its reports are always
+non-authoritative and do not satisfy finalization or create review-chain state.
+OCR remains the current review authority until the separately specified bridge,
+package release and installation checkpoint, and cutover are complete.
+
 ## Commands
 
 | Command | Purpose |

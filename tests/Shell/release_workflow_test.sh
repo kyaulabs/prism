@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/08/30 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -9,7 +9,7 @@
 #      push, no pull_request_target)
 #   3. merged + release/ head + same-repository job gate
 #   4. ubuntu-latest, no sudo, timeout present
-#   5. job permissions exactly contents: write + pull-requests: write
+#   5. job permissions exactly contents: write
 #   6. every uses: is a pinned 40-hex SHA with version comment; checkout
 #      pins v7, the event merge SHA, fetch-depth 0, persist-credentials false
 #   7. branch-derived version regex and 40-hex merge-SHA validation happen
@@ -21,12 +21,10 @@
 #   9. rerun logic distinguishes neither/both/tag-only/bad-tag states, auto-
 #      recovers tag-without-Release at the merge SHA, probes the tag locally
 #      with git rev-parse (lightweight- and annotated-tag safe), verifies it
-#      resolves to the merge SHA, and never exits before back-merge handling
+#      resolves to the merge SHA
 #  10. publication is gh release create with --target/--title/--notes-file;
 #      the workflow runs no git cliff, no git push, no auto-merge
-#  11. back-merge checks an existing open PR and develop...main, then opens
-#      gh pr create --base develop --head main; no || true or
-#      continue-on-error masks API failures
+#  11. release workflow contains no back-merge behavior
 #  12. concurrency is release-specific with cancel-in-progress: false
 #
 # Plus the P13–P22 /release authoring contract (ADR-0046): the local command
@@ -49,6 +47,7 @@ if ! command -v jq >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || \
 fi
 
 RELEASE_FILE="$REPO_ROOT/.github/workflows/release.yml"
+NOTIFY_FILE="$REPO_ROOT/.github/workflows/catalogue-notify.yml"
 CANONICAL_RELEASE_FILE="$REPO_ROOT/packages/prism-core/config/release.yml"
 MANIFEST="$REPO_ROOT/.github/scripts/quality-surface.manifest"
 
@@ -78,10 +77,18 @@ else
 	fail "release.yml is not syntactically valid YAML"
 fi
 
+if [ -f "$NOTIFY_FILE" ] && \
+   ! grep -qF 'environment: catalogue-dispatch' "$RELEASE_FILE" && \
+   ! grep -qF 'CATALOGUE_DISPATCH_TOKEN' "$RELEASE_FILE"; then
+	pass "pull-request release context cannot enter the main-restricted dispatch environment"
+else
+	fail "catalogue dispatch credential remains reachable from pull-request release context"
+fi
+
 if [ -f "$CANONICAL_RELEASE_FILE" ] && \
    cmp -s "$RELEASE_FILE" "$CANONICAL_RELEASE_FILE" && \
    head -5 "$RELEASE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
-   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 2'; then
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 3'; then
 	pass "installed workflow is ownership-marked and byte-identical to the Core template"
 else
 	fail "installed workflow is not ownership-marked or differs from the Core template"
@@ -130,17 +137,16 @@ else
 	fail "workflow-source sudo found"
 fi
 
-# ── 5. Job permissions exactly contents: write + pull-requests: write ────────
+# ── 5. Job permissions exactly contents: write ─────────────────────────────
 
 perm_blocks=$(grep -cE '^[[:space:]]*permissions:' "$RELEASE_FILE" 2>/dev/null || true)
 perm_entries=$(grep -oE '^[[:space:]]+(actions|attestations|checks|contents|deployments|discussions|id-token|issues|metadata|models|packages|pages|pull-requests|security-events|statuses): (write|read|none)' "$RELEASE_FILE" 2>/dev/null || true)
 perm_count=$(printf '%s\n' "$perm_entries" | grep -c . || true)
-if [ "${perm_blocks:-0}" -eq 2 ] && [ "${perm_count:-0}" -eq 2 ] && \
-   printf '%s\n' "$perm_entries" | grep -qF 'contents: write' && \
-   printf '%s\n' "$perm_entries" | grep -qF 'pull-requests: write'; then
-	pass "publish permissions are unchanged and publisher notification has no GITHUB_TOKEN permissions"
+if [ "${perm_blocks:-0}" -eq 1 ] && [ "${perm_count:-0}" -eq 1 ] && \
+   printf '%s\n' "$perm_entries" | grep -qF 'contents: write'; then
+	pass "release publish permissions remain exactly contents write"
 else
-	fail "release or publisher-notification job permissions exceed the exact contract (blocks=$perm_blocks entries=$perm_count)"
+	fail "release publish permissions exceed the exact contract (blocks=$perm_blocks entries=$perm_count)"
 fi
 
 # ── 6. Pinned actions; checkout pins v7 at the merge SHA with full history ───
@@ -242,11 +248,9 @@ validate_workflow_graph() {
 		const yaml = require("js-yaml");
 		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
 		const publishJob = workflow.jobs.publish;
-		const notifyJob = workflow.jobs["notify-publisher"];
 		if (
-			Object.keys(workflow.jobs).sort().join(",") !== "notify-publisher,publish" ||
-			publishJob === undefined ||
-			notifyJob === undefined
+			Object.keys(workflow.jobs).join(",") !== "publish" ||
+			publishJob === undefined
 		) process.exit(1);
 		const job = publishJob;
 		const jobGateTerms = ["workflow_dispatch", "pull_request.merged", "startsWith", "head.repo.full_name"];
@@ -264,7 +268,7 @@ validate_workflow_graph() {
 			"Prepare package release metadata",
 			"Publish release",
 			"Reconcile package tags",
-			"Open back-merge PR",
+			"Schedule trusted catalogue notification",
 			"Fail unsuccessful publication",
 		];
 		if (ordered.some((name) => names.filter((candidate) => candidate === name).length !== 1)) process.exit(1);
@@ -299,96 +303,103 @@ validate_workflow_graph() {
 			reconcile.if !== reconcileIf ||
 			terminal.if !== terminalIf
 		) process.exit(1);
-		const backmerge = job.steps.find(({name}) => name === "Open back-merge PR");
-		const expected = "${{ always() && steps.validate.outcome == " + quote + "success" + quote +
-			" && steps.package_metadata.outcome == " + quote + "success" + quote + " }}";
-		if (backmerge.if !== expected) process.exit(1);
+		if (job.steps.some(({name}) => name === "Open back-merge PR")) process.exit(1);
 
 		const publishPermissionKeys = Object.keys(publishJob.permissions ?? {}).sort();
 		if (
-			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents", "pull-requests"]) ||
+			JSON.stringify(publishPermissionKeys) !== JSON.stringify(["contents"]) ||
 			publishJob.permissions.contents !== "write" ||
-			publishJob.permissions["pull-requests"] !== "write" ||
-			notifyJob.permissions === undefined ||
-			notifyJob.permissions === null ||
-			typeof notifyJob.permissions !== "object" ||
-			Array.isArray(notifyJob.permissions) ||
-			Object.keys(notifyJob.permissions).length !== 0
+			publishJob.outputs !== undefined
 		) process.exit(1);
 
-		const expectedOutputs = {
-			version: "${{ steps.validate.outputs.version }}",
-			"merge-sha": "${{ steps.validate.outputs.merge-sha }}",
-			stable: "${{ steps.validate.outputs.stable }}",
-			"publish-outcome": "${{ steps.publish.outcome }}",
-			"reconcile-outcome": "${{ steps.reconcile.outcome }}",
-		};
-		const actualOutputs = publishJob.outputs;
-		if (
-			actualOutputs === undefined ||
-			actualOutputs === null ||
-			typeof actualOutputs !== "object" ||
-			Array.isArray(actualOutputs) ||
-			Object.keys(actualOutputs).sort().join(",") !==
-				Object.keys(expectedOutputs).sort().join(",") ||
-			Object.entries(expectedOutputs).some(([key, value]) => actualOutputs[key] !== value)
-		) process.exit(1);
-
-		const expectedNotifyGuard = "${{ always()" +
-			" && github.repository == " + quote + "kyaulabs/prism" + quote +
-			" && needs.publish.outputs.stable == " + quote + "true" + quote +
-			" && needs.publish.outputs.publish-outcome == " + quote + "success" + quote +
-			" && needs.publish.outputs.reconcile-outcome == " + quote + "success" + quote +
-			" }}";
-		const notifyGuard = notifyJob.if.replace(/\s+/g, " ").trim();
-		if (
-			notifyJob.needs !== "publish" ||
-			notifyGuard !== expectedNotifyGuard ||
-			notifyJob["timeout-minutes"] !== 5 ||
-			notifyJob["runs-on"] !== "ubuntu-latest" ||
-			notifyJob.environment !== "catalogue-dispatch"
-		) process.exit(1);
-
-		const dispatch = notifyJob.steps.find(({name}) =>
-			name === "Dispatch validated adapter release"
+		const schedule = publishJob.steps.find(({name}) =>
+			name === "Schedule trusted catalogue notification"
 		);
+		const expectedScheduleGuard = "${{ always()" +
+			" && github.repository == " + quote + "kyaulabs/prism" + quote +
+			" && steps.validate.outputs.stable == " + quote + "true" + quote +
+			" && steps.publish.outcome == " + quote + "success" + quote +
+			" && steps.reconcile.outcome == " + quote + "success" + quote +
+			" }}";
 		if (
-			notifyJob.steps.length !== 1 ||
-			dispatch === undefined ||
+			schedule === undefined ||
+			schedule.if.replace(/\s+/g, " ").trim() !== expectedScheduleGuard ||
+			schedule.env.RELEASE_VERSION !== "${{ steps.validate.outputs.version }}" ||
+			schedule.env.MERGE_SHA !== "${{ steps.validate.outputs.merge-sha }}" ||
+			Object.keys(schedule.env).sort().join(",") !== "MERGE_SHA,RELEASE_VERSION" ||
+			!schedule.run.includes("repos/kyaulabs/prism/dispatches") ||
+			!schedule.run.includes("event_type: " + quote + "prism_adapter_release" + quote) ||
+			!schedule.run.includes("sourceRepository: " + quote + "kyaulabs/prism" + quote) ||
+			!schedule.run.includes("version: process.env.RELEASE_VERSION") ||
+			!schedule.run.includes("mergeSha: process.env.MERGE_SHA")
+		) process.exit(1);
+
+		const releaseSource = JSON.stringify(publishJob);
+		for (const forbidden of [
+			"catalogue-dispatch",
+			"CATALOGUE_DISPATCH_TOKEN",
+			"prism-adapters/actions/workflows",
+			"create-github-app-token",
+			"CATALOGUE_DISPATCH_APP_ID",
+			"CATALOGUE_DISPATCH_APP_PRIVATE_KEY",
+		]) {
+			if (releaseSource.includes(forbidden)) process.exit(1);
+		}
+	' "$workflow"
+}
+
+validate_notification_workflow() {
+	local workflow="$1"
+	node -e '
+		const fs = require("node:fs");
+		const yaml = require("js-yaml");
+		const workflow = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+		const trigger = workflow.on?.repository_dispatch;
+		const notify = workflow.jobs?.["notify-publisher"];
+		const quote = String.fromCharCode(39);
+		const expectedGuard = "${{ github.repository == " + quote +
+			"kyaulabs/prism" + quote + " && github.event.action == " + quote +
+			"prism_adapter_release" + quote + " }}";
+		if (
+			Object.keys(workflow.on ?? {}).join(",") !== "repository_dispatch" ||
+			!Array.isArray(trigger?.types) ||
+			trigger.types.length !== 1 ||
+			trigger.types[0] !== "prism_adapter_release" ||
+			Object.keys(workflow.jobs ?? {}).join(",") !== "notify-publisher" ||
+			notify === undefined ||
+			notify.if !== expectedGuard ||
+			notify["runs-on"] !== "ubuntu-latest" ||
+			notify["timeout-minutes"] !== 5 ||
+			notify.environment !== "catalogue-dispatch" ||
+			!Object.hasOwn(notify, "permissions") ||
+			notify.permissions === null ||
+			typeof notify.permissions !== "object" ||
+			Array.isArray(notify.permissions) ||
+			Object.keys(notify.permissions).length !== 0 ||
+			notify.steps.length !== 1
+		) process.exit(1);
+		const dispatch = notify.steps[0];
+		if (
+			dispatch.name !== "Dispatch validated adapter release" ||
 			dispatch.env.GH_TOKEN !== "${{ secrets.CATALOGUE_DISPATCH_TOKEN }}" ||
-			dispatch.env.RELEASE_VERSION !== "${{ needs.publish.outputs.version }}" ||
-			dispatch.env.MERGE_SHA !== "${{ needs.publish.outputs.merge-sha }}" ||
-			Object.keys(dispatch.env).sort().join(",") !== "GH_TOKEN,MERGE_SHA,RELEASE_VERSION" ||
+			dispatch.env.LOCAL_PAYLOAD !== "${{ toJSON(github.event.client_payload) }}" ||
+			Object.keys(dispatch.env).sort().join(",") !== "GH_TOKEN,LOCAL_PAYLOAD" ||
 			!dispatch.run.includes(
 				"repos/kyaulabs/prism-adapters/actions/workflows/" +
 				"catalogue-signing.yml/dispatches"
 			) ||
 			!dispatch.run.includes("ref: " + quote + "main" + quote) ||
 			!dispatch.run.includes("mode: " + quote + "release" + quote) ||
-			!dispatch.run.includes("version: process.env.RELEASE_VERSION") ||
-			!dispatch.run.includes("merge_commit: process.env.MERGE_SHA") ||
-			/repository_dispatch|client_payload|event_type|sourceRepository|mergeSha/.test(
-				dispatch.run
-			)
+			!dispatch.run.includes("version: payload.version") ||
+			!dispatch.run.includes("merge_commit: payload.mergeSha")
 		) process.exit(1);
-
-		const notificationSource = JSON.stringify(notifyJob);
+		const source = JSON.stringify(workflow);
 		for (const forbidden of [
-			"create-github-app-token",
-			"CATALOGUE_DISPATCH_APP_ID",
-			"CATALOGUE_DISPATCH_APP_PRIVATE_KEY",
-			"publisher-token",
-			"permission-actions",
-			"compatibility",
-			"coreRange",
-			"integrity",
-			"npm",
-			"sequence",
-			"upload-artifact",
-			"actions/cache",
-			"skip-token-revoke",
+			"pull_request", "pull_request_target", "workflow_run", "workflow_call",
+			"create-github-app-token", "CATALOGUE_DISPATCH_APP", "upload-artifact",
+			"download-artifact",
 		]) {
-			if (notificationSource.includes(forbidden)) process.exit(1);
+			if (source.includes(forbidden)) process.exit(1);
 		}
 	' "$workflow"
 }
@@ -397,11 +408,13 @@ if grep -qF 'stable=$stable' "$RELEASE_FILE" && \
    grep -qF 'version=$version' "$RELEASE_FILE" && \
    grep -qF 'merge-sha=$MERGE_SHA' "$RELEASE_FILE" && \
    grep -qF "github.repository == 'kyaulabs/prism'" "$RELEASE_FILE" && \
-   grep -qF "needs.publish.outputs.publish-outcome == 'success'" "$RELEASE_FILE" && \
-   grep -qF "needs.publish.outputs.reconcile-outcome == 'success'" "$RELEASE_FILE"; then
-	pass "publisher notification consumes only validated stable release outcomes"
+   grep -qF "steps.publish.outcome == 'success'" "$RELEASE_FILE" && \
+   grep -qF "steps.reconcile.outcome == 'success'" "$RELEASE_FILE" && \
+   validate_workflow_graph "$RELEASE_FILE" && \
+   validate_notification_workflow "$NOTIFY_FILE"; then
+	pass "validated stable release outcomes cross only the trusted-main notification boundary"
 else
-	fail "publisher notification is not gated by exact source, stability, publication, and reconciliation"
+	fail "trusted-main catalogue notification graph is invalid"
 fi
 
 graph_sim=$(mktemp -d)
@@ -415,15 +428,15 @@ node -e '
 		before,
 		"${{ secrets.WRONG_DISPATCH_TOKEN }}",
 	));
-' "$RELEASE_FILE" "$graph_sim/wrong-dispatch-token.yml"
-if ! validate_workflow_graph "$graph_sim/wrong-dispatch-token.yml"; then
+' "$NOTIFY_FILE" "$graph_sim/wrong-dispatch-token.yml"
+if ! validate_notification_workflow "$graph_sim/wrong-dispatch-token.yml"; then
 	pass "publisher dispatch requires the approved protected secret source"
 else
 	fail "publisher dispatch accepts an unapproved credential source"
 fi
 
-sed 's/^    permissions: {}$/    permissions: { }/' "$RELEASE_FILE" > "$graph_sim/equivalent-notify-permissions.yml"
-if cmp -s "$RELEASE_FILE" "$graph_sim/equivalent-notify-permissions.yml"; then
+sed 's/^    permissions: {}$/    permissions: { }/' "$NOTIFY_FILE" > "$graph_sim/equivalent-notify-permissions.yml"
+if cmp -s "$NOTIFY_FILE" "$graph_sim/equivalent-notify-permissions.yml"; then
 	fail "could not create the equivalent publisher permissions fixture"
 fi
 node -e '
@@ -435,39 +448,12 @@ node -e '
 	delete notifyJob.permissions;
 	fs.writeFileSync(process.argv[2], yaml.dump(workflow, {lineWidth: -1, noRefs: true}));
 ' "$graph_sim/equivalent-notify-permissions.yml" "$graph_sim/missing-notify-permissions.yml"
-if validate_workflow_graph "$graph_sim/missing-notify-permissions.yml"; then
+if validate_notification_workflow "$graph_sim/missing-notify-permissions.yml"; then
 	fail "publisher notification accepts inherited GITHUB_TOKEN permissions"
 else
 	pass "publisher notification requires an explicit empty permissions mapping"
 fi
 
-node -e '
-	const fs = require("node:fs");
-	const before = [
-		"    outputs:",
-		"      version: ${{ steps.validate.outputs.version }}",
-		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
-		"      stable: ${{ steps.validate.outputs.stable }}",
-		"      publish-outcome: ${{ steps.publish.outcome }}",
-		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
-	].join("\n");
-	const after = [
-		"    outputs:",
-		"      stable: ${{ steps.validate.outputs.stable }}",
-		"      reconcile-outcome: ${{ steps.reconcile.outcome }}",
-		"      version: ${{ steps.validate.outputs.version }}",
-		"      publish-outcome: ${{ steps.publish.outcome }}",
-		"      merge-sha: ${{ steps.validate.outputs.merge-sha }}",
-	].join("\n");
-	const content = fs.readFileSync(process.argv[1], "utf8");
-	if (!content.includes(before)) process.exit(1);
-	fs.writeFileSync(process.argv[2], content.replace(before, after));
-' "$RELEASE_FILE" "$graph_sim/reordered-publish-outputs.yml"
-if validate_workflow_graph "$graph_sim/reordered-publish-outputs.yml"; then
-	pass "publisher output validation is independent of YAML key order"
-else
-	fail "publisher output validation rejects a behaviorally identical key order"
-fi
 
 # run_extraction_fixture <varname> <fixture> <version> <expected-rc> — copy
 # the fixture into a fresh registered temp dir as CHANGELOG.md, execute the
@@ -677,7 +663,7 @@ if grep -qF 'tag_exists' "$RELEASE_FILE" && \
    grep -qF 'recovering' "$RELEASE_FILE" && \
    ! grep -qF 'git ls-remote' "$RELEASE_FILE" && \
    ! grep -qF 'exit 0' "$RELEASE_FILE"; then
-	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe; no early exit before back-merge"
+	pass "neither/both/tag-only/bad-tag states distinguished; tag-only auto-recovers; 404 counts as absent; local lightweight-safe tag probe"
 else
 	fail "publication-state rerun logic, tag-only recovery, 404 classification, tag-probe, or early-exit contract violated"
 fi
@@ -787,43 +773,12 @@ else
 	fail "package-tag reconciliation can run without a successful repository Release"
 fi
 
-backmerge_guard=$(extract_step_if "$RELEASE_FILE" "Open back-merge PR")
-if [ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] && \
-   grep -qF 'id: validate' "$RELEASE_FILE" && validate_workflow_graph "$RELEASE_FILE"; then
-	pass "back-merge remains reachable after publication or package-tag failure once merge validation succeeds"
+if ! grep -qF 'Open back-merge PR' "$RELEASE_FILE" && \
+   ! grep -qF 'develop...main' "$RELEASE_FILE" && \
+   ! grep -qF -- '--base develop --head main' "$RELEASE_FILE"; then
+	pass "release workflow delegates all back-merge behavior to back-merge.yml"
 else
-	fail "back-merge is not guarded by always() and successful merge validation"
-fi
-if [[ "$backmerge_guard" == *"steps.validate.outcome == 'success'"* ]]; then
-	pass "back-merge is not scheduled when merge validation fails"
-else
-	fail "back-merge lacks an explicit successful-validation outcome guard"
-fi
-workflow_schedules_backmerge() {
-	local validate_outcome="$1" metadata_outcome="$2" publish_outcome="$3" reconcile_outcome="$4"
-	[ "$backmerge_guard" = "\${{ always() && steps.validate.outcome == 'success' && steps.package_metadata.outcome == 'success' }}" ] || return 1
-	[ "$validate_outcome" = "success" ] || return 1
-	[ "$metadata_outcome" = "success" ] || return 1
-	case "$publish_outcome:$reconcile_outcome" in
-		success:success|failure:skipped|success:failure|cancelled:skipped|skipped:skipped) return 0 ;;
-		*) return 1 ;;
-	esac
-}
-if workflow_schedules_backmerge failure skipped skipped skipped; then
-	fail "workflow outcome simulation schedules back-merge after failed validation"
-else
-	pass "workflow outcome simulation blocks back-merge after failed validation"
-fi
-if workflow_schedules_backmerge success failure skipped skipped; then
-	fail "workflow outcome simulation schedules back-merge after failed package metadata"
-else
-	pass "workflow outcome simulation blocks back-merge after failed package metadata"
-fi
-if workflow_schedules_backmerge success success cancelled skipped && \
-   workflow_schedules_backmerge success success skipped skipped; then
-	pass "workflow outcome simulation covers cancelled and skipped publication states"
-else
-	fail "workflow outcome simulation omits cancelled or skipped publication states"
+	fail "release workflow still contains back-merge behavior"
 fi
 
 # ── 9d. Executable package metadata validation ──────────────────────────────
@@ -1177,87 +1132,134 @@ else
 	fail "could not extract package-tag reconciliation block"
 fi
 
-# ── 9f. Executable validated adapter release dispatch ───────────────────────
+# ── 9f. Executable trusted-main catalogue notification ──────────────────────
 
-dispatch_sim=$(mktemp -d)
-register_temp_dir "$dispatch_sim"
-mkdir -p "$dispatch_sim/bin"
-cat > "$dispatch_sim/bin/gh" <<'EOF'
+local_dispatch_sim=$(mktemp -d)
+register_temp_dir "$local_dispatch_sim"
+mkdir -p "$local_dispatch_sim/bin"
+cat > "$local_dispatch_sim/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_LOG"
 if [ "${GH_MODE:-success}" = "failure" ]; then
 	printf '%s\n' 'HTTP 500' >&2
 	exit 1
 fi
-exit 0
 EOF
-chmod +x "$dispatch_sim/bin/gh"
-: > "$dispatch_sim/gh.log"
+chmod +x "$local_dispatch_sim/bin/gh"
+: > "$local_dispatch_sim/gh.log"
 
-if dispatch_block=$(extract_run_block "$RELEASE_FILE" "Dispatch validated adapter release"); then
+if local_dispatch_block=$(extract_run_block "$RELEASE_FILE" "Schedule trusted catalogue notification"); then
 	stable_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 	if (
-		cd "$dispatch_sim" || exit 1
-		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
+		cd "$local_dispatch_sim" || exit 1
+		PATH="$local_dispatch_sim/bin:$PATH" GH_LOG="$local_dispatch_sim/gh.log" \
 			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
-			bash -c "$dispatch_block" >/dev/null 2>&1
-	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches --input .prism-adapter-release-dispatch.json' "$dispatch_sim/gh.log" && \
+			bash -c "$local_dispatch_block" >/dev/null 2>&1
+	) && grep -qF 'api --method POST repos/kyaulabs/prism/dispatches --input .prism-adapter-release-notification.json' "$local_dispatch_sim/gh.log" && \
 	   jq -e --arg sha "$stable_sha" '. == {
-		 ref: "main",
-		 inputs: {
-			 mode: "release",
+		 event_type: "prism_adapter_release",
+		 client_payload: {
+			 schemaVersion: 1,
+			 sourceRepository: "kyaulabs/prism",
 			 version: "1.2.3",
-			 merge_commit: $sha
+			 mergeSha: $sha
 		 }
-	   }' "$dispatch_sim/.prism-adapter-release-dispatch.json" >/dev/null; then
-		pass "stable release workflow dispatch sends the exact closed inputs to the fixed publisher"
+	   }' "$local_dispatch_sim/.prism-adapter-release-notification.json" >/dev/null; then
+		pass "release workflow emits the exact closed local notification"
 	else
-		fail "stable release dispatch did not preserve the fixed endpoint and closed payload"
+		fail "release workflow did not preserve the fixed local notification contract"
 	fi
 
-	: > "$dispatch_sim/gh.log"
+	: > "$local_dispatch_sim/gh.log"
 	if (
-		cd "$dispatch_sim" || exit 1
-		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
-			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3-rc.1 MERGE_SHA="$stable_sha" \
-			bash -c "$dispatch_block" >/dev/null 2>&1
-	); then
-		fail "prerelease reached publisher dispatch"
-	elif [ ! -s "$dispatch_sim/gh.log" ]; then
-		pass "prerelease is rejected before publisher API access"
-	else
-		fail "prerelease rejection occurred after publisher API access"
-	fi
-
-	: > "$dispatch_sim/gh.log"
-	if (
-		cd "$dispatch_sim" || exit 1
-		PATH="$dispatch_sim/bin:$PATH" GH_LOG="$dispatch_sim/gh.log" \
-			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA=wrong \
-			bash -c "$dispatch_block" >/dev/null 2>&1
-	); then
-		fail "malformed merge SHA reached publisher dispatch"
-	elif [ ! -s "$dispatch_sim/gh.log" ]; then
-		pass "malformed merge SHA is rejected before publisher API access"
-	else
-		fail "merge-SHA rejection occurred after publisher API access"
-	fi
-
-	: > "$dispatch_sim/gh.log"
-	if (
-		cd "$dispatch_sim" || exit 1
-		PATH="$dispatch_sim/bin:$PATH" GH_MODE=failure GH_LOG="$dispatch_sim/gh.log" \
+		cd "$local_dispatch_sim" || exit 1
+		PATH="$local_dispatch_sim/bin:$PATH" GH_MODE=failure GH_LOG="$local_dispatch_sim/gh.log" \
 			GH_TOKEN=masked-fixture RELEASE_VERSION=1.2.3 MERGE_SHA="$stable_sha" \
-			bash -c "$dispatch_block" >/dev/null 2>&1
+			bash -c "$local_dispatch_block" >/dev/null 2>&1
 	); then
-		fail "publisher dispatch API failure was masked"
-	elif grep -qF 'repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches' "$dispatch_sim/gh.log"; then
-		pass "publisher dispatch API failure remains visible for scheduled or manual recovery"
+		fail "local notification API failure was masked"
+	elif grep -qF 'repos/kyaulabs/prism/dispatches' "$local_dispatch_sim/gh.log"; then
+		pass "local notification API failure remains visible for release recovery"
 	else
-		fail "publisher dispatch failure path did not reach the fixed API boundary"
+		fail "local notification failure path did not reach the fixed endpoint"
 	fi
 else
-	fail "could not extract validated adapter release dispatch block"
+	fail "could not extract the trusted catalogue notification handoff"
+fi
+
+publisher_dispatch_sim=$(mktemp -d)
+register_temp_dir "$publisher_dispatch_sim"
+mkdir -p "$publisher_dispatch_sim/bin"
+cat > "$publisher_dispatch_sim/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [ "${GH_MODE:-success}" = "failure" ]; then
+	printf '%s\n' 'HTTP 500' >&2
+	exit 1
+fi
+EOF
+chmod +x "$publisher_dispatch_sim/bin/gh"
+: > "$publisher_dispatch_sim/gh.log"
+
+if publisher_dispatch_block=$(extract_run_block "$NOTIFY_FILE" "Dispatch validated adapter release"); then
+	stable_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+	valid_payload=$(jq -cn --arg sha "$stable_sha" '{
+		schemaVersion: 1,
+		sourceRepository: "kyaulabs/prism",
+		version: "1.2.3",
+		mergeSha: $sha
+	}')
+	if (
+		cd "$publisher_dispatch_sim" || exit 1
+		PATH="$publisher_dispatch_sim/bin:$PATH" GH_LOG="$publisher_dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture LOCAL_PAYLOAD="$valid_payload" \
+			bash -c "$publisher_dispatch_block" >/dev/null 2>&1
+	) && grep -qF 'api --method POST repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches --input .prism-adapter-release-dispatch.json' "$publisher_dispatch_sim/gh.log" && \
+	   jq -e --arg sha "$stable_sha" '. == {
+		 ref: "main",
+		 inputs: {mode: "release", version: "1.2.3", merge_commit: $sha}
+	   }' "$publisher_dispatch_sim/.prism-adapter-release-dispatch.json" >/dev/null; then
+		pass "trusted-main workflow dispatches exact validated publisher inputs"
+	else
+		fail "trusted-main publisher dispatch contract failed"
+	fi
+
+	for invalid_payload in \
+		'{"schemaVersion":1,"sourceRepository":"other/repo","version":"1.2.3","mergeSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' \
+		'{"schemaVersion":1,"sourceRepository":"kyaulabs/prism","version":"1.2.3-rc.1","mergeSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' \
+		'{"schemaVersion":1,"sourceRepository":"kyaulabs/prism","version":"1.2.3","mergeSha":"wrong"}' \
+		'{"schemaVersion":1,"sourceRepository":"kyaulabs/prism","version":"1.2.3","mergeSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","extra":true}'
+	do
+		: > "$publisher_dispatch_sim/gh.log"
+		if (
+			cd "$publisher_dispatch_sim" || exit 1
+			PATH="$publisher_dispatch_sim/bin:$PATH" GH_LOG="$publisher_dispatch_sim/gh.log" \
+				GH_TOKEN=masked-fixture LOCAL_PAYLOAD="$invalid_payload" \
+				bash -c "$publisher_dispatch_block" >/dev/null 2>&1
+		); then
+			fail "invalid local notification reached publisher dispatch"
+		elif [ ! -s "$publisher_dispatch_sim/gh.log" ]; then
+			pass "invalid local notification is rejected before publisher API access"
+		else
+			fail "invalid local notification was rejected after publisher API access"
+		fi
+	done
+
+	: > "$publisher_dispatch_sim/gh.log"
+	if (
+		cd "$publisher_dispatch_sim" || exit 1
+		PATH="$publisher_dispatch_sim/bin:$PATH" GH_MODE=failure GH_LOG="$publisher_dispatch_sim/gh.log" \
+			GH_TOKEN=masked-fixture LOCAL_PAYLOAD="$valid_payload" \
+			bash -c "$publisher_dispatch_block" >/dev/null 2>&1
+	); then
+		fail "publisher workflow-dispatch API failure was masked"
+	elif grep -qF 'repos/kyaulabs/prism-adapters/actions/workflows/catalogue-signing.yml/dispatches' "$publisher_dispatch_sim/gh.log"; then
+		pass "publisher workflow-dispatch API failure remains visible"
+	else
+		fail "publisher workflow-dispatch failure did not reach the fixed boundary"
+	fi
+else
+	fail "could not extract trusted-main publisher dispatch block"
 fi
 
 # The executable sequence must publish the repository Release before it
@@ -1303,71 +1305,6 @@ else
 	fail "repository-first fake-gh execution failed"
 fi
 
-# A failed publication or package-tag reconciliation must still execute the
-# back-merge block selected by the workflow's always() guard.
-failure_sim=$(mktemp -d)
-register_temp_dir "$failure_sim"
-git_init_test_repo "$failure_sim"
-printf 'release\n' > "$failure_sim/file.txt"
-git -C "$failure_sim" add file.txt
-git -C "$failure_sim" commit --quiet -m release
-failure_sha=$(git -C "$failure_sim" rev-parse HEAD)
-printf 'notes\n' > "$failure_sim/body.md"
-printf 'notes\n' > "$failure_sim/notes.md"
-mkdir -p "$failure_sim/bin"
-cat > "$failure_sim/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\t%s\n' "$GH_MODE" "$*" >> "$GH_LOG"
-case "$GH_MODE:$*" in
-  publish:api*releases/tags*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
-  tag:api*git/ref/tags*) printf '%s\n' 'HTTP/2 404 Not Found' >&2; exit 1 ;;
-  tag:api*-X\ POST*git/refs*) printf '%s\n' 'HTTP 500' >&2; exit 1 ;;
-  backmerge:api*compare*) printf '%s\n' '1' ;;
-  backmerge:pr\ list*) exit 0 ;;
-  backmerge:pr\ create*) printf '%s\n' 'https://example.invalid/pr/1' ;;
-  *) exit 127 ;;
-esac
-EOF
-chmod +x "$failure_sim/bin/gh"
-: > "$failure_sim/gh.log"
-
-if failure_publish_block=$(extract_run_block "$RELEASE_FILE" "Publish release") && \
-   failure_backmerge_block=$(extract_run_block "$RELEASE_FILE" "Open back-merge PR"); then
-	if (
-		cd "$failure_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=publish GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$failure_sha" VERSION=1.2.3 RELEASE_BODY_TRUNCATED=no bash -c "$failure_publish_block" >/dev/null 2>&1
-	); then
-		fail "forced repository publication failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success success failure skipped && (
-		cd "$failure_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
-	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
-	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
-		pass "back-merge executes after a forced repository publication failure"
-	else
-		fail "back-merge did not execute after repository publication failure"
-	fi
-
-	: > "$failure_sim/gh.log"
-	git -C "$tag_sim" tag -d example@1.2.3 >/dev/null
-	if (
-		cd "$tag_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=tag GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo MERGE_SHA="$merge_sha" bash -c "$package_reconcile_block" >/dev/null 2>&1
-	); then
-		fail "forced package-tag failure unexpectedly succeeded"
-	elif workflow_schedules_backmerge success success success failure && (
-		cd "$tag_sim" || exit 1
-		PATH="$failure_sim/bin:$PATH" GH_MODE=backmerge GH_LOG="$failure_sim/gh.log" GITHUB_REPOSITORY=fixture/repo VERSION=1.2.3 bash -c "$failure_backmerge_block" >/dev/null 2>&1
-	) && grep -qF $'backmerge\tapi repos/fixture/repo/compare/develop...main' "$failure_sim/gh.log" && \
-	   grep -qF $'backmerge\tpr create' "$failure_sim/gh.log"; then
-		pass "back-merge executes after a forced package-tag failure"
-	else
-		fail "back-merge did not execute after package-tag failure"
-	fi
-else
-	fail "could not extract publication and back-merge failure simulation blocks"
-fi
-
 # ── 10. gh release create with target/title/notes-file; no cliff/push/auto-merge ──
 
 if grep -qF 'gh release create' "$RELEASE_FILE" && \
@@ -1383,17 +1320,16 @@ else
 	fail "publication command or forbidden-tool contract violated"
 fi
 
-# ── 11. Back-merge: existing-PR check, develop...main compare, no masking ────
+# ── 11. Release workflow contains no back-merge behavior ────────────────────
 
-if grep -qF 'gh pr list' "$RELEASE_FILE" && \
-   grep -qF 'develop...main' "$RELEASE_FILE" && \
-   grep -qF 'gh pr create' "$RELEASE_FILE" && \
-   grep -qF -- '--base develop --head main' "$RELEASE_FILE" && \
-   ! grep -qF '|| true' "$RELEASE_FILE" && \
+if ! grep -qF 'gh pr list' "$RELEASE_FILE" && \
+   ! grep -qF 'develop...main' "$RELEASE_FILE" && \
+   ! grep -qF 'gh pr create' "$RELEASE_FILE" && \
+   ! grep -qF -- '--base develop --head main' "$RELEASE_FILE" && \
    validate_workflow_graph "$RELEASE_FILE"; then
-	pass "back-merge checks existing PR and develop...main, opens base-develop/head-main PR, no failure masking"
+	pass "release workflow contains no back-merge behavior"
 else
-	fail "back-merge handling or failure-masking contract violated"
+	fail "release workflow retains back-merge behavior"
 fi
 
 # ── 12. Release-specific concurrency, no cancellation ────────────────────────

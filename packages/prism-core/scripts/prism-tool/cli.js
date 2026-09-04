@@ -1,10 +1,16 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/08/29 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+    applyAutomation,
+    inspectAutomation,
+    planAutomation,
+    verifyAutomation,
+} = require('./automation');
 const {MAX_EXECUTION_TIMEOUT_MS} = require('./contract');
 const {loadCoreContract, resolveBundledComponent} = require('./core-toolchain');
 const {discoverAdapter, loadAdapterHandler} = require('./discovery');
@@ -48,6 +54,7 @@ const {
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {prCommand} = require('./pr');
+const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
 const {markdownCommand} = require('./markdown');
@@ -1799,6 +1806,105 @@ function renderPackageReleaseFailure(operation, json) {
     return EXIT.TOOL;
 }
 
+function automationCommand(args, context) {
+    const [operation, ...controls] = args;
+    const jsonControls = controls.filter((argument) => argument === '--json');
+    const json = jsonControls.length === 1;
+    const roots = {
+        projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
+        coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+    };
+    if (jsonControls.length > 1) {
+        process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
+        return EXIT.USAGE;
+    }
+    let result;
+    if (['inspect', 'plan', 'verify'].includes(operation)) {
+        const releaseControls = controls.filter((argument) =>
+            argument.startsWith('--release-repository=')
+        );
+        if (
+            releaseControls.length > 1 ||
+            releaseControls.some((argument) =>
+                argument.length === '--release-repository='.length
+            ) ||
+            controls.some((argument) =>
+                argument !== '--json' && !argument.startsWith('--release-repository=')
+            )
+        ) {
+            process.stderr.write(
+                `usage: prism-tool automation ${operation} ` +
+                '[--release-repository=OWNER/REPOSITORY] [--json]\n'
+            );
+            return EXIT.USAGE;
+        }
+        const options = {
+            ...roots,
+            releaseRepository: releaseControls.length === 0
+                ? null
+                : releaseControls[0].slice('--release-repository='.length),
+        };
+        try {
+            if (operation === 'inspect') result = inspectAutomation(options);
+            else if (operation === 'plan') result = planAutomation(options);
+            else result = verifyAutomation(options);
+        } catch {
+            result = {
+                status: 'NO-GO',
+                disposition: 'CONFLICT',
+                providers: [],
+                checks: [{
+                    id: `automation-${operation}`,
+                    status: 'FAIL',
+                    message: `automation ${operation} failed`,
+                }],
+            };
+        }
+    } else if (operation === 'apply') {
+        const approvals = controls.filter((argument) => argument.startsWith('--approval='));
+        const plans = controls.filter((argument) => argument.startsWith('--plan='));
+        if (approvals.length !== 1 || approvals[0] !== '--approval=yes') {
+            process.stderr.write('prism-tool: mutation approval required\n');
+            return EXIT.USAGE;
+        }
+        if (
+            plans.length !== 1 ||
+            plans[0].length === '--plan='.length ||
+            controls.some((argument) =>
+                argument !== '--json' &&
+                !argument.startsWith('--approval=') &&
+                !argument.startsWith('--plan=')
+            )
+        ) {
+            process.stderr.write(
+                'usage: prism-tool automation apply --plan=PATH [--json] --approval=yes\n'
+            );
+            return EXIT.USAGE;
+        }
+        try {
+            result = applyAutomation({...roots, planPath: plans[0].slice('--plan='.length)});
+        } catch {
+            result = {
+                status: 'NO-GO',
+                disposition: 'CONFLICT',
+                providers: [],
+                checks: [{
+                    id: 'automation-apply',
+                    status: 'FAIL',
+                    message: 'automation apply failed',
+                }],
+            };
+        }
+    } else {
+        process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
+        return EXIT.USAGE;
+    }
+    const report = {schemaVersion: 1, command: `automation ${operation}`, ...result};
+    if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
+    else process.stdout.write(`${report.status}\n`);
+    return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;
+}
+
 function packageReleaseRoots(context) {
     return {
         projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
@@ -1882,6 +1988,7 @@ function packageReleaseCommand(args, context) {
 function main(argv, context = {}) {
     const [command, ...args] = argv;
     if (command === 'run') return runDeclaredTool(args, context);
+    if (command === 'server') return serverCommand(args, context, runDeclaredTool, EXIT);
     if (command === 'doctor') return doctor(args, context);
     if (command === 'setup') return setup(args, context);
     if (command === 'resolve') return resolveKindDir(args, context);
@@ -1896,10 +2003,11 @@ function main(argv, context = {}) {
         return cataloguePublicationReadinessCommand(args, context);
     }
     if (command === 'package-release') return packageReleaseCommand(args, context);
+    if (command === 'automation') return automationCommand(args, context);
     process.stderr.write('prism-tool: unknown command\n');
     return EXIT.USAGE;
 }
 
-module.exports = {EXIT, doctor, main, resolveBundledComponent};
+module.exports = {EXIT, doctor, main, resolveBundledComponent, runDeclaredTool};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

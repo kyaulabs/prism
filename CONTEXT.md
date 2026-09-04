@@ -34,7 +34,13 @@ documentation, and conversation.
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, the safety extension, and the web-access extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
+| Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It begins as a non-authoritative foundation and becomes finalization authority only after the staged cutover in ADR-0103. |
+| review profile | A closed package-owned declaration of review skills, axis lenses, deterministic path triggers, and fixed non-text exemptions. An adapter may append lenses but cannot replace Core policy or supply executable review commands. |
+| byte exposure | Deterministic evidence that every required interval of an immutable Git blob or diff was returned to a review session. It records data delivery, not model attention, understanding, or semantic coverage. |
+| criteria receipt | Private managed evidence identifying the exact committed specification, plan, or explicit no-criteria disposition approved before implementation and artifact cleanup. Immutable source blobs remain authoritative over extracted summaries. |
+| check receipt | Private managed evidence binding actual Core and adapter quality-gate results to one branch, base, and HEAD. Starting a new check invalidates the prior active PASS before any gate runs. |
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
+| server profile | An optional adapter toolchain declaration for one foreground-scoped loopback test dependency, including its preferred port, trusted server and health commands, permitted client tools, and selected-endpoint environment templates. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
 | external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep and OCR are the initial prerequisites. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
@@ -82,6 +88,7 @@ documentation, and conversation.
 | mastery | A topic's evidence state: unseen, in progress, learned against the current content digest, or stale after relevant evidence changes. |
 | contributor curriculum overlay | The technical-only, repository-owned Prism curriculum that extends the project technical graph without adding another learning engine, command, or skill. |
 | package-release capability | The Core-owned, setup-managed combination of owned release configuration, canonical workflow, lockstep package authoring, package tags, recovery behavior, and human-run npm publication handoff. |
+| automation desired state | The provider-composed set of applicable Core- and adapter-owned repository workflows and hooks that `/setup` can inspect, plan, reconcile, verify, and report without claiming human-owned automation. |
 | release-managed package | A publishable npm package whose validated relative directory appears in the owned release configuration and whose version matches the repository release. |
 | owned release file | A release configuration or workflow carrying the supported Prism Core ownership and schema marker, which `/setup` may update only through an approved displayed transaction. |
 | package release | A repository release event that publishes the GitHub Release and gives every release-managed package the same version, including prereleases; `npm publish` remains a human-run step. |
@@ -106,6 +113,9 @@ The globally installed, language-agnostic harness package.
 - Owns deterministic post-application Git initialization, canonical hook
   distribution, bounded repository-seed attestation, and signed root-commit
   orchestration.
+- Owns language-agnostic foreground supervision, nearest-port selection,
+  readiness, and cleanup for contract-declared local test servers without
+  learning stack commands or preferred ports.
 - Owns privacy-minimal global standing-consent state through narrow,
   explicitly approved launcher operations.
 - Owns the opt-in package-release capability, canonical release workflow,
@@ -136,6 +146,8 @@ A project-local specialization of the Prism core.
 - Owns stack-specific local/CI quality behavior, generated CI, dependency
   population, browser acquisition, and visual review tooling behind Core
   orchestration.
+- May declare closed server profiles for stack-specific foreground test
+  dependencies while Core owns generic process and port lifecycle mechanics.
 - Scaffolds a user-authored visual brief and reusable visual review tooling
   without selecting a palette, theme type, design movement, or inspiration.
 - A change that requires stack-specific logic in core is an architecture
@@ -154,6 +166,9 @@ The declaration that connects Prism resources to executable capabilities.
 - Keeps Core Markdown execution behind the dedicated changed-file checker and
   packaged configuration; consumer rules, plugins, and generic tool dispatch
   cannot alter the gate.
+- May contain bounded adapter-owned server profiles whose loopback host,
+  preferred port, command templates, client tools, and environment templates
+  are validated before any process starts.
 - Fails closed on malformed data, unsupported schemas, duplicate IDs, drift,
   or ambiguous adapter registration.
 
@@ -265,6 +280,18 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   even when publication or package-tag reconciliation fails.
 - npm authentication, OTP handling, and publication remain human-owned; agents
   and CI hold no npm credentials and never run `npm publish`.
+
+### Automation Desired State
+
+The setup-managed repository automation selected from validated Core and active-adapter providers.
+
+- Core owns provider discovery, applicability composition, ownership classification, plan reporting, and route-appropriate reconciliation.
+- Strict-empty setup composes applicable automation inside the empty-project bootstrap transaction; established setup uses a separate journaled reconciliation transaction with preserve-first ownership semantics.
+- Core owns baseline back-merge, capability-based repository release management, and canonical hook policy; the active adapter owns stack-specific testing and linting CI.
+- Package-release metadata extends repository release management and never becomes the sole owner of the canonical release workflow.
+- Absent and exact canonical outputs may be created or preserved; supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Hook activation remains a separate repository-local approval boundary after applicable quality verification.
+- Every Prism-created commit runs an explicit Git-resolved pre-commit proof before the authoritative staged-state snapshot, then retains Git's normal hook execution during commit creation.
 
 ### Safety Policy
 
@@ -395,6 +422,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 
 - Pi package metadata and explicitly declared project-local package paths.
 - Versioned toolchain contracts and adapter handler registration.
+- Contract-declared server profiles consumed through Core's synchronous,
+  foreground-scoped loopback supervisor.
 - Argument-array subprocess calls with bounded, sanitized output and stable
   exit statuses.
 - Composer/npm manifests and lockfiles as ecosystem transaction boundaries.
@@ -512,6 +541,21 @@ Pi-era decisions:
 - `adr/0096-actions-only-catalogue-workflow-dispatch.md` — superseded Actions-only workflow-dispatch authentication baseline retained through ADR-0097.
 - `adr/0097-bot-owned-catalogue-pat-separation.md` — use separate `kyaulabs-bot` fine-grained PATs for dispatch and publication while keeping their write authority disjoint.
 - `adr/0098-attested-publication-commit-signing-custody.md` — attest the publisher's separate OpenPGP commit-signing custody through schema-3 readiness and an exact five-secret environment contract.
+- `adr/0099-trusted-main-catalogue-notification-handoff.md` — hand validated
+  stable-release evidence to a protected-main Prism workflow through a closed
+  same-repository event before the Actions-only publisher dispatch.
+- `adr/0100-provider-composed-repository-automation.md` — reconcile applicable
+  Core and adapter workflows and hooks through trusted providers, route-specific
+  transactions, and explicit pre-commit proof.
+- `adr/0101-contract-declared-supervised-server-lifecycles.md` — supervise
+  adapter-declared foreground loopback test servers through Core with
+  nearest-port selection, readiness, bounded clients, and owned cleanup.
+- `adr/0102-trusted-skill-first-review-runtime.md` — run four-axis review through
+  a stable installed Core trust root, isolated Pi SDK sessions, closed package
+  profiles, immutable Git objects, and complete per-axis byte exposure.
+- `adr/0103-deterministic-review-authority-and-staged-ocr-cutover.md` — bind
+  finalization review to criteria and check receipts, introduce review-chain
+  version two, and replace OCR only after a human release/install checkpoint.
 
 ## When to update this file
 

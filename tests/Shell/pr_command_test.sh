@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 # $KYAULabs$
 
@@ -638,8 +638,26 @@ assert_contains "$COMMAND_FILE" 'ordinary repair may preserve a valid chain' \
 	'command preserves continuous review evidence after repairs'
 assert_contains "$COMMAND_FILE" 'review of only the continuous repair delta' \
 	'command scopes repair review to the delta'
+assert_contains "$COMMAND_FILE" 'V2_RECOVERY=UNDECLARED' \
+	'absent state without receipts retains OCR version-one recovery'
+assert_contains "$COMMAND_FILE" 'V2_RECOVERY=READY' \
+	'absent state with exact receipts selects version-two recovery'
+assert_contains "$COMMAND_FILE" 'prism-review review authoritative --base-ref "$BASE_REF" --json' \
+	'version-two recovery consumes one installed authoritative attempt'
+assert_contains "$COMMAND_FILE" 'Partial, stale, or unsafe version-two recovery evidence' \
+	'partial or invalid version-two evidence stops without fallback'
+assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN_VERSION=1' \
+	'valid version-one chains retain OCR Advisory inspection'
+assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN_VERSION=2' \
+	'valid version-two chains select engine Advisory inspection'
 assert_contains "$COMMAND_FILE" 'prism-tool code-review chain inspect --json' \
-	'command inspects Advisory evidence for disclosure'
+	'command inspects version-one Advisory evidence for disclosure'
+assert_contains "$COMMAND_FILE" 'prism-review chain inspect --json' \
+	'command inspects version-two Advisory evidence for disclosure'
+assert_not_contains "$COMMAND_FILE" 'prism-review criteria' \
+	'pr recovery never selects criteria'
+assert_not_contains "$COMMAND_FILE" 'prism-review check' \
+	'pr recovery never runs deterministic checks'
 assert_contains "$COMMAND_FILE" 'changed SHA or dirty tree invalidates' \
 	'command consumes drifted or dirty attempts'
 assert_not_contains "$COMMAND_FILE" '--force-review' \

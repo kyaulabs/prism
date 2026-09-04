@@ -61,29 +61,9 @@ if [ ! -s .pi/tmp/check-changed-php.txt ]; then git diff --name-only | grep "\.p
 echo "Changed PHP files:"; cat .pi/tmp/check-changed-php.txt
 ```
 
-Stand up a dev server for browser tests (mirrors CI's start/wait/run/stop
-dance in `ci.yml`). First check whether :8080 already serves smoke.html and
-reuse that server — this avoids a port-bind failure when the developer
-already has one running:
-
-```bash
-curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && echo "reusing existing dev server" || echo "no server on :8080"
-```
-
-When no server answers and `tests/Browser` contains PHP files, start one
-and record the echoed PID for cleanup:
-
-```bash
-nohup php -S localhost:8080 -t tests/Browser/fixtures/ > /dev/null 2>&1 & echo "dev server pid: $!"
-```
-
-Wait for readiness with a bounded literal-list poll (no external `timeout`
-command, so this works on macOS too):
-
-```bash
-for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && break; sleep 0.5; done
-curl -sf http://localhost:8080/smoke.html > /dev/null 2>&1 && echo "ready" || echo "WARN: dev server not ready within ~10s — browser tests may fail"
-```
+The browser-fixture profile selects the nearest available port and owns server
+startup, readiness, client environment, and cleanup. Do not reproduce that
+lifecycle with shell commands.
 
 **Coverage-driver preflight** — without a driver the suite exits 1 silently
 (Pest/PHPUnit abort before running any tests). pcov loaded-but-disabled is
@@ -102,12 +82,11 @@ Then run the full suite with coverage (Clover XML feeds the changed-file gate)
 through the launcher with the exact adapter-owned command used by CI and TDD:
 
 ```bash
-PEST_BROWSER_BASE_URL="http://localhost:8080" prism-tool run pest -- --coverage
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
 ```
 
-Use this command even when no browser test consumes the URL. The environment
-variable is inert for non-browser tests and prevents local, CI, TDD, and plan
-execution from drifting onto different coverage commands.
+Use this command even when the current suite has no browser tests. It keeps
+local, CI, TDD, and plan execution on the same adapter-owned lifecycle.
 
 **Changed-file coverage gate** — enforced mechanically by the same script
 CI uses (`coverage-gate.php`):
@@ -131,12 +110,9 @@ cat .pi/tmp/check-changed-php.txt | php packages/prism-php-web/scripts/coverage-
   blocker.
 - If any test fails, list the failing tests with their messages.
 
-Clean up when done: stop a dev server you started (substitute the literal
-PID echoed at startup; skip this when you reused an existing server) and
-remove the temp file:
+Remove the changed-file list when the gate finishes:
 
 ```bash
-kill <pid> 2>/dev/null || true
 rm -f .pi/tmp/check-changed-php.txt
 ```
 

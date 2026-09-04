@@ -2,6 +2,24 @@
   "schemaVersion": 1,
   "package": "@kyaulabs/prism-php-web",
   "role": "adapter",
+  "qualityProvider": {
+    "id": "php-web-quality",
+    "protocolVersion": 1,
+    "gates": [
+      "php-web.changed-file-coverage",
+      "php-web.composer-audit",
+      "php-web.eslint",
+      "php-web.node-tests",
+      "php-web.npm-audit",
+      "php-web.pest-coverage",
+      "php-web.php-cs-fixer",
+      "php-web.php-syntax",
+      "php-web.playwright-list",
+      "php-web.shell-tests",
+      "php-web.stylelint",
+      "php-web.typescript"
+    ]
+  },
   "components": [
     {
       "id": "php-cs-fixer",
@@ -104,6 +122,18 @@
       "authentication": "none"
     },
     {
+      "id": "typescript",
+      "kind": "command",
+      "ecosystem": "npm",
+      "package": "typescript",
+      "version": "7.0.2",
+      "provisioning": "consumer-dev",
+      "authentication": "none",
+      "executable": "tsc",
+      "versionArguments": ["--version"],
+      "argumentPolicy": {"mode": "passthrough"}
+    },
+    {
       "id": "playwright",
       "kind": "command",
       "ecosystem": "npm",
@@ -115,6 +145,33 @@
       "versionArguments": ["--version"],
       "executionTimeoutMs": 300000,
       "argumentPolicy": {"mode": "passthrough"}
+    }
+  ],
+  "serverProfiles": [
+    {
+      "id": "browser-fixture",
+      "host": "127.0.0.1",
+      "preferredPort": 8080,
+      "startupTimeoutMs": 10000,
+      "server": {
+        "executable": "php",
+        "arguments": ["-S", "{host}:{port}", "-t", "tests/Browser/fixtures"]
+      },
+      "health": {
+        "executable": "php",
+        "arguments": [
+          "-r",
+          "exit(@file_get_contents('http://{host}:{port}/smoke.html') === false ? 1 : 0);"
+        ]
+      },
+      "clients": [
+        {
+          "toolId": "pest",
+          "environment": {
+            "PEST_BROWSER_BASE_URL": "http://{host}:{port}"
+          }
+        }
+      ]
     }
   ],
   "browserTargets": ["chromium"]

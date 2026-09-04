@@ -17,6 +17,8 @@ The adapter owns:
 - accessibility, frontend architecture, visual design, and visual review;
 - database, security, page, browser-test, and source-header guidance;
 - the PHP/web bootstrap provider and consumer toolchain contract;
+- additive PHP/web lens registration for Core's review runtime;
+- the deterministic `php-web-quality` review provider; and
 - project-local `safe-dirs.json` data for Core's safety extension.
 
 Core continues to own the engineering pipeline, setup transaction, repository
@@ -119,6 +121,29 @@ The tooling accepts unauthenticated loopback pages with controlled,
 non-sensitive data. `pest-browser` owns critical functional browser flows;
 `visual-review` owns visual inspection and milestone evidence. See
 [Visual review tooling](docs/visual-review.md).
+
+## Review runtime and quality provider
+
+The adapter registers existing stack skills as additive lenses for PHP, SCSS,
+JavaScript, SQL, browser-test, and related paths. Core's four axes and metadata
+exemptions remain mandatory.
+
+The adapter also declares the deterministic `php-web-quality` provider. It runs
+the adapter-owned PHP style, SCSS, JavaScript, Pest coverage, changed-line
+coverage, and locked-dependency gates and returns bounded result digests to
+Core. It does not decide review outcomes.
+
+Authority requires the protected-base adapter profile plus a matching external
+installed adapter whose package version, provider protocol, gate declarations,
+profile, policy, skills, and executable bytes agree. The adapter inside the
+reviewed worktree cannot execute as authority or approve itself. Missing,
+mismatched, stale, or malformed provider evidence fails closed.
+
+The bridge remains dormant in this release and does not switch normal
+finalization away from OCR. Ad hoc reports remain non-authoritative. Humans
+publish and install the matching Core and adapter packages; Prism does not push,
+create pull requests, or merge. See Core's [Review runtime and authority
+compatibility bridge](https://github.com/kyaulabs/prism/blob/main/packages/prism-core/docs/review-runtime.md).
 
 ## Core handoff
 

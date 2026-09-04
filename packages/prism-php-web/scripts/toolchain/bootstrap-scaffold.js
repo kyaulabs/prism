@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 
+const AUTOMATION_OUTPUTS = Object.freeze([
+    '.github/scripts/check-php.sh',
+    '.github/scripts/coverage-gate.php',
+    '.github/workflows/ci.yml',
+]);
+const AUTOMATION_OUTPUT_SET = new Set(AUTOMATION_OUTPUTS);
 const VISUAL_REVIEW_SOURCES = new Set([
     'visual_review.example.json',
     'visual_review.mjs',
@@ -317,9 +323,6 @@ if [[ "$MODE" == --ci ]]; then
     [[ "$BASE" =~ ^[0-9a-f]{40}$ ]] || exit 2
     git cat-file -e "$BASE^{commit}"
 fi
-SERVER_PID=""
-cleanup() { [[ -z "$SERVER_PID" ]] || kill "$SERVER_PID" 2>/dev/null || true; }
-trap cleanup EXIT
 prism-tool doctor --local-only
 if [[ "$MODE" == --ci ]]; then
     prism-tool markdown lint --changed-from "$BASE"
@@ -333,16 +336,7 @@ find cdn/js -type f -name '*.js' -print -quit | grep -q . && prism-tool run esli
 if [[ -f visual_review.json ]]; then
     prism-tool run playwright -- test visual_review.spec.mjs --list --workers=1
 fi
-php -S 127.0.0.1:8080 -t tests/Browser/fixtures >/dev/null 2>&1 &
-SERVER_PID=$!
-READY=no
-for attempt in $(seq 1 50); do
-    if php -r "exit(@file_get_contents('http://127.0.0.1:8080/smoke.html') === false ? 1 : 0);"; then READY=yes; break; fi
-    sleep 0.1
-done
-[[ "$READY" == yes ]] || exit 1
-export PEST_BROWSER_BASE_URL=http://127.0.0.1:8080
-prism-tool run pest -- --coverage --min=80
+prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage --min=80
 if [[ "$MODE" == --ci ]]; then git diff --name-only "$BASE" HEAD -- '*.php'; else git diff --cached --name-only --diff-filter=AM -- '*.php'; fi | php .github/scripts/coverage-gate.php tests/coverage.xml
 [[ ! -x tests/Shell/run-all.sh ]] || tests/Shell/run-all.sh
 `;
@@ -584,6 +578,37 @@ export default [
     return `${request.metadata.displayName}\n`;
 }
 
+function markManagedAutomation(outputPath, value) {
+    const markers = '# prism-managed: @kyaulabs/prism-php-web\n' +
+        '# prism-automation-schema: 1\n';
+    if (outputPath.endsWith('.yml')) return `${markers}${value}`;
+    if (outputPath.endsWith('.sh')) {
+        const newline = value.indexOf('\n');
+        return `${value.slice(0, newline + 1)}${markers}${value.slice(newline + 1)}`;
+    }
+    const declaration = 'declare(strict_types=1);\n';
+    const index = value.indexOf(declaration);
+    if (index < 0) throw new Error('PHP/web automation source is invalid');
+    const boundary = index + declaration.length;
+    return `${value.slice(0, boundary)}\n${markers}${value.slice(boundary)}`;
+}
+
+function renderAutomationOutput({packageRoot, packageVersion: version, outputPath}) {
+    if (!AUTOMATION_OUTPUT_SET.has(outputPath)) {
+        throw new Error('PHP/web automation output path is invalid');
+    }
+    const value = markManagedAutomation(
+        outputPath,
+        contents(outputPath, {adapter: {packageVersion: version}}, {}, packageRoot)
+    );
+    return Object.freeze({
+        path: outputPath,
+        kind: 'file',
+        mode: outputPath.endsWith('.sh') ? 0o755 : 0o644,
+        contents: Buffer.from(applySourceConventions(outputPath, value), 'utf8'),
+    });
+}
+
 function runBootstrapQuality({projectRoot, contract, run}) {
     const canonicalProject = fs.realpathSync(projectRoot);
     if (contract?.package !== '@kyaulabs/prism-php-web' || typeof run !== 'function') {
@@ -689,11 +714,18 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
     const outputs = manifest.outputs.map((outputPath) => {
         const candidatePath = path.join(canonicalCandidate, ...outputPath.split('/'));
         ensureCandidateParent(canonicalCandidate, outputPath);
-        const value = Buffer.from(applySourceConventions(
+        const automation = AUTOMATION_OUTPUT_SET.has(outputPath)
+            ? renderAutomationOutput({
+                packageRoot,
+                packageVersion: request.adapter.packageVersion,
+                outputPath,
+            })
+            : null;
+        const value = automation?.contents ?? Buffer.from(applySourceConventions(
             outputPath,
             contents(outputPath, request, contract, packageRoot)
         ), 'utf8');
-        const mode = outputPath.endsWith('.sh') ? 0o755 : 0o644;
+        const mode = automation?.mode ?? (outputPath.endsWith('.sh') ? 0o755 : 0o644);
         fs.writeFileSync(candidatePath, value, {flag: 'wx', mode});
         fs.chmodSync(candidatePath, mode);
         return {path: outputPath, kind: 'file', mode, candidatePath};
@@ -738,6 +770,12 @@ function renderBootstrapScaffold({packageRoot, candidateRoot, request, contract,
     });
 }
 
-module.exports = {renderBootstrapScaffold, runBootstrapQuality, verifyBootstrapScaffold};
+module.exports = {
+    AUTOMATION_OUTPUTS,
+    renderAutomationOutput,
+    renderBootstrapScaffold,
+    runBootstrapQuality,
+    verifyBootstrapScaffold,
+};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

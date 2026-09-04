@@ -1,14 +1,20 @@
-// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: prism-tool-adapter.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
 const path = require('node:path');
+const {
+    describeAutomation: describeQualityAutomation,
+    prepareAutomation: prepareQualityAutomation,
+    verifyAutomation: verifyQualityAutomation,
+} = require('./toolchain/automation-provider');
 const {
     renderBootstrapScaffold,
     runBootstrapQuality,
     verifyBootstrapScaffold,
 } = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
+const {runQualityProvider} = require('./toolchain/quality-provider');
 const {
     applyCandidate,
     installBootstrapDependencies,
@@ -18,6 +24,27 @@ const {
 const {recoverWorkspace} = require('./toolchain/workspace');
 
 const bootstrapProtocol = 1;
+
+function describeAutomation(options) {
+    return describeQualityAutomation({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
+}
+
+function prepareAutomation(options) {
+    return prepareQualityAutomation({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
+}
+
+function verifyAutomation(options) {
+    return verifyQualityAutomation({
+        ...options,
+        packageRoot: path.resolve(__dirname, '..'),
+    });
+}
 
 function apply(options) {
     if (options.approved !== true) {
@@ -65,13 +92,17 @@ function verifyBootstrapProject(options) {
 module.exports = {
     apply,
     bootstrapProtocol,
+    describeAutomation,
     inspect,
     installBootstrapDependencies,
+    prepareAutomation,
     prepareBootstrapProject,
     resolve,
     resolveTool,
     runBootstrapQuality,
+    runQualityProvider,
     verify,
+    verifyAutomation,
     verifyBootstrapProject,
 };
 

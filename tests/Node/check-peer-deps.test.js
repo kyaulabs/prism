@@ -1,4 +1,4 @@
-// $KYAULabs: check-peer-deps.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: check-peer-deps.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
 
 'use strict';
 
@@ -56,6 +56,18 @@ test('extension importing a pi core without peerDependencies reports a violation
     fs.writeFileSync(path.join(dir, 'extensions', 'x.ts'), 'import x from "@earendil-works/pi-coding-agent";\n');
     const out = run(path.join(dir, 'package.json'));
     assert.match(out, /peerDependencies/);
+});
+
+test('review runtime dynamic imports require the Pi SDK peer', (t) => {
+    const dir = tmpdir(t);
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({name: 'pkg'}));
+    fs.mkdirSync(path.join(dir, 'scripts', 'prism-review'), {recursive: true});
+    fs.writeFileSync(
+        path.join(dir, 'scripts', 'prism-review', 'session.js'),
+        'async function load() { return import("@earendil-works/pi-coding-agent"); }\n'
+    );
+
+    assert.match(run(path.join(dir, 'package.json')), /peerDependencies/);
 });
 
 test('stat failure other than ENOENT prints a stdout line and exits 0', (t) => {
