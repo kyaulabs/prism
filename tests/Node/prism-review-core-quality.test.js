@@ -233,6 +233,28 @@ test('fails the conflict-marker gate when Git reports a match', async () => {
     assert.equal(report.gates.find(({id}) => id === 'core.conflict-markers').status, 'FAIL');
 });
 
+test('fails the conflict-marker gate when its execution throws', async () => {
+    const report = await runCoreQuality({
+        branch: 'feat/check',
+        baseRef: 'develop',
+        baseSha,
+        headSha,
+    }, {
+        projectRoot,
+        coreRoot,
+        execute: async (request) => {
+            if (request.id === 'core.conflict-markers') throw new Error('execution-output-canary');
+            return success(request);
+        },
+        hasHarness: true,
+        verifySnapshot: async () => true,
+    });
+
+    assert.equal(report.status, 'FAIL');
+    assert.equal(report.gates.find(({id}) => id === 'core.conflict-markers').status, 'FAIL');
+    assert.equal(JSON.stringify(report).includes('execution-output-canary'), false);
+});
+
 test('runs the six fixed Core gates with normalized commands and digest-only output', async () => {
     const requests = [];
     let verifications = 0;

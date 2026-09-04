@@ -259,6 +259,17 @@ test('records one complete initial review and reuses the exact same HEAD', async
     assert.equal(fixture.context.sessionCalls, 1);
 });
 
+test('refuses to reuse a review chain with unresolved Blocking findings', async (t) => {
+    const fixture = authorityFixture(t, 'BLOCKING');
+    const input = {operation: 'initial', baseRef: 'origin/develop', newInitial: false};
+
+    await runAuthoritativeReview(input, fixture.context);
+
+    await assert.rejects(() => runAuthoritativeReview(input, fixture.context),
+        /review chain identity is stale/);
+    assert.equal(fixture.context.sessionCalls, 1);
+});
+
 test('records Blocking and Inconclusive outcomes without treating either as reusable PASS', async (t) => {
     const blocking = authorityFixture(t, 'BLOCKING');
     const blocked = await runAuthoritativeReview({

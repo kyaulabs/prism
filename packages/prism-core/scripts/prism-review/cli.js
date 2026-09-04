@@ -471,10 +471,10 @@ async function executeBridge(bridge, context, projectRoot, trust) {
         }, {...context, projectRoot});
         const receipt = result.receipt;
         const valid = receipt?.schemaVersion === 2;
+        const outcome = result.outcome ?? (result.reused ? 'PASS' : 'INCONCLUSIVE');
         return bridgeResult(bridge.command, trust, {
-            status: result.outcome === 'PASS' || result.reused ? 'PASS' :
-                result.outcome === 'BLOCKING' ? 'BLOCKING' : 'NO-GO',
-            outcome: result.outcome ?? (result.reused ? 'PASS' : 'INCONCLUSIVE'),
+            status: outcome === 'PASS' ? 'PASS' : outcome === 'BLOCKING' ? 'BLOCKING' : 'NO-GO',
+            outcome,
             state: valid ? 'VALID' : 'ABSENT',
             version: valid ? 2 : null,
             receiptDigest: valid ? digestJson(receipt) : null,

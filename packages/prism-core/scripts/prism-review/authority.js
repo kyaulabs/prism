@@ -294,8 +294,8 @@ async function runAuthoritativeReview(input, context = {}) {
             contextWindow: model.contextWindow},
     };
     if (operation === 'initial' && current.state === 'VALID') {
-        if (reusable(current.record, bound)) {
-            return {authoritative: true, reused: true, receipt: current.record};
+        if (current.record.openBlocking.length === 0 && reusable(current.record, bound)) {
+            return {authoritative: true, reused: true, outcome: 'PASS', receipt: current.record};
         }
         throw new Error('review chain identity is stale');
     }

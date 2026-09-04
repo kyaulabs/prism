@@ -448,6 +448,13 @@ test('uses review exit semantics for failed checks and authoritative Blocking ou
             }})},
             status: 'BLOCKING', outcome: 'BLOCKING',
         },
+        {
+            argv: ['review', 'authoritative', '--base-ref', 'origin/develop', '--json'],
+            context: {runAuthoritativeReview: () => ({reused: true, outcome: 'BLOCKING', receipt: {
+                schemaVersion: 2, openBlocking: ['b'.repeat(64)],
+            }})},
+            status: 'BLOCKING', outcome: 'BLOCKING',
+        },
     ];
     for (const fixture of fixtures) {
         const output = capture();

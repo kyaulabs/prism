@@ -205,7 +205,17 @@ async function changedCoverage(options) {
         if (!Array.isArray(lines) || lines.length === 0) return skipped(id, command);
         const xml = await options.readArtifact('tests/coverage.xml', ARTIFACT_LIMIT);
         const counts = coverageCounts(xml, options.projectRoot);
-        const passed = lines.every(({file, line}) => counts.get(`${relativeFile(file)}:${line}`) > 0);
+        const totals = new Map();
+        for (const {file, line} of lines) {
+            const relative = relativeFile(file);
+            const total = totals.get(relative) ?? {covered: 0, statements: 0};
+            total.statements += 1;
+            if (counts.get(`${relative}:${line}`) > 0) total.covered += 1;
+            totals.set(relative, total);
+        }
+        const passed = [...totals.values()].every(({covered, statements}) =>
+            covered * 100 >= statements * 80
+        );
         return receipt(id, command, {
             passed,
             stdout: EMPTY,

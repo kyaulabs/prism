@@ -89,6 +89,7 @@ function receipt(request, result, status = null) {
 function failedReceipt(request) {
     return receipt(request, {
         status: 1,
+        error: true,
         stdout: EMPTY,
         stderr: Buffer.from('core-quality:execution-failed'),
         tools: [],
