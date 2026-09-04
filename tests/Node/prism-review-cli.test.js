@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const CORE_VERSION = JSON.parse(
+    fs.readFileSync(path.join(CORE_ROOT, 'package.json'), 'utf8')
+).version;
 const {main} = require('../../packages/prism-core/scripts/prism-review/cli');
 const {EXIT} = require('../../packages/prism-core/scripts/prism-review/constants');
 
@@ -33,7 +36,7 @@ test('the executable exposes the public version command', () => {
     ], {encoding: 'utf8'});
 
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, '0.4.3\n');
+    assert.equal(result.stdout, `${CORE_VERSION}\n`);
     assert.equal(result.stderr, '');
 });
 
@@ -55,7 +58,7 @@ test('the executable strips inherited Node preload injection', (t) => {
     });
 
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, '0.4.3\n');
+    assert.equal(result.stdout, `${CORE_VERSION}\n`);
     assert.equal(fs.existsSync(marker), false);
 });
 
@@ -68,7 +71,7 @@ test('prints the packaged Core version without touching runtime boundaries', asy
     });
 
     assert.equal(status, 0);
-    assert.deepEqual(output.result(), {stdout: '0.4.3\n', stderr: ''});
+    assert.deepEqual(output.result(), {stdout: `${CORE_VERSION}\n`, stderr: ''});
 });
 
 test('uses a bounded descriptor read for the package version manifest', async (t) => {
