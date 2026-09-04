@@ -1050,10 +1050,14 @@ HOME="$T7B/home" \
     PI_INVOCATIONS="$T7B/pi-invocations" \
     PATH="$T7B/bin:$PATH" \
     bash "$INSTALLER" >/dev/null 2>&1 || status=$?
-if [ "$status" -ne 0 ] && [ ! -e "$T7B/bin-dir/prism-review" ]; then
-    pass "installer rejects a review CLI outside the selected Core package"
+if [ "$status" -ne 0 ] \
+    && [ ! -e "$T7B/bin-dir/prism-review" ] \
+    && [ ! -e "$T7B/pi-agent/settings.json" ] \
+    && [ ! -e "$T7B/pi-agent/AGENTS.md" ] \
+    && [ ! -e "$T7B/pi-agent/APPEND_SYSTEM.md" ]; then
+    pass "installer rejects an external review CLI before partial deployment"
 else
-    fail "installer accepted a review CLI outside the selected Core package"
+    fail "installer rejected an external review CLI after partial deployment"
 fi
 
 T8=$(mktemp -d)

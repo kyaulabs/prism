@@ -231,6 +231,20 @@ test('rejects missing authority prerequisites before any review session', async 
     }
 });
 
+test('refuses to record an authoritative result after the branch snapshot changes', async (t) => {
+    const fixture = authorityFixture(t);
+    let freshnessChecks = 0;
+    fixture.context.assertFresh = () => {
+        freshnessChecks += 1;
+        return freshnessChecks === 1;
+    };
+
+    await assert.rejects(() => runAuthoritativeReview({
+        operation: 'initial', baseRef: 'origin/develop', newInitial: false,
+    }, fixture.context), /snapshot changed/);
+    assert.equal(fixture.chain, null);
+});
+
 test('records one complete initial review and reuses the exact same HEAD', async (t) => {
     const fixture = authorityFixture(t);
     const input = {operation: 'initial', baseRef: 'origin/develop', newInitial: false};

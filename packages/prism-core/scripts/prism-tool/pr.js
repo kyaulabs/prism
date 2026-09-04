@@ -156,6 +156,33 @@ function validateTitle(args, context) {
     return EXIT.OK;
 }
 
+function verifyVersionTwoEvidence(expected, context) {
+    const verifyCriteriaRecord = context.verifyCriteria ?? verifyCriteria;
+    const verifyCheckRecord = context.verifyCheck ?? verifyCheck;
+    const verifyChain = context.verifyReviewChainV2 ?? verifyReviewChainV2;
+    const criteria = verifyCriteriaRecord({branch: expected.branch}, context);
+    const check = verifyCheckRecord(expected, context);
+    verifyChain({
+        ...expected,
+        criteriaDigest: criteria.digest,
+        checkDigest: check.digest,
+    }, context);
+    const repeatedCriteria = verifyCriteriaRecord({branch: expected.branch}, context);
+    const repeatedCheck = verifyCheckRecord(expected, context);
+    if (repeatedCriteria.digest !== criteria.digest || repeatedCheck.digest !== check.digest) {
+        throw new Error('version-two review evidence changed');
+    }
+    return {
+        criteria: repeatedCriteria,
+        check: repeatedCheck,
+        review: verifyChain({
+            ...expected,
+            criteriaDigest: repeatedCriteria.digest,
+            checkDigest: repeatedCheck.digest,
+        }, context),
+    };
+}
+
 function preflight(context, options = {}) {
     const allowAbsentReviewChain = options.allowAbsentReviewChain === true;
     const run = context.run ?? runBounded;
@@ -232,15 +259,10 @@ function preflight(context, options = {}) {
 
     try {
         if (inspected.state === REVIEW_STATE.VALID && inspected.version === 2) {
-            const criteria = (context.verifyCriteria ?? verifyCriteria)(
-                {branch}, {...context, projectRoot: cwd}
+            const evidence = (context.verifyReviewEvidence ?? verifyVersionTwoEvidence)(
+                expected, {...context, projectRoot: cwd}
             );
-            const check = (context.verifyCheck ?? verifyCheck)(expected, {...context, projectRoot: cwd});
-            const review = (context.verifyReviewChainV2 ?? verifyReviewChainV2)({
-                ...expected,
-                criteriaDigest: criteria.digest,
-                checkDigest: check.digest,
-            }, {...context, projectRoot: cwd});
+            const review = evidence.review;
             reviewChainState = REVIEW_STATE.VALID;
             reviewChainVersion = 2;
             advisoryCount = String(review.advisoryFindings.length);

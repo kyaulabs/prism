@@ -115,6 +115,43 @@ test('publishes FAIL when HEAD changes after Core quality execution', async (t) 
     assert.equal(inspectCheck({projectRoot: fixture.root}).record.status, 'FAIL');
 });
 
+test('publishes FAIL when the snapshot changes during PASS publication', async (t) => {
+    const fixture = repository(t);
+    let temporaryWrites = 0;
+    const racingFs = new Proxy(fs, {
+        get(target, property) {
+            if (property === 'openSync') {
+                return (file, flags, ...rest) => {
+                    if (path.basename(String(file)).startsWith('.prism-managed-') &&
+                        (flags & target.constants.O_CREAT) !== 0) {
+                        temporaryWrites += 1;
+                        if (temporaryWrites === 3) {
+                            fs.writeFileSync(path.join(fixture.root, 'README.md'), 'moved during publication\n');
+                            git(fixture.root, ['add', 'README.md']);
+                            git(fixture.root, ['commit', '-m', 'move during publication']);
+                        }
+                    }
+                    return target.openSync(file, flags, ...rest);
+                };
+            }
+            const value = Reflect.get(target, property);
+            return typeof value === 'function' ? value.bind(target) : value;
+        },
+    });
+
+    const result = await runDeterministicCheck({baseRef: 'develop'}, {
+        fs: racingFs,
+        projectRoot: fixture.root,
+        coreRoot,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: null,
+        runCoreQuality: async () => coreReport(),
+    });
+
+    assert.equal(result.status, 'FAIL');
+    assert.equal(inspectCheck({projectRoot: fixture.root}).record.status, 'FAIL');
+});
+
 test('rejects a dirty worktree and makes an existing PASS unverifiable', async (t) => {
     const fixture = repository(t);
     const context = {
@@ -206,6 +243,24 @@ test('invalidates a prior PASS when the installed provider becomes unavailable',
     assert.equal(JSON.stringify(failed).includes('provider-resolution-output-canary'), false);
 });
 
+test('publishes a failed initial attempt when provider resolution fails', async (t) => {
+    const fixture = repository(t);
+
+    const failed = await runDeterministicCheck({baseRef: 'develop'}, {
+        projectRoot: fixture.root,
+        coreRoot,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
+        resolveQualityProvider: async () => { throw new Error('provider-resolution-output-canary'); },
+        runCoreQuality: async () => coreReport(),
+    });
+
+    assert.equal(failed.status, 'FAIL');
+    assert.equal(failed.adapter, null);
+    assert.deepEqual(failed.gates, []);
+    assert.equal(inspectCheck({projectRoot: fixture.root}).record.status, 'FAIL');
+});
+
 test('invalidates a prior PASS before an interrupted retry invokes a gate', async (t) => {
     const fixture = repository(t);
     const context = {
@@ -280,6 +335,60 @@ test('defaults an omitted adapter registration to Core-only', async (t) => {
     assert.equal(providerCalls, 0);
 });
 
+test('makes a PASS unverifiable when the installed Core package changes', async (t) => {
+    const fixture = repository(t);
+    const installedCore = makeTempDir();
+    t.after(() => fs.rmSync(installedCore, {recursive: true, force: true}));
+    fs.writeFileSync(path.join(installedCore, 'package.json'), JSON.stringify({
+        name: '@kyaulabs/prism-core',
+        version: '0.4.3',
+    }));
+    fs.writeFileSync(path.join(installedCore, 'runtime.js'), 'module.exports = true;\n');
+    const context = {
+        projectRoot: fixture.root,
+        coreRoot: installedCore,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: null,
+        runCoreQuality: async () => coreReport(),
+    };
+    const passed = await runDeterministicCheck({baseRef: 'develop'}, context);
+    fs.writeFileSync(path.join(installedCore, 'runtime.js'), 'module.exports = false;\n');
+
+    assert.equal(passed.status, 'PASS');
+    assert.throws(() => verifyCheck({
+        branch: 'feat/check',
+        baseRef: 'develop',
+        baseSha: fixture.baseSha,
+        headSha: fixture.headSha,
+    }, context), /unavailable/);
+});
+
+test('makes a PASS unverifiable when the installed quality provider changes', async (t) => {
+    const fixture = repository(t);
+    const context = {
+        projectRoot: fixture.root,
+        coreRoot,
+        randomBytes: () => Buffer.from('0123456789abcdef'),
+        registration: {},
+        resolveQualityProvider: adapterProvider,
+        runCoreQuality: async () => coreReport(),
+    };
+    const passed = await runDeterministicCheck({baseRef: 'develop'}, context);
+    context.resolveQualityProvider = () => {
+        const changed = adapterProvider();
+        changed.identity = {...changed.identity, packageVersion: '2.0.0'};
+        return changed;
+    };
+
+    assert.equal(passed.status, 'PASS');
+    assert.throws(() => verifyCheck({
+        branch: 'feat/check',
+        baseRef: 'develop',
+        baseSha: fixture.baseSha,
+        headSha: fixture.headSha,
+    }, context), /unavailable/);
+});
+
 test('publishes RUNNING before gates and verifies the exact passing HEAD', async (t) => {
     const fixture = repository(t);
     let running;
@@ -314,7 +423,14 @@ test('publishes RUNNING before gates and verifies the exact passing HEAD', async
         baseRef: 'develop',
         baseSha: fixture.baseSha,
         headSha: fixture.headSha,
-    }, {projectRoot: fixture.root}).digest, result.digest);
+    }, {
+        projectRoot: fixture.root,
+        coreRoot,
+        sourceClass: 'INSTALLED_EXTERNAL',
+        packageIdentity: () => expectedCore,
+        registration: {},
+        resolveQualityProvider: adapterProvider,
+    }).digest, result.digest);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

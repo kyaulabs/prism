@@ -146,6 +146,49 @@ test('schema-one record refuses an existing version-two chain before reading inp
     assert.doesNotMatch(result.stderr, /missing\.json|\/repo/);
 });
 
+test('chain verification dispatches a version-two chain to its verifier', () => {
+    const expected = {
+        branch: 'feat/tester-abcd-code-review',
+        baseRef: 'origin/develop',
+        baseSha: 'a'.repeat(40),
+        headSha: 'b'.repeat(40),
+        criteriaDigest: 'c'.repeat(64),
+        checkDigest: 'd'.repeat(64),
+    };
+    let received;
+    const result = capture(() => main([
+        'code-review', 'chain', 'verify',
+        `--branch=${expected.branch}`,
+        `--base-ref=${expected.baseRef}`,
+        `--base-sha=${expected.baseSha}`,
+        `--head-sha=${expected.headSha}`,
+        '--json',
+    ], {
+        projectRoot: '/repo',
+        inspectReviewChainV2: () => ({
+            state: 'VALID',
+            version: 2,
+            record: {
+                criteriaDigest: expected.criteriaDigest,
+                segments: [{check: {digest: expected.checkDigest}}],
+            },
+        }),
+        verifyReviewChain: () => { throw new Error('legacy verifier called'); },
+        verifyReviewChainV2: (value) => {
+            received = value;
+            return {advisoryFindings: []};
+        },
+    }));
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(received, expected);
+    assert.deepEqual(JSON.parse(result.stdout), {
+        schemaVersion: 1,
+        status: 'GO',
+        data: {advisoryFindings: []},
+    });
+});
+
 test('dedicated review validates versions and connectivity before exact OCR review', (t) => {
     const target = fixture(t);
 

@@ -349,7 +349,7 @@ function validateReport(report, input) {
     if ((report.outcome === 'BLOCKING') !== hasBlocking) throw new ReviewChainV2Error('review outcome is invalid');
     const axes = validateAxes(report.axes);
     const verifier = validateVerifier(report.verifier, findings);
-    validateAxisFindingOutcomes(axes, verifier.candidates);
+    validateAxisFindingOutcomes(axes, findings);
     return {
         axes,
         byteExposure: validateExposure(report.byteExposure),
@@ -449,7 +449,7 @@ function validateSegment(value) {
     }
     const axes = validateAxes(value.axes);
     const verifier = validateVerifier(value.verifier, findings);
-    validateAxisFindingOutcomes(axes, verifier.candidates);
+    validateAxisFindingOutcomes(axes, findings);
     const closures = value.closures.map(validateClosure);
     if (new Set(closures.map(({fingerprint}) => fingerprint)).size !== closures.length) {
         throw new ReviewChainV2Error('review closures are duplicate');

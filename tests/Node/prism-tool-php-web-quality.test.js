@@ -77,6 +77,28 @@ test('runs changed-file coverage only after the Pest artifact exists', async () 
     assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
 });
 
+test('matches changed PHP paths encoded as XML attribute entities', async () => {
+    const changedPath = 'app/<tag>\'&".php';
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: [changedPath],
+        runCommand: success,
+        runTool: success,
+        runServer: success,
+        packageScripts: [],
+        verifySnapshot: async () => true,
+        changedLines: async () => [{file: changedPath, line: 7}],
+        readArtifact: async () => Buffer.from(
+            '<coverage><file name="app/&lt;tag&gt;&apos;&amp;&quot;.php">' +
+            '<line num="7" type="stmt" count="1"/></file></coverage>'
+        ),
+    });
+
+    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
+});
+
 test('executes quality gates sequentially', async () => {
     let active = 0;
     let maximum = 0;

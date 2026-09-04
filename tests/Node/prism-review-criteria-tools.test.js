@@ -51,6 +51,25 @@ test('delivers immutable criteria by UTF-8 byte interval until the source is exp
     assert.deepEqual(set.ledger.rows(), [{...source, status: 'EXPOSED'}]);
 });
 
+test('allows a larger retry when a criteria byte limit cannot contain one UTF-8 code point', async () => {
+    const set = createCriteriaTools(criteria());
+    const tool = set.tools.read_criteria;
+
+    await assert.rejects(() => tool.execute('small', {
+        sourceDigest: source.sha256,
+        offset: 4,
+        limit: 1,
+    }), /criteria byte range is invalid/);
+    const retried = await tool.execute('retry', {
+        sourceDigest: source.sha256,
+        offset: 4,
+        limit: 3,
+    });
+
+    assert.equal(retried.nextOffset, 7);
+    assert.equal(set.ledger.failed, false);
+});
+
 test('rejects duplicate source digests before exposing criteria', () => {
     const duplicate = {
         ...source,

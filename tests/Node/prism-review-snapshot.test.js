@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-snapshot.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-snapshot.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
 
 'use strict';
 
@@ -159,6 +159,25 @@ test('staged freshness rejects a HEAD move with unchanged index bytes', (t) => {
     commit(root, 'move HEAD');
     fs.writeFileSync(absoluteIndex, frozenIndex);
 
+    assert.equal(assertFresh(snapshot), false);
+});
+
+test('branch freshness rejects worktree and HEAD drift after capture', (t) => {
+    const root = repository(t);
+    write(root, 'file.txt', 'base\n');
+    const base = commit(root, 'base');
+    write(root, 'file.txt', 'head\n');
+    const head = commit(root, 'head');
+    const snapshot = createSnapshot({
+        mode: 'branch', repositoryRoot: root, base, head, trackBranchFreshness: true,
+    });
+
+    assert.equal(assertFresh(snapshot), true);
+    write(root, 'untracked.txt', 'drift\n');
+    assert.equal(assertFresh(snapshot), false);
+    fs.rmSync(path.join(root, 'untracked.txt'));
+    write(root, 'file.txt', 'next\n');
+    commit(root, 'next');
     assert.equal(assertFresh(snapshot), false);
 });
 

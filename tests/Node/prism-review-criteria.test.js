@@ -56,6 +56,25 @@ test('rejects criteria when the checkout branch drifts from the recorded branch'
     assert.throws(() => verifyCriteria({branch: 'feat/tester-abcd-change'}, target), /unavailable/);
 });
 
+test('refuses to publish criteria when the repository changes during collection', (t) => {
+    const target = fixture(t);
+    let moved = false;
+    const run = (command, args, options) => {
+        const result = spawnSync(command, args, options);
+        if (!moved && args.join(' ') === 'symbolic-ref --quiet --short HEAD') {
+            moved = true;
+            git(target.projectRoot, 'checkout', '-q', '-b', 'feat/tester-abcd-other');
+        }
+        return result;
+    };
+
+    assert.throws(() => recordCriteria({
+        disposition: 'DECLARED',
+        sources: [{role: 'SPEC', commit: target.head, path: 'docs/specs/change-spec.md'}],
+    }, {...target, run}), /changed/);
+    assert.equal(inspectCriteria(target).state, 'ABSENT');
+});
+
 test('replaces a stale receipt when recording criteria for another branch', (t) => {
     const target = fixture(t);
     recordCriteria({disposition: 'NONE_DECLARED', sources: []}, target);

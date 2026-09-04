@@ -43,6 +43,19 @@ test('normalizes newly created directories under a restrictive umask', (t) => {
     assert.equal(fs.statSync(target).mode & 0o777, 0o700);
 });
 
+test('rejects a writable existing intermediate directory', (t) => {
+    const root = fixture(t);
+    const intermediate = path.join(root, 'one');
+    const target = path.join(intermediate, 'two');
+    fs.mkdirSync(intermediate, {mode: 0o770});
+    fs.chmodSync(intermediate, 0o770);
+    fs.mkdirSync(target, {mode: 0o700});
+    fs.chmodSync(target, 0o700);
+
+    assert.throws(() => ensureManagedDirectory(target, root), /unsafe/);
+    assert.equal(fs.statSync(intermediate).mode & 0o777, 0o770);
+});
+
 test('rejects an existing public final directory without changing its mode', (t) => {
     const root = fixture(t);
     const target = path.join(root, 'state');

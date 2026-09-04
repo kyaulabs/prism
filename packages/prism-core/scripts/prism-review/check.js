@@ -11,6 +11,7 @@ const {digestJson} = require('./canonical-json');
 const {CORE_GATE_IDS, createQualityCallbacks, runCoreQuality} = require('./core-quality');
 const {packageIdentity} = require('./package-identity');
 const {resolveQualityProvider, validateQualityReport} = require('./quality-provider');
+const {discoverOptionalAdapter} = require('../prism-tool/discovery');
 const {
     REVIEW_STATE,
     inspectAuthorityRecord,
@@ -265,19 +266,17 @@ async function runDeterministicCheck(input, context = {}) {
     if (![REVIEW_STATE.ABSENT, REVIEW_STATE.VALID].includes(prior.state)) {
         throw new Error('check receipt is unsafe');
     }
-    let running = prior.state === REVIEW_STATE.VALID
-        ? parseCheck({
-            schemaVersion: 1,
-            kind: 'check',
-            attemptId,
-            status: 'RUNNING',
-            ...identity,
-            core,
-            adapter: prior.record.adapter,
-            gates: [],
-        })
-        : null;
-    if (running !== null) publish(running, context);
+    let running = parseCheck({
+        schemaVersion: 1,
+        kind: 'check',
+        attemptId,
+        status: 'RUNNING',
+        ...identity,
+        core,
+        adapter: prior.state === REVIEW_STATE.VALID ? prior.record.adapter : null,
+        gates: [],
+    });
+    publish(running, context);
     let gates = [];
     try {
         let provider = null;
@@ -344,18 +343,52 @@ async function runDeterministicCheck(input, context = {}) {
             }
         }
         const passed = publish({...running, status: 'PASS', gates}, context);
+        if (!sameSnapshot(identity, context)) throw new Error('check snapshot changed');
         return {...passed, path: inspectCheck(context).path, digest: checkDigest(passed)};
-    } catch (error) {
-        if (running === null) throw error;
+    } catch {
         const failed = publish({...running, status: 'FAIL', gates}, context);
         return {...failed, path: inspectCheck(context).path, digest: checkDigest(failed)};
+    }
+}
+
+function currentAdapterMatches(record, context) {
+    try {
+        const registration = Object.hasOwn(context, 'registration')
+            ? context.registration
+            : (context.discoverOptionalAdapter ?? discoverOptionalAdapter)({
+                projectRoot: projectRoot(context),
+                piDir: context.piDir ?? path.join(projectRoot(context), '.pi'),
+            });
+        if (record.adapter === null) return registration === null;
+        if (registration === null) return false;
+        const provider = (context.resolveQualityProvider ?? resolveQualityProvider)({
+            repositoryRoot: projectRoot(context),
+            coreRoot: fs.realpathSync(context.coreRoot ?? path.resolve(__dirname, '../..')),
+            protectedBase: record.baseSha,
+            registration,
+            resolvePackage: context.resolvePackage,
+            run: context.runGit,
+            env: context.env,
+        });
+        if (provider === null || typeof provider !== 'object' || typeof provider.then === 'function') return false;
+        return JSON.stringify(record.adapter) === JSON.stringify(parseIdentity(provider.identity));
+    } catch {
+        return false;
     }
 }
 
 function verifyCheck(expected, context = {}) {
     exact(expected, ['branch', 'baseRef', 'baseSha', 'headSha'], 'check expectation');
     const inspected = inspectCheck(context);
+    let currentCore;
+    try {
+        currentCore = coreIdentity(context);
+    } catch {
+        throw new Error('check receipt is unavailable');
+    }
     if (inspected.state !== REVIEW_STATE.VALID || inspected.record.status !== 'PASS' ||
+        JSON.stringify(inspected.record.core) !== JSON.stringify(currentCore) ||
+        !currentAdapterMatches(inspected.record, context) ||
         !['branch', 'baseRef', 'baseSha', 'headSha'].every((key) => inspected.record[key] === expected[key]) ||
         !sameSnapshot(expected, context)) {
         throw new Error('check receipt is unavailable');

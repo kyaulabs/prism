@@ -426,6 +426,18 @@ fi
 
 # --- 1. install the core package -------------------------------------------
 
+resolve_core_clis() {
+    INSTALLED_CORE_ROOT="$1"
+    if ! CORE_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-tool.js'); then
+        echo "✗ installed prism-core CLI is unavailable" >&2
+        return 1
+    fi
+    if ! REVIEW_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-review.js'); then
+        echo "✗ installed prism-review CLI is unavailable" >&2
+        return 1
+    fi
+}
+
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     if [[ ! "$PRISM_CORE_SOURCE" =~ ^npm:@kyaulabs/prism-core(@[^[:space:]@]+)?$ ]]; then
         echo "✗ configured npm core source is invalid" >&2
@@ -438,18 +450,22 @@ if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
     fi
     echo "• installing core from approved npm source"
     npm_config_ignore_scripts=true pi install "$PRISM_CORE_SOURCE"
+    resolve_core_clis "$PI_DIR/npm/node_modules/@kyaulabs/prism-core" || exit 1
 elif [ -n "${PRISM_CORE_SOURCE:-}" ]; then
     if ! SELECTED_CORE_SOURCE=$(canonical_cli "${PRISM_CORE_SOURCE%/}"); then
         echo "✗ configured local core source is unavailable" >&2
         exit 1
     fi
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
     echo "• installing core from configured local source"
     pi install "$SELECTED_CORE_SOURCE"
 elif [[ "$PKG_ROOT" == "$PI_DIR"/* ]]; then
     SELECTED_CORE_SOURCE="$PKG_ROOT"
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
     echo "• core already under pi dir ($PKG_ROOT); skipping pi install"
 else
     SELECTED_CORE_SOURCE="$PKG_ROOT"
+    resolve_core_clis "$SELECTED_CORE_SOURCE" || exit 1
     echo "• installing core from local source: $PKG_ROOT"
     pi install "$PKG_ROOT"
 fi
@@ -472,20 +488,6 @@ done
 
 # --- 3. deploy the stable launcher and verify readiness --------------------
 
-if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then
-    INSTALLED_CORE_ROOT="$PI_DIR/npm/node_modules/@kyaulabs/prism-core"
-else
-    INSTALLED_CORE_ROOT="$SELECTED_CORE_SOURCE"
-fi
-
-if ! CORE_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-tool.js'); then
-    echo "✗ installed prism-core CLI is unavailable" >&2
-    exit 1
-fi
-if ! REVIEW_CLI=$(canonical_package_cli "$INSTALLED_CORE_ROOT" 'scripts/prism-review.js'); then
-    echo "✗ installed prism-review CLI is unavailable" >&2
-    exit 1
-fi
 deploy_launchers "$CORE_CLI" "$REVIEW_CLI"
 
 case ":$PATH:" in

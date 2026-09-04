@@ -193,7 +193,8 @@ function ensureManagedDirectory(directory, trustedRoot, context = {}) {
         try {
             if (typeof io.constants.O_NOFOLLOW !== 'number' ||
                 typeof io.constants.O_DIRECTORY !== 'number' ||
-                !identity.isDirectory() || identity.isSymbolicLink() || !isOwned(identity, context)) {
+                !identity.isDirectory() || identity.isSymbolicLink() || !isOwned(identity, context) ||
+                (identity.mode & 0o022) !== 0) {
                 throw new Error();
             }
             descriptor = io.openSync(
@@ -202,7 +203,7 @@ function ensureManagedDirectory(directory, trustedRoot, context = {}) {
             );
             const held = io.fstatSync(descriptor);
             if (!held.isDirectory() || held.dev !== identity.dev || held.ino !== identity.ino ||
-                !isOwned(held, context)) throw new Error();
+                !isOwned(held, context) || (held.mode & 0o022) !== 0) throw new Error();
             if (created) io.fchmodSync(descriptor, 0o700);
             if (current === target && (io.fstatSync(descriptor).mode & 0o777) !== 0o700) throw new Error();
             io.fsyncSync(descriptor);

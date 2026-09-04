@@ -9,7 +9,7 @@ const {digestJson} = require('./canonical-json');
 const {verifyCheck} = require('./check');
 const {verifyCriteria} = require('./criteria');
 const {validateClosureProposal} = require('./findings');
-const {createSnapshot} = require('./git-snapshot');
+const {assertFresh: snapshotIsFresh, createSnapshot} = require('./git-snapshot');
 const {runAuthoritativeAttempt} = require('./orchestrator');
 const {packageIdentity} = require('./package-identity');
 const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profile');
@@ -260,10 +260,12 @@ async function runAuthoritativeReview(input, context = {}) {
     if (!same(check.core, corePackage)) throw new Error('check Core identity mismatch');
     const snapshot = (context.createSnapshot ?? createSnapshot)({
         mode: 'branch', repositoryRoot: resolved.repositoryRoot,
-        base: snapshotBase, head: repository.headSha,
+        base: snapshotBase, head: repository.headSha, trackBranchFreshness: true,
         run: context.runGit, env: context.env, home: context.home,
         sensitivePaths: context.sensitivePaths,
     });
+    const assertSnapshotFresh = context.assertFresh ?? snapshotIsFresh;
+    if (assertSnapshotFresh(snapshot) !== true) throw new Error('authoritative snapshot changed');
     if (snapshot.baseCommit !== snapshotBase || snapshot.headCommit !== repository.headSha) {
         throw new Error('authoritative snapshot is stale');
     }
@@ -309,10 +311,11 @@ async function runAuthoritativeReview(input, context = {}) {
         verifierSkills: coreProfile.profile.verifierSkills,
         repositoryRoot: resolved.repositoryRoot, tempRoot: context.tempRoot,
         env: context.env ?? process.env, loadSdk: context.loadSdk,
-        runSession: context.runSession, assertFresh: context.assertFresh,
+        runSession: context.runSession, assertFresh: assertSnapshotFresh,
         timeoutMs: context.timeoutMs, reviewTimeoutMs: context.reviewTimeoutMs, active,
         ...(repair === null ? {} : {repair}),
     });
+    if (assertSnapshotFresh(snapshot) !== true) throw new Error('authoritative snapshot changed');
     const report = repair === null ? execution : (execution.report ?? execution);
     const closures = repair === null ? [] : (execution.closures ?? []);
     const receipt = (context.recordReviewAttempt ?? recordReviewAttempt)({

@@ -64,7 +64,9 @@ function sliceUtf8(text, offset, limit) {
     }
     let end = Math.min(bytes.length, offset + limit);
     while (end > offset && !byteBoundary(bytes, end)) end -= 1;
-    if (end === offset) throw new Error('criteria byte range is invalid');
+    if (end === offset) {
+        throw Object.assign(new Error('criteria byte range is invalid'), {code: 'LIMIT_SPLITS_CODE_POINT'});
+    }
     return {
         text: bytes.subarray(offset, end).toString('utf8'),
         nextOffset: end,
@@ -169,7 +171,7 @@ function createCriteriaTools(verifiedCriteria) {
                     totalBytes: result.totalBytes,
                 };
             } catch (error) {
-                ledger.failed = true;
+                if (error?.code !== 'LIMIT_SPLITS_CODE_POINT') ledger.failed = true;
                 throw error;
             }
         },

@@ -291,6 +291,39 @@ test('replays a continuous repair, confirmed closure, and preserved Advisory fin
     assert.equal(verified.advisoryFindings.length, 1);
 });
 
+test('derives axis outcomes only from verifier-confirmed findings', (t) => {
+    const target = fixture(t);
+    const rejected = finding({
+        classification: 'BLOCKING',
+        summary: 'The candidate was disproved.',
+        causality: 'The candidate claimed a changed failure.',
+        relevance: 'The candidate claimed changed-flow relevance.',
+        workflowImpact: 'The candidate claimed a workflow failure.',
+        fingerprint: '0'.repeat(64),
+    });
+    const reviewed = report(target, {
+        findings: [],
+        report: {
+            verifier: {
+                complete: true,
+                chunks: 1,
+                candidates: [rejected],
+                dispositions: [{
+                    fingerprint: rejected.fingerprint,
+                    disposition: 'REJECTED',
+                    rationale: 'Immutable evidence disproves the candidate.',
+                    duplicateOf: null,
+                }],
+            },
+        },
+    });
+
+    const recorded = recordReviewAttempt(attempt(target, {report: reviewed}), target);
+
+    assert.equal(recorded.segments[0].axes.every(({outcome}) => outcome === 'PASS'), true);
+    assert.deepEqual(recorded.findings, []);
+});
+
 test('preserves a concurrently advanced chain instead of publishing from stale state', (t) => {
     const target = fixture(t);
     const initial = recordReviewAttempt(attempt(target), target);

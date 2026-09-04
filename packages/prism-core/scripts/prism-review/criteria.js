@@ -181,6 +181,19 @@ function sourceIdentity(input, context) {
     };
 }
 
+function repositoryIdentity(context) {
+    const head = textOutput(context, ['rev-parse', '--verify', 'HEAD^{commit}'], 'criteria HEAD');
+    if (!OBJECT_ID.test(head)) throw new Error('criteria HEAD is invalid');
+    return {branch: currentBranch(context), head};
+}
+
+function assertRepositoryIdentity(expected, context) {
+    const current = repositoryIdentity(context);
+    if (current.branch !== expected.branch || current.head !== expected.head) {
+        throw new Error('criteria repository changed');
+    }
+}
+
 function recordCriteria(input, context = {}) {
     exact(input, ['disposition', 'sources'], 'criteria request');
     if (!['DECLARED', 'NONE_DECLARED'].includes(input.disposition) ||
@@ -188,6 +201,7 @@ function recordCriteria(input, context = {}) {
         (input.disposition === 'DECLARED') !== (input.sources.length > 0)) {
         throw new Error('criteria request is invalid');
     }
+    const repository = repositoryIdentity(context);
     const sources = input.sources.map((source) => sourceIdentity(source, context))
         .sort((left, right) => {
             const leftKey = `${left.role}\0${left.path}`;
@@ -197,15 +211,17 @@ function recordCriteria(input, context = {}) {
     const record = parseCriteria({
         schemaVersion: 1,
         kind: 'criteria',
-        branch: currentBranch(context),
+        branch: repository.branch,
         disposition: input.disposition,
         sources,
     });
+    assertRepositoryIdentity(repository, context);
     const current = inspectCriteria(context);
     if (current.state === REVIEW_STATE.VALID && current.record.branch === record.branch) {
         if (JSON.stringify(current.record) !== JSON.stringify(record)) {
             throw new Error('criteria record is immutable');
         }
+        assertRepositoryIdentity(repository, context);
         return {...current.record, path: current.path, digest: criteriaDigest(current.record)};
     }
     if (![REVIEW_STATE.ABSENT, REVIEW_STATE.VALID].includes(current.state)) {
@@ -219,6 +235,7 @@ function recordCriteria(input, context = {}) {
         record,
         parse: parseCriteria,
     }, context);
+    assertRepositoryIdentity(repository, context);
     return {...published.record, path: published.path, digest: criteriaDigest(published.record)};
 }
 
@@ -228,8 +245,9 @@ function verifyCriteria(expected, context = {}) {
         (expected.digest !== undefined && !/^[0-9a-f]{64}$/.test(expected.digest))) {
         throw new Error('criteria expectation is invalid');
     }
+    const repository = repositoryIdentity(context);
     const inspected = inspectCriteria(context);
-    if (currentBranch(context) !== expected.branch || inspected.state !== REVIEW_STATE.VALID ||
+    if (repository.branch !== expected.branch || inspected.state !== REVIEW_STATE.VALID ||
         inspected.record.branch !== expected.branch) {
         throw new Error('criteria record is unavailable');
     }
@@ -248,6 +266,7 @@ function verifyCriteria(expected, context = {}) {
         }
         return {...source, text: loaded.text};
     });
+    assertRepositoryIdentity(repository, context);
     return {record: inspected.record, digest, blobs};
 }
 

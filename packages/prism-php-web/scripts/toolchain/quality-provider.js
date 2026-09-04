@@ -156,13 +156,23 @@ async function many(id, command, callback, requests) {
     }
 }
 
+function decodeXmlAttribute(value) {
+    const named = {amp: '&', apos: "'", gt: '>', lt: '<', quot: '"'};
+    return value.replace(/&(?:#(\d+)|#x([0-9A-Fa-f]+)|(amp|apos|gt|lt|quot));/gu,
+        (_entity, decimal, hexadecimal, name) => {
+            if (name !== undefined) return named[name];
+            const point = Number.parseInt(decimal ?? hexadecimal, decimal === undefined ? 16 : 10);
+            return String.fromCodePoint(point);
+        });
+}
+
 function coverageCounts(xml, projectRoot) {
     const source = Buffer.isBuffer(xml) ? xml.toString('utf8') : String(xml);
     const counts = new Map();
     const filePattern = /<file\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/file>/gu;
     const linePattern = /<line\s+([^>]*)\/?\s*>/gu;
     for (const fileMatch of source.matchAll(filePattern)) {
-        const name = fileMatch[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&');
+        const name = decodeXmlAttribute(fileMatch[1]);
         const relative = path.isAbsolute(name)
             ? path.relative(projectRoot, name).split(path.sep).join('/')
             : name.replace(/^\.\//u, '');

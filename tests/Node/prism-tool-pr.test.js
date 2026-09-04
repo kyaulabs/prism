@@ -141,6 +141,24 @@ test('pr preflight selects a complete version-two chain as one unit', () => {
     assert.doesNotMatch(result.stdout, /V2_RECOVERY/);
 });
 
+test('pr preflight rejects version-two receipts that change during verification', () => {
+    let criteriaCalls = 0;
+    const result = captureWrites(() => main(['pr', 'preflight'], {
+        coreRoot: CORE_ROOT,
+        cwd: '/repo',
+        env: process.env,
+        run: makePreflightRun(),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: (criteriaCalls += 1) === 1 ? 'c'.repeat(64) : 'e'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => ({advisoryFindings: []}),
+    }));
+
+    assert.equal(result.status, 4);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /incomplete, stale, or has unresolved Blocking findings/);
+});
+
 test('pr review-preflight reports an absent review chain', () => {
     const result = captureWrites(() => main(['pr', 'review-preflight'], {
         coreRoot: CORE_ROOT,

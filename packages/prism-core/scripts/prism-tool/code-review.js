@@ -7,7 +7,7 @@ const path = require('node:path');
 const {assertPackageParity, loadContract} = require('./contract');
 const {STATE: CONSENT_STATE, inspectConsent} = require('./consent');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
-const {inspectReviewChainV2} = require('../prism-review/review-chain-v2');
+const {inspectReviewChainV2, verifyReviewChainV2} = require('../prism-review/review-chain-v2');
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded, sanitizeDetail} = require('./process');
 const {
@@ -192,7 +192,19 @@ function reviewChainCommand(args, context) {
         return EXIT.OK;
     }
     if (args[0] === 'verify') {
-        const verified = verifyReviewChain(parseVerifyControls(args.slice(1)), context);
+        const expected = parseVerifyControls(args.slice(1));
+        const inspected = inspect(context);
+        let verified;
+        if (inspected.state === REVIEW_STATE.VALID && inspected.version === 2) {
+            const verifyV2 = context.verifyReviewChainV2 ?? verifyReviewChainV2;
+            verified = verifyV2({
+                ...expected,
+                criteriaDigest: inspected.record.criteriaDigest,
+                checkDigest: inspected.record.segments.at(-1).check.digest,
+            }, context);
+        } else {
+            verified = (context.verifyReviewChain ?? verifyReviewChain)(expected, context);
+        }
         process.stdout.write(`${JSON.stringify({schemaVersion: 1, status: 'GO', data: verified})}\n`);
         return EXIT.OK;
     }
