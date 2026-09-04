@@ -326,6 +326,29 @@ test('fails the report for uncovered changed PHP lines without raw output', asyn
     assert.equal(JSON.stringify(report).includes('<coverage>'), false);
 });
 
+test('runs the declared Node suite for a production JavaScript change', async () => {
+    const commands = [];
+    const report = await adapter.runQualityProvider({
+        projectRoot: root,
+        baseSha: '1'.repeat(40),
+        headSha: '2'.repeat(40),
+        trackedPaths: ['src/plugin.js'],
+        runCommand: async (request) => {
+            commands.push([request.command, ...request.args]);
+            return success(request);
+        },
+        runTool: success,
+        runServer: success,
+        packageScripts: ['test:node'],
+        verifySnapshot: async () => true,
+        changedLines: async () => [],
+        readArtifact: async () => Buffer.from('<coverage/>'),
+    });
+
+    assert.equal(report.gates.find(({id}) => id === 'php-web.node-tests').status, 'PASS');
+    assert.deepEqual(commands, [['node', '--test', 'tests/Node']]);
+});
+
 test('returns one closed receipt for every declared PHP/web gate', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,

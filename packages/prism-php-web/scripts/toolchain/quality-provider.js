@@ -259,7 +259,7 @@ async function runQualityProvider(options) {
         : skipped('php-web.eslint', ['eslint', 'TRACKED_SCRIPT_FILES']));
     tasks.set('php-web.node-tests', () => options.packageScripts.some(
         (name) => ['test:node', 'test:plugin'].includes(name)
-    ) && files.some((file) => /^tests\/Node\/.*\.test\.(?:js|ts)$/u.test(file))
+    ) && script.length > 0
         ? one('php-web.node-tests', ['node', '--test', 'tests/Node'], options.runCommand,
             {command: 'node', args: ['--test', 'tests/Node']})
         : skipped('php-web.node-tests', ['node', '--test', 'tests/Node']));

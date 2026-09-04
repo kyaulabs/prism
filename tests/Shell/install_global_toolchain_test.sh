@@ -1043,14 +1043,15 @@ JSEOF
 chmod +x "$T7B/source/scripts/prism-tool.js" "$T7B/external/scripts/prism-review.js"
 ln -s "$T7B/external/scripts/prism-review.js" "$T7B/source/scripts/prism-review.js"
 status=0
-HOME="$T7B/home" \
+output=$(HOME="$T7B/home" \
     PI_CODING_AGENT_DIR="$T7B/pi-agent" \
     PRISM_BIN_DIR="$T7B/bin-dir" \
     PRISM_CORE_SOURCE="$T7B/source" \
     PI_INVOCATIONS="$T7B/pi-invocations" \
     PATH="$T7B/bin:$PATH" \
-    bash "$INSTALLER" >/dev/null 2>&1 || status=$?
+    bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -ne 0 ] \
+    && grep -qFx '✗ installed prism-review CLI is unavailable' <<< "$output" \
     && [ ! -e "$T7B/bin-dir/prism-review" ] \
     && [ ! -e "$T7B/pi-agent/settings.json" ] \
     && [ ! -e "$T7B/pi-agent/AGENTS.md" ] \
