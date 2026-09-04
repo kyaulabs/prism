@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: bootstrap-adapter.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -623,12 +623,11 @@ function parseTimestamp(value) {
     return parsed;
 }
 
-function readCoreVersion(coreRoot) {
+function validateCoreManifest(coreRoot) {
     const manifest = readJson(path.join(fs.realpathSync(coreRoot), 'package.json'));
     if (manifest.name !== '@kyaulabs/prism-core' || typeof manifest.version !== 'string') {
         throw new Error('core package manifest is invalid');
     }
-    return manifest.version;
 }
 
 function validateReceiptEvidence(receipt, coreRoot) {
@@ -673,9 +672,9 @@ function validateReceiptEvidence(receipt, coreRoot) {
     ) {
         throw new Error('bootstrap receipt catalogue evidence is stale');
     }
+    validateCoreManifest(coreRoot);
     const adapter = selectCompatibleAdapters({
         catalogue,
-        coreVersion: readCoreVersion(coreRoot),
         bootstrapProtocol: 1,
     }).find((candidate) => candidate.id === receipt.adapter.id);
     if (

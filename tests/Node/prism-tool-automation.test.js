@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-automation.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-automation.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -141,7 +141,7 @@ test('classifies an older owned release workflow as migratable', (t) => {
     fs.writeFileSync(
         workflowPath,
         fs.readFileSync(path.join(CORE_ROOT, 'config', 'release.yml'), 'utf8')
-            .replace('# prism-release-schema: 3', '# prism-release-schema: 2')
+            .replace('# prism-release-schema: 4', '# prism-release-schema: 3')
     );
 
     const inspected = inspectAutomation({

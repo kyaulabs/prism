@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -49,6 +49,8 @@ fi
 RELEASE_FILE="$REPO_ROOT/.github/workflows/release.yml"
 NOTIFY_FILE="$REPO_ROOT/.github/workflows/catalogue-notify.yml"
 CANONICAL_RELEASE_FILE="$REPO_ROOT/packages/prism-core/config/release.yml"
+BACK_MERGE_FILE="$REPO_ROOT/.github/workflows/back-merge.yml"
+CANONICAL_BACK_MERGE_FILE="$REPO_ROOT/packages/prism-core/config/automation/back-merge.yml"
 MANIFEST="$REPO_ROOT/.github/scripts/quality-surface.manifest"
 
 # ── 1. release.yml exists and retired scaffold manifest is absent ────────────
@@ -88,10 +90,30 @@ fi
 if [ -f "$CANONICAL_RELEASE_FILE" ] && \
    cmp -s "$RELEASE_FILE" "$CANONICAL_RELEASE_FILE" && \
    head -5 "$RELEASE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
-   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 3'; then
+   head -5 "$RELEASE_FILE" | grep -qF '# prism-release-schema: 4'; then
 	pass "installed workflow is ownership-marked and byte-identical to the Core template"
 else
 	fail "installed workflow is not ownership-marked or differs from the Core template"
+fi
+
+if [ -f "$BACK_MERGE_FILE" ] && \
+   [ -f "$CANONICAL_BACK_MERGE_FILE" ] && \
+   cmp -s "$BACK_MERGE_FILE" "$CANONICAL_BACK_MERGE_FILE" && \
+   head -5 "$BACK_MERGE_FILE" | grep -qF '# prism-managed: @kyaulabs/prism-core' && \
+   head -5 "$BACK_MERGE_FILE" | grep -qF '# prism-automation-schema: 1'; then
+	pass "back-merge workflow is deployed from the canonical Core provider"
+else
+	fail "back-merge workflow is missing or differs from the canonical Core provider"
+fi
+
+if node -e '
+	const fs = require("node:fs");
+	const yaml = require("js-yaml");
+	yaml.load(fs.readFileSync(process.argv[1], "utf8"));
+' "$BACK_MERGE_FILE" >/dev/null 2>&1; then
+	pass "back-merge workflow is syntactically valid YAML"
+else
+	fail "back-merge workflow is not syntactically valid YAML"
 fi
 
 # ── 2. pull_request closed/main + workflow_dispatch trigger ──────────────────
@@ -264,7 +286,6 @@ validate_workflow_graph() {
 		const names = job.steps.map(({name}) => name).filter(Boolean);
 		const ordered = [
 			"Validate merge SHA and release version",
-			"Install release validation dependencies",
 			"Prepare package release metadata",
 			"Publish release",
 			"Reconcile package tags",
@@ -715,7 +736,7 @@ fi
 PKG_CONFIG="$REPO_ROOT/.prism/release.json"
 if [ -f "$PKG_CONFIG" ] && \
    jq -e '
-	.schemaVersion == 2 and
+	.schemaVersion == 3 and
 	.managedBy == "@kyaulabs/prism-core" and
 	.versionPolicy == "lockstep" and
 	.packages == ["packages/prism-core", "packages/prism-php-web"] and
@@ -723,16 +744,15 @@ if [ -f "$PKG_CONFIG" ] && \
 		"package": "packages/prism-php-web",
 		"id": "php-web",
 		"displayName": "PHP/web",
-		"coreRange": ">=0.4.1 <0.5.0",
 		"bootstrapProtocol": 1,
 		"status": "ACTIVE"
 	}]
    ' "$PKG_CONFIG" >/dev/null && \
    [ "$(jq -r 'keys | sort | join(",")' "$PKG_CONFIG")" = "adapterReleases,managedBy,packages,schemaVersion,versionPolicy" ] && \
-   [ "$(jq -r '.adapterReleases[0] | keys | sort | join(",")' "$PKG_CONFIG")" = "bootstrapProtocol,coreRange,displayName,id,package,status" ]; then
-	pass "9c: .prism/release.json is the exact owned schema-2 lockstep configuration"
+   [ "$(jq -r '.adapterReleases[0] | keys | sort | join(",")' "$PKG_CONFIG")" = "bootstrapProtocol,displayName,id,package,status" ]; then
+	pass "9c: .prism/release.json is the exact owned schema-3 lockstep configuration"
 else
-	fail "9c: .prism/release.json is not the exact owned schema-2 lockstep configuration"
+	fail "9c: .prism/release.json is not the exact owned schema-3 lockstep configuration"
 fi
 
 prepare_line=$(grep -nF -- '- name: Prepare package release metadata' "$RELEASE_FILE" | cut -d: -f1)
@@ -753,15 +773,18 @@ else
 	fail "package preparation/publication/tag ordering contract violated"
 fi
 
-if grep -qF 'npm ci --ignore-scripts --no-audit --no-fund' "$RELEASE_FILE" && \
+if ! grep -qF 'Install release validation dependencies' "$RELEASE_FILE" && \
+   ! grep -qF 'npm ci --ignore-scripts' "$RELEASE_FILE" && \
    grep -qF 'adapterReleases' <<< "$prepare_contract_block" && \
-   grep -qF 'semver.validRange' <<< "$prepare_contract_block" && \
    grep -qF 'prism?.adapter === true' <<< "$prepare_contract_block" && \
+   grep -qF 'const evidence = {schemaVersion: 2' <<< "$prepare_contract_block" && \
    grep -qF '.prism-adapter-release-evidence.json' <<< "$prepare_contract_block" && \
    grep -qF '65536' <<< "$prepare_contract_block" && \
+   ! grep -qF 'coreRange' <<< "$prepare_contract_block" && \
+   ! grep -qF 'semver.validRange' <<< "$prepare_contract_block" && \
    ! grep -qF 'GITHUB_OUTPUT' <<< "$prepare_contract_block" && \
    ! grep -qF 'upload-artifact' <<< "$prepare_contract_block"; then
-	pass "schema-2 declarations are revalidated into bounded local evidence before publication"
+	pass "schema-3 declarations are revalidated into bounded schema-2 local evidence before publication"
 else
 	fail "release workflow lacks closed adapter declaration revalidation or bounded local evidence"
 fi
@@ -787,7 +810,7 @@ package_sim=$(mktemp -d)
 register_temp_dir "$package_sim"
 mkdir -p "$package_sim/.prism" "$package_sim/packages/example"
 printf 'reviewed notes\n' > "$package_sim/body.md"
-printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+printf '%s\n' '{"schemaVersion":3,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 
 if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package release metadata"); then
@@ -796,14 +819,14 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
 	) && grep -qF $'example\t@fixture/example\tpackages/example\t1.2.3' "$package_sim/.prism-package-tags.tsv" && \
 	   grep -qF -- '- example@1.2.3' "$package_sim/body.md"; then
-		pass "schema-v2 package metadata validates and prepares inert tags and notes"
+		pass "schema-v3 package metadata validates and prepares inert tags and notes"
 	else
-		fail "schema-v2 package metadata preparation failed"
+		fail "schema-v3 package metadata preparation failed"
 	fi
 
 	cat > "$package_sim/.prism/release-valid.json" <<'EOF'
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "managedBy": "@kyaulabs/prism-core",
   "versionPolicy": "lockstep",
   "packages": ["packages/example"],
@@ -811,7 +834,6 @@ if package_prepare_block=$(extract_run_block "$RELEASE_FILE" "Prepare package re
     "package": "packages/example",
     "id": "fixture-adapter",
     "displayName": "Fixture adapter",
-    "coreRange": ">=1.2.3 <2.0.0",
     "bootstrapProtocol": 1,
     "status": "ACTIVE"
   }]
@@ -824,7 +846,7 @@ EOF
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
 	) && jq -e '. == {
-		"schemaVersion": 1,
+		"schemaVersion": 2,
 		"releaseVersion": "1.2.3",
 		"adapterReleases": [{
 			"package": "packages/example",
@@ -832,7 +854,6 @@ EOF
 			"displayName": "Fixture adapter",
 			"packageName": "@fixture/example",
 			"version": "1.2.3",
-			"coreRange": ">=1.2.3 <2.0.0",
 			"bootstrapProtocol": 1,
 			"status": "ACTIVE"
 		}]
@@ -859,10 +880,10 @@ EOF
 	reject_adapter_declaration "unknown-field" '.adapterReleases[0].unknown = true'
 	reject_adapter_declaration "unmanaged-package" '.adapterReleases[0].package = "packages/missing"'
 	reject_adapter_declaration "protocol-disagreement" '.adapterReleases[0].bootstrapProtocol = 2'
-	reject_adapter_declaration "malformed-range" '.adapterReleases[0].coreRange = "not-a-range"'
+	reject_adapter_declaration "removed-range" '.adapterReleases[0].coreRange = ">=1.2.3 <2.0.0"'
 	reject_adapter_declaration "duplicate" '.adapterReleases += [.adapterReleases[0]]'
 
-	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":3,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	printf '%s\n' '{"name":"@fixture/example","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
 	printf 'reviewed notes\n' > "$package_sim/body.md"
 	printf '%s\n' '{"name":"-fixture","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
@@ -890,7 +911,7 @@ EOF
 	mkdir -p "$traversal_sim/project/.prism"
 	printf 'reviewed notes\n' > "$traversal_sim/project/body.md"
 	printf '%s\n' '{"name":"@fixture/outside","version":"1.2.3"}' > "$traversal_sim/package.json"
-	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[".."],"adapterReleases":[]}' > "$traversal_sim/project/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":3,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[".."],"adapterReleases":[]}' > "$traversal_sim/project/.prism/release.json"
 	if (
 		cd "$traversal_sim/project" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=pull_request bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -967,7 +988,7 @@ EOF
 		pass "pull-request publication rejects legacy package configuration"
 	fi
 
-	printf '%s\n' '{"schemaVersion":2,"managedBy":"other","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":3,"managedBy":"other","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -979,7 +1000,7 @@ EOF
 
 	mkdir -p "$package_sim/1"
 	printf '%s\n' '{"name":"@fixture/numeric","version":"1.2.3"}' > "$package_sim/1/package.json"
-	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[1],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":3,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":[1],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -992,7 +1013,7 @@ EOF
 	tab_package=$'packages/tab\tpkg'
 	mkdir -p "$package_sim/$tab_package"
 	printf '%s\n' '{"name":"@fixture/tabbed","version":"1.2.3"}' > "$package_sim/$tab_package/package.json"
-	node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({schemaVersion:2,managedBy:"@kyaulabs/prism-core",versionPolicy:"lockstep",packages:["packages/tab\tpkg"],adapterReleases:[]})+"\n")' "$package_sim/.prism/release.json"
+	node -e 'const fs=require("node:fs");fs.writeFileSync(process.argv[1],JSON.stringify({schemaVersion:3,managedBy:"@kyaulabs/prism-core",versionPolicy:"lockstep",packages:["packages/tab\tpkg"],adapterReleases:[]})+"\n")' "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -1003,7 +1024,7 @@ EOF
 	fi
 
 	printf '%s\n' '{"name":"@fixture/bad..tag","version":"1.2.3"}' > "$package_sim/packages/example/package.json"
-	printf '%s\n' '{"schemaVersion":2,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
+	printf '%s\n' '{"schemaVersion":3,"managedBy":"@kyaulabs/prism-core","versionPolicy":"lockstep","packages":["packages/example"],"adapterReleases":[]}' > "$package_sim/.prism/release.json"
 	if (
 		cd "$package_sim" || exit 1
 		VERSION=1.2.3 GITHUB_EVENT_NAME=workflow_dispatch bash -c "$package_prepare_block" >/dev/null 2>&1
@@ -1661,17 +1682,16 @@ release_authoring_section=$(awk '
 	/^## Commit the changelog$/ { capture = 0 }
 	capture
 ' "$RELEASE_CMD")
-if grep -qF '"schemaVersion": 2' <<< "$release_authoring_section" && \
+if grep -qF '"schemaVersion": 3' <<< "$release_authoring_section" && \
    grep -qF '"adapterReleases"' <<< "$release_authoring_section" && \
    grep -qF 'unknown declaration fields' <<< "$release_authoring_section" && \
    grep -qF 'release-managed public package' <<< "$release_authoring_section" && \
-   grep -qF 'malformed ranges' <<< "$release_authoring_section" && \
+   grep -qF 'removed `coreRange` field' <<< "$release_authoring_section" && \
    grep -qF 'unmanaged declaration packages' <<< "$release_authoring_section" && \
    grep -qF 'protocol disagreement' <<< "$release_authoring_section" && \
    grep -qF 'declaration/package version disagreement' <<< "$release_authoring_section" && \
    grep -qF 'prism.adapter' <<< "$release_authoring_section" && \
    grep -qF 'bootstrapProtocol' <<< "$release_authoring_section" && \
-   grep -qF 'coreRange' <<< "$release_authoring_section" && \
    grep -qF 'revalidate' <<< "$release_authoring_section" && \
    grep -qF 'must not rewrite compatibility' <<< "$release_authoring_section" && \
    grep -qF 'version to equal the exact confirmed `X.Y.Z`' <<< "$release_authoring_section"; then

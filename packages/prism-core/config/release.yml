@@ -1,5 +1,5 @@
 # prism-managed: @kyaulabs/prism-core
-# prism-release-schema: 3
+# prism-release-schema: 4
 name: Release
 
 on:
@@ -177,9 +177,6 @@ jobs:
             echo "RELEASE_BODY_TRUNCATED=no" >> "${GITHUB_ENV:-/dev/null}"
           fi
 
-      - name: Install release validation dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
       - name: Prepare package release metadata
         id: package_metadata
         run: |
@@ -203,7 +200,7 @@ jobs:
               echo "::error::$config_file exceeds the 1 MiB limit" >&2
               exit 1
             fi
-            managed='type == "object" and (keys | sort) == ["adapterReleases","managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 2 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0 and all(.[]; type == "string")) and (.adapterReleases | type == "array" and length <= 64)'
+            managed='type == "object" and (keys | sort) == ["adapterReleases","managedBy","packages","schemaVersion","versionPolicy"] and .schemaVersion == 3 and .managedBy == "@kyaulabs/prism-core" and .versionPolicy == "lockstep" and (.packages | type == "array" and length > 0 and all(.[]; type == "string")) and (.adapterReleases | type == "array" and length <= 64)'
             legacy='type == "object" and keys == ["packages"] and (.packages | type == "array" and length > 0 and all(.[]; type == "string"))'
             if jq -e "$managed" "$config_file" >/dev/null 2>&1; then
               :
@@ -277,13 +274,11 @@ jobs:
 
           node - <<'NODE'
           const fs = require('node:fs');
-          const semver = require('semver');
 
           const CONFIG_PATH = '.prism/release.json';
           const EVIDENCE_PATH = '.prism-adapter-release-evidence.json';
           const ENTRY_KEYS = [
             'bootstrapProtocol',
-            'coreRange',
             'displayName',
             'id',
             'package',
@@ -306,7 +301,7 @@ jobs:
             const rootKeys = Object.keys(configuration).sort();
             const managed =
               JSON.stringify(rootKeys) === JSON.stringify(ROOT_KEYS) &&
-              configuration.schemaVersion === 2 &&
+              configuration.schemaVersion === 3 &&
               configuration.managedBy === '@kyaulabs/prism-core' &&
               configuration.versionPolicy === 'lockstep';
             const legacy =
@@ -336,8 +331,6 @@ jobs:
               declaration.displayName.length > 120 ||
               declaration.displayName !== declaration.displayName.trim() ||
               /[\u0000-\u001f\u007f]/u.test(declaration.displayName) ||
-              typeof declaration.coreRange !== 'string' ||
-              semver.validRange(declaration.coreRange) !== declaration.coreRange ||
               !Number.isSafeInteger(declaration.bootstrapProtocol) ||
               declaration.bootstrapProtocol <= 0 ||
               !['ACTIVE', 'REVOKED'].includes(declaration.status)
@@ -360,7 +353,6 @@ jobs:
                 displayName: declaration.displayName,
                 packageName: manifest.name,
                 version: manifest.version,
-                coreRange: declaration.coreRange,
                 bootstrapProtocol: declaration.bootstrapProtocol,
                 status: declaration.status,
               };
@@ -368,7 +360,7 @@ jobs:
             throw new Error('adapter package evidence is invalid');
           });
 
-          const evidence = {schemaVersion: 1, releaseVersion, adapterReleases};
+          const evidence = {schemaVersion: 2, releaseVersion, adapterReleases};
           const bytes = Buffer.from(`${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
           if (bytes.length > 65536) throw new Error('adapter release evidence is too large');
           const existing = fs.lstatSync(EVIDENCE_PATH, {throwIfNoEntry: false});

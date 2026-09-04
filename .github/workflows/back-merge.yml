@@ -1,0 +1,32 @@
+# prism-managed: @kyaulabs/prism-core
+# prism-automation-schema: 1
+name: Back-merge main to develop
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: back-merge-main-to-develop
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or reuse back-merge pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing="$(gh pr list --state open --base develop --head main --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Back-merge pull request #$existing already exists."
+            exit 0
+          fi
+          gh pr create --base develop --head main --title "chore: back-merge main into develop" --body "Automated back-merge after a successful merge into main."

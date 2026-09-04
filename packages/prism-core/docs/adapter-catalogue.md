@@ -61,7 +61,7 @@ The decoded payload has exactly this shape:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "catalogueId": "kyaulabs/prism-adapters",
   "sequence": 42,
   "issuedAt": "2026-08-27T00:00:00Z",
@@ -74,7 +74,6 @@ The decoded payload has exactly this shape:
       "releases": [
         {
           "version": "1.8.2",
-          "coreRange": ">=1.3.0 <2.0.0",
           "bootstrapProtocol": 1,
           "integrity": "sha512-<canonical npm integrity>",
           "publishedAt": "2026-08-26T00:00:00Z",
@@ -97,26 +96,28 @@ Payload rules:
 - Adapter IDs and package names are unique. Package names use the
   `@kyaulabs/` scope.
 - Each adapter contains 1 to 256 releases with unique exact SemVer versions.
-- Every release has a valid Core SemVer range, a positive bootstrap protocol,
-  canonical `sha512-` npm integrity, and status `ACTIVE` or `REVOKED`.
+- Every release has a positive bootstrap protocol, canonical `sha512-` npm
+  integrity, and status `ACTIVE` or `REVOKED`.
 - Unknown fields, duplicate records, malformed values, and unsupported schema
   versions invalidate the complete catalogue.
 
 ## Compatible release selection
 
 Core validates the complete payload before selecting a release. For each
-adapter it keeps releases that are:
-
-- `ACTIVE`;
-- stable, not prerelease versions;
-- compatible with the running Core version through `coreRange`; and
-- on Core's exact bootstrap protocol.
+adapter it keeps releases that are `ACTIVE`, stable rather than prerelease, and
+on Core's exact bootstrap protocol. The protocol is the sole runtime
+compatibility discriminator.
 
 Core selects the highest remaining SemVer release for each adapter. It displays
-the exact package, version, protocol, and integrity. The later selection command
-accepts only the adapter ID and the retained envelope digest, reloads that exact
-verified cache entry, reruns compatibility selection, and derives all package
-authority from signed data.
+the exact package, version, protocol, and integrity. The later selection command accepts only the adapter ID and the retained
+envelope digest, reloads that exact verified cache entry, reruns protocol
+selection, and derives all package authority from signed data.
+
+Catalogue payload schema 2 is an in-place cutoff. Core v0.5.0 accepts only the
+retired range-based payload and therefore fails closed after schema 2 is
+published. Upgrade Core manually to v0.5.1 or newer before retrying adapter
+selection. The publisher never restores schema 1 after migration; recovery
+uses a newer reviewed and signed sequence.
 
 Strict-empty acquisition always uses an exact npm coordinate:
 
@@ -168,9 +169,9 @@ on a newer global catalogue or extend the original selection's authority.
 ## Release declaration authority
 
 The adapter release declaration in a reviewed Prism release commit is the
-compatibility authority for catalogue publication. It binds a release-managed
-public package path to the adapter ID, display name, Core range, bootstrap
-protocol, and status. Package name and version are derived from the validated
+release authority for catalogue publication. It binds a release-managed public
+package path to the adapter ID, display name, bootstrap protocol, and status.
+Package name and version are derived from the validated
 package manifest; the declaration cannot provide registry, integrity,
 timestamp, command, credential, sequence, branch, or signing data.
 
@@ -180,9 +181,12 @@ JSON evidence. That file is neither signing input nor catalogue authority by
 itself, and this workflow does not publish it outside the runner.
 
 The publisher independently revalidates the Prism Release, merge commit,
-package tag, reviewed declaration, and exact npm evidence. Dispatch data only
-identifies evidence to retrieve; it cannot supply compatibility or signing
-input.
+package tag, reviewed declaration, and exact npm evidence. After those checks,
+it accepts the first recorded adapter release or requires the incoming stable
+version to be strictly newer than the latest recorded version. Ordering is one
+global history per adapter; status and bootstrap protocol do not reset it.
+Dispatch data only identifies evidence to retrieve; it cannot supply release or
+signing input.
 
 ## Publisher responsibilities
 

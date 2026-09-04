@@ -58,8 +58,8 @@ documentation, and conversation.
 | bootstrap workspace | The Core-owned ephemeral operational area for one empty-project bootstrap transaction. An adapter may receive a bounded attempt subdirectory without gaining ownership of the outer transaction. |
 | project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
 | trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
-| supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
-| adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, compatibility range, bootstrap protocol, and publication status without supplying registry or signing authority. |
+| supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest active stable release matching its bootstrap protocol, then pins that exact version. |
+| adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, bootstrap protocol, and publication status without supplying registry or signing authority. |
 | catalogue publication transaction | The serialized cross-repository workflow that validates immutable Prism release and npm evidence, signs the next catalogue sequence in the protected publisher environment, and opens a human-merged publication pull request. |
 | publication commit-signing authority | The separate OpenPGP authority that signs catalogue publication commits and remains independent from catalogue-envelope signing and PAT authorization. Core attests its public identity and custody boundary; the publisher owns fingerprints, signing mechanics, and private material. |
 | catalogue evidence | Receipt-local signed evidence (`catalogueEvidence`) that binds a strict-empty adapter selection to the exact verified catalogue envelope, signing key, sequence, validity window, selected release, and package integrity. |
@@ -275,7 +275,9 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   creates or verifies package tags at the immutable merge SHA.
 - A stable release with reconciled package tags and a valid adapter release
   declaration may emit ADR-0095's minimal catalogue dispatch; the publisher
-  independently revalidates release, package-tag, declaration, and npm evidence.
+  independently revalidates release, package-tag, declaration, npm evidence,
+  and that the release is the first or is newer than the latest recorded
+  adapter version.
 - Validated release merges remain eligible for a human-merged back-merge PR
   even when publication or package-tag reconciliation fails.
 - npm authentication, OTP handling, and publication remain human-owned; agents
@@ -461,11 +463,12 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   permit only protected default-branch GitHub Actions jobs to consume isolated
   signing and GitHub App credentials for catalogue publication.
 - **No general push or merge automation** — humans push ordinary work branches
-  and merge every pull request. Release CI creates validated tags/Releases and
-  opens the human-merged back-merge PR; ADR-0095 additionally permits trusted
-  publisher CI to create one sequence-specific non-protected branch and open
-  its human-merged catalogue publication PR. No workflow pushes a protected
-  branch or merges a pull request.
+  and merge every pull request. Release CI creates validated tags/Releases;
+  the separate Core back-merge workflow opens the human-merged back-merge PR.
+  ADR-0095 additionally permits trusted publisher CI to create one
+  sequence-specific non-protected branch and open its human-merged catalogue
+  publication PR. No workflow pushes a protected branch or merges a pull
+  request.
 - **No bundled LSP servers** — language servers remain system/project
   responsibilities.
 - **No model fine-tuning or hosting** — Pi and upstream providers own model
@@ -556,6 +559,9 @@ Pi-era decisions:
 - `adr/0103-deterministic-review-authority-and-staged-ocr-cutover.md` — bind
   finalization review to criteria and check receipts, introduce review-chain
   version two, and replace OCR only after a human release/install checkpoint.
+- `adr/0104-protocol-only-adapter-compatibility.md` — use bootstrap protocol as
+  the sole adapter compatibility discriminator and admit only a first or
+  semantically newer stable release.
 
 ## When to update this file
 
