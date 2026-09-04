@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 set -euo pipefail
 
@@ -346,8 +346,9 @@ JSEOF
 cat > "$T14/pi-agent/local-core/scripts/prism-review.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
+const {version} = require('../package.json');
 if (process.argv[2] !== '--version') process.exit(2);
-process.stdout.write('0.4.3\n');
+process.stdout.write(`${version}\n`);
 JSEOF
 chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js" \
     "$T14/pi-agent/local-core/scripts/prism-review.js"
