@@ -1,7 +1,7 @@
 # Spec: Markdown-only OCR exemption
 
 **Date:** 2026-09-05
-**Status:** Draft — design confirmed; specification awaiting review
+**Status:** Approved — implementation awaits plan approval
 
 ## Problem Statement
 
