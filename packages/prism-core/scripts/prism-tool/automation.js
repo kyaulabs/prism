@@ -122,13 +122,22 @@ function readExistingOutput(projectRoot, relativePath) {
     const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
-        const contents = fs.readFileSync(descriptor);
+        if (!held.isFile() || held.size > MAX_OUTPUT_BYTES || !sameFile(initial, held)) {
+            throw new Error('automation output changed');
+        }
+        const contents = readBounded(
+            descriptor,
+            MAX_OUTPUT_BYTES,
+            'automation output changed'
+        );
+        const final = fs.fstatSync(descriptor);
         const currentFile = fs.lstatSync(filePath);
         if (
-            !held.isFile() ||
-            !sameFile(initial, held) ||
+            !sameFile(held, final) ||
             !sameFile(held, currentFile) ||
-            contents.length !== held.size
+            contents.length !== held.size ||
+            final.size !== held.size ||
+            final.mode !== held.mode
         ) {
             throw new Error('automation output changed');
         }
@@ -302,6 +311,14 @@ function readMetadataInput(projectRoot, metadataPath, capabilities) {
     }
 }
 
+function adapterMatchesManifest(adapter, identity, schemaVersion) {
+    if (adapter === null || identity === null) return adapter === identity;
+    return adapter.packageName === identity.packageName &&
+        adapter.packageVersion === identity.packageVersion &&
+        adapter.bootstrapProtocol === identity.bootstrapProtocol &&
+        (schemaVersion === 1 || adapter.id === identity.id);
+}
+
 function establishedConfiguration({
     projectRoot,
     coreRoot,
@@ -331,9 +348,12 @@ function establishedConfiguration({
     const selectedCapabilities = metadataPath === null
         ? current.value.capabilities
         : capabilities;
-    const selectedAdapter = adapterIdentity(adapter);
+    const discoveredAdapter = adapterIdentity(adapter);
+    const selectedAdapter = current?.value.schemaVersion === 1
+        ? current.value.adapter
+        : discoveredAdapter;
     if (metadataPath === null && (
-        JSON.stringify(current.value.adapter) !== JSON.stringify(selectedAdapter) ||
+        !adapterMatchesManifest(current.value.adapter, discoveredAdapter, current.value.schemaVersion) ||
         (releaseRepository === null) !== !selectedCapabilities.includes('release-management') ||
         (releaseRepository !== null &&
             current.value.capabilityMetadata['release-management'].repository !== releaseRepository)
@@ -376,9 +396,11 @@ function renderCanonicalProviders({
         reports.push(quality);
     }
     if (established !== null) {
-        if (JSON.stringify(established.adapter) !== JSON.stringify(adapterIdentity(adapter))) {
-            throw new AutomationFailure('automation-project-metadata-invalid');
-        }
+        if (!adapterMatchesManifest(
+            established.adapter,
+            adapterIdentity(adapter),
+            established.schemaVersion
+        )) throw new AutomationFailure('automation-project-metadata-invalid');
         reports.push(renderEstablishedProjectProvider({
             coreRoot,
             candidateRoot,

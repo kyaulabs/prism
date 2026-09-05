@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+# $KYAULabs: install-hooks_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 set -euo pipefail
 
@@ -9,7 +9,34 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 REAL_SCRIPT="$REPO_ROOT/packages/prism-core/scripts/install-hooks.sh"
-CANONICAL_ROOT="$REPO_ROOT/packages/prism-core/config/bootstrap/hooks"
+install_core_identity() {
+    local project_root="$1"
+    mkdir -p "$project_root/.prism" "$project_root/.github/workflows"
+    cp "$REPO_ROOT/packages/prism-core/config/automation/back-merge.yml" \
+        "$project_root/.github/workflows/back-merge.yml"
+    node - "$REPO_ROOT" "$project_root" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const repositoryRoot = process.argv[2];
+const projectRoot = process.argv[3];
+const coreRoot = path.join(repositoryRoot, 'packages/prism-core');
+const {renderProjectManifest} = require(path.join(
+    coreRoot, 'scripts/prism-tool/project-manifest'
+));
+fs.writeFileSync(path.join(projectRoot, '.prism/project.json'), renderProjectManifest({
+    schemaVersion: 2,
+    source: {mode: 'ESTABLISHED', evidence: null},
+    capabilities: [],
+    metadata: {
+        schemaVersion: 1,
+        displayName: 'Hook Fixture',
+        summary: 'An established Core-only hook fixture.',
+    },
+    coreVersion: require(path.join(coreRoot, 'package.json')).version,
+    adapter: null,
+}), {mode: 0o644});
+NODE
+}
 
 T1=$(mktemp -d)
 register_temp_dir "$T1"
@@ -22,26 +49,19 @@ git_init_test_repo "$T1"
     printf '#!/usr/bin/env bash\nexit 0\n' > .github/hooks/custom-hook
     chmod 0755 .github/hooks/custom-hook
     if PATH="$T1/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
-        for hook in commit-msg pre-commit pre-push prepare-commit-msg; do
-            if cmp -s ".github/hooks/$hook" "$CANONICAL_ROOT/$hook" && \
-               [ -x ".github/hooks/$hook" ]; then
-                pass "$hook is canonical and executable"
-            else
-                fail "$hook is not canonical and executable"
-            fi
-        done
-        if [ "$(git config --local core.hooksPath)" = ".github/hooks" ]; then
-            pass "core.hooksPath is the canonical repository-local path"
-        else
-            fail "core.hooksPath is not canonical"
-        fi
-        if [ -f .github/hooks/custom-hook ]; then
-            pass "unrelated hooks are preserved"
-        else
-            fail "unrelated hook was removed"
-        fi
+        fail "install-hooks.sh activated hooks without project identity"
     else
-        fail "install-hooks.sh failed to reconcile an empty repository"
+        pass "install-hooks.sh requires verified project identity"
+    fi
+    if [ -f .github/hooks/custom-hook ]; then
+        pass "unrelated hooks are preserved"
+    else
+        fail "unrelated hook was removed"
+    fi
+    if git config --local --get core.hooksPath >/dev/null 2>&1; then
+        fail "core.hooksPath changed before project verification"
+    else
+        pass "core.hooksPath remains inactive before project verification"
     fi
 )
 
@@ -53,6 +73,7 @@ git_init_test_repo "$T2"
     mkdir -p packages/prism-core/scripts .github/hooks bin
     cp "$REAL_SCRIPT" packages/prism-core/scripts/install-hooks.sh
     ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
+    install_core_identity "$T2"
     printf '#!/usr/bin/env bash\necho human\n' > .github/hooks/pre-commit
     chmod 0755 .github/hooks/pre-commit
     if PATH="$T2/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then

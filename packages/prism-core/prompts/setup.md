@@ -414,53 +414,96 @@ setup executes no hosted or Git publication command.
 Run this section only for route applicability `ESTABLISHED` after confirming
 that no empty-project bootstrap attempt is active. It performs no package or
 adapter acquisition, dependency update, registry access, network access,
-GitHub mutation, commit, or push. The active adapter must already be trusted by
-project-local Pi evidence. A missing, ambiguous, or incomplete provider makes
-automation `NO-GO`; report it without loading arbitrary project code.
+GitHub mutation, commit, or push. A Prism source checkout does not use this
+consumer path; source-checkout applicability remains assigned to issue #501.
 
 Use this fixed order. Do not skip planning on a current or repeat invocation:
 
-1. Inspect trusted baseline and active-adapter providers without mutation:
+1. Run local readiness before project metadata or automation inspection:
+
+   ```bash
+   prism-tool doctor --local-only
+   ```
+
+   A failure stops established setup. Do not install a prerequisite or turn a
+   failed check into a warning.
+
+2. Verify the requested composition and inspect the base metadata fields with
+   exactly one matching command:
+
+   ```bash
+   prism-tool setup project metadata --source=established --adapter=core-only --json
+   prism-tool setup project metadata --source=established --adapter=active --json
+   ```
+
+   Use `core-only` only when project-local discovery proves that no adapter is
+   present. Report that result as `CORE_ONLY`; report one exact validated
+   adapter as `ADAPTER`. Invalid, malformed, ambiguous, escaping, symlinked, or
+   incomplete adapter evidence is not absence and must never become
+   `CORE_ONLY`. Require the closed metadata report, the canonical project root,
+   source `ESTABLISHED`, the selected nullable adapter identity, and one passing
+   check. Do not gather values yet.
+
+3. Inspect the trusted Core baseline and optional active-adapter provider
+   without mutation:
 
    ```bash
    prism-tool automation inspect --json
    ```
 
-   Require the closed schema, status `GO`, disposition `CREATE`, `CURRENT`, or
-   `MIGRATE`, exact Core back-merge and adapter quality providers,
-   non-overlapping outputs, ownership classifications, and passing checks.
-   `CONFLICT` or provider failure is `NO-GO`: preserve every project file and
+   Require report schema version `2`, composition `CORE_ONLY` or `ADAPTER`,
+   status `GO`, disposition `CREATE`, `CURRENT`, or `MIGRATE`, non-overlapping
+   outputs, bounded ownership classifications, and passing checks. `CORE_ONLY`
+   must contain no adapter provider or adapter execution. `CONFLICT`, null
+   composition, or provider failure is `NO-GO`: preserve every project file and
    stop repository automation without attempting hooks.
 
-2. Ask the only repository-automation capability question:
+4. Ask the only repository-automation capability question:
 
    ```text
    Enable repository release management? (yes/no)
    ```
 
-   Accept only literal `yes`, then ask for and confirm one
-   `OWNER/REPOSITORY` coordinate. Validate the coordinate through the
-   automation command; do not infer it from a remote or contact GitHub. A
-   literal `no` omits only the Core repository-release provider and never
-   removes an existing file.
+   A literal `yes` requires one confirmed `OWNER/REPOSITORY` coordinate and
+   capability `release-management`; literal `no` selects no capability. Do not
+   infer the coordinate from a remote or contact GitHub. Run metadata inspection
+   again with `--capabilities=release-management` only when release management
+   was selected. Gather each declared field in report order. The release
+   repository in the metadata must equal the automation control exactly.
 
-3. Produce the immutable plan with the validated control:
+5. Create `.pi/prism-tool/` as a private directory, create
+   `.pi/prism-tool/established-metadata.json` at mode `0600`, and write the
+   validated compact JSON through Pi's file tool. This project-local inert metadata payload is not shell source. It contains only schema version `1`,
+   `displayName`, `summary`, and selected `capabilityMetadata`. Do not pass a
+   value as a command option, interpolate it into shell syntax, or infer
+   metadata from repository files.
+
+6. Produce one immutable transaction plan with the literal payload path and
+   matching release control:
 
    ```bash
-   prism-tool automation plan --json
-   prism-tool automation plan --release-repository=OWNER/REPOSITORY --json
+   prism-tool automation plan --metadata=.pi/prism-tool/established-metadata.json --json
+   prism-tool automation plan --metadata=.pi/prism-tool/established-metadata.json --release-repository=OWNER/REPOSITORY --json
    ```
 
-   Run exactly one matching command. Require a project-local plan beneath
-   `.pi/prism-tool/automation/`, a lowercase SHA-256 digest, the same Git
-   precondition and provider set, and complete output dispositions. Display the
-   whole report and diff before asking:
+   Require `PLAN_READY`, the same `CORE_ONLY` or `ADAPTER` composition, a
+   project-local plan beneath `.pi/prism-tool/automation/`, a lowercase SHA-256
+   digest, the same Git precondition and provider identities, and complete
+   output dispositions. The plan must include `.prism/project.json` under the
+   Core project-manifest provider. Valid schema-one Blank and Template manifests
+   remain schema one unless their own metadata is being changed; a new
+   established manifest uses schema two and source
+   `{"mode":"ESTABLISHED","evidence":null}`.
+
+   Once the successful plan has retained the normalized metadata, remove only
+   the transient metadata payload. Display the complete report and diff, then
+   ask:
 
    ```text
    Apply the complete displayed repository automation plan? (yes/no)
    ```
 
-4. Only literal `yes` authorizes the exact planned mutation:
+7. Only literal `yes` authorizes the exact planned mutation:
 
    ```bash
    prism-tool automation apply --plan=/validated/project-local/plan.json --approval=yes --json
@@ -469,7 +512,8 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    A decline writes no provider output. On apply failure, report the retained
    transaction evidence and recovery action; do not reconcile hooks.
 
-5. Verify every provider with the same repository-release control:
+8. Verify the manifest and every applicable provider with the same release
+   control:
 
    ```bash
    prism-tool automation verify --json
@@ -477,10 +521,10 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    ```
 
    Run exactly one matching command. Continue only for status `GO`, disposition
-   `CURRENT`, exact canonical bytes and modes, and passing Core and adapter
-   checks.
+   `CURRENT`, the same composition, exact canonical bytes and modes, and passing
+   Core and optional adapter checks.
 
-6. Display the canonical four-hook reconciliation boundary and ask:
+9. Offer hook activation only after manifest and provider verification pass. Display the canonical four-hook reconciliation boundary and ask:
 
    ```text
    Activate the displayed canonical Git hooks? (yes/no)
@@ -495,14 +539,21 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    Require `GO`, `CURRENT`, the exact `pre-commit`, `commit-msg`,
    `prepare-commit-msg`, and `pre-push` inventory, no unowned collision, no
    unresolved obsolete managed hook, and effective repository-local
-   `core.hooksPath`. The reconciliation report is the hook verification. A
-   decline or failed check leaves final repository automation incomplete.
+   `core.hooksPath`. The command revalidates the strict manifest, composition,
+   and all automation providers before writing hooks. A null-adapter manifest
+   takes the Core-only hook path and loads no adapter.
 
-7. Report automation `GO` only after provider verification and hook
-   verification both pass. Distinguish applied, current, declined, conflict,
-   and recovery-required state. Then continue at **1. Pre-flight**. OCR consent
-   and bounded-web consent remain independent later stages and never authorize
-   repository automation.
+10. Run the post-setup hook proof:
+
+    ```bash
+    prism-tool hook pre-commit
+    ```
+
+    Report automation `GO` only after automation verification, hook
+    reconciliation, and this proof all pass. Distinguish applied, current,
+    declined, conflict, and recovery-required state. Then continue at
+    **1. Pre-flight**. OCR consent and bounded-web consent remain independent
+    later stages and never authorize repository automation.
 
 Strict-empty setup follows the same applicability rules inside its complete
 bootstrap plan: Core back-merge, active-adapter quality automation, optional
