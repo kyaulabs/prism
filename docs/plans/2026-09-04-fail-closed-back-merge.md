@@ -243,7 +243,7 @@ prism-tool commit create --type fix --scope automation --subject "compare protec
 
 **Interfaces:** A positive comparison reaches `gh pr list --repo "$GITHUB_REPOSITORY" --base develop --head main --state open --limit 2 --json number`. Two results suffice to establish ambiguity. A JSON array of objects with positive integer PR numbers projects to a count; other shapes project to the closed invalid sentinel.
 
-- [ ] **Step 1: Append these scenarios to the Node test.**
+- [x] **Step 1: Append these scenarios to the Node test.**
 
 ```javascript
 const ahead = {command: 'compare', json: {ahead_by: 3}};
@@ -270,8 +270,8 @@ for (const json of [null, {}, {number: 7}, [null], [{}], [{number: '7'}],
 }
 ```
 
-- [ ] **Step 2: Run RED.** Run `node --test tests/Node/back-merge-workflow.test.js`. New tests must expose the unqualified first-result query; comparison tests remain green.
-- [ ] **Step 3: Replace the original `existing=...` through the final create command in both YAML files with this block.** Keep the comparison from Task 1 above it.
+- [x] **Step 2: Run RED.** Run `node --test tests/Node/back-merge-workflow.test.js`. New tests must expose the unqualified first-result query; comparison tests remain green.
+- [x] **Step 3: Replace the original `existing=...` through the final create command in both YAML files with this block.** Keep the comparison from Task 1 above it.
 
 ```bash
 inspect_open_prs() {
@@ -314,8 +314,8 @@ exit 1
 
 The shared inspection function keeps initial and recovery queries identical. It is fixed workflow code, not a source/eval mechanism. The final two lines are the fail-closed baseline that Task 3 extends.
 
-- [ ] **Step 4: Run GREEN and refactor.** Repeat the focused Node command and byte-equality command. Expected: every comparison/inspection scenario passes; no real network calls.
-- [ ] **Step 5: Commit.** Stage the three paths, then use a separate exclusive call:
+- [x] **Step 4: Run GREEN and refactor.** Repeat the focused Node command and byte-equality command. Expected: every comparison/inspection scenario passes; no real network calls.
+- [x] **Step 5: Commit.** Stage the three paths, then use a separate exclusive call:
 
 ```bash
 prism-tool commit create --type fix --scope automation --subject "validate exact back-merge pull-request state" --refs 517

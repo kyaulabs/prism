@@ -123,4 +123,32 @@ test('execution is bounded and uses explicit strict Bash', () => {
     assert.match(job.steps[0].run, /^set -euo pipefail\n/);
 });
 
+const ahead = {command: 'compare', json: {ahead_by: 3}};
+scenario('ahead and absent PR creates the intended PR',
+    [ahead, {command: 'list', json: []}, {command: 'create'}], 0,
+    'opened back-merge pull request\n', '');
+scenario('one existing PR is reused',
+    [ahead, {command: 'list', json: [{number: 7}]}], 0,
+    'open back-merge pull request already exists; nothing to do\n', '');
+scenario('multiple existing PRs are ambiguous',
+    [ahead, {command: 'list', json: [{number: 7}, {number: 8}]}], 1, '',
+    '::error::back-merge pull-request state is ambiguous\n');
+scenario('failed PR query stops before create',
+    [ahead, {command: 'list', status: 17}], 1, '',
+    '::error::back-merge pull-request inspection failed\n');
+scenario('invalid JSON PR query fails closed',
+    [ahead, {command: 'list', raw: '{'}], 1, '',
+    '::error::back-merge pull-request inspection failed\n');
+
+for (const json of [null, {}, {number: 7}, [null], [{}], [{number: '7'}],
+    [{number: 0}], [{number: -1}], [{number: 1.5}], [{number: true}]]) {
+    scenario('malformed PR query ' + JSON.stringify(json),
+        [ahead, {command: 'list', json}], 1, '',
+        '::error::back-merge pull-request state was malformed\n');
+}
+
+scenario('failed creation reports a specific diagnostic',
+    [ahead, {command: 'list', json: []}, {command: 'create', status: 17}], 1, '',
+    '::error::back-merge pull-request creation failed\n');
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
